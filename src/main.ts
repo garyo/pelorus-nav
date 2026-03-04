@@ -1,36 +1,23 @@
-import maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import "./style.css";
+import {
+  ChartManager,
+  ChartSwitcherControl,
+  NOAAChartProvider,
+  NOAAECDISProvider,
+  OSMChartProvider,
+} from "./chart";
 
-const map = new maplibregl.Map({
+const chartManager = new ChartManager({
   container: "map",
-  style: {
-    version: 8,
-    sources: {
-      osm: {
-        type: "raster",
-        tiles: ["https://tile.openstreetmap.org/{z}/{x}/{y}.png"],
-        tileSize: 256,
-        attribution:
-          '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
-      },
-    },
-    layers: [
-      {
-        id: "osm-tiles",
-        type: "raster",
-        source: "osm",
-        minzoom: 0,
-        maxzoom: 19,
-      },
-    ],
-  },
   center: [-71.06, 42.36], // Boston Harbor
   zoom: 12,
+  providers: [
+    new NOAAChartProvider(),
+    new NOAAECDISProvider(),
+    new OSMChartProvider(),
+  ],
+  initialProviderId: "noaa-ncds",
 });
 
-map.addControl(new maplibregl.NavigationControl(), "top-right");
-map.addControl(
-  new maplibregl.ScaleControl({ unit: "nautical" }),
-  "bottom-left",
-);
+chartManager.map.addControl(new ChartSwitcherControl(chartManager), "top-left");

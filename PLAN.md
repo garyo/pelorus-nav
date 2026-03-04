@@ -67,31 +67,20 @@ A modern, open-source marine chartplotter built as a progressive web app (PWA) i
 
 **Goal**: Display real NOAA nautical charts with zoom/pan, tile caching for offline use.
 
-### 1A: NOAA Tile Integration
+### 1A: NOAA Tile Integration ✅ DONE
 
-#### Tasks
-1. Add NOAA NCDS WMTS as a MapLibre raster tile source
-   - Endpoint: `https://gis.charttools.noaa.gov/arcgis/rest/services/MarineChart_Services/NOAACharts/MapServer/WMTS/tile/1.0.0/MarineChart_Services_NOAACharts/default/GoogleMapsCompatible/{z}/{y}/{x}.png`
-2. Implement `ChartProvider` interface:
-   ```typescript
-   interface ChartProvider {
-     id: string;
-     name: string;
-     type: 'raster' | 'vector';
-     getSource(): maplibregl.SourceSpecification;
-     getLayers(): maplibregl.LayerSpecification[];
-     getAttribution(): string;
-   }
-   ```
-3. Create `NOAAWMTSProvider` implementing the interface
-4. Handle tile loading errors gracefully (show placeholder, retry logic)
-5. Add attribution overlay per NOAA requirements
-
-#### Acceptance Criteria
-- [ ] NOAA charts display at all zoom levels (z3–z18)
-- [ ] Smooth zoom/pan with MapLibre's default interaction handlers
-- [ ] Tile load errors show graceful fallback (not broken image icons)
-- [ ] Attribution visible
+#### Implementation Notes
+- NOAA WMTS tile endpoint (`GoogleMapsCompatible`) returns 400 errors — does not work.
+- Working approach: **WMS via `{bbox-epsg-3857}` substitution** in MapLibre raster source.
+- Two NOAA WMS endpoints available:
+  - **NOAAChartDisplay** (paper chart symbology): `https://gis.charttools.noaa.gov/arcgis/rest/services/MCS/NOAAChartDisplay/MapServer/exts/MaritimeChartService/WMSServer`
+  - **ENCOnline** (ECDIS/S-52 symbology): `https://gis.charttools.noaa.gov/arcgis/rest/services/MCS/ENCOnline/MapServer/exts/MaritimeChartService/WMSServer`
+- Both endpoints serve watermarked tiles ("not for navigation" overlays). This is expected for the free WMS service, not a token/auth issue. Watermark-free options:
+  - NOAA MBTiles from `distribution.charts.noaa.gov/ncds/` (untested)
+  - Our own S-57 vector pipeline (Phase 1B)
+  - MarineCharts.io commercial API ($49/month)
+- ChartProvider interface + ChartManager + ChartSwitcherControl implemented
+- Three providers: NOAA paper chart, NOAA ECDIS, OSM fallback
 
 ### Test Plan – Phase 1A
 - **Functional**: Chart displays at multiple zoom levels for US East Coast, West Coast, Great Lakes, Hawaii
