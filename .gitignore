@@ -1,0 +1,25 @@
+node_modules/
+dist/
+*.local
+.DS_Store
+
+# Test outputs
+playwright-report/
+test-results/
+coverage/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Env
+.env
+.env.*
+
+# Bun
+bun.lock
+
+# Claude
+.claude/
