@@ -1,8 +1,8 @@
 {
-  "name": "sailing-nav",
+  "name": "pelorus-nav",
   "private": true,
   "version": "0.1.0",
-  "description": "Open-source web-based marine chartplotter",
+  "description": "Pelorus Nav — open-source web-based marine chartplotter",
   "type": "module",
   "scripts": {
     "dev": "vite",

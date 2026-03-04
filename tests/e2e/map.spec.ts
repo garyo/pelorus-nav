@@ -26,5 +26,5 @@ test("map renders with MapLibre controls", async ({ page }) => {
 
 test("page has correct title", async ({ page }) => {
   await page.goto("/");
-  await expect(page).toHaveTitle("Sailing Nav");
+  await expect(page).toHaveTitle("Pelorus Nav");
 });

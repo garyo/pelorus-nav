@@ -1,7 +1,7 @@
-# Sailing Nav - Project Conventions
+# Pelorus Nav - Project Conventions
 
 ## Overview
-Open-source web-based marine chartplotter (PWA). See PLAN.md for full architecture and roadmap.
+Pelorus Nav — open-source web-based marine chartplotter (PWA). See PLAN.md for full architecture and roadmap.
 
 ## Stack
 - **Language**: TypeScript (strict mode, no `any`)

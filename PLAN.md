@@ -1,4 +1,4 @@
-# Sailing-Nav: Open-Source Web Chartplotter
+# Pelorus Nav: Open-Source Web Chartplotter
 
 ## Project Vision
 
