@@ -1,5 +1,6 @@
 #:schema node_modules/wrangler/config-schema.json
 name = "pelorus-nav"
+account_id = "97571a833a50d387280ecaac7d736c4e"
 compatibility_date = "2025-09-23"
 main = "src/worker.ts"
 
