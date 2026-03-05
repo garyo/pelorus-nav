@@ -89,7 +89,9 @@ A modern, open-source marine chartplotter built as a progressive web app (PWA) i
 
 ---
 
-## Phase 1B: S-57 → Vector Tiles Pipeline (HIGH RISK — start early)
+## Phase 1B: S-57 → Vector Tiles Pipeline (HIGH RISK — start early) ✅ DONE
+
+**Status**: Pipeline implemented. Python CLI in `tools/s57-pipeline/` converts S-57 ENC → GeoJSON → PMTiles via ogr2ogr + tippecanoe. VectorChartProvider + minimal nautical style integrated into app. PMTiles protocol registered. Spike validation pending actual ENC data download.
 
 **Goal**: Convert NOAA S-57 ENC data into vector tiles we can render and style. This is the highest-risk work in the project — unknown unknowns live here. Starting it early means we discover blockers while raster charts keep the app functional.
 

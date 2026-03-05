@@ -5,3 +5,4 @@ export { ChartSwitcherControl } from "./ChartSwitcherControl";
 export { NOAAChartProvider } from "./NOAAChartProvider";
 export { NOAAECDISProvider } from "./NOAAECDISProvider";
 export { OSMChartProvider } from "./OSMChartProvider";
+export { VectorChartProvider } from "./VectorChartProvider";

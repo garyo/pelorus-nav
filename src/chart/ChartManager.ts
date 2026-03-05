@@ -72,31 +72,11 @@ export class ChartManager {
     }
     if (providerId === this.activeProviderId) return;
 
-    // Remove old source and layers
-    this.removeCurrentProvider();
-
-    // Add new source and layers
-    this.map.addSource(provider.id, provider.getSource());
-    for (const layer of provider.getLayers()) {
-      this.map.addLayer(layer);
-    }
-
+    // Use setStyle to fully replace the style. This ensures custom protocols
+    // (like pmtiles://) are resolved the same way as the initial style load.
+    const style = this.buildStyle(provider);
+    this.map.setStyle(style);
     this.activeProviderId = providerId;
-  }
-
-  private removeCurrentProvider(): void {
-    if (!this.activeProviderId) return;
-    const current = this.providers.get(this.activeProviderId);
-    if (!current) return;
-
-    for (const layer of current.getLayers()) {
-      if (this.map.getLayer(layer.id)) {
-        this.map.removeLayer(layer.id);
-      }
-    }
-    if (this.map.getSource(current.id)) {
-      this.map.removeSource(current.id);
-    }
   }
 
   private buildStyle(provider: ChartProvider): maplibregl.StyleSpecification {

@@ -38,12 +38,13 @@ test("chart source switcher is present and works", async ({ page }) => {
   const switcher = page.locator(".chart-switcher-select");
   await expect(switcher).toBeVisible();
 
-  // Has NOAA, ECDIS, and OSM options
+  // Has NOAA, ECDIS, OSM, and Vector options
   const options = switcher.locator("option");
-  await expect(options).toHaveCount(3);
+  await expect(options).toHaveCount(4);
   await expect(options.nth(0)).toHaveText("NOAA Nautical Charts");
   await expect(options.nth(1)).toHaveText("NOAA ECDIS Charts");
   await expect(options.nth(2)).toHaveText("OpenStreetMap");
+  await expect(options.nth(3)).toHaveText("NOAA Vector Charts");
 
   // NOAA is initially selected
   await expect(switcher).toHaveValue("noaa-ncds");

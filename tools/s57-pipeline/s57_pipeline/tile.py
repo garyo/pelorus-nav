@@ -1,0 +1,81 @@
+"""tippecanoe wrapper: GeoJSON → PMTiles conversion."""
+
+from __future__ import annotations
+
+import subprocess
+from pathlib import Path
+
+from .layers import LayerConfig, get_layer_config
+
+
+def tile_layer(
+    geojson_path: Path,
+    output_path: Path,
+    layer_name: str,
+    config: LayerConfig | None = None,
+) -> Path | None:
+    """Convert a single GeoJSON file to PMTiles using tippecanoe.
+
+    Args:
+        geojson_path: Path to the input GeoJSON file.
+        output_path: Path for the output PMTiles file.
+        layer_name: S-57 layer name for tippecanoe's -l flag.
+        config: Optional layer config with tippecanoe args. Auto-detected if None.
+
+    Returns:
+        Path to output PMTiles, or None on failure.
+    """
+    if config is None:
+        config = get_layer_config(layer_name)
+
+    cmd = [
+        "tippecanoe",
+        "-o",
+        str(output_path),
+        "-l",
+        layer_name,
+        "-z14",
+        "-Z0",
+        "--force",
+    ]
+
+    if config is not None:
+        cmd.extend(config.tippecanoe_args)
+
+    cmd.append(str(geojson_path))
+
+    result = subprocess.run(cmd, capture_output=True, text=True)
+
+    if result.returncode != 0:
+        print(f"  tippecanoe error for {layer_name}: {result.stderr}")
+        return None
+
+    return output_path
+
+
+def tile_geojson_files(
+    geojson_dir: Path,
+    tiles_dir: Path,
+) -> list[Path]:
+    """Convert all GeoJSON files in a directory to individual PMTiles.
+
+    Args:
+        geojson_dir: Directory containing .geojson files.
+        tiles_dir: Directory for output .pmtiles files.
+
+    Returns:
+        List of paths to created PMTiles files.
+    """
+    tiles_dir.mkdir(parents=True, exist_ok=True)
+
+    outputs: list[Path] = []
+    for geojson_path in sorted(geojson_dir.glob("*.geojson")):
+        layer_name = geojson_path.stem.upper()
+        pmtiles_path = tiles_dir / f"{geojson_path.stem}.pmtiles"
+
+        result = tile_layer(geojson_path, pmtiles_path, layer_name)
+        if result is not None:
+            outputs.append(result)
+            print(f"  Tiled {layer_name} → {pmtiles_path.name}")
+
+    return outputs

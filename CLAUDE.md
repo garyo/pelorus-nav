@@ -43,6 +43,15 @@ Pelorus Nav — open-source web-based marine chartplotter (PWA). See PLAN.md for
 - Playwright needs WebGL flags for headless Chromium (configured in playwright.config.ts)
 - Use SimulatorProvider for GPS data in tests (no real hardware needed)
 
+## S-57 Pipeline (tools/s57-pipeline/)
+Python CLI for converting NOAA S-57 ENC data → PMTiles vector tiles.
+Requires `gdal` and `tippecanoe` installed via brew.
+
+- `cd tools/s57-pipeline && uv run python -m s57_pipeline download` — download test ENC cells
+- `cd tools/s57-pipeline && uv run python -m s57_pipeline convert -i data/enc/US5MA22M/US5MA22M.000 -o data/tiles/` — convert single cell
+- `cd tools/s57-pipeline && uv run python -m s57_pipeline pipeline -i data/enc/ -o ../../public/nautical.pmtiles` — full pipeline
+- `cd tools/s57-pipeline && uv run pytest` — run pipeline tests
+
 ## Git
 - Conventional commits: `feat:`, `fix:`, `test:`, `chore:`, `docs:`
 - Run `bun run check` before committing
