@@ -1,4 +1,5 @@
 import type { LayerSpecification, SourceSpecification } from "maplibre-gl";
+import { getSettings } from "../settings";
 import type { ChartProvider } from "./ChartProvider";
 import { getNauticalLayers } from "./nautical-style";
 
@@ -32,7 +33,8 @@ export class VectorChartProvider implements ChartProvider {
   }
 
   getLayers(): LayerSpecification[] {
-    return getNauticalLayers(SOURCE_ID);
+    const { depthUnit, detailLevel } = getSettings();
+    return getNauticalLayers(SOURCE_ID, depthUnit, detailLevel);
   }
 
   getAttribution(): string {

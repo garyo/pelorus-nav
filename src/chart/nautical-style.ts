@@ -1,4 +1,9 @@
 import type { ExpressionSpecification, LayerSpecification } from "maplibre-gl";
+import {
+  type DepthUnit,
+  depthConversionFactor,
+  depthUnitLabel,
+} from "../settings";
 import { buildIconExpression, ECDIS_SIMPLIFIED } from "./icon-sets";
 
 /**
@@ -23,7 +28,37 @@ const LABEL_EXPR = [
 /** Icon expression for the current icon set. */
 const ICON_EXPR = buildIconExpression(ECDIS_SIMPLIFIED, "ecdis-buoy-default");
 
-export function getNauticalLayers(sourceId: string): LayerSpecification[] {
+/** Build a MapLibre expression that converts DEPTH to the given unit. */
+function depthTextField(unit: DepthUnit): ExpressionSpecification {
+  const factor = depthConversionFactor(unit);
+  const label = depthUnitLabel(unit);
+  if (unit === "meters") {
+    return [
+      "to-string",
+      ["get", "DEPTH"],
+    ] as unknown as ExpressionSpecification;
+  }
+  const decimals = unit === "fathoms" ? 1 : 0;
+  // Round to N decimal places: floor((val * factor) * 10^d + 0.5) / 10^d
+  const pow = 10 ** decimals;
+  return [
+    "concat",
+    [
+      "to-string",
+      ["/", ["round", ["*", ["*", ["get", "DEPTH"], factor], pow]], pow],
+    ],
+    ` ${label}`,
+  ] as unknown as ExpressionSpecification;
+}
+
+export function getNauticalLayers(
+  sourceId: string,
+  depthUnit: DepthUnit = "meters",
+  detailOffset = 0,
+): LayerSpecification[] {
+  // Detail offset: positive shows more (lower minzoom), negative shows less
+  // Only applies to non-essential layers (labels, secondary features)
+  const detailMinzoom = (base: number) => Math.max(0, base - detailOffset);
   return [
     // ── Background ──────────────────────────────────────────────────────
     {
@@ -317,8 +352,9 @@ export function getNauticalLayers(sourceId: string): LayerSpecification[] {
       type: "symbol",
       source: sourceId,
       "source-layer": "SOUNDG",
+      minzoom: detailMinzoom(10),
       layout: {
-        "text-field": ["to-string", ["get", "DEPTH"]],
+        "text-field": depthTextField(depthUnit),
         "text-size": 10,
         "text-allow-overlap": false,
       },
@@ -532,6 +568,7 @@ export function getNauticalLayers(sourceId: string): LayerSpecification[] {
       type: "symbol",
       source: sourceId,
       "source-layer": "LNDARE",
+      minzoom: detailMinzoom(11),
       filter: ["has", "OBJNAM"],
       layout: {
         "text-field": ["get", "OBJNAM"],
@@ -552,6 +589,7 @@ export function getNauticalLayers(sourceId: string): LayerSpecification[] {
       type: "symbol",
       source: sourceId,
       "source-layer": "LNDMRK",
+      minzoom: detailMinzoom(12),
       filter: ["has", "OBJNAM"],
       layout: {
         "text-field": ["get", "OBJNAM"],
@@ -572,6 +610,7 @@ export function getNauticalLayers(sourceId: string): LayerSpecification[] {
       type: "symbol",
       source: sourceId,
       "source-layer": "BERTHS",
+      minzoom: detailMinzoom(13),
       filter: ["has", "OBJNAM"],
       layout: {
         "text-field": ["get", "OBJNAM"],
@@ -590,6 +629,7 @@ export function getNauticalLayers(sourceId: string): LayerSpecification[] {
       type: "symbol",
       source: sourceId,
       "source-layer": "SEAARE",
+      minzoom: detailMinzoom(10),
       filter: ["has", "OBJNAM"],
       layout: {
         "text-field": ["get", "OBJNAM"],
@@ -627,7 +667,7 @@ export function getNauticalLayers(sourceId: string): LayerSpecification[] {
       "source-layer": "OBSTRN",
       layout: {
         "icon-image": ICON_EXPR,
-        "icon-size": 0.5,
+        "icon-size": 0.35,
         "icon-allow-overlap": true,
       },
       paint: {},
@@ -667,6 +707,7 @@ export function getNauticalLayers(sourceId: string): LayerSpecification[] {
       type: "symbol",
       source: sourceId,
       "source-layer": "PILPNT",
+      minzoom: detailMinzoom(13),
       layout: {
         "icon-image": ICON_EXPR,
         "icon-size": 0.6,
@@ -680,6 +721,7 @@ export function getNauticalLayers(sourceId: string): LayerSpecification[] {
       type: "symbol",
       source: sourceId,
       "source-layer": "MORFAC",
+      minzoom: detailMinzoom(13),
       layout: {
         "icon-image": ICON_EXPR,
         "icon-size": 0.5,

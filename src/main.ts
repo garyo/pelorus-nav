@@ -10,6 +10,7 @@ import {
   OSMChartProvider,
   VectorChartProvider,
 } from "./chart";
+import { createSettingsPanel } from "./ui/SettingsPanel";
 
 // Register PMTiles protocol for vector tile sources
 const protocol = new Protocol({ metadata: true });
@@ -46,6 +47,10 @@ chartSelect.addEventListener("change", () => {
 });
 
 new FeatureQueryHandler(chartManager);
+
+// Settings gear in top bar
+const topBar = document.getElementById("top-bar");
+if (topBar) createSettingsPanel(topBar);
 
 // HUD: zoom + cursor position
 const hudDiv = document.createElement("div");

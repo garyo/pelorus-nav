@@ -1,4 +1,5 @@
 import maplibregl from "maplibre-gl";
+import { onSettingsChange } from "../settings";
 import type { ChartProvider } from "./ChartProvider";
 
 export interface ChartManagerOptions {
@@ -48,6 +49,17 @@ export class ChartManager {
       new maplibregl.ScaleControl({ unit: "nautical" }),
       "bottom-left",
     );
+
+    // Re-apply style when settings change (e.g. depth unit)
+    onSettingsChange(() => this.refreshStyle());
+  }
+
+  /** Re-apply the current provider's style (e.g. after settings change). */
+  refreshStyle(): void {
+    const provider = this.getActiveProvider();
+    if (provider) {
+      this.map.setStyle(this.buildStyle(provider));
+    }
   }
 
   /** Get the currently active provider, or null if none. */
