@@ -20,7 +20,7 @@ body {
   align-items: center;
   height: 36px;
   padding: 0 12px;
-  background: #1a1a2e;
+  background: rgba(26, 26, 46, 0.85);
   color: #e0e0e0;
   font-size: 14px;
   gap: 12px;
@@ -45,7 +45,9 @@ body {
 
 #map {
   width: 100%;
-  height: calc(100% - 36px);
+  height: 100%;
+  position: absolute;
+  top: 0;
 }
 
 /* Feature info panel */
