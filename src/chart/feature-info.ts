@@ -71,6 +71,7 @@ const INTERNAL_FIELDS = new Set([
   "SORIND",
   "SCAMIN",
   "SCAMAX",
+  "_scale_band",
 ]);
 
 // Human-readable names for S-57 object classes

@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import argparse
+import os
 import sys
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
 from .convert import convert_enc
@@ -95,6 +97,31 @@ def cmd_convert(args: argparse.Namespace) -> None:
         merge_tiles(pmtiles, merged)
 
 
+def _process_cell(
+    enc_path: Path, work_dir: Path, force: bool
+) -> list[Path]:
+    """Process a single ENC cell: convert → tile. Returns list of PMTiles paths."""
+    cell_name = enc_path.stem
+    cell_dir = work_dir / cell_name
+    geojson_dir = cell_dir / "geojson"
+    tiles_dir = cell_dir / "tiles"
+
+    # Incremental: skip if tiles are newer than source
+    if not force:
+        existing_tiles = list(tiles_dir.glob("*.pmtiles")) if tiles_dir.exists() else []
+        if existing_tiles and all(
+            t.stat().st_mtime > enc_path.stat().st_mtime for t in existing_tiles
+        ):
+            print(f"Skipping {cell_name} (tiles up to date)")
+            return existing_tiles
+
+    print(f"Processing {cell_name}...")
+    geojson_files = convert_enc(enc_path, geojson_dir)
+    if geojson_files:
+        return tile_geojson_files(geojson_dir, tiles_dir)
+    return []
+
+
 def cmd_pipeline(args: argparse.Namespace) -> None:
     """Full pipeline: convert ENC files to a single PMTiles."""
     output_path = Path(args.output)
@@ -130,33 +157,25 @@ def cmd_pipeline(args: argparse.Namespace) -> None:
         )
         sys.exit(1)
 
-    print(f"Processing {len(enc_files)} ENC files")
+    # Default parallelism: half of CPU cores (each cell spawns subprocesses)
+    max_workers = max(1, args.jobs if args.jobs else (os.cpu_count() or 2) // 2)
+    print(f"Processing {len(enc_files)} ENC files ({max_workers} parallel workers)")
 
     all_pmtiles: list[Path] = []
     work_dir = Path("data/work")
 
-    for enc_path in enc_files:
-        cell_name = enc_path.stem
-        print(f"\n=== Processing {cell_name} ===")
-
-        cell_dir = work_dir / cell_name
-        geojson_dir = cell_dir / "geojson"
-        tiles_dir = cell_dir / "tiles"
-
-        # Incremental: skip if tiles are newer than source
-        if not args.force:
-            existing_tiles = list(tiles_dir.glob("*.pmtiles")) if tiles_dir.exists() else []
-            if existing_tiles and all(
-                t.stat().st_mtime > enc_path.stat().st_mtime for t in existing_tiles
-            ):
-                print(f"Skipping {cell_name} (tiles up to date)")
-                all_pmtiles.extend(existing_tiles)
-                continue
-
-        geojson_files = convert_enc(enc_path, geojson_dir)
-        if geojson_files:
-            pmtiles = tile_geojson_files(geojson_dir, tiles_dir)
-            all_pmtiles.extend(pmtiles)
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        futures = {
+            executor.submit(_process_cell, enc_path, work_dir, args.force): enc_path
+            for enc_path in enc_files
+        }
+        for future in as_completed(futures):
+            enc_path = futures[future]
+            try:
+                pmtiles = future.result()
+                all_pmtiles.extend(pmtiles)
+            except Exception as e:
+                print(f"Error processing {enc_path.stem}: {e}")
 
     if all_pmtiles:
         print(f"\n=== Merging {len(all_pmtiles)} tile sets ===")
@@ -203,6 +222,10 @@ def main() -> None:
     pl.add_argument("--force", "-f", action="store_true", help="Force rebuild all cells")
     pl.add_argument(
         "--min-cells", type=int, default=0, help="Minimum number of cells required"
+    )
+    pl.add_argument(
+        "--jobs", "-j", type=int, default=0,
+        help="Parallel workers (default: half of CPU cores, 0=auto)",
     )
     pl.set_defaults(func=cmd_pipeline)
 

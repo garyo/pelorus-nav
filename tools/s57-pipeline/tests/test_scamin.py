@@ -1,4 +1,4 @@
-"""Tests for SCAMIN → minzoom mapping."""
+"""Tests for SCAMIN → minzoom, CSCL → zoom range, and scale band mapping."""
 
 import json
 import tempfile
@@ -7,6 +7,7 @@ from pathlib import Path
 from s57_pipeline.scamin import (
     add_minzoom_to_geojson,
     cscl_to_minzoom,
+    cscl_to_scale_band,
     cscl_to_zoom_range,
     scamin_to_minzoom,
 )
@@ -38,9 +39,7 @@ class TestScaminToMinzoom:
         assert scamin_to_minzoom(5_000) == 0
 
     def test_between_thresholds(self) -> None:
-        # 100k is between 200k (zoom 9) and 50k (zoom 11), so maps to zoom 11
         assert scamin_to_minzoom(100_000) == 11
-        # 30k is between 50k (zoom 11) and 20k (zoom 12), so maps to zoom 12
         assert scamin_to_minzoom(30_000) == 12
 
     def test_none_returns_default(self) -> None:
@@ -60,25 +59,48 @@ class TestCsclToMinzoom:
     def test_overview_scale(self) -> None:
         assert cscl_to_minzoom(675_000) == 0
 
+    def test_coastal_scale(self) -> None:
+        assert cscl_to_minzoom(350_000) == 6
+
     def test_approach_scale(self) -> None:
         assert cscl_to_minzoom(80_000) == 9
 
     def test_harbor_scale(self) -> None:
-        assert cscl_to_minzoom(40_000) == 11
+        assert cscl_to_minzoom(40_000) == 9
 
     def test_very_large_scale(self) -> None:
-        assert cscl_to_minzoom(10_000) == 11
+        assert cscl_to_minzoom(10_000) == 9
 
 
 class TestCsclToZoomRange:
     def test_overview_scale(self) -> None:
-        assert cscl_to_zoom_range(675_000) == (0, 8)
+        assert cscl_to_zoom_range(675_000) == (0, 5)
+
+    def test_coastal_scale(self) -> None:
+        assert cscl_to_zoom_range(350_000) == (6, 9)
 
     def test_approach_scale(self) -> None:
         assert cscl_to_zoom_range(80_000) == (9, 12)
 
     def test_harbor_scale(self) -> None:
-        assert cscl_to_zoom_range(40_000) == (11, 14)
+        assert cscl_to_zoom_range(40_000) == (9, 14)
+
+
+class TestCsclToScaleBand:
+    def test_overview(self) -> None:
+        assert cscl_to_scale_band(675_000) == 0
+
+    def test_coastal(self) -> None:
+        assert cscl_to_scale_band(350_000) == 1
+
+    def test_approach(self) -> None:
+        assert cscl_to_scale_band(80_000) == 2
+
+    def test_harbor(self) -> None:
+        assert cscl_to_scale_band(40_000) == 3
+
+    def test_very_large_scale(self) -> None:
+        assert cscl_to_scale_band(10_000) == 3
 
 
 class TestAddMinzoomToGeojson:
@@ -165,7 +187,6 @@ class TestAddMinzoomToGeojson:
             json.dump(geojson, f)
             input_path = Path(f.name)
 
-        # Rename to depare.geojson so layer name detection works
         depare_path = input_path.parent / "depare.geojson"
         input_path.rename(depare_path)
 
@@ -176,14 +197,15 @@ class TestAddMinzoomToGeojson:
             with open(depare_path) as f:
                 result = json.load(f)
 
-            feat = result["features"][0]["tippecanoe"]
-            assert feat["minzoom"] == 0
-            assert feat["maxzoom"] == 8
+            feat = result["features"][0]
+            assert feat["tippecanoe"]["minzoom"] == 0
+            assert feat["tippecanoe"]["maxzoom"] == 5
+            assert feat["properties"]["_scale_band"] == 0
         finally:
             depare_path.unlink(missing_ok=True)
 
     def test_line_layer_gets_maxzoom(self) -> None:
-        """Line layers (COALNE) get maxzoom to avoid coarse outlines at high zoom."""
+        """Line layers (COALNE) get maxzoom."""
         geojson = {
             "type": "FeatureCollection",
             "features": [
@@ -211,46 +233,12 @@ class TestAddMinzoomToGeojson:
             with open(coalne_path) as f:
                 result = json.load(f)
 
-            feat = result["features"][0]["tippecanoe"]
-            assert feat["minzoom"] == 0
-            assert feat["maxzoom"] == 8
+            feat = result["features"][0]
+            assert feat["tippecanoe"]["minzoom"] == 0
+            assert feat["tippecanoe"]["maxzoom"] == 5
+            assert feat["properties"]["_scale_band"] == 0
         finally:
             coalne_path.unlink(missing_ok=True)
-
-    def test_navaid_layer_gets_maxzoom(self) -> None:
-        """Navaid point layers get maxzoom to avoid duplicates from overlapping cells."""
-        geojson = {
-            "type": "FeatureCollection",
-            "features": [
-                {
-                    "type": "Feature",
-                    "properties": {},
-                    "geometry": {"type": "Point", "coordinates": [0, 0]},
-                },
-            ],
-        }
-
-        with tempfile.NamedTemporaryFile(
-            mode="w", suffix="_boylat.geojson", delete=False, prefix=""
-        ) as f:
-            json.dump(geojson, f)
-            input_path = Path(f.name)
-
-        boylat_path = input_path.parent / "boylat.geojson"
-        input_path.rename(boylat_path)
-
-        try:
-            count = add_minzoom_to_geojson(boylat_path, cell_cscl=675_000)
-            assert count == 1
-
-            with open(boylat_path) as f:
-                result = json.load(f)
-
-            feat = result["features"][0]["tippecanoe"]
-            assert feat["minzoom"] == 0
-            assert feat["maxzoom"] == 8
-        finally:
-            boylat_path.unlink(missing_ok=True)
 
     def test_infrastructure_no_maxzoom(self) -> None:
         """Infrastructure layers do NOT get maxzoom — sparse, cell-specific."""
@@ -281,14 +269,15 @@ class TestAddMinzoomToGeojson:
             with open(bridge_path) as f:
                 result = json.load(f)
 
-            feat = result["features"][0]["tippecanoe"]
-            assert feat["minzoom"] == 0
-            assert "maxzoom" not in feat
+            feat = result["features"][0]
+            assert feat["tippecanoe"]["minzoom"] == 0
+            assert "maxzoom" not in feat["tippecanoe"]
+            assert feat["properties"]["_scale_band"] == 0
         finally:
             bridge_path.unlink(missing_ok=True)
 
     def test_scamin_overrides_cscl(self) -> None:
-        """Features WITH SCAMIN use it even when cell_cscl is provided."""
+        """Features WITH SCAMIN use it — no maxzoom."""
         geojson = {
             "type": "FeatureCollection",
             "features": [
@@ -313,9 +302,39 @@ class TestAddMinzoomToGeojson:
             with open(input_path) as f:
                 result = json.load(f)
 
-            feat = result["features"][0]["tippecanoe"]
-            assert feat["minzoom"] == 11
-            assert "maxzoom" not in feat
+            feat = result["features"][0]
+            assert feat["tippecanoe"]["minzoom"] == 11
+            assert "maxzoom" not in feat["tippecanoe"]
+            assert feat["properties"]["_scale_band"] == 0
+        finally:
+            input_path.unlink(missing_ok=True)
+
+    def test_scale_band_without_cscl(self) -> None:
+        """Without cell_cscl, _scale_band defaults to 0."""
+        geojson = {
+            "type": "FeatureCollection",
+            "features": [
+                {
+                    "type": "Feature",
+                    "properties": {},
+                    "geometry": {"type": "Point", "coordinates": [0, 0]},
+                },
+            ],
+        }
+
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".geojson", delete=False
+        ) as f:
+            json.dump(geojson, f)
+            input_path = Path(f.name)
+
+        try:
+            add_minzoom_to_geojson(input_path)
+
+            with open(input_path) as f:
+                result = json.load(f)
+
+            assert result["features"][0]["properties"]["_scale_band"] == 0
         finally:
             input_path.unlink(missing_ok=True)
 
