@@ -61,24 +61,24 @@ class TestCsclToMinzoom:
         assert cscl_to_minzoom(675_000) == 0
 
     def test_approach_scale(self) -> None:
-        assert cscl_to_minzoom(80_000) == 8
+        assert cscl_to_minzoom(80_000) == 9
 
     def test_harbor_scale(self) -> None:
-        assert cscl_to_minzoom(40_000) == 10
+        assert cscl_to_minzoom(40_000) == 11
 
     def test_very_large_scale(self) -> None:
-        assert cscl_to_minzoom(10_000) == 10
+        assert cscl_to_minzoom(10_000) == 11
 
 
 class TestCsclToZoomRange:
     def test_overview_scale(self) -> None:
-        assert cscl_to_zoom_range(675_000) == (0, 9)
+        assert cscl_to_zoom_range(675_000) == (0, 8)
 
     def test_approach_scale(self) -> None:
-        assert cscl_to_zoom_range(80_000) == (8, 12)
+        assert cscl_to_zoom_range(80_000) == (9, 12)
 
     def test_harbor_scale(self) -> None:
-        assert cscl_to_zoom_range(40_000) == (10, 14)
+        assert cscl_to_zoom_range(40_000) == (11, 14)
 
 
 class TestAddMinzoomToGeojson:
@@ -178,7 +178,7 @@ class TestAddMinzoomToGeojson:
 
             feat = result["features"][0]["tippecanoe"]
             assert feat["minzoom"] == 0
-            assert feat["maxzoom"] == 9
+            assert feat["maxzoom"] == 8
         finally:
             depare_path.unlink(missing_ok=True)
 
@@ -213,7 +213,7 @@ class TestAddMinzoomToGeojson:
 
             feat = result["features"][0]["tippecanoe"]
             assert feat["minzoom"] == 0
-            assert feat["maxzoom"] == 9
+            assert feat["maxzoom"] == 8
         finally:
             coalne_path.unlink(missing_ok=True)
 
@@ -248,7 +248,7 @@ class TestAddMinzoomToGeojson:
 
             feat = result["features"][0]["tippecanoe"]
             assert feat["minzoom"] == 0
-            assert feat["maxzoom"] == 9
+            assert feat["maxzoom"] == 8
         finally:
             boylat_path.unlink(missing_ok=True)
 

@@ -58,9 +58,10 @@ def scamin_to_minzoom(scamin: int | float | None) -> int:
 # don't get maxzoom since they just overlay without conflict.
 CSCL_ZOOM_TABLE: list[tuple[int, int, int]] = [
     # (max_cscl, minzoom, maxzoom)
-    (100_000, 0, 9),    # Band 2/3 overview: z0-9 for polygons
-    (50_000, 8, 12),    # Band 4 approach: z8-12 for polygons
-    (0, 10, 14),        # Band 5+ harbor: z10-14
+    # Tightened ranges to avoid coastline "echo" from overlapping cells.
+    (100_000, 0, 8),    # Band 2/3 overview: z0-8 for polygons
+    (50_000, 9, 12),    # Band 4 approach: z9-12 for polygons
+    (0, 11, 14),        # Band 5+ harbor: z11-14
 ]
 
 # Layer groups that get maxzoom capping (features that overlap between scales).
