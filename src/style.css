@@ -49,6 +49,13 @@ body {
   position: relative;
 }
 
+.depth-unit-badge {
+  font-size: 11px;
+  color: #aaa;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
 .settings-btn {
   background: none;
   border: none;
