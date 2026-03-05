@@ -31,6 +31,7 @@ LAYER_CONFIGS: list[LayerConfig] = [
     # Terrain polygons
     LayerConfig("DEPARE", "terrain", TERRAIN_ARGS),
     LayerConfig("LNDARE", "terrain", TERRAIN_ARGS),
+    LayerConfig("SEAARE", "labels", TERRAIN_ARGS),
     LayerConfig("LAKARE", "terrain", TERRAIN_ARGS),
     LayerConfig("RIVERS", "terrain", TERRAIN_ARGS),
     LayerConfig("DRGARE", "terrain", TERRAIN_ARGS),
@@ -62,6 +63,10 @@ LAYER_CONFIGS: list[LayerConfig] = [
     LayerConfig("ACHARE", "regulatory", REGULATORY_ARGS),
     LayerConfig("FAIRWY", "regulatory", REGULATORY_ARGS),
     LayerConfig("CTNARE", "regulatory", REGULATORY_ARGS),
+    # Buildings, berths & pilings
+    LayerConfig("BUISGL", "infrastructure", DEFAULT_ARGS),
+    LayerConfig("BERTHS", "labels", DEFAULT_ARGS),
+    LayerConfig("PILPNT", "infrastructure", HAZARD_ARGS),
     # Infrastructure
     LayerConfig("BRIDGE", "infrastructure", DEFAULT_ARGS),
     LayerConfig("CBLOHD", "infrastructure", DEFAULT_ARGS),

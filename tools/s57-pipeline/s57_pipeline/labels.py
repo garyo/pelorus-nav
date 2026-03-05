@@ -108,7 +108,8 @@ def _buoy_number(props: dict) -> str | None:
         return None
 
     # Try to extract trailing number or letter designation
-    match = re.search(r'\b(\d+[A-Z]?|[A-Z])$', objnam.strip())
+    # Matches: "6", "6A", "PR", "TN", "BG", "NC", "1HL", "1SC", "A"
+    match = re.search(r'\b(\d+[A-Z]*|[A-Z]{1,3})$', objnam.strip())
     if match:
         return match.group(1)
     return None

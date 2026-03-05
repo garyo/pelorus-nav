@@ -25,8 +25,8 @@ SCAMIN_ZOOM_TABLE: list[tuple[int, int]] = [
     (1_000_000, 6),
     (200_000, 9),
     (50_000, 11),
-    (22_000, 13),
-    (10_000, 15),
+    (20_000, 12),
+    (10_000, 13),
 ]
 DEFAULT_ZOOM = 0
 
@@ -66,7 +66,7 @@ CSCL_ZOOM_TABLE: list[tuple[int, int, int]] = [
 # Layer groups that get maxzoom capping (features that overlap between scales).
 # Nearly all groups need this to avoid duplicates from overlapping cells.
 # Only "infrastructure" is excluded (sparse, cell-specific features).
-_MAXZOOM_GROUPS = {"terrain", "regulatory", "lines", "hazards", "navaids", "dense_points"}
+_MAXZOOM_GROUPS = {"terrain", "regulatory", "lines", "hazards", "navaids", "dense_points", "labels"}
 
 
 def cscl_to_minzoom(cscl: int) -> int:

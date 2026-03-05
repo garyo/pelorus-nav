@@ -17,7 +17,8 @@
     "lint:fix": "biome check --write .",
     "format": "biome format --write .",
     "typecheck": "tsc --noEmit",
-    "check": "bun run typecheck && bun run lint && bun run test"
+    "check": "bun run typecheck && bun run lint && bun run test",
+    "tiles": "cd tools/s57-pipeline && uv run python -m s57_pipeline pipeline -i data/enc/ -o ../../public/nautical.pmtiles"
   },
   "license": "MIT",
   "dependencies": {

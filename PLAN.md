@@ -156,7 +156,11 @@ A modern, open-source marine chartplotter built as a progressive web app (PWA) i
    - Larger-scale (more detailed) data renders on top
    - Smooth transitions between scale bands
    - Use SCAMIN/SCAMAX as MapLibre filter expressions per layer
-4. Object querying: tap on a chart feature to see its attributes (buoy characteristics, depth, light info, etc.)
+4. **Detail level selector**: User-adjustable display category controlling when objects appear
+   - Maps to SCAMIN threshold offsets (e.g., "show more" lowers minzoom by 1-2 levels)
+   - Presets: "Standard", "Full", "Minimal" (analogous to ECDIS display categories Base/Standard/All)
+   - Persisted in user settings
+5. Object querying: tap on a chart feature to see its attributes (buoy characteristics, depth, light info, etc.)
 5. Feature highlighting on selection
 6. Add a "chart scale" indicator showing current approximate chart scale
 

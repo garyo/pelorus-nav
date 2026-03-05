@@ -28,11 +28,11 @@ class TestScaminToMinzoom:
     def test_threshold_boundary_50k(self) -> None:
         assert scamin_to_minzoom(50_000) == 11
 
-    def test_threshold_boundary_22k(self) -> None:
-        assert scamin_to_minzoom(22_000) == 13
+    def test_threshold_boundary_20k(self) -> None:
+        assert scamin_to_minzoom(20_000) == 12
 
     def test_threshold_boundary_10k(self) -> None:
-        assert scamin_to_minzoom(10_000) == 15
+        assert scamin_to_minzoom(10_000) == 13
 
     def test_small_scale_returns_default(self) -> None:
         assert scamin_to_minzoom(5_000) == 0
@@ -40,8 +40,8 @@ class TestScaminToMinzoom:
     def test_between_thresholds(self) -> None:
         # 100k is between 200k (zoom 9) and 50k (zoom 11), so maps to zoom 11
         assert scamin_to_minzoom(100_000) == 11
-        # 30k is between 50k (zoom 11) and 22k (zoom 13), so maps to zoom 13
-        assert scamin_to_minzoom(30_000) == 13
+        # 30k is between 50k (zoom 11) and 20k (zoom 12), so maps to zoom 12
+        assert scamin_to_minzoom(30_000) == 12
 
     def test_none_returns_default(self) -> None:
         assert scamin_to_minzoom(None) == 0

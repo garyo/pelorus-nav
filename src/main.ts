@@ -5,6 +5,7 @@ import "./style.css";
 import {
   ChartManager,
   ChartSwitcherControl,
+  FeatureQueryHandler,
   NOAAChartProvider,
   NOAAECDISProvider,
   OSMChartProvider,
@@ -29,6 +30,8 @@ const chartManager = new ChartManager({
 });
 
 chartManager.map.addControl(new ChartSwitcherControl(chartManager), "top-left");
+
+new FeatureQueryHandler(chartManager);
 
 // Temporary zoom level display for debugging
 const zoomDiv = document.createElement("div");

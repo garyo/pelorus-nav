@@ -28,3 +28,124 @@ body {
   cursor: pointer;
   min-height: 30px;
 }
+
+/* Feature info panel */
+.feature-info-panel {
+  display: none;
+  position: absolute;
+  bottom: 40px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 320px;
+  max-width: calc(100% - 20px);
+  max-height: 40vh;
+  background: #fff;
+  border-radius: 8px 8px 0 0;
+  box-shadow: 0 -2px 12px rgba(0, 0, 0, 0.2);
+  z-index: 10;
+  flex-direction: column;
+  overflow: hidden;
+  font-size: 14px;
+}
+
+.feature-info-panel.visible {
+  display: flex;
+}
+
+.feature-info-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
+  border-bottom: 1px solid #e0e0e0;
+  background: #f8f8f8;
+}
+
+.feature-info-title {
+  font-weight: 600;
+  flex: 1;
+  margin-right: 8px;
+}
+
+.feature-info-close {
+  background: none;
+  border: none;
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+  color: #666;
+  padding: 0 4px;
+  min-width: 32px;
+  min-height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.feature-info-body {
+  overflow-y: auto;
+  padding: 8px 12px;
+  flex: 1;
+}
+
+.feature-info-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 4px 0;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.feature-info-row:last-child {
+  border-bottom: none;
+}
+
+.feature-info-label {
+  color: #666;
+  margin-right: 12px;
+  white-space: nowrap;
+}
+
+.feature-info-value {
+  font-weight: 500;
+  text-align: right;
+}
+
+.feature-info-footer {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 8px 12px;
+  border-top: 1px solid #e0e0e0;
+  font-size: 13px;
+  color: #0066cc;
+}
+
+.feature-info-nav-btn {
+  background: none;
+  border: none;
+  color: #0066cc;
+  cursor: pointer;
+  font-size: 16px;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.feature-info-nav-btn:hover {
+  background: #f0f6ff;
+}
+
+.feature-info-nav-btn:disabled {
+  color: #ccc;
+  cursor: default;
+  background: none;
+}
+
+@media (max-width: 480px) {
+  .feature-info-panel {
+    width: 100%;
+    max-width: 100%;
+    bottom: 0;
+    border-radius: 8px 8px 0 0;
+  }
+}

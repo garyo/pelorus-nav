@@ -72,6 +72,18 @@ export function getNauticalLayers(sourceId: string): LayerSpecification[] {
         "fill-opacity": 0.9,
       },
     },
+    // Drying areas (covers and uncovers at tide) — green per chart convention
+    {
+      id: "s57-depare-drying",
+      type: "fill",
+      source: sourceId,
+      "source-layer": "DEPARE",
+      filter: ["<", ["get", "DRVAL1"], 0],
+      paint: {
+        "fill-color": "#8cbc8c",
+        "fill-opacity": 0.9,
+      },
+    },
     // Lake areas — light blue like shallow water
     {
       id: "s57-lakare",
@@ -125,6 +137,27 @@ export function getNauticalLayers(sourceId: string): LayerSpecification[] {
       paint: {
         "fill-color": "#cccccc",
         "fill-opacity": 0.8,
+      },
+    },
+    // Buildings — brown fill
+    {
+      id: "s57-buisgl",
+      type: "fill",
+      source: sourceId,
+      "source-layer": "BUISGL",
+      paint: {
+        "fill-color": "#b5926b",
+        "fill-opacity": 0.7,
+      },
+    },
+    {
+      id: "s57-buisgl-outline",
+      type: "line",
+      source: sourceId,
+      "source-layer": "BUISGL",
+      paint: {
+        "line-color": "#8c6d4f",
+        "line-width": 0.5,
       },
     },
     // Unsurveyed areas — subtle gray
@@ -409,6 +442,66 @@ export function getNauticalLayers(sourceId: string): LayerSpecification[] {
         "circle-stroke-color": "#333333",
       },
     },
+    // ── Geographic labels ─────────────────────────────────────────────
+    // Island / land area names (from LNDARE OBJNAM)
+    {
+      id: "s57-lndare-label",
+      type: "symbol",
+      source: sourceId,
+      "source-layer": "LNDARE",
+      filter: ["has", "OBJNAM"],
+      layout: {
+        "text-field": ["get", "OBJNAM"],
+        "text-size": 13,
+        "text-font": ["Open Sans Italic"],
+        "text-allow-overlap": false,
+        "text-padding": 10,
+      },
+      paint: {
+        "text-color": "#5a4a32",
+        "text-halo-color": "#f5e6c8",
+        "text-halo-width": 1.5,
+      },
+    },
+    // Berth / pier labels
+    {
+      id: "s57-berths-label",
+      type: "symbol",
+      source: sourceId,
+      "source-layer": "BERTHS",
+      filter: ["has", "OBJNAM"],
+      layout: {
+        "text-field": ["get", "OBJNAM"],
+        "text-size": 10,
+        "text-allow-overlap": false,
+        "text-padding": 5,
+      },
+      paint: {
+        "text-color": "#555555",
+        "text-halo-color": "#ffffff",
+        "text-halo-width": 1,
+      },
+    },
+    // Sea area names (tidal flats, bights, etc.)
+    {
+      id: "s57-seaare-label",
+      type: "symbol",
+      source: sourceId,
+      "source-layer": "SEAARE",
+      filter: ["has", "OBJNAM"],
+      layout: {
+        "text-field": ["get", "OBJNAM"],
+        "text-size": 12,
+        "text-font": ["Open Sans Italic"],
+        "text-allow-overlap": false,
+        "text-padding": 10,
+      },
+      paint: {
+        "text-color": "#3a6a3a",
+        "text-halo-color": "#ffffff",
+        "text-halo-width": 1.5,
+      },
+    },
     // ── Nav aid labels ──────────────────────────────────────────────────
     // Buoy number labels (from LABEL property added during pipeline)
     {
@@ -417,7 +510,12 @@ export function getNauticalLayers(sourceId: string): LayerSpecification[] {
       source: sourceId,
       "source-layer": "BOYLAT",
       layout: {
-        "text-field": ["get", "LABEL"],
+        "text-field": [
+            "case",
+            ["all", ["has", "LABEL"], ["!=", ["get", "LABEL"], ""]],
+            ["concat", '"', ["get", "LABEL"], '"'],
+            "",
+          ],
         "text-size": 11,
         "text-offset": [0, 1.2],
         "text-allow-overlap": false,
@@ -435,7 +533,12 @@ export function getNauticalLayers(sourceId: string): LayerSpecification[] {
       source: sourceId,
       "source-layer": "BCNLAT",
       layout: {
-        "text-field": ["get", "LABEL"],
+        "text-field": [
+            "case",
+            ["all", ["has", "LABEL"], ["!=", ["get", "LABEL"], ""]],
+            ["concat", '"', ["get", "LABEL"], '"'],
+            "",
+          ],
         "text-size": 11,
         "text-offset": [0, 1.2],
         "text-allow-overlap": false,
@@ -523,6 +626,19 @@ export function getNauticalLayers(sourceId: string): LayerSpecification[] {
       },
       paint: {
         "text-color": "#333333",
+      },
+    },
+    // Pilings — yellow-green circles (bridge remnants, dolphins, etc.)
+    {
+      id: "s57-pilpnt",
+      type: "circle",
+      source: sourceId,
+      "source-layer": "PILPNT",
+      paint: {
+        "circle-radius": 5,
+        "circle-color": "#c8cc66",
+        "circle-stroke-width": 1.5,
+        "circle-stroke-color": "#888833",
       },
     },
     // Mooring facilities — small gray circle
