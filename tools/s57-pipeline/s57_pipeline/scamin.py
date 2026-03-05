@@ -63,8 +63,10 @@ CSCL_ZOOM_TABLE: list[tuple[int, int, int]] = [
     (0, 10, 14),        # Band 5+ harbor: z10-14
 ]
 
-# Layer groups that get maxzoom capping (features that overlap between scales)
-_MAXZOOM_GROUPS = {"terrain", "regulatory", "lines"}
+# Layer groups that get maxzoom capping (features that overlap between scales).
+# Nearly all groups need this to avoid duplicates from overlapping cells.
+# Only "infrastructure" is excluded (sparse, cell-specific features).
+_MAXZOOM_GROUPS = {"terrain", "regulatory", "lines", "hazards", "navaids", "dense_points"}
 
 
 def cscl_to_minzoom(cscl: int) -> int:

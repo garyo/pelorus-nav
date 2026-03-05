@@ -70,6 +70,28 @@ This means:
 - US4MA14M COALNE: lon [-70.73, -70.20] lat [41.70, 42.14] (259 features) — Cape Cod only
 - US5MA22M: no COALNE/LNDARE at all
 
+## Symbology (ECDIS Simplified)
+
+Currently using ECDIS simplified symbology rendered as Unicode text symbols in MapLibre:
+
+| Feature | Symbol | Unicode | Notes |
+|---------|--------|---------|-------|
+| UWTROC (underwater rock) | + | `+` | Submerged rock (WATLEV=4). Very dense near rocky shores (242 near Spectacle Island alone) |
+| OBSTRN (obstruction) | ✕ | `✕` | General obstruction. CATOBS distinguishes stumps, wellheads, etc. |
+| WRECKS (wreck) | ⊕ | `⊕` | Simplified wreck symbol |
+
+Three symbol sets exist in practice:
+1. **NOAA paper chart** (INT1/US Chart No. 1) — asterisk for covers/uncovers, plus with dots for awash
+2. **ECDIS traditional** — similar to paper but rendered on screen
+3. **ECDIS simplified** — what we use now; fewer symbol variants
+
+**TODO**: Replace Unicode text symbols with proper SVG/sprite-based rendering (Phase 1C).
+This will allow proper scaling, rotation, and the full S-52 symbol catalog including
+light sectors, buoy topmarks, and complex area patterns.
+
+Reference: [David Burch: Rock Talk](http://davidburchnavigation.blogspot.com/2016/11/rock-talk-is-it-all-awash-or-not.html),
+[U.S. Chart No. 1](https://nauticalcharts.noaa.gov/publications/us-chart-1.html)
+
 ## Download URLs
 - Individual cell: `https://charts.noaa.gov/ENCs/{CELLNAME}.zip`
 - State package: available via chart downloader at `https://charts.noaa.gov/ENCs/ENCs.shtml`

@@ -44,6 +44,9 @@ LAYER_CONFIGS: list[LayerConfig] = [
     # Nav aids (sparse, critical — keep all)
     LayerConfig("BOYLAT", "navaids", NAVAID_ARGS),
     LayerConfig("BOYCAR", "navaids", NAVAID_ARGS),
+    LayerConfig("BOYSAW", "navaids", NAVAID_ARGS),
+    LayerConfig("BOYSPP", "navaids", NAVAID_ARGS),
+    LayerConfig("BOYISD", "navaids", NAVAID_ARGS),
     LayerConfig("BCNLAT", "navaids", NAVAID_ARGS),
     LayerConfig("BCNCAR", "navaids", NAVAID_ARGS),
     LayerConfig("LIGHTS", "navaids", NAVAID_ARGS),

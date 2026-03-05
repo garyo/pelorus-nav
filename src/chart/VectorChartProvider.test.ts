@@ -43,6 +43,9 @@ describe("VectorChartProvider", () => {
     expect(layerIds).toContain("s57-soundg-label");
     expect(layerIds).toContain("s57-boylat");
     expect(layerIds).toContain("s57-wrecks");
+    expect(layerIds).toContain("s57-drgare");
+    expect(layerIds).toContain("s57-slcons");
+    expect(layerIds).toContain("s57-fairwy");
   });
 
   it("all layers reference the correct source", () => {

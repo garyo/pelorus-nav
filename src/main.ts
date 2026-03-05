@@ -25,7 +25,7 @@ const chartManager = new ChartManager({
     new OSMChartProvider(),
     new VectorChartProvider(),
   ],
-  initialProviderId: "noaa-ncds",
+  initialProviderId: "s57-vector",
 });
 
 chartManager.map.addControl(new ChartSwitcherControl(chartManager), "top-left");

@@ -217,8 +217,8 @@ class TestAddMinzoomToGeojson:
         finally:
             coalne_path.unlink(missing_ok=True)
 
-    def test_navaid_layer_no_maxzoom(self) -> None:
-        """Navaid point layers do NOT get maxzoom — they just overlay."""
+    def test_navaid_layer_gets_maxzoom(self) -> None:
+        """Navaid point layers get maxzoom to avoid duplicates from overlapping cells."""
         geojson = {
             "type": "FeatureCollection",
             "features": [
@@ -248,9 +248,44 @@ class TestAddMinzoomToGeojson:
 
             feat = result["features"][0]["tippecanoe"]
             assert feat["minzoom"] == 0
-            assert "maxzoom" not in feat
+            assert feat["maxzoom"] == 9
         finally:
             boylat_path.unlink(missing_ok=True)
+
+    def test_infrastructure_no_maxzoom(self) -> None:
+        """Infrastructure layers do NOT get maxzoom — sparse, cell-specific."""
+        geojson = {
+            "type": "FeatureCollection",
+            "features": [
+                {
+                    "type": "Feature",
+                    "properties": {},
+                    "geometry": {"type": "Point", "coordinates": [0, 0]},
+                },
+            ],
+        }
+
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix="_bridge.geojson", delete=False, prefix=""
+        ) as f:
+            json.dump(geojson, f)
+            input_path = Path(f.name)
+
+        bridge_path = input_path.parent / "bridge.geojson"
+        input_path.rename(bridge_path)
+
+        try:
+            count = add_minzoom_to_geojson(bridge_path, cell_cscl=675_000)
+            assert count == 1
+
+            with open(bridge_path) as f:
+                result = json.load(f)
+
+            feat = result["features"][0]["tippecanoe"]
+            assert feat["minzoom"] == 0
+            assert "maxzoom" not in feat
+        finally:
+            bridge_path.unlink(missing_ok=True)
 
     def test_scamin_overrides_cscl(self) -> None:
         """Features WITH SCAMIN use it even when cell_cscl is provided."""

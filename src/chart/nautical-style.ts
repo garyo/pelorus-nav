@@ -3,9 +3,16 @@ import type { LayerSpecification } from "maplibre-gl";
 /**
  * Minimal nautical chart style layers for S-57 vector tiles.
  * Simplified symbology — full S-52 symbology with sprites is deferred to Phase 1C.
+ *
+ * Layer ordering:
+ *   1. Background
+ *   2. Fill layers — terrain first, then regulatory overlays
+ *   3. Line layers
+ *   4. Point/symbol layers
  */
 export function getNauticalLayers(sourceId: string): LayerSpecification[] {
   return [
+    // ── Background ──────────────────────────────────────────────────────
     // Ocean background — visible where no DEPARE polygons exist
     {
       id: "s57-background",
@@ -14,6 +21,8 @@ export function getNauticalLayers(sourceId: string): LayerSpecification[] {
         "background-color": "#d4e8f7",
       },
     },
+
+    // ── Fill layers: terrain ────────────────────────────────────────────
     // Land areas — tan fill
     {
       id: "s57-lndare",
@@ -63,6 +72,150 @@ export function getNauticalLayers(sourceId: string): LayerSpecification[] {
         "fill-opacity": 0.9,
       },
     },
+    // Lake areas — light blue like shallow water
+    {
+      id: "s57-lakare",
+      type: "fill",
+      source: sourceId,
+      "source-layer": "LAKARE",
+      paint: {
+        "fill-color": "#a8ccee",
+        "fill-opacity": 0.8,
+      },
+    },
+    // Rivers — light blue
+    {
+      id: "s57-rivers",
+      type: "fill",
+      source: sourceId,
+      "source-layer": "RIVERS",
+      paint: {
+        "fill-color": "#a8ccee",
+        "fill-opacity": 0.8,
+      },
+    },
+    // Dredged areas — light gray-blue with dashed outline
+    {
+      id: "s57-drgare",
+      type: "fill",
+      source: sourceId,
+      "source-layer": "DRGARE",
+      paint: {
+        "fill-color": "#c8d8e8",
+        "fill-opacity": 0.5,
+      },
+    },
+    {
+      id: "s57-drgare-outline",
+      type: "line",
+      source: sourceId,
+      "source-layer": "DRGARE",
+      paint: {
+        "line-color": "#8899aa",
+        "line-width": 1,
+        "line-dasharray": [4, 3],
+      },
+    },
+    // Pontoons / floating docks — light gray fill
+    {
+      id: "s57-ponton",
+      type: "fill",
+      source: sourceId,
+      "source-layer": "PONTON",
+      paint: {
+        "fill-color": "#cccccc",
+        "fill-opacity": 0.8,
+      },
+    },
+    // Unsurveyed areas — subtle gray
+    {
+      id: "s57-unsare",
+      type: "fill",
+      source: sourceId,
+      "source-layer": "UNSARE",
+      paint: {
+        "fill-color": "#cccccc",
+        "fill-opacity": 0.3,
+      },
+    },
+
+    // ── Fill layers: regulatory overlays ────────────────────────────────
+    // Fairways — very subtle outline only (shipping lanes)
+    {
+      id: "s57-fairwy",
+      type: "fill",
+      source: sourceId,
+      "source-layer": "FAIRWY",
+      paint: {
+        "fill-color": "#ffffff",
+        "fill-opacity": 0,
+      },
+    },
+    {
+      id: "s57-fairwy-outline",
+      type: "line",
+      source: sourceId,
+      "source-layer": "FAIRWY",
+      paint: {
+        "line-color": "#7777aa",
+        "line-width": 0.8,
+        "line-dasharray": [6, 4],
+      },
+    },
+    // Anchorage areas — outline only, purple dashed
+    {
+      id: "s57-achare",
+      type: "line",
+      source: sourceId,
+      "source-layer": "ACHARE",
+      paint: {
+        "line-color": "#9933cc",
+        "line-width": 1,
+        "line-dasharray": [4, 3],
+        "line-opacity": 0.6,
+      },
+    },
+    // Traffic separation — outline only, magenta dashed
+    {
+      id: "s57-tsslpt",
+      type: "line",
+      source: sourceId,
+      "source-layer": "TSSLPT",
+      paint: {
+        "line-color": "#cc33aa",
+        "line-width": 1,
+        "line-dasharray": [6, 3],
+        "line-opacity": 0.6,
+      },
+    },
+    // Restricted areas — outline only, orange dashed
+    {
+      id: "s57-resare",
+      type: "line",
+      source: sourceId,
+      "source-layer": "RESARE",
+      paint: {
+        "line-color": "#dd6600",
+        "line-width": 1,
+        "line-dasharray": [4, 2],
+        "line-opacity": 0.5,
+      },
+    },
+    // Caution areas — outline only, yellow dashed
+    {
+      id: "s57-ctnare",
+      type: "line",
+      source: sourceId,
+      "source-layer": "CTNARE",
+      paint: {
+        "line-color": "#ddaa00",
+        "line-width": 1,
+        "line-dasharray": [4, 2],
+        "line-opacity": 0.5,
+      },
+    },
+
+    // ── Line layers ─────────────────────────────────────────────────────
     // Depth contours
     {
       id: "s57-depcnt",
@@ -85,6 +238,54 @@ export function getNauticalLayers(sourceId: string): LayerSpecification[] {
         "line-width": 1.5,
       },
     },
+    // Shoreline construction (piers, wharves, seawalls)
+    {
+      id: "s57-slcons",
+      type: "line",
+      source: sourceId,
+      "source-layer": "SLCONS",
+      paint: {
+        "line-color": "#555555",
+        "line-width": 1,
+      },
+    },
+    // Bridge structures
+    {
+      id: "s57-bridge",
+      type: "line",
+      source: sourceId,
+      "source-layer": "BRIDGE",
+      paint: {
+        "line-color": "#664422",
+        "line-width": 2,
+      },
+    },
+    // Submarine cables — dashed gray
+    {
+      id: "s57-cblsub",
+      type: "line",
+      source: sourceId,
+      "source-layer": "CBLSUB",
+      paint: {
+        "line-color": "#888888",
+        "line-width": 1,
+        "line-dasharray": [4, 3],
+      },
+    },
+    // Overhead cables — dashed red/orange (clearance hazard)
+    {
+      id: "s57-cblohd",
+      type: "line",
+      source: sourceId,
+      "source-layer": "CBLOHD",
+      paint: {
+        "line-color": "#cc4400",
+        "line-width": 1.2,
+        "line-dasharray": [5, 3],
+      },
+    },
+
+    // ── Point / symbol layers ───────────────────────────────────────────
     // Soundings — circle + depth label
     {
       id: "s57-soundg-circle",
@@ -113,7 +314,21 @@ export function getNauticalLayers(sourceId: string): LayerSpecification[] {
         "text-halo-width": 1,
       },
     },
-    // Buoys (lateral) — colored by COLOUR attribute
+    // Lights — outer glow ring (renders below buoys)
+    {
+      id: "s57-lights",
+      type: "circle",
+      source: sourceId,
+      "source-layer": "LIGHTS",
+      paint: {
+        "circle-radius": 12,
+        "circle-color": "rgba(255, 220, 0, 0.25)",
+        "circle-blur": 0.6,
+        "circle-stroke-width": 2,
+        "circle-stroke-color": "rgba(255, 180, 0, 0.5)",
+      },
+    },
+    // Buoys (lateral) — IALA-B: CATLAM 1=port (green), 2=starboard (red)
     {
       id: "s57-boylat",
       type: "circle",
@@ -123,64 +338,204 @@ export function getNauticalLayers(sourceId: string): LayerSpecification[] {
         "circle-radius": 6,
         "circle-color": [
           "match",
-          ["coalesce", ["get", "COLOUR"], ""],
-          "1",
-          "#ffffff",
-          "2",
-          "#000000",
-          "3",
-          "#ff0000",
-          "4",
-          "#00ff00",
-          "5",
-          "#0000ff",
-          "6",
-          "#ffff00",
+          ["get", "CATLAM"],
+          1,
+          "#00aa00",
+          2,
+          "#cc0000",
           "#888888",
         ],
         "circle-stroke-width": 1.5,
         "circle-stroke-color": "#333333",
       },
     },
-    // Lights — yellow glow
+    // Safe water buoys — red/white (rendered as white with red stroke)
     {
-      id: "s57-lights",
+      id: "s57-boysaw",
       type: "circle",
       source: sourceId,
-      "source-layer": "LIGHTS",
+      "source-layer": "BOYSAW",
+      paint: {
+        "circle-radius": 6,
+        "circle-color": "#ffffff",
+        "circle-stroke-width": 2,
+        "circle-stroke-color": "#cc0000",
+      },
+    },
+    // Special purpose buoys — yellow
+    {
+      id: "s57-boyspp",
+      type: "circle",
+      source: sourceId,
+      "source-layer": "BOYSPP",
       paint: {
         "circle-radius": 5,
         "circle-color": "#ffdd00",
-        "circle-opacity": 0.8,
-        "circle-blur": 0.5,
-        "circle-stroke-width": 1,
-        "circle-stroke-color": "#cc9900",
+        "circle-stroke-width": 1.5,
+        "circle-stroke-color": "#999900",
       },
     },
-    // Wrecks — dark purple circle
+    // Isolated danger buoys — red/black (rendered as black with red stroke)
     {
-      id: "s57-wrecks",
+      id: "s57-boyisd",
       type: "circle",
       source: sourceId,
-      "source-layer": "WRECKS",
+      "source-layer": "BOYISD",
+      paint: {
+        "circle-radius": 6,
+        "circle-color": "#222222",
+        "circle-stroke-width": 2,
+        "circle-stroke-color": "#cc0000",
+      },
+    },
+    // Lateral beacons — IALA-B: CATLAM 1=port (green), 2=starboard (red)
+    {
+      id: "s57-bcnlat",
+      type: "circle",
+      source: sourceId,
+      "source-layer": "BCNLAT",
       paint: {
         "circle-radius": 5,
-        "circle-color": "#663399",
+        "circle-color": [
+          "match",
+          ["get", "CATLAM"],
+          1,
+          "#00aa00",
+          2,
+          "#cc0000",
+          "#888888",
+        ],
         "circle-stroke-width": 1.5,
         "circle-stroke-color": "#333333",
       },
     },
-    // Obstructions — dark circle
+    // ── Nav aid labels ──────────────────────────────────────────────────
+    // Buoy number labels (from LABEL property added during pipeline)
     {
-      id: "s57-obstrn",
+      id: "s57-boylat-label",
+      type: "symbol",
+      source: sourceId,
+      "source-layer": "BOYLAT",
+      layout: {
+        "text-field": ["get", "LABEL"],
+        "text-size": 11,
+        "text-offset": [0, 1.2],
+        "text-allow-overlap": false,
+      },
+      paint: {
+        "text-color": "#333333",
+        "text-halo-color": "#ffffff",
+        "text-halo-width": 1.5,
+      },
+    },
+    // Beacon number labels
+    {
+      id: "s57-bcnlat-label",
+      type: "symbol",
+      source: sourceId,
+      "source-layer": "BCNLAT",
+      layout: {
+        "text-field": ["get", "LABEL"],
+        "text-size": 11,
+        "text-offset": [0, 1.2],
+        "text-allow-overlap": false,
+      },
+      paint: {
+        "text-color": "#333333",
+        "text-halo-color": "#ffffff",
+        "text-halo-width": 1.5,
+      },
+    },
+    // Light characteristic labels (e.g. "Fl G 4s")
+    {
+      id: "s57-lights-label",
+      type: "symbol",
+      source: sourceId,
+      "source-layer": "LIGHTS",
+      layout: {
+        "text-field": ["get", "LABEL"],
+        "text-size": 10,
+        "text-offset": [0, -1.5],
+        "text-allow-overlap": false,
+      },
+      paint: {
+        "text-color": "#996600",
+        "text-halo-color": "#ffffff",
+        "text-halo-width": 1.5,
+      },
+    },
+    // Fog signals — small gray circle
+    {
+      id: "s57-fogsig",
       type: "circle",
       source: sourceId,
-      "source-layer": "OBSTRN",
+      "source-layer": "FOGSIG",
       paint: {
         "circle-radius": 4,
-        "circle-color": "#333333",
+        "circle-color": "#999999",
         "circle-stroke-width": 1,
-        "circle-stroke-color": "#000000",
+        "circle-stroke-color": "#666666",
+      },
+    },
+    // Wrecks — ECDIS simplified: small circle with cross (⊗-like)
+    {
+      id: "s57-wrecks",
+      type: "symbol",
+      source: sourceId,
+      "source-layer": "WRECKS",
+      layout: {
+        "text-field": "⊕",
+        "text-size": 14,
+        "text-allow-overlap": true,
+        "text-ignore-placement": true,
+      },
+      paint: {
+        "text-color": "#333333",
+      },
+    },
+    // Obstructions — ECDIS simplified: ✕ (cross/saltire)
+    {
+      id: "s57-obstrn",
+      type: "symbol",
+      source: sourceId,
+      "source-layer": "OBSTRN",
+      layout: {
+        "text-field": "✕",
+        "text-size": 12,
+        "text-allow-overlap": true,
+        "text-ignore-placement": true,
+      },
+      paint: {
+        "text-color": "#333333",
+      },
+    },
+    // Underwater rocks — ECDIS simplified: + (plus sign)
+    {
+      id: "s57-uwtroc",
+      type: "symbol",
+      source: sourceId,
+      "source-layer": "UWTROC",
+      layout: {
+        "text-field": "+",
+        "text-size": 12,
+        "text-allow-overlap": false,
+        "text-font": ["Open Sans Bold"],
+      },
+      paint: {
+        "text-color": "#333333",
+      },
+    },
+    // Mooring facilities — small gray circle
+    {
+      id: "s57-morfac",
+      type: "circle",
+      source: sourceId,
+      "source-layer": "MORFAC",
+      paint: {
+        "circle-radius": 3,
+        "circle-color": "#999999",
+        "circle-stroke-width": 1,
+        "circle-stroke-color": "#666666",
       },
     },
   ];
