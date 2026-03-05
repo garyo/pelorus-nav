@@ -11,7 +11,21 @@ import { buildIconExpression, ECDIS_SIMPLIFIED } from "./icon-sets";
  *   2. Fill layers — terrain first, then regulatory overlays
  *   3. Line layers
  *   4. Point/symbol layers
+ *
+ * Multi-scale quilting:
+ *   Features carry a `_scale_band` property (0=overview, 1=coastal,
+ *   2=approach, 3=harbor). Fill and line layers use sort-key expressions
+ *   so that higher-scale (more detailed) data renders on top of
+ *   lower-scale data, preventing coastline "echo" artifacts without
+ *   needing maxzoom capping (which caused coverage gaps).
  */
+
+/** Sort-key expression: higher _scale_band renders on top. */
+const SCALE_SORT_KEY = [
+  "coalesce",
+  ["get", "_scale_band"],
+  0,
+] as unknown as ExpressionSpecification;
 
 /** Label expression: shows quoted LABEL if present, else empty string. */
 const LABEL_EXPR = [
@@ -65,6 +79,7 @@ export function getNauticalLayers(
       type: "fill",
       source: sourceId,
       "source-layer": "LNDARE",
+      layout: { "fill-sort-key": SCALE_SORT_KEY },
       paint: {
         "fill-color": "#f5e6c8",
         "fill-opacity": 1,
@@ -76,6 +91,7 @@ export function getNauticalLayers(
       source: sourceId,
       "source-layer": "DEPARE",
       filter: ["<", ["get", "DRVAL1"], 5],
+      layout: { "fill-sort-key": SCALE_SORT_KEY },
       paint: {
         "fill-color": "#a8ccee",
         "fill-opacity": 0.9,
@@ -91,6 +107,7 @@ export function getNauticalLayers(
         [">=", ["get", "DRVAL1"], 5],
         ["<", ["get", "DRVAL1"], 20],
       ],
+      layout: { "fill-sort-key": SCALE_SORT_KEY },
       paint: {
         "fill-color": "#c4ddf5",
         "fill-opacity": 0.9,
@@ -102,6 +119,7 @@ export function getNauticalLayers(
       source: sourceId,
       "source-layer": "DEPARE",
       filter: [">=", ["get", "DRVAL1"], 20],
+      layout: { "fill-sort-key": SCALE_SORT_KEY },
       paint: {
         "fill-color": "#d4e8f7",
         "fill-opacity": 0.9,
@@ -113,6 +131,7 @@ export function getNauticalLayers(
       source: sourceId,
       "source-layer": "DEPARE",
       filter: ["<", ["get", "DRVAL1"], 0],
+      layout: { "fill-sort-key": SCALE_SORT_KEY },
       paint: {
         "fill-color": "#8cbc8c",
         "fill-opacity": 0.9,
@@ -123,6 +142,7 @@ export function getNauticalLayers(
       type: "fill",
       source: sourceId,
       "source-layer": "LAKARE",
+      layout: { "fill-sort-key": SCALE_SORT_KEY },
       paint: {
         "fill-color": "#a8ccee",
         "fill-opacity": 0.8,
@@ -133,6 +153,7 @@ export function getNauticalLayers(
       type: "fill",
       source: sourceId,
       "source-layer": "RIVERS",
+      layout: { "fill-sort-key": SCALE_SORT_KEY },
       paint: {
         "fill-color": "#a8ccee",
         "fill-opacity": 0.8,
@@ -143,6 +164,7 @@ export function getNauticalLayers(
       type: "fill",
       source: sourceId,
       "source-layer": "DRGARE",
+      layout: { "fill-sort-key": SCALE_SORT_KEY },
       paint: {
         "fill-color": "#c8d8e8",
         "fill-opacity": 0.5,
@@ -153,6 +175,7 @@ export function getNauticalLayers(
       type: "line",
       source: sourceId,
       "source-layer": "DRGARE",
+      layout: { "line-sort-key": SCALE_SORT_KEY },
       paint: {
         "line-color": "#8899aa",
         "line-width": 1,
@@ -164,6 +187,7 @@ export function getNauticalLayers(
       type: "fill",
       source: sourceId,
       "source-layer": "PONTON",
+      layout: { "fill-sort-key": SCALE_SORT_KEY },
       paint: {
         "fill-color": "#cccccc",
         "fill-opacity": 0.8,
@@ -174,6 +198,7 @@ export function getNauticalLayers(
       type: "fill",
       source: sourceId,
       "source-layer": "BUISGL",
+      layout: { "fill-sort-key": SCALE_SORT_KEY },
       paint: {
         "fill-color": "#b5926b",
         "fill-opacity": 0.7,
@@ -184,6 +209,7 @@ export function getNauticalLayers(
       type: "line",
       source: sourceId,
       "source-layer": "BUISGL",
+      layout: { "line-sort-key": SCALE_SORT_KEY },
       paint: {
         "line-color": "#8c6d4f",
         "line-width": 0.5,
@@ -194,6 +220,7 @@ export function getNauticalLayers(
       type: "fill",
       source: sourceId,
       "source-layer": "UNSARE",
+      layout: { "fill-sort-key": SCALE_SORT_KEY },
       paint: {
         "fill-color": "#cccccc",
         "fill-opacity": 0.3,
@@ -277,6 +304,7 @@ export function getNauticalLayers(
       type: "line",
       source: sourceId,
       "source-layer": "DEPCNT",
+      layout: { "line-sort-key": SCALE_SORT_KEY },
       paint: {
         "line-color": "#6a9fc0",
         "line-width": 0.7,
@@ -287,6 +315,7 @@ export function getNauticalLayers(
       type: "line",
       source: sourceId,
       "source-layer": "COALNE",
+      layout: { "line-sort-key": SCALE_SORT_KEY },
       paint: {
         "line-color": "#333333",
         "line-width": 1.5,
@@ -297,6 +326,7 @@ export function getNauticalLayers(
       type: "line",
       source: sourceId,
       "source-layer": "SLCONS",
+      layout: { "line-sort-key": SCALE_SORT_KEY },
       paint: {
         "line-color": "#555555",
         "line-width": 1,

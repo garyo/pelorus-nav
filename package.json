@@ -23,6 +23,7 @@
     "tiles:full": "cd tools/s57-pipeline && uv run python -m s57_pipeline pipeline --region new-england --min-cells 50 -o ../../public/nautical.pmtiles",
     "tiles:download": "cd tools/s57-pipeline && uv run python -m s57_pipeline download --region boston-test",
     "tiles:download:full": "cd tools/s57-pipeline && uv run python -m s57_pipeline download --region new-england",
+    "tiles:upload": "wrangler r2 object put pelorus-nav/nautical.pmtiles --file public/nautical.pmtiles --remote",
     "deploy": "bun run build && wrangler deploy"
   },
   "license": "MIT",

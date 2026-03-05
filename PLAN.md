@@ -144,6 +144,59 @@ A modern, open-source marine chartplotter built as a progressive web app (PWA) i
 
 ---
 
+## S-57 Layer Coverage
+
+We currently extract 38 layers. Below are layers present in NOAA ENC data that we don't yet process, categorized by priority.
+
+### Important for Navigation
+
+| Layer | Geom | Description | Why |
+|-------|------|-------------|-----|
+| BCNSPP | Point | Special purpose beacons | We have BCNLAT/BCNCAR but miss these |
+| DAYMAR | Point | Daymarks (colored panels on beacons) | Identifies dayboard shape/color |
+| TOPMAR | Point | Top marks on buoys/beacons | IALA cone/sphere/etc |
+| TSSBND | Line | TSS boundaries | We have TSSLPT but not boundary lines |
+| TSEZNE | Polygon | TSS separation zones | Central dividers between TSS lanes |
+| TWRTPT | Polygon | Two-way route parts | Important shipping lanes |
+| RECTRC | Line | Recommended tracks | Channel approach guidance |
+| NAVLNE | Line | Navigation/leading lines | Harbor entry approach bearings |
+| DWRTCL | Line | Deep water route centerlines | Deep-draft routes |
+| ACHBRT | Polygon | Anchor berths | Named spots within anchorage areas |
+| SBDARE | Point/Poly | Seabed type (sand, mud, rock) | Critical for anchoring decisions |
+| DMPGRD | Poly/Point | Dumping grounds | Avoid anchoring/fishing |
+| HRBFAC | Point | Harbour facilities | Marinas, fuel, yacht clubs |
+| MAGVAR | Polygon | Magnetic variation | Compass navigation overlay |
+| CBLARE | Polygon | Cable areas | No-anchor zones |
+| PIPARE | Polygon | Pipeline areas | Anchoring restrictions |
+| PIPSOL | Line | Submarine pipelines | Like CBLSUB but for pipes |
+| OFSPLF | Point | Offshore platforms | Fixed structures in water |
+
+### Nice to Have
+
+| Layer | Geom | Description |
+|-------|------|-------------|
+| RTPBCN | Point | RACON radar transponder beacons |
+| RDOSTA | Point | Radio stations (VHF, DGPS) |
+| CGUSTA | Point | Coast Guard stations |
+| SMCFAC | Point | Small craft facilities (ramps, fuel docks) |
+| WATTUR | Point/Poly | Water turbulence (tide rips, overfalls) |
+| LNDRGN | Point/Poly | Named land regions (capes, islands) |
+| LNDELV | Point/Line | Land elevation points/contours |
+| SLOTOP | Line | Cliff/slope top lines |
+| DYKCON | Line/Poly | Dykes/seawalls |
+| WEDKLP | Point | Weed/kelp areas |
+| SILTNK | Point/Poly | Silos/tanks (visual landmarks) |
+| RUNWAY | Polygon | Airport runways |
+| BUAARE | Poly/Point | Built-up areas (towns/cities) |
+| MARCUL | Polygon | Marine farms/aquaculture |
+| PILBOP | Point/Poly | Pilot boarding places |
+
+### Skip (Metadata/Administrative)
+
+DSID, M_COVR, M_NPUB, M_NSYS, M_QUAL, C_AGGR, C_ASSO, NEWOBJ, ADMARE, CONZNE, COSARE, EXEZNE, OSPARE, PRCARE, SLOGRD, TESARE, MIPARE
+
+---
+
 ## Phase 1C: Vector Chart Display and Quilting
 
 **Goal**: Display vector charts in the app with proper quilting and object querying.

@@ -1,4 +1,4 @@
-"""SCAMIN → tippecanoe minzoom mapping.
+"""SCAMIN and CSCL → tippecanoe minzoom/maxzoom + scale band mapping.
 
 S-57 features have a SCAMIN (Scale Minimum) attribute that indicates
 the smallest scale at which the feature should be displayed. This module
@@ -6,8 +6,11 @@ maps SCAMIN values to tile zoom levels for use with tippecanoe's
 per-feature minzoom control.
 
 When SCAMIN is absent (common for COALNE, LNDARE, etc.), the ENC cell's
-compilation scale (DSPM_CSCL) is used as a fallback to prevent coarse
-overview geometry from rendering at high zoom levels.
+compilation scale (DSPM_CSCL) is used as a fallback. Most layer groups
+also get maxzoom to prevent echoes from overlapping multi-scale cells.
+
+Each feature also gets a `_scale_band` property (0–3) indicating its
+source cell's scale band, for potential runtime sort-key use.
 """
 
 from __future__ import annotations
@@ -35,12 +38,6 @@ def scamin_to_minzoom(scamin: int | float | None) -> int:
     """Convert a SCAMIN value to a tippecanoe minzoom level.
 
     Features without SCAMIN are always visible (minzoom 0).
-
-    Args:
-        scamin: The SCAMIN attribute value, or None if not present.
-
-    Returns:
-        The appropriate tile zoom level.
     """
     if scamin is None or scamin <= 0:
         return DEFAULT_ZOOM
@@ -52,52 +49,47 @@ def scamin_to_minzoom(scamin: int | float | None) -> int:
     return DEFAULT_ZOOM
 
 
-# Compilation scale (DSPM_CSCL) → (minzoom, maxzoom) for the cell.
-# maxzoom is only applied to terrain polygon layers (DEPARE, LNDARE, etc.)
-# where finer-scale cells provide replacement geometry. Lines and points
-# don't get maxzoom since they just overlay without conflict.
-CSCL_ZOOM_TABLE: list[tuple[int, int, int]] = [
-    # (max_cscl, minzoom, maxzoom)
-    # Tightened ranges to avoid coastline "echo" from overlapping cells.
-    (100_000, 0, 8),    # Band 2/3 overview: z0-8 for polygons
-    (50_000, 9, 12),    # Band 4 approach: z9-12 for polygons
-    (0, 11, 14),        # Band 5+ harbor: z11-14
+# Compilation scale (DSPM_CSCL) → (minzoom, maxzoom, scale_band).
+CSCL_BANDS: list[tuple[int, int, int, int]] = [
+    # (max_cscl, minzoom, maxzoom, scale_band)
+    (500_000, 0, 5, 0),    # Overview (CSCL > 500k): z0-5
+    (100_000, 6, 9, 1),    # Coastal (CSCL 100k-500k): z6-9
+    (50_000, 9, 12, 2),    # Approach (CSCL 50k-100k): z9-12
+    (0, 9, 14, 3),         # Harbor (CSCL ≤ 50k): z9-14
 ]
 
-# Layer groups that get maxzoom capping (features that overlap between scales).
-# Nearly all groups need this to avoid duplicates from overlapping cells.
-# Only "infrastructure" is excluded (sparse, cell-specific features).
+# Layer groups that get maxzoom capping to prevent echoes/duplicates
+# from overlapping multi-scale cells. Infrastructure is excluded
+# (sparse, cell-specific features that don't overlap problematically).
 _MAXZOOM_GROUPS = {"terrain", "regulatory", "lines", "hazards", "navaids", "dense_points", "labels"}
 
 
 def cscl_to_minzoom(cscl: int) -> int:
-    """Map a cell's compilation scale to a minzoom level.
-
-    Args:
-        cscl: The DSPM_CSCL value from the ENC cell.
-
-    Returns:
-        minzoom for features from this cell.
-    """
-    for max_cscl, minzoom, _maxzoom in CSCL_ZOOM_TABLE:
+    """Map a cell's compilation scale to a minzoom level."""
+    for max_cscl, minzoom, _maxzoom, _band in CSCL_BANDS:
         if cscl > max_cscl:
             return minzoom
-    return 10
+    return 9
 
 
 def cscl_to_zoom_range(cscl: int) -> tuple[int, int]:
-    """Map a cell's compilation scale to a (minzoom, maxzoom) range.
-
-    Args:
-        cscl: The DSPM_CSCL value from the ENC cell.
-
-    Returns:
-        (minzoom, maxzoom) tuple for features from this cell.
-    """
-    for max_cscl, minzoom, maxzoom in CSCL_ZOOM_TABLE:
+    """Map a cell's compilation scale to a (minzoom, maxzoom) range."""
+    for max_cscl, minzoom, maxzoom, _band in CSCL_BANDS:
         if cscl > max_cscl:
             return (minzoom, maxzoom)
-    return (10, 14)
+    return (9, 14)
+
+
+def cscl_to_scale_band(cscl: int) -> int:
+    """Map a cell's compilation scale to a scale band (0–3).
+
+    0 = overview, 1 = coastal, 2 = approach, 3 = harbor.
+    Stored as _scale_band property for potential runtime sort-key use.
+    """
+    for max_cscl, _minzoom, _maxzoom, band in CSCL_BANDS:
+        if cscl > max_cscl:
+            return band
+    return 3
 
 
 def add_minzoom_to_geojson(
@@ -105,22 +97,20 @@ def add_minzoom_to_geojson(
     output_path: Path | None = None,
     cell_cscl: int | None = None,
 ) -> int:
-    """Add tippecanoe minzoom/maxzoom to each feature in a GeoJSON file.
+    """Add tippecanoe minzoom/maxzoom and _scale_band to each feature.
 
-    Uses SCAMIN if present on the feature, otherwise falls back to the
-    cell's compilation scale to assign appropriate zoom ranges.
+    Uses SCAMIN if present on the feature (minzoom only, no maxzoom).
+    Otherwise falls back to the cell's compilation scale for zoom range.
+    Maxzoom is applied to most layer groups to prevent echoes from
+    overlapping multi-scale cells.
 
-    For terrain polygon layers (DEPARE, LNDARE, etc.), maxzoom is set to
-    prevent coarse data from overlaying finer-scale data at high zoom.
-    For lines and points, only minzoom is set — they overlay without conflict.
-
-    The layer name is inferred from the input filename (e.g. depare.geojson → DEPARE).
+    Every feature gets a _scale_band property (0–3) for potential
+    runtime sort-key ordering in MapLibre.
 
     Args:
         input_path: Path to input GeoJSON file.
         output_path: Path to output GeoJSON file. If None, overwrites input.
-        cell_cscl: The cell's DSPM_CSCL compilation scale. If provided,
-            features without SCAMIN get zoom ranges based on this.
+        cell_cscl: The cell's DSPM_CSCL compilation scale.
 
     Returns:
         Number of features processed.
@@ -136,11 +126,13 @@ def add_minzoom_to_geojson(
     layer_cfg = get_layer_config(layer_name)
     use_maxzoom = layer_cfg is not None and layer_cfg.group in _MAXZOOM_GROUPS
 
-    # Compute cell-level zoom range if compilation scale provided
+    # Compute cell-level values
     cell_minzoom: int | None = None
     cell_maxzoom: int | None = None
+    scale_band = 0
     if cell_cscl is not None:
         cell_minzoom, cell_maxzoom = cscl_to_zoom_range(cell_cscl)
+        scale_band = cscl_to_scale_band(cell_cscl)
 
     count = 0
     for feature in geojson.get("features", []):
@@ -159,8 +151,10 @@ def add_minzoom_to_geojson(
             if use_maxzoom and cell_maxzoom is not None:
                 feature["tippecanoe"]["maxzoom"] = cell_maxzoom
         else:
-            # No SCAMIN and no cell scale — show everywhere
             feature["tippecanoe"]["minzoom"] = DEFAULT_ZOOM
+
+        # Scale band for potential runtime sort-key ordering
+        props["_scale_band"] = scale_band
 
         count += 1
 
