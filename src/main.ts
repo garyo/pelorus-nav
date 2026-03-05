@@ -33,13 +33,32 @@ chartManager.map.addControl(new ChartSwitcherControl(chartManager), "top-left");
 
 new FeatureQueryHandler(chartManager);
 
-// Temporary zoom level display for debugging
-const zoomDiv = document.createElement("div");
-zoomDiv.style.cssText =
-  "position:fixed;bottom:40px;right:10px;background:rgba(0,0,0,0.7);color:#fff;padding:4px 8px;font:12px monospace;z-index:9999;border-radius:4px";
-document.body.appendChild(zoomDiv);
+// HUD: zoom + cursor position
+const hudDiv = document.createElement("div");
+hudDiv.style.cssText =
+  "position:fixed;bottom:40px;right:10px;background:rgba(0,0,0,0.7);color:#fff;padding:4px 8px;font:12px monospace;z-index:9999;border-radius:4px;line-height:1.6";
+document.body.appendChild(hudDiv);
+
+const zoomSpan = document.createElement("div");
+const posSpan = document.createElement("div");
+hudDiv.append(zoomSpan, posSpan);
+
 const updateZoom = () => {
-  zoomDiv.textContent = `z${chartManager.map.getZoom().toFixed(1)}`;
+  zoomSpan.textContent = `z${chartManager.map.getZoom().toFixed(1)}`;
 };
 chartManager.map.on("zoom", updateZoom);
 chartManager.map.on("load", updateZoom);
+
+const formatDDM = (deg: number, pos: string, neg: string): string => {
+  const dir = deg >= 0 ? pos : neg;
+  const abs = Math.abs(deg);
+  const d = Math.floor(abs);
+  const m = ((abs - d) * 60).toFixed(3);
+  return `${d}\u00b0${String(m).padStart(6, "0")}'${dir}`;
+};
+
+chartManager.map.on("mousemove", (e) => {
+  const { lng, lat } = e.lngLat;
+  posSpan.textContent = `${formatDDM(lat, "N", "S")} ${formatDDM(lng, "E", "W")}`;
+});
+posSpan.textContent = "";

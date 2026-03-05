@@ -40,7 +40,7 @@ describe("VectorChartProvider", () => {
     expect(layerIds).toContain("s57-lndare");
     expect(layerIds).toContain("s57-depare-shallow");
     expect(layerIds).toContain("s57-coalne");
-    expect(layerIds).toContain("s57-soundg-label");
+    expect(layerIds).toContain("s57-soundg");
     expect(layerIds).toContain("s57-boylat");
     expect(layerIds).toContain("s57-wrecks");
     expect(layerIds).toContain("s57-drgare");

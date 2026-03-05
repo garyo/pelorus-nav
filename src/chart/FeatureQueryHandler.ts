@@ -6,10 +6,13 @@ import { formatFeatureInfo } from "./feature-info";
 /** Layers in query priority order: nav aids, hazards, regulatory, terrain */
 const INTERACTIVE_LAYERS = [
   "s57-boylat",
+  "s57-boycar",
   "s57-boysaw",
   "s57-boyspp",
   "s57-boyisd",
   "s57-bcnlat",
+  "s57-bcncar",
+  "s57-lndmrk-label",
   "s57-lights",
   "s57-fogsig",
   "s57-wrecks",
@@ -21,17 +24,19 @@ const INTERACTIVE_LAYERS = [
   "s57-fairwy",
   "s57-tsslpt",
   "s57-pilpnt",
+  "s57-morfac",
   "s57-berths-label",
   "s57-buisgl",
   "s57-seaare-label",
   "s57-lndare",
-  "s57-soundg-circle",
+  "s57-soundg",
 ];
 
 interface QueriedFeature {
   sourceLayer: string;
   properties: Record<string, unknown>;
   geometry: GeoJSON.Geometry;
+  lngLat?: { lng: number; lat: number };
 }
 
 /**
@@ -77,13 +82,39 @@ export class FeatureQueryHandler {
       return;
     }
 
+    // Query at click point, plus a wider box for text-only layers (LNDMRK)
     const raw = this.map.queryRenderedFeatures(e.point, { layers });
+    const bbox: [maplibregl.PointLike, maplibregl.PointLike] = [
+      [e.point.x - 20, e.point.y - 20],
+      [e.point.x + 20, e.point.y + 20],
+    ];
+    const labelLayers = layers.filter((id) => id.endsWith("-label"));
+    if (labelLayers.length > 0) {
+      const extra = this.map.queryRenderedFeatures(bbox, {
+        layers: labelLayers,
+      });
+      for (const f of extra) {
+        if (!raw.some((r) => r.id === f.id && r.layer.id === f.layer.id)) {
+          raw.push(f);
+        }
+      }
+    }
+
     const features = deduplicateFeatures(raw, layers);
 
     if (features.length === 0) {
       this.dismiss();
       return;
     }
+
+    // Attach click coordinates to each feature
+    const lngLat = { lng: e.lngLat.lng, lat: e.lngLat.lat };
+    for (const f of features) {
+      f.lngLat = lngLat;
+    }
+
+    // Transfer LNDMRK names to co-located LIGHTS that lack OBJNAM
+    correlateLandmarkNames(features);
 
     this.currentFeatures = features;
     this.currentIndex = 0;
@@ -103,7 +134,11 @@ export class FeatureQueryHandler {
 
   private showCurrent(): void {
     const feature = this.currentFeatures[this.currentIndex];
-    const info = formatFeatureInfo(feature.sourceLayer, feature.properties);
+    const info = formatFeatureInfo(
+      feature.sourceLayer,
+      feature.properties,
+      feature.lngLat,
+    );
     this.panel.show(info, this.currentIndex, this.currentFeatures.length);
     this.highlightFeature(feature);
   }
@@ -200,7 +235,83 @@ export class FeatureQueryHandler {
   }
 }
 
-/** Deduplicate features by source-layer, keeping priority order. */
+/**
+ * Transfer OBJNAM from co-located LNDMRK features to LIGHTS/FOGSIG
+ * that lack a name. S-57 stores names on the landmark, not the light.
+ * Removes the LNDMRK entry afterward (redundant once name is merged).
+ * Also removes featureless LNDARE entries.
+ */
+function correlateLandmarkNames(features: QueriedFeature[]): void {
+  const lndmrkIdx = features.findIndex(
+    (f) => f.sourceLayer === "LNDMRK" && f.properties.OBJNAM,
+  );
+  if (lndmrkIdx >= 0) {
+    const lndmrkName = features[lndmrkIdx].properties.OBJNAM;
+    let transferred = false;
+    for (const f of features) {
+      if (
+        (f.sourceLayer === "LIGHTS" || f.sourceLayer === "FOGSIG") &&
+        !f.properties.OBJNAM
+      ) {
+        f.properties.OBJNAM = lndmrkName;
+        transferred = true;
+      }
+    }
+    // Remove LNDMRK if its name was transferred to avoid redundant entry
+    if (transferred) {
+      features.splice(lndmrkIdx, 1);
+    }
+  }
+
+  // Remove featureless LNDARE (just "Land Area" with no useful details)
+  for (let i = features.length - 1; i >= 0; i--) {
+    if (
+      features[i].sourceLayer === "LNDARE" &&
+      !features[i].properties.OBJNAM
+    ) {
+      features.splice(i, 1);
+    }
+  }
+}
+
+/** Fields to ignore when computing dedup key (internal/tile metadata). */
+const DEDUP_IGNORE = new Set([
+  "RCID",
+  "PRIM",
+  "GRUP",
+  "OBJL",
+  "RVER",
+  "AGEN",
+  "FIDN",
+  "FIDS",
+  "LNAM",
+  "LNAM_REFS",
+  "FFPT_RIND",
+  "SORDAT",
+  "SORIND",
+  "SCAMIN",
+  "SCAMAX",
+  "SYMBOL",
+]);
+
+/** Build a stable key from user-visible properties for deduplication.
+ *  Uses FIDN (S-57 feature ID) when available — same FIDN from different
+ *  ENC cells is the same real-world feature. Falls back to visible props. */
+function dedupKey(sourceLayer: string, props: Record<string, unknown>): string {
+  // FIDN uniquely identifies an S-57 feature across overlapping cells
+  if (props.FIDN != null) {
+    return `${sourceLayer}:FIDN=${props.FIDN}`;
+  }
+  const visible: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(props)) {
+    if (!DEDUP_IGNORE.has(k) && v != null && v !== "") {
+      visible[k] = v;
+    }
+  }
+  return `${sourceLayer}:${JSON.stringify(visible)}`;
+}
+
+/** Deduplicate features by visible properties, keeping priority order. */
 function deduplicateFeatures(
   raw: maplibregl.MapGeoJSONFeature[],
   priorityLayers: string[],
@@ -218,17 +329,14 @@ function deduplicateFeatures(
 
   for (const f of sorted) {
     const sourceLayer = f.sourceLayer ?? f.layer.id;
-    // Deduplicate by source-layer + feature ID or properties hash
-    const key =
-      f.id != null
-        ? `${sourceLayer}:${f.id}`
-        : `${sourceLayer}:${JSON.stringify(f.properties)}`;
+    const props = f.properties as Record<string, unknown>;
+    const key = dedupKey(sourceLayer, props);
     if (seen.has(key)) continue;
     seen.add(key);
 
     result.push({
       sourceLayer,
-      properties: f.properties as Record<string, unknown>,
+      properties: props,
       geometry: f.geometry,
     });
   }
