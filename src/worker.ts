@@ -49,10 +49,7 @@ async function handleTilesRequest(
 
     const body = "body" in object ? object.body : null;
     const size = object.size;
-    const end =
-      range.length > 0
-        ? range.offset + range.length - 1
-        : size - 1;
+    const end = range.length > 0 ? range.offset + range.length - 1 : size - 1;
 
     return new Response(body, {
       status: 206,
@@ -64,7 +61,8 @@ async function handleTilesRequest(
         etag: object.httpEtag,
         "cache-control": "public, max-age=86400",
         "access-control-allow-origin": "*",
-        "access-control-expose-headers": "content-range, content-length, accept-ranges",
+        "access-control-expose-headers":
+          "content-range, content-length, accept-ranges",
       },
     });
   }

@@ -4,7 +4,6 @@ import { Protocol } from "pmtiles";
 import "./style.css";
 import {
   ChartManager,
-  ChartSwitcherControl,
   FeatureQueryHandler,
   NOAAChartProvider,
   NOAAECDISProvider,
@@ -29,7 +28,22 @@ const chartManager = new ChartManager({
   initialProviderId: "s57-vector",
 });
 
-chartManager.map.addControl(new ChartSwitcherControl(chartManager), "top-left");
+// Populate chart selector in top bar
+const chartSelect = document.getElementById(
+  "chart-select",
+) as HTMLSelectElement;
+for (const provider of chartManager.getProviders()) {
+  const option = document.createElement("option");
+  option.value = provider.id;
+  option.textContent = provider.name;
+  if (provider.id === chartManager.getActiveProvider()?.id) {
+    option.selected = true;
+  }
+  chartSelect.appendChild(option);
+}
+chartSelect.addEventListener("change", () => {
+  chartManager.setActiveProvider(chartSelect.value);
+});
 
 new FeatureQueryHandler(chartManager);
 
