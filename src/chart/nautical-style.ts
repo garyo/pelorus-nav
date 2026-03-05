@@ -352,7 +352,6 @@ export function getNauticalLayers(
       type: "symbol",
       source: sourceId,
       "source-layer": "SOUNDG",
-      minzoom: detailMinzoom(10),
       layout: {
         "text-field": depthTextField(depthUnit),
         "text-size": 10,
