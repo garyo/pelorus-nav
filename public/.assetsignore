@@ -1,0 +1,4 @@
+# Exclude large PMTiles from Workers static assets (served from R2)
+*.pmtiles
+# Source maps not needed in production deploy
+*.map

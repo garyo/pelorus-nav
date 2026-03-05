@@ -1,0 +1,13 @@
+#:schema node_modules/wrangler/config-schema.json
+name = "pelorus-nav"
+compatibility_date = "2025-09-23"
+main = "src/worker.ts"
+
+[assets]
+directory = "./dist"
+binding = "ASSETS"
+not_found_handling = "single-page-application"
+
+[[r2_buckets]]
+binding = "TILES"
+bucket_name = "pelorus-nav"

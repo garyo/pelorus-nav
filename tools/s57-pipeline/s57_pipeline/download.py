@@ -65,12 +65,3 @@ def download_enc_cell(
 
     print(f"No .000 file found after extracting {cell_name}")
     return None
-
-
-# Test cells at different scale bands covering Boston Harbor
-TEST_CELLS: dict[str, str] = {
-    "US2EC04M": "Band 2 (general) — East Coast overview",
-    "US4MA13M": "Band 4 (approach) — Massachusetts Bay / Boston",
-    "US5MA10M": "Band 5 (harbor) — Boston Harbor",
-    "US5MA11M": "Band 5 (harbor) — Inner Boston Harbor (1:10k)",
-}

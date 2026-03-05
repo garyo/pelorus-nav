@@ -16,10 +16,14 @@
     "lint": "biome check .",
     "lint:fix": "biome check --write .",
     "format": "biome format --write .",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc --noEmit && tsc -p tsconfig.worker.json --noEmit",
     "check": "bun run typecheck && bun run lint && bun run test",
     "sprites": "spreet tools/sprites/svg public/sprites/nautical && spreet --retina tools/sprites/svg public/sprites/nautical@2x",
-    "tiles": "cd tools/s57-pipeline && uv run python -m s57_pipeline pipeline -i data/enc/ -o ../../public/nautical.pmtiles"
+    "tiles": "cd tools/s57-pipeline && uv run python -m s57_pipeline pipeline --region boston-test -o ../../public/nautical.pmtiles",
+    "tiles:full": "cd tools/s57-pipeline && uv run python -m s57_pipeline pipeline --region new-england --min-cells 50 -o ../../public/nautical.pmtiles",
+    "tiles:download": "cd tools/s57-pipeline && uv run python -m s57_pipeline download --region boston-test",
+    "tiles:download:full": "cd tools/s57-pipeline && uv run python -m s57_pipeline download --region new-england",
+    "deploy": "bun run build && wrangler deploy"
   },
   "license": "MIT",
   "dependencies": {
@@ -28,10 +32,12 @@
   },
   "devDependencies": {
     "@biomejs/biome": "^2.4.5",
+    "@cloudflare/workers-types": "^4.20260305.1",
     "@playwright/test": "^1.58.2",
     "@vitest/coverage-v8": "^4.0.18",
     "typescript": "^5.9.3",
     "vite": "^7.3.1",
-    "vitest": "^4.0.18"
+    "vitest": "^4.0.18",
+    "wrangler": "^4.70.0"
   }
 }
