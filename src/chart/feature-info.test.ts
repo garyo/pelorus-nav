@@ -42,7 +42,7 @@ describe("formatFeatureInfo", () => {
       label: "Characteristic",
       value: "Fl G 4s",
     });
-    expect(info.details).toContainEqual({ label: "Height", value: "12m" });
+    expect(info.details).toContainEqual({ label: "Height", value: "12.0m" });
     expect(info.details).toContainEqual({
       label: "Nominal Range",
       value: "6 NM",
@@ -101,7 +101,7 @@ describe("formatFeatureInfo", () => {
     expect(info.type).toBe("Depth Area");
     expect(info.details).toContainEqual({
       label: "Depth Range",
-      value: "5m - 10m",
+      value: "5.0m - 10.0m",
     });
   });
 

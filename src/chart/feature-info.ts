@@ -3,6 +3,8 @@
  * Converts raw vector tile properties into human-readable display info.
  */
 
+import { formatDepth, getSettings } from "../settings";
+
 export interface FeatureInfo {
   type: string;
   name?: string;
@@ -236,7 +238,13 @@ function formatLight(
   if (cat) details.push({ label: "Category", value: cat });
   const vis = lookupCode(LITVIS, props.LITVIS);
   if (vis) details.push({ label: "Visibility", value: vis });
-  addIfPresent(details, "Height", props.HEIGHT ? `${props.HEIGHT}m` : null);
+  addIfPresent(
+    details,
+    "Height",
+    props.HEIGHT != null
+      ? formatDepth(Number(props.HEIGHT), getSettings().depthUnit)
+      : null,
+  );
   addIfPresent(
     details,
     "Nominal Range",
@@ -251,9 +259,14 @@ function formatWreck(
   props: Record<string, unknown>,
 ): { label: string; value: string }[] {
   const details: { label: string; value: string }[] = [];
+  const unit = getSettings().depthUnit;
   const cat = lookupCode(CATWRK, props.CATWRK);
   if (cat) details.push({ label: "Category", value: cat });
-  addIfPresent(details, "Depth", props.VALSOU ? `${props.VALSOU}m` : null);
+  addIfPresent(
+    details,
+    "Depth",
+    props.VALSOU != null ? formatDepth(Number(props.VALSOU), unit) : null,
+  );
   const wl = lookupCode(WATLEV, props.WATLEV);
   if (wl) details.push({ label: "Water Level", value: wl });
   return details;
@@ -263,9 +276,14 @@ function formatObstruction(
   props: Record<string, unknown>,
 ): { label: string; value: string }[] {
   const details: { label: string; value: string }[] = [];
+  const unit = getSettings().depthUnit;
   const cat = lookupCode(CATOBS, props.CATOBS);
   if (cat) details.push({ label: "Category", value: cat });
-  addIfPresent(details, "Depth", props.VALSOU ? `${props.VALSOU}m` : null);
+  addIfPresent(
+    details,
+    "Depth",
+    props.VALSOU != null ? formatDepth(Number(props.VALSOU), unit) : null,
+  );
   const wl = lookupCode(WATLEV, props.WATLEV);
   if (wl) details.push({ label: "Water Level", value: wl });
   return details;
@@ -275,7 +293,12 @@ function formatUnderwaterRock(
   props: Record<string, unknown>,
 ): { label: string; value: string }[] {
   const details: { label: string; value: string }[] = [];
-  addIfPresent(details, "Depth", props.VALSOU ? `${props.VALSOU}m` : null);
+  const unit = getSettings().depthUnit;
+  addIfPresent(
+    details,
+    "Depth",
+    props.VALSOU != null ? formatDepth(Number(props.VALSOU), unit) : null,
+  );
   const wl = lookupCode(WATLEV, props.WATLEV);
   if (wl) details.push({ label: "Water Level", value: wl });
   return details;
@@ -285,13 +308,17 @@ function formatDepthArea(
   props: Record<string, unknown>,
 ): { label: string; value: string }[] {
   const details: { label: string; value: string }[] = [];
+  const unit = getSettings().depthUnit;
   if (props.DRVAL1 != null && props.DRVAL2 != null) {
     details.push({
       label: "Depth Range",
-      value: `${props.DRVAL1}m - ${props.DRVAL2}m`,
+      value: `${formatDepth(Number(props.DRVAL1), unit)} - ${formatDepth(Number(props.DRVAL2), unit)}`,
     });
   } else if (props.DRVAL1 != null) {
-    details.push({ label: "Min Depth", value: `${props.DRVAL1}m` });
+    details.push({
+      label: "Min Depth",
+      value: formatDepth(Number(props.DRVAL1), unit),
+    });
   }
   return details;
 }
@@ -300,7 +327,12 @@ function formatSounding(
   props: Record<string, unknown>,
 ): { label: string; value: string }[] {
   const details: { label: string; value: string }[] = [];
-  addIfPresent(details, "Depth", props.DEPTH ? `${props.DEPTH}m` : null);
+  const unit = getSettings().depthUnit;
+  addIfPresent(
+    details,
+    "Depth",
+    props.DEPTH != null ? formatDepth(Number(props.DEPTH), unit) : null,
+  );
   return details;
 }
 
