@@ -20,7 +20,7 @@ body {
   align-items: center;
   height: 36px;
   padding: 0 12px;
-  background: rgba(26, 26, 46, 0.5);
+  background: linear-gradient(to right, rgba(26, 26, 46, 0.5) 60%, rgba(26, 26, 46, 0.85));
   color: #e0e0e0;
   font-size: 14px;
   gap: 12px;
