@@ -18,6 +18,7 @@
     "format": "biome format --write .",
     "typecheck": "tsc --noEmit",
     "check": "bun run typecheck && bun run lint && bun run test",
+    "sprites": "spreet tools/sprites/svg public/sprites/nautical && spreet --retina tools/sprites/svg public/sprites/nautical@2x",
     "tiles": "cd tools/s57-pipeline && uv run python -m s57_pipeline pipeline -i data/enc/ -o ../../public/nautical.pmtiles"
   },
   "license": "MIT",

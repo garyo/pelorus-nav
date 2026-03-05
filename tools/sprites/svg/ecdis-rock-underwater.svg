@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32">
+  <!-- Plus sign -->
+  <line x1="16" y1="6" x2="16" y2="26" stroke="#333333" stroke-width="3"/>
+  <line x1="6" y1="16" x2="26" y2="16" stroke="#333333" stroke-width="3"/>
+</svg>

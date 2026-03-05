@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32">
+  <!-- 6-ray star, smaller -->
+  <line x1="16" y1="6" x2="16" y2="26" stroke="#ffcc00" stroke-width="2"/>
+  <line x1="7" y1="11" x2="25" y2="21" stroke="#ffcc00" stroke-width="2"/>
+  <line x1="25" y1="11" x2="7" y2="21" stroke="#ffcc00" stroke-width="2"/>
+  <!-- Center dot -->
+  <circle cx="16" cy="16" r="3" fill="#ffcc00" stroke="#000" stroke-width="2"/>
+</svg>

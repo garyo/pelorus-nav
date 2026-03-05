@@ -63,6 +63,8 @@ LAYER_CONFIGS: list[LayerConfig] = [
     LayerConfig("ACHARE", "regulatory", REGULATORY_ARGS),
     LayerConfig("FAIRWY", "regulatory", REGULATORY_ARGS),
     LayerConfig("CTNARE", "regulatory", REGULATORY_ARGS),
+    # Landmarks (lighthouses, monuments, towers)
+    LayerConfig("LNDMRK", "navaids", NAVAID_ARGS),
     # Buildings, berths & pilings
     LayerConfig("BUISGL", "infrastructure", DEFAULT_ARGS),
     LayerConfig("BERTHS", "labels", DEFAULT_ARGS),

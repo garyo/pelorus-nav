@@ -9,6 +9,7 @@ from pathlib import Path
 from .labels import add_labels_to_geojson
 from .layers import LAYER_NAMES
 from .scamin import add_minzoom_to_geojson
+from .symbols import add_symbols_to_geojson
 
 
 def list_enc_layers(enc_path: Path) -> list[str]:
@@ -143,6 +144,7 @@ def convert_enc(
             if apply_scamin:
                 add_minzoom_to_geojson(path, cell_cscl=cell_cscl)
             add_labels_to_geojson(path)
+            add_symbols_to_geojson(path)
             outputs.append(path)
             print(f"  Converted {layer_name} → {path.name}")
 

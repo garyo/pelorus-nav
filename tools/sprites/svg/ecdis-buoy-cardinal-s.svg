@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32">
+  <!-- Pillar: upper yellow, lower black -->
+  <rect x="10" y="12" width="12" height="18" rx="1" fill="#222222" stroke="#000" stroke-width="2"/>
+  <rect x="11" y="13" width="10" height="8" fill="#ffdd00"/>
+  <!-- Two downward-pointing triangles on top -->
+  <polygon points="12,4 20,4 16,10" fill="#222222" stroke="#000" stroke-width="1.5"/>
+</svg>

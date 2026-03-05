@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32">
+  <!-- Ship hull (dashed) -->
+  <path d="M4,22 Q16,30 28,22" fill="none" stroke="#333333" stroke-width="2.5" stroke-dasharray="4,3"/>
+  <!-- Mast with cross (dashed) -->
+  <line x1="16" y1="22" x2="16" y2="6" stroke="#333333" stroke-width="2.5" stroke-dasharray="4,3"/>
+  <line x1="10" y1="12" x2="22" y2="12" stroke="#333333" stroke-width="2.5" stroke-dasharray="4,3"/>
+</svg>

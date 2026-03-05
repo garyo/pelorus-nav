@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32">
+  <!-- Left vertical -->
+  <line x1="6" y1="6" x2="6" y2="26" stroke="#000" stroke-width="3"/>
+  <!-- Right vertical -->
+  <line x1="26" y1="6" x2="26" y2="26" stroke="#000" stroke-width="3"/>
+  <!-- Top horizontal connecting line -->
+  <line x1="6" y1="6" x2="26" y2="6" stroke="#000" stroke-width="3"/>
+  <!-- Bottom horizontal connecting line -->
+  <line x1="6" y1="26" x2="26" y2="26" stroke="#000" stroke-width="3"/>
+</svg>

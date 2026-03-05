@@ -82,6 +82,8 @@ export class ChartManager {
   private buildStyle(provider: ChartProvider): maplibregl.StyleSpecification {
     return {
       version: 8,
+      sprite: `${window.location.origin}/sprites/nautical`,
+      glyphs: "https://demotiles.maplibre.org/font/{fontstack}/{range}.pbf",
       sources: {
         [provider.id]: provider.getSource(),
       },
