@@ -144,13 +144,14 @@ def cmd_pipeline(args: argparse.Namespace) -> None:
         tiles_dir = cell_dir / "tiles"
 
         # Incremental: skip if tiles are newer than source
-        existing_tiles = list(tiles_dir.glob("*.pmtiles")) if tiles_dir.exists() else []
-        if existing_tiles and all(
-            t.stat().st_mtime > enc_path.stat().st_mtime for t in existing_tiles
-        ):
-            print(f"Skipping {cell_name} (tiles up to date)")
-            all_pmtiles.extend(existing_tiles)
-            continue
+        if not args.force:
+            existing_tiles = list(tiles_dir.glob("*.pmtiles")) if tiles_dir.exists() else []
+            if existing_tiles and all(
+                t.stat().st_mtime > enc_path.stat().st_mtime for t in existing_tiles
+            ):
+                print(f"Skipping {cell_name} (tiles up to date)")
+                all_pmtiles.extend(existing_tiles)
+                continue
 
         geojson_files = convert_enc(enc_path, geojson_dir)
         if geojson_files:
@@ -199,6 +200,7 @@ def main() -> None:
         "--output", "-o", default="data/nautical.pmtiles", help="Output PMTiles path"
     )
     pl.add_argument("--region", "-r", help="Named region to filter cells")
+    pl.add_argument("--force", "-f", action="store_true", help="Force rebuild all cells")
     pl.add_argument(
         "--min-cells", type=int, default=0, help="Minimum number of cells required"
     )
