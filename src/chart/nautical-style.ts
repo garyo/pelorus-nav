@@ -1,9 +1,5 @@
 import type { ExpressionSpecification, LayerSpecification } from "maplibre-gl";
-import {
-  type DepthUnit,
-  depthConversionFactor,
-  depthUnitLabel,
-} from "../settings";
+import { type DepthUnit, depthConversionFactor } from "../settings";
 import { buildIconExpression, ECDIS_SIMPLIFIED } from "./icon-sets";
 
 /**
@@ -28,26 +24,20 @@ const LABEL_EXPR = [
 /** Icon expression for the current icon set. */
 const ICON_EXPR = buildIconExpression(ECDIS_SIMPLIFIED, "ecdis-buoy-default");
 
-/** Build a MapLibre expression that converts DEPTH to the given unit. */
+/** Build a MapLibre expression that converts DEPTH to the given unit (no suffix). */
 function depthTextField(unit: DepthUnit): ExpressionSpecification {
-  const factor = depthConversionFactor(unit);
-  const label = depthUnitLabel(unit);
   if (unit === "meters") {
     return [
       "to-string",
       ["get", "DEPTH"],
     ] as unknown as ExpressionSpecification;
   }
+  const factor = depthConversionFactor(unit);
   const decimals = unit === "fathoms" ? 1 : 0;
-  // Round to N decimal places: floor((val * factor) * 10^d + 0.5) / 10^d
   const pow = 10 ** decimals;
   return [
-    "concat",
-    [
-      "to-string",
-      ["/", ["round", ["*", ["*", ["get", "DEPTH"], factor], pow]], pow],
-    ],
-    ` ${label}`,
+    "to-string",
+    ["/", ["round", ["*", ["*", ["get", "DEPTH"], factor], pow]], pow],
   ] as unknown as ExpressionSpecification;
 }
 

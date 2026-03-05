@@ -5,7 +5,9 @@
 import {
   type DepthUnit,
   type DetailLevel,
+  depthUnitLabel,
   getSettings,
+  onSettingsChange,
   updateSettings,
 } from "../settings";
 
@@ -26,6 +28,16 @@ const DETAIL_LABELS: Record<DetailLevel, string> = {
 export function createSettingsPanel(container: HTMLElement): void {
   const wrapper = document.createElement("div");
   wrapper.className = "settings-wrapper";
+
+  // Depth unit indicator
+  const unitBadge = document.createElement("span");
+  unitBadge.className = "depth-unit-badge";
+  unitBadge.textContent = depthUnitLabel(getSettings().depthUnit);
+  wrapper.appendChild(unitBadge);
+
+  onSettingsChange((s) => {
+    unitBadge.textContent = depthUnitLabel(s.depthUnit);
+  });
 
   const btn = document.createElement("button");
   btn.className = "settings-btn";
