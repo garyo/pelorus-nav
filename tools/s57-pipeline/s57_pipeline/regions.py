@@ -34,9 +34,9 @@ REGIONS: dict[str, Region] = {
         description="Boston area with approach charts -- dev iteration",
     ),
     "new-england": Region(
-        name="Cape Cod to Southern Maine",
-        bbox=(-71.5, 41.5, -69.8, 43.2),
-        description="Full coverage for demo deployment",
+        name="Long Island to Northern Maine",
+        bbox=(-73.8, 40.5, -66.9, 47.5),
+        description="Full coverage: Long Island Sound through Downeast Maine",
     ),
 }
 
