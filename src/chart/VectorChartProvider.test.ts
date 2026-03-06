@@ -37,9 +37,9 @@ describe("VectorChartProvider", () => {
     // Check key layers exist
     const layerIds = layers.map((l) => l.id);
     expect(layerIds).toContain("s57-background");
-    expect(layerIds).toContain("s57-lndare");
-    expect(layerIds).toContain("s57-depare-shallow");
-    expect(layerIds).toContain("s57-coalne");
+    expect(layerIds).toContain("s57-lndare-coarse");
+    expect(layerIds).toContain("s57-depare-shallow-coarse");
+    expect(layerIds).toContain("s57-coalne-coarse");
     expect(layerIds).toContain("s57-soundg");
     expect(layerIds).toContain("s57-boylat");
     expect(layerIds).toContain("s57-wrecks");

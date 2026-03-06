@@ -8,10 +8,15 @@ import sys
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
-from .convert import convert_enc
+from .convert import convert_enc, read_compilation_scale, read_intended_use
 from .download import download_enc_cell
 from .merge import merge_tiles
 from .regions import REGIONS, get_region_cells, query_region
+from .scamin import (
+    compute_intu_zoom_ranges,
+    cscl_to_zoom_range,
+    intu_to_zoom_range,
+)
 from .tile import tile_geojson_files
 
 
@@ -98,7 +103,10 @@ def cmd_convert(args: argparse.Namespace) -> None:
 
 
 def _process_cell(
-    enc_path: Path, work_dir: Path, force: bool
+    enc_path: Path,
+    work_dir: Path,
+    force: bool,
+    intu_zoom_ranges: dict[int, tuple[int, int, int]] | None = None,
 ) -> list[Path]:
     """Process a single ENC cell: convert → tile. Returns list of PMTiles paths."""
     cell_name = enc_path.stem
@@ -115,10 +123,28 @@ def _process_cell(
             print(f"Skipping {cell_name} (tiles up to date)")
             return existing_tiles
 
-    print(f"Processing {cell_name}...")
-    geojson_files = convert_enc(enc_path, geojson_dir)
+    # Determine cell's tile zoom range (enc-tiles approach: tile-level bounds).
+    # Extend minzoom down so higher-detail data appears at lower zooms.
+    # Multi-scale compositing is handled by the style's scale-band-tiered
+    # rendering (fine fills draw on top of coarse fills).
+    cell_intu = read_intended_use(enc_path)
+    min_zoom, max_zoom = 0, 14
+    if cell_intu is not None:
+        min_zoom, max_zoom = intu_to_zoom_range(cell_intu, intu_zoom_ranges)
+    else:
+        cell_cscl = read_compilation_scale(enc_path)
+        if cell_cscl is not None:
+            min_zoom, max_zoom = cscl_to_zoom_range(cell_cscl)
+    min_zoom = max(min_zoom - 4, 0)
+
+    print(f"Processing {cell_name} (z{min_zoom}-{max_zoom})...")
+    geojson_files = convert_enc(
+        enc_path, geojson_dir, intu_zoom_ranges=intu_zoom_ranges
+    )
     if geojson_files:
-        return tile_geojson_files(geojson_dir, tiles_dir)
+        return tile_geojson_files(
+            geojson_dir, tiles_dir, min_zoom=min_zoom, max_zoom=max_zoom,
+        )
     return []
 
 
@@ -157,6 +183,21 @@ def cmd_pipeline(args: argparse.Namespace) -> None:
         )
         sys.exit(1)
 
+    # Pre-scan all cells' INTU values to compute data-driven zoom ranges
+    print("Scanning INTU values across all cells...")
+    present_intus: set[int] = set()
+    for enc_path in enc_files:
+        intu = read_intended_use(enc_path)
+        if intu is not None:
+            present_intus.add(intu)
+    intu_zoom_ranges = compute_intu_zoom_ranges(present_intus)
+    if intu_zoom_ranges:
+        print(f"  INTU bands present: {sorted(present_intus)}")
+        for intu, (zmin, zmax, band) in sorted(intu_zoom_ranges.items()):
+            print(f"    INTU {intu}: z{zmin}-{zmax} (band {band})")
+    else:
+        print("  No INTU values found; falling back to CSCL-based zoom")
+
     # Default parallelism: half of CPU cores (each cell spawns subprocesses)
     max_workers = max(1, args.jobs if args.jobs else (os.cpu_count() or 2) // 2)
     print(f"Processing {len(enc_files)} ENC files ({max_workers} parallel workers)")
@@ -166,7 +207,9 @@ def cmd_pipeline(args: argparse.Namespace) -> None:
 
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
         futures = {
-            executor.submit(_process_cell, enc_path, work_dir, args.force): enc_path
+            executor.submit(
+                _process_cell, enc_path, work_dir, args.force, intu_zoom_ranges
+            ): enc_path
             for enc_path in enc_files
         }
         for future in as_completed(futures):
