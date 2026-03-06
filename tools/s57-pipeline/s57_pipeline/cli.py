@@ -124,9 +124,8 @@ def _process_cell(
             return existing_tiles
 
     # Determine cell's tile zoom range (enc-tiles approach: tile-level bounds).
-    # Extend minzoom down so higher-detail data appears at lower zooms.
-    # Multi-scale compositing is handled by the style's scale-band-tiered
-    # rendering (fine fills draw on top of coarse fills).
+    # Strict non-overlapping ranges — the frontend uses tileSize:256 to
+    # request tiles at +1 zoom for more detail at every map zoom level.
     cell_intu = read_intended_use(enc_path)
     min_zoom, max_zoom = 0, 14
     if cell_intu is not None:
@@ -135,7 +134,6 @@ def _process_cell(
         cell_cscl = read_compilation_scale(enc_path)
         if cell_cscl is not None:
             min_zoom, max_zoom = cscl_to_zoom_range(cell_cscl)
-    min_zoom = max(min_zoom - 4, 0)
 
     print(f"Processing {cell_name} (z{min_zoom}-{max_zoom})...")
     geojson_files = convert_enc(
@@ -190,7 +188,8 @@ def cmd_pipeline(args: argparse.Namespace) -> None:
         intu = read_intended_use(enc_path)
         if intu is not None:
             present_intus.add(intu)
-    intu_zoom_ranges = compute_intu_zoom_ranges(present_intus)
+    zoom_shift = getattr(args, "zoom_shift", 0)
+    intu_zoom_ranges = compute_intu_zoom_ranges(present_intus, zoom_shift=zoom_shift)
     if intu_zoom_ranges:
         print(f"  INTU bands present: {sorted(present_intus)}")
         for intu, (zmin, zmax, band) in sorted(intu_zoom_ranges.items()):
@@ -198,8 +197,8 @@ def cmd_pipeline(args: argparse.Namespace) -> None:
     else:
         print("  No INTU values found; falling back to CSCL-based zoom")
 
-    # Default parallelism: half of CPU cores (each cell spawns subprocesses)
-    max_workers = max(1, args.jobs if args.jobs else (os.cpu_count() or 2) // 2)
+    # Default parallelism: ncpus - 3 (each cell spawns subprocesses)
+    max_workers = max(1, args.jobs if args.jobs else (os.cpu_count() or 4) - 3)
     print(f"Processing {len(enc_files)} ENC files ({max_workers} parallel workers)")
 
     all_pmtiles: list[Path] = []
@@ -269,6 +268,10 @@ def main() -> None:
     pl.add_argument(
         "--jobs", "-j", type=int, default=0,
         help="Parallel workers (default: half of CPU cores, 0=auto)",
+    )
+    pl.add_argument(
+        "--zoom-shift", type=int, default=2,
+        help="Shift INTU zoom ranges down by N levels for more detail (default: 2)",
     )
     pl.set_defaults(func=cmd_pipeline)
 
