@@ -113,6 +113,8 @@ const LAYER_NAMES: Record<string, string> = {
   ACHBRT: "Anchorage Berth",
   BCNSPP: "Special Purpose Beacon",
   SBDARE: "Seabed Area",
+  CBLSUB: "Submarine Cable",
+  CBLOHD: "Overhead Cable",
   CBLARE: "Cable Area",
   PIPARE: "Pipeline Area",
   PIPSOL: "Submarine Pipeline",

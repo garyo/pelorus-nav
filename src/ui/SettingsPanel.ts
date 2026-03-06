@@ -19,7 +19,6 @@ const DEPTH_UNITS: { value: DepthUnit; label: string }[] = [
 ];
 
 const DETAIL_LABELS: Record<DetailLevel, string> = {
-  "-2": "Base",
   "-1": "Base",
   "0": "Standard",
   "1": "Standard+",
@@ -123,7 +122,7 @@ function buildPanelHTML(): string {
     <div class="settings-row">
       <label for="settings-detail-level">Detail</label>
       <div class="settings-slider-group">
-        <input type="range" id="settings-detail-level" min="-2" max="2" step="1" value="${settings.detailLevel}">
+        <input type="range" id="settings-detail-level" min="-1" max="2" step="1" value="${settings.detailLevel}">
         <span id="settings-detail-label">${DETAIL_LABELS[settings.detailLevel]}</span>
       </div>
     </div>
