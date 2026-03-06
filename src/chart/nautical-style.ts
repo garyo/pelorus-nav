@@ -584,6 +584,7 @@ export function getNauticalLayers(
       type: "symbol",
       source: sourceId,
       "source-layer": "BOYLAT",
+      minzoom: 8,
       layout: {
         "icon-image": ICON_EXPR,
         "icon-size": 0.75,
@@ -607,6 +608,7 @@ export function getNauticalLayers(
       type: "symbol",
       source: sourceId,
       "source-layer": "BOYCAR",
+      minzoom: 8,
       layout: {
         "icon-image": ICON_EXPR,
         "icon-size": 0.75,
@@ -630,6 +632,7 @@ export function getNauticalLayers(
       type: "symbol",
       source: sourceId,
       "source-layer": "BOYSAW",
+      minzoom: 8,
       layout: {
         "icon-image": ICON_EXPR,
         "icon-size": 0.75,
@@ -653,6 +656,7 @@ export function getNauticalLayers(
       type: "symbol",
       source: sourceId,
       "source-layer": "BOYSPP",
+      minzoom: 8,
       layout: {
         "icon-image": ICON_EXPR,
         "icon-size": 0.7,
@@ -699,6 +703,7 @@ export function getNauticalLayers(
       type: "symbol",
       source: sourceId,
       "source-layer": "BCNLAT",
+      minzoom: 8,
       layout: {
         "icon-image": ICON_EXPR,
         "icon-size": 0.7,
@@ -722,6 +727,7 @@ export function getNauticalLayers(
       type: "symbol",
       source: sourceId,
       "source-layer": "BCNCAR",
+      minzoom: 8,
       layout: {
         "icon-image": ICON_EXPR,
         "icon-size": 0.7,
@@ -916,6 +922,7 @@ export function getNauticalLayers(
       type: "symbol",
       source: sourceId,
       "source-layer": "BCNSPP",
+      minzoom: 8,
       layout: {
         "icon-image": ICON_EXPR,
         "icon-size": 0.7,
