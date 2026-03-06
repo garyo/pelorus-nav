@@ -60,102 +60,6 @@ function depthTextField(unit: DepthUnit): ExpressionSpecification {
   ] as unknown as ExpressionSpecification;
 }
 
-/**
- * Generate DEPARE + LNDARE fill layers for a scale-band tier.
- * Each tier draws water (DEPARE) first, then land (LNDARE) on top,
- * so land correctly covers water within the same scale band.
- * Fine tier draws after coarse tier, so detailed data wins.
- */
-function terrainFillTier(
-  sourceId: string,
-  tier: string,
-  bandFilter: ExpressionSpecification,
-): LayerSpecification[] {
-  const depareFilter = (
-    depthFilter: ExpressionSpecification,
-  ): ExpressionSpecification =>
-    ["all", bandFilter, depthFilter] as unknown as ExpressionSpecification;
-
-  return [
-    {
-      id: `s57-depare-shallow-${tier}`,
-      type: "fill",
-      source: sourceId,
-      "source-layer": "DEPARE",
-      filter: depareFilter(["<", ["get", "DRVAL1"], 5]),
-      layout: { "fill-sort-key": SCALE_SORT_KEY },
-      paint: {
-        "fill-color": s52Colour("DEPVS"),
-        "fill-opacity": 0.9,
-      },
-    },
-    {
-      id: `s57-depare-medium-${tier}`,
-      type: "fill",
-      source: sourceId,
-      "source-layer": "DEPARE",
-      filter: depareFilter([
-        "all",
-        [">=", ["get", "DRVAL1"], 5],
-        ["<", ["get", "DRVAL1"], 20],
-      ]),
-      layout: { "fill-sort-key": SCALE_SORT_KEY },
-      paint: {
-        "fill-color": s52Colour("DEPMS"),
-        "fill-opacity": 0.9,
-      },
-    },
-    {
-      id: `s57-depare-deep-${tier}`,
-      type: "fill",
-      source: sourceId,
-      "source-layer": "DEPARE",
-      filter: depareFilter([">=", ["get", "DRVAL1"], 20]),
-      layout: { "fill-sort-key": SCALE_SORT_KEY },
-      paint: {
-        "fill-color": s52Colour("DEPDW"),
-        "fill-opacity": 0.9,
-      },
-    },
-    {
-      id: `s57-depare-drying-${tier}`,
-      type: "fill",
-      source: sourceId,
-      "source-layer": "DEPARE",
-      filter: depareFilter(["<", ["get", "DRVAL1"], 0]),
-      layout: { "fill-sort-key": SCALE_SORT_KEY },
-      paint: {
-        "fill-color": s52Colour("DEPIT"),
-        "fill-opacity": 0.9,
-      },
-    },
-    {
-      id: `s57-lndare-${tier}`,
-      type: "fill",
-      source: sourceId,
-      "source-layer": "LNDARE",
-      filter: bandFilter,
-      layout: { "fill-sort-key": SCALE_SORT_KEY },
-      paint: {
-        "fill-color": s52Colour("LANDA"),
-        "fill-opacity": 1,
-      },
-    },
-    {
-      id: `s57-coalne-${tier}`,
-      type: "line",
-      source: sourceId,
-      "source-layer": "COALNE",
-      filter: bandFilter,
-      layout: { "line-sort-key": SCALE_SORT_KEY },
-      paint: {
-        "line-color": s52Colour("CSTLN"),
-        "line-width": 1.5,
-      },
-    },
-  ] as LayerSpecification[];
-}
-
 export function getNauticalLayers(
   sourceId: string,
   depthUnit: DepthUnit = "meters",
@@ -193,48 +97,84 @@ export function getNauticalLayers(
       },
     },
 
-    // ── Fill layers: terrain (two-tier multi-scale compositing) ──────────
-    // Tier 1 (coarse): draw DEPARE then LNDARE for bands 0-2
-    // Tier 2 (fine): draw DEPARE then LNDARE for bands 3+ on top
-    // This ensures fine-scale data completely replaces coarse data
-    // in its coverage area, with correct land/water ordering per tier.
-    ...terrainFillTier(sourceId, "coarse", [
-      "<=",
-      ["coalesce", ["get", "_scale_band"], 0],
-      2,
-    ]),
-    // Coarse area outlines between tiers — fine fills will cover them
+    // ── Fill layers: terrain ─────────────────────────────────────────────
+    // With strict non-overlapping INTU zoom ranges and tileSize:256,
+    // each tile contains only one scale band — no multi-scale compositing needed.
+    // Draw water (DEPARE) first, then land (LNDARE) on top.
     {
-      id: "s57-resare-coarse",
-      type: "line",
+      id: "s57-depare-shallow",
+      type: "fill",
       source: sourceId,
-      "source-layer": "RESARE",
-      filter: ["<=", ["coalesce", ["get", "_scale_band"], 0], 2],
+      "source-layer": "DEPARE",
+      filter: ["<", ["get", "DRVAL1"], 5],
+      layout: { "fill-sort-key": SCALE_SORT_KEY },
       paint: {
-        "line-color": s52Colour("CHMGD"),
-        "line-width": 1,
-        "line-dasharray": [4, 2],
-        "line-opacity": 0.5,
+        "fill-color": s52Colour("DEPVS"),
+        "fill-opacity": 0.9,
       },
     },
     {
-      id: "s57-ctnare-coarse",
-      type: "line",
+      id: "s57-depare-medium",
+      type: "fill",
       source: sourceId,
-      "source-layer": "CTNARE",
-      filter: ["<=", ["coalesce", ["get", "_scale_band"], 0], 2],
+      "source-layer": "DEPARE",
+      filter: [
+        "all",
+        [">=", ["get", "DRVAL1"], 5],
+        ["<", ["get", "DRVAL1"], 20],
+      ],
+      layout: { "fill-sort-key": SCALE_SORT_KEY },
       paint: {
-        "line-color": s52Colour("CHMGF"),
-        "line-width": 1,
-        "line-dasharray": [4, 2],
-        "line-opacity": 0.5,
+        "fill-color": s52Colour("DEPMS"),
+        "fill-opacity": 0.9,
       },
     },
-    ...terrainFillTier(sourceId, "fine", [
-      ">",
-      ["coalesce", ["get", "_scale_band"], 0],
-      2,
-    ]),
+    {
+      id: "s57-depare-deep",
+      type: "fill",
+      source: sourceId,
+      "source-layer": "DEPARE",
+      filter: [">=", ["get", "DRVAL1"], 20],
+      layout: { "fill-sort-key": SCALE_SORT_KEY },
+      paint: {
+        "fill-color": s52Colour("DEPDW"),
+        "fill-opacity": 0.9,
+      },
+    },
+    {
+      id: "s57-depare-drying",
+      type: "fill",
+      source: sourceId,
+      "source-layer": "DEPARE",
+      filter: ["<", ["get", "DRVAL1"], 0],
+      layout: { "fill-sort-key": SCALE_SORT_KEY },
+      paint: {
+        "fill-color": s52Colour("DEPIT"),
+        "fill-opacity": 0.9,
+      },
+    },
+    {
+      id: "s57-lndare",
+      type: "fill",
+      source: sourceId,
+      "source-layer": "LNDARE",
+      layout: { "fill-sort-key": SCALE_SORT_KEY },
+      paint: {
+        "fill-color": s52Colour("LANDA"),
+        "fill-opacity": 1,
+      },
+    },
+    {
+      id: "s57-coalne",
+      type: "line",
+      source: sourceId,
+      "source-layer": "COALNE",
+      layout: { "line-sort-key": SCALE_SORT_KEY },
+      paint: {
+        "line-color": s52Colour("CSTLN"),
+        "line-width": 1.5,
+      },
+    },
     {
       id: "s57-lakare",
       type: "fill",
@@ -372,11 +312,10 @@ export function getNauticalLayers(
       },
     },
     {
-      id: "s57-resare-fine",
+      id: "s57-resare",
       type: "line",
       source: sourceId,
       "source-layer": "RESARE",
-      filter: [">", ["coalesce", ["get", "_scale_band"], 0], 2],
       paint: {
         "line-color": s52Colour("CHMGD"),
         "line-width": 1,
@@ -385,11 +324,10 @@ export function getNauticalLayers(
       },
     },
     {
-      id: "s57-ctnare-fine",
+      id: "s57-ctnare",
       type: "line",
       source: sourceId,
       "source-layer": "CTNARE",
-      filter: [">", ["coalesce", ["get", "_scale_band"], 0], 2],
       paint: {
         "line-color": s52Colour("CHMGF"),
         "line-width": 1,
@@ -843,19 +781,13 @@ export function getNauticalLayers(
   // DISPLAYBASE layers are always shown; STANDARD/OTHER filtered by detail
   const LAYER_CATEGORIES: Record<string, "DISPLAYBASE" | "STANDARD" | "OTHER"> =
     {
-      "s57-lndare-coarse": "DISPLAYBASE",
-      "s57-lndare-fine": "DISPLAYBASE",
-      "s57-depare-shallow-coarse": "DISPLAYBASE",
-      "s57-depare-shallow-fine": "DISPLAYBASE",
-      "s57-depare-medium-coarse": "DISPLAYBASE",
-      "s57-depare-medium-fine": "DISPLAYBASE",
-      "s57-depare-deep-coarse": "DISPLAYBASE",
-      "s57-depare-deep-fine": "DISPLAYBASE",
-      "s57-depare-drying-coarse": "DISPLAYBASE",
-      "s57-depare-drying-fine": "DISPLAYBASE",
+      "s57-lndare": "DISPLAYBASE",
+      "s57-depare-shallow": "DISPLAYBASE",
+      "s57-depare-medium": "DISPLAYBASE",
+      "s57-depare-deep": "DISPLAYBASE",
+      "s57-depare-drying": "DISPLAYBASE",
       "s57-unsare": "DISPLAYBASE",
-      "s57-coalne-coarse": "DISPLAYBASE",
-      "s57-coalne-fine": "DISPLAYBASE",
+      "s57-coalne": "DISPLAYBASE",
       "s57-depcnt": "DISPLAYBASE",
       "s57-soundg": "DISPLAYBASE",
       "s57-wrecks": "DISPLAYBASE",
@@ -875,10 +807,8 @@ export function getNauticalLayers(
       "s57-fairwy-outline": "STANDARD",
       "s57-achare": "STANDARD",
       "s57-tsslpt": "STANDARD",
-      "s57-resare-coarse": "STANDARD",
-      "s57-resare-fine": "STANDARD",
-      "s57-ctnare-coarse": "STANDARD",
-      "s57-ctnare-fine": "STANDARD",
+      "s57-resare": "STANDARD",
+      "s57-ctnare": "STANDARD",
       "s57-boylat": "STANDARD",
       "s57-boycar": "STANDARD",
       "s57-boysaw": "STANDARD",

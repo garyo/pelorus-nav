@@ -105,6 +105,7 @@ INTU_SCALE_BAND: dict[int, int] = {
 
 def compute_intu_zoom_ranges(
     present_intus: set[int],
+    zoom_shift: int = 0,
 ) -> dict[int, tuple[int, int, int]]:
     """Compute adjusted zoom ranges based on which INTU bands are present.
 
@@ -113,11 +114,13 @@ def compute_intu_zoom_ranges(
 
     This handles NOAA's ENC rescheming where some INTU levels may not
     exist for a given area (e.g., no INTU 4 Approach charts for MA).
-    The composite sort-key ensures higher-detail data renders on top
-    where bands overlap.
 
     Args:
         present_intus: Set of INTU values found in the dataset.
+        zoom_shift: Shift all zoom ranges down by this many levels.
+            Positive values show more detail at each zoom (e.g., shift=2
+            makes harbour data appear 2 zoom levels earlier). The highest
+            band extends up to z14 regardless of shift.
 
     Returns:
         Dict of intu → (minzoom, maxzoom, scale_band).
@@ -143,6 +146,25 @@ def compute_intu_zoom_ranges(
             adj_max = base_max
 
         result[intu] = (adj_min, adj_max, band)
+
+    # Apply zoom shift: shift all ranges down, keeping non-overlapping.
+    # The highest band extends up to z14.
+    if zoom_shift > 0 and result:
+        shifted: dict[int, tuple[int, int, int]] = {}
+        sorted_result = sorted(result.items())
+        for i, (intu, (zmin, zmax, band)) in enumerate(sorted_result):
+            new_min = max(0, zmin - zoom_shift)
+            new_max = max(0, zmax - zoom_shift)
+            # Highest band extends up to z14
+            if i == len(sorted_result) - 1:
+                new_max = max(new_max, 14)
+            # Ensure non-overlapping: min can't be less than previous max + 1
+            if i > 0:
+                prev_intu = sorted_result[i - 1][0]
+                prev_max = shifted[prev_intu][1]
+                new_min = max(new_min, prev_max + 1)
+            shifted[intu] = (new_min, new_max, band)
+        result = shifted
 
     return result
 
