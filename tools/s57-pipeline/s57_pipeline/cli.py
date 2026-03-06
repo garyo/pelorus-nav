@@ -48,6 +48,7 @@ def cmd_list_cells(args: argparse.Namespace) -> None:
         print(f"  {cell}  https://charts.noaa.gov/ENCs/{cell}.zip")
 
 
+
 def cmd_download(args: argparse.Namespace) -> None:
     """Download ENC cells from NOAA."""
     output_dir = Path(args.output)
@@ -66,14 +67,47 @@ def cmd_download(args: argparse.Namespace) -> None:
         cells = get_region_cells("boston-test")
         print(f"Downloading {len(cells)} boston-test cells (default)...")
 
+    # Filter to cells that need downloading
+    to_download = []
+    skipped = 0
     for cell_name in cells:
-        # Skip cells already downloaded
         cell_dir = output_dir / cell_name
         enc_files = list(cell_dir.glob("*.000")) if cell_dir.exists() else []
         if enc_files:
-            print(f"Skipping {cell_name} (already exists)")
-            continue
-        download_enc_cell(cell_name, output_dir)
+            skipped += 1
+        else:
+            to_download.append(cell_name)
+
+    if skipped:
+        print(f"Skipping {skipped} already-downloaded cells")
+
+    if not to_download:
+        print("All cells already downloaded")
+        return
+
+    max_workers = min(8, args.jobs if args.jobs else 8)
+    print(f"Downloading {len(to_download)} cells ({max_workers} parallel)...")
+
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        futures = {
+            executor.submit(download_enc_cell, cell_name, output_dir): cell_name
+            for cell_name in to_download
+        }
+        done = 0
+        failed = 0
+        for future in as_completed(futures):
+            cell_name = futures[future]
+            try:
+                result = future.result()
+                if result:
+                    done += 1
+                else:
+                    failed += 1
+            except Exception as e:
+                print(f"Error downloading {cell_name}: {e}")
+                failed += 1
+
+    print(f"Downloaded {done} cells ({failed} failed, {skipped} skipped)")
 
 
 def cmd_convert(args: argparse.Namespace) -> None:
@@ -246,6 +280,10 @@ def main() -> None:
     dl.add_argument("--output", "-o", default="data/enc", help="Output directory")
     dl.add_argument("--cell", "-c", action="append", help="Cell name (repeatable)")
     dl.add_argument("--region", "-r", help="Named region (e.g. boston-test, new-england)")
+    dl.add_argument(
+        "--jobs", "-j", type=int, default=0,
+        help="Parallel downloads (default: 8)",
+    )
     dl.set_defaults(func=cmd_download)
 
     # convert
