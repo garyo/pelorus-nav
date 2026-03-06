@@ -243,7 +243,8 @@ def cmd_pipeline(args: argparse.Namespace) -> None:
     max_workers = max(1, args.jobs if args.jobs else (os.cpu_count() or 4) - 3)
     print(f"Processing {len(enc_files)} ENC files ({max_workers} parallel workers)")
 
-    all_pmtiles: list[Path] = []
+    # band → list of PMTiles files
+    band_tiles: dict[int, list[Path]] = {}
     work_dir = Path("data/work")
 
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
@@ -256,14 +257,18 @@ def cmd_pipeline(args: argparse.Namespace) -> None:
         for future in as_completed(futures):
             enc_path = futures[future]
             try:
-                pmtiles, _band = future.result()
-                all_pmtiles.extend(pmtiles)
+                pmtiles, band = future.result()
+                if pmtiles:
+                    band_tiles.setdefault(band, []).extend(pmtiles)
             except Exception as e:
                 print(f"Error processing {enc_path.stem}: {e}")
 
-    if all_pmtiles:
-        print(f"\n=== Merging {len(all_pmtiles)} tile sets ===")
-        merge_tiles(all_pmtiles, output_path)
+    total = sum(len(v) for v in band_tiles.values())
+    if total:
+        print(f"\n=== Priority merge: {total} tile sets across {len(band_tiles)} bands ===")
+        for band in sorted(band_tiles):
+            print(f"  Band {band}: {len(band_tiles[band])} tile sets")
+        merge_tiles_priority(band_tiles, output_path)
     else:
         print("No tiles generated")
         sys.exit(1)
