@@ -13,6 +13,8 @@ def tile_layer(
     output_path: Path,
     layer_name: str,
     config: LayerConfig | None = None,
+    min_zoom: int = 0,
+    max_zoom: int = 14,
 ) -> Path | None:
     """Convert a single GeoJSON file to PMTiles using tippecanoe.
 
@@ -21,6 +23,8 @@ def tile_layer(
         output_path: Path for the output PMTiles file.
         layer_name: S-57 layer name for tippecanoe's -l flag.
         config: Optional layer config with tippecanoe args. Auto-detected if None.
+        min_zoom: Minimum zoom level for tile generation (tippecanoe -Z).
+        max_zoom: Maximum zoom level for tile generation (tippecanoe -z).
 
     Returns:
         Path to output PMTiles, or None on failure.
@@ -34,8 +38,8 @@ def tile_layer(
         str(output_path),
         "-l",
         layer_name,
-        "-z14",
-        "-Z0",
+        f"-Z{min_zoom}",
+        f"-z{max_zoom}",
         "--force",
     ]
 
@@ -56,12 +60,16 @@ def tile_layer(
 def tile_geojson_files(
     geojson_dir: Path,
     tiles_dir: Path,
+    min_zoom: int = 0,
+    max_zoom: int = 14,
 ) -> list[Path]:
     """Convert all GeoJSON files in a directory to individual PMTiles.
 
     Args:
         geojson_dir: Directory containing .geojson files.
         tiles_dir: Directory for output .pmtiles files.
+        min_zoom: Minimum zoom level for tile generation.
+        max_zoom: Maximum zoom level for tile generation.
 
     Returns:
         List of paths to created PMTiles files.
@@ -73,7 +81,10 @@ def tile_geojson_files(
         layer_name = geojson_path.stem.upper()
         pmtiles_path = tiles_dir / f"{geojson_path.stem}.pmtiles"
 
-        result = tile_layer(geojson_path, pmtiles_path, layer_name)
+        result = tile_layer(
+            geojson_path, pmtiles_path, layer_name,
+            min_zoom=min_zoom, max_zoom=max_zoom,
+        )
         if result is not None:
             outputs.append(result)
             print(f"  Tiled {layer_name} → {pmtiles_path.name}")

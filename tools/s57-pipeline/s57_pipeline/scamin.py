@@ -1,4 +1,4 @@
-"""SCAMIN and CSCL → tippecanoe minzoom/maxzoom + scale band mapping.
+"""SCAMIN, CSCL, and INTU → tippecanoe minzoom/maxzoom + scale band mapping.
 
 S-57 features have a SCAMIN (Scale Minimum) attribute that indicates
 the smallest scale at which the feature should be displayed. This module
@@ -6,10 +6,11 @@ maps SCAMIN values to tile zoom levels for use with tippecanoe's
 per-feature minzoom control.
 
 When SCAMIN is absent (common for COALNE, LNDARE, etc.), the ENC cell's
-compilation scale (DSPM_CSCL) is used as a fallback. Most layer groups
-also get maxzoom to prevent echoes from overlapping multi-scale cells.
+DSID_INTU (Intended Use) is preferred over DSPM_CSCL for zoom mapping,
+following the enc-tiles approach. Most layer groups also get maxzoom to
+prevent echoes from overlapping multi-scale cells.
 
-Each feature also gets a `_scale_band` property (0–3) indicating its
+Each feature also gets a `_scale_band` property (0–5) indicating its
 source cell's scale band, for potential runtime sort-key use.
 """
 
@@ -19,7 +20,6 @@ import json
 import sys
 from pathlib import Path
 
-from .layers import get_layer_config
 
 # SCAMIN thresholds → tile zoom levels (checked in descending order).
 # A feature with SCAMIN >= threshold gets this minzoom.
@@ -58,11 +58,6 @@ CSCL_BANDS: list[tuple[int, int, int, int]] = [
     (0, 9, 14, 3),         # Harbor (CSCL ≤ 50k): z9-14
 ]
 
-# Layer groups that get maxzoom capping to prevent echoes/duplicates
-# from overlapping multi-scale cells. Infrastructure is excluded
-# (sparse, cell-specific features that don't overlap problematically).
-_MAXZOOM_GROUPS = {"terrain", "regulatory", "lines", "hazards", "navaids", "dense_points", "labels"}
-
 
 def cscl_to_minzoom(cscl: int) -> int:
     """Map a cell's compilation scale to a minzoom level."""
@@ -92,25 +87,119 @@ def cscl_to_scale_band(cscl: int) -> int:
     return 3
 
 
+# enc-tiles reference zoom ranges (non-overlapping, assumes complete coverage).
+# See: https://github.com/openwatersio/enc-tiles/blob/main/bin/s57-to-tiles
+INTU_BASE_ZOOMS: dict[int, tuple[int, int]] = {
+    1: (0, 6),    # Overview
+    2: (7, 8),    # General
+    3: (9, 10),   # Coastal
+    4: (11, 12),  # Approach
+    5: (13, 14),  # Harbour
+    6: (15, 16),  # Berthing
+}
+
+INTU_SCALE_BAND: dict[int, int] = {
+    1: 0, 2: 1, 3: 2, 4: 3, 5: 4, 6: 5,
+}
+
+
+def compute_intu_zoom_ranges(
+    present_intus: set[int],
+) -> dict[int, tuple[int, int, int]]:
+    """Compute adjusted zoom ranges based on which INTU bands are present.
+
+    For each present band, extends maxzoom to fill gaps where the next
+    higher band doesn't exist. The lowest present band extends down to z0.
+
+    This handles NOAA's ENC rescheming where some INTU levels may not
+    exist for a given area (e.g., no INTU 4 Approach charts for MA).
+    The composite sort-key ensures higher-detail data renders on top
+    where bands overlap.
+
+    Args:
+        present_intus: Set of INTU values found in the dataset.
+
+    Returns:
+        Dict of intu → (minzoom, maxzoom, scale_band).
+    """
+    sorted_intus = sorted(present_intus & set(INTU_BASE_ZOOMS))
+    if not sorted_intus:
+        return {}
+
+    result: dict[int, tuple[int, int, int]] = {}
+    for i, intu in enumerate(sorted_intus):
+        base_min, base_max = INTU_BASE_ZOOMS[intu]
+        band = INTU_SCALE_BAND[intu]
+
+        # Lowest present band extends down to z0
+        adj_min = 0 if i == 0 else base_min
+
+        # Extend maxzoom to fill gap before next present band
+        if i < len(sorted_intus) - 1:
+            next_intu = sorted_intus[i + 1]
+            next_min = INTU_BASE_ZOOMS[next_intu][0]
+            adj_max = max(base_max, next_min - 1)
+        else:
+            adj_max = base_max
+
+        result[intu] = (adj_min, adj_max, band)
+
+    return result
+
+
+def intu_to_zoom_range(
+    intu: int,
+    zoom_ranges: dict[int, tuple[int, int, int]] | None = None,
+) -> tuple[int, int]:
+    """Map a cell's DSID_INTU to a (minzoom, maxzoom) range.
+
+    Args:
+        intu: DSID_INTU value (1-6).
+        zoom_ranges: Pre-computed ranges from compute_intu_zoom_ranges().
+            If None, uses the enc-tiles base (non-overlapping) ranges.
+    """
+    if zoom_ranges is not None:
+        entry = zoom_ranges.get(intu)
+        if entry is not None:
+            return (entry[0], entry[1])
+    base = INTU_BASE_ZOOMS.get(intu)
+    if base is not None:
+        return base
+    return (0, 14)
+
+
+def intu_to_scale_band(intu: int) -> int:
+    """Map a cell's DSID_INTU to a scale band (0–5).
+
+    0 = overview, 1 = general, 2 = coastal, 3 = approach, 4 = harbour, 5 = berthing.
+    """
+    return INTU_SCALE_BAND.get(intu, 0)
+
+
 def add_minzoom_to_geojson(
     input_path: Path,
     output_path: Path | None = None,
     cell_cscl: int | None = None,
+    cell_intu: int | None = None,
+    intu_zoom_ranges: dict[int, tuple[int, int, int]] | None = None,
 ) -> int:
     """Add tippecanoe minzoom/maxzoom and _scale_band to each feature.
 
-    Uses SCAMIN if present on the feature (minzoom only, no maxzoom).
-    Otherwise falls back to the cell's compilation scale for zoom range.
-    Maxzoom is applied to most layer groups to prevent echoes from
-    overlapping multi-scale cells.
+    Uses SCAMIN if present on the feature for per-feature minzoom
+    (density control within a cell's tile zoom range). Tile-level
+    bounds (tippecanoe -Z/-z) are the sole zoom boundary control;
+    no per-feature minzoom/maxzoom is set from the cell band.
 
-    Every feature gets a _scale_band property (0–3) for potential
+    Every feature gets a _scale_band property (0–5) for potential
     runtime sort-key ordering in MapLibre.
 
     Args:
         input_path: Path to input GeoJSON file.
         output_path: Path to output GeoJSON file. If None, overwrites input.
         cell_cscl: The cell's DSPM_CSCL compilation scale.
+        cell_intu: The cell's DSID_INTU intended use (1-6).
+        intu_zoom_ranges: Pre-computed ranges from compute_intu_zoom_ranges().
+            If None, uses enc-tiles base ranges.
 
     Returns:
         Number of features processed.
@@ -121,17 +210,11 @@ def add_minzoom_to_geojson(
     with open(input_path) as f:
         geojson = json.load(f)
 
-    # Determine if this layer should get maxzoom
-    layer_name = input_path.stem.upper()
-    layer_cfg = get_layer_config(layer_name)
-    use_maxzoom = layer_cfg is not None and layer_cfg.group in _MAXZOOM_GROUPS
-
-    # Compute cell-level values
-    cell_minzoom: int | None = None
-    cell_maxzoom: int | None = None
+    # Compute scale band — prefer INTU over CSCL
     scale_band = 0
-    if cell_cscl is not None:
-        cell_minzoom, cell_maxzoom = cscl_to_zoom_range(cell_cscl)
+    if cell_intu is not None and cell_intu in INTU_BASE_ZOOMS:
+        scale_band = intu_to_scale_band(cell_intu)
+    elif cell_cscl is not None:
         scale_band = cscl_to_scale_band(cell_cscl)
 
     count = 0
@@ -143,15 +226,11 @@ def add_minzoom_to_geojson(
             feature["tippecanoe"] = {}
 
         if scamin is not None and scamin > 0:
-            # Feature has explicit SCAMIN — use it for minzoom only
+            # Feature has explicit SCAMIN — use it for minzoom.
+            # Controls feature density within the cell's tile zoom range.
             feature["tippecanoe"]["minzoom"] = scamin_to_minzoom(scamin)
-        elif cell_minzoom is not None:
-            # No SCAMIN — use cell compilation scale
-            feature["tippecanoe"]["minzoom"] = cell_minzoom
-            if use_maxzoom and cell_maxzoom is not None:
-                feature["tippecanoe"]["maxzoom"] = cell_maxzoom
-        else:
-            feature["tippecanoe"]["minzoom"] = DEFAULT_ZOOM
+        # No per-feature minzoom/maxzoom from cell band — tile-level bounds
+        # (tippecanoe -Z/-z) are the sole zoom boundary control.
 
         # Scale band for potential runtime sort-key ordering
         props["_scale_band"] = scale_band

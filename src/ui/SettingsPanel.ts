@@ -18,10 +18,10 @@ const DEPTH_UNITS: { value: DepthUnit; label: string }[] = [
 ];
 
 const DETAIL_LABELS: Record<DetailLevel, string> = {
-  "-2": "Minimal",
-  "-1": "Less",
+  "-2": "Base",
+  "-1": "Base",
   "0": "Standard",
-  "1": "More",
+  "1": "Standard+",
   "2": "Full",
 };
 

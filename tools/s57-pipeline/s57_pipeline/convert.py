@@ -8,6 +8,7 @@ from pathlib import Path
 
 from .labels import add_labels_to_geojson
 from .layers import LAYER_NAMES
+from .s52_metadata import add_s52_metadata
 from .scamin import add_minzoom_to_geojson
 from .symbols import add_symbols_to_geojson
 
@@ -38,14 +39,15 @@ def list_enc_layers(enc_path: Path) -> list[str]:
     return layers
 
 
-def read_compilation_scale(enc_path: Path) -> int | None:
-    """Read the compilation scale (DSPM_CSCL) from an S-57 ENC file.
+def _read_dsid_field(enc_path: Path, field_name: str) -> int | None:
+    """Read an integer field from the DSID layer of an S-57 ENC file.
 
     Args:
         enc_path: Path to the .000 ENC file.
+        field_name: DSID field name (e.g., "DSPM_CSCL", "DSID_INTU").
 
     Returns:
-        The compilation scale as an integer, or None if not found.
+        The field value as an integer, or None if not found.
     """
     result = subprocess.run(
         ["ogrinfo", "-ro", "-al", str(enc_path), "DSID"],
@@ -56,14 +58,27 @@ def read_compilation_scale(enc_path: Path) -> int | None:
         return None
 
     for line in result.stdout.splitlines():
-        if "DSPM_CSCL" in line and "=" in line:
-            # Format: "  DSPM_CSCL (Integer) = 675000"
+        if field_name in line and "=" in line:
             value = line.split("=")[-1].strip()
             try:
                 return int(value)
             except ValueError:
                 return None
     return None
+
+
+def read_compilation_scale(enc_path: Path) -> int | None:
+    """Read the compilation scale (DSPM_CSCL) from an S-57 ENC file."""
+    return _read_dsid_field(enc_path, "DSPM_CSCL")
+
+
+def read_intended_use(enc_path: Path) -> int | None:
+    """Read the intended use (DSID_INTU) from an S-57 ENC file.
+
+    Returns:
+        The intended use as an integer (1-6), or None if not found.
+    """
+    return _read_dsid_field(enc_path, "DSID_INTU")
 
 
 def convert_layer(
@@ -115,6 +130,7 @@ def convert_enc(
     enc_path: Path,
     output_dir: Path,
     apply_scamin: bool = True,
+    intu_zoom_ranges: dict[int, tuple[int, int, int]] | None = None,
 ) -> list[Path]:
     """Convert all known layers from an S-57 ENC file to GeoJSON.
 
@@ -128,8 +144,11 @@ def convert_enc(
     """
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    # Read compilation scale for SCAMIN fallback
+    # Read cell metadata for zoom mapping
     cell_cscl = read_compilation_scale(enc_path) if apply_scamin else None
+    cell_intu = read_intended_use(enc_path) if apply_scamin else None
+    if cell_intu is not None:
+        print(f"  Intended use (INTU): {cell_intu}")
     if cell_cscl is not None:
         print(f"  Compilation scale (CSCL): 1:{cell_cscl:,}")
 
@@ -142,9 +161,15 @@ def convert_enc(
         path = convert_layer(enc_path, layer_name, output_dir)
         if path is not None:
             if apply_scamin:
-                add_minzoom_to_geojson(path, cell_cscl=cell_cscl)
+                add_minzoom_to_geojson(
+                    path,
+                    cell_cscl=cell_cscl,
+                    cell_intu=cell_intu,
+                    intu_zoom_ranges=intu_zoom_ranges,
+                )
             add_labels_to_geojson(path)
             add_symbols_to_geojson(path)
+            add_s52_metadata(path)
             outputs.append(path)
             print(f"  Converted {layer_name} → {path.name}")
 

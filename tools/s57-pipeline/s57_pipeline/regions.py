@@ -30,8 +30,8 @@ class Region:
 REGIONS: dict[str, Region] = {
     "boston-test": Region(
         name="Boston Harbor (test)",
-        bbox=(-71.15, 42.2, -70.8, 42.45),
-        description="4 cells covering Boston Harbor -- fast dev iteration",
+        bbox=(-71.3, 41.9, -69.9, 42.7),
+        description="Boston area with approach charts -- dev iteration",
     ),
     "new-england": Region(
         name="Cape Cod to Southern Maine",
