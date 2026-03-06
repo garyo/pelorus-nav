@@ -10,11 +10,13 @@ from pathlib import Path
 
 from .convert import convert_enc, read_compilation_scale, read_intended_use
 from .download import download_enc_cell
-from .merge import merge_tiles
+from .merge import merge_tiles, merge_tiles_priority
 from .regions import REGIONS, get_region_cells, query_region
 from .scamin import (
     compute_intu_zoom_ranges,
+    cscl_to_scale_band,
     cscl_to_zoom_range,
+    intu_to_scale_band,
     intu_to_zoom_range,
 )
 from .tile import tile_geojson_files
@@ -141,12 +143,29 @@ def _process_cell(
     work_dir: Path,
     force: bool,
     intu_zoom_ranges: dict[int, tuple[int, int, int]] | None = None,
-) -> list[Path]:
-    """Process a single ENC cell: convert → tile. Returns list of PMTiles paths."""
+) -> tuple[list[Path], int]:
+    """Process a single ENC cell: convert → tile.
+
+    Returns:
+        Tuple of (list of PMTiles paths, scale_band).
+    """
     cell_name = enc_path.stem
     cell_dir = work_dir / cell_name
     geojson_dir = cell_dir / "geojson"
     tiles_dir = cell_dir / "tiles"
+
+    # Determine cell's scale band and zoom range
+    cell_intu = read_intended_use(enc_path)
+    min_zoom, max_zoom = 0, 14
+    scale_band = 0
+    if cell_intu is not None:
+        min_zoom, max_zoom = intu_to_zoom_range(cell_intu, intu_zoom_ranges)
+        scale_band = intu_to_scale_band(cell_intu)
+    else:
+        cell_cscl = read_compilation_scale(enc_path)
+        if cell_cscl is not None:
+            min_zoom, max_zoom = cscl_to_zoom_range(cell_cscl)
+            scale_band = cscl_to_scale_band(cell_cscl)
 
     # Incremental: skip if tiles are newer than source
     if not force:
@@ -155,29 +174,18 @@ def _process_cell(
             t.stat().st_mtime > enc_path.stat().st_mtime for t in existing_tiles
         ):
             print(f"Skipping {cell_name} (tiles up to date)")
-            return existing_tiles
+            return existing_tiles, scale_band
 
-    # Determine cell's tile zoom range (enc-tiles approach: tile-level bounds).
-    # Strict non-overlapping ranges — the frontend uses tileSize:256 to
-    # request tiles at +1 zoom for more detail at every map zoom level.
-    cell_intu = read_intended_use(enc_path)
-    min_zoom, max_zoom = 0, 14
-    if cell_intu is not None:
-        min_zoom, max_zoom = intu_to_zoom_range(cell_intu, intu_zoom_ranges)
-    else:
-        cell_cscl = read_compilation_scale(enc_path)
-        if cell_cscl is not None:
-            min_zoom, max_zoom = cscl_to_zoom_range(cell_cscl)
-
-    print(f"Processing {cell_name} (z{min_zoom}-{max_zoom})...")
+    print(f"Processing {cell_name} (z{min_zoom}-{max_zoom}, band {scale_band})...")
     geojson_files = convert_enc(
         enc_path, geojson_dir, intu_zoom_ranges=intu_zoom_ranges
     )
     if geojson_files:
-        return tile_geojson_files(
+        tiles = tile_geojson_files(
             geojson_dir, tiles_dir, min_zoom=min_zoom, max_zoom=max_zoom,
         )
-    return []
+        return tiles, scale_band
+    return [], scale_band
 
 
 def cmd_pipeline(args: argparse.Namespace) -> None:
@@ -235,7 +243,8 @@ def cmd_pipeline(args: argparse.Namespace) -> None:
     max_workers = max(1, args.jobs if args.jobs else (os.cpu_count() or 4) - 3)
     print(f"Processing {len(enc_files)} ENC files ({max_workers} parallel workers)")
 
-    all_pmtiles: list[Path] = []
+    # band → list of PMTiles files
+    band_tiles: dict[int, list[Path]] = {}
     work_dir = Path("data/work")
 
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
@@ -248,14 +257,18 @@ def cmd_pipeline(args: argparse.Namespace) -> None:
         for future in as_completed(futures):
             enc_path = futures[future]
             try:
-                pmtiles = future.result()
-                all_pmtiles.extend(pmtiles)
+                pmtiles, band = future.result()
+                if pmtiles:
+                    band_tiles.setdefault(band, []).extend(pmtiles)
             except Exception as e:
                 print(f"Error processing {enc_path.stem}: {e}")
 
-    if all_pmtiles:
-        print(f"\n=== Merging {len(all_pmtiles)} tile sets ===")
-        merge_tiles(all_pmtiles, output_path)
+    total = sum(len(v) for v in band_tiles.values())
+    if total:
+        print(f"\n=== Priority merge: {total} tile sets across {len(band_tiles)} bands ===")
+        for band in sorted(band_tiles):
+            print(f"  Band {band}: {len(band_tiles[band])} tile sets")
+        merge_tiles_priority(band_tiles, output_path)
     else:
         print("No tiles generated")
         sys.exit(1)

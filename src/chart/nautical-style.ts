@@ -13,12 +13,11 @@ import { s52Colour } from "./s52-colours";
  *   3. Line layers
  *   4. Point/symbol layers
  *
- * Multi-scale quilting:
- *   Features carry a `_scale_band` property (0=overview, 1=coastal,
- *   2=approach, 3=harbor). Fill and line layers use sort-key expressions
- *   so that higher-scale (more detailed) data renders on top of
- *   lower-scale data, preventing coastline "echo" artifacts without
- *   needing maxzoom capping (which caused coverage gaps).
+ * Multi-scale compositing:
+ *   The pipeline's priority merge ensures each tile contains features from
+ *   exactly ONE scale band (the highest available). This eliminates ghosting
+ *   (coastline echoes from multiple bands) while preserving coverage (lower
+ *   bands fill gaps where higher bands don't exist). See MULTI_SCALE.md.
  */
 
 /**
@@ -129,8 +128,7 @@ export function getNauticalLayers(
     },
 
     // ── Fill layers: terrain ─────────────────────────────────────────────
-    // With strict non-overlapping INTU zoom ranges and tileSize:256,
-    // each tile contains only one scale band — no multi-scale compositing needed.
+    // Priority merge ensures each tile has only one band's features.
     // Draw water (DEPARE) first, then land (LNDARE) on top.
     {
       id: "s57-depare-shallow",
@@ -141,7 +139,7 @@ export function getNauticalLayers(
       layout: { "fill-sort-key": SCALE_SORT_KEY },
       paint: {
         "fill-color": s52Colour("DEPVS"),
-        "fill-opacity": 0.9,
+        "fill-opacity": 1,
       },
     },
     {
@@ -157,7 +155,7 @@ export function getNauticalLayers(
       layout: { "fill-sort-key": SCALE_SORT_KEY },
       paint: {
         "fill-color": s52Colour("DEPMS"),
-        "fill-opacity": 0.9,
+        "fill-opacity": 1,
       },
     },
     {

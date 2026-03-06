@@ -109,11 +109,14 @@ def compute_intu_zoom_ranges(
 ) -> dict[int, tuple[int, int, int]]:
     """Compute adjusted zoom ranges based on which INTU bands are present.
 
-    For each present band, extends maxzoom to fill gaps where the next
-    higher band doesn't exist. The lowest present band extends down to z0.
+    Each band's maxzoom extends 2 levels into the next band's range,
+    creating overlap. This ensures geographic coverage where a higher
+    band doesn't exist for a given area (e.g., no INTU 4 Approach
+    charts for MA, but INTU 4 exists for CT). The frontend uses
+    _scale_band sort-key + opaque fills to composite correctly where
+    both bands exist in the same tile.
 
-    This handles NOAA's ENC rescheming where some INTU levels may not
-    exist for a given area (e.g., no INTU 4 Approach charts for MA).
+    The lowest present band extends down to z0.
 
     Args:
         present_intus: Set of INTU values found in the dataset.
@@ -131,39 +134,26 @@ def compute_intu_zoom_ranges(
 
     result: dict[int, tuple[int, int, int]] = {}
     for i, intu in enumerate(sorted_intus):
-        base_min, base_max = INTU_BASE_ZOOMS[intu]
+        base_min, _base_max = INTU_BASE_ZOOMS[intu]
         band = INTU_SCALE_BAND[intu]
 
         # Lowest present band extends down to z0
         adj_min = 0 if i == 0 else base_min
 
-        # Extend maxzoom to fill gap before next present band
-        if i < len(sorted_intus) - 1:
-            next_intu = sorted_intus[i + 1]
-            next_min = INTU_BASE_ZOOMS[next_intu][0]
-            adj_max = max(base_max, next_min - 1)
-        else:
-            adj_max = base_max
+        # Every band extends to z14 — geographic coverage is incomplete
+        # (e.g., no INTU 4 for MA, no INTU 3 for Delaware). Coarse data
+        # at high zoom is better than blank. The _scale_band sort-key +
+        # opaque fills ensure higher-res data renders on top where it exists.
+        adj_max = 14
+        adj_min = min(adj_min, adj_max)  # ensure min <= max
 
         result[intu] = (adj_min, adj_max, band)
 
-    # Apply zoom shift: shift all ranges down, keeping non-overlapping.
-    # The highest band extends up to z14.
+    # Apply zoom shift: shift minzoom down (maxzoom stays at 14).
     if zoom_shift > 0 and result:
         shifted: dict[int, tuple[int, int, int]] = {}
-        sorted_result = sorted(result.items())
-        for i, (intu, (zmin, zmax, band)) in enumerate(sorted_result):
-            new_min = max(0, zmin - zoom_shift)
-            new_max = max(0, zmax - zoom_shift)
-            # Highest band extends up to z14
-            if i == len(sorted_result) - 1:
-                new_max = max(new_max, 14)
-            # Ensure non-overlapping: min can't be less than previous max + 1
-            if i > 0:
-                prev_intu = sorted_result[i - 1][0]
-                prev_max = shifted[prev_intu][1]
-                new_min = max(new_min, prev_max + 1)
-            shifted[intu] = (new_min, new_max, band)
+        for intu, (zmin, zmax, band) in result.items():
+            shifted[intu] = (max(0, zmin - zoom_shift), zmax, band)
         result = shifted
 
     return result

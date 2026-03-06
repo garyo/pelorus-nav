@@ -143,37 +143,37 @@ class TestComputeIntuZoomRanges:
     """Test data-driven zoom range computation based on present INTU bands."""
 
     def test_all_bands_present(self) -> None:
-        """With all bands, ranges match base (no gaps to fill)."""
+        """Every band extends to z14; lowest extends down to z0."""
         result = compute_intu_zoom_ranges({1, 2, 3, 4, 5, 6})
-        assert result[1] == (0, 6, 0)
-        assert result[2] == (7, 8, 1)
-        assert result[3] == (9, 10, 2)
-        assert result[4] == (11, 12, 3)
+        assert result[1] == (0, 14, 0)
+        assert result[2] == (7, 14, 1)
+        assert result[3] == (9, 14, 2)
+        assert result[4] == (11, 14, 3)
         assert result[5] == (13, 14, 4)
-        assert result[6] == (15, 16, 5)
+        assert result[6] == (14, 14, 5)  # base 15 clamped to 14
 
     def test_missing_approach_band(self) -> None:
-        """Missing INTU 4 — INTU 3 extends to fill the gap."""
+        """Missing INTU 4 — all bands still extend to z14."""
         result = compute_intu_zoom_ranges({1, 2, 3, 5, 6})
-        assert result[3] == (9, 12, 2)  # extended maxzoom from 10 to 12
-        assert result[5] == (13, 14, 4)  # unchanged
+        assert result[3] == (9, 14, 2)
+        assert result[5] == (13, 14, 4)
 
     def test_missing_multiple_bands(self) -> None:
-        """Missing INTU 2 and 4 — each lower band extends."""
+        """Missing INTU 2 and 4 — all bands extend to z14."""
         result = compute_intu_zoom_ranges({1, 3, 5})
-        assert result[1] == (0, 8, 0)   # extended from 6 to 8 (next is INTU 3 at z9)
-        assert result[3] == (9, 12, 2)  # extended from 10 to 12 (next is INTU 5 at z13)
-        assert result[5] == (13, 14, 4)  # highest present, unchanged
+        assert result[1] == (0, 14, 0)
+        assert result[3] == (9, 14, 2)
+        assert result[5] == (13, 14, 4)
 
     def test_single_band(self) -> None:
-        """Single band extends down to z0."""
+        """Single band extends z0-14."""
         result = compute_intu_zoom_ranges({5})
-        assert result[5] == (0, 14, 4)  # minzoom=0 (lowest present), maxzoom unchanged
+        assert result[5] == (0, 14, 4)
 
     def test_lowest_band_extends_to_z0(self) -> None:
         """The lowest present band always starts at z0."""
         result = compute_intu_zoom_ranges({3, 5})
-        assert result[3] == (0, 12, 2)  # min extended to 0, max extended to 12
+        assert result[3] == (0, 14, 2)
         assert result[5] == (13, 14, 4)
 
     def test_empty_set(self) -> None:
@@ -183,6 +183,14 @@ class TestComputeIntuZoomRanges:
     def test_invalid_intus_ignored(self) -> None:
         result = compute_intu_zoom_ranges({99, 100})
         assert result == {}
+
+    def test_zoom_shift_lowers_minzoom(self) -> None:
+        """zoom_shift lowers minzoom, maxzoom stays at 14."""
+        result = compute_intu_zoom_ranges({2, 3, 4, 5, 6}, zoom_shift=2)
+        assert result[2] == (0, 14, 1)   # min 7-2=5, but lowest→0
+        assert result[3] == (7, 14, 2)   # min 9-2=7
+        assert result[5] == (11, 14, 4)  # min 13-2=11
+        assert result[6] == (12, 14, 5)  # min clamped 14, then 14-2=12
 
 
 class TestIntuToScaleBand:
