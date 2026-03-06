@@ -3,7 +3,9 @@ name = "s57-pipeline"
 version = "0.1.0"
 description = "S-57 ENC → PMTiles vector tile pipeline for Pelorus Nav"
 requires-python = ">=3.11"
-dependencies = []
+dependencies = [
+    "pmtiles>=3.7.0",
+]
 
 [project.optional-dependencies]
 dev = ["pytest>=8.0"]
@@ -21,5 +23,6 @@ line-length = 88
 
 [dependency-groups]
 dev = [
+    "pmtiles>=3.7.0",
     "pytest>=9.0.2",
 ]
