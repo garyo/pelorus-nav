@@ -829,6 +829,7 @@ export function getNauticalLayers(
       type: "symbol",
       source: sourceId,
       "source-layer": "WRECKS",
+      minzoom: 8,
       layout: {
         "icon-image": ICON_EXPR,
         "icon-size": 0.75,
@@ -842,6 +843,7 @@ export function getNauticalLayers(
       type: "symbol",
       source: sourceId,
       "source-layer": "OBSTRN",
+      minzoom: 8,
       layout: {
         "icon-image": ICON_EXPR,
         "icon-size": 0.35,
@@ -855,6 +857,7 @@ export function getNauticalLayers(
       type: "symbol",
       source: sourceId,
       "source-layer": "UWTROC",
+      minzoom: 8,
       layout: {
         "icon-image": ICON_EXPR,
         "icon-size": 0.35,
