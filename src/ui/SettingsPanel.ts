@@ -7,6 +7,7 @@ import {
   type DetailLevel,
   depthUnitLabel,
   getSettings,
+  LAYER_GROUP_LABELS,
   onSettingsChange,
   updateSettings,
 } from "../settings";
@@ -85,6 +86,19 @@ export function createSettingsPanel(container: HTMLElement): void {
     sliderLabel.textContent = DETAIL_LABELS[level];
     updateSettings({ detailLevel: level });
   });
+
+  // Layer group toggles
+  for (const groupId of Object.keys(LAYER_GROUP_LABELS)) {
+    const cb = panel.querySelector(
+      `#settings-group-${groupId}`,
+    ) as HTMLInputElement | null;
+    if (cb) {
+      cb.addEventListener("change", () => {
+        const groups = { ...getSettings().layerGroups, [groupId]: cb.checked };
+        updateSettings({ layerGroups: groups });
+      });
+    }
+  }
 }
 
 function buildPanelHTML(): string {
@@ -93,6 +107,13 @@ function buildPanelHTML(): string {
     (u) =>
       `<option value="${u.value}"${u.value === settings.depthUnit ? " selected" : ""}>${u.label}</option>`,
   ).join("");
+
+  const groupToggles = Object.entries(LAYER_GROUP_LABELS)
+    .map(([id, label]) => {
+      const checked = settings.layerGroups[id] !== false ? " checked" : "";
+      return `<label class="settings-toggle"><input type="checkbox" id="settings-group-${id}"${checked}> ${label}</label>`;
+    })
+    .join("\n      ");
 
   return `
     <div class="settings-row">
@@ -104,6 +125,12 @@ function buildPanelHTML(): string {
       <div class="settings-slider-group">
         <input type="range" id="settings-detail-level" min="-2" max="2" step="1" value="${settings.detailLevel}">
         <span id="settings-detail-label">${DETAIL_LABELS[settings.detailLevel]}</span>
+      </div>
+    </div>
+    <div class="settings-row settings-group-section">
+      <label>Layer groups</label>
+      <div class="settings-toggles">
+      ${groupToggles}
       </div>
     </div>
   `;

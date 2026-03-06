@@ -8,13 +8,29 @@ export type DetailLevel = -2 | -1 | 0 | 1 | 2;
 export interface Settings {
   depthUnit: DepthUnit;
   detailLevel: DetailLevel;
+  layerGroups: Record<string, boolean>;
 }
 
 const STORAGE_KEY = "pelorus-nav-settings";
 
+export const LAYER_GROUP_LABELS: Record<string, string> = {
+  routing: "Routing",
+  anchorage: "Anchorage",
+  cablesAndPipes: "Cables & Pipes",
+  facilities: "Facilities",
+  magneticVariation: "Magnetic Variation",
+  seabed: "Seabed",
+  daymarksTopmarks: "Daymarks & Topmarks",
+};
+
+const DEFAULT_LAYER_GROUPS: Record<string, boolean> = Object.fromEntries(
+  Object.keys(LAYER_GROUP_LABELS).map((k) => [k, true]),
+);
+
 const DEFAULTS: Settings = {
   depthUnit: "meters",
   detailLevel: 0,
+  layerGroups: { ...DEFAULT_LAYER_GROUPS },
 };
 
 type SettingsListener = (settings: Settings) => void;
@@ -27,12 +43,16 @@ function load(): Settings {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (raw) {
       const parsed = JSON.parse(raw) as Partial<Settings>;
-      return { ...DEFAULTS, ...parsed };
+      return {
+        ...DEFAULTS,
+        ...parsed,
+        layerGroups: { ...DEFAULT_LAYER_GROUPS, ...parsed.layerGroups },
+      };
     }
   } catch {
     // ignore
   }
-  return { ...DEFAULTS };
+  return { ...DEFAULTS, layerGroups: { ...DEFAULT_LAYER_GROUPS } };
 }
 
 function save(): void {

@@ -60,10 +60,39 @@ function depthTextField(unit: DepthUnit): ExpressionSpecification {
   ] as unknown as ExpressionSpecification;
 }
 
+/** Maps layer IDs to group names for per-group toggle control. */
+const LAYER_GROUPS: Record<string, string> = {
+  "s57-navlne": "routing",
+  "s57-rectrc": "routing",
+  "s57-dwrtcl": "routing",
+  "s57-tssbnd": "routing",
+  "s57-tsslpt": "routing",
+  "s57-tsezne": "routing",
+  "s57-tsezne-outline": "routing",
+  "s57-twrtpt": "routing",
+  "s57-twrtpt-outline": "routing",
+  "s57-achare": "anchorage",
+  "s57-achbrt": "anchorage",
+  "s57-cblare": "cablesAndPipes",
+  "s57-cblsub": "cablesAndPipes",
+  "s57-cblohd": "cablesAndPipes",
+  "s57-pipare": "cablesAndPipes",
+  "s57-pipsol": "cablesAndPipes",
+  "s57-hrbfac": "facilities",
+  "s57-ofsplf": "facilities",
+  "s57-dmpgrd": "facilities",
+  "s57-dmpgrd-outline": "facilities",
+  "s57-magvar": "magneticVariation",
+  "s57-sbdare": "seabed",
+  "s57-daymar": "daymarksTopmarks",
+  "s57-topmar": "daymarksTopmarks",
+};
+
 export function getNauticalLayers(
   sourceId: string,
   depthUnit: DepthUnit = "meters",
   detailOffset = 0,
+  layerGroups: Record<string, boolean> = {},
 ): LayerSpecification[] {
   // Detail levels map to display categories:
   //   -2, -1: DISPLAYBASE only
@@ -335,6 +364,108 @@ export function getNauticalLayers(
         "line-opacity": 0.5,
       },
     },
+
+    // ── Routing / regulatory lines ──────────────────────────────────────
+    ...(catFilter("STANDARD")
+      ? [
+          {
+            id: "s57-navlne",
+            type: "line" as const,
+            source: sourceId,
+            "source-layer": "NAVLNE",
+            paint: {
+              "line-color": s52Colour("CHGRD"),
+              "line-width": 1,
+              "line-dasharray": [6, 3],
+            },
+          },
+          {
+            id: "s57-rectrc",
+            type: "line" as const,
+            source: sourceId,
+            "source-layer": "RECTRC",
+            paint: {
+              "line-color": s52Colour("TRFCD"),
+              "line-width": 1.2,
+              "line-dasharray": [8, 3, 2, 3],
+            },
+          },
+          {
+            id: "s57-dwrtcl",
+            type: "line" as const,
+            source: sourceId,
+            "source-layer": "DWRTCL",
+            paint: {
+              "line-color": s52Colour("TRFCD"),
+              "line-width": 1,
+              "line-dasharray": [6, 3],
+            },
+          },
+          {
+            id: "s57-tssbnd",
+            type: "line" as const,
+            source: sourceId,
+            "source-layer": "TSSBND",
+            paint: {
+              "line-color": s52Colour("TRFCD"),
+              "line-width": 1.5,
+            },
+          },
+          {
+            id: "s57-tsezne",
+            type: "fill" as const,
+            source: sourceId,
+            "source-layer": "TSEZNE",
+            paint: {
+              "fill-color": s52Colour("TRFCD"),
+              "fill-opacity": 0.1,
+            },
+          },
+          {
+            id: "s57-tsezne-outline",
+            type: "line" as const,
+            source: sourceId,
+            "source-layer": "TSEZNE",
+            paint: {
+              "line-color": s52Colour("TRFCD"),
+              "line-width": 1,
+            },
+          },
+          {
+            id: "s57-twrtpt",
+            type: "fill" as const,
+            source: sourceId,
+            "source-layer": "TWRTPT",
+            paint: {
+              "fill-color": s52Colour("TRFCD"),
+              "fill-opacity": 0.08,
+            },
+          },
+          {
+            id: "s57-twrtpt-outline",
+            type: "line" as const,
+            source: sourceId,
+            "source-layer": "TWRTPT",
+            paint: {
+              "line-color": s52Colour("TRFCD"),
+              "line-width": 1,
+              "line-dasharray": [4, 3],
+            },
+          },
+          {
+            id: "s57-achbrt",
+            type: "line" as const,
+            source: sourceId,
+            "source-layer": "ACHBRT",
+            paint: {
+              "line-color": s52Colour("RESBL"),
+              "line-width": 1,
+              "line-dasharray": [4, 3],
+              "line-opacity": 0.6,
+            },
+          },
+        ]
+      : []),
 
     // ── Line layers ─────────────────────────────────────────────────────
     {
@@ -775,6 +906,204 @@ export function getNauticalLayers(
       },
       paint: {},
     },
+
+    // Special purpose beacons
+    {
+      id: "s57-bcnspp",
+      type: "symbol",
+      source: sourceId,
+      "source-layer": "BCNSPP",
+      layout: {
+        "icon-image": ICON_EXPR,
+        "icon-size": 0.7,
+        "icon-allow-overlap": true,
+        "text-field": LABEL_EXPR,
+        "text-size": 11,
+        "text-offset": [0, 1.5],
+        "text-allow-overlap": false,
+        "text-optional": true,
+      },
+      paint: {
+        "text-color": s52Colour("CHBLK"),
+        "text-halo-color": "#ffffff",
+        "text-halo-width": 1.5,
+      },
+    },
+
+    // Seabed area labels
+    {
+      id: "s57-sbdare",
+      type: "symbol",
+      source: sourceId,
+      "source-layer": "SBDARE",
+      minzoom: detailMinzoom(12),
+      layout: {
+        "text-field": ["get", "NATSUR"],
+        "text-size": 10,
+        "text-font": ["Noto Sans Italic"],
+        "text-allow-overlap": false,
+        "text-padding": 5,
+      },
+      paint: {
+        "text-color": s52Colour("CHGRD"),
+        "text-halo-color": "#ffffff",
+        "text-halo-width": 1,
+      },
+    },
+
+    // ── Priority 2: cables, pipes, facilities ───────────────────────────
+    // Cable areas
+    ...(catFilter("OTHER")
+      ? [
+          {
+            id: "s57-cblare",
+            type: "line" as const,
+            source: sourceId,
+            "source-layer": "CBLARE",
+            paint: {
+              "line-color": s52Colour("ISDNG"),
+              "line-width": 1,
+              "line-dasharray": [4, 3] as number[],
+              "line-opacity": 0.5,
+            },
+          },
+          {
+            id: "s57-pipare",
+            type: "line" as const,
+            source: sourceId,
+            "source-layer": "PIPARE",
+            paint: {
+              "line-color": s52Colour("ISDNG"),
+              "line-width": 1,
+              "line-dasharray": [4, 3] as number[],
+              "line-opacity": 0.5,
+            },
+          },
+          {
+            id: "s57-pipsol",
+            type: "line" as const,
+            source: sourceId,
+            "source-layer": "PIPSOL",
+            paint: {
+              "line-color": s52Colour("ISDNG"),
+              "line-width": 1,
+              "line-dasharray": [4, 3] as number[],
+            },
+          },
+          {
+            id: "s57-dmpgrd",
+            type: "fill" as const,
+            source: sourceId,
+            "source-layer": "DMPGRD",
+            paint: {
+              "fill-color": "#FF8C00",
+              "fill-opacity": 0.12,
+            },
+          },
+          {
+            id: "s57-dmpgrd-outline",
+            type: "line" as const,
+            source: sourceId,
+            "source-layer": "DMPGRD",
+            paint: {
+              "line-color": "#FF8C00",
+              "line-width": 1,
+              "line-dasharray": [4, 3] as number[],
+            },
+          },
+          {
+            id: "s57-hrbfac",
+            type: "symbol" as const,
+            source: sourceId,
+            "source-layer": "HRBFAC",
+            minzoom: detailMinzoom(13),
+            layout: {
+              "icon-image": ICON_EXPR,
+              "icon-size": 0.6,
+              "icon-allow-overlap": true,
+              "text-field": [
+                "get",
+                "OBJNAM",
+              ] as unknown as ExpressionSpecification,
+              "text-size": 10,
+              "text-offset": [0, 1.5] as [number, number],
+              "text-allow-overlap": false,
+              "text-optional": true,
+            },
+            paint: {
+              "text-color": s52Colour("CHBLK"),
+              "text-halo-color": "#ffffff",
+              "text-halo-width": 1,
+            },
+          },
+          {
+            id: "s57-ofsplf",
+            type: "symbol" as const,
+            source: sourceId,
+            "source-layer": "OFSPLF",
+            layout: {
+              "icon-image": ICON_EXPR,
+              "icon-size": 0.6,
+              "icon-allow-overlap": true,
+            },
+            paint: {},
+          },
+          {
+            id: "s57-magvar",
+            type: "symbol" as const,
+            source: sourceId,
+            "source-layer": "MAGVAR",
+            minzoom: detailMinzoom(8),
+            layout: {
+              "text-field": [
+                "concat",
+                ["get", "VALMAG"],
+                "\u00b0",
+              ] as unknown as ExpressionSpecification,
+              "text-size": 10,
+              "text-font": ["Noto Sans Italic"],
+              "text-allow-overlap": false,
+              "text-padding": 20,
+            },
+            paint: {
+              "text-color": s52Colour("NINFO"),
+              "text-halo-color": "#ffffff",
+              "text-halo-width": 1,
+            },
+          },
+        ]
+      : []),
+
+    // ── Daymarks and topmarks (visual identification) ───────────────────
+    ...(catFilter("OTHER")
+      ? [
+          {
+            id: "s57-daymar",
+            type: "symbol" as const,
+            source: sourceId,
+            "source-layer": "DAYMAR",
+            layout: {
+              "icon-image": ICON_EXPR,
+              "icon-size": 0.6,
+              "icon-allow-overlap": true,
+            },
+            paint: {},
+          },
+          {
+            id: "s57-topmar",
+            type: "symbol" as const,
+            source: sourceId,
+            "source-layer": "TOPMAR",
+            layout: {
+              "icon-image": ICON_EXPR,
+              "icon-size": 0.45,
+              "icon-allow-overlap": true,
+              "icon-offset": [0, -10] as [number, number],
+            },
+            paint: {},
+          },
+        ]
+      : []),
   ];
 
   // Display category → layer ID mapping for filtering
@@ -822,6 +1151,16 @@ export function getNauticalLayers(
       "s57-lndmrk-label": "STANDARD",
       "s57-lndare-label": "STANDARD",
       "s57-seaare-label": "STANDARD",
+      "s57-navlne": "STANDARD",
+      "s57-rectrc": "STANDARD",
+      "s57-dwrtcl": "STANDARD",
+      "s57-tssbnd": "STANDARD",
+      "s57-tsezne": "STANDARD",
+      "s57-tsezne-outline": "STANDARD",
+      "s57-twrtpt": "STANDARD",
+      "s57-twrtpt-outline": "STANDARD",
+      "s57-achbrt": "STANDARD",
+      "s57-bcnspp": "STANDARD",
       // OTHER
       "s57-buisgl": "OTHER",
       "s57-buisgl-outline": "OTHER",
@@ -829,10 +1168,24 @@ export function getNauticalLayers(
       "s57-berths-label": "OTHER",
       "s57-pilpnt": "OTHER",
       "s57-morfac": "OTHER",
+      "s57-sbdare": "OTHER",
+      "s57-cblare": "OTHER",
+      "s57-pipare": "OTHER",
+      "s57-pipsol": "OTHER",
+      "s57-dmpgrd": "OTHER",
+      "s57-dmpgrd-outline": "OTHER",
+      "s57-hrbfac": "OTHER",
+      "s57-ofsplf": "OTHER",
+      "s57-magvar": "OTHER",
+      "s57-daymar": "OTHER",
+      "s57-topmar": "OTHER",
     };
 
   return layers.filter((layer) => {
     const cat = LAYER_CATEGORIES[layer.id];
-    return cat === undefined || catFilter(cat);
+    if (cat !== undefined && !catFilter(cat)) return false;
+    const group = LAYER_GROUPS[layer.id];
+    if (group !== undefined && layerGroups[group] === false) return false;
+    return true;
   });
 }
