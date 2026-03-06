@@ -145,6 +145,8 @@ def _wreck_symbol(props: dict) -> str:
 
 
 _COLOUR_WHITE = 1
+_COLOUR_BLACK = 2
+_COLOUR_YELLOW = 6
 _COLOUR_ORANGE = 11
 
 
@@ -194,6 +196,61 @@ def _light_symbol(props: dict) -> str:
     return "light-minor"
 
 
+def _bcnspp_symbol(props: dict) -> str:
+    """Compute SYMBOL for a special purpose beacon (BCNSPP)."""
+    return "beacon-special"
+
+
+# S-57 TOPSHP (topmark shape) codes
+TOPSHP_CONE_UP = 1
+TOPSHP_CONE_DOWN = 2
+TOPSHP_SPHERE = 3
+TOPSHP_2CONES_UP = 4
+TOPSHP_2CONES_DOWN = 5
+TOPSHP_CYLINDER = 7
+TOPSHP_X = 10
+TOPSHP_2SPHERES = 12
+TOPSHP_SQUARE = 6
+
+
+def _daymar_symbol(props: dict) -> str:
+    """Compute SYMBOL for a daymark (DAYMAR)."""
+    topshp = props.get("TOPSHP")
+    colours = _parse_colours(props)
+
+    shape = "square"
+    if topshp == TOPSHP_CONE_UP:
+        shape = "triangle"
+    elif topshp == TOPSHP_SQUARE or topshp == TOPSHP_CYLINDER:
+        shape = "square"
+
+    colour = "red"
+    if _COLOUR_GREEN in colours:
+        colour = "green"
+    elif _COLOUR_RED in colours:
+        colour = "red"
+    elif _COLOUR_YELLOW in colours:
+        colour = "red"  # fallback to red for yellow
+
+    return f"daymark-{shape}-{colour}"
+
+
+def _topmar_symbol(props: dict) -> str:
+    """Compute SYMBOL for a topmark (TOPMAR)."""
+    topshp = props.get("TOPSHP")
+    topshp_map: dict[int, str] = {
+        TOPSHP_CONE_UP: "topmark-cone-up",
+        TOPSHP_CONE_DOWN: "topmark-cone-down",
+        TOPSHP_SPHERE: "topmark-sphere",
+        TOPSHP_X: "topmark-x",
+        TOPSHP_2CONES_UP: "topmark-2cones-up",
+        TOPSHP_2CONES_DOWN: "topmark-2cones-down",
+    }
+    if topshp is None:
+        return "topmark-sphere"
+    return topshp_map.get(topshp, "topmark-sphere")
+
+
 def compute_symbol(props: dict, layer_name: str) -> str | None:
     """Compute the semantic SYMBOL value for a feature.
 
@@ -230,6 +287,16 @@ def compute_symbol(props: dict, layer_name: str) -> str | None:
         return "mooring"
     if layer_name == "PILPNT":
         return "piling"
+    if layer_name == "BCNSPP":
+        return _bcnspp_symbol(props)
+    if layer_name == "DAYMAR":
+        return _daymar_symbol(props)
+    if layer_name == "TOPMAR":
+        return _topmar_symbol(props)
+    if layer_name == "HRBFAC":
+        return "harbor"
+    if layer_name == "OFSPLF":
+        return "platform"
     return None
 
 

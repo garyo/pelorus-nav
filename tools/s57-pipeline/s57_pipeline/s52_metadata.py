@@ -47,12 +47,30 @@ DISPLAY_CATEGORY: dict[str, str] = {
     "BRIDGE": "STANDARD",
     "CBLOHD": "STANDARD",
     "CBLSUB": "STANDARD",
+    "NAVLNE": "STANDARD",
+    "RECTRC": "STANDARD",
+    "DWRTCL": "STANDARD",
+    "TSSBND": "STANDARD",
+    "TSEZNE": "STANDARD",
+    "TWRTPT": "STANDARD",
+    "BCNSPP": "STANDARD",
+    "ACHBRT": "STANDARD",
     # OTHER — shown at full detail
     "BUISGL": "OTHER",
     "BERTHS": "OTHER",
     "PILPNT": "OTHER",
     "MORFAC": "OTHER",
     "PONTON": "OTHER",
+    "DAYMAR": "OTHER",
+    "TOPMAR": "OTHER",
+    "SBDARE": "OTHER",
+    "HRBFAC": "OTHER",
+    "CBLARE": "OTHER",
+    "PIPARE": "OTHER",
+    "PIPSOL": "OTHER",
+    "DMPGRD": "OTHER",
+    "OFSPLF": "OTHER",
+    "MAGVAR": "OTHER",
 }
 
 # S-52 Display Priority by S-57 object class (0-9, lower = drawn first)
@@ -99,10 +117,32 @@ DISPLAY_PRIORITY: dict[str, int] = {
     "BERTHS": 7,
     "PILPNT": 7,
     "MORFAC": 7,
-    # Priority 8: lights, fog signals, landmarks
+    # Priority 4 (continued): routing lines
+    "NAVLNE": 4,
+    "RECTRC": 4,
+    "DWRTCL": 4,
+    "TSSBND": 4,
+    "PIPSOL": 4,
+    # Priority 5 (continued): regulatory areas
+    "TSEZNE": 5,
+    "TWRTPT": 5,
+    "ACHBRT": 5,
+    "CBLARE": 5,
+    "PIPARE": 5,
+    "DMPGRD": 5,
+    # Priority 6 (continued): additional navaids
+    "BCNSPP": 6,
+    "SBDARE": 6,
+    # Priority 7 (continued): infrastructure
+    "HRBFAC": 7,
+    "OFSPLF": 7,
+    "MAGVAR": 7,
+    # Priority 8: lights, fog signals, landmarks, visual marks
     "LIGHTS": 8,
     "FOGSIG": 8,
     "LNDMRK": 8,
+    "DAYMAR": 8,
+    "TOPMAR": 8,
 }
 
 

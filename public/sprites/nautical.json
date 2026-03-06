@@ -27,235 +27,326 @@
     "x": 96,
     "y": 0
   },
-  "ecdis-bridge-symbol": {
+  "ecdis-beacon-special": {
     "height": 32,
     "pixelRatio": 1,
     "width": 32,
     "x": 128,
+    "y": 0
+  },
+  "ecdis-bridge-symbol": {
+    "height": 32,
+    "pixelRatio": 1,
+    "width": 32,
+    "x": 160,
     "y": 0
   },
   "ecdis-buoy-can-gr": {
     "height": 32,
     "pixelRatio": 1,
     "width": 32,
-    "x": 160,
+    "x": 192,
     "y": 0
   },
   "ecdis-buoy-can-green": {
     "height": 32,
     "pixelRatio": 1,
     "width": 32,
-    "x": 192,
+    "x": 224,
     "y": 0
   },
   "ecdis-buoy-can-red": {
     "height": 32,
     "pixelRatio": 1,
     "width": 32,
-    "x": 224,
-    "y": 0
+    "x": 0,
+    "y": 32
   },
   "ecdis-buoy-can-rg": {
     "height": 32,
     "pixelRatio": 1,
     "width": 32,
     "x": 0,
-    "y": 32
+    "y": 64
   },
   "ecdis-buoy-cardinal-e": {
     "height": 32,
     "pixelRatio": 1,
     "width": 32,
     "x": 0,
-    "y": 64
+    "y": 96
   },
   "ecdis-buoy-cardinal-n": {
     "height": 32,
     "pixelRatio": 1,
     "width": 32,
     "x": 0,
-    "y": 96
+    "y": 128
   },
   "ecdis-buoy-cardinal-s": {
     "height": 32,
     "pixelRatio": 1,
     "width": 32,
     "x": 0,
-    "y": 128
+    "y": 160
   },
   "ecdis-buoy-cardinal-w": {
     "height": 32,
     "pixelRatio": 1,
     "width": 32,
     "x": 0,
-    "y": 160
+    "y": 192
   },
   "ecdis-buoy-conical-green": {
     "height": 32,
     "pixelRatio": 1,
     "width": 32,
     "x": 0,
-    "y": 192
+    "y": 224
   },
   "ecdis-buoy-conical-red": {
     "height": 32,
     "pixelRatio": 1,
     "width": 32,
-    "x": 0,
-    "y": 224
+    "x": 32,
+    "y": 32
   },
   "ecdis-buoy-default": {
     "height": 32,
     "pixelRatio": 1,
     "width": 32,
-    "x": 32,
+    "x": 64,
     "y": 32
   },
   "ecdis-buoy-isolated-danger": {
     "height": 32,
     "pixelRatio": 1,
     "width": 32,
-    "x": 64,
+    "x": 96,
     "y": 32
   },
   "ecdis-buoy-pillar-green": {
     "height": 32,
     "pixelRatio": 1,
     "width": 32,
-    "x": 96,
+    "x": 128,
     "y": 32
   },
   "ecdis-buoy-pillar-red": {
     "height": 32,
     "pixelRatio": 1,
     "width": 32,
-    "x": 128,
+    "x": 160,
     "y": 32
   },
   "ecdis-buoy-pillar-wo": {
     "height": 32,
     "pixelRatio": 1,
     "width": 32,
-    "x": 160,
+    "x": 192,
     "y": 32
   },
   "ecdis-buoy-pillar-yellow": {
     "height": 32,
     "pixelRatio": 1,
     "width": 32,
-    "x": 192,
+    "x": 224,
     "y": 32
   },
   "ecdis-buoy-spar-green": {
     "height": 32,
     "pixelRatio": 1,
     "width": 32,
-    "x": 224,
-    "y": 32
+    "x": 32,
+    "y": 64
   },
   "ecdis-buoy-spar-red": {
     "height": 32,
     "pixelRatio": 1,
     "width": 32,
     "x": 32,
-    "y": 64
+    "y": 96
   },
   "ecdis-buoy-spherical-rw": {
     "height": 32,
     "pixelRatio": 1,
     "width": 32,
     "x": 32,
-    "y": 96
-  },
-  "ecdis-fogsig": {
-    "height": 32,
-    "pixelRatio": 1,
-    "width": 32,
-    "x": 32,
     "y": 128
   },
-  "ecdis-light-major": {
+  "ecdis-daymark-square-green": {
     "height": 32,
     "pixelRatio": 1,
     "width": 32,
     "x": 32,
     "y": 160
   },
-  "ecdis-light-minor": {
+  "ecdis-daymark-square-red": {
     "height": 32,
     "pixelRatio": 1,
     "width": 32,
     "x": 32,
     "y": 192
   },
-  "ecdis-mooring": {
+  "ecdis-daymark-triangle-green": {
     "height": 32,
     "pixelRatio": 1,
     "width": 32,
     "x": 32,
     "y": 224
   },
-  "ecdis-obstruction": {
+  "ecdis-daymark-triangle-red": {
     "height": 32,
     "pixelRatio": 1,
     "width": 32,
     "x": 64,
     "y": 64
   },
-  "ecdis-obstruction-foul": {
+  "ecdis-fogsig": {
     "height": 32,
     "pixelRatio": 1,
     "width": 32,
     "x": 96,
     "y": 64
   },
-  "ecdis-piling": {
+  "ecdis-harbor": {
     "height": 32,
     "pixelRatio": 1,
     "width": 32,
     "x": 128,
     "y": 64
   },
-  "ecdis-rock-above": {
+  "ecdis-light-major": {
     "height": 32,
     "pixelRatio": 1,
     "width": 32,
     "x": 160,
     "y": 64
   },
-  "ecdis-rock-awash": {
+  "ecdis-light-minor": {
     "height": 32,
     "pixelRatio": 1,
     "width": 32,
     "x": 192,
     "y": 64
   },
-  "ecdis-rock-underwater": {
+  "ecdis-mooring": {
     "height": 32,
     "pixelRatio": 1,
     "width": 32,
     "x": 224,
     "y": 64
   },
-  "ecdis-wreck-dangerous": {
+  "ecdis-obstruction": {
     "height": 32,
     "pixelRatio": 1,
     "width": 32,
     "x": 64,
     "y": 96
   },
-  "ecdis-wreck-mast": {
+  "ecdis-obstruction-foul": {
     "height": 32,
     "pixelRatio": 1,
     "width": 32,
     "x": 64,
     "y": 128
   },
-  "ecdis-wreck-nondangerous": {
+  "ecdis-piling": {
     "height": 32,
     "pixelRatio": 1,
     "width": 32,
     "x": 64,
     "y": 160
+  },
+  "ecdis-platform": {
+    "height": 32,
+    "pixelRatio": 1,
+    "width": 32,
+    "x": 64,
+    "y": 192
+  },
+  "ecdis-rock-above": {
+    "height": 32,
+    "pixelRatio": 1,
+    "width": 32,
+    "x": 64,
+    "y": 224
+  },
+  "ecdis-rock-awash": {
+    "height": 32,
+    "pixelRatio": 1,
+    "width": 32,
+    "x": 96,
+    "y": 96
+  },
+  "ecdis-rock-underwater": {
+    "height": 32,
+    "pixelRatio": 1,
+    "width": 32,
+    "x": 128,
+    "y": 96
+  },
+  "ecdis-topmark-2cones-down": {
+    "height": 32,
+    "pixelRatio": 1,
+    "width": 32,
+    "x": 160,
+    "y": 96
+  },
+  "ecdis-topmark-2cones-up": {
+    "height": 32,
+    "pixelRatio": 1,
+    "width": 32,
+    "x": 192,
+    "y": 96
+  },
+  "ecdis-topmark-cone-down": {
+    "height": 32,
+    "pixelRatio": 1,
+    "width": 32,
+    "x": 224,
+    "y": 96
+  },
+  "ecdis-topmark-cone-up": {
+    "height": 32,
+    "pixelRatio": 1,
+    "width": 32,
+    "x": 96,
+    "y": 128
+  },
+  "ecdis-topmark-sphere": {
+    "height": 32,
+    "pixelRatio": 1,
+    "width": 32,
+    "x": 96,
+    "y": 160
+  },
+  "ecdis-topmark-x": {
+    "height": 32,
+    "pixelRatio": 1,
+    "width": 32,
+    "x": 96,
+    "y": 192
+  },
+  "ecdis-wreck-dangerous": {
+    "height": 32,
+    "pixelRatio": 1,
+    "width": 32,
+    "x": 96,
+    "y": 224
+  },
+  "ecdis-wreck-mast": {
+    "height": 32,
+    "pixelRatio": 1,
+    "width": 32,
+    "x": 128,
+    "y": 128
+  },
+  "ecdis-wreck-nondangerous": {
+    "height": 32,
+    "pixelRatio": 1,
+    "width": 32,
+    "x": 160,
+    "y": 128
   }
 }

@@ -33,8 +33,8 @@ export class VectorChartProvider implements ChartProvider {
   }
 
   getLayers(): LayerSpecification[] {
-    const { depthUnit, detailLevel } = getSettings();
-    return getNauticalLayers(SOURCE_ID, depthUnit, detailLevel);
+    const { depthUnit, detailLevel, layerGroups } = getSettings();
+    return getNauticalLayers(SOURCE_ID, depthUnit, detailLevel, layerGroups);
   }
 
   getAttribution(): string {

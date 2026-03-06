@@ -75,6 +75,29 @@ LAYER_CONFIGS: list[LayerConfig] = [
     LayerConfig("CBLSUB", "infrastructure", DEFAULT_ARGS),
     LayerConfig("MORFAC", "infrastructure", DEFAULT_ARGS),
     LayerConfig("PONTON", "infrastructure", DEFAULT_ARGS),
+    # Routing lines (regulatory)
+    LayerConfig("NAVLNE", "regulatory", REGULATORY_ARGS),
+    LayerConfig("RECTRC", "regulatory", REGULATORY_ARGS),
+    LayerConfig("DWRTCL", "regulatory", REGULATORY_ARGS),
+    LayerConfig("TSSBND", "regulatory", REGULATORY_ARGS),
+    LayerConfig("PIPSOL", "regulatory", REGULATORY_ARGS),
+    # Regulatory area fills
+    LayerConfig("TSEZNE", "regulatory", REGULATORY_ARGS),
+    LayerConfig("TWRTPT", "regulatory", REGULATORY_ARGS),
+    LayerConfig("ACHBRT", "regulatory", REGULATORY_ARGS),
+    LayerConfig("CBLARE", "regulatory", REGULATORY_ARGS),
+    LayerConfig("PIPARE", "regulatory", REGULATORY_ARGS),
+    LayerConfig("DMPGRD", "regulatory", REGULATORY_ARGS),
+    # Navaids (additional)
+    LayerConfig("BCNSPP", "navaids", NAVAID_ARGS),
+    LayerConfig("DAYMAR", "navaids", NAVAID_ARGS),
+    LayerConfig("TOPMAR", "navaids", NAVAID_ARGS),
+    # Dense labels
+    LayerConfig("SBDARE", "dense_points", DENSE_POINT_ARGS),
+    # Infrastructure (additional)
+    LayerConfig("HRBFAC", "infrastructure", DEFAULT_ARGS),
+    LayerConfig("OFSPLF", "infrastructure", HAZARD_ARGS),
+    LayerConfig("MAGVAR", "labels", DENSE_POINT_ARGS),
 ]
 
 # Quick lookup by layer name

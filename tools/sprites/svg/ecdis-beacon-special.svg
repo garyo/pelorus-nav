@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32">
+  <!-- Vertical stick -->
+  <line x1="16" y1="14" x2="16" y2="30" stroke="#000" stroke-width="2.5"/>
+  <!-- Yellow diamond on top -->
+  <polygon points="16,3 23,10 16,17 9,10" fill="#FFD700" stroke="#000" stroke-width="2"/>
+</svg>

@@ -63,6 +63,27 @@ export const ECDIS_SIMPLIFIED: Record<string, string> = {
   mooring: "ecdis-mooring",
   piling: "ecdis-piling",
   "bridge-symbol": "ecdis-bridge-symbol",
+
+  // Special beacons
+  "beacon-special": "ecdis-beacon-special",
+
+  // Daymarks
+  "daymark-square-red": "ecdis-daymark-square-red",
+  "daymark-square-green": "ecdis-daymark-square-green",
+  "daymark-triangle-red": "ecdis-daymark-triangle-red",
+  "daymark-triangle-green": "ecdis-daymark-triangle-green",
+
+  // Topmarks
+  "topmark-cone-up": "ecdis-topmark-cone-up",
+  "topmark-cone-down": "ecdis-topmark-cone-down",
+  "topmark-sphere": "ecdis-topmark-sphere",
+  "topmark-x": "ecdis-topmark-x",
+  "topmark-2cones-up": "ecdis-topmark-2cones-up",
+  "topmark-2cones-down": "ecdis-topmark-2cones-down",
+
+  // Infrastructure
+  harbor: "ecdis-harbor",
+  platform: "ecdis-platform",
 };
 
 /**

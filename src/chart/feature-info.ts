@@ -104,6 +104,24 @@ const LAYER_NAMES: Record<string, string> = {
   BERTHS: "Berth",
   PILPNT: "Piling",
   MORFAC: "Mooring Facility",
+  NAVLNE: "Navigation Line",
+  RECTRC: "Recommended Track",
+  DWRTCL: "Deep Water Route Centreline",
+  TSSBND: "TSS Boundary",
+  TSEZNE: "TSS Zone",
+  TWRTPT: "Two-Way Route",
+  ACHBRT: "Anchorage Berth",
+  BCNSPP: "Special Purpose Beacon",
+  SBDARE: "Seabed Area",
+  CBLARE: "Cable Area",
+  PIPARE: "Pipeline Area",
+  PIPSOL: "Submarine Pipeline",
+  DMPGRD: "Dumping Ground",
+  HRBFAC: "Harbor Facility",
+  OFSPLF: "Offshore Platform",
+  MAGVAR: "Magnetic Variation",
+  DAYMAR: "Daymark",
+  TOPMAR: "Topmark",
 };
 
 function lookupCode(
@@ -409,6 +427,53 @@ function formatFogSignal(
   return details;
 }
 
+const NATSUR: Record<number, string> = {
+  1: "Mud",
+  2: "Clay",
+  3: "Silt",
+  4: "Sand",
+  5: "Stone",
+  6: "Gravel",
+  7: "Pebbles",
+  8: "Cobbles",
+  9: "Rock",
+  11: "Lava",
+  14: "Coral",
+  17: "Shells",
+  18: "Boulder",
+};
+
+function formatSeabed(
+  props: Record<string, unknown>,
+): { label: string; value: string }[] {
+  const details: { label: string; value: string }[] = [];
+  const nat = lookupAllCodes(NATSUR, props.NATSUR);
+  if (nat) details.push({ label: "Nature of Surface", value: nat });
+  addIfPresent(details, "Information", props.INFORM);
+  return details;
+}
+
+function formatHarbor(
+  props: Record<string, unknown>,
+): { label: string; value: string }[] {
+  const details: { label: string; value: string }[] = [];
+  addIfPresent(details, "Information", props.INFORM);
+  return details;
+}
+
+function formatMagVar(
+  props: Record<string, unknown>,
+): { label: string; value: string }[] {
+  const details: { label: string; value: string }[] = [];
+  addIfPresent(
+    details,
+    "Value",
+    props.VALMAG != null ? `${props.VALMAG}\u00b0` : null,
+  );
+  addIfPresent(details, "Year", props.RYRMGV);
+  return details;
+}
+
 const FORMATTERS: Record<
   string,
   (props: Record<string, unknown>) => { label: string; value: string }[]
@@ -431,6 +496,10 @@ const FORMATTERS: Record<
   RESARE: formatRestrictedArea,
   ACHARE: formatRestrictedArea,
   CTNARE: formatRestrictedArea,
+  BCNSPP: formatBeacon,
+  SBDARE: formatSeabed,
+  HRBFAC: formatHarbor,
+  MAGVAR: formatMagVar,
 };
 
 function formatDDM(deg: number, pos: string, neg: string): string {
