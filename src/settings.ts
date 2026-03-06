@@ -3,7 +3,7 @@
  */
 
 export type DepthUnit = "meters" | "feet" | "fathoms";
-export type DetailLevel = -2 | -1 | 0 | 1 | 2;
+export type DetailLevel = -1 | 0 | 1 | 2;
 
 export interface Settings {
   depthUnit: DepthUnit;
@@ -15,6 +15,7 @@ const STORAGE_KEY = "pelorus-nav-settings";
 
 export const LAYER_GROUP_LABELS: Record<string, string> = {
   routing: "Routing",
+  restrictedAreas: "Restricted/Caution Areas",
   anchorage: "Anchorage",
   cablesAndPipes: "Cables & Pipes",
   facilities: "Facilities",

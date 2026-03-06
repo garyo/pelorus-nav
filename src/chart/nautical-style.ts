@@ -71,6 +71,8 @@ const LAYER_GROUPS: Record<string, string> = {
   "s57-tsezne-outline": "routing",
   "s57-twrtpt": "routing",
   "s57-twrtpt-outline": "routing",
+  "s57-resare": "restrictedAreas",
+  "s57-ctnare": "restrictedAreas",
   "s57-achare": "anchorage",
   "s57-achbrt": "anchorage",
   "s57-cblare": "cablesAndPipes",
@@ -167,7 +169,7 @@ export function getNauticalLayers(
       layout: { "fill-sort-key": SCALE_SORT_KEY },
       paint: {
         "fill-color": s52Colour("DEPDW"),
-        "fill-opacity": 0.9,
+        "fill-opacity": 1,
       },
     },
     {
@@ -1162,8 +1164,8 @@ export function getNauticalLayers(
       "s57-achbrt": "STANDARD",
       "s57-bcnspp": "STANDARD",
       // OTHER
-      "s57-buisgl": "OTHER",
-      "s57-buisgl-outline": "OTHER",
+      "s57-buisgl": "STANDARD",
+      "s57-buisgl-outline": "STANDARD",
       "s57-ponton": "OTHER",
       "s57-berths-label": "OTHER",
       "s57-pilpnt": "OTHER",
