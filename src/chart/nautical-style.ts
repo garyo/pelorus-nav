@@ -203,6 +203,33 @@ export function getNauticalLayers(
       ["coalesce", ["get", "_scale_band"], 0],
       2,
     ]),
+    // Coarse area outlines between tiers — fine fills will cover them
+    {
+      id: "s57-resare-coarse",
+      type: "line",
+      source: sourceId,
+      "source-layer": "RESARE",
+      filter: ["<=", ["coalesce", ["get", "_scale_band"], 0], 2],
+      paint: {
+        "line-color": s52Colour("CHMGD"),
+        "line-width": 1,
+        "line-dasharray": [4, 2],
+        "line-opacity": 0.5,
+      },
+    },
+    {
+      id: "s57-ctnare-coarse",
+      type: "line",
+      source: sourceId,
+      "source-layer": "CTNARE",
+      filter: ["<=", ["coalesce", ["get", "_scale_band"], 0], 2],
+      paint: {
+        "line-color": s52Colour("CHMGF"),
+        "line-width": 1,
+        "line-dasharray": [4, 2],
+        "line-opacity": 0.5,
+      },
+    },
     ...terrainFillTier(sourceId, "fine", [
       ">",
       ["coalesce", ["get", "_scale_band"], 0],
@@ -345,10 +372,11 @@ export function getNauticalLayers(
       },
     },
     {
-      id: "s57-resare",
+      id: "s57-resare-fine",
       type: "line",
       source: sourceId,
       "source-layer": "RESARE",
+      filter: [">", ["coalesce", ["get", "_scale_band"], 0], 2],
       paint: {
         "line-color": s52Colour("CHMGD"),
         "line-width": 1,
@@ -357,10 +385,11 @@ export function getNauticalLayers(
       },
     },
     {
-      id: "s57-ctnare",
+      id: "s57-ctnare-fine",
       type: "line",
       source: sourceId,
       "source-layer": "CTNARE",
+      filter: [">", ["coalesce", ["get", "_scale_band"], 0], 2],
       paint: {
         "line-color": s52Colour("CHMGF"),
         "line-width": 1,
@@ -846,8 +875,10 @@ export function getNauticalLayers(
       "s57-fairwy-outline": "STANDARD",
       "s57-achare": "STANDARD",
       "s57-tsslpt": "STANDARD",
-      "s57-resare": "STANDARD",
-      "s57-ctnare": "STANDARD",
+      "s57-resare-coarse": "STANDARD",
+      "s57-resare-fine": "STANDARD",
+      "s57-ctnare-coarse": "STANDARD",
+      "s57-ctnare-fine": "STANDARD",
       "s57-boylat": "STANDARD",
       "s57-boycar": "STANDARD",
       "s57-boysaw": "STANDARD",
