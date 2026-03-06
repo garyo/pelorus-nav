@@ -71,8 +71,8 @@ def cmd_download(args: argparse.Namespace) -> None:
     to_download = []
     skipped = 0
     for cell_name in cells:
-        cell_dir = output_dir / cell_name
-        enc_files = list(cell_dir.glob("*.000")) if cell_dir.exists() else []
+        # NOAA zips extract to {cell}/ or ENC_ROOT/{cell}/
+        enc_files = list(output_dir.rglob(f"{cell_name}/{cell_name}.000"))
         if enc_files:
             skipped += 1
         else:

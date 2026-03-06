@@ -19,6 +19,10 @@ def download_enc_cell(
     The NOAA ENC download URL pattern is:
     https://charts.noaa.gov/ENCs/{cell_name}.zip
 
+    Downloads to a temp file first to avoid partial zips on failure.
+    Only searches the cell's own subdirectory to avoid race conditions
+    with parallel downloads.
+
     Args:
         cell_name: ENC cell name (e.g., "US5MA22M").
         output_dir: Directory to extract into.
@@ -28,19 +32,24 @@ def download_enc_cell(
     """
     output_dir.mkdir(parents=True, exist_ok=True)
     zip_path = output_dir / f"{cell_name}.zip"
+    tmp_path = output_dir / f"{cell_name}.zip.tmp"
 
     url = f"{NOAA_ENC_BASE}/{cell_name}.zip"
     print(f"Downloading {url} ...")
 
     result = subprocess.run(
-        ["curl", "-fsSL", "-o", str(zip_path), url],
+        ["curl", "-fsSL", "-o", str(tmp_path), url],
         capture_output=True,
         text=True,
     )
 
     if result.returncode != 0:
         print(f"Download failed for {cell_name}: {result.stderr}")
+        tmp_path.unlink(missing_ok=True)
         return None
+
+    # Atomic rename from temp to final zip
+    tmp_path.rename(zip_path)
 
     # Extract the zip
     try:
@@ -53,11 +62,10 @@ def download_enc_cell(
 
     zip_path.unlink(missing_ok=True)
 
-    # Find the .000 file (may be in a subdirectory)
-    enc_files = list(output_dir.rglob(f"{cell_name}/*.000"))
-    if not enc_files:
-        # Try without subdirectory
-        enc_files = list(output_dir.rglob("*.000"))
+    # Find the .000 file — search only for this cell's name to avoid
+    # picking up files from other cells during parallel downloads.
+    # NOAA zips may extract to {cell_name}/ or ENC_ROOT/{cell_name}/.
+    enc_files = list(output_dir.rglob(f"{cell_name}/{cell_name}.000"))
 
     if enc_files:
         print(f"Extracted {enc_files[0]}")
