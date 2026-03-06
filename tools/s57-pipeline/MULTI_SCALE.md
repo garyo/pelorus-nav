@@ -38,40 +38,67 @@ but doesn't make low-sort features invisible where high-sort features exist.
 An opaque polygon from band 5 covers band 1's polygon, but band 1's
 coastline LINES still show through because lines don't occlude each other.
 
-### 3. Frontend filtering by `_scale_band`
+### 3. Priority merge (tile-level replacement)
+For each tile (z,x,y), keep only the highest-band version. Lower bands
+serve as geographic fallback.
+
+**Result: L-shaped coverage gaps at band boundaries.** At z7 near NJ coast,
+a higher-band cell only partially covers a tile's geographic area. The
+priority merge replaces the lower-band tile entirely, losing coverage in
+the uncovered portion. This creates visible L-shaped gaps where one band's
+coverage clips the edge of a tile.
+
+**Why it can't be fixed:** Tiles are atomic — you can't merge "part" of a
+tile. Either you keep the whole lower-band tile (ghosting) or replace it
+entirely (gaps). The boundary problem is fundamental to tile-level replacement.
+
+### 4. Frontend filtering by `_scale_band`
 Could we filter to only show `_scale_band == max(band in this tile)`?
 
 **Result: Impossible.** MapLibre style expressions have no aggregate
 functions across features in a tile. You can't write
 `["==", ["get", "_scale_band"], ["max-in-tile", "_scale_band"]]`.
 
-## Solution: Priority Merge
+## Solution: tile-join + Frontend LINE_BAND_FILTER
 
-**Each tile should contain features from exactly ONE band — the highest
-available.** This is done at the pipeline merge step.
+**Use tile-join for full feature merge (no coverage gaps), then filter
+line layers in the frontend to prevent ghosting.**
 
 ### How it works:
-1. After tiling each cell, group per-cell PMTiles by INTU band
-2. `tile-join` within each band (same-band cells are same scale, no ghosting)
-3. **Priority merge** across bands: for each tile (z,x,y), keep ONLY the
-   highest-band version. Lower bands serve as fallback where higher bands
-   have no coverage.
-
-### Why it works:
-- **No ghosting**: Each tile has exactly one band's features
-- **No coverage gaps**: Lower bands extend to z14 as fallback, but are
-  superseded wherever higher bands exist
-- **Simple frontend**: Single source, no multi-band layer tricks needed
-- **Correct behavior**: At scale boundaries, there's a visible scale jump
-  (e.g., INTU 5 tile next to INTU 3 tile). This is normal nautical chart
-  behavior — it's how paper charts work at folio boundaries.
+1. All INTU bands extend to z14 (geographic gap filling)
+2. `tile-join` merges all bands' features into each tile
+3. **Area fills**: Opaque fills + `fill-sort-key` by `_scale_band` — higher
+   bands' fills cover lower bands' fills. No ghosting for areas.
+4. **Lines**: `LINE_BAND_FILTER` hides lower-band lines at higher zooms:
+   - z0-6: show all lines (overview scale)
+   - z7-8: hide band 0 lines (general scale)
+   - z9-10: hide bands 0-1 lines (coastal scale)
+   - z11+: hide bands 0-2 lines (approach+ scale)
 
 ### Implementation:
-- `merge.py`: New `merge_tiles_priority()` function
-  1. Groups input PMTiles by `_scale_band` (read from tile metadata or
-     tracked during processing)
-  2. Runs `tile-join` per band
-  3. Iterates all tiles using pmtiles Python library
-  4. For each (z,x,y), writes highest-band tile to output
-- Pipeline tracks each cell's band alongside its PMTiles paths
-- Frontend can remove sort-key complexity (each tile is single-band)
+```typescript
+const LINE_BAND_FILTER = [
+  ">=",
+  ["coalesce", ["get", "_scale_band"], 0],
+  ["step", ["zoom"], 0, 7, 1, 9, 2, 11, 3],
+];
+```
+Applied to COALNE, DEPCNT, SLCONS line layers.
+
+### Why it works:
+- **No coverage gaps**: tile-join preserves all geographic coverage
+- **No line ghosting**: LINE_BAND_FILTER hides stale lower-band lines
+- **No area ghosting**: Opaque fills with sort-key handle area compositing
+- **Graceful degradation**: In areas with only a lower band at a zoom where
+  the filter expects a higher band, lines disappear but fills still define
+  the coast shape. This is acceptable — the area is still visible, just
+  without redundant coastline strokes.
+- **Simple**: No custom merge logic needed in the pipeline
+
+### Trade-offs:
+- In transition zones where only a lower band exists, coastline LINES won't
+  show (filtered out). But depth area fills still define the coast shape,
+  so the chart remains usable.
+- The filter thresholds (z7→band 1, z9→band 2, z11→band 3) are tuned for
+  the typical INTU distribution in US East Coast data. Other regions may
+  need adjustment.

@@ -31,6 +31,26 @@ const SCALE_SORT_KEY = [
   ["coalesce", ["get", "_scale_band"], 0],
 ] as unknown as ExpressionSpecification;
 
+/**
+ * Filter for line layers to prevent multi-scale ghosting.
+ *
+ * tile-join merges features from all scale bands into each tile.
+ * Opaque fills with sort-key handle area compositing, but lines from
+ * multiple bands render simultaneously (lines don't occlude each other).
+ * This filter hides lower-band lines at higher zoom levels so only
+ * the native (or finer) band's lines are visible.
+ *
+ * At z0-6 (overview): show all lines
+ * At z7-8 (general):  hide overview lines (band 0)
+ * At z9-10 (coastal):  hide overview+general lines (bands 0-1)
+ * At z11+ (approach+): hide overview+general+coastal lines (bands 0-2)
+ */
+const LINE_BAND_FILTER: ExpressionSpecification = [
+  ">=",
+  ["coalesce", ["get", "_scale_band"], 0],
+  ["step", ["zoom"], 0, 7, 1, 9, 2, 11, 3],
+] as unknown as ExpressionSpecification;
+
 /** Label expression: shows quoted LABEL if present, else empty string. */
 const LABEL_EXPR = [
   "case",
@@ -198,6 +218,7 @@ export function getNauticalLayers(
       type: "line",
       source: sourceId,
       "source-layer": "COALNE",
+      filter: LINE_BAND_FILTER,
       layout: { "line-sort-key": SCALE_SORT_KEY },
       paint: {
         "line-color": s52Colour("CSTLN"),
@@ -473,6 +494,7 @@ export function getNauticalLayers(
       type: "line",
       source: sourceId,
       "source-layer": "DEPCNT",
+      filter: LINE_BAND_FILTER,
       layout: { "line-sort-key": SCALE_SORT_KEY },
       paint: {
         "line-color": s52Colour("CHGRD"),
@@ -484,6 +506,7 @@ export function getNauticalLayers(
       type: "line",
       source: sourceId,
       "source-layer": "SLCONS",
+      filter: LINE_BAND_FILTER,
       layout: { "line-sort-key": SCALE_SORT_KEY },
       paint: {
         "line-color": s52Colour("CHGRF"),
