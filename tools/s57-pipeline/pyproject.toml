@@ -4,7 +4,9 @@ version = "0.1.0"
 description = "S-57 ENC → PMTiles vector tile pipeline for Pelorus Nav"
 requires-python = ">=3.11"
 dependencies = [
+    "mapbox-vector-tile>=2.0",
     "pmtiles>=3.7.0",
+    "shapely>=2.0",
 ]
 
 [project.optional-dependencies]

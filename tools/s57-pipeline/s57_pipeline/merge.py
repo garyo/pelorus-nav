@@ -1,16 +1,23 @@
 """tile-join wrapper: merge per-layer PMTiles into a single file.
 
 Supports priority merge across scale bands: for each tile (z,x,y),
-only the highest-band version is kept. This prevents ghosting from
-multiple scale bands rendering in the same tile. See MULTI_SCALE.md.
+only the highest-band version is kept IF its M_COVR coverage fully
+contains the tile's geographic area. This prevents both ghosting
+(multiple scale bands in the same tile) and gaps (overwriting a
+lower-band tile when the higher band only partially covers it).
+See MULTI_SCALE.md.
 """
 
 from __future__ import annotations
 
+import math
 import subprocess
 import tempfile
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
+
+from shapely.geometry import box
+from shapely.geometry.base import BaseGeometry
 
 
 def merge_tiles(
@@ -83,19 +90,45 @@ def _join_band(
     return band, None
 
 
+def _tile_to_bbox(z: int, x: int, y: int) -> tuple[float, float, float, float]:
+    """Convert tile (z, x, y) to (west, south, east, north) bbox in degrees."""
+    n = 2 ** z
+    west = x / n * 360.0 - 180.0
+    east = (x + 1) / n * 360.0 - 180.0
+    north = math.degrees(math.atan(math.sinh(math.pi * (1 - 2 * y / n))))
+    south = math.degrees(math.atan(math.sinh(math.pi * (1 - 2 * (y + 1) / n))))
+    return (west, south, east, north)
+
+
+def _coverage_contains_tile(
+    coverage: BaseGeometry,
+    z: int,
+    x: int,
+    y: int,
+) -> bool:
+    """Check if coverage polygon fully contains a tile's bounding box."""
+    tile_poly = box(*_tile_to_bbox(z, x, y))
+    return coverage.contains(tile_poly)
+
+
 def merge_tiles_priority(
     band_tiles: dict[int, list[Path]],
     output_path: Path,
+    coverage_index: dict[int, BaseGeometry] | None = None,
 ) -> Path | None:
     """Merge per-band PMTiles with priority: highest band wins per tile.
 
-    For each tile (z,x,y), only the highest-band version is kept.
-    This prevents ghosting from multiple scale bands rendering in
-    the same tile while preserving coverage (lower bands fill gaps).
+    For each tile (z,x,y), the highest-band version replaces the lower-band
+    version only if that band's M_COVR coverage fully contains the tile's
+    geographic area. This prevents both ghosting and L-shaped gaps.
+
+    Without coverage_index, falls back to unconditional overwrite.
 
     Args:
         band_tiles: Dict of band → list of PMTiles files for that band.
         output_path: Path for the final merged output.
+        coverage_index: Optional dict of {band: coverage_polygon} from
+            M_COVR extraction. Used to check full coverage before overwriting.
 
     Returns:
         Path to the merged file, or None on failure.
@@ -135,29 +168,40 @@ def merge_tiles_priority(
             print("No bands merged successfully")
             return None
 
-        # Step 2: Priority merge — highest band wins per tile
-        print(f"Step 2: Priority merge across {len(band_merged)} bands...")
+        # Step 2: Priority merge — highest band wins if M_COVR fully covers tile
+        mode = "M_COVR coverage check" if coverage_index else "unconditional overwrite"
+        print(f"Step 2: Priority merge across {len(band_merged)} bands ({mode})...")
 
-        # Process from LOWEST band first; higher bands overwrite.
         tile_data: dict[int, bytes] = {}  # tile_id → compressed tile data
         total_tiles = 0
 
         for band in sorted(band_merged):
             band_path = band_merged[band]
+            band_coverage = coverage_index.get(band) if coverage_index else None
             with open(band_path, "rb") as f:
                 source = MmapSource(f)
                 band_count = 0
                 overwritten = 0
+                boundary_kept = 0
                 for (z, x, y), data in all_tiles(source):
                     tile_id = zxy_to_tileid(z, x, y)
                     if tile_id in tile_data:
+                        # This higher band wants to overwrite a lower-band tile.
+                        # Only overwrite if M_COVR fully covers this tile's area.
+                        if band_coverage is not None and not _coverage_contains_tile(
+                            band_coverage, z, x, y
+                        ):
+                            boundary_kept += 1
+                            band_count += 1
+                            continue
                         overwritten += 1
                     tile_data[tile_id] = data
                     band_count += 1
                 total_tiles += band_count
                 print(
                     f"  Band {band}: {band_count} tiles "
-                    f"({overwritten} overwriting lower bands)"
+                    f"({overwritten} overwriting lower bands, "
+                    f"{boundary_kept} boundary tiles kept from lower band)"
                 )
 
         print(f"  Total unique tiles: {len(tile_data)} (from {total_tiles} input)")

@@ -8,9 +8,13 @@ import sys
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
+from shapely.geometry.base import BaseGeometry
+
+from .composite import CellTileSource, composite_tiles
 from .convert import convert_enc, read_compilation_scale, read_intended_use
+from .coverage import build_cell_coverage
 from .download import download_enc_cell
-from .merge import merge_tiles, merge_tiles_priority
+from .merge import merge_tiles
 from .regions import REGIONS, get_region_cells, query_region
 from .scamin import (
     compute_intu_zoom_ranges,
@@ -176,22 +180,22 @@ def _process_cell(
             print(f"Skipping {cell_name} (tiles up to date)")
             return existing_tiles, scale_band
 
+    # Convert to GeoJSON and tile
     print(f"Processing {cell_name} (z{min_zoom}-{max_zoom}, band {scale_band})...")
     geojson_files = convert_enc(
         enc_path, geojson_dir, intu_zoom_ranges=intu_zoom_ranges
     )
-    if geojson_files:
-        tiles = tile_geojson_files(
-            geojson_dir, tiles_dir, min_zoom=min_zoom, max_zoom=max_zoom,
-        )
-        return tiles, scale_band
-    return [], scale_band
+    if not geojson_files:
+        return [], scale_band
+
+    tiles = tile_geojson_files(
+        geojson_dir, tiles_dir, min_zoom=min_zoom, max_zoom=max_zoom,
+    )
+    return tiles, scale_band
 
 
-def cmd_pipeline(args: argparse.Namespace) -> None:
-    """Full pipeline: convert ENC files to a single PMTiles."""
-    output_path = Path(args.output)
-
+def _find_enc_files(args: argparse.Namespace) -> list[Path]:
+    """Resolve ENC files from --region or --input args."""
     if args.region:
         if args.region not in REGIONS:
             print(f"Unknown region: {args.region}")
@@ -212,7 +216,7 @@ def cmd_pipeline(args: argparse.Namespace) -> None:
         enc_files = list(input_dir.rglob("*.000"))
 
     if not enc_files:
-        print(f"No .000 files found")
+        print("No .000 files found")
         sys.exit(1)
 
     if args.min_cells and len(enc_files) < args.min_cells:
@@ -223,13 +227,75 @@ def cmd_pipeline(args: argparse.Namespace) -> None:
         )
         sys.exit(1)
 
-    # Pre-scan all cells' INTU values to compute data-driven zoom ranges
-    print("Scanning INTU values across all cells...")
+    return enc_files
+
+
+def _build_composite_sources(
+    enc_files: list[Path],
+    cell_coverage: dict[Path, "BaseGeometry"],
+    work_dir: Path,
+) -> list[CellTileSource]:
+    """Build CellTileSource list from existing per-cell tiles in work_dir."""
+    from shapely.geometry import box as shapely_box
+
+    sources: list[CellTileSource] = []
+    for enc_path in enc_files:
+        cell_name = enc_path.stem
+        tiles_dir = work_dir / cell_name / "tiles"
+        if not tiles_dir.exists():
+            continue
+
+        pmtiles_list = list(tiles_dir.glob("*.pmtiles"))
+        if not pmtiles_list:
+            continue
+
+        # Determine band
+        intu = read_intended_use(enc_path)
+        if intu is not None:
+            band = intu_to_scale_band(intu)
+        else:
+            cscl = read_compilation_scale(enc_path)
+            band = cscl_to_scale_band(cscl) if cscl is not None else 0
+
+        coverage = cell_coverage.get(enc_path)
+        if coverage is None:
+            coverage = shapely_box(-180, -90, 180, 90)
+
+        cell_name = enc_path.stem
+        for pt in pmtiles_list:
+            sources.append(CellTileSource(
+                pmtiles_path=pt,
+                band=band,
+                coverage=coverage,
+                cell_name=cell_name,
+            ))
+
+    return sources
+
+
+def cmd_pipeline(args: argparse.Namespace) -> None:
+    """Full pipeline: convert ENC files to a single PMTiles."""
+    output_path = Path(args.output)
+    enc_files = _find_enc_files(args)
+    composite_only = getattr(args, "composite_only", False)
+    work_dir = Path("data/work")
+
+    # Pass 1: Scan INTU values and M_COVR coverage polygons
+    print("Pass 1: Scanning INTU values and M_COVR coverage...")
     present_intus: set[int] = set()
+    cell_bands: dict[Path, int] = {}
     for enc_path in enc_files:
         intu = read_intended_use(enc_path)
         if intu is not None:
             present_intus.add(intu)
+            cell_bands[enc_path] = intu_to_scale_band(intu)
+        else:
+            cell_cscl = read_compilation_scale(enc_path)
+            if cell_cscl is not None:
+                cell_bands[enc_path] = cscl_to_scale_band(cell_cscl)
+            else:
+                cell_bands[enc_path] = 0
+
     zoom_shift = getattr(args, "zoom_shift", 0)
     intu_zoom_ranges = compute_intu_zoom_ranges(present_intus, zoom_shift=zoom_shift)
     if intu_zoom_ranges:
@@ -239,39 +305,53 @@ def cmd_pipeline(args: argparse.Namespace) -> None:
     else:
         print("  No INTU values found; falling back to CSCL-based zoom")
 
-    # Default parallelism: ncpus - 3 (each cell spawns subprocesses)
-    max_workers = max(1, args.jobs if args.jobs else (os.cpu_count() or 4) - 3)
-    print(f"Processing {len(enc_files)} ENC files ({max_workers} parallel workers)")
+    # Build per-cell M_COVR coverage
+    cell_coverage = build_cell_coverage(enc_files)
+    cells_with_coverage = len(cell_coverage)
+    cells_without = len(enc_files) - cells_with_coverage
+    print(f"  M_COVR: {cells_with_coverage} cells with coverage")
+    if cells_without:
+        print(f"  Warning: {cells_without} cells without M_COVR")
 
-    # band → list of PMTiles files
-    band_tiles: dict[int, list[Path]] = {}
-    work_dir = Path("data/work")
+    # Pass 2: Convert and tile each cell independently
+    if not composite_only:
+        max_workers = max(1, args.jobs if args.jobs else (os.cpu_count() or 4) - 3)
+        print(f"\nPass 2: Processing {len(enc_files)} ENC files ({max_workers} parallel workers)")
 
-    with ThreadPoolExecutor(max_workers=max_workers) as executor:
-        futures = {
-            executor.submit(
-                _process_cell, enc_path, work_dir, args.force, intu_zoom_ranges
-            ): enc_path
-            for enc_path in enc_files
-        }
-        for future in as_completed(futures):
-            enc_path = futures[future]
-            try:
-                pmtiles, band = future.result()
-                if pmtiles:
-                    band_tiles.setdefault(band, []).extend(pmtiles)
-            except Exception as e:
-                print(f"Error processing {enc_path.stem}: {e}")
-
-    total = sum(len(v) for v in band_tiles.values())
-    if total:
-        print(f"\n=== Priority merge: {total} tile sets across {len(band_tiles)} bands ===")
-        for band in sorted(band_tiles):
-            print(f"  Band {band}: {len(band_tiles[band])} tile sets")
-        merge_tiles_priority(band_tiles, output_path)
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            futures = {
+                executor.submit(
+                    _process_cell, enc_path, work_dir, args.force, intu_zoom_ranges,
+                ): enc_path
+                for enc_path in enc_files
+            }
+            for future in as_completed(futures):
+                enc_path = futures[future]
+                try:
+                    future.result()
+                except Exception as e:
+                    print(f"Error processing {enc_path.stem}: {e}")
     else:
-        print("No tiles generated")
+        print("\nPass 2: Skipped (--composite-only)")
+
+    # Pass 3: Composite tiles using M_COVR coverage
+    sources = _build_composite_sources(enc_files, cell_coverage, work_dir)
+    if not sources:
+        print("No tiles found to composite")
         sys.exit(1)
+
+    # Parse debug-latlon if provided
+    debug_latlon = None
+    debug_latlon_str = getattr(args, "debug_latlon", None)
+    if debug_latlon_str:
+        parts = [float(x.strip()) for x in debug_latlon_str.split(",")]
+        if len(parts) != 2:
+            print("--debug-latlon must be lat,lon (e.g. '43.02,-70.54')")
+            sys.exit(1)
+        debug_latlon = (parts[0], parts[1])
+
+    print(f"\n=== Compositing: {len(sources)} tile sets ===")
+    composite_tiles(sources, output_path, debug_latlon=debug_latlon)
 
 
 def main() -> None:
@@ -323,6 +403,14 @@ def main() -> None:
     pl.add_argument(
         "--zoom-shift", type=int, default=2,
         help="Shift INTU zoom ranges down by N levels for more detail (default: 2)",
+    )
+    pl.add_argument(
+        "--composite-only", action="store_true",
+        help="Skip convert/tile, only re-run compositing from existing tiles",
+    )
+    pl.add_argument(
+        "--debug-latlon",
+        help="lat,lon to debug compositing (e.g. '43.02,-70.54')",
     )
     pl.set_defaults(func=cmd_pipeline)
 

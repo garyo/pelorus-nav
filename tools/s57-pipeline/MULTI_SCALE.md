@@ -1,4 +1,4 @@
-# Multi-Scale Compositing: Failure Modes & Solution
+# Multi-Scale Compositing: MVT-Level M_COVR Clipping
 
 ## The Problem
 
@@ -7,71 +7,100 @@ geographic coverage — not every area has every band. We need to display the
 best available data at each zoom level without **ghosting** (coarse features
 visible behind fine data) or **coverage gaps** (blank areas).
 
-## Approaches Tried
+## Approaches Tried & Failed
 
-### 1. Strict non-overlapping zoom ranges (enc-tiles approach)
-Each INTU band tiles only at its "natural" zoom range.
-- INTU 1 (Overview): z0-6
-- INTU 2 (General): z7-8
-- INTU 3 (Coastal): z9-10
-- INTU 4 (Approach): z11-12
-- INTU 5 (Harbour): z13-14
-
-**Result: Coverage gaps.** At z9 in an area with INTU 1+2 but no INTU 3
-(e.g., parts of Maine coast), the tile is blank. MapLibre can't overzoom
-from a single merged source because other areas DO have z9 tiles.
+### 1. Strict non-overlapping zoom ranges
+Each INTU band tiles only at its "natural" zoom range. **Result: Coverage
+gaps** — at z9 in an area with INTU 1+2 but no INTU 3, the tile is blank.
 
 ### 2. All bands extend to z14 + sort-key + opaque fills
-Every INTU band generates tiles from its minzoom up to z14. Features carry
-`_scale_band` property. Fill layers use `fill-sort-key` so higher bands
-render on top. DEPARE fills set to opacity 1.0 to cover lower-band fills.
+`tile-join` merges features from ALL bands into each tile. **Result: Lines
+ghost** — coastlines from different bands don't align.
 
-**Result: Fills mostly work, but LINES GHOST.** `tile-join` merges features
-from ALL bands into each tile. At z11 near Boston, a single tile contains
-COALNE (coastline) features from INTU 1, 2, 3, AND 5. The sort-key controls
-render ORDER but doesn't hide lower-band features. Line layers (COALNE,
-DEPCNT, SLCONS) from all bands render simultaneously, creating visible
-"echoes" of coastlines at different scales.
+### 3. Naive priority merge (tile-level replacement)
+Highest band always wins per tile. **Result: L-shaped gaps** at band
+boundaries (tippecanoe generates tiles for minimal feature intersection).
 
-**Why sort-key can't fix lines:** Sort-key orders features within a layer
-but doesn't make low-sort features invisible where high-sort features exist.
-An opaque polygon from band 5 covers band 1's polygon, but band 1's
-coastline LINES still show through because lines don't occlude each other.
+### 4. Priority merge with neighbor/children heuristics
+Check neighbors/children before overwriting. **Still unreliable**.
 
-### 3. Frontend filtering by `_scale_band`
-Could we filter to only show `_scale_band == max(band in this tile)`?
+### 5. Feature-level M_COVR clipping (all zooms)
+Clip lower-band features by all higher-band M_COVR. **Result: Gaps at low
+zooms** — clipping removes features at ALL zoom levels, but higher bands
+only have tiles starting at z5-11. At z0-4, nothing fills in.
 
-**Result: Impossible.** MapLibre style expressions have no aggregate
-functions across features in a tile. You can't write
-`["==", ["get", "_scale_band"], ["max-in-tile", "_scale_band"]]`.
+### 6. Tile-level M_COVR coverage check
+Only overwrite when M_COVR fully contains the tile bbox. **Result: At
+boundary tiles, forced to pick one band** — either gaps or ghosting.
 
-## Solution: Priority Merge
+### 7. Zoom-aware per-segment clipping
+Tile each cell multiple times with different clip masks for different zoom
+ranges. **Complex and still had boundary issues**.
 
-**Each tile should contain features from exactly ONE band — the highest
-available.** This is done at the pipeline merge step.
+## Solution: MVT-Level Per-Tile Compositing
 
-### How it works:
-1. After tiling each cell, group per-cell PMTiles by INTU band
-2. `tile-join` within each band (same-band cells are same scale, no ghosting)
-3. **Priority merge** across bands: for each tile (z,x,y), keep ONLY the
-   highest-band version. Lower bands serve as fallback where higher bands
-   have no coverage.
+The key insight: **do the compositing AFTER tippecanoe, at the MVT tile
+level**. Decode individual tiles, clip features to each cell's exact M_COVR
+polygon, and composite from multiple cells/bands into a single output tile.
 
-### Why it works:
-- **No ghosting**: Each tile has exactly one band's features
-- **No coverage gaps**: Lower bands extend to z14 as fallback, but are
-  superseded wherever higher bands exist
-- **Simple frontend**: Single source, no multi-band layer tricks needed
-- **Correct behavior**: At scale boundaries, there's a visible scale jump
-  (e.g., INTU 5 tile next to INTU 3 tile). This is normal nautical chart
-  behavior — it's how paper charts work at folio boundaries.
+### How it works
 
-### Implementation:
-- `merge.py`: New `merge_tiles_priority()` function
-  1. Groups input PMTiles by `_scale_band` (read from tile metadata or
-     tracked during processing)
-  2. Runs `tile-join` per band
-  3. Iterates all tiles using pmtiles Python library
-  4. For each (z,x,y), writes highest-band tile to output
-- Pipeline tracks each cell's band alongside its PMTiles paths
-- Frontend can remove sort-key complexity (each tile is single-band)
+Each ENC cell produces its own PMTiles (via tippecanoe), with tiles at
+all zoom levels in its range. The compositor then processes every tile
+position (z,x,y):
+
+1. Collect all cells that produced a tile at this position
+2. Sort by band descending (highest/most-detailed first)
+3. `filled = empty polygon`, `output_features = []`
+4. For each cell (highest band first):
+   - `cell_coverage = cell's M_COVR ∩ tile_bbox`
+   - `unfilled = tile_bbox - filled`
+   - `usable = cell_coverage ∩ unfilled`
+   - If usable is empty → skip this cell
+   - Decode MVT, clip features to `usable`
+   - Append clipped features to `output_features`
+   - `filled = filled ∪ cell_coverage`
+   - If filled covers the whole tile_bbox → stop (100% covered)
+5. Encode `output_features` as MVT → output tile
+
+### Why this works
+
+- **No ghosting**: At any zoom, features from different bands are
+  geometrically clipped to non-overlapping regions within each tile
+- **No gaps**: Lower-band features fill areas not covered by higher-band
+  M_COVR. Since all bands extend to z14, there is always a lower-band
+  tile to fill from
+- **Correct compositing**: Each tile gets the best available data —
+  higher-band features within their M_COVR, lower-band features outside
+- **Per-cell M_COVR**: Uses individual cell coverage polygons, handling
+  overlapping cells within the same band correctly
+- **Scale transitions**: At M_COVR boundaries, coastlines from different
+  bands meet but may not perfectly align. This is normal nautical chart
+  behavior (paper chart folio boundaries)
+
+### Performance optimizations
+
+- **Single-source tiles** (no overlap with other cells): passed through
+  as raw bytes without any MVT decoding. This is the majority of tiles.
+- **Same-band tiles** (multiple cells, same band): features concatenated
+  without coverage clipping (no band priority conflict)
+- **Multi-band tiles** (boundary tiles): full decode/clip/composite/re-encode.
+  Only a small fraction of total tiles.
+
+### Implementation
+
+- `composite.py`:
+  - `CellTileSource`: dataclass linking a PMTiles file to its band and M_COVR
+  - `composite_tiles()`: main compositing loop over all tile positions
+  - `_clip_mvt_features()`: decode MVT, transform pixel→geo coords, clip to region
+  - `_encode_mvt()`: encode features back to gzipped MVT
+- `coverage.py`:
+  - `extract_coverage_polygon()`: M_COVR → Shapely geometry (CATCOV=1 - CATCOV=2)
+  - `build_cell_coverage()`: per-cell coverage extraction
+- `cli.py`: three-pass pipeline (scan → convert/tile → composite)
+
+### Dependencies
+
+- `shapely>=2.0` for geometric operations (union, difference, intersection)
+- `mapbox-vector-tile>=2.0` for MVT decode/encode
+- `pmtiles>=3.7.0` for tile archive I/O
