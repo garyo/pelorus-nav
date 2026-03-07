@@ -15,6 +15,7 @@ from .convert import convert_enc, read_compilation_scale, read_intended_use
 from .coverage import build_cell_coverage
 from .download import download_enc_cell
 from .merge import merge_tiles
+from .query import build_index
 from .regions import REGIONS, get_region_cells, query_region
 from .scamin import (
     compute_intu_zoom_ranges,
@@ -53,6 +54,60 @@ def cmd_list_cells(args: argparse.Namespace) -> None:
     for cell in cells:
         print(f"  {cell}  https://charts.noaa.gov/ENCs/{cell}.zip")
 
+
+
+def cmd_query(args: argparse.Namespace) -> None:
+    """Query ENC cell coverage at a point or within a bounding box."""
+    input_dir = Path(args.input)
+    enc_files = list(input_dir.rglob("*.000"))
+    if not enc_files:
+        print(f"No .000 files found in {input_dir}")
+        sys.exit(1)
+
+    cache_dir = Path("data/regions")
+    index = build_index(enc_files, cache_dir=cache_dir)
+
+    if args.point:
+        parts = [x.strip() for x in args.point.split(",")]
+        if len(parts) != 2:
+            print("--point must be lat,lon (e.g. '44.38,-67.69')")
+            sys.exit(1)
+        lat, lon = float(parts[0]), float(parts[1])
+
+        # Exact matches
+        hits = index.query_point(lon, lat)
+        print(f"\nCells covering ({lat}, {lon}): {len(hits)}")
+        for c in sorted(hits, key=lambda c: c.band):
+            print(f"  {c.name}  INTU={c.intu}  band={c.band}  bounds={c.bounds_str()}")
+
+        # Nearby if no exact hits or always show nearby
+        if not hits or args.nearby:
+            nearby = index.query_nearby(lon, lat, max_distance=args.radius)
+            # Filter out exact hits
+            hit_names = {c.name for c in hits}
+            nearby = [(d, c) for d, c in nearby if c.name not in hit_names]
+            if nearby:
+                print(f"\nNearby cells (within {args.radius}°):")
+                for dist, c in nearby[:20]:
+                    print(
+                        f"  {c.name}  INTU={c.intu}  band={c.band}  "
+                        f"dist={dist:.4f}°  bounds={c.bounds_str()}"
+                    )
+
+    elif args.bbox:
+        parts = [float(x.strip()) for x in args.bbox.split(",")]
+        if len(parts) != 4:
+            print("--bbox must be west,south,east,north")
+            sys.exit(1)
+        west, south, east, north = parts
+        hits = index.query_bbox(west, south, east, north)
+        print(f"\nCells intersecting bbox ({west},{south},{east},{north}): {len(hits)}")
+        for c in sorted(hits, key=lambda c: (c.band, c.name)):
+            print(f"  {c.name}  INTU={c.intu}  band={c.band}  bounds={c.bounds_str()}")
+
+    else:
+        print("Provide --point or --bbox")
+        sys.exit(1)
 
 
 def cmd_download(args: argparse.Namespace) -> None:
@@ -367,6 +422,21 @@ def main() -> None:
     lc.add_argument("--region", "-r", help="Named region (e.g. boston-test, new-england)")
     lc.add_argument("--bbox", "-b", help="Bounding box: west,south,east,north")
     lc.set_defaults(func=cmd_list_cells)
+
+    # query
+    qr = subparsers.add_parser("query", help="Query cell coverage at a point or bbox")
+    qr.add_argument("--input", "-i", default="data/enc", help="Directory with .000 files")
+    qr.add_argument("--point", "-p", help="lat,lon to query (e.g. '44.38,-67.69')")
+    qr.add_argument("--bbox", "-b", help="Bounding box: west,south,east,north")
+    qr.add_argument(
+        "--nearby", "-n", action="store_true",
+        help="Also show nearby cells (even if exact matches found)",
+    )
+    qr.add_argument(
+        "--radius", type=float, default=0.5,
+        help="Search radius in degrees for nearby cells (default: 0.5)",
+    )
+    qr.set_defaults(func=cmd_query)
 
     # download
     dl = subparsers.add_parser("download", help="Download ENC cells from NOAA")
