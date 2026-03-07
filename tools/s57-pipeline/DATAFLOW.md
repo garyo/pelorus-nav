@@ -78,15 +78,28 @@ Pass 1: Scan
   For each ENC cell:
     - Read DSID_INTU → scale band
     - Extract M_COVR → per-cell coverage polygon
+    - Compute INTU zoom ranges (with --zoom-shift, default 2)
 
-Pass 2: Convert & Tile (parallel)
+Pass 2: Convert & Tile (parallel, skippable with --composite-only)
   For each ENC cell:
     - ogr2ogr → GeoJSON (step 2)
     - Enrich GeoJSON (step 3)
     - tippecanoe → PMTiles (step 4)
+    - Incremental: skips cells where tiles are newer than source
 
 Pass 3: Composite (step 5)
   - Read all per-cell PMTiles
   - For each (z,x,y): composite by M_COVR coverage priority
   - Write single output PMTiles
 ```
+
+## CLI flags
+
+| Flag | Description |
+|------|-------------|
+| `--region`, `-r` | Named region to filter cells (e.g., `boston-test`) |
+| `--force`, `-f` | Force rebuild all cells (skip incremental check) |
+| `--composite-only` | Skip Pass 2, only re-run compositing |
+| `--zoom-shift N` | Shift INTU zoom ranges down by N levels (default: 2) |
+| `--debug-latlon lat,lon` | Print detailed compositing info for tiles at this point |
+| `--jobs`, `-j` | Parallel workers for Pass 2 (default: auto) |

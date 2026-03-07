@@ -87,13 +87,39 @@ position (z,x,y):
 - **Multi-band tiles** (boundary tiles): full decode/clip/composite/re-encode.
   Only a small fraction of total tiles.
 
+### Cell grouping
+
+Each ENC cell produces multiple per-layer PMTiles (e.g., `depare.pmtiles`,
+`coalne.pmtiles`). During compositing, all layers from the same cell must
+share the same usable region — the `filled` polygon is updated once per
+cell, not once per layer. `CellTileSource.cell_name` groups layers by cell.
+
+### Zoom shift
+
+By default, `--zoom-shift=2` shifts each INTU band's zoom range down by
+2 levels, so higher-detail data appears at lower zoom levels:
+- INTU 2 → z0-14 (band 1)
+- INTU 3 → z7-14 (band 2) instead of z9-14
+- INTU 5 → z11-14 (band 4) instead of z13-14
+
+### Debugging
+
+- `--debug-latlon=lat,lon`: prints detailed compositing info for all tiles
+  containing that point — which cells contribute, coverage percentages,
+  compositing path (pass-through / same-band / multi-band), output layers.
+- `--composite-only`: skip convert/tile (Pass 2), only re-run compositing.
+  Useful when iterating on compositing logic without rebuilding tiles.
+- Warning printed for multi-band tiles not 100% filled (edge-of-coverage).
+
 ### Implementation
 
 - `composite.py`:
-  - `CellTileSource`: dataclass linking a PMTiles file to its band and M_COVR
+  - `CellTileSource`: dataclass linking a PMTiles file to its band, M_COVR,
+    and cell name
   - `composite_tiles()`: main compositing loop over all tile positions
   - `_clip_mvt_features()`: decode MVT, transform pixel→geo coords, clip to region
   - `_encode_mvt()`: encode features back to gzipped MVT
+  - `_latlon_to_tile()`: convert lat/lon to tile coordinates for debug tracking
 - `coverage.py`:
   - `extract_coverage_polygon()`: M_COVR → Shapely geometry (CATCOV=1 - CATCOV=2)
   - `build_cell_coverage()`: per-cell coverage extraction

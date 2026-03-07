@@ -15,6 +15,8 @@ export interface ChartProvider {
 
   /** MapLibre source specification for this provider. */
   getSource(): SourceSpecification;
+  /** Additional sources (e.g. coverage GeoJSON). Optional. */
+  getExtraSources?(): Record<string, SourceSpecification>;
   /** MapLibre layer specifications to render this source. */
   getLayers(): LayerSpecification[];
   /** Attribution HTML string. */

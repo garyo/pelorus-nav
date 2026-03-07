@@ -4,6 +4,7 @@ import type { ChartProvider } from "./ChartProvider";
 import { getNauticalLayers } from "./nautical-style";
 
 const SOURCE_ID = "s57-vector";
+const COVERAGE_SOURCE_ID = "s57-coverage";
 
 /**
  * Chart provider for S-57 ENC vector tiles in PMTiles format.
@@ -17,9 +18,14 @@ export class VectorChartProvider implements ChartProvider {
   readonly maxZoom = 14;
 
   private pmtilesUrl: string;
+  private coverageUrl: string;
 
-  constructor(pmtilesUrl = "pmtiles:///nautical.pmtiles") {
+  constructor(
+    pmtilesUrl = "pmtiles:///nautical.pmtiles",
+    coverageUrl = "/nautical.coverage.geojson",
+  ) {
     this.pmtilesUrl = pmtilesUrl;
+    this.coverageUrl = coverageUrl;
   }
 
   getSource(): SourceSpecification {
@@ -32,9 +38,24 @@ export class VectorChartProvider implements ChartProvider {
     };
   }
 
+  getExtraSources(): Record<string, SourceSpecification> {
+    return {
+      [COVERAGE_SOURCE_ID]: {
+        type: "geojson",
+        data: this.coverageUrl,
+      },
+    };
+  }
+
   getLayers(): LayerSpecification[] {
     const { depthUnit, detailLevel, layerGroups } = getSettings();
-    return getNauticalLayers(SOURCE_ID, depthUnit, detailLevel, layerGroups);
+    return getNauticalLayers(
+      SOURCE_ID,
+      depthUnit,
+      detailLevel,
+      layerGroups,
+      COVERAGE_SOURCE_ID,
+    );
   }
 
   getAttribution(): string {

@@ -11,12 +11,13 @@ Replaces the old tile-join + priority-merge steps.
 from __future__ import annotations
 
 import gzip
+import json
 import math
 from dataclasses import dataclass
 from pathlib import Path
 
 import mapbox_vector_tile
-from shapely import make_valid
+from shapely import make_valid, union_all
 from shapely.geometry import box, mapping, shape
 from shapely.geometry.base import BaseGeometry
 from shapely.geometry.collection import GeometryCollection
@@ -505,4 +506,26 @@ def composite_tiles(
         writer.finalize(out_header, metadata or {})
 
     print(f"Composited → {output_path} ({len(output_tiles)} tiles)")
+
+    # Export coverage mask as GeoJSON (world minus coverage, for shading)
+    coverage_polys = [src.coverage for src in sources]
+    if coverage_polys:
+        coverage_union = make_valid(union_all(coverage_polys))
+        # World polygon (slightly beyond Web Mercator bounds)
+        world = box(-180, -85.06, 180, 85.06)
+        no_coverage = make_valid(world.difference(coverage_union))
+        coverage_geojson = {
+            "type": "FeatureCollection",
+            "features": [
+                {
+                    "type": "Feature",
+                    "properties": {},
+                    "geometry": mapping(no_coverage),
+                }
+            ],
+        }
+        coverage_path = output_path.with_suffix(".coverage.geojson")
+        coverage_path.write_text(json.dumps(coverage_geojson))
+        print(f"Coverage mask → {coverage_path}")
+
     return output_path

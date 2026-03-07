@@ -14,10 +14,9 @@ import { s52Colour } from "./s52-colours";
  *   4. Point/symbol layers
  *
  * Multi-scale compositing:
- *   The pipeline's priority merge ensures each tile contains features from
- *   exactly ONE scale band (the highest available). This eliminates ghosting
- *   (coastline echoes from multiple bands) while preserving coverage (lower
- *   bands fill gaps where higher bands don't exist). See MULTI_SCALE.md.
+ *   The pipeline's MVT-level compositing clips features by M_COVR coverage
+ *   polygons, ensuring each tile contains the best available data without
+ *   ghosting or gaps. See MULTI_SCALE.md.
  */
 
 /**
@@ -94,6 +93,7 @@ export function getNauticalLayers(
   depthUnit: DepthUnit = "meters",
   detailOffset = 0,
   layerGroups: Record<string, boolean> = {},
+  coverageSourceId?: string,
 ): LayerSpecification[] {
   // Detail levels map to display categories:
   //   -2, -1: DISPLAYBASE only
@@ -127,8 +127,22 @@ export function getNauticalLayers(
       },
     },
 
+    // ── Coverage mask: shade areas outside chart coverage ────────────────
+    ...(coverageSourceId
+      ? [
+          {
+            id: "s57-no-coverage",
+            type: "fill" as const,
+            source: coverageSourceId,
+            paint: {
+              "fill-color": "#1a1a2e",
+              "fill-opacity": 0.4,
+            },
+          },
+        ]
+      : []),
+
     // ── Fill layers: terrain ─────────────────────────────────────────────
-    // Priority merge ensures each tile has only one band's features.
     // Draw water (DEPARE) first, then land (LNDARE) on top.
     {
       id: "s57-depare-shallow",

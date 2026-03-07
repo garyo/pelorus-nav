@@ -48,11 +48,12 @@ describe("VectorChartProvider", () => {
     expect(layerIds).toContain("s57-fairwy");
   });
 
-  it("all layers reference the correct source", () => {
+  it("all layers reference a valid source", () => {
     const layers = provider.getLayers();
+    const validSources = new Set(["s57-vector", "s57-coverage"]);
     for (const layer of layers) {
-      if ("source" in layer) {
-        expect(layer.source).toBe("s57-vector");
+      if ("source" in layer && layer.source) {
+        expect(validSources).toContain(layer.source);
       }
     }
   });
