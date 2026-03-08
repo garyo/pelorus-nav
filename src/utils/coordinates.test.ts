@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   formatLatLon,
   haversineDistanceNM,
+  initialBearingDeg,
   parseLatLon,
   toDegrees,
   toRadians,
@@ -36,6 +37,34 @@ describe("haversineDistanceNM", () => {
   it("calculates one degree of latitude (~60 NM)", () => {
     const dist = haversineDistanceNM(0, 0, 1, 0);
     expect(dist).toBeCloseTo(60, 0);
+  });
+});
+
+describe("initialBearingDeg", () => {
+  it("returns 0 for due north", () => {
+    const bearing = initialBearingDeg(42.0, -71.0, 43.0, -71.0);
+    expect(bearing).toBeCloseTo(0, 0);
+  });
+
+  it("returns 90 for due east at equator", () => {
+    const bearing = initialBearingDeg(0, 0, 0, 1);
+    expect(bearing).toBeCloseTo(90, 0);
+  });
+
+  it("returns 180 for due south", () => {
+    const bearing = initialBearingDeg(43.0, -71.0, 42.0, -71.0);
+    expect(bearing).toBeCloseTo(180, 0);
+  });
+
+  it("returns 270 for due west at equator", () => {
+    const bearing = initialBearingDeg(0, 0, 0, -1);
+    expect(bearing).toBeCloseTo(270, 0);
+  });
+
+  it("Boston to Newport is roughly SW (~220°)", () => {
+    const bearing = initialBearingDeg(42.36, -71.06, 41.49, -71.31);
+    expect(bearing).toBeGreaterThan(190);
+    expect(bearing).toBeLessThan(230);
   });
 });
 

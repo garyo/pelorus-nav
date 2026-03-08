@@ -86,6 +86,26 @@ function parseDDMComponent(s: string): number {
  * - "42°18.295'N, 70°56.787'W" (DDM with comma)
  * - Mixed: "42.305N 70.946W"
  */
+/**
+ * Initial (forward) bearing from point A to point B in degrees true (0-360).
+ * Inputs are in decimal degrees.
+ */
+export function initialBearingDeg(
+  lat1: number,
+  lon1: number,
+  lat2: number,
+  lon2: number,
+): number {
+  const phi1 = toRadians(lat1);
+  const phi2 = toRadians(lat2);
+  const dLambda = toRadians(lon2 - lon1);
+  const y = Math.sin(dLambda) * Math.cos(phi2);
+  const x =
+    Math.cos(phi1) * Math.sin(phi2) -
+    Math.sin(phi1) * Math.cos(phi2) * Math.cos(dLambda);
+  return ((toDegrees(Math.atan2(y, x)) % 360) + 360) % 360;
+}
+
 export function parseLatLon(input: string): [number, number] | null {
   const s = input.trim();
   if (!s) return null;

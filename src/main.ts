@@ -10,6 +10,11 @@ import {
   OSMChartProvider,
   VectorChartProvider,
 } from "./chart";
+import { MeasurementLayer } from "./map/MeasurementLayer";
+import { RouteEditor } from "./map/RouteEditor";
+import { RouteLayer } from "./map/RouteLayer";
+import { TrackLayer } from "./map/TrackLayer";
+import { TrackRecorder } from "./map/TrackRecorder";
 import {
   BrowserGeolocationProvider,
   NavigationDataManager,
@@ -21,7 +26,9 @@ import { getSettings, onSettingsChange } from "./settings";
 import { createInstrumentHUD } from "./ui/InstrumentHUD";
 import { NavigationHUD } from "./ui/NavigationHUD";
 import { RecenterButton } from "./ui/RecenterButton";
+import { RouteManagerPanel } from "./ui/RouteManagerPanel";
 import { createSettingsPanel } from "./ui/SettingsPanel";
+import { TrackManagerPanel } from "./ui/TrackManagerPanel";
 import { parseLatLon } from "./utils/coordinates";
 import { ChartModeController } from "./vessel/ChartMode";
 import { VesselLayer } from "./vessel/VesselLayer";
@@ -155,7 +162,15 @@ ctxGotoInput.placeholder = "lat,lon or 42\u00b018.3'N 70\u00b056.8'W";
 ctxGotoInput.className = "map-context-input";
 ctxGotoInput.style.display = "none";
 
-ctxMenu.append(ctxCopy, ctxGoto, ctxGotoInput);
+const ctxMeasure = document.createElement("div");
+ctxMeasure.className = "map-context-item";
+ctxMeasure.textContent = "Measure from here";
+
+const ctxRoute = document.createElement("div");
+ctxRoute.className = "map-context-item";
+ctxRoute.textContent = "Route from here";
+
+ctxMenu.append(ctxCopy, ctxMeasure, ctxRoute, ctxGoto, ctxGotoInput);
 
 // Track right-mouse drag vs click
 let rightDownX = 0;
@@ -307,6 +322,62 @@ ctxGotoInput.addEventListener("keydown", (e) => {
   if (e.key === "Escape") hideContextMenu();
   e.stopPropagation(); // don't let MapLibre handle these keys
 });
+
+// --- Measurement tool ---
+const measurementLayer = new MeasurementLayer(chartManager.map);
+ctxMeasure.addEventListener("click", () => {
+  hideContextMenu();
+  measurementLayer.startFrom(ctxLng, ctxLat);
+});
+
+ctxRoute.addEventListener("click", () => {
+  hideContextMenu();
+  routeEditor.startFromPoint(ctxLat, ctxLng);
+});
+
+// ESC key: clear measurement (or future tools)
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape") {
+    measurementLayer.clear();
+  }
+});
+
+// --- Track recording ---
+const trackRecorder = new TrackRecorder(navManager);
+const trackLayer = new TrackLayer(chartManager.map, navManager, trackRecorder);
+const trackPanel = new TrackManagerPanel(trackLayer, trackRecorder);
+
+// React to track recording setting
+onSettingsChange((s) => {
+  if (s.trackRecordingEnabled && !trackRecorder.isRecording()) {
+    trackRecorder.start();
+  } else if (!s.trackRecordingEnabled && trackRecorder.isRecording()) {
+    trackRecorder.stop();
+  }
+});
+if (getSettings().trackRecordingEnabled) trackRecorder.start();
+
+// --- Routes ---
+const routeLayer = new RouteLayer(chartManager.map);
+const routeEditor = new RouteEditor(chartManager.map, routeLayer);
+const routePanel = new RouteManagerPanel(routeLayer, routeEditor);
+
+// Add toolbar buttons to top bar
+if (topBar) {
+  const trackBtn = document.createElement("button");
+  trackBtn.className = "settings-btn";
+  trackBtn.title = "Tracks";
+  trackBtn.textContent = "\u{1F9ED}";
+  trackBtn.addEventListener("click", () => trackPanel.toggle());
+  topBar.insertBefore(trackBtn, topBar.querySelector(".settings-wrapper"));
+
+  const routeBtn = document.createElement("button");
+  routeBtn.className = "settings-btn";
+  routeBtn.title = "Routes";
+  routeBtn.textContent = "\u{1F4CD}";
+  routeBtn.addEventListener("click", () => routePanel.toggle());
+  topBar.insertBefore(routeBtn, topBar.querySelector(".settings-wrapper"));
+}
 
 // Dismiss on click elsewhere or map interaction
 document.addEventListener("click", (e) => {

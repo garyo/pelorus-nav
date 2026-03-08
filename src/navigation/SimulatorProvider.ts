@@ -5,6 +5,7 @@
 
 import {
   haversineDistanceNM,
+  initialBearingDeg,
   toDegrees,
   toRadians,
 } from "../utils/coordinates";
@@ -32,12 +33,16 @@ export interface SimulatorOptions {
 
 /** Default Boston Harbor loop */
 const BOSTON_HARBOR_ROUTE: [number, number][] = [
-  [42.355, -71.045], // Fan Pier
-  [42.345, -71.03], // Castle Island
-  [42.33, -71.015], // Deer Island
-  [42.34, -71.0], // off Winthrop
-  [42.355, -71.02], // inner harbor
-  [42.36, -71.045], // North End
+  [42.363559, -71.047973], // inner harbor
+  [42.361406, -71.045476], // past Long Wharf
+  [42.353086, -71.03469], // Castle Island
+  [42.333935, -71.000208], // Deer Island
+  [42.33633, -70.945541], // outer harbor
+  [42.361693, -70.926069], // off Nahant
+  [42.33633, -70.945541], // outer harbor (return)
+  [42.333935, -71.000208], // Deer Island (return)
+  [42.353086, -71.03469], // Castle Island (return)
+  [42.361406, -71.045476], // past Long Wharf (return)
 ];
 
 const DEFAULT_SPEED_KN = 6;
@@ -157,7 +162,7 @@ export class SimulatorProvider implements NavigationDataProvider {
     const lat = from[0] + (to[0] - from[0]) * segFraction;
     const lng = from[1] + (to[1] - from[1]) * segFraction;
 
-    const cog = computeBearing(from[0], from[1], to[0], to[1]);
+    const cog = initialBearingDeg(from[0], from[1], to[0], to[1]);
 
     return {
       latitude: lat,
@@ -217,21 +222,4 @@ export class SimulatorProvider implements NavigationDataProvider {
       source: "simulator",
     };
   }
-}
-
-/** Compute initial bearing from point A to point B in degrees true. */
-function computeBearing(
-  lat1: number,
-  lon1: number,
-  lat2: number,
-  lon2: number,
-): number {
-  const phi1 = toRadians(lat1);
-  const phi2 = toRadians(lat2);
-  const dLambda = toRadians(lon2 - lon1);
-  const y = Math.sin(dLambda) * Math.cos(phi2);
-  const x =
-    Math.cos(phi1) * Math.sin(phi2) -
-    Math.sin(phi1) * Math.cos(phi2) * Math.cos(dLambda);
-  return ((toDegrees(Math.atan2(y, x)) % 360) + 360) % 360;
 }

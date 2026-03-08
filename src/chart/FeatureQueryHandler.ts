@@ -1,4 +1,5 @@
 import type maplibregl from "maplibre-gl";
+import { getMode } from "../map/InteractionMode";
 import type { ChartManager } from "./ChartManager";
 import { FeatureInfoPanel } from "./FeatureInfoPanel";
 import { formatFeatureInfo } from "./feature-info";
@@ -88,6 +89,8 @@ export class FeatureQueryHandler {
   }
 
   private handleClick(e: maplibregl.MapMouseEvent): void {
+    if (getMode() !== "query") return;
+
     const layers = this.getVisibleInteractiveLayers();
     if (layers.length === 0) {
       this.dismiss();

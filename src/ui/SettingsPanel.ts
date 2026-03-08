@@ -138,6 +138,16 @@ export function createSettingsPanel(container: HTMLElement): void {
     });
   }
 
+  // Track recording toggle
+  const trackCb = panel.querySelector(
+    "#settings-track-recording",
+  ) as HTMLInputElement | null;
+  if (trackCb) {
+    trackCb.addEventListener("change", () => {
+      updateSettings({ trackRecordingEnabled: trackCb.checked });
+    });
+  }
+
   // Layer group toggles
   for (const groupId of Object.keys(LAYER_GROUP_LABELS)) {
     const cb = panel.querySelector(
@@ -201,6 +211,7 @@ function buildPanelHTML(): string {
 
   const accuracyChecked = settings.showAccuracyCircle ? " checked" : "";
   const instrumentChecked = settings.showInstrumentHUD ? " checked" : "";
+  const trackChecked = settings.trackRecordingEnabled ? " checked" : "";
 
   return `
     <div class="settings-row">
@@ -241,6 +252,11 @@ function buildPanelHTML(): string {
     <div class="settings-row">
       <label class="settings-toggle">
         <input type="checkbox" id="settings-instrument-hud"${instrumentChecked}> Instrument HUD
+      </label>
+    </div>
+    <div class="settings-row">
+      <label class="settings-toggle">
+        <input type="checkbox" id="settings-track-recording"${trackChecked}> Record track
       </label>
     </div>
   `;

@@ -18,6 +18,8 @@ export interface Settings {
   layerGroups: Record<string, boolean>;
   showInstrumentHUD: boolean;
   instrumentCells: [string, string];
+  trackRecordingEnabled: boolean;
+  activeTrackColor: string;
 }
 
 const STORAGE_KEY = "pelorus-nav-settings";
@@ -48,6 +50,8 @@ const DEFAULTS: Settings = {
   layerGroups: { ...DEFAULT_LAYER_GROUPS },
   showInstrumentHUD: false,
   instrumentCells: ["sog", "cog"],
+  trackRecordingEnabled: false,
+  activeTrackColor: "#ff4444",
 };
 
 type SettingsListener = (settings: Settings) => void;
