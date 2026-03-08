@@ -3,10 +3,17 @@
  */
 
 export type DepthUnit = "meters" | "feet" | "fathoms";
+export type SpeedUnit = "knots" | "mph" | "kph";
+export type ChartMode = "follow" | "course-up" | "north-up" | "free";
 export type DetailLevel = -1 | 0 | 1 | 2;
 
 export interface Settings {
   depthUnit: DepthUnit;
+  speedUnit: SpeedUnit;
+  chartMode: ChartMode;
+  gpsSource: string;
+  updateRateHz: number;
+  showAccuracyCircle: boolean;
   detailLevel: DetailLevel;
   layerGroups: Record<string, boolean>;
 }
@@ -30,6 +37,11 @@ const DEFAULT_LAYER_GROUPS: Record<string, boolean> = Object.fromEntries(
 
 const DEFAULTS: Settings = {
   depthUnit: "meters",
+  speedUnit: "knots",
+  chartMode: "north-up",
+  gpsSource: "simulator",
+  updateRateHz: 1,
+  showAccuracyCircle: true,
   detailLevel: 0,
   layerGroups: { ...DEFAULT_LAYER_GROUPS },
 };

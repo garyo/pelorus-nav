@@ -10,8 +10,20 @@ import {
   OSMChartProvider,
   VectorChartProvider,
 } from "./chart";
+import {
+  BrowserGeolocationProvider,
+  NavigationDataManager,
+  SignalKProvider,
+  SimulatorProvider,
+  WebSerialNMEAProvider,
+} from "./navigation";
+import { getSettings, onSettingsChange } from "./settings";
+import { NavigationHUD } from "./ui/NavigationHUD";
+import { RecenterButton } from "./ui/RecenterButton";
 import { createSettingsPanel } from "./ui/SettingsPanel";
 import { parseLatLon } from "./utils/coordinates";
+import { ChartModeController } from "./vessel/ChartMode";
+import { VesselLayer } from "./vessel/VesselLayer";
 
 // Register PMTiles protocol for vector tile sources
 const protocol = new Protocol({ metadata: true });
@@ -53,22 +65,56 @@ new FeatureQueryHandler(chartManager);
 const topBar = document.getElementById("top-bar");
 if (topBar) createSettingsPanel(topBar);
 
-// HUD: zoom + cursor position + go-to
-const hudDiv = document.createElement("div");
-hudDiv.style.cssText =
-  "position:fixed;bottom:40px;right:10px;background:rgba(0,0,0,0.7);color:#fff;padding:4px 8px;font:12px monospace;z-index:9999;border-radius:4px;line-height:1.6";
-document.body.appendChild(hudDiv);
+// --- Navigation system ---
+const navManager = new NavigationDataManager();
 
-const zoomSpan = document.createElement("div");
-const posSpan = document.createElement("div");
-hudDiv.append(zoomSpan, posSpan);
+// Register available GPS providers
+const simulator = new SimulatorProvider();
+navManager.registerProvider(simulator);
+navManager.registerProvider(new BrowserGeolocationProvider());
+if (WebSerialNMEAProvider.isAvailable()) {
+  navManager.registerProvider(new WebSerialNMEAProvider());
+}
+navManager.registerProvider(new SignalKProvider());
 
-const updateZoom = () => {
-  zoomSpan.textContent = `z${chartManager.map.getZoom().toFixed(1)}`;
-};
-chartManager.map.on("zoom", updateZoom);
-chartManager.map.on("load", updateZoom);
+// Vessel display layer
+const vesselLayer = new VesselLayer(chartManager.map);
 
+// Chart mode controller (follow, course-up, north-up, free)
+const chartMode = new ChartModeController(chartManager.map);
+
+// Re-center button
+const recenterBtn = new RecenterButton({
+  onRecenter: () => chartMode.setMode("follow"),
+});
+chartManager.map.addControl(recenterBtn, "bottom-left");
+
+// Wire navigation data to vessel layer and chart mode
+navManager.subscribe((data) => {
+  vesselLayer.update(data);
+  chartMode.update(data);
+
+  // Show/hide re-center button
+  recenterBtn.setVisible(chartMode.getMode() === "free");
+});
+
+// React to chart mode changes from settings
+onSettingsChange((s) => {
+  if (s.chartMode !== chartMode.getMode()) {
+    chartMode.setMode(s.chartMode);
+  }
+  if (s.gpsSource !== navManager.getActiveProvider()?.id) {
+    navManager.setActiveProvider(s.gpsSource);
+  }
+});
+
+// Navigation HUD (replaces ad-hoc zoom/cursor display)
+new NavigationHUD(chartManager.map, navManager);
+
+// Activate initial GPS source from settings
+navManager.setActiveProvider(getSettings().gpsSource);
+
+// Local helper for context menu formatting
 const formatDDM = (deg: number, pos: string, neg: string): string => {
   const dir = deg >= 0 ? pos : neg;
   const abs = Math.abs(deg);
@@ -76,12 +122,6 @@ const formatDDM = (deg: number, pos: string, neg: string): string => {
   const m = ((abs - d) * 60).toFixed(3);
   return `${d}\u00b0${String(m).padStart(6, "0")}'${dir}`;
 };
-
-chartManager.map.on("mousemove", (e) => {
-  const { lng, lat } = e.lngLat;
-  posSpan.textContent = `${formatDDM(lat, "N", "S")} ${formatDDM(lng, "E", "W")}`;
-});
-posSpan.textContent = "";
 
 // --- Context menu (right-click on map) ---
 const ctxMenu = document.createElement("div");

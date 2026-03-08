@@ -3,12 +3,14 @@
  */
 
 import {
+  type ChartMode,
   type DepthUnit,
   type DetailLevel,
   depthUnitLabel,
   getSettings,
   LAYER_GROUP_LABELS,
   onSettingsChange,
+  type SpeedUnit,
   updateSettings,
 } from "../settings";
 
@@ -86,6 +88,46 @@ export function createSettingsPanel(container: HTMLElement): void {
     updateSettings({ detailLevel: level });
   });
 
+  // GPS source selector
+  const gpsSelect = panel.querySelector(
+    "#settings-gps-source",
+  ) as HTMLSelectElement | null;
+  if (gpsSelect) {
+    gpsSelect.addEventListener("change", () => {
+      updateSettings({ gpsSource: gpsSelect.value });
+    });
+  }
+
+  // Chart mode selector
+  const modeSelect = panel.querySelector(
+    "#settings-chart-mode",
+  ) as HTMLSelectElement | null;
+  if (modeSelect) {
+    modeSelect.addEventListener("change", () => {
+      updateSettings({ chartMode: modeSelect.value as ChartMode });
+    });
+  }
+
+  // Speed unit selector
+  const speedSelect = panel.querySelector(
+    "#settings-speed-unit",
+  ) as HTMLSelectElement | null;
+  if (speedSelect) {
+    speedSelect.addEventListener("change", () => {
+      updateSettings({ speedUnit: speedSelect.value as SpeedUnit });
+    });
+  }
+
+  // Accuracy circle toggle
+  const accuracyCb = panel.querySelector(
+    "#settings-accuracy-circle",
+  ) as HTMLInputElement | null;
+  if (accuracyCb) {
+    accuracyCb.addEventListener("change", () => {
+      updateSettings({ showAccuracyCircle: accuracyCb.checked });
+    });
+  }
+
   // Layer group toggles
   for (const groupId of Object.keys(LAYER_GROUP_LABELS)) {
     const cb = panel.querySelector(
@@ -114,6 +156,40 @@ function buildPanelHTML(): string {
     })
     .join("\n      ");
 
+  const GPS_SOURCES = [
+    { value: "simulator", label: "Simulator" },
+    { value: "browser-gps", label: "Browser GPS" },
+    { value: "web-serial", label: "USB GPS (Serial)" },
+    { value: "signalk", label: "Signal K" },
+  ];
+  const gpsOptions = GPS_SOURCES.map(
+    (s) =>
+      `<option value="${s.value}"${s.value === settings.gpsSource ? " selected" : ""}>${s.label}</option>`,
+  ).join("");
+
+  const CHART_MODES: { value: ChartMode; label: string }[] = [
+    { value: "follow", label: "Follow" },
+    { value: "course-up", label: "Course Up" },
+    { value: "north-up", label: "North Up" },
+    { value: "free", label: "Free" },
+  ];
+  const modeOptions = CHART_MODES.map(
+    (m) =>
+      `<option value="${m.value}"${m.value === settings.chartMode ? " selected" : ""}>${m.label}</option>`,
+  ).join("");
+
+  const SPEED_UNITS: { value: SpeedUnit; label: string }[] = [
+    { value: "knots", label: "Knots" },
+    { value: "mph", label: "MPH" },
+    { value: "kph", label: "km/h" },
+  ];
+  const speedOptions = SPEED_UNITS.map(
+    (u) =>
+      `<option value="${u.value}"${u.value === settings.speedUnit ? " selected" : ""}>${u.label}</option>`,
+  ).join("");
+
+  const accuracyChecked = settings.showAccuracyCircle ? " checked" : "";
+
   return `
     <div class="settings-row">
       <label for="settings-depth-unit">Depth units</label>
@@ -131,6 +207,24 @@ function buildPanelHTML(): string {
       <div class="settings-toggles">
       ${groupToggles}
       </div>
+    </div>
+    <hr style="border-color:#444;margin:8px 0">
+    <div class="settings-row">
+      <label for="settings-gps-source">GPS source</label>
+      <select id="settings-gps-source">${gpsOptions}</select>
+    </div>
+    <div class="settings-row">
+      <label for="settings-chart-mode">Chart mode</label>
+      <select id="settings-chart-mode">${modeOptions}</select>
+    </div>
+    <div class="settings-row">
+      <label for="settings-speed-unit">Speed units</label>
+      <select id="settings-speed-unit">${speedOptions}</select>
+    </div>
+    <div class="settings-row">
+      <label class="settings-toggle">
+        <input type="checkbox" id="settings-accuracy-circle"${accuracyChecked}> Accuracy circle
+      </label>
     </div>
   `;
 }

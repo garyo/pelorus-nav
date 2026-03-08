@@ -321,6 +321,35 @@ body {
   border-color: #ff4444;
 }
 
+/* Navigation HUD */
+.nav-hud {
+  position: fixed;
+  bottom: 40px;
+  right: 10px;
+  background: rgba(0, 0, 0, 0.7);
+  color: #fff;
+  padding: 4px 8px;
+  font: 12px monospace;
+  z-index: 9999;
+  border-radius: 4px;
+  line-height: 1.6;
+}
+
+/* Re-center button */
+.recenter-btn {
+  background: none;
+  border: none;
+  font-size: 22px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 4px 8px;
+  color: #333;
+}
+
+.recenter-btn:hover {
+  background: #f0f0f0;
+}
+
 @media (max-width: 480px) {
   .feature-info-panel {
     width: 100%;
