@@ -443,11 +443,12 @@ function formatLandmark(
   addIfPresent(details, "Color", lookupAllCodes(COLOUR, props.COLOUR));
   const natcon = lookupAllCodes(NATCON, props.NATCON);
   addIfPresent(details, "Construction", natcon);
+  const unit = getSettings().depthUnit;
   if (props.HEIGHT != null && Number(props.HEIGHT) > 0) {
-    details.push({ label: "Height", value: `${props.HEIGHT} m` });
+    details.push({ label: "Height", value: formatDepth(Number(props.HEIGHT), unit) });
   }
   if (props.ELEVAT != null && Number(props.ELEVAT) > 0) {
-    details.push({ label: "Elevation", value: `${props.ELEVAT} m` });
+    details.push({ label: "Elevation", value: formatDepth(Number(props.ELEVAT), unit) });
   }
   const conspicuous = props.CONVIS === 1 ? "Yes" : undefined;
   addIfPresent(details, "Conspicuous", conspicuous);
@@ -531,11 +532,12 @@ function formatSiloTank(
   addIfPresent(details, "Color", lookupAllCodes(COLOUR, props.COLOUR));
   const natcon = lookupAllCodes(NATCON, props.NATCON);
   addIfPresent(details, "Construction", natcon);
+  const unit = getSettings().depthUnit;
   if (props.HEIGHT != null && Number(props.HEIGHT) > 0) {
-    details.push({ label: "Height", value: `${props.HEIGHT} m` });
+    details.push({ label: "Height", value: formatDepth(Number(props.HEIGHT), unit) });
   }
   if (props.ELEVAT != null && Number(props.ELEVAT) > 0) {
-    details.push({ label: "Elevation", value: `${props.ELEVAT} m` });
+    details.push({ label: "Elevation", value: formatDepth(Number(props.ELEVAT), unit) });
   }
   const conspicuous = props.CONVIS === 1 ? "Yes" : undefined;
   addIfPresent(details, "Conspicuous", conspicuous);

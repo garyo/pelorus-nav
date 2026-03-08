@@ -245,7 +245,8 @@ export class FeatureQueryHandler {
 /**
  * Transfer OBJNAM from co-located LNDMRK features to LIGHTS/FOGSIG
  * that lack a name. S-57 stores names on the landmark, not the light.
- * Removes the LNDMRK entry afterward (redundant once name is merged).
+ * The LNDMRK entry is kept because it carries useful attributes
+ * (height, function, construction, conspicuous) not on the light.
  * Also removes featureless LNDARE entries.
  */
 function correlateLandmarkNames(features: QueriedFeature[]): void {
@@ -254,19 +255,13 @@ function correlateLandmarkNames(features: QueriedFeature[]): void {
   );
   if (lndmrkIdx >= 0) {
     const lndmrkName = features[lndmrkIdx].properties.OBJNAM;
-    let transferred = false;
     for (const f of features) {
       if (
         (f.sourceLayer === "LIGHTS" || f.sourceLayer === "FOGSIG") &&
         !f.properties.OBJNAM
       ) {
         f.properties.OBJNAM = lndmrkName;
-        transferred = true;
       }
-    }
-    // Remove LNDMRK if its name was transferred to avoid redundant entry
-    if (transferred) {
-      features.splice(lndmrkIdx, 1);
     }
   }
 
