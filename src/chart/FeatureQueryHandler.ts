@@ -17,6 +17,8 @@ const INTERACTIVE_LAYERS = [
   "s57-fogsig",
   "s57-wrecks",
   "s57-obstrn",
+  "s57-obstrn-area",
+  "s57-obstrn-line",
   "s57-uwtroc",
   "s57-resare",
   "s57-achare",
@@ -37,6 +39,7 @@ const INTERACTIVE_LAYERS = [
   "s57-berths-label",
   "s57-buisgl",
   "s57-seaare-label",
+  "s57-lndare-point",
   "s57-lndare",
   "s57-soundg",
 ];
@@ -272,7 +275,8 @@ function correlateLandmarkNames(features: QueriedFeature[]): void {
   for (let i = features.length - 1; i >= 0; i--) {
     if (
       features[i].sourceLayer === "LNDARE" &&
-      !features[i].properties.OBJNAM
+      !features[i].properties.OBJNAM &&
+      !features[i].properties.INFORM
     ) {
       features.splice(i, 1);
     }

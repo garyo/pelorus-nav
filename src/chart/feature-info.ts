@@ -457,10 +457,16 @@ function formatLandmark(
   addIfPresent(details, "Construction", natcon);
   const unit = getSettings().depthUnit;
   if (props.HEIGHT != null && Number(props.HEIGHT) > 0) {
-    details.push({ label: "Height", value: formatDepth(Number(props.HEIGHT), unit) });
+    details.push({
+      label: "Height",
+      value: formatDepth(Number(props.HEIGHT), unit),
+    });
   }
   if (props.ELEVAT != null && Number(props.ELEVAT) > 0) {
-    details.push({ label: "Elevation", value: formatDepth(Number(props.ELEVAT), unit) });
+    details.push({
+      label: "Elevation",
+      value: formatDepth(Number(props.ELEVAT), unit),
+    });
   }
   const conspicuous = props.CONVIS === 1 ? "Yes" : undefined;
   addIfPresent(details, "Conspicuous", conspicuous);
@@ -550,7 +556,10 @@ function formatOffshorePlatform(
   addIfPresent(details, "Color", lookupAllCodes(COLOUR, props.COLOUR));
   const unit = getSettings().depthUnit;
   if (props.HEIGHT != null && Number(props.HEIGHT) > 0) {
-    details.push({ label: "Height", value: formatDepth(Number(props.HEIGHT), unit) });
+    details.push({
+      label: "Height",
+      value: formatDepth(Number(props.HEIGHT), unit),
+    });
   }
   const conspicuous = props.CONVIS === 1 ? "Yes" : undefined;
   addIfPresent(details, "Conspicuous", conspicuous);
@@ -576,10 +585,16 @@ function formatSiloTank(
   addIfPresent(details, "Construction", natcon);
   const unit = getSettings().depthUnit;
   if (props.HEIGHT != null && Number(props.HEIGHT) > 0) {
-    details.push({ label: "Height", value: formatDepth(Number(props.HEIGHT), unit) });
+    details.push({
+      label: "Height",
+      value: formatDepth(Number(props.HEIGHT), unit),
+    });
   }
   if (props.ELEVAT != null && Number(props.ELEVAT) > 0) {
-    details.push({ label: "Elevation", value: formatDepth(Number(props.ELEVAT), unit) });
+    details.push({
+      label: "Elevation",
+      value: formatDepth(Number(props.ELEVAT), unit),
+    });
   }
   const conspicuous = props.CONVIS === 1 ? "Yes" : undefined;
   addIfPresent(details, "Conspicuous", conspicuous);
@@ -597,6 +612,14 @@ function formatMagVar(
     props.VALMAG != null ? `${props.VALMAG}\u00b0` : null,
   );
   addIfPresent(details, "Year", props.RYRMGV);
+  return details;
+}
+
+function formatLandArea(
+  props: Record<string, unknown>,
+): { label: string; value: string }[] {
+  const details: { label: string; value: string }[] = [];
+  addIfPresent(details, "Information", props.INFORM);
   return details;
 }
 
@@ -628,6 +651,7 @@ const FORMATTERS: Record<
   OFSPLF: formatOffshorePlatform,
   MAGVAR: formatMagVar,
   SILTNK: formatSiloTank,
+  LNDARE: formatLandArea,
 };
 
 function formatDDM(deg: number, pos: string, neg: string): string {

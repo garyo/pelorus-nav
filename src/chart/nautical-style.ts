@@ -212,6 +212,21 @@ export function getNauticalLayers(
         "fill-opacity": 1,
       },
     },
+    // Bridge piers / pilings encoded as LNDARE points
+    {
+      id: "s57-lndare-point",
+      type: "circle",
+      source: sourceId,
+      "source-layer": "LNDARE",
+      minzoom: detailMinzoom(13),
+      filter: ["==", ["geometry-type"], "Point"],
+      paint: {
+        "circle-radius": 4,
+        "circle-color": s52Colour("CHBRN"),
+        "circle-stroke-color": s52Colour("CHBLK"),
+        "circle-stroke-width": 1,
+      },
+    },
     {
       id: "s57-coalne",
       type: "line",
@@ -796,10 +811,7 @@ export function getNauticalLayers(
         "icon-image": ICON_EXPR,
         "icon-size": 0.6,
         "icon-allow-overlap": true,
-        "text-field": [
-          "get",
-          "OBJNAM",
-        ] as unknown as ExpressionSpecification,
+        "text-field": ["get", "OBJNAM"] as unknown as ExpressionSpecification,
         "text-size": 11,
         "text-allow-overlap": false,
         "text-optional": true,
@@ -867,13 +879,53 @@ export function getNauticalLayers(
       },
       paint: {},
     },
-    // Obstructions
+    // Obstructions — polygon fill (foul areas)
+    {
+      id: "s57-obstrn-area",
+      type: "fill",
+      source: sourceId,
+      "source-layer": "OBSTRN",
+      minzoom: 8,
+      filter: [
+        "==",
+        ["geometry-type"],
+        "Polygon",
+      ] as unknown as ExpressionSpecification,
+      paint: {
+        "fill-color": s52Colour("DEPVS"),
+        "fill-opacity": 0.2,
+      },
+    },
+    // Obstructions — line (piling rows, submerged walls, etc.)
+    {
+      id: "s57-obstrn-line",
+      type: "line",
+      source: sourceId,
+      "source-layer": "OBSTRN",
+      minzoom: 8,
+      filter: [
+        "==",
+        ["geometry-type"],
+        "LineString",
+      ] as unknown as ExpressionSpecification,
+      paint: {
+        "line-color": s52Colour("CHBLK"),
+        "line-width": 1.5,
+        "line-dasharray": [2, 2] as number[],
+      },
+    },
+    // Obstructions — point symbols
     {
       id: "s57-obstrn",
       type: "symbol",
       source: sourceId,
       "source-layer": "OBSTRN",
       minzoom: 8,
+      filter: [
+        "==",
+        ["geometry-type"],
+        "Point",
+      ] as unknown as ExpressionSpecification,
       layout: {
         "icon-image": ICON_EXPR,
         "icon-size": 0.35,
@@ -1180,6 +1232,7 @@ export function getNauticalLayers(
   const LAYER_CATEGORIES: Record<string, "DISPLAYBASE" | "STANDARD" | "OTHER"> =
     {
       "s57-lndare": "DISPLAYBASE",
+      "s57-lndare-point": "DISPLAYBASE",
       "s57-depare-shallow": "DISPLAYBASE",
       "s57-depare-medium": "DISPLAYBASE",
       "s57-depare-deep": "DISPLAYBASE",
@@ -1190,6 +1243,8 @@ export function getNauticalLayers(
       "s57-soundg": "DISPLAYBASE",
       "s57-wrecks": "DISPLAYBASE",
       "s57-obstrn": "DISPLAYBASE",
+      "s57-obstrn-area": "DISPLAYBASE",
+      "s57-obstrn-line": "DISPLAYBASE",
       "s57-uwtroc": "DISPLAYBASE",
       "s57-background": "DISPLAYBASE",
       // STANDARD
