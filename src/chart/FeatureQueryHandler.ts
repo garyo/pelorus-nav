@@ -139,6 +139,7 @@ export class FeatureQueryHandler {
 
   private showCurrent(): void {
     const feature = this.currentFeatures[this.currentIndex];
+    if (!feature) return;
     const info = formatFeatureInfo(
       feature.sourceLayer,
       feature.properties,

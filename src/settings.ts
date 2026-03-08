@@ -39,7 +39,7 @@ const DEFAULTS: Settings = {
   depthUnit: "meters",
   speedUnit: "knots",
   chartMode: "north-up",
-  gpsSource: "simulator",
+  gpsSource: "none",
   updateRateHz: 1,
   showAccuracyCircle: true,
   detailLevel: 0,

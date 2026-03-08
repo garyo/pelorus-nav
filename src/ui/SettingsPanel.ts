@@ -157,6 +157,7 @@ function buildPanelHTML(): string {
     .join("\n      ");
 
   const GPS_SOURCES = [
+    { value: "none", label: "None" },
     { value: "simulator", label: "Simulator" },
     { value: "browser-gps", label: "Browser GPS" },
     { value: "web-serial", label: "USB GPS (Serial)" },
