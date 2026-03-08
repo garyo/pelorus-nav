@@ -128,6 +128,16 @@ export function createSettingsPanel(container: HTMLElement): void {
     });
   }
 
+  // Instrument HUD toggle
+  const instrumentCb = panel.querySelector(
+    "#settings-instrument-hud",
+  ) as HTMLInputElement | null;
+  if (instrumentCb) {
+    instrumentCb.addEventListener("change", () => {
+      updateSettings({ showInstrumentHUD: instrumentCb.checked });
+    });
+  }
+
   // Layer group toggles
   for (const groupId of Object.keys(LAYER_GROUP_LABELS)) {
     const cb = panel.querySelector(
@@ -190,6 +200,7 @@ function buildPanelHTML(): string {
   ).join("");
 
   const accuracyChecked = settings.showAccuracyCircle ? " checked" : "";
+  const instrumentChecked = settings.showInstrumentHUD ? " checked" : "";
 
   return `
     <div class="settings-row">
@@ -225,6 +236,11 @@ function buildPanelHTML(): string {
     <div class="settings-row">
       <label class="settings-toggle">
         <input type="checkbox" id="settings-accuracy-circle"${accuracyChecked}> Accuracy circle
+      </label>
+    </div>
+    <div class="settings-row">
+      <label class="settings-toggle">
+        <input type="checkbox" id="settings-instrument-hud"${instrumentChecked}> Instrument HUD
       </label>
     </div>
   `;

@@ -16,6 +16,8 @@ export interface Settings {
   showAccuracyCircle: boolean;
   detailLevel: DetailLevel;
   layerGroups: Record<string, boolean>;
+  showInstrumentHUD: boolean;
+  instrumentCells: [string, string];
 }
 
 const STORAGE_KEY = "pelorus-nav-settings";
@@ -44,6 +46,8 @@ const DEFAULTS: Settings = {
   showAccuracyCircle: true,
   detailLevel: 0,
   layerGroups: { ...DEFAULT_LAYER_GROUPS },
+  showInstrumentHUD: false,
+  instrumentCells: ["sog", "cog"],
 };
 
 type SettingsListener = (settings: Settings) => void;

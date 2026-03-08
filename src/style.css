@@ -335,6 +335,57 @@ body {
   line-height: 1.6;
 }
 
+/* Instrument HUD */
+.instrument-hud {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 9998;
+  display: flex;
+  flex-direction: row;
+  background: #fff;
+  height: 90px;
+  border-bottom: 1px solid #ccc;
+}
+
+.instrument-cell {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 4px 16px;
+}
+
+.instrument-cell--bordered {
+  border-left: 1px solid #ccc;
+}
+
+.instrument-label {
+  font-size: 14px;
+  color: #666;
+  line-height: 1.2;
+}
+
+.instrument-value-row {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.instrument-value {
+  font-size: 56px;
+  font-weight: 700;
+  color: #000;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.instrument-unit {
+  font-size: 20px;
+  color: #444;
+}
+
 /* Re-center button */
 .recenter-btn {
   background: none;

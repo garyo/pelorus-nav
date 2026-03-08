@@ -18,6 +18,7 @@ import {
   WebSerialNMEAProvider,
 } from "./navigation";
 import { getSettings, onSettingsChange } from "./settings";
+import { createInstrumentHUD } from "./ui/InstrumentHUD";
 import { NavigationHUD } from "./ui/NavigationHUD";
 import { RecenterButton } from "./ui/RecenterButton";
 import { createSettingsPanel } from "./ui/SettingsPanel";
@@ -110,6 +111,9 @@ onSettingsChange((s) => {
 
 // Navigation HUD (replaces ad-hoc zoom/cursor display)
 new NavigationHUD(chartManager.map, navManager);
+
+// Instrument HUD (large data display)
+document.body.appendChild(createInstrumentHUD(navManager));
 
 // Activate initial GPS source from settings
 navManager.setActiveProvider(getSettings().gpsSource);
