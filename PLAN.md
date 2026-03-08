@@ -32,7 +32,7 @@ A modern, open-source marine chartplotter built as a progressive web app (PWA) i
 
 ---
 
-## Phase 0: Project Scaffolding
+## Phase 0: Project Scaffolding ✅ DONE
 
 **Goal**: Working dev environment, CI, empty app shell.
 
@@ -63,7 +63,7 @@ A modern, open-source marine chartplotter built as a progressive web app (PWA) i
 
 ---
 
-## Phase 1: NOAA Raster Chart Display
+## Phase 1: NOAA Raster and Vector Chart Display
 
 **Goal**: Display real NOAA nautical charts with zoom/pan, tile caching for offline use.
 
@@ -146,32 +146,9 @@ A modern, open-source marine chartplotter built as a progressive web app (PWA) i
 
 ## S-57 Layer Coverage
 
-We currently extract 38 layers. Below are layers present in NOAA ENC data that we don't yet process, categorized by priority.
+We extract 50 layers covering all navigation-critical S-57 object classes. See `tools/s57-pipeline/s57_pipeline/layers.py` for the full list. Object querying (tap feature → info popup) is implemented in `src/chart/FeatureQueryHandler.ts`.
 
-### Important for Navigation
-
-| Layer | Geom | Description | Why |
-|-------|------|-------------|-----|
-| BCNSPP | Point | Special purpose beacons | We have BCNLAT/BCNCAR but miss these |
-| DAYMAR | Point | Daymarks (colored panels on beacons) | Identifies dayboard shape/color |
-| TOPMAR | Point | Top marks on buoys/beacons | IALA cone/sphere/etc |
-| TSSBND | Line | TSS boundaries | We have TSSLPT but not boundary lines |
-| TSEZNE | Polygon | TSS separation zones | Central dividers between TSS lanes |
-| TWRTPT | Polygon | Two-way route parts | Important shipping lanes |
-| RECTRC | Line | Recommended tracks | Channel approach guidance |
-| NAVLNE | Line | Navigation/leading lines | Harbor entry approach bearings |
-| DWRTCL | Line | Deep water route centerlines | Deep-draft routes |
-| ACHBRT | Polygon | Anchor berths | Named spots within anchorage areas |
-| SBDARE | Point/Poly | Seabed type (sand, mud, rock) | Critical for anchoring decisions |
-| DMPGRD | Poly/Point | Dumping grounds | Avoid anchoring/fishing |
-| HRBFAC | Point | Harbour facilities | Marinas, fuel, yacht clubs |
-| MAGVAR | Polygon | Magnetic variation | Compass navigation overlay |
-| CBLARE | Polygon | Cable areas | No-anchor zones |
-| PIPARE | Polygon | Pipeline areas | Anchoring restrictions |
-| PIPSOL | Line | Submarine pipelines | Like CBLSUB but for pipes |
-| OFSPLF | Point | Offshore platforms | Fixed structures in water |
-
-### Nice to Have
+### Nice to Have (not yet extracted)
 
 | Layer | Geom | Description |
 |-------|------|-------------|
@@ -197,7 +174,7 @@ DSID, M_COVR, M_NPUB, M_NSYS, M_QUAL, C_AGGR, C_ASSO, NEWOBJ, ADMARE, CONZNE, CO
 
 ---
 
-## Phase 1C: Vector Chart Display and Quilting
+## Phase 1C: Vector Chart Display and Quilting ✅ DONE
 
 **Goal**: Display vector charts in the app with proper quilting and object querying.
 
@@ -245,6 +222,15 @@ DSID, M_COVR, M_NPUB, M_NSYS, M_QUAL, C_AGGR, C_ASSO, NEWOBJ, ADMARE, CONZNE, CO
 5. Support loading MBTiles/PMTiles files directly from local storage / file picker
    - Parse MBTiles (SQLite) in browser via `sql.js` (SQLite compiled to WASM)
    - PMTiles via `pmtiles` JS library (HTTP range requests or local file)
+6. Multi-region PMTiles management for full US coverage:
+   - Pipeline generates separate PMTiles per region (e.g., new-england.pmtiles, mid-atlantic.pmtiles, gulf-coast.pmtiles, pacific-nw.pmtiles, etc.)
+   - Region catalog: JSON manifest listing available regions with bbox, size, cell count, last-updated timestamp
+   - Region selector UI: map overlay or list showing available regions; user picks which to download
+   - Multiple PMTiles loaded simultaneously as separate MapLibre sources (or merged client-side)
+   - Incremental updates: download only changed regions, not the full dataset
+   - Storage budget awareness: show total size, warn before large downloads, allow removing regions
+   - Consider US territories/islands: Hawaii, USVI, Puerto Rico, Guam, Alaska — each as a separate region
+   - Estimated scale: full NOAA ENC coverage is ~5000+ cells; PMTiles likely 500MB-2GB total depending on zoom levels
 
 ### Acceptance Criteria
 - [ ] Previously viewed tiles load instantly from cache (no network)
@@ -253,6 +239,8 @@ DSID, M_COVR, M_NPUB, M_NSYS, M_QUAL, C_AGGR, C_ASSO, NEWOBJ, ADMARE, CONZNE, CO
 - [ ] Cache management UI shows size, allows clearing
 - [ ] MBTiles/PMTiles files can be loaded from local storage / file picker
 - [ ] Works with both raster (NOAA NCDS) and vector (S-57 pipeline) tile sources
+- [ ] Multiple regional PMTiles can be loaded simultaneously without conflicts
+- [ ] User can select, download, update, and remove chart regions independently
 
 ### Test Plan – Phase 1D
 - **Offline**: Disconnect network after caching, verify full functionality
