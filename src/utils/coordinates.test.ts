@@ -57,42 +57,48 @@ describe("parseLatLon", () => {
   it("parses decimal degrees with comma", () => {
     const result = parseLatLon("42.305, -70.946");
     expect(result).not.toBeNull();
-    expect(result![0]).toBeCloseTo(42.305);
-    expect(result![1]).toBeCloseTo(-70.946);
+    if (!result) return;
+    expect(result[0]).toBeCloseTo(42.305);
+    expect(result[1]).toBeCloseTo(-70.946);
   });
 
   it("parses DDM with hemisphere letters", () => {
     const result = parseLatLon("42°18.295'N 70°56.787'W");
     expect(result).not.toBeNull();
-    expect(result![0]).toBeCloseTo(42.30492, 3);
-    expect(result![1]).toBeCloseTo(-70.94645, 3);
+    if (!result) return;
+    expect(result[0]).toBeCloseTo(42.30492, 3);
+    expect(result[1]).toBeCloseTo(-70.94645, 3);
   });
 
   it("parses DDM with comma separator", () => {
     const result = parseLatLon("42°18.295'N, 70°56.787'W");
     expect(result).not.toBeNull();
-    expect(result![0]).toBeCloseTo(42.30492, 3);
-    expect(result![1]).toBeCloseTo(-70.94645, 3);
+    if (!result) return;
+    expect(result[0]).toBeCloseTo(42.30492, 3);
+    expect(result[1]).toBeCloseTo(-70.94645, 3);
   });
 
   it("parses DDM without quote mark", () => {
     const result = parseLatLon("42°18.295N 70°56.787W");
     expect(result).not.toBeNull();
-    expect(result![0]).toBeCloseTo(42.30492, 3);
+    if (!result) return;
+    expect(result[0]).toBeCloseTo(42.30492, 3);
   });
 
   it("parses decimal with hemisphere suffix", () => {
     const result = parseLatLon("42.305N 70.946W");
     expect(result).not.toBeNull();
-    expect(result![0]).toBeCloseTo(42.305);
-    expect(result![1]).toBeCloseTo(-70.946);
+    if (!result) return;
+    expect(result[0]).toBeCloseTo(42.305);
+    expect(result[1]).toBeCloseTo(-70.946);
   });
 
   it("parses southern/eastern hemispheres", () => {
     const result = parseLatLon("33°51.000'S, 151°12.000'E");
     expect(result).not.toBeNull();
-    expect(result![0]).toBeCloseTo(-33.85, 2);
-    expect(result![1]).toBeCloseTo(151.2, 2);
+    if (!result) return;
+    expect(result[0]).toBeCloseTo(-33.85, 2);
+    expect(result[1]).toBeCloseTo(151.2, 2);
   });
 
   it("returns null for empty string", () => {

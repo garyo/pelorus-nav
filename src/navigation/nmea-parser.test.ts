@@ -8,10 +8,11 @@ describe("NMEA parser", () => {
         "$GPRMC,123519,A,4807.038,N,01131.000,E,022.4,084.4,230394,003.1,W*6A";
       const result = parseRMC(sentence);
       expect(result).not.toBeNull();
-      expect(result!.latitude).toBeCloseTo(48.1173, 3);
-      expect(result!.longitude).toBeCloseTo(11.5167, 3);
-      expect(result!.sog).toBeCloseTo(22.4, 1);
-      expect(result!.cog).toBeCloseTo(84.4, 1);
+      if (!result) return;
+      expect(result.latitude).toBeCloseTo(48.1173, 3);
+      expect(result.longitude).toBeCloseTo(11.5167, 3);
+      expect(result.sog).toBeCloseTo(22.4, 1);
+      expect(result.cog).toBeCloseTo(84.4, 1);
     });
 
     it("parses $GNRMC variant", () => {
@@ -19,7 +20,8 @@ describe("NMEA parser", () => {
         "$GNRMC,123519,A,4807.038,N,01131.000,E,022.4,084.4,230394,003.1,W*74";
       const result = parseRMC(sentence);
       expect(result).not.toBeNull();
-      expect(result!.latitude).toBeCloseTo(48.1173, 3);
+      if (!result) return;
+      expect(result.latitude).toBeCloseTo(48.1173, 3);
     });
 
     it("rejects void status", () => {
@@ -39,8 +41,9 @@ describe("NMEA parser", () => {
         "$GPRMC,120000,A,4221.060,S,07056.460,W,006.0,247.0,070326,,*13";
       const result = parseRMC(sentence);
       expect(result).not.toBeNull();
-      expect(result!.latitude).toBeLessThan(0);
-      expect(result!.longitude).toBeLessThan(0);
+      if (!result) return;
+      expect(result.latitude).toBeLessThan(0);
+      expect(result.longitude).toBeLessThan(0);
     });
   });
 
@@ -50,10 +53,11 @@ describe("NMEA parser", () => {
         "$GPGGA,123519,4807.038,N,01131.000,E,1,08,0.9,545.4,M,47.0,M,,*4F";
       const result = parseGGA(sentence);
       expect(result).not.toBeNull();
-      expect(result!.latitude).toBeCloseTo(48.1173, 3);
-      expect(result!.longitude).toBeCloseTo(11.5167, 3);
-      expect(result!.altitude).toBeCloseTo(545.4, 1);
-      expect(result!.accuracy).toBeCloseTo(4.5, 1); // HDOP 0.9 * 5
+      if (!result) return;
+      expect(result.latitude).toBeCloseTo(48.1173, 3);
+      expect(result.longitude).toBeCloseTo(11.5167, 3);
+      expect(result.altitude).toBeCloseTo(545.4, 1);
+      expect(result.accuracy).toBeCloseTo(4.5, 1); // HDOP 0.9 * 5
     });
 
     it("rejects no-fix sentence", () => {

@@ -206,49 +206,57 @@ chartManager.map.getCanvas().addEventListener("contextmenu", (e) => {
 
   const canvas = chartManager.map.getCanvas();
 
-  canvas.addEventListener("touchstart", (e) => {
-    if (e.touches.length !== 1) {
-      if (longPressTimer) clearTimeout(longPressTimer);
-      longPressTimer = null;
-      return;
-    }
-    const touch = e.touches[0];
-    touchStartX = touch.clientX;
-    touchStartY = touch.clientY;
+  canvas.addEventListener(
+    "touchstart",
+    (e) => {
+      if (e.touches.length !== 1) {
+        if (longPressTimer) clearTimeout(longPressTimer);
+        longPressTimer = null;
+        return;
+      }
+      const touch = e.touches[0];
+      touchStartX = touch.clientX;
+      touchStartY = touch.clientY;
 
-    longPressTimer = setTimeout(() => {
-      longPressTimer = null;
-      const rect = canvas.getBoundingClientRect();
-      const lngLat = chartManager.map.unproject([
-        touchStartX - rect.left,
-        touchStartY - rect.top,
-      ]);
-      ctxLat = lngLat.lat;
-      ctxLng = lngLat.lng;
+      longPressTimer = setTimeout(() => {
+        longPressTimer = null;
+        const rect = canvas.getBoundingClientRect();
+        const lngLat = chartManager.map.unproject([
+          touchStartX - rect.left,
+          touchStartY - rect.top,
+        ]);
+        ctxLat = lngLat.lat;
+        ctxLng = lngLat.lng;
 
-      ctxCopyLabel.textContent = `Copy ${formatDDM(ctxLat, "N", "S")} ${formatDDM(ctxLng, "E", "W")}`;
-      ctxGotoInput.style.display = "none";
+        ctxCopyLabel.textContent = `Copy ${formatDDM(ctxLat, "N", "S")} ${formatDDM(ctxLng, "E", "W")}`;
+        ctxGotoInput.style.display = "none";
 
-      ctxMenu.style.display = "block";
-      const menuW = ctxMenu.offsetWidth;
-      const menuH = ctxMenu.offsetHeight;
-      const left = Math.min(touchStartX, window.innerWidth - menuW - 4);
-      const top = Math.min(touchStartY, window.innerHeight - menuH - 4);
-      ctxMenu.style.left = `${left}px`;
-      ctxMenu.style.top = `${top}px`;
-    }, LONG_PRESS_MS);
-  }, { passive: true });
+        ctxMenu.style.display = "block";
+        const menuW = ctxMenu.offsetWidth;
+        const menuH = ctxMenu.offsetHeight;
+        const left = Math.min(touchStartX, window.innerWidth - menuW - 4);
+        const top = Math.min(touchStartY, window.innerHeight - menuH - 4);
+        ctxMenu.style.left = `${left}px`;
+        ctxMenu.style.top = `${top}px`;
+      }, LONG_PRESS_MS);
+    },
+    { passive: true },
+  );
 
-  canvas.addEventListener("touchmove", (e) => {
-    if (!longPressTimer) return;
-    const touch = e.touches[0];
-    const dx = touch.clientX - touchStartX;
-    const dy = touch.clientY - touchStartY;
-    if (dx * dx + dy * dy > MOVE_THRESHOLD * MOVE_THRESHOLD) {
-      clearTimeout(longPressTimer);
-      longPressTimer = null;
-    }
-  }, { passive: true });
+  canvas.addEventListener(
+    "touchmove",
+    (e) => {
+      if (!longPressTimer) return;
+      const touch = e.touches[0];
+      const dx = touch.clientX - touchStartX;
+      const dy = touch.clientY - touchStartY;
+      if (dx * dx + dy * dy > MOVE_THRESHOLD * MOVE_THRESHOLD) {
+        clearTimeout(longPressTimer);
+        longPressTimer = null;
+      }
+    },
+    { passive: true },
+  );
 
   canvas.addEventListener("touchend", () => {
     if (longPressTimer) {
