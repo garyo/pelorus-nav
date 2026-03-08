@@ -255,11 +255,12 @@ def _topmar_symbol(props: dict) -> str:
 CATLMK_CAIRN = 1
 CATLMK_CHIMNEY = 3
 CATLMK_FLAGSTAFF = 5
-CATLMK_MONUMENT = 7
-CATLMK_TOWER = 9
-CATLMK_WINDMILL = 15
-CATLMK_LIGHTHOUSE = 17
-CATLMK_WINDMOTOR = 20
+CATLMK_MAST = 7
+CATLMK_MONUMENT = 9
+CATLMK_DOME = 15
+CATLMK_TOWER = 17
+CATLMK_WINDMILL = 18
+CATLMK_WINDMOTOR = 19
 
 
 def _parse_first_int(value: object) -> int | None:
@@ -282,7 +283,7 @@ def _parse_first_int(value: object) -> int | None:
 def _landmark_symbol(props: dict) -> str:
     """Compute SYMBOL for a landmark (LNDMRK) based on CATLMK."""
     catlmk = _parse_first_int(props.get("CATLMK"))
-    if catlmk == CATLMK_TOWER or catlmk == CATLMK_LIGHTHOUSE:
+    if catlmk == CATLMK_TOWER:
         return "landmark-tower"
     if catlmk == CATLMK_CHIMNEY:
         return "landmark-chimney"
@@ -294,6 +295,8 @@ def _landmark_symbol(props: dict) -> str:
         return "landmark-monument"
     if catlmk == CATLMK_FLAGSTAFF:
         return "landmark-flagstaff"
+    if catlmk == CATLMK_MAST:
+        return "landmark-tower"  # mast rendered as tower
     return "landmark-default"
 
 

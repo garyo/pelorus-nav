@@ -384,13 +384,25 @@ function formatFallback(
 
 const CATLMK: Record<number, string> = {
   1: "Cairn",
+  2: "Cemetery",
   3: "Chimney",
+  4: "Dish Aerial",
   5: "Flagstaff",
-  7: "Monument",
-  9: "Tower",
-  15: "Windmill",
-  17: "Lighthouse",
-  20: "Windmotor",
+  6: "Flare Stack",
+  7: "Mast",
+  8: "Windsock",
+  9: "Monument",
+  10: "Column",
+  11: "Memorial Plaque",
+  12: "Obelisk",
+  13: "Statue",
+  14: "Cross",
+  15: "Dome",
+  16: "Radar Scanner",
+  17: "Tower",
+  18: "Windmill",
+  19: "Windmotor",
+  20: "Spire/Minaret",
 };
 
 const FUNCTN: Record<number, string> = {
@@ -516,6 +528,36 @@ function formatHarbor(
   return details;
 }
 
+const CATOFP: Record<number, string> = {
+  1: "Oil Derrick",
+  2: "Production Platform",
+  3: "Observation/Research",
+  4: "Articulated Loading Platform",
+  5: "Single Anchor Leg Mooring",
+  6: "Mooring Tower",
+  7: "Artificial Island",
+  8: "Floating Production",
+  9: "Accommodation Platform",
+  10: "Navigation Aid Support",
+};
+
+function formatOffshorePlatform(
+  props: Record<string, unknown>,
+): { label: string; value: string }[] {
+  const details: { label: string; value: string }[] = [];
+  const cat = lookupAllCodes(CATOFP, props.CATOFP);
+  addIfPresent(details, "Type", cat);
+  addIfPresent(details, "Color", lookupAllCodes(COLOUR, props.COLOUR));
+  const unit = getSettings().depthUnit;
+  if (props.HEIGHT != null && Number(props.HEIGHT) > 0) {
+    details.push({ label: "Height", value: formatDepth(Number(props.HEIGHT), unit) });
+  }
+  const conspicuous = props.CONVIS === 1 ? "Yes" : undefined;
+  addIfPresent(details, "Conspicuous", conspicuous);
+  addIfPresent(details, "Information", props.INFORM);
+  return details;
+}
+
 const CATSIL: Record<number, string> = {
   1: "Silo",
   2: "Tank",
@@ -583,6 +625,7 @@ const FORMATTERS: Record<
   BCNSPP: formatBeacon,
   SBDARE: formatSeabed,
   HRBFAC: formatHarbor,
+  OFSPLF: formatOffshorePlatform,
   MAGVAR: formatMagVar,
   SILTNK: formatSiloTank,
 };
