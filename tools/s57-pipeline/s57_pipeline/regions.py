@@ -94,7 +94,7 @@ def _parse_catalog(xml_path: Path) -> list[CellEntry]:
             # Cell name: first <gco:CharacterString> matching US cell pattern
             if tag == f"{{{NS['gco']}}}CharacterString":
                 text = (elem.text or "").strip()
-                if not current_name and re.match(r"^US\d[A-Z]{2}\d", text):
+                if not current_name and re.match(r"^US\d[A-Z0-9]{3,}", text):
                     current_name = text
                 elif current_name and not current_title and text and text != "ENC cell":
                     current_title = text
