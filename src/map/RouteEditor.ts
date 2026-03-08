@@ -1,5 +1,7 @@
 /**
  * Interactive route editor. Click to add waypoints, drag to reposition.
+ * Tap a waypoint to select it (delete / insert after).
+ * Ghost midpoints on legs allow inserting waypoints between existing ones.
  * Shows per-leg distance/bearing and running total.
  * Preview line follows cursor from last waypoint.
  */
@@ -15,10 +17,14 @@ import type { RouteLayer } from "./RouteLayer";
 
 const SOURCE_ID = "_route-edit-points";
 const LAYER_POINTS = "_route-edit-points";
+const SOURCE_MIDPOINTS = "_route-edit-midpoints";
+const LAYER_MIDPOINTS = "_route-edit-midpoints";
 const SOURCE_LINE = "_route-edit-line";
 const LAYER_LINE = "_route-edit-line";
 const SOURCE_PREVIEW = "_route-edit-preview";
 const LAYER_PREVIEW = "_route-edit-preview";
+const SOURCE_HIGHLIGHT = "_route-edit-highlight";
+const LAYER_HIGHLIGHT = "_route-edit-highlight";
 
 type EditorListener = () => void;
 
@@ -27,11 +33,13 @@ export class RouteEditor {
   private readonly routeLayer: RouteLayer;
   private route: Route | null = null;
   private editingExistingId: string | null = null;
+  private selectedIndex: number | null = null;
   private draggable: DraggablePoints | null = null;
   private clickHandler: ((e: maplibregl.MapMouseEvent) => void) | null = null;
   private moveHandler: ((e: maplibregl.MapMouseEvent) => void) | null = null;
   private bar: HTMLDivElement;
   private barText: HTMLDivElement;
+  private barActions: HTMLDivElement;
   private listeners: EditorListener[] = [];
 
   constructor(map: maplibregl.Map, routeLayer: RouteLayer) {
@@ -43,12 +51,16 @@ export class RouteEditor {
     this.bar.style.display = "none";
     this.bar.innerHTML =
       '<div class="route-editor-text"></div>' +
+      '<div class="route-editor-actions"></div>' +
       '<button class="route-editor-btn">Done</button>' +
       '<button class="route-editor-btn route-editor-btn--cancel">Cancel</button>';
     document.body.appendChild(this.bar);
 
     this.barText = this.bar.querySelector(
       ".route-editor-text",
+    ) as HTMLDivElement;
+    this.barActions = this.bar.querySelector(
+      ".route-editor-actions",
     ) as HTMLDivElement;
     this.bar
       .querySelector(".route-editor-btn:not(.route-editor-btn--cancel)")
@@ -98,6 +110,7 @@ export class RouteEditor {
       waypoints: [],
     };
 
+    this.selectedIndex = null;
     setMode("route-edit");
     this.bar.style.display = "flex";
     this.updateBar();
@@ -107,11 +120,36 @@ export class RouteEditor {
     this.clickHandler = (e: maplibregl.MapMouseEvent) => {
       if (getMode() !== "route-edit" || !this.route) return;
 
-      // Don't add waypoint if clicking on existing point (that's a drag)
-      const features = this.map.queryRenderedFeatures(e.point, {
+      // Check midpoint click first (insert between waypoints)
+      const midFeatures = this.map.queryRenderedFeatures(e.point, {
+        layers: [LAYER_MIDPOINTS],
+      });
+      if (midFeatures.length > 0) {
+        const insertAfter =
+          (midFeatures[0].properties?.insertAfter as number) ?? 0;
+        this.insertWaypointAfter(insertAfter, e.lngLat.lat, e.lngLat.lng);
+        return;
+      }
+
+      // Check waypoint click (select/deselect)
+      const wpFeatures = this.map.queryRenderedFeatures(e.point, {
         layers: [LAYER_POINTS],
       });
-      if (features.length > 0) return;
+      if (wpFeatures.length > 0) {
+        const clickedIndex = (wpFeatures[0].properties?.index as number) ?? -1;
+        if (this.selectedIndex === clickedIndex) {
+          this.deselect();
+        } else {
+          this.select(clickedIndex);
+        }
+        return;
+      }
+
+      // Background click: deselect if selected, otherwise append
+      if (this.selectedIndex !== null) {
+        this.deselect();
+        return;
+      }
 
       const wp: Waypoint = {
         lat: e.lngLat.lat,
@@ -149,6 +187,71 @@ export class RouteEditor {
     this.notify();
   }
 
+  private select(index: number): void {
+    if (!this.route || index < 0 || index >= this.route.waypoints.length)
+      return;
+    this.selectedIndex = index;
+    this.updateSources();
+    this.updateBar();
+  }
+
+  private deselect(): void {
+    this.selectedIndex = null;
+    this.updateSources();
+    this.updateBar();
+  }
+
+  private deleteSelected(): void {
+    if (!this.route || this.selectedIndex === null) return;
+    this.route.waypoints.splice(this.selectedIndex, 1);
+    // Renumber names
+    for (let i = 0; i < this.route.waypoints.length; i++) {
+      if (this.route.waypoints[i].name.match(/^WP\d+$/)) {
+        this.route.waypoints[i].name = `WP${i + 1}`;
+      }
+    }
+    this.selectedIndex = null;
+    this.updateSources();
+    this.updateBar();
+    this.setupDrag();
+  }
+
+  private insertWaypointAfter(
+    afterIndex: number,
+    lat: number,
+    lon: number,
+  ): void {
+    if (!this.route) return;
+    const newWp: Waypoint = { lat, lon, name: "" };
+    this.route.waypoints.splice(afterIndex + 1, 0, newWp);
+    // Renumber names
+    for (let i = 0; i < this.route.waypoints.length; i++) {
+      this.route.waypoints[i].name = `WP${i + 1}`;
+    }
+    this.selectedIndex = afterIndex + 1;
+    this.updateSources();
+    this.updateBar();
+    this.setupDrag();
+  }
+
+  private insertAfterSelected(): void {
+    if (!this.route || this.selectedIndex === null) return;
+    const wps = this.route.waypoints;
+    const idx = this.selectedIndex;
+    let lat: number;
+    let lon: number;
+    if (idx < wps.length - 1) {
+      // Midpoint between selected and next
+      lat = (wps[idx].lat + wps[idx + 1].lat) / 2;
+      lon = (wps[idx].lon + wps[idx + 1].lon) / 2;
+    } else {
+      // After last point: offset slightly
+      lat = wps[idx].lat + 0.005;
+      lon = wps[idx].lon + 0.005;
+    }
+    this.insertWaypointAfter(idx, lat, lon);
+  }
+
   private cleanup(): void {
     // Restore the original route display
     if (this.editingExistingId) {
@@ -169,6 +272,7 @@ export class RouteEditor {
       this.draggable = null;
     }
     this.route = null;
+    this.selectedIndex = null;
     this.bar.style.display = "none";
     this.clearSources();
     if (getMode() === "route-edit") {
@@ -198,6 +302,16 @@ export class RouteEditor {
       data: { type: "FeatureCollection", features: [] },
     });
 
+    this.map.addSource(SOURCE_MIDPOINTS, {
+      type: "geojson",
+      data: { type: "FeatureCollection", features: [] },
+    });
+
+    this.map.addSource(SOURCE_HIGHLIGHT, {
+      type: "geojson",
+      data: { type: "FeatureCollection", features: [] },
+    });
+
     this.map.addLayer({
       id: LAYER_LINE,
       type: "line",
@@ -220,7 +334,34 @@ export class RouteEditor {
       },
     });
 
+    // Selection highlight ring (rendered below waypoint icons)
+    this.map.addLayer({
+      id: LAYER_HIGHLIGHT,
+      type: "circle",
+      source: SOURCE_HIGHLIGHT,
+      paint: {
+        "circle-radius": 18,
+        "circle-color": "transparent",
+        "circle-stroke-color": "#ffcc00",
+        "circle-stroke-width": 3,
+      },
+    });
+
     ensurePointIcons(this.map);
+
+    // Ghost midpoints (smaller, semi-transparent)
+    this.map.addLayer({
+      id: LAYER_MIDPOINTS,
+      type: "symbol",
+      source: SOURCE_MIDPOINTS,
+      layout: {
+        "icon-image": ROLE_ICON_EXPR,
+        "icon-size": 0.8,
+        "icon-allow-overlap": true,
+      },
+    });
+
+    // Real waypoints on top
     this.map.addLayer({
       id: LAYER_POINTS,
       type: "symbol",
@@ -260,6 +401,12 @@ export class RouteEditor {
     const lineSrc = this.map.getSource(SOURCE_LINE) as
       | maplibregl.GeoJSONSource
       | undefined;
+    const midSrc = this.map.getSource(SOURCE_MIDPOINTS) as
+      | maplibregl.GeoJSONSource
+      | undefined;
+    const hlSrc = this.map.getSource(SOURCE_HIGHLIGHT) as
+      | maplibregl.GeoJSONSource
+      | undefined;
     if (!ptSrc || !lineSrc) return;
 
     const points: GeoJSON.Feature[] = wps.map((wp, i) => ({
@@ -272,6 +419,40 @@ export class RouteEditor {
       geometry: { type: "Point", coordinates: [wp.lon, wp.lat] },
     }));
     ptSrc.setData({ type: "FeatureCollection", features: points });
+
+    // Ghost midpoints between consecutive waypoints
+    if (midSrc) {
+      const midpoints: GeoJSON.Feature[] = [];
+      for (let i = 0; i < wps.length - 1; i++) {
+        const midLat = (wps[i].lat + wps[i + 1].lat) / 2;
+        const midLon = (wps[i].lon + wps[i + 1].lon) / 2;
+        midpoints.push({
+          type: "Feature",
+          properties: { role: "midpoint", insertAfter: i },
+          geometry: { type: "Point", coordinates: [midLon, midLat] },
+        });
+      }
+      midSrc.setData({ type: "FeatureCollection", features: midpoints });
+    }
+
+    // Selection highlight
+    if (hlSrc) {
+      if (this.selectedIndex !== null && wps[this.selectedIndex]) {
+        const sel = wps[this.selectedIndex];
+        hlSrc.setData({
+          type: "FeatureCollection",
+          features: [
+            {
+              type: "Feature",
+              properties: {},
+              geometry: { type: "Point", coordinates: [sel.lon, sel.lat] },
+            },
+          ],
+        });
+      } else {
+        hlSrc.setData({ type: "FeatureCollection", features: [] });
+      }
+    }
 
     if (wps.length >= 2) {
       lineSrc.setData({
@@ -324,7 +505,13 @@ export class RouteEditor {
   }
 
   private clearSources(): void {
-    for (const sid of [SOURCE_ID, SOURCE_LINE, SOURCE_PREVIEW]) {
+    for (const sid of [
+      SOURCE_ID,
+      SOURCE_LINE,
+      SOURCE_PREVIEW,
+      SOURCE_MIDPOINTS,
+      SOURCE_HIGHLIGHT,
+    ]) {
       const src = this.map.getSource(sid) as
         | maplibregl.GeoJSONSource
         | undefined;
@@ -335,6 +522,31 @@ export class RouteEditor {
   private updateBar(): void {
     if (!this.route) return;
     const wps = this.route.waypoints;
+
+    // Selection mode: show selected WP info with actions
+    if (this.selectedIndex !== null && wps[this.selectedIndex]) {
+      const wp = wps[this.selectedIndex];
+      const label = wp.name || `WP${this.selectedIndex + 1}`;
+      this.barText.innerHTML = `<strong>${label}</strong>`;
+
+      this.barActions.innerHTML = "";
+      const delBtn = document.createElement("button");
+      delBtn.className = "route-editor-btn route-editor-btn--danger";
+      delBtn.textContent = "Delete";
+      delBtn.addEventListener("click", () => this.deleteSelected());
+
+      const insBtn = document.createElement("button");
+      insBtn.className = "route-editor-btn route-editor-btn--secondary";
+      insBtn.textContent = "Insert After";
+      insBtn.addEventListener("click", () => this.insertAfterSelected());
+
+      this.barActions.append(delBtn, insBtn);
+      return;
+    }
+
+    // Normal mode: summary
+    this.barActions.innerHTML = "";
+
     if (wps.length === 0) {
       this.barText.textContent = "Click to place waypoints";
       return;

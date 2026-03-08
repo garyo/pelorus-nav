@@ -15,6 +15,7 @@ const SIZE = 28;
 export const POINT_ICON_START = "_pt-start";
 export const POINT_ICON_WAYPOINT = "_pt-waypoint";
 export const POINT_ICON_FINISH = "_pt-finish";
+export const POINT_ICON_MIDPOINT = "_pt-midpoint";
 
 /** Register all point icons on the map. Safe to call multiple times. */
 export function ensurePointIcons(map: maplibregl.Map): void {
@@ -23,6 +24,7 @@ export function ensurePointIcons(map: maplibregl.Map): void {
   addIcon(map, POINT_ICON_START, drawStart);
   addIcon(map, POINT_ICON_WAYPOINT, drawWaypoint);
   addIcon(map, POINT_ICON_FINISH, drawFinish);
+  addIcon(map, POINT_ICON_MIDPOINT, drawMidpoint);
 }
 
 /**
@@ -38,6 +40,8 @@ export const ROLE_ICON_EXPR: maplibregl.ExpressionSpecification = [
   POINT_ICON_START,
   "finish",
   POINT_ICON_FINISH,
+  "midpoint",
+  POINT_ICON_MIDPOINT,
   POINT_ICON_WAYPOINT, // default
 ];
 
@@ -97,6 +101,31 @@ function drawWaypoint(ctx: CanvasRenderingContext2D): void {
   ctx.fill();
   ctx.strokeStyle = "#fff";
   ctx.lineWidth = 3;
+  ctx.stroke();
+}
+
+/** Small semi-transparent circle with plus — ghost midpoint for insertion. */
+function drawMidpoint(ctx: CanvasRenderingContext2D): void {
+  const cx = SIZE / 2;
+  const r = cx * 0.55;
+
+  ctx.beginPath();
+  ctx.arc(cx, cx, r, 0, Math.PI * 2);
+  ctx.fillStyle = "rgba(68, 136, 204, 0.5)";
+  ctx.fill();
+  ctx.strokeStyle = "rgba(255, 255, 255, 0.6)";
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+
+  // Plus sign
+  const s = r * 0.55;
+  ctx.strokeStyle = "rgba(255, 255, 255, 0.8)";
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(cx - s, cx);
+  ctx.lineTo(cx + s, cx);
+  ctx.moveTo(cx, cx - s);
+  ctx.lineTo(cx, cx + s);
   ctx.stroke();
 }
 

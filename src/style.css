@@ -734,6 +734,27 @@ body {
   background: #888;
 }
 
+.route-editor-btn--danger {
+  background: #cc3333;
+}
+
+.route-editor-btn--danger:hover {
+  background: #dd4444;
+}
+
+.route-editor-btn--secondary {
+  background: #555;
+}
+
+.route-editor-btn--secondary:hover {
+  background: #777;
+}
+
+.route-editor-actions {
+  display: flex;
+  gap: 6px;
+}
+
 @media (max-width: 480px) {
   .feature-info-panel {
     width: 100%;
