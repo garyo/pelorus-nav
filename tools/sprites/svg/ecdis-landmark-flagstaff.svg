@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32">
+  <!-- Flagstaff: pole with flag -->
+  <line x1="12" y1="4" x2="12" y2="28" stroke="#000" stroke-width="2"/>
+  <!-- Flag -->
+  <polygon points="12,4 24,8 12,12" fill="#000" stroke="#000" stroke-width="1"/>
+</svg>

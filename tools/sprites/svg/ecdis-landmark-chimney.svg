@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32">
+  <!-- Chimney: narrow tall rectangle with smoke puff -->
+  <rect x="13" y="8" width="6" height="22" fill="none" stroke="#000" stroke-width="2"/>
+  <!-- Smoke puff -->
+  <circle cx="19" cy="6" r="3" fill="none" stroke="#000" stroke-width="1.5"/>
+</svg>

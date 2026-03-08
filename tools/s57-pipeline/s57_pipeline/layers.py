@@ -97,6 +97,7 @@ LAYER_CONFIGS: list[LayerConfig] = [
     # Infrastructure (additional)
     LayerConfig("HRBFAC", "infrastructure", DEFAULT_ARGS),
     LayerConfig("OFSPLF", "infrastructure", HAZARD_ARGS),
+    LayerConfig("SILTNK", "infrastructure", DEFAULT_ARGS),
     LayerConfig("MAGVAR", "labels", DENSE_POINT_ARGS),
 ]
 

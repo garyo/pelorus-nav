@@ -251,6 +251,52 @@ def _topmar_symbol(props: dict) -> str:
     return topshp_map.get(topshp, "topmark-sphere")
 
 
+# S-57 CATLMK (category of landmark) codes
+CATLMK_CAIRN = 1
+CATLMK_CHIMNEY = 3
+CATLMK_FLAGSTAFF = 5
+CATLMK_MONUMENT = 7
+CATLMK_TOWER = 9
+CATLMK_WINDMILL = 15
+CATLMK_LIGHTHOUSE = 17
+CATLMK_WINDMOTOR = 20
+
+
+def _parse_first_int(value: object) -> int | None:
+    """Extract the first integer from a value that may be int, str, or list."""
+    if isinstance(value, (int, float)):
+        return int(value)
+    if isinstance(value, str):
+        try:
+            return int(value)
+        except ValueError:
+            return None
+    if isinstance(value, list) and len(value) > 0:
+        try:
+            return int(value[0])
+        except (ValueError, TypeError):
+            return None
+    return None
+
+
+def _landmark_symbol(props: dict) -> str:
+    """Compute SYMBOL for a landmark (LNDMRK) based on CATLMK."""
+    catlmk = _parse_first_int(props.get("CATLMK"))
+    if catlmk == CATLMK_TOWER or catlmk == CATLMK_LIGHTHOUSE:
+        return "landmark-tower"
+    if catlmk == CATLMK_CHIMNEY:
+        return "landmark-chimney"
+    if catlmk == CATLMK_WINDMOTOR:
+        return "landmark-windmotor"
+    if catlmk == CATLMK_WINDMILL:
+        return "landmark-windmill"
+    if catlmk == CATLMK_MONUMENT:
+        return "landmark-monument"
+    if catlmk == CATLMK_FLAGSTAFF:
+        return "landmark-flagstaff"
+    return "landmark-default"
+
+
 def compute_symbol(props: dict, layer_name: str) -> str | None:
     """Compute the semantic SYMBOL value for a feature.
 
@@ -297,6 +343,10 @@ def compute_symbol(props: dict, layer_name: str) -> str | None:
         return "harbor"
     if layer_name == "OFSPLF":
         return "platform"
+    if layer_name == "LNDMRK":
+        return _landmark_symbol(props)
+    if layer_name == "SILTNK":
+        return "tank"
     return None
 
 

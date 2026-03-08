@@ -121,6 +121,7 @@ const LAYER_NAMES: Record<string, string> = {
   DMPGRD: "Dumping Ground",
   HRBFAC: "Harbor Facility",
   OFSPLF: "Offshore Platform",
+  SILTNK: "Silo/Tank",
   MAGVAR: "Magnetic Variation",
   DAYMAR: "Daymark",
   TOPMAR: "Topmark",
@@ -392,13 +393,64 @@ const CATLMK: Record<number, string> = {
   20: "Windmotor",
 };
 
+const FUNCTN: Record<number, string> = {
+  2: "Harbour Master's Office",
+  4: "Coastguard Station",
+  20: "Church",
+  21: "Chapel",
+  22: "Temple",
+  23: "Pagoda",
+  24: "Shinto Shrine",
+  25: "Buddhist Temple",
+  26: "Mosque",
+  27: "Marabout",
+  28: "Lookout",
+  29: "Communication",
+  30: "Television",
+  31: "Radio",
+  32: "Radar",
+  33: "Light Support",
+  35: "Microwave",
+  36: "Cooling",
+  37: "Observation",
+  38: "Timeball",
+  39: "Clock",
+  40: "Control",
+  41: "Airship Mooring",
+  42: "Stadium",
+  43: "Bus Station",
+};
+
+const NATCON: Record<number, string> = {
+  1: "Masonry",
+  2: "Concrete",
+  3: "Boulder",
+  4: "Hard-surfaced",
+  5: "Unsurfaced",
+  6: "Wooden",
+  7: "Metal",
+  8: "Glass Reinforced Plastic",
+};
+
 function formatLandmark(
   props: Record<string, unknown>,
 ): { label: string; value: string }[] {
   const details: { label: string; value: string }[] = [];
-  const cat = lookupCode(CATLMK, props.CATLMK);
-  if (cat) details.push({ label: "Type", value: cat });
+  const cat = lookupAllCodes(CATLMK, props.CATLMK);
+  addIfPresent(details, "Type", cat);
+  const func = lookupAllCodes(FUNCTN, props.FUNCTN);
+  addIfPresent(details, "Function", func);
   addIfPresent(details, "Color", lookupAllCodes(COLOUR, props.COLOUR));
+  const natcon = lookupAllCodes(NATCON, props.NATCON);
+  addIfPresent(details, "Construction", natcon);
+  if (props.HEIGHT != null && Number(props.HEIGHT) > 0) {
+    details.push({ label: "Height", value: `${props.HEIGHT} m` });
+  }
+  if (props.ELEVAT != null && Number(props.ELEVAT) > 0) {
+    details.push({ label: "Elevation", value: `${props.ELEVAT} m` });
+  }
+  const conspicuous = props.CONVIS === 1 ? "Yes" : undefined;
+  addIfPresent(details, "Conspicuous", conspicuous);
   addIfPresent(details, "Information", props.INFORM);
   return details;
 }
@@ -463,6 +515,34 @@ function formatHarbor(
   return details;
 }
 
+const CATSIL: Record<number, string> = {
+  1: "Silo",
+  2: "Tank",
+  3: "Grain Elevator",
+  4: "Water Tower",
+};
+
+function formatSiloTank(
+  props: Record<string, unknown>,
+): { label: string; value: string }[] {
+  const details: { label: string; value: string }[] = [];
+  const cat = lookupAllCodes(CATSIL, props.CATSIL);
+  addIfPresent(details, "Type", cat);
+  addIfPresent(details, "Color", lookupAllCodes(COLOUR, props.COLOUR));
+  const natcon = lookupAllCodes(NATCON, props.NATCON);
+  addIfPresent(details, "Construction", natcon);
+  if (props.HEIGHT != null && Number(props.HEIGHT) > 0) {
+    details.push({ label: "Height", value: `${props.HEIGHT} m` });
+  }
+  if (props.ELEVAT != null && Number(props.ELEVAT) > 0) {
+    details.push({ label: "Elevation", value: `${props.ELEVAT} m` });
+  }
+  const conspicuous = props.CONVIS === 1 ? "Yes" : undefined;
+  addIfPresent(details, "Conspicuous", conspicuous);
+  addIfPresent(details, "Information", props.INFORM);
+  return details;
+}
+
 function formatMagVar(
   props: Record<string, unknown>,
 ): { label: string; value: string }[] {
@@ -502,6 +582,7 @@ const FORMATTERS: Record<
   SBDARE: formatSeabed,
   HRBFAC: formatHarbor,
   MAGVAR: formatMagVar,
+  SILTNK: formatSiloTank,
 };
 
 function formatDDM(deg: number, pos: string, neg: string): string {

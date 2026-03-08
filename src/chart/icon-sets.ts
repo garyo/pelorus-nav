@@ -84,6 +84,16 @@ export const ECDIS_SIMPLIFIED: Record<string, string> = {
   // Infrastructure
   harbor: "ecdis-harbor",
   platform: "ecdis-platform",
+  tank: "ecdis-tank",
+
+  // Landmarks
+  "landmark-tower": "ecdis-landmark-tower",
+  "landmark-chimney": "ecdis-landmark-chimney",
+  "landmark-windmotor": "ecdis-landmark-windmotor",
+  "landmark-windmill": "ecdis-landmark-windmill",
+  "landmark-monument": "ecdis-landmark-monument",
+  "landmark-flagstaff": "ecdis-landmark-flagstaff",
+  "landmark-default": "ecdis-landmark-default",
 };
 
 /**

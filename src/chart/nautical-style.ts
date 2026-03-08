@@ -78,6 +78,9 @@ const LAYER_GROUPS: Record<string, string> = {
   "s57-cblohd": "cablesAndPipes",
   "s57-pipare": "cablesAndPipes",
   "s57-pipsol": "cablesAndPipes",
+  "s57-siltnk": "facilities",
+  "s57-siltnk-outline": "facilities",
+  "s57-siltnk-icon": "facilities",
   "s57-hrbfac": "facilities",
   "s57-ofsplf": "facilities",
   "s57-dmpgrd": "facilities",
@@ -97,7 +100,7 @@ export function getNauticalLayers(
 ): LayerSpecification[] {
   // Detail levels map to display categories:
   //   -2, -1: DISPLAYBASE only
-  //   0: DISPLAYBASE + STANDARD
+  //   0: DISPLAYBASE + STANDARD (+ selected OTHER layers at high zoom)
   //   1: DISPLAYBASE + STANDARD + OTHER
   //   2: all (+ lower minzoom for dense features)
   const detailMinzoom = (base: number) =>
@@ -107,13 +110,15 @@ export function getNauticalLayers(
   const showStandard = detailOffset >= 0;
   const showOther = detailOffset >= 1;
 
-  // Filter helper: returns false for layers that should be hidden
+  // Filter helper: returns false for layers that should be hidden.
+  // OTHER layers are always *built* when Standard is shown (so they can
+  // appear at high zoom), but filtered in the final step below.
   const catFilter = (
     category: "DISPLAYBASE" | "STANDARD" | "OTHER",
   ): boolean => {
     if (category === "DISPLAYBASE") return true;
     if (category === "STANDARD") return showStandard;
-    return showOther;
+    return showOther || showStandard; // build OTHER layers; filter later
   };
 
   // Build layer array, filtering by display category
@@ -780,21 +785,26 @@ export function getNauticalLayers(
         "text-halo-width": 1.5,
       },
     },
-    // Landmarks (lighthouses, monuments, towers)
+    // Landmarks (lighthouses, monuments, towers, chimneys, windmills)
     {
-      id: "s57-lndmrk-label",
+      id: "s57-lndmrk",
       type: "symbol",
       source: sourceId,
       "source-layer": "LNDMRK",
       minzoom: detailMinzoom(12),
-      filter: ["has", "OBJNAM"],
       layout: {
-        "text-field": ["get", "OBJNAM"],
+        "icon-image": ICON_EXPR,
+        "icon-size": 0.6,
+        "icon-allow-overlap": true,
+        "text-field": [
+          "get",
+          "OBJNAM",
+        ] as unknown as ExpressionSpecification,
         "text-size": 11,
-        "text-allow-overlap": true,
-        "text-padding": 5,
-        "text-anchor": "top",
-        "text-offset": [0, 0.5],
+        "text-allow-overlap": false,
+        "text-optional": true,
+        "text-anchor": "top" as const,
+        "text-offset": [0, 1.2] as [number, number],
       },
       paint: {
         "text-color": s52Colour("CHBLK"),
@@ -1036,6 +1046,41 @@ export function getNauticalLayers(
             },
           },
           {
+            id: "s57-siltnk",
+            type: "fill" as const,
+            source: sourceId,
+            "source-layer": "SILTNK",
+            minzoom: detailMinzoom(13),
+            paint: {
+              "fill-color": s52Colour("CHBRN"),
+              "fill-opacity": 0.3,
+            },
+          },
+          {
+            id: "s57-siltnk-outline",
+            type: "line" as const,
+            source: sourceId,
+            "source-layer": "SILTNK",
+            minzoom: detailMinzoom(13),
+            paint: {
+              "line-color": s52Colour("CHBLK"),
+              "line-width": 1,
+            },
+          },
+          {
+            id: "s57-siltnk-icon",
+            type: "symbol" as const,
+            source: sourceId,
+            "source-layer": "SILTNK",
+            minzoom: detailMinzoom(13),
+            layout: {
+              "icon-image": ICON_EXPR,
+              "icon-size": 0.5,
+              "icon-allow-overlap": true,
+            },
+            paint: {},
+          },
+          {
             id: "s57-hrbfac",
             type: "symbol" as const,
             source: sourceId,
@@ -1172,7 +1217,7 @@ export function getNauticalLayers(
       "s57-lights": "STANDARD",
       "s57-lights-glow": "STANDARD",
       "s57-fogsig": "STANDARD",
-      "s57-lndmrk-label": "STANDARD",
+      "s57-lndmrk": "STANDARD",
       "s57-lndare-label": "STANDARD",
       "s57-seaare-label": "STANDARD",
       "s57-navlne": "STANDARD",
@@ -1198,6 +1243,9 @@ export function getNauticalLayers(
       "s57-pipsol": "OTHER",
       "s57-dmpgrd": "OTHER",
       "s57-dmpgrd-outline": "OTHER",
+      "s57-siltnk": "OTHER",
+      "s57-siltnk-outline": "OTHER",
+      "s57-siltnk-icon": "OTHER",
       "s57-hrbfac": "OTHER",
       "s57-ofsplf": "OTHER",
       "s57-magvar": "OTHER",
@@ -1205,11 +1253,38 @@ export function getNauticalLayers(
       "s57-topmar": "OTHER",
     };
 
+  // Per-layer minzoom at which OTHER layers appear at Standard detail.
+  // Layers not listed here remain hidden at Standard detail (only shown
+  // at Standard+ / Full). Add entries here as we identify OTHER layers
+  // that are useful at high zoom without adding clutter.
+  const OTHER_STANDARD_MINZOOM: Record<string, number> = {
+    "s57-siltnk": 14,
+    "s57-siltnk-outline": 14,
+    "s57-siltnk-icon": 14,
+    "s57-hrbfac": 14,
+    "s57-ofsplf": 14,
+    "s57-buisgl": 14, // not OTHER, but included for reference
+  };
+
   return layers.filter((layer) => {
     const cat = LAYER_CATEGORIES[layer.id];
-    if (cat !== undefined && !catFilter(cat)) return false;
     const group = LAYER_GROUPS[layer.id];
     if (group !== undefined && layerGroups[group] === false) return false;
+
+    // OTHER layers at Standard detail: include only if they have a
+    // high-zoom override, and raise their minzoom accordingly.
+    if (cat === "OTHER" && !showOther) {
+      const overrideZoom = OTHER_STANDARD_MINZOOM[layer.id];
+      if (overrideZoom === undefined) return false;
+      const existing = (layer as { minzoom?: number }).minzoom ?? 0;
+      (layer as { minzoom?: number }).minzoom = Math.max(
+        existing,
+        overrideZoom,
+      );
+      return true;
+    }
+
+    if (cat !== undefined && !catFilter(cat)) return false;
     return true;
   });
 }
