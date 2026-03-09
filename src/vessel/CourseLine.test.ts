@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { circularInterpolate, circularMeanDeg } from "./CourseLine";
+import {
+  circularInterpolate,
+  circularMeanDeg,
+} from "../navigation/CourseSmoothing";
 
 describe("circularMeanDeg", () => {
   it("returns the single angle for a single-element array", () => {

@@ -24,6 +24,7 @@ import {
   SimulatorProvider,
   WebSerialNMEAProvider,
 } from "./navigation";
+import { CourseSmoothing } from "./navigation/CourseSmoothing";
 import { getSettings, onSettingsChange, updateSettings } from "./settings";
 import { ChartCachePanel } from "./ui/ChartCachePanel";
 import { createInstrumentHUD } from "./ui/InstrumentHUD";
@@ -119,6 +120,9 @@ navManager.registerProvider(new SignalKProvider());
 // Vessel display layer
 const vesselLayer = new VesselLayer(chartManager.map);
 
+// Shared course smoother for damped COG/SOG
+const courseSmoother = new CourseSmoothing();
+
 // Chart mode controller (follow, course-up, north-up, free)
 const chartMode = new ChartModeController(chartManager.map);
 
@@ -134,8 +138,9 @@ const courseLine = new CourseLine(chartManager.map);
 // Wire navigation data to vessel layer, chart mode, and course line
 navManager.subscribe((data) => {
   vesselLayer.update(data);
-  chartMode.update(data);
-  courseLine.update(data);
+  const smoothed = courseSmoother.update(data.cog, data.sog, data.timestamp);
+  chartMode.update(data, smoothed);
+  courseLine.update(data, smoothed);
 
   // Show/hide re-center button
   recenterBtn.setVisible(chartMode.getMode() === "free");

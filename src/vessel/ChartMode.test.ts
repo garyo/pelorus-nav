@@ -79,7 +79,7 @@ describe("ChartModeController", () => {
     controller.setMode("course-up");
     controller.update(makeNavData({ heading: 45 }));
     expect(mockMap.jumpTo).toHaveBeenCalledWith(
-      expect.objectContaining({ bearing: -45 }),
+      expect.objectContaining({ bearing: 45 }),
     );
   });
 

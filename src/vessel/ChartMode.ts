@@ -4,6 +4,7 @@
  */
 
 import type maplibregl from "maplibre-gl";
+import type { SmoothedCourse } from "../navigation/CourseSmoothing";
 import type { NavigationData } from "../navigation/NavigationData";
 import type { ChartMode as ChartModeType } from "../settings";
 import { getSettings, updateSettings } from "../settings";
@@ -12,6 +13,7 @@ export class ChartModeController {
   private readonly map: maplibregl.Map;
   private mode: ChartModeType;
   private lastData: NavigationData | null = null;
+  private lastSmoothed: SmoothedCourse | null = null;
 
   constructor(map: maplibregl.Map) {
     this.map = map;
@@ -48,8 +50,11 @@ export class ChartModeController {
     }
   }
 
-  update(data: NavigationData): void {
+  update(data: NavigationData, smoothed?: SmoothedCourse | null): void {
     this.lastData = data;
+    if (smoothed !== undefined) {
+      this.lastSmoothed = smoothed;
+    }
     if (this.mode !== "free") {
       this.applyPosition(data);
     }
@@ -63,8 +68,8 @@ export class ChartModeController {
         this.map.jumpTo({ center });
         break;
       case "course-up": {
-        const bearing = data.heading ?? data.cog ?? 0;
-        this.map.jumpTo({ center, bearing: -bearing });
+        const bearing = this.lastSmoothed?.cog ?? data.heading ?? data.cog ?? 0;
+        this.map.jumpTo({ center, bearing });
         break;
       }
       case "north-up":
