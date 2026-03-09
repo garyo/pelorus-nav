@@ -789,7 +789,15 @@ export function getNauticalLayers(
       filter: ["has", "OBJNAM"],
       layout: {
         "text-field": ["get", "OBJNAM"],
-        "text-size": 13,
+        "text-size": [
+          "interpolate",
+          ["linear"],
+          ["zoom"],
+          11,
+          10,
+          14,
+          13,
+        ] as unknown as number,
         "text-font": ["Noto Sans Italic"],
         "text-allow-overlap": false,
         "text-padding": 10,
@@ -852,7 +860,15 @@ export function getNauticalLayers(
       filter: ["has", "OBJNAM"],
       layout: {
         "text-field": ["get", "OBJNAM"],
-        "text-size": 12,
+        "text-size": [
+          "interpolate",
+          ["linear"],
+          ["zoom"],
+          10,
+          10,
+          14,
+          12,
+        ] as unknown as number,
         "text-font": ["Noto Sans Italic"],
         "text-allow-overlap": false,
         "text-padding": 10,
