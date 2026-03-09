@@ -19,6 +19,7 @@ import { TrackLayer } from "./map/TrackLayer";
 import { TrackRecorder } from "./map/TrackRecorder";
 import {
   BrowserGeolocationProvider,
+  type NavigationData,
   NavigationDataManager,
   SignalKProvider,
   SimulatorProvider,
@@ -128,22 +129,52 @@ const chartMode = new ChartModeController(chartManager.map);
 
 // Re-center button
 const recenterBtn = new RecenterButton({
-  onRecenter: () => chartMode.setMode("follow"),
+  onRecenter: () => chartMode.recenter(),
 });
 chartManager.map.addControl(recenterBtn, "bottom-left");
 
 // Course line (projected COG line)
 const courseLine = new CourseLine(chartManager.map);
 
-// Wire navigation data to vessel layer, chart mode, and course line
+// Wire navigation data to vessel layer and feed course smoother
+let lastNavData: NavigationData | null = null;
 navManager.subscribe((data) => {
+  lastNavData = data;
   vesselLayer.update(data);
-  const smoothed = courseSmoother.update(data.cog, data.sog, data.timestamp);
-  chartMode.update(data, smoothed);
-  courseLine.update(data, smoothed);
+  courseSmoother.addSample(
+    data.cog,
+    data.sog,
+    data.latitude,
+    data.longitude,
+    data.timestamp,
+  );
+  chartManager.map.triggerRepaint();
 
   // Show/hide re-center button
   recenterBtn.setVisible(chartMode.getMode() === "free");
+});
+
+// Per-frame smoothing for fluid course line and map rotation
+let prevCog = -1;
+let prevLat = -999;
+let prevLon = -999;
+chartManager.map.on("render", () => {
+  if (!lastNavData) return;
+  const smoothed = courseSmoother.smooth(performance.now());
+  if (!smoothed) return;
+  // Always update position/bearing (needed for recentering on straight courses)
+  chartMode.update(lastNavData, smoothed);
+  courseLine.update(lastNavData, smoothed);
+  // Keep animating while values are still converging
+  const cogDelta = Math.abs(smoothed.cog - prevCog);
+  const posDelta =
+    Math.abs(smoothed.lat - prevLat) + Math.abs(smoothed.lon - prevLon);
+  prevCog = smoothed.cog;
+  prevLat = smoothed.lat;
+  prevLon = smoothed.lon;
+  if (cogDelta >= 0.01 || posDelta >= 1e-7) {
+    chartManager.map.triggerRepaint();
+  }
 });
 
 // React to chart mode changes from settings
@@ -154,6 +185,7 @@ onSettingsChange((s) => {
   if (s.gpsSource !== navManager.getActiveProvider()?.id) {
     navManager.setActiveProvider(s.gpsSource);
   }
+  simulator.setSpeedMultiplier(s.simulatorSpeed);
   // Switch chart region
   if (vectorProvider.setRegion(s.activeRegion)) {
     vectorProvider.loadOfflineCoverage().then(() => {

@@ -103,4 +103,22 @@ describe("ChartModeController", () => {
     mockMap._fire("movestart", {});
     expect(controller.getMode()).toBe("follow");
   });
+
+  it("recenter restores previous non-free mode", () => {
+    controller.setMode("course-up");
+    // User pans → free
+    mockMap._fire("movestart", { originalEvent: { type: "mousedown" } });
+    expect(controller.getMode()).toBe("free");
+    // Recenter should restore course-up, not follow
+    controller.recenter();
+    expect(controller.getMode()).toBe("course-up");
+  });
+
+  it("recenter restores north-up when that was active", () => {
+    controller.setMode("north-up");
+    mockMap._fire("movestart", { originalEvent: { type: "mousedown" } });
+    expect(controller.getMode()).toBe("free");
+    controller.recenter();
+    expect(controller.getMode()).toBe("north-up");
+  });
 });

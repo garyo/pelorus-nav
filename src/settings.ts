@@ -23,6 +23,7 @@ export interface Settings {
   activeTrackColor: string;
   activeRegion: string;
   courseLineDuration: CourseLineDuration;
+  simulatorSpeed: number;
 }
 
 const STORAGE_KEY = "pelorus-nav-settings";
@@ -57,6 +58,7 @@ const DEFAULTS: Settings = {
   activeTrackColor: "#ff4444",
   activeRegion: "new-england",
   courseLineDuration: 0,
+  simulatorSpeed: 1,
 };
 
 type SettingsListener = (settings: Settings) => void;

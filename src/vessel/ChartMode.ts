@@ -12,12 +12,17 @@ import { getSettings, updateSettings } from "../settings";
 export class ChartModeController {
   private readonly map: maplibregl.Map;
   private mode: ChartModeType;
+  /** The last non-free mode, so recenter can restore it. */
+  private modeBeforeFree: ChartModeType = "north-up";
   private lastData: NavigationData | null = null;
   private lastSmoothed: SmoothedCourse | null = null;
 
   constructor(map: maplibregl.Map) {
     this.map = map;
     this.mode = getSettings().chartMode;
+    if (this.mode !== "free") {
+      this.modeBeforeFree = this.mode;
+    }
 
     // Detect user-initiated pan/zoom → switch to free mode
     this.map.on("movestart", (e) => {
@@ -26,6 +31,7 @@ export class ChartModeController {
         this.mode !== "free" &&
         (e as maplibregl.MapMouseEvent).originalEvent
       ) {
+        this.modeBeforeFree = this.mode;
         this.setMode("free");
       }
     });
@@ -35,8 +41,16 @@ export class ChartModeController {
     return this.mode;
   }
 
+  /** Restore the previous non-free mode (used by recenter button). */
+  recenter(): void {
+    this.setMode(this.modeBeforeFree);
+  }
+
   setMode(mode: ChartModeType): void {
     this.mode = mode;
+    if (mode !== "free") {
+      this.modeBeforeFree = mode;
+    }
     updateSettings({ chartMode: mode });
 
     // When switching to north-up, reset bearing
@@ -61,14 +75,17 @@ export class ChartModeController {
   }
 
   private applyPosition(data: NavigationData): void {
-    const center: [number, number] = [data.longitude, data.latitude];
+    const s = this.lastSmoothed;
+    const center: [number, number] = s
+      ? [s.lon, s.lat]
+      : [data.longitude, data.latitude];
 
     switch (this.mode) {
       case "follow":
         this.map.jumpTo({ center });
         break;
       case "course-up": {
-        const bearing = this.lastSmoothed?.cog ?? data.heading ?? data.cog ?? 0;
+        const bearing = s?.cog ?? data.heading ?? data.cog ?? 0;
         this.map.jumpTo({ center, bearing });
         break;
       }

@@ -29,6 +29,8 @@ export interface SimulatorOptions {
   position?: [number, number];
   /** Update interval in ms */
   intervalMs?: number;
+  /** Time multiplier for faster simulation (e.g. 10 = 10x speed) */
+  speedMultiplier?: number;
 }
 
 /** Default Boston Harbor loop */
@@ -53,7 +55,7 @@ export class SimulatorProvider implements NavigationDataProvider {
   readonly name = "Simulator";
 
   private opts: Required<
-    Pick<SimulatorOptions, "mode" | "speed" | "intervalMs">
+    Pick<SimulatorOptions, "mode" | "speed" | "intervalMs" | "speedMultiplier">
   > &
     SimulatorOptions;
   private listeners: NavigationDataCallback[] = [];
@@ -69,6 +71,7 @@ export class SimulatorProvider implements NavigationDataProvider {
       radius: options?.radius ?? 0.5,
       position: options?.position ?? [42.355, -71.045],
       intervalMs: options?.intervalMs ?? DEFAULT_INTERVAL_MS,
+      speedMultiplier: options?.speedMultiplier ?? 1,
     };
   }
 
@@ -99,8 +102,13 @@ export class SimulatorProvider implements NavigationDataProvider {
     if (idx >= 0) this.listeners.splice(idx, 1);
   }
 
+  setSpeedMultiplier(multiplier: number): void {
+    this.opts.speedMultiplier = multiplier;
+  }
+
   private tick(): void {
-    const elapsed = (Date.now() - this.startTime) / 1000;
+    const elapsed =
+      ((Date.now() - this.startTime) / 1000) * this.opts.speedMultiplier;
     let data: NavigationData;
 
     switch (this.opts.mode) {

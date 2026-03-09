@@ -269,6 +269,23 @@ function buildNavigationTab(
     ),
   );
 
+  // Simulator speed
+  const SIM_SPEED_OPTIONS = [
+    { value: "1", label: "1x" },
+    { value: "10", label: "10x" },
+    { value: "50", label: "50x" },
+    { value: "100", label: "100x" },
+  ];
+  tab.appendChild(
+    buildSelectRow(
+      "Sim speed",
+      "settings-sim-speed",
+      SIM_SPEED_OPTIONS,
+      String(settings.simulatorSpeed),
+      (v) => updateSettings({ simulatorSpeed: Number(v) }),
+    ),
+  );
+
   // Course line duration
   const COURSE_LINE_OPTIONS = [
     { value: "0", label: "Off" },

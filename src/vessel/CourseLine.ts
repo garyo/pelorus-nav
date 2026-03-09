@@ -42,7 +42,7 @@ export class CourseLine {
     }
   }
 
-  update(data: NavigationData, smoothed: SmoothedCourse | null): void {
+  update(_data: NavigationData, smoothed: SmoothedCourse | null): void {
     if (!smoothed || this.duration === 0 || smoothed.sog < MIN_SOG_KT) {
       this.clearLine();
       return;
@@ -58,14 +58,16 @@ export class CourseLine {
       distanceNM = minNM;
     }
 
+    const startLat = smoothed.lat;
+    const startLon = smoothed.lon;
     const [endLon, endLat] = projectPoint(
-      data.latitude,
-      data.longitude,
+      startLat,
+      startLon,
       smoothed.cog,
       distanceNM,
     );
 
-    this.setLine(data.longitude, data.latitude, endLon, endLat);
+    this.setLine(startLon, startLat, endLon, endLat);
   }
 
   private setup(): void {

@@ -1,15 +1,25 @@
 /**
  * Two-stage COG/SOG smoother: circular buffer averaging + exponential smoothing.
  * Shared by CourseLine (for rendering) and ChartModeController (for map rotation).
+ *
+ * Usage:
+ *   - Call `addSample()` on each GPS update (1 Hz)
+ *   - Call `smooth()` on each render frame (60 fps) for fluid animation
  */
 
 import { toRadians } from "../utils/coordinates";
 
 /** Circular buffer window in milliseconds. */
-const BUFFER_WINDOW_MS = 15_000;
+const BUFFER_WINDOW_MS = 5_000;
 
-/** Exponential smoothing time constant in seconds. */
-const TAU_S = 3;
+/** Minimum samples to keep regardless of age. */
+const MIN_SAMPLES = 2;
+
+/** Exponential smoothing time constant for COG/SOG in seconds. */
+const TAU_S = 2;
+
+/** Exponential smoothing time constant for position in seconds. */
+const TAU_POS_S = 0.5;
 
 interface Sample {
   cog: number;
@@ -52,59 +62,108 @@ export function circularInterpolate(
 export interface SmoothedCourse {
   cog: number;
   sog: number;
+  lat: number;
+  lon: number;
 }
 
 export class CourseSmoothing {
   private buffer: Sample[] = [];
+  private targetCog = 0;
+  private targetSog = 0;
+  private targetLat = 0;
+  private targetLon = 0;
   private smoothedCog = 0;
   private smoothedSog = 0;
-  private lastUpdateTime = 0;
+  private smoothedLat = 0;
+  private smoothedLon = 0;
+  private lastSmoothTime = 0;
   private initialized = false;
+  private posInitialized = false;
 
   /**
-   * Feed a new navigation sample. Call on every GPS update.
-   * Returns the smoothed COG/SOG, or null if insufficient data.
+   * Feed a new GPS sample into the circular buffer.
+   * Call at GPS update rate (typically 1 Hz).
    */
-  update(
+  addSample(
     cog: number | null,
     sog: number | null,
+    lat: number,
+    lon: number,
     timestamp: number,
-  ): SmoothedCourse | null {
-    // Add sample to buffer if COG/SOG are available
+  ): void {
     if (cog !== null && sog !== null) {
       this.buffer.push({ cog, sog, timestamp });
     }
 
-    // Prune old samples
+    // Prune old samples, but keep at least MIN_SAMPLES
     const cutoff = timestamp - BUFFER_WINDOW_MS;
-    while (this.buffer.length > 0 && this.buffer[0].timestamp < cutoff) {
+    while (
+      this.buffer.length > MIN_SAMPLES &&
+      this.buffer[0].timestamp < cutoff
+    ) {
       this.buffer.shift();
     }
 
+    // Update position target (latest GPS fix)
+    this.targetLat = lat;
+    this.targetLon = lon;
+
+    // Recompute buffer averages (Stage 1)
+    if (this.buffer.length > 0) {
+      this.targetCog = circularMeanDeg(this.buffer.map((s) => s.cog));
+      let sum = 0;
+      for (const s of this.buffer) sum += s.sog;
+      this.targetSog = sum / this.buffer.length;
+    }
+  }
+
+  /**
+   * Run exponential smoothing toward the buffer-averaged target.
+   * Call on every render frame for fluid animation.
+   * Returns the smoothed COG/SOG, or null if no samples yet.
+   */
+  smooth(now: number): SmoothedCourse | null {
     if (this.buffer.length === 0) {
       return null;
     }
 
-    // Stage 1: circular buffer averages
-    const avgCog = circularMeanDeg(this.buffer.map((s) => s.cog));
-    let avgSog = 0;
-    for (const s of this.buffer) avgSog += s.sog;
-    avgSog /= this.buffer.length;
-
-    // Stage 2: exponential smoothing
     if (!this.initialized) {
-      this.smoothedCog = avgCog;
-      this.smoothedSog = avgSog;
-      this.lastUpdateTime = timestamp;
+      this.smoothedCog = this.targetCog;
+      this.smoothedSog = this.targetSog;
+      this.lastSmoothTime = now;
       this.initialized = true;
     } else {
-      const dt = (timestamp - this.lastUpdateTime) / 1000;
-      this.lastUpdateTime = timestamp;
-      const alpha = 1 - Math.exp(-dt / TAU_S);
-      this.smoothedCog = circularInterpolate(this.smoothedCog, avgCog, alpha);
-      this.smoothedSog += alpha * (avgSog - this.smoothedSog);
+      const dt = (now - this.lastSmoothTime) / 1000;
+      this.lastSmoothTime = now;
+      if (dt > 0 && dt < 1) {
+        // Guard against huge dt (e.g. tab backgrounded)
+        const alpha = 1 - Math.exp(-dt / TAU_S);
+        this.smoothedCog = circularInterpolate(
+          this.smoothedCog,
+          this.targetCog,
+          alpha,
+        );
+        this.smoothedSog += alpha * (this.targetSog - this.smoothedSog);
+
+        // Position smoothing (shorter time constant)
+        const posAlpha = 1 - Math.exp(-dt / TAU_POS_S);
+        this.smoothedLat += posAlpha * (this.targetLat - this.smoothedLat);
+        this.smoothedLon += posAlpha * (this.targetLon - this.smoothedLon);
+      }
     }
 
-    return { cog: this.smoothedCog, sog: this.smoothedSog };
+    // Initialize position on first sample
+    if (!this.posInitialized && this.targetLat !== 0) {
+      this.smoothedLat = this.targetLat;
+      this.smoothedLon = this.targetLon;
+      this.posInitialized = true;
+    }
+
+    return {
+      cog: this.smoothedCog,
+      sog: this.smoothedSog,
+      lat: this.smoothedLat,
+      lon: this.smoothedLon,
+    };
   }
 }
