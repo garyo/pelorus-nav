@@ -711,6 +711,118 @@ body {
   gap: 6px;
 }
 
+/* Chart cache panel */
+.chart-cache-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 12px;
+}
+
+.chart-cache-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  background: #4488cc;
+  border: none;
+  color: #fff;
+  border-radius: 4px;
+  padding: 6px 12px;
+  cursor: pointer;
+  font-size: 13px;
+  width: 100%;
+}
+
+.chart-cache-btn:hover {
+  background: #5599dd;
+}
+
+.chart-cache-btn--secondary {
+  background: #555;
+}
+
+.chart-cache-btn--secondary:hover {
+  background: #777;
+}
+
+.chart-cache-btn--danger {
+  background: #cc3333;
+}
+
+.chart-cache-btn--danger:hover {
+  background: #dd4444;
+}
+
+.chart-cache-btn svg {
+  display: inline-block;
+  vertical-align: middle;
+}
+
+.chart-cache-progress {
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: center;
+}
+
+.chart-cache-progress-label {
+  font-size: 13px;
+  color: #ccc;
+}
+
+.chart-cache-progress-bar {
+  width: 100%;
+  height: 6px;
+  background: #333;
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.chart-cache-progress-fill {
+  height: 100%;
+  width: 0;
+  background: #4488cc;
+  border-radius: 3px;
+  transition: width 0.2s ease;
+}
+
+.chart-cache-progress-stats {
+  font-size: 12px;
+  color: #999;
+}
+
+.chart-cache-error {
+  padding: 8px 12px;
+  color: #ff6666;
+  font-size: 13px;
+}
+
+.chart-cache-footer {
+  padding: 4px 12px 6px;
+  font-size: 11px;
+  color: #888;
+  border-top: 1px solid #333;
+}
+
+/* Offline indicator */
+.offline-indicator {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  color: #ff8844;
+  white-space: nowrap;
+}
+
+.offline-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #ff8844;
+}
+
 @media (max-width: 480px) {
   .feature-info-panel {
     width: 100%;

@@ -93,6 +93,27 @@ export const iconChevronUp = svg('<polyline points="6 15 12 9 18 15"/>');
 /** Chevron down. */
 export const iconChevronDown = svg('<polyline points="6 9 12 15 18 9"/>');
 
+/** Download / arrow-down-to-line. */
+export const iconDownload = svg(
+  '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>' +
+    '<polyline points="7 10 12 15 17 10"/>' +
+    '<line x1="12" y1="15" x2="12" y2="3"/>',
+);
+
+/** Cloud with slash / offline. */
+export const iconCloudOff = svg(
+  '<path d="M22.61 16.95A5 5 0 0 0 18 10h-1.26a8 8 0 0 0-7.05-6"/>' +
+    '<path d="M5 5a8 8 0 0 0 4 15h9a5 5 0 0 0 1.7-.3"/>' +
+    '<line x1="1" y1="1" x2="23" y2="23"/>',
+);
+
+/** Upload / folder-up / import. */
+export const iconUpload = svg(
+  '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>' +
+    '<polyline points="17 8 12 3 7 8"/>' +
+    '<line x1="12" y1="3" x2="12" y2="15"/>',
+);
+
 /**
  * Set an element's innerHTML to an icon SVG.
  * Convenience wrapper that also sets aria-hidden.

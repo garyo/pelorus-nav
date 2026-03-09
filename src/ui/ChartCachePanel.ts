@@ -1,0 +1,274 @@
+/**
+ * Panel for managing offline chart downloads.
+ * Allows downloading, importing, and deleting PMTiles chart files stored in OPFS.
+ */
+
+import type { StoredChartInfo } from "../data/tile-store";
+import {
+  deleteAllCharts,
+  deleteChart,
+  downloadChart,
+  getStorageEstimate,
+  importChart,
+  listStoredCharts,
+} from "../data/tile-store";
+import { iconDownload, iconTrash, iconUpload, iconX } from "./icons";
+import { getPanelStack } from "./PanelStack";
+
+/** Default chart download URL (served via Cloudflare Worker from R2). */
+const DEFAULT_CHART_URL = "/nautical.pmtiles";
+const DEFAULT_CHART_FILENAME = "nautical.pmtiles";
+
+function formatBytes(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
+  if (bytes < 1024 * 1024 * 1024)
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`;
+}
+
+export class ChartCachePanel {
+  private readonly el: HTMLDivElement;
+  private readonly body: HTMLDivElement;
+  private readonly storageInfo: HTMLDivElement;
+  private downloadController: AbortController | null = null;
+  private onChartsChanged?: () => void;
+
+  constructor() {
+    this.el = document.createElement("div");
+    this.el.className = "manager-panel chart-cache-panel";
+    this.el.innerHTML =
+      '<div class="manager-header">' +
+      "<span>Offline Charts</span>" +
+      '<button class="manager-close"></button>' +
+      "</div>" +
+      '<div class="manager-body"></div>' +
+      '<div class="chart-cache-footer"></div>';
+    getPanelStack().appendChild(this.el);
+
+    this.body = this.el.querySelector(".manager-body") as HTMLDivElement;
+    this.storageInfo = this.el.querySelector(
+      ".chart-cache-footer",
+    ) as HTMLDivElement;
+
+    const closeBtn = this.el.querySelector(".manager-close") as HTMLElement;
+    closeBtn.innerHTML = iconX;
+    closeBtn.addEventListener("click", () => this.hide());
+  }
+
+  /** Register a callback when charts are added/removed (for reloading PMTiles). */
+  setOnChartsChanged(cb: () => void): void {
+    this.onChartsChanged = cb;
+  }
+
+  toggle(): void {
+    if (this.el.classList.contains("open")) {
+      this.hide();
+    } else {
+      this.show();
+    }
+  }
+
+  show(): void {
+    this.el.classList.add("open");
+    this.refresh();
+  }
+
+  hide(): void {
+    this.el.classList.remove("open");
+  }
+
+  private async refresh(): Promise<void> {
+    const charts = await listStoredCharts();
+    this.body.innerHTML = "";
+
+    // Chart list
+    if (charts.length === 0) {
+      const empty = document.createElement("div");
+      empty.className = "manager-empty";
+      empty.textContent = "No offline charts";
+      this.body.appendChild(empty);
+    } else {
+      for (const chart of charts) {
+        this.body.appendChild(this.createChartItem(chart));
+      }
+    }
+
+    // Action buttons
+    const actions = document.createElement("div");
+    actions.className = "chart-cache-actions";
+
+    // Download button
+    const dlBtn = document.createElement("button");
+    dlBtn.className = "chart-cache-btn";
+    dlBtn.innerHTML = `${iconDownload} Download Charts`;
+    dlBtn.addEventListener("click", () => this.startDownload());
+    actions.appendChild(dlBtn);
+
+    // Import button
+    const importBtn = document.createElement("button");
+    importBtn.className = "chart-cache-btn chart-cache-btn--secondary";
+    importBtn.innerHTML = `${iconUpload} Load from File...`;
+    importBtn.addEventListener("click", () => this.importFile());
+    actions.appendChild(importBtn);
+
+    // Flush all button (only if charts exist)
+    if (charts.length > 0) {
+      const flushBtn = document.createElement("button");
+      flushBtn.className = "chart-cache-btn chart-cache-btn--danger";
+      flushBtn.innerHTML = `${iconTrash} Remove All`;
+      flushBtn.addEventListener("click", () => this.flushAll());
+      actions.appendChild(flushBtn);
+    }
+
+    this.body.appendChild(actions);
+
+    // Storage info
+    await this.updateStorageInfo();
+  }
+
+  private createChartItem(chart: StoredChartInfo): HTMLDivElement {
+    const item = document.createElement("div");
+    item.className = "manager-item";
+
+    const info = document.createElement("div");
+    info.className = "manager-item-info";
+
+    const name = document.createElement("div");
+    name.className = "manager-item-name";
+    name.textContent = chart.region;
+
+    const detail = document.createElement("div");
+    detail.className = "manager-item-detail";
+    const date = new Date(chart.downloadedAt).toLocaleDateString();
+    detail.textContent = `${formatBytes(chart.sizeBytes)} \u00b7 ${date}`;
+
+    info.append(name, detail);
+
+    const actions = document.createElement("div");
+    actions.className = "manager-item-actions";
+
+    const deleteBtn = document.createElement("button");
+    deleteBtn.className = "manager-item-btn";
+    deleteBtn.innerHTML = iconTrash;
+    deleteBtn.title = "Delete";
+    deleteBtn.addEventListener("click", () => {
+      if (!confirm(`Delete offline chart "${chart.region}"?`)) return;
+      (async () => {
+        await deleteChart(chart.filename);
+        this.onChartsChanged?.();
+        await this.refresh();
+      })().catch(console.error);
+    });
+
+    actions.appendChild(deleteBtn);
+    item.append(info, actions);
+    return item;
+  }
+
+  private async startDownload(): Promise<void> {
+    // Replace body with progress UI
+    this.body.innerHTML = "";
+
+    const progressContainer = document.createElement("div");
+    progressContainer.className = "chart-cache-progress";
+
+    const label = document.createElement("div");
+    label.className = "chart-cache-progress-label";
+    label.textContent = "Downloading charts...";
+
+    const barOuter = document.createElement("div");
+    barOuter.className = "chart-cache-progress-bar";
+    const barInner = document.createElement("div");
+    barInner.className = "chart-cache-progress-fill";
+    barOuter.appendChild(barInner);
+
+    const stats = document.createElement("div");
+    stats.className = "chart-cache-progress-stats";
+    stats.textContent = "0 MB / ? MB";
+
+    const cancelBtn = document.createElement("button");
+    cancelBtn.className = "chart-cache-btn chart-cache-btn--danger";
+    cancelBtn.textContent = "Cancel";
+
+    this.downloadController = new AbortController();
+    cancelBtn.addEventListener("click", () => {
+      this.downloadController?.abort();
+    });
+
+    progressContainer.append(label, barOuter, stats, cancelBtn);
+    this.body.appendChild(progressContainer);
+
+    try {
+      await downloadChart(
+        DEFAULT_CHART_URL,
+        DEFAULT_CHART_FILENAME,
+        (loaded, total) => {
+          const pct = total > 0 ? (loaded / total) * 100 : 0;
+          barInner.style.width = `${pct}%`;
+          stats.textContent = `${formatBytes(loaded)} / ${total > 0 ? formatBytes(total) : "?"}`;
+        },
+        this.downloadController.signal,
+      );
+      this.onChartsChanged?.();
+    } catch (err) {
+      if (err instanceof DOMException && err.name === "AbortError") {
+        // User cancelled — just refresh
+      } else {
+        const errorDiv = document.createElement("div");
+        errorDiv.className = "chart-cache-error";
+        errorDiv.textContent = `Download failed: ${err instanceof Error ? err.message : "Unknown error"}`;
+        this.body.appendChild(errorDiv);
+        return; // Don't refresh on error — show the message
+      }
+    } finally {
+      this.downloadController = null;
+    }
+
+    await this.refresh();
+  }
+
+  private async importFile(): Promise<void> {
+    const input = document.createElement("input");
+    input.type = "file";
+    input.accept = ".pmtiles";
+
+    input.addEventListener("change", async () => {
+      const file = input.files?.[0];
+      if (!file) return;
+
+      try {
+        await importChart(file);
+        this.onChartsChanged?.();
+        await this.refresh();
+      } catch (err) {
+        console.error("Import failed:", err);
+      }
+    });
+
+    input.click();
+  }
+
+  private async flushAll(): Promise<void> {
+    if (
+      !confirm("Remove all offline charts? You will need to re-download them.")
+    )
+      return;
+    await deleteAllCharts();
+    this.onChartsChanged?.();
+    await this.refresh();
+  }
+
+  private async updateStorageInfo(): Promise<void> {
+    try {
+      const est = await getStorageEstimate();
+      if (est.quota > 0) {
+        this.storageInfo.textContent = `Storage: ${formatBytes(est.used)} / ${formatBytes(est.quota)} used`;
+      } else {
+        this.storageInfo.textContent = "";
+      }
+    } catch {
+      this.storageInfo.textContent = "";
+    }
+  }
+}

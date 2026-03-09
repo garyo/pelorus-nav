@@ -1,6 +1,6 @@
 import { addProtocol } from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
-import { Protocol } from "pmtiles";
+import { PMTiles, Protocol } from "pmtiles";
 import "./style.css";
 import {
   ChartManager,
@@ -10,6 +10,8 @@ import {
   OSMChartProvider,
   VectorChartProvider,
 } from "./chart";
+import { OPFSSource } from "./data/opfs-source";
+import { getChartFile, listStoredCharts } from "./data/tile-store";
 import { MeasurementLayer } from "./map/MeasurementLayer";
 import { RouteEditor } from "./map/RouteEditor";
 import { RouteLayer } from "./map/RouteLayer";
@@ -23,8 +25,15 @@ import {
   WebSerialNMEAProvider,
 } from "./navigation";
 import { getSettings, onSettingsChange, updateSettings } from "./settings";
+import { ChartCachePanel } from "./ui/ChartCachePanel";
 import { createInstrumentHUD } from "./ui/InstrumentHUD";
-import { iconGauge, iconRecord, iconRoute, iconTrack } from "./ui/icons";
+import {
+  iconDownload,
+  iconGauge,
+  iconRecord,
+  iconRoute,
+  iconTrack,
+} from "./ui/icons";
 import { NavigationHUD } from "./ui/NavigationHUD";
 import { RecenterButton } from "./ui/RecenterButton";
 import { RouteManagerPanel } from "./ui/RouteManagerPanel";
@@ -37,6 +46,20 @@ import { VesselLayer } from "./vessel/VesselLayer";
 // Register PMTiles protocol for vector tile sources
 const protocol = new Protocol({ metadata: true });
 addProtocol("pmtiles", protocol.tilev4);
+
+// Load any offline PMTiles from OPFS before creating the map
+try {
+  const storedCharts = await listStoredCharts();
+  for (const chart of storedCharts) {
+    const file = await getChartFile(chart.filename);
+    if (file) {
+      const source = new OPFSSource(file, `/${chart.filename}`);
+      protocol.add(new PMTiles(source));
+    }
+  }
+} catch {
+  // OPFS not available or no stored charts — fall back to remote
+}
 
 const chartManager = new ChartManager({
   container: "map",
@@ -407,6 +430,47 @@ if (topBar) {
   routeBtn.innerHTML = iconRoute;
   routeBtn.addEventListener("click", () => routePanel.toggle());
   topBar.insertBefore(routeBtn, settingsWrapper);
+
+  // Chart cache panel button
+  const cachePanel = new ChartCachePanel();
+  cachePanel.setOnChartsChanged(() => {
+    // Reload OPFS charts into PMTiles protocol
+    (async () => {
+      try {
+        const charts = await listStoredCharts();
+        for (const chart of charts) {
+          const file = await getChartFile(chart.filename);
+          if (file) {
+            const source = new OPFSSource(file, `/${chart.filename}`);
+            protocol.add(new PMTiles(source));
+          }
+        }
+      } catch {
+        // ignore
+      }
+    })();
+  });
+  const cacheBtn = document.createElement("button");
+  cacheBtn.className = "settings-btn";
+  cacheBtn.title = "Offline Charts";
+  cacheBtn.innerHTML = iconDownload;
+  cacheBtn.addEventListener("click", () => cachePanel.toggle());
+  topBar.insertBefore(cacheBtn, settingsWrapper);
+
+  // Offline indicator (Step 5)
+  const offlineIndicator = document.createElement("div");
+  offlineIndicator.className = "offline-indicator";
+  offlineIndicator.innerHTML =
+    '<div class="offline-dot"></div><span>Offline</span>';
+  offlineIndicator.style.display = "none";
+  topBar.insertBefore(offlineIndicator, settingsWrapper);
+
+  const updateOnlineStatus = () => {
+    offlineIndicator.style.display = navigator.onLine ? "none" : "flex";
+  };
+  window.addEventListener("online", updateOnlineStatus);
+  window.addEventListener("offline", updateOnlineStatus);
+  updateOnlineStatus();
 }
 
 // Dismiss on click elsewhere or map interaction
