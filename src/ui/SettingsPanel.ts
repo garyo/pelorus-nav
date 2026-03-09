@@ -1,5 +1,6 @@
 /**
- * Settings panel — gear icon in top bar, dropdown with depth unit + detail level.
+ * Settings panel — gear icon in top bar, tabbed dropdown.
+ * Tabs: Appearance, Chart Layers, Navigation.
  */
 
 import {
@@ -27,6 +28,15 @@ const DETAIL_LABELS: Record<DetailLevel, string> = {
   "2": "Full",
 };
 
+const TAB_IDS = ["appearance", "layers", "navigation"] as const;
+type TabId = (typeof TAB_IDS)[number];
+
+const TAB_LABELS: Record<TabId, string> = {
+  appearance: "Appearance",
+  layers: "Chart Layers",
+  navigation: "Navigation",
+};
+
 export function createSettingsPanel(container: HTMLElement): void {
   const wrapper = document.createElement("div");
   wrapper.className = "settings-wrapper";
@@ -49,8 +59,7 @@ export function createSettingsPanel(container: HTMLElement): void {
 
   const panel = document.createElement("div");
   panel.className = "settings-panel";
-  // Safe: buildPanelHTML() uses only controlled enum labels, no user input
-  panel.innerHTML = buildPanelHTML();
+  buildTabbedPanel(panel);
   wrapper.appendChild(panel);
 
   container.appendChild(wrapper);
@@ -67,116 +76,163 @@ export function createSettingsPanel(container: HTMLElement): void {
       panel.classList.remove("open");
     }
   });
+}
 
-  // Depth unit selector
-  const unitSelect = panel.querySelector(
-    "#settings-depth-unit",
-  ) as HTMLSelectElement;
-  unitSelect.addEventListener("change", () => {
-    updateSettings({ depthUnit: unitSelect.value as DepthUnit });
-  });
+function buildTabbedPanel(panel: HTMLElement): void {
+  const settings = getSettings();
+
+  // --- Tab bar ---
+  const tabBar = document.createElement("div");
+  tabBar.className = "settings-tab-bar";
+
+  const tabBodies = new Map<TabId, HTMLElement>();
+  let activeTab: TabId = "appearance";
+
+  for (const id of TAB_IDS) {
+    const tabBtn = document.createElement("button");
+    tabBtn.className = "settings-tab";
+    tabBtn.textContent = TAB_LABELS[id];
+    tabBtn.dataset.tab = id;
+    tabBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      setActiveTab(id);
+    });
+    tabBar.appendChild(tabBtn);
+  }
+  panel.appendChild(tabBar);
+
+  // --- Tab bodies ---
+  const bodyContainer = document.createElement("div");
+  bodyContainer.className = "settings-tab-content";
+
+  tabBodies.set("appearance", buildAppearanceTab(settings));
+  tabBodies.set("layers", buildLayersTab(settings));
+  tabBodies.set("navigation", buildNavigationTab(settings));
+
+  for (const [id, body] of tabBodies) {
+    body.className = "settings-tab-body";
+    body.dataset.tab = id;
+    bodyContainer.appendChild(body);
+  }
+  panel.appendChild(bodyContainer);
+
+  function setActiveTab(id: TabId) {
+    activeTab = id;
+    for (const tabBtn of tabBar.querySelectorAll<HTMLElement>(
+      ".settings-tab",
+    )) {
+      tabBtn.classList.toggle("active", tabBtn.dataset.tab === id);
+    }
+    for (const [bodyId, body] of tabBodies) {
+      body.style.display = bodyId === id ? "" : "none";
+    }
+  }
+  setActiveTab(activeTab);
+}
+
+// --- Tab builders ---
+
+function buildAppearanceTab(
+  settings: ReturnType<typeof getSettings>,
+): HTMLElement {
+  const tab = document.createElement("div");
+
+  // Depth units
+  tab.appendChild(
+    buildSelectRow(
+      "Depth units",
+      "settings-depth-unit",
+      DEPTH_UNITS,
+      settings.depthUnit,
+      (v) => updateSettings({ depthUnit: v as DepthUnit }),
+    ),
+  );
+
+  // Speed units
+  const SPEED_UNITS = [
+    { value: "knots", label: "Knots" },
+    { value: "mph", label: "MPH" },
+    { value: "kph", label: "km/h" },
+  ];
+  tab.appendChild(
+    buildSelectRow(
+      "Speed units",
+      "settings-speed-unit",
+      SPEED_UNITS,
+      settings.speedUnit,
+      (v) => updateSettings({ speedUnit: v as SpeedUnit }),
+    ),
+  );
 
   // Detail level slider
-  const slider = panel.querySelector(
-    "#settings-detail-level",
-  ) as HTMLInputElement;
-  const sliderLabel = panel.querySelector(
-    "#settings-detail-label",
-  ) as HTMLSpanElement;
+  const row = document.createElement("div");
+  row.className = "settings-row";
+
+  const label = document.createElement("label");
+  label.htmlFor = "settings-detail-level";
+  label.textContent = "Detail";
+  row.appendChild(label);
+
+  const sliderGroup = document.createElement("div");
+  sliderGroup.className = "settings-slider-group";
+
+  const slider = document.createElement("input");
+  slider.type = "range";
+  slider.id = "settings-detail-level";
+  slider.min = "-1";
+  slider.max = "2";
+  slider.step = "1";
+  slider.value = String(settings.detailLevel);
+
+  const sliderLabel = document.createElement("span");
+  sliderLabel.id = "settings-detail-label";
+  sliderLabel.textContent = DETAIL_LABELS[settings.detailLevel];
+
   slider.addEventListener("input", () => {
     const level = Number(slider.value) as DetailLevel;
     sliderLabel.textContent = DETAIL_LABELS[level];
     updateSettings({ detailLevel: level });
   });
 
-  // GPS source selector
-  const gpsSelect = panel.querySelector(
-    "#settings-gps-source",
-  ) as HTMLSelectElement | null;
-  if (gpsSelect) {
-    gpsSelect.addEventListener("change", () => {
-      updateSettings({ gpsSource: gpsSelect.value });
-    });
-  }
+  sliderGroup.append(slider, sliderLabel);
+  row.appendChild(sliderGroup);
+  tab.appendChild(row);
 
-  // Chart mode selector
-  const modeSelect = panel.querySelector(
-    "#settings-chart-mode",
-  ) as HTMLSelectElement | null;
-  if (modeSelect) {
-    modeSelect.addEventListener("change", () => {
-      updateSettings({ chartMode: modeSelect.value as ChartMode });
-    });
-  }
+  // Accuracy circle
+  tab.appendChild(
+    buildCheckboxRow(
+      "Accuracy circle",
+      "settings-accuracy-circle",
+      settings.showAccuracyCircle,
+      (v) => updateSettings({ showAccuracyCircle: v }),
+    ),
+  );
 
-  // Speed unit selector
-  const speedSelect = panel.querySelector(
-    "#settings-speed-unit",
-  ) as HTMLSelectElement | null;
-  if (speedSelect) {
-    speedSelect.addEventListener("change", () => {
-      updateSettings({ speedUnit: speedSelect.value as SpeedUnit });
-    });
-  }
-
-  // Accuracy circle toggle
-  const accuracyCb = panel.querySelector(
-    "#settings-accuracy-circle",
-  ) as HTMLInputElement | null;
-  if (accuracyCb) {
-    accuracyCb.addEventListener("change", () => {
-      updateSettings({ showAccuracyCircle: accuracyCb.checked });
-    });
-  }
-
-  // Instrument HUD toggle
-  const instrumentCb = panel.querySelector(
-    "#settings-instrument-hud",
-  ) as HTMLInputElement | null;
-  if (instrumentCb) {
-    instrumentCb.addEventListener("change", () => {
-      updateSettings({ showInstrumentHUD: instrumentCb.checked });
-    });
-  }
-
-  // Track recording toggle
-  const trackCb = panel.querySelector(
-    "#settings-track-recording",
-  ) as HTMLInputElement | null;
-  if (trackCb) {
-    trackCb.addEventListener("change", () => {
-      updateSettings({ trackRecordingEnabled: trackCb.checked });
-    });
-  }
-
-  // Layer group toggles
-  for (const groupId of Object.keys(LAYER_GROUP_LABELS)) {
-    const cb = panel.querySelector(
-      `#settings-group-${groupId}`,
-    ) as HTMLInputElement | null;
-    if (cb) {
-      cb.addEventListener("change", () => {
-        const groups = { ...getSettings().layerGroups, [groupId]: cb.checked };
-        updateSettings({ layerGroups: groups });
-      });
-    }
-  }
+  return tab;
 }
 
-function buildPanelHTML(): string {
-  const settings = getSettings();
-  const unitOptions = DEPTH_UNITS.map(
-    (u) =>
-      `<option value="${u.value}"${u.value === settings.depthUnit ? " selected" : ""}>${u.label}</option>`,
-  ).join("");
+function buildLayersTab(settings: ReturnType<typeof getSettings>): HTMLElement {
+  const tab = document.createElement("div");
 
-  const groupToggles = Object.entries(LAYER_GROUP_LABELS)
-    .map(([id, label]) => {
-      const checked = settings.layerGroups[id] !== false ? " checked" : "";
-      return `<label class="settings-toggle"><input type="checkbox" id="settings-group-${id}"${checked}> ${label}</label>`;
-    })
-    .join("\n      ");
+  for (const [groupId, label] of Object.entries(LAYER_GROUP_LABELS)) {
+    const checked = settings.layerGroups[groupId] !== false;
+    tab.appendChild(
+      buildCheckboxRow(label, `settings-group-${groupId}`, checked, (v) => {
+        const groups = { ...getSettings().layerGroups, [groupId]: v };
+        updateSettings({ layerGroups: groups });
+      }),
+    );
+  }
 
+  return tab;
+}
+
+function buildNavigationTab(
+  settings: ReturnType<typeof getSettings>,
+): HTMLElement {
+  const tab = document.createElement("div");
+
+  // GPS source
   const GPS_SOURCES = [
     { value: "none", label: "None" },
     { value: "simulator", label: "Simulator" },
@@ -184,81 +240,88 @@ function buildPanelHTML(): string {
     { value: "web-serial", label: "USB GPS (Serial)" },
     { value: "signalk", label: "Signal K" },
   ];
-  const gpsOptions = GPS_SOURCES.map(
-    (s) =>
-      `<option value="${s.value}"${s.value === settings.gpsSource ? " selected" : ""}>${s.label}</option>`,
-  ).join("");
+  tab.appendChild(
+    buildSelectRow(
+      "GPS source",
+      "settings-gps-source",
+      GPS_SOURCES,
+      settings.gpsSource,
+      (v) => updateSettings({ gpsSource: v }),
+    ),
+  );
 
-  const CHART_MODES: { value: ChartMode; label: string }[] = [
+  // Chart mode
+  const CHART_MODES = [
     { value: "follow", label: "Follow" },
     { value: "course-up", label: "Course Up" },
     { value: "north-up", label: "North Up" },
     { value: "free", label: "Free" },
   ];
-  const modeOptions = CHART_MODES.map(
-    (m) =>
-      `<option value="${m.value}"${m.value === settings.chartMode ? " selected" : ""}>${m.label}</option>`,
-  ).join("");
+  tab.appendChild(
+    buildSelectRow(
+      "Chart mode",
+      "settings-chart-mode",
+      CHART_MODES,
+      settings.chartMode,
+      (v) => updateSettings({ chartMode: v as ChartMode }),
+    ),
+  );
 
-  const SPEED_UNITS: { value: SpeedUnit; label: string }[] = [
-    { value: "knots", label: "Knots" },
-    { value: "mph", label: "MPH" },
-    { value: "kph", label: "km/h" },
-  ];
-  const speedOptions = SPEED_UNITS.map(
-    (u) =>
-      `<option value="${u.value}"${u.value === settings.speedUnit ? " selected" : ""}>${u.label}</option>`,
-  ).join("");
+  return tab;
+}
 
-  const accuracyChecked = settings.showAccuracyCircle ? " checked" : "";
-  const instrumentChecked = settings.showInstrumentHUD ? " checked" : "";
-  const trackChecked = settings.trackRecordingEnabled ? " checked" : "";
+// --- Helpers ---
 
-  return `
-    <div class="settings-row">
-      <label for="settings-depth-unit">Depth units</label>
-      <select id="settings-depth-unit">${unitOptions}</select>
-    </div>
-    <div class="settings-row">
-      <label for="settings-detail-level">Detail</label>
-      <div class="settings-slider-group">
-        <input type="range" id="settings-detail-level" min="-1" max="2" step="1" value="${settings.detailLevel}">
-        <span id="settings-detail-label">${DETAIL_LABELS[settings.detailLevel]}</span>
-      </div>
-    </div>
-    <div class="settings-row settings-group-section">
-      <label>Layer groups</label>
-      <div class="settings-toggles">
-      ${groupToggles}
-      </div>
-    </div>
-    <hr style="border-color:#444;margin:8px 0">
-    <div class="settings-row">
-      <label for="settings-gps-source">GPS source</label>
-      <select id="settings-gps-source">${gpsOptions}</select>
-    </div>
-    <div class="settings-row">
-      <label for="settings-chart-mode">Chart mode</label>
-      <select id="settings-chart-mode">${modeOptions}</select>
-    </div>
-    <div class="settings-row">
-      <label for="settings-speed-unit">Speed units</label>
-      <select id="settings-speed-unit">${speedOptions}</select>
-    </div>
-    <div class="settings-row">
-      <label class="settings-toggle">
-        <input type="checkbox" id="settings-accuracy-circle"${accuracyChecked}> Accuracy circle
-      </label>
-    </div>
-    <div class="settings-row">
-      <label class="settings-toggle">
-        <input type="checkbox" id="settings-instrument-hud"${instrumentChecked}> Instrument HUD
-      </label>
-    </div>
-    <div class="settings-row">
-      <label class="settings-toggle">
-        <input type="checkbox" id="settings-track-recording"${trackChecked}> Record track
-      </label>
-    </div>
-  `;
+function buildSelectRow(
+  labelText: string,
+  id: string,
+  options: { value: string; label: string }[],
+  currentValue: string,
+  onChange: (value: string) => void,
+): HTMLElement {
+  const row = document.createElement("div");
+  row.className = "settings-row";
+
+  const label = document.createElement("label");
+  label.htmlFor = id;
+  label.textContent = labelText;
+  row.appendChild(label);
+
+  const select = document.createElement("select");
+  select.id = id;
+  for (const opt of options) {
+    const option = document.createElement("option");
+    option.value = opt.value;
+    option.textContent = opt.label;
+    option.selected = opt.value === currentValue;
+    select.appendChild(option);
+  }
+  select.addEventListener("change", () => onChange(select.value));
+  row.appendChild(select);
+
+  return row;
+}
+
+function buildCheckboxRow(
+  labelText: string,
+  id: string,
+  checked: boolean,
+  onChange: (checked: boolean) => void,
+): HTMLElement {
+  const row = document.createElement("div");
+  row.className = "settings-row";
+
+  const label = document.createElement("label");
+  label.className = "settings-toggle";
+
+  const cb = document.createElement("input");
+  cb.type = "checkbox";
+  cb.id = id;
+  cb.checked = checked;
+  cb.addEventListener("change", () => onChange(cb.checked));
+
+  label.append(cb, ` ${labelText}`);
+  row.appendChild(label);
+
+  return row;
 }

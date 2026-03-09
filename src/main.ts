@@ -22,7 +22,7 @@ import {
   SimulatorProvider,
   WebSerialNMEAProvider,
 } from "./navigation";
-import { getSettings, onSettingsChange } from "./settings";
+import { getSettings, onSettingsChange, updateSettings } from "./settings";
 import { createInstrumentHUD } from "./ui/InstrumentHUD";
 import { NavigationHUD } from "./ui/NavigationHUD";
 import { RecenterButton } from "./ui/RecenterButton";
@@ -357,19 +357,55 @@ const routePanel = new RouteManagerPanel(routeLayer, routeEditor);
 
 // Add toolbar buttons to top bar
 if (topBar) {
+  const settingsWrapper = topBar.querySelector(".settings-wrapper");
+
+  // Record track toggle
+  const recordBtn = document.createElement("button");
+  recordBtn.className = "topbar-toggle";
+  recordBtn.title = "Record track";
+  recordBtn.textContent = "\u23FA"; // record symbol ⏺
+  const updateRecordBtn = () => {
+    const on = trackRecorder.isRecording();
+    recordBtn.classList.toggle("active", on);
+    recordBtn.title = on ? "Stop recording" : "Record track";
+  };
+  recordBtn.addEventListener("click", () => {
+    updateSettings({ trackRecordingEnabled: !trackRecorder.isRecording() });
+  });
+  trackRecorder.onRecordingChange(updateRecordBtn);
+  updateRecordBtn();
+  topBar.insertBefore(recordBtn, settingsWrapper);
+
+  // Instrument HUD toggle
+  const hudBtn = document.createElement("button");
+  hudBtn.className = "topbar-toggle";
+  hudBtn.title = "Instrument HUD";
+  hudBtn.textContent = "\u{1F4CA}"; // bar chart 📊
+  const updateHudBtn = () => {
+    hudBtn.classList.toggle("active", getSettings().showInstrumentHUD);
+  };
+  hudBtn.addEventListener("click", () => {
+    updateSettings({ showInstrumentHUD: !getSettings().showInstrumentHUD });
+  });
+  onSettingsChange(updateHudBtn);
+  updateHudBtn();
+  topBar.insertBefore(hudBtn, settingsWrapper);
+
+  // Tracks panel button
   const trackBtn = document.createElement("button");
   trackBtn.className = "settings-btn";
   trackBtn.title = "Tracks";
   trackBtn.textContent = "\u{1F9ED}";
   trackBtn.addEventListener("click", () => trackPanel.toggle());
-  topBar.insertBefore(trackBtn, topBar.querySelector(".settings-wrapper"));
+  topBar.insertBefore(trackBtn, settingsWrapper);
 
+  // Routes panel button
   const routeBtn = document.createElement("button");
   routeBtn.className = "settings-btn";
   routeBtn.title = "Routes";
   routeBtn.textContent = "\u{1F4CD}";
   routeBtn.addEventListener("click", () => routePanel.toggle());
-  topBar.insertBefore(routeBtn, topBar.querySelector(".settings-wrapper"));
+  topBar.insertBefore(routeBtn, settingsWrapper);
 }
 
 // Dismiss on click elsewhere or map interaction

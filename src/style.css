@@ -89,14 +89,46 @@ body {
   background: rgba(30, 30, 50, 0.95);
   border: 1px solid #444;
   border-radius: 6px;
-  padding: 10px 14px;
-  min-width: 200px;
+  min-width: 220px;
+  overflow: hidden;
 }
 
 .settings-panel.open {
   display: block;
 }
 
+/* Tab bar */
+.settings-tab-bar {
+  display: flex;
+  border-bottom: 1px solid #444;
+}
+
+.settings-tab {
+  flex: 1;
+  padding: 6px 8px;
+  font-size: 11px;
+  color: #999;
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.settings-tab:hover {
+  color: #ccc;
+}
+
+.settings-tab.active {
+  color: #e0e0e0;
+  border-bottom-color: #6688cc;
+}
+
+.settings-tab-content {
+  padding: 8px 14px 10px;
+}
+
+/* Settings rows */
 .settings-row {
   display: flex;
   align-items: center;
@@ -139,18 +171,6 @@ body {
   text-align: right;
 }
 
-.settings-group-section {
-  flex-direction: column;
-  align-items: flex-start;
-}
-
-.settings-toggles {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  margin-top: 4px;
-}
-
 .settings-toggle {
   font-size: 12px;
   color: #ddd;
@@ -162,6 +182,28 @@ body {
 
 .settings-toggle input[type="checkbox"] {
   accent-color: #6688cc;
+}
+
+/* Top bar toggle buttons (record, instrument HUD) */
+.topbar-toggle {
+  background: none;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  color: #888;
+  font-size: 15px;
+  cursor: pointer;
+  padding: 2px 6px;
+  line-height: 1;
+}
+
+.topbar-toggle:hover {
+  color: #ccc;
+}
+
+.topbar-toggle.active {
+  color: #fff;
+  border-color: #6688cc;
+  background: rgba(102, 136, 204, 0.15);
 }
 
 #map {
