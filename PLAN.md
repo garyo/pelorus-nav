@@ -210,7 +210,7 @@ DSID, M_COVR, M_NPUB, M_NSYS, M_QUAL, C_AGGR, C_ASSO, NEWOBJ, ADMARE, CONZNE, CO
 
 ---
 
-## Phase 1D: Offline Tile Caching
+## Phase 1D: Offline Tile Caching ✅ DONE
 
 **Goal**: Full offline operation with cached tiles (works for both raster and vector chart providers).
 
@@ -249,11 +249,11 @@ DSID, M_COVR, M_NPUB, M_NSYS, M_QUAL, C_AGGR, C_ASSO, NEWOBJ, ADMARE, CONZNE, CO
 
 ---
 
-## Phase 2: GPS Integration and Position Display
+## Phase 2: GPS Integration and Position Display ✅ DONE
 
 **Goal**: Show vessel position on chart, follow GPS, display course/speed.
 
-### 2A: Navigation Data Abstraction
+### 2A: Navigation Data Abstraction ✅ DONE
 
 #### Tasks
 1. Define `NavigationData` type:
@@ -295,7 +295,18 @@ DSID, M_COVR, M_NPUB, M_NSYS, M_QUAL, C_AGGR, C_ASSO, NEWOBJ, ADMARE, CONZNE, CO
 - [ ] Provider switching works without interruption
 - [ ] All providers produce data conforming to `NavigationData` interface
 
-### 2B: Vessel Position Display
+### 2B: Vessel Position Display ✅ DONE
+
+#### Implementation Notes
+- `VesselLayer` renders canvas-drawn boat icon via GeoJSON source + symbol layer
+- Accuracy circle as optional GeoJSON polygon overlay
+- **Course line** (`CourseLine`): projected COG line (15m/30m/1hr, configurable)
+- **Two-stage COG/SOG smoothing** (`CourseSmoothing`):
+  - Stage 1: 5-second circular buffer with circular mean for COG
+  - Stage 2: Exponential smoothing (τ=2s for COG/SOG, τ=0.5s for position)
+  - Runs per-frame (60fps) via MapLibre `render` event for fluid animation
+- Position smoothing eliminates 1Hz GPS update jitter on map centering
+- `projectPoint()` spherical forward projection in `coordinates.ts`
 
 #### Tasks
 1. Render vessel icon (boat shape or arrow) at current GPS position
@@ -310,7 +321,14 @@ DSID, M_COVR, M_NPUB, M_NSYS, M_QUAL, C_AGGR, C_ASSO, NEWOBJ, ADMARE, CONZNE, CO
 - [ ] Position updates at configured rate
 - [ ] No visible jitter on stable GPS
 
-### 2C: Chart Following Modes
+### 2C: Chart Following Modes ✅ DONE
+
+#### Implementation Notes
+- `ChartModeController` state machine: follow / course-up / north-up / free
+- Course-up uses smoothed COG (from shared `CourseSmoothing`) for jitter-free rotation
+- User pan → free mode (detected via `originalEvent` on `movestart`)
+- Recenter button restores previous non-free mode (not always follow)
+- Simulator speed multiplier (1x/10x/50x/100x) for testing mode transitions
 
 #### Tasks
 1. **Follow mode**: Chart centers on vessel position, vessel stays centered
@@ -327,7 +345,12 @@ DSID, M_COVR, M_NPUB, M_NSYS, M_QUAL, C_AGGR, C_ASSO, NEWOBJ, ADMARE, CONZNE, CO
 - [ ] Manual pan breaks follow mode; re-center button restores it
 - [ ] Mode persists across page reloads (localStorage)
 
-### 2D: Overlay Displays (HUD)
+### 2D: Overlay Displays (HUD) ✅ DONE
+
+#### Implementation Notes
+- `NavigationHUD`: unified overlay showing zoom, cursor position, COG/SOG/GPS position
+- `InstrumentHUD`: large configurable data display (selectable cells: SOG, COG, etc.)
+- Toggleable via topbar button; cell configuration persisted in settings
 
 #### Tasks
 1. Large, readable overlays for:
@@ -398,6 +421,8 @@ DSID, M_COVR, M_NPUB, M_NSYS, M_QUAL, C_AGGR, C_ASSO, NEWOBJ, ADMARE, CONZNE, CO
 ## Phase 5: Routes, Tracks, and Waypoints
 
 **Goal**: Create, save, and manage navigation routes; record and display tracks.
+
+**Status**: Tracks (5C) ✅ done. Routes (5B) partially done (RouteEditor + RouteLayer + RouteManagerPanel exist). Waypoints (5A) and GPX import/export not started.
 
 ### 5A: Waypoints
 
