@@ -4,6 +4,7 @@ import {
   haversineDistanceNM,
   initialBearingDeg,
   parseLatLon,
+  projectPoint,
   toDegrees,
   toRadians,
 } from "./coordinates";
@@ -140,5 +141,37 @@ describe("parseLatLon", () => {
 
   it("returns null for out-of-range lat", () => {
     expect(parseLatLon("91.0, -70.0")).toBeNull();
+  });
+});
+
+describe("projectPoint", () => {
+  it("projects due north by 60 NM (≈1° lat)", () => {
+    const [lon, lat] = projectPoint(42.0, -71.0, 0, 60);
+    expect(lat).toBeCloseTo(43.0, 0);
+    expect(lon).toBeCloseTo(-71.0, 1);
+  });
+
+  it("projects due east at equator by 60 NM (≈1° lon)", () => {
+    const [lon, lat] = projectPoint(0, 0, 90, 60);
+    expect(lat).toBeCloseTo(0, 1);
+    expect(lon).toBeCloseTo(1.0, 0);
+  });
+
+  it("projects due south", () => {
+    const [lon, lat] = projectPoint(42.0, -71.0, 180, 60);
+    expect(lat).toBeCloseTo(41.0, 0);
+    expect(lon).toBeCloseTo(-71.0, 1);
+  });
+
+  it("projects zero distance returns same point", () => {
+    const [lon, lat] = projectPoint(42.36, -71.06, 45, 0);
+    expect(lat).toBeCloseTo(42.36, 4);
+    expect(lon).toBeCloseTo(-71.06, 4);
+  });
+
+  it("round-trips with haversine distance", () => {
+    const [lon, lat] = projectPoint(42.36, -71.06, 135, 10);
+    const dist = haversineDistanceNM(42.36, -71.06, lat, lon);
+    expect(dist).toBeCloseTo(10, 1);
   });
 });

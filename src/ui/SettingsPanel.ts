@@ -5,6 +5,7 @@
 
 import {
   type ChartMode,
+  type CourseLineDuration,
   type DepthUnit,
   type DetailLevel,
   depthUnitLabel,
@@ -265,6 +266,26 @@ function buildNavigationTab(
       CHART_MODES,
       settings.chartMode,
       (v) => updateSettings({ chartMode: v as ChartMode }),
+    ),
+  );
+
+  // Course line duration
+  const COURSE_LINE_OPTIONS = [
+    { value: "0", label: "Off" },
+    { value: "15", label: "15 min" },
+    { value: "30", label: "30 min" },
+    { value: "60", label: "1 hour" },
+  ];
+  tab.appendChild(
+    buildSelectRow(
+      "Course line",
+      "settings-course-line",
+      COURSE_LINE_OPTIONS,
+      String(settings.courseLineDuration),
+      (v) =>
+        updateSettings({
+          courseLineDuration: Number(v) as CourseLineDuration,
+        }),
     ),
   );
 

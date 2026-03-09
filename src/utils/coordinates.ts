@@ -106,6 +106,40 @@ export function initialBearingDeg(
   return ((toDegrees(Math.atan2(y, x)) % 360) + 360) % 360;
 }
 
+/**
+ * Project a point forward along a bearing by a given distance (spherical).
+ * Returns [longitude, latitude] in decimal degrees.
+ */
+export function projectPoint(
+  lat: number,
+  lon: number,
+  bearingDeg: number,
+  distanceNM: number,
+): [number, number] {
+  const R_NM = 3440.065; // Earth radius in nautical miles
+  const phi1 = toRadians(lat);
+  const lambda1 = toRadians(lon);
+  const brng = toRadians(bearingDeg);
+  const delta = distanceNM / R_NM; // angular distance
+
+  const sinPhi1 = Math.sin(phi1);
+  const cosPhi1 = Math.cos(phi1);
+  const sinDelta = Math.sin(delta);
+  const cosDelta = Math.cos(delta);
+
+  const phi2 = Math.asin(
+    sinPhi1 * cosDelta + cosPhi1 * sinDelta * Math.cos(brng),
+  );
+  const lambda2 =
+    lambda1 +
+    Math.atan2(
+      Math.sin(brng) * sinDelta * cosPhi1,
+      cosDelta - sinPhi1 * Math.sin(phi2),
+    );
+
+  return [toDegrees(lambda2), toDegrees(phi2)];
+}
+
 export function parseLatLon(input: string): [number, number] | null {
   const s = input.trim();
   if (!s) return null;

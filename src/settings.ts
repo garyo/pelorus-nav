@@ -6,6 +6,7 @@ export type DepthUnit = "meters" | "feet" | "fathoms";
 export type SpeedUnit = "knots" | "mph" | "kph";
 export type ChartMode = "follow" | "course-up" | "north-up" | "free";
 export type DetailLevel = -1 | 0 | 1 | 2;
+export type CourseLineDuration = 0 | 15 | 30 | 60;
 
 export interface Settings {
   depthUnit: DepthUnit;
@@ -21,6 +22,7 @@ export interface Settings {
   trackRecordingEnabled: boolean;
   activeTrackColor: string;
   activeRegion: string;
+  courseLineDuration: CourseLineDuration;
 }
 
 const STORAGE_KEY = "pelorus-nav-settings";
@@ -54,6 +56,7 @@ const DEFAULTS: Settings = {
   trackRecordingEnabled: false,
   activeTrackColor: "#ff4444",
   activeRegion: "new-england",
+  courseLineDuration: 0,
 };
 
 type SettingsListener = (settings: Settings) => void;

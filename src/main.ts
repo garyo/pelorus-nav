@@ -41,6 +41,7 @@ import { createSettingsPanel } from "./ui/SettingsPanel";
 import { TrackManagerPanel } from "./ui/TrackManagerPanel";
 import { formatLatLon, parseLatLon } from "./utils/coordinates";
 import { ChartModeController } from "./vessel/ChartMode";
+import { CourseLine } from "./vessel/CourseLine";
 import { VesselLayer } from "./vessel/VesselLayer";
 
 // Register PMTiles protocol for vector tile sources
@@ -127,10 +128,14 @@ const recenterBtn = new RecenterButton({
 });
 chartManager.map.addControl(recenterBtn, "bottom-left");
 
-// Wire navigation data to vessel layer and chart mode
+// Course line (projected COG line)
+const courseLine = new CourseLine(chartManager.map);
+
+// Wire navigation data to vessel layer, chart mode, and course line
 navManager.subscribe((data) => {
   vesselLayer.update(data);
   chartMode.update(data);
+  courseLine.update(data);
 
   // Show/hide re-center button
   recenterBtn.setVisible(chartMode.getMode() === "free");
