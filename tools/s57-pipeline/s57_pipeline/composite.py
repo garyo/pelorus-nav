@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import gzip
 import json
+import time
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -44,6 +45,16 @@ class CellTileSource:
 def _tile_bbox_polygon(z: int, x: int, y: int) -> BaseGeometry:
     """Get a Shapely polygon for a tile's bounding box."""
     return box(*_tile_to_bbox(z, x, y))
+
+
+def _tile_intersects_bbox(
+    z: int, x: int, y: int,
+    region_bbox: tuple[float, float, float, float],
+) -> bool:
+    """Fast check if tile (z,x,y) intersects a region bbox."""
+    tw, ts, te, tn = _tile_to_bbox(z, x, y)
+    rw, rs, re, rn = region_bbox
+    return not (te < rw or tw > re or tn < rs or ts > rn)
 
 
 def _pixel_to_geo_coords(
@@ -212,6 +223,7 @@ def composite_tiles(
     sources: list[CellTileSource],
     output_path: Path,
     debug_latlon: tuple[float, float] | None = None,
+    region_bbox: tuple[float, float, float, float] | None = None,
 ) -> tuple[Path, set[str]] | None:
     """Composite tiles from multiple cells using M_COVR coverage clipping.
 
@@ -230,6 +242,8 @@ def composite_tiles(
         output_path: Path for the final merged output PMTiles.
         debug_latlon: If set, (lat, lon) to emit detailed compositing
             debug info for all tiles containing this point.
+        region_bbox: If set, (west, south, east, north) to clip the
+            coverage mask output to this bounding box.
 
     Returns:
         Tuple of (output path, set of cell names that contributed to output),
@@ -504,6 +518,11 @@ def composite_tiles(
     coverage_polys = [src.coverage for src in sources]
     if coverage_polys:
         coverage_union = make_valid(union_all(coverage_polys))
+        # Clip coverage to region bbox if provided, so we don't show
+        # coverage polygons from overview cells outside the actual data region
+        if region_bbox is not None:
+            region_poly = box(*region_bbox)
+            coverage_union = make_valid(coverage_union.intersection(region_poly))
         # World polygon (slightly beyond Web Mercator bounds)
         world = box(-180, -85.06, 180, 85.06)
         no_coverage = make_valid(world.difference(coverage_union))

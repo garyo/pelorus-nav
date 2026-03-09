@@ -1,8 +1,14 @@
 /**
- * Panel for managing offline chart downloads.
- * Allows downloading, importing, and deleting PMTiles chart files stored in OPFS.
+ * Panel for managing chart regions and offline downloads.
+ *
+ * Shows available regions from the catalog. Each region can be:
+ * - Streamed remotely (default, no download needed)
+ * - Downloaded to OPFS for offline use
+ *
+ * The active region is switched via settings.activeRegion.
  */
 
+import { CHART_REGIONS, type ChartRegion } from "../data/chart-catalog";
 import type { StoredChartInfo } from "../data/tile-store";
 import {
   deleteAllCharts,
@@ -12,12 +18,15 @@ import {
   importChart,
   listStoredCharts,
 } from "../data/tile-store";
-import { iconDownload, iconTrash, iconUpload, iconX } from "./icons";
+import { getSettings, updateSettings } from "../settings";
+import {
+  iconCloudOff,
+  iconDownload,
+  iconTrash,
+  iconUpload,
+  iconX,
+} from "./icons";
 import { getPanelStack } from "./PanelStack";
-
-/** Default chart download URL (served via Cloudflare Worker from R2). */
-const DEFAULT_CHART_URL = "/nautical.pmtiles";
-const DEFAULT_CHART_FILENAME = "nautical.pmtiles";
 
 function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
@@ -39,7 +48,7 @@ export class ChartCachePanel {
     this.el.className = "manager-panel chart-cache-panel";
     this.el.innerHTML =
       '<div class="manager-header">' +
-      "<span>Offline Charts</span>" +
+      "<span>Chart Regions</span>" +
       '<button class="manager-close"></button>' +
       "</div>" +
       '<div class="manager-body"></div>' +
@@ -79,31 +88,34 @@ export class ChartCachePanel {
   }
 
   private async refresh(): Promise<void> {
-    const charts = await listStoredCharts();
+    const storedCharts = await listStoredCharts();
+    const storedMap = new Map(storedCharts.map((c) => [c.filename, c]));
+    const activeRegion = getSettings().activeRegion;
+
     this.body.innerHTML = "";
 
-    // Chart list
-    if (charts.length === 0) {
-      const empty = document.createElement("div");
-      empty.className = "manager-empty";
-      empty.textContent = "No offline charts";
-      this.body.appendChild(empty);
-    } else {
-      for (const chart of charts) {
-        this.body.appendChild(this.createChartItem(chart));
+    // Region list — one row per catalog region
+    for (const region of CHART_REGIONS) {
+      const stored = storedMap.get(region.filename);
+      this.body.appendChild(
+        this.createRegionItem(
+          region,
+          stored ?? null,
+          region.id === activeRegion,
+        ),
+      );
+    }
+
+    // Any downloaded files not in catalog (e.g. manually imported)
+    for (const chart of storedCharts) {
+      if (!CHART_REGIONS.some((r) => r.filename === chart.filename)) {
+        this.body.appendChild(this.createImportedItem(chart));
       }
     }
 
     // Action buttons
     const actions = document.createElement("div");
     actions.className = "chart-cache-actions";
-
-    // Download button
-    const dlBtn = document.createElement("button");
-    dlBtn.className = "chart-cache-btn";
-    dlBtn.innerHTML = `${iconDownload} Download Charts`;
-    dlBtn.addEventListener("click", () => this.startDownload());
-    actions.appendChild(dlBtn);
 
     // Import button
     const importBtn = document.createElement("button");
@@ -112,22 +124,93 @@ export class ChartCachePanel {
     importBtn.addEventListener("click", () => this.importFile());
     actions.appendChild(importBtn);
 
-    // Flush all button (only if charts exist)
-    if (charts.length > 0) {
+    // Flush all button (only if any charts stored)
+    if (storedCharts.length > 0) {
       const flushBtn = document.createElement("button");
       flushBtn.className = "chart-cache-btn chart-cache-btn--danger";
-      flushBtn.innerHTML = `${iconTrash} Remove All`;
+      flushBtn.innerHTML = `${iconTrash} Remove All Offline`;
       flushBtn.addEventListener("click", () => this.flushAll());
       actions.appendChild(flushBtn);
     }
 
     this.body.appendChild(actions);
-
-    // Storage info
     await this.updateStorageInfo();
   }
 
-  private createChartItem(chart: StoredChartInfo): HTMLDivElement {
+  /** Create a row for a catalog region. */
+  private createRegionItem(
+    region: ChartRegion,
+    stored: StoredChartInfo | null,
+    isActive: boolean,
+  ): HTMLDivElement {
+    const item = document.createElement("div");
+    item.className = `manager-item${isActive ? " manager-item--active" : ""}`;
+
+    // Radio-style select button
+    const radio = document.createElement("div");
+    radio.className = `chart-region-radio${isActive ? " active" : ""}`;
+    radio.title = isActive ? "Active region" : `Switch to ${region.name}`;
+    radio.addEventListener("click", () => {
+      if (!isActive) {
+        updateSettings({ activeRegion: region.id });
+        this.refresh();
+      }
+    });
+
+    const info = document.createElement("div");
+    info.className = "manager-item-info";
+
+    const name = document.createElement("div");
+    name.className = "manager-item-name";
+    name.textContent = region.name;
+
+    const detail = document.createElement("div");
+    detail.className = "manager-item-detail";
+    if (stored) {
+      const date = new Date(stored.downloadedAt).toLocaleDateString();
+      detail.innerHTML = `${iconCloudOff} Offline \u00b7 ${formatBytes(stored.sizeBytes)} \u00b7 ${date}`;
+    } else {
+      detail.textContent = `Streaming \u00b7 ~${formatBytes(region.sizeEstimate)}`;
+    }
+
+    info.append(name, detail);
+
+    const actions = document.createElement("div");
+    actions.className = "manager-item-actions";
+
+    if (stored) {
+      // Delete offline copy
+      const deleteBtn = document.createElement("button");
+      deleteBtn.className = "manager-item-btn";
+      deleteBtn.innerHTML = iconTrash;
+      deleteBtn.title = "Remove offline copy";
+      deleteBtn.addEventListener("click", () => {
+        if (!confirm(`Remove offline copy of "${region.name}"?`)) return;
+        (async () => {
+          await deleteChart(stored.filename);
+          this.onChartsChanged?.();
+          await this.refresh();
+        })().catch(console.error);
+      });
+      actions.appendChild(deleteBtn);
+    } else {
+      // Download for offline
+      const dlBtn = document.createElement("button");
+      dlBtn.className = "manager-item-btn";
+      dlBtn.innerHTML = iconDownload;
+      dlBtn.title = "Download for offline use";
+      dlBtn.addEventListener("click", () => {
+        this.startDownload(region);
+      });
+      actions.appendChild(dlBtn);
+    }
+
+    item.append(radio, info, actions);
+    return item;
+  }
+
+  /** Create a row for a manually imported file not in the catalog. */
+  private createImportedItem(chart: StoredChartInfo): HTMLDivElement {
     const item = document.createElement("div");
     item.className = "manager-item";
 
@@ -136,12 +219,12 @@ export class ChartCachePanel {
 
     const name = document.createElement("div");
     name.className = "manager-item-name";
-    name.textContent = chart.region;
+    name.textContent = chart.filename;
 
     const detail = document.createElement("div");
     detail.className = "manager-item-detail";
     const date = new Date(chart.downloadedAt).toLocaleDateString();
-    detail.textContent = `${formatBytes(chart.sizeBytes)} \u00b7 ${date}`;
+    detail.textContent = `Imported \u00b7 ${formatBytes(chart.sizeBytes)} \u00b7 ${date}`;
 
     info.append(name, detail);
 
@@ -153,7 +236,7 @@ export class ChartCachePanel {
     deleteBtn.innerHTML = iconTrash;
     deleteBtn.title = "Delete";
     deleteBtn.addEventListener("click", () => {
-      if (!confirm(`Delete offline chart "${chart.region}"?`)) return;
+      if (!confirm(`Delete "${chart.filename}"?`)) return;
       (async () => {
         await deleteChart(chart.filename);
         this.onChartsChanged?.();
@@ -166,8 +249,7 @@ export class ChartCachePanel {
     return item;
   }
 
-  private async startDownload(): Promise<void> {
-    // Replace body with progress UI
+  private async startDownload(region: ChartRegion): Promise<void> {
     this.body.innerHTML = "";
 
     const progressContainer = document.createElement("div");
@@ -175,7 +257,7 @@ export class ChartCachePanel {
 
     const label = document.createElement("div");
     label.className = "chart-cache-progress-label";
-    label.textContent = "Downloading charts...";
+    label.textContent = `Downloading ${region.name}...`;
 
     const barOuter = document.createElement("div");
     barOuter.className = "chart-cache-progress-bar";
@@ -201,8 +283,8 @@ export class ChartCachePanel {
 
     try {
       await downloadChart(
-        DEFAULT_CHART_URL,
-        DEFAULT_CHART_FILENAME,
+        `/${region.filename}`,
+        region.filename,
         (loaded, total) => {
           const pct = total > 0 ? (loaded / total) * 100 : 0;
           barInner.style.width = `${pct}%`;
@@ -213,13 +295,13 @@ export class ChartCachePanel {
       this.onChartsChanged?.();
     } catch (err) {
       if (err instanceof DOMException && err.name === "AbortError") {
-        // User cancelled — just refresh
+        // User cancelled
       } else {
         const errorDiv = document.createElement("div");
         errorDiv.className = "chart-cache-error";
         errorDiv.textContent = `Download failed: ${err instanceof Error ? err.message : "Unknown error"}`;
         this.body.appendChild(errorDiv);
-        return; // Don't refresh on error — show the message
+        return;
       }
     } finally {
       this.downloadController = null;
@@ -236,7 +318,6 @@ export class ChartCachePanel {
     input.addEventListener("change", async () => {
       const file = input.files?.[0];
       if (!file) return;
-
       try {
         await importChart(file);
         this.onChartsChanged?.();

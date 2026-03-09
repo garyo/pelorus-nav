@@ -1,4 +1,5 @@
 import type { LayerSpecification, SourceSpecification } from "maplibre-gl";
+import { CHART_REGIONS, type ChartRegion } from "../data/chart-catalog";
 import { getSettings } from "../settings";
 import type { ChartProvider } from "./ChartProvider";
 import { getNauticalLayers } from "./nautical-style";
@@ -9,6 +10,10 @@ const COVERAGE_SOURCE_ID = "s57-coverage";
 /**
  * Chart provider for S-57 ENC vector tiles in PMTiles format.
  * Tiles are generated offline by the tools/s57-pipeline/ tool.
+ *
+ * Supports switching between regions via setRegion(). Each region
+ * has its own PMTiles file and coverage GeoJSON, served from R2
+ * or loaded from OPFS for offline use.
  */
 export class VectorChartProvider implements ChartProvider {
   readonly id = "s57-vector";
@@ -17,21 +22,30 @@ export class VectorChartProvider implements ChartProvider {
   readonly minZoom = 0;
   readonly maxZoom = 14;
 
-  private pmtilesUrl: string;
-  private coverageUrl: string;
+  private region: ChartRegion;
 
-  constructor(
-    pmtilesUrl = "pmtiles:///nautical.pmtiles",
-    coverageUrl = "/nautical.coverage.geojson",
-  ) {
-    this.pmtilesUrl = pmtilesUrl;
-    this.coverageUrl = coverageUrl;
+  constructor(regionId?: string) {
+    this.region =
+      CHART_REGIONS.find((r) => r.id === regionId) ?? CHART_REGIONS[0];
+  }
+
+  /** Get the active region. */
+  getRegion(): ChartRegion {
+    return this.region;
+  }
+
+  /** Switch to a different region. Returns true if the region changed. */
+  setRegion(regionId: string): boolean {
+    const newRegion = CHART_REGIONS.find((r) => r.id === regionId);
+    if (!newRegion || newRegion.id === this.region.id) return false;
+    this.region = newRegion;
+    return true;
   }
 
   getSource(): SourceSpecification {
     return {
       type: "vector",
-      tiles: [`${this.pmtilesUrl}/{z}/{x}/{y}`],
+      tiles: [`pmtiles:///${this.region.filename}/{z}/{x}/{y}`],
       minzoom: this.minZoom,
       maxzoom: this.maxZoom,
       attribution: this.getAttribution(),
@@ -42,7 +56,7 @@ export class VectorChartProvider implements ChartProvider {
     return {
       [COVERAGE_SOURCE_ID]: {
         type: "geojson",
-        data: this.coverageUrl,
+        data: `/${this.region.coverageFilename}`,
       },
     };
   }

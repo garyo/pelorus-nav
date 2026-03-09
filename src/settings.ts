@@ -20,6 +20,7 @@ export interface Settings {
   instrumentCells: [string, string];
   trackRecordingEnabled: boolean;
   activeTrackColor: string;
+  activeRegion: string;
 }
 
 const STORAGE_KEY = "pelorus-nav-settings";
@@ -52,6 +53,7 @@ const DEFAULTS: Settings = {
   instrumentCells: ["sog", "cog"],
   trackRecordingEnabled: false,
   activeTrackColor: "#ff4444",
+  activeRegion: "new-england",
 };
 
 type SettingsListener = (settings: Settings) => void;

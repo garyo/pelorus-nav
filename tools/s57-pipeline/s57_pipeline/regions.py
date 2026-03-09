@@ -55,6 +55,11 @@ REGIONS: dict[str, Region] = {
         bbox=(-73.8, 40.5, -66.9, 47.5),
         description="Full coverage: Long Island Sound through Downeast Maine",
     ),
+    "usvi": Region(
+        name="US Virgin Islands",
+        bbox=(-65.2, 17.5, -64.4, 18.6),
+        description="St. Thomas, St. John, St. Croix with approaches",
+    ),
 }
 
 

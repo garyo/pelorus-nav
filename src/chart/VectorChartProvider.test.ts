@@ -22,12 +22,29 @@ describe("VectorChartProvider", () => {
     }
   });
 
-  it("accepts custom pmtiles URL", () => {
-    const custom = new VectorChartProvider("pmtiles:///custom.pmtiles");
-    const source = custom.getSource();
+  it("defaults to first catalog region", () => {
+    const source = provider.getSource();
     if (source.type === "vector") {
-      expect(source.tiles?.[0]).toBe("pmtiles:///custom.pmtiles/{z}/{x}/{y}");
+      expect(source.tiles?.[0]).toContain("nautical-new-england.pmtiles");
     }
+  });
+
+  it("accepts region ID", () => {
+    const usvi = new VectorChartProvider("usvi");
+    const source = usvi.getSource();
+    if (source.type === "vector") {
+      expect(source.tiles?.[0]).toBe(
+        "pmtiles:///nautical-usvi.pmtiles/{z}/{x}/{y}",
+      );
+    }
+  });
+
+  it("switches region via setRegion", () => {
+    const p = new VectorChartProvider("new-england");
+    expect(p.setRegion("usvi")).toBe(true);
+    expect(p.getRegion().id).toBe("usvi");
+    // No-op for same region
+    expect(p.setRegion("usvi")).toBe(false);
   });
 
   it("returns nautical chart layers", () => {

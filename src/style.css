@@ -711,6 +711,29 @@ body {
   gap: 6px;
 }
 
+/* Chart region radio selector */
+.chart-region-radio {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 2px solid #666;
+  flex-shrink: 0;
+  cursor: pointer;
+}
+
+.chart-region-radio:hover {
+  border-color: #aaa;
+}
+
+.chart-region-radio.active {
+  border-color: #6688cc;
+  background: #6688cc;
+}
+
+.manager-item--active {
+  background: rgba(102, 136, 204, 0.1);
+}
+
 /* Chart cache panel */
 .chart-cache-actions {
   display: flex;

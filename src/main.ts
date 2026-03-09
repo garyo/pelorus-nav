@@ -61,15 +61,20 @@ try {
   // OPFS not available or no stored charts — fall back to remote
 }
 
+// Create vector chart provider with the user's active region
+const initialRegion = getSettings().activeRegion;
+const vectorProvider = new VectorChartProvider(initialRegion);
+const activeRegionInfo = vectorProvider.getRegion();
+
 const chartManager = new ChartManager({
   container: "map",
-  center: [-71.06, 42.36], // Boston Harbor
-  zoom: 12,
+  center: activeRegionInfo.center,
+  zoom: activeRegionInfo.defaultZoom,
   providers: [
     new NOAAChartProvider(),
     new NOAAECDISProvider(),
     new OSMChartProvider(),
-    new VectorChartProvider(),
+    vectorProvider,
   ],
   initialProviderId: "s57-vector",
 });
@@ -137,6 +142,15 @@ onSettingsChange((s) => {
   }
   if (s.gpsSource !== navManager.getActiveProvider()?.id) {
     navManager.setActiveProvider(s.gpsSource);
+  }
+  // Switch chart region
+  if (vectorProvider.setRegion(s.activeRegion)) {
+    chartManager.refreshStyle();
+    const region = vectorProvider.getRegion();
+    chartManager.map.flyTo({
+      center: region.center,
+      zoom: region.defaultZoom,
+    });
   }
 });
 

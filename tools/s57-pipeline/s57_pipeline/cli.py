@@ -414,8 +414,14 @@ def cmd_pipeline(args: argparse.Namespace) -> None:
             sys.exit(1)
         debug_latlon = (parts[0], parts[1])
 
+    # Get region bbox for clipping coverage mask
+    region_bbox = None
+    if args.region and args.region in REGIONS:
+        region_bbox = REGIONS[args.region].bbox
+
     print(f"\n=== Compositing: {len(sources)} tile sets ===")
-    result = composite_tiles(sources, output_path, debug_latlon=debug_latlon)
+    result = composite_tiles(sources, output_path, debug_latlon=debug_latlon,
+                             region_bbox=region_bbox)
 
     # Summary of unused cells
     if result is not None:

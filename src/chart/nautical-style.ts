@@ -132,21 +132,6 @@ export function getNauticalLayers(
       },
     },
 
-    // ── Coverage mask: shade areas outside chart coverage ────────────────
-    ...(coverageSourceId
-      ? [
-          {
-            id: "s57-no-coverage",
-            type: "fill" as const,
-            source: coverageSourceId,
-            paint: {
-              "fill-color": "#1a1a2e",
-              "fill-opacity": 0.4,
-            },
-          },
-        ]
-      : []),
-
     // ── Fill layers: terrain ─────────────────────────────────────────────
     // Draw water (DEPARE) first, then land (LNDARE) on top.
     {
@@ -1376,6 +1361,21 @@ export function getNauticalLayers(
       "s57-daymar": "OTHER",
       "s57-topmar": "OTHER",
     };
+
+  // ── Coverage mask: shade areas outside chart coverage ──────────────
+  // Must be on top of all chart layers so it visually masks tile data
+  // that extends beyond the actual region coverage.
+  if (coverageSourceId) {
+    layers.push({
+      id: "s57-no-coverage",
+      type: "fill" as const,
+      source: coverageSourceId,
+      paint: {
+        "fill-color": "#1a1a2e",
+        "fill-opacity": 0.4,
+      },
+    });
+  }
 
   // Per-layer minzoom at which OTHER layers appear at Standard detail.
   // Layers not listed here remain hidden at Standard detail (only shown
