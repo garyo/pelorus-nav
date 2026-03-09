@@ -6,6 +6,7 @@ import { deleteRoute, getAllRoutes, saveRoute } from "../data/db";
 import type { Route } from "../data/Route";
 import type { RouteEditor } from "../map/RouteEditor";
 import type { RouteLayer } from "../map/RouteLayer";
+import { iconEdit, iconEye, iconEyeOff, iconTrash, iconX } from "./icons";
 import { getPanelStack } from "./PanelStack";
 
 export class RouteManagerPanel {
@@ -25,16 +26,18 @@ export class RouteManagerPanel {
       "<span>Routes</span>" +
       '<div style="display:flex;gap:6px;align-items:center">' +
       '<button class="route-editor-btn" id="route-new-btn">New</button>' +
-      '<button class="manager-close">&times;</button>' +
+      '<button class="manager-close"></button>' +
       "</div>" +
       "</div>" +
       '<div class="manager-body"></div>';
     getPanelStack().appendChild(this.el);
 
     this.body = this.el.querySelector(".manager-body") as HTMLDivElement;
-    this.el
-      .querySelector(".manager-close")
-      ?.addEventListener("click", () => this.hide());
+    const closeBtn = this.el.querySelector(".manager-close") as HTMLElement;
+    if (closeBtn) {
+      closeBtn.innerHTML = iconX;
+      closeBtn.addEventListener("click", () => this.hide());
+    }
     this.el.querySelector("#route-new-btn")?.addEventListener("click", () => {
       this.hide();
       this.editor.startEditing();
@@ -105,7 +108,7 @@ export class RouteManagerPanel {
 
     const editBtn = document.createElement("button");
     editBtn.className = "manager-item-btn";
-    editBtn.textContent = "\u270E";
+    editBtn.innerHTML = iconEdit;
     editBtn.title = "Edit";
     editBtn.addEventListener("click", () => {
       this.hide();
@@ -114,9 +117,7 @@ export class RouteManagerPanel {
 
     const toggleBtn = document.createElement("button");
     toggleBtn.className = "manager-item-btn";
-    toggleBtn.textContent = route.visible
-      ? "\u{1F441}"
-      : "\u{1F441}\u200D\u{1F5E8}";
+    toggleBtn.innerHTML = route.visible ? iconEye : iconEyeOff;
     toggleBtn.title = route.visible ? "Hide" : "Show";
     toggleBtn.addEventListener("click", () => {
       (async () => {
@@ -129,7 +130,7 @@ export class RouteManagerPanel {
 
     const deleteBtn = document.createElement("button");
     deleteBtn.className = "manager-item-btn";
-    deleteBtn.textContent = "\u{1F5D1}";
+    deleteBtn.innerHTML = iconTrash;
     deleteBtn.title = "Delete";
     deleteBtn.addEventListener("click", () => {
       if (!confirm(`Delete route "${route.name}"?`)) return;

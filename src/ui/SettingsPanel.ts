@@ -14,6 +14,7 @@ import {
   type SpeedUnit,
   updateSettings,
 } from "../settings";
+import { iconSettings } from "./icons";
 
 const DEPTH_UNITS: { value: DepthUnit; label: string }[] = [
   { value: "meters", label: "Meters" },
@@ -54,7 +55,7 @@ export function createSettingsPanel(container: HTMLElement): void {
   const btn = document.createElement("button");
   btn.className = "settings-btn";
   btn.setAttribute("aria-label", "Settings");
-  btn.innerHTML = "&#9881;"; // gear icon
+  btn.innerHTML = iconSettings;
   wrapper.appendChild(btn);
 
   const panel = document.createElement("div");

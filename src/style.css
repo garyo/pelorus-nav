@@ -25,11 +25,7 @@ body {
   align-items: center;
   height: 36px;
   padding: 0 12px;
-  background: linear-gradient(
-    to right,
-    rgba(26, 26, 46, 0.5) 60%,
-    rgba(26, 26, 46, 0.85)
-  );
+  background: rgba(26, 26, 46, 0.9);
   color: #e0e0e0;
   font-size: 14px;
   gap: 12px;
@@ -204,6 +200,23 @@ body {
   color: #fff;
   border-color: #6688cc;
   background: rgba(102, 136, 204, 0.15);
+}
+
+.topbar-toggle.active.topbar-record {
+  color: #e33;
+  border-color: #e33;
+  background: rgba(238, 51, 51, 0.15);
+}
+
+/* Ensure SVG icons in buttons align properly */
+.settings-btn svg,
+.topbar-toggle svg,
+.manager-close svg,
+.manager-item-btn svg,
+.feature-info-close svg,
+.feature-info-nav-btn svg {
+  display: inline-block;
+  vertical-align: middle;
 }
 
 #map {

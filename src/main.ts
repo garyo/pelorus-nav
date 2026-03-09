@@ -24,6 +24,7 @@ import {
 } from "./navigation";
 import { getSettings, onSettingsChange, updateSettings } from "./settings";
 import { createInstrumentHUD } from "./ui/InstrumentHUD";
+import { iconGauge, iconRecord, iconRoute, iconTrack } from "./ui/icons";
 import { NavigationHUD } from "./ui/NavigationHUD";
 import { RecenterButton } from "./ui/RecenterButton";
 import { RouteManagerPanel } from "./ui/RouteManagerPanel";
@@ -361,9 +362,9 @@ if (topBar) {
 
   // Record track toggle
   const recordBtn = document.createElement("button");
-  recordBtn.className = "topbar-toggle";
+  recordBtn.className = "topbar-toggle topbar-record";
   recordBtn.title = "Record track";
-  recordBtn.textContent = "\u23FA"; // record symbol ⏺
+  recordBtn.innerHTML = iconRecord;
   const updateRecordBtn = () => {
     const on = trackRecorder.isRecording();
     recordBtn.classList.toggle("active", on);
@@ -380,7 +381,7 @@ if (topBar) {
   const hudBtn = document.createElement("button");
   hudBtn.className = "topbar-toggle";
   hudBtn.title = "Instrument HUD";
-  hudBtn.textContent = "\u{1F4CA}"; // bar chart 📊
+  hudBtn.innerHTML = iconGauge;
   const updateHudBtn = () => {
     hudBtn.classList.toggle("active", getSettings().showInstrumentHUD);
   };
@@ -395,7 +396,7 @@ if (topBar) {
   const trackBtn = document.createElement("button");
   trackBtn.className = "settings-btn";
   trackBtn.title = "Tracks";
-  trackBtn.textContent = "\u{1F9ED}";
+  trackBtn.innerHTML = iconTrack;
   trackBtn.addEventListener("click", () => trackPanel.toggle());
   topBar.insertBefore(trackBtn, settingsWrapper);
 
@@ -403,7 +404,7 @@ if (topBar) {
   const routeBtn = document.createElement("button");
   routeBtn.className = "settings-btn";
   routeBtn.title = "Routes";
-  routeBtn.textContent = "\u{1F4CD}";
+  routeBtn.innerHTML = iconRoute;
   routeBtn.addEventListener("click", () => routePanel.toggle());
   topBar.insertBefore(routeBtn, settingsWrapper);
 }
