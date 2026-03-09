@@ -64,6 +64,17 @@ try {
   // OPFS not available or no stored charts — fall back to remote
 }
 
+// Apply display theme to body element
+const applyDisplayTheme = (theme: string) => {
+  if (theme === "day") {
+    delete document.body.dataset.theme;
+  } else {
+    document.body.dataset.theme = theme;
+  }
+};
+applyDisplayTheme(getSettings().displayTheme);
+onSettingsChange((s) => applyDisplayTheme(s.displayTheme));
+
 // Create vector chart provider with the user's active region
 const initialRegion = getSettings().activeRegion;
 const vectorProvider = new VectorChartProvider(initialRegion);

@@ -7,6 +7,7 @@ export type SpeedUnit = "knots" | "mph" | "kph";
 export type ChartMode = "follow" | "course-up" | "north-up" | "free";
 export type DetailLevel = -1 | 0 | 1 | 2;
 export type CourseLineDuration = 0 | 15 | 30 | 60;
+export type DisplayTheme = "day" | "dusk" | "night" | "eink";
 
 export interface Settings {
   depthUnit: DepthUnit;
@@ -24,6 +25,7 @@ export interface Settings {
   activeRegion: string;
   courseLineDuration: CourseLineDuration;
   simulatorSpeed: number;
+  displayTheme: DisplayTheme;
 }
 
 const STORAGE_KEY = "pelorus-nav-settings";
@@ -59,6 +61,7 @@ const DEFAULTS: Settings = {
   activeRegion: "new-england",
   courseLineDuration: 0,
   simulatorSpeed: 1,
+  displayTheme: "day",
 };
 
 type SettingsListener = (settings: Settings) => void;

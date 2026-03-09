@@ -8,6 +8,7 @@ import {
   type CourseLineDuration,
   type DepthUnit,
   type DetailLevel,
+  type DisplayTheme,
   depthUnitLabel,
   getSettings,
   LAYER_GROUP_LABELS,
@@ -138,6 +139,23 @@ function buildAppearanceTab(
   settings: ReturnType<typeof getSettings>,
 ): HTMLElement {
   const tab = document.createElement("div");
+
+  // Display theme
+  const DISPLAY_THEMES = [
+    { value: "day", label: "Day" },
+    { value: "dusk", label: "Dusk" },
+    { value: "night", label: "Night" },
+    { value: "eink", label: "E-ink" },
+  ];
+  tab.appendChild(
+    buildSelectRow(
+      "Display theme",
+      "settings-display-theme",
+      DISPLAY_THEMES,
+      settings.displayTheme,
+      (v) => updateSettings({ displayTheme: v as DisplayTheme }),
+    ),
+  );
 
   // Depth units
   tab.appendChild(

@@ -1,7 +1,26 @@
 import type { ExpressionSpecification, LayerSpecification } from "maplibre-gl";
+import type { DisplayTheme } from "../settings";
 import { type DepthUnit, depthConversionFactor } from "../settings";
 import { buildIconExpression, ECDIS_SIMPLIFIED } from "./icon-sets";
-import { s52Colour } from "./s52-colours";
+import {
+  type ColourScheme,
+  s52Colour,
+  setActiveColourScheme,
+} from "./s52-colours";
+
+/** Map DisplayTheme to S-52 ColourScheme. */
+function themeToScheme(theme: DisplayTheme): ColourScheme {
+  switch (theme) {
+    case "day":
+      return "DAY";
+    case "dusk":
+      return "DUSK";
+    case "night":
+      return "NIGHT";
+    case "eink":
+      return "EINK";
+  }
+}
 
 /**
  * Nautical chart style layers for S-57 vector tiles.
@@ -97,7 +116,10 @@ export function getNauticalLayers(
   detailOffset = 0,
   layerGroups: Record<string, boolean> = {},
   coverageSourceId?: string,
+  theme: DisplayTheme = "day",
 ): LayerSpecification[] {
+  // Set the active colour scheme so all s52Colour() calls use it
+  setActiveColourScheme(themeToScheme(theme));
   // Detail levels map to display categories:
   //   -2, -1: DISPLAYBASE only
   //   0: DISPLAYBASE + STANDARD (+ selected OTHER layers at high zoom)
@@ -320,7 +342,7 @@ export function getNauticalLayers(
       source: sourceId,
       "source-layer": "FAIRWY",
       paint: {
-        "fill-color": "#ffffff",
+        "fill-color": s52Colour("CHWHT"),
         "fill-opacity": 0,
       },
     },
@@ -556,7 +578,7 @@ export function getNauticalLayers(
       },
       paint: {
         "text-color": s52Colour("SNDG1"),
-        "text-halo-color": "#ffffff",
+        "text-halo-color": s52Colour("CHWHT"),
         "text-halo-width": 1,
       },
     },
@@ -569,10 +591,12 @@ export function getNauticalLayers(
       "source-layer": "LIGHTS",
       paint: {
         "circle-radius": 12,
-        "circle-color": "rgba(255, 220, 0, 0.25)",
+        "circle-color": s52Colour("LITYW"),
         "circle-blur": 0.6,
         "circle-stroke-width": 2,
-        "circle-stroke-color": "rgba(255, 180, 0, 0.5)",
+        "circle-stroke-color": s52Colour("LITYW"),
+        "circle-opacity": 0.25,
+        "circle-stroke-opacity": 0.5,
       },
     },
     {
@@ -592,7 +616,7 @@ export function getNauticalLayers(
       },
       paint: {
         "text-color": s52Colour("SNDG2"),
-        "text-halo-color": "#ffffff",
+        "text-halo-color": s52Colour("CHWHT"),
         "text-halo-width": 1.5,
       },
     },
@@ -616,7 +640,7 @@ export function getNauticalLayers(
       },
       paint: {
         "text-color": s52Colour("CHBLK"),
-        "text-halo-color": "#ffffff",
+        "text-halo-color": s52Colour("CHWHT"),
         "text-halo-width": 1.5,
       },
     },
@@ -640,7 +664,7 @@ export function getNauticalLayers(
       },
       paint: {
         "text-color": s52Colour("CHBLK"),
-        "text-halo-color": "#ffffff",
+        "text-halo-color": s52Colour("CHWHT"),
         "text-halo-width": 1.5,
       },
     },
@@ -664,7 +688,7 @@ export function getNauticalLayers(
       },
       paint: {
         "text-color": s52Colour("CHBLK"),
-        "text-halo-color": "#ffffff",
+        "text-halo-color": s52Colour("CHWHT"),
         "text-halo-width": 1.5,
       },
     },
@@ -688,7 +712,7 @@ export function getNauticalLayers(
       },
       paint: {
         "text-color": s52Colour("CHBLK"),
-        "text-halo-color": "#ffffff",
+        "text-halo-color": s52Colour("CHWHT"),
         "text-halo-width": 1.5,
       },
     },
@@ -711,7 +735,7 @@ export function getNauticalLayers(
       },
       paint: {
         "text-color": s52Colour("CHBLK"),
-        "text-halo-color": "#ffffff",
+        "text-halo-color": s52Colour("CHWHT"),
         "text-halo-width": 1.5,
       },
     },
@@ -735,7 +759,7 @@ export function getNauticalLayers(
       },
       paint: {
         "text-color": s52Colour("CHBLK"),
-        "text-halo-color": "#ffffff",
+        "text-halo-color": s52Colour("CHWHT"),
         "text-halo-width": 1.5,
       },
     },
@@ -759,7 +783,7 @@ export function getNauticalLayers(
       },
       paint: {
         "text-color": s52Colour("CHBLK"),
-        "text-halo-color": "#ffffff",
+        "text-halo-color": s52Colour("CHWHT"),
         "text-halo-width": 1.5,
       },
     },
@@ -813,7 +837,7 @@ export function getNauticalLayers(
       },
       paint: {
         "text-color": s52Colour("CHBLK"),
-        "text-halo-color": "#ffffff",
+        "text-halo-color": s52Colour("CHWHT"),
         "text-halo-width": 1.5,
       },
     },
@@ -832,7 +856,7 @@ export function getNauticalLayers(
       },
       paint: {
         "text-color": s52Colour("CHGRF"),
-        "text-halo-color": "#ffffff",
+        "text-halo-color": s52Colour("CHWHT"),
         "text-halo-width": 1,
       },
     },
@@ -860,7 +884,7 @@ export function getNauticalLayers(
       },
       paint: {
         "text-color": s52Colour("BKAJ1"),
-        "text-halo-color": "#ffffff",
+        "text-halo-color": s52Colour("CHWHT"),
         "text-halo-width": 1.5,
       },
     },
@@ -1065,7 +1089,7 @@ export function getNauticalLayers(
       },
       paint: {
         "text-color": s52Colour("CHBLK"),
-        "text-halo-color": "#ffffff",
+        "text-halo-color": s52Colour("CHWHT"),
         "text-halo-width": 1.5,
       },
     },
@@ -1086,7 +1110,7 @@ export function getNauticalLayers(
       },
       paint: {
         "text-color": s52Colour("CHGRD"),
-        "text-halo-color": "#ffffff",
+        "text-halo-color": s52Colour("CHWHT"),
         "text-halo-width": 1,
       },
     },
@@ -1136,7 +1160,7 @@ export function getNauticalLayers(
             source: sourceId,
             "source-layer": "DMPGRD",
             paint: {
-              "fill-color": "#FF8C00",
+              "fill-color": s52Colour("CHMGD"),
               "fill-opacity": 0.12,
             },
           },
@@ -1146,7 +1170,7 @@ export function getNauticalLayers(
             source: sourceId,
             "source-layer": "DMPGRD",
             paint: {
-              "line-color": "#FF8C00",
+              "line-color": s52Colour("CHMGD"),
               "line-width": 1,
               "line-dasharray": [4, 3] as number[],
             },
@@ -1207,7 +1231,7 @@ export function getNauticalLayers(
             },
             paint: {
               "text-color": s52Colour("CHBLK"),
-              "text-halo-color": "#ffffff",
+              "text-halo-color": s52Colour("CHWHT"),
               "text-halo-width": 1,
             },
           },
@@ -1242,7 +1266,7 @@ export function getNauticalLayers(
             },
             paint: {
               "text-color": s52Colour("NINFO"),
-              "text-halo-color": "#ffffff",
+              "text-halo-color": s52Colour("CHWHT"),
               "text-halo-width": 1,
             },
           },
@@ -1371,7 +1395,7 @@ export function getNauticalLayers(
       type: "fill" as const,
       source: coverageSourceId,
       paint: {
-        "fill-color": "#1a1a2e",
+        "fill-color": s52Colour("NODTA"),
         "fill-opacity": 0.4,
       },
     });

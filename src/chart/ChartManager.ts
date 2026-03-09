@@ -1,5 +1,5 @@
 import maplibregl from "maplibre-gl";
-import type { DepthUnit, DetailLevel } from "../settings";
+import type { DepthUnit, DetailLevel, DisplayTheme } from "../settings";
 import { getSettings, onSettingsChange } from "../settings";
 import type { ChartProvider } from "./ChartProvider";
 
@@ -24,6 +24,7 @@ export class ChartManager {
   private prevDepthUnit: DepthUnit;
   private prevDetailLevel: DetailLevel;
   private prevLayerGroups: Record<string, boolean>;
+  private prevDisplayTheme: DisplayTheme;
 
   constructor(options: ChartManagerOptions) {
     if (options.providers.length === 0) {
@@ -58,6 +59,7 @@ export class ChartManager {
     this.prevDepthUnit = initial.depthUnit;
     this.prevDetailLevel = initial.detailLevel;
     this.prevLayerGroups = { ...initial.layerGroups };
+    this.prevDisplayTheme = initial.displayTheme;
 
     // Re-apply style only when chart-relevant settings change
     onSettingsChange(() => {
@@ -67,11 +69,13 @@ export class ChartManager {
       if (
         s.depthUnit !== this.prevDepthUnit ||
         s.detailLevel !== this.prevDetailLevel ||
+        s.displayTheme !== this.prevDisplayTheme ||
         layersChanged
       ) {
         this.prevDepthUnit = s.depthUnit;
         this.prevDetailLevel = s.detailLevel;
         this.prevLayerGroups = { ...s.layerGroups };
+        this.prevDisplayTheme = s.displayTheme;
         this.refreshStyle();
       }
     });

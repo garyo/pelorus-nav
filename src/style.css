@@ -846,6 +846,258 @@ body {
   background: #ff8844;
 }
 
+/* ── Display theme overrides ─────────────────────────────────────── */
+
+/* Night: dark red-tinted UI for night vision preservation */
+[data-theme="night"] #top-bar {
+  background: rgba(26, 10, 10, 0.95);
+  color: #cc3333;
+}
+
+[data-theme="night"] #top-bar .app-name,
+[data-theme="night"] #top-bar .settings-btn,
+[data-theme="night"] #top-bar .topbar-toggle,
+[data-theme="night"] #top-bar .depth-unit-badge {
+  color: #cc3333;
+}
+
+[data-theme="night"] .settings-panel {
+  background: rgba(26, 10, 10, 0.95);
+  border-color: #442222;
+}
+
+[data-theme="night"] .settings-tab {
+  color: #883333;
+}
+
+[data-theme="night"] .settings-tab.active {
+  color: #cc3333;
+  border-bottom-color: #cc3333;
+}
+
+[data-theme="night"] .settings-row label,
+[data-theme="night"] .settings-row select,
+[data-theme="night"] .settings-toggle {
+  color: #cc3333;
+}
+
+[data-theme="night"] .settings-row select,
+[data-theme="night"] #chart-select {
+  background: #1a0a0a;
+  color: #cc3333;
+  border-color: #442222;
+}
+
+[data-theme="night"] .nav-hud {
+  background: rgba(26, 10, 10, 0.8);
+  color: #cc3333;
+}
+
+[data-theme="night"] .instrument-hud {
+  background: #1a0a0a;
+  border-bottom-color: #442222;
+}
+
+[data-theme="night"] .instrument-value {
+  color: #cc3333;
+}
+
+[data-theme="night"] .instrument-label,
+[data-theme="night"] .instrument-unit {
+  color: #882222;
+}
+
+[data-theme="night"] .manager-panel {
+  background: rgba(26, 10, 10, 0.95);
+  border-color: #442222;
+}
+
+[data-theme="night"] .manager-panel,
+[data-theme="night"] .manager-header,
+[data-theme="night"] .manager-item,
+[data-theme="night"] .manager-item-name {
+  color: #cc3333;
+}
+
+[data-theme="night"] .map-context-menu {
+  background: rgba(26, 10, 10, 0.95);
+  border-color: #442222;
+  color: #cc3333;
+}
+
+[data-theme="night"] .measure-panel,
+[data-theme="night"] .route-editor-bar {
+  background: rgba(26, 10, 10, 0.95);
+  color: #cc3333;
+}
+
+/* Dusk: dimmed blue-grey UI */
+[data-theme="dusk"] #top-bar {
+  background: rgba(42, 42, 53, 0.95);
+  color: #b0b0c0;
+}
+
+[data-theme="dusk"] .settings-panel {
+  background: rgba(42, 42, 53, 0.95);
+  border-color: #555566;
+}
+
+[data-theme="dusk"] .settings-tab.active {
+  color: #b0b0c0;
+  border-bottom-color: #8888aa;
+}
+
+[data-theme="dusk"] .settings-row label,
+[data-theme="dusk"] .settings-row select,
+[data-theme="dusk"] .settings-toggle {
+  color: #b0b0c0;
+}
+
+[data-theme="dusk"] .settings-row select,
+[data-theme="dusk"] #chart-select {
+  background: #2a2a35;
+  color: #b0b0c0;
+  border-color: #555566;
+}
+
+[data-theme="dusk"] .nav-hud {
+  background: rgba(42, 42, 53, 0.8);
+  color: #b0b0c0;
+}
+
+[data-theme="dusk"] .instrument-hud {
+  background: #2a2a35;
+  border-bottom-color: #555566;
+}
+
+[data-theme="dusk"] .instrument-value {
+  color: #b0b0c0;
+}
+
+[data-theme="dusk"] .instrument-label,
+[data-theme="dusk"] .instrument-unit {
+  color: #808090;
+}
+
+/* E-ink: pure black/white, no transparency, no rounded corners, no shadows */
+[data-theme="eink"] #top-bar {
+  background: #ffffff;
+  color: #000000;
+  border-bottom: 2px solid #000000;
+}
+
+[data-theme="eink"] #top-bar .app-name,
+[data-theme="eink"] #top-bar .settings-btn,
+[data-theme="eink"] #top-bar .topbar-toggle,
+[data-theme="eink"] #top-bar .depth-unit-badge {
+  color: #000000;
+}
+
+[data-theme="eink"] .settings-panel {
+  background: #ffffff;
+  border: 2px solid #000000;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+[data-theme="eink"] .settings-tab {
+  color: #666666;
+  border-radius: 0;
+}
+
+[data-theme="eink"] .settings-tab.active {
+  color: #000000;
+  border-bottom-color: #000000;
+}
+
+[data-theme="eink"] .settings-tab-bar {
+  border-bottom-color: #000000;
+}
+
+[data-theme="eink"] .settings-row label,
+[data-theme="eink"] .settings-row select,
+[data-theme="eink"] .settings-toggle {
+  color: #000000;
+}
+
+[data-theme="eink"] .settings-row select,
+[data-theme="eink"] #chart-select {
+  background: #ffffff;
+  color: #000000;
+  border: 1px solid #000000;
+  border-radius: 0;
+}
+
+[data-theme="eink"] .nav-hud {
+  background: #ffffff;
+  color: #000000;
+  border: 1px solid #000000;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+[data-theme="eink"] .instrument-hud {
+  background: #ffffff;
+  border-bottom: 2px solid #000000;
+}
+
+[data-theme="eink"] .instrument-value {
+  color: #000000;
+}
+
+[data-theme="eink"] .instrument-label {
+  color: #444444;
+}
+
+[data-theme="eink"] .instrument-unit {
+  color: #444444;
+}
+
+[data-theme="eink"] .instrument-cell--bordered {
+  border-left-color: #000000;
+}
+
+[data-theme="eink"] .manager-panel {
+  background: #ffffff;
+  border: 2px solid #000000;
+  border-radius: 0;
+  color: #000000;
+  box-shadow: none;
+}
+
+[data-theme="eink"] .manager-header {
+  border-bottom-color: #000000;
+  color: #000000;
+}
+
+[data-theme="eink"] .manager-item {
+  border-bottom-color: #cccccc;
+  color: #000000;
+}
+
+[data-theme="eink"] .map-context-menu {
+  background: #ffffff;
+  border: 2px solid #000000;
+  border-radius: 0;
+  color: #000000;
+  box-shadow: none;
+}
+
+[data-theme="eink"] .measure-panel,
+[data-theme="eink"] .route-editor-bar {
+  background: #ffffff;
+  color: #000000;
+  border: 2px solid #000000;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+[data-theme="eink"] .feature-info-panel {
+  border-radius: 0;
+  box-shadow: none;
+  border: 2px solid #000000;
+}
+
 @media (max-width: 480px) {
   .feature-info-panel {
     width: 100%;
