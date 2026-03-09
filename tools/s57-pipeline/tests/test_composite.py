@@ -183,6 +183,9 @@ class TestCompositeTiles:
         ]
         result = composite_tiles(sources, output)
         assert result is not None
+        result_path, used_cells = result
+        assert result_path == output
+        assert "cell1" in used_cells
         assert output.exists()
 
         # Verify the tile is in the output
@@ -225,6 +228,8 @@ class TestCompositeTiles:
         ]
         result = composite_tiles(sources, output)
         assert result is not None
+        _, used_cells = result
+        assert "high" in used_cells
 
         # Decode the output tile — should have only "high" features
         from pmtiles.convert import all_tiles
@@ -279,6 +284,8 @@ class TestCompositeTiles:
         ]
         result = composite_tiles(sources, output)
         assert result is not None
+        _, used_cells = result
+        assert used_cells == {"low", "high"}
 
         # Output should have features from both bands
         from pmtiles.convert import all_tiles
@@ -319,6 +326,8 @@ class TestCompositeTiles:
         ]
         result = composite_tiles(sources, output)
         assert result is not None
+        _, used_cells = result
+        assert used_cells == {"a", "b"}
 
         from pmtiles.convert import all_tiles
         from pmtiles.reader import MmapSource
@@ -332,3 +341,38 @@ class TestCompositeTiles:
         output = tmp_path / "output.pmtiles"
         result = composite_tiles([], output)
         assert result is None
+
+    def test_unused_cell_reported(self, tmp_path: Path) -> None:
+        """A cell whose tiles are fully clipped away is reported as unused."""
+        from s57_pipeline.composite import _tile_to_bbox
+        tile_bounds = _tile_to_bbox(5, 16, 15)
+        tb = box(*tile_bounds)
+
+        # "winner" covers the full tile at higher band
+        winner_features = [
+            {"geometry": mapping(tb), "properties": {"src": "winner"}},
+        ]
+        # "loser" also covers the full tile but at lower band
+        loser_features = [
+            {"geometry": mapping(tb), "properties": {"src": "loser"}},
+        ]
+
+        winner_tile = _make_mvt_tile({"test": winner_features}, tile_bounds)
+        loser_tile = _make_mvt_tile({"test": loser_features}, tile_bounds)
+
+        winner_path = tmp_path / "winner.pmtiles"
+        loser_path = tmp_path / "loser.pmtiles"
+        _make_pmtiles(winner_path, {(5, 16, 15): winner_tile})
+        _make_pmtiles(loser_path, {(5, 16, 15): loser_tile})
+
+        output = tmp_path / "output.pmtiles"
+        sources = [
+            CellTileSource(pmtiles_path=winner_path, band=5, coverage=tb, cell_name="winner"),
+            CellTileSource(pmtiles_path=loser_path, band=1, coverage=tb, cell_name="loser"),
+        ]
+        result = composite_tiles(sources, output)
+        assert result is not None
+        _, used_cells = result
+        assert "winner" in used_cells
+        # loser is fully clipped away by winner's coverage
+        assert "loser" not in used_cells

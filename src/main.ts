@@ -119,8 +119,14 @@ onSettingsChange((s) => {
 // Navigation HUD (replaces ad-hoc zoom/cursor display)
 new NavigationHUD(chartManager.map, navManager);
 
-// Instrument HUD (large data display)
-document.body.appendChild(createInstrumentHUD(navManager));
+// Instrument HUD (large data display) — insert before map so it pushes map down
+const mapEl = document.getElementById("map");
+const instrumentHUD = createInstrumentHUD(navManager);
+if (mapEl) {
+  mapEl.insertAdjacentElement("beforebegin", instrumentHUD);
+} else {
+  document.body.appendChild(instrumentHUD);
+}
 
 // Activate initial GPS source from settings
 navManager.setActiveProvider(getSettings().gpsSource);

@@ -395,6 +395,15 @@ def cmd_pipeline(args: argparse.Namespace) -> None:
         print("No tiles found to composite")
         sys.exit(1)
 
+    # Report cells with no tiles at all
+    all_cell_names = {p.stem for p in enc_files}
+    cells_with_tiles = {src.cell_name for src in sources}
+    cells_no_tiles = sorted(all_cell_names - cells_with_tiles)
+    if cells_no_tiles:
+        print(f"\n  WARNING: {len(cells_no_tiles)} cells produced no tiles:")
+        for cell in cells_no_tiles:
+            print(f"    {cell}")
+
     # Parse debug-latlon if provided
     debug_latlon = None
     debug_latlon_str = getattr(args, "debug_latlon", None)
@@ -406,7 +415,19 @@ def cmd_pipeline(args: argparse.Namespace) -> None:
         debug_latlon = (parts[0], parts[1])
 
     print(f"\n=== Compositing: {len(sources)} tile sets ===")
-    composite_tiles(sources, output_path, debug_latlon=debug_latlon)
+    result = composite_tiles(sources, output_path, debug_latlon=debug_latlon)
+
+    # Summary of unused cells
+    if result is not None:
+        _, used_cells = result
+        unused_in_output = sorted(all_cell_names - used_cells)
+        if unused_in_output:
+            print(f"\nERROR: {len(unused_in_output)} input cells did not "
+                  f"contribute to the final output:")
+            for cell in unused_in_output:
+                reason = "no tiles" if cell in cells_no_tiles else "clipped away"
+                print(f"  {cell} ({reason})")
+            sys.exit(1)
 
 
 def main() -> None:

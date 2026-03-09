@@ -234,7 +234,7 @@ def composite_tiles(
     sources: list[CellTileSource],
     output_path: Path,
     debug_latlon: tuple[float, float] | None = None,
-) -> Path | None:
+) -> tuple[Path, set[str]] | None:
     """Composite tiles from multiple cells using M_COVR coverage clipping.
 
     For each tile (z,x,y):
@@ -254,7 +254,8 @@ def composite_tiles(
             debug info for all tiles containing this point.
 
     Returns:
-        Path to the output file, or None on failure.
+        Tuple of (output path, set of cell names that contributed to output),
+        or None on failure.
     """
     if not sources:
         print("No tile sources to composite")
@@ -314,6 +315,7 @@ def composite_tiles(
     same_band = 0
     composited = 0
     not_fully_filled = 0
+    used_cells: set[str] = set()  # cells that contributed to output
 
     # Build set of debug tiles (tiles containing the debug point at each zoom)
     debug_tiles: set[tuple[int, int, int]] = set()
@@ -337,6 +339,7 @@ def composite_tiles(
         if len(entries) == 1:
             single_source += 1
             output_tiles[tile_id] = entries[0][2]
+            used_cells.add(entries[0][1])
             if is_debug:
                 band, cell, _data, _cov = entries[0]
                 print(f"\n  DEBUG z{z}/{x}/{y}: single-source pass-through"
@@ -353,9 +356,10 @@ def composite_tiles(
                 cells = sorted({e[1] for e in entries})
                 print(f"\n  DEBUG z{z}/{x}/{y}: same-band merge"
                       f" (band={next(iter(bands_present))}, cells={cells})")
-            for _band, _cell, data, _coverage in entries:
+            for _band, cell_name_entry, data, _coverage in entries:
                 features = _clip_mvt_features(data, tile_bbox, tile_bbox)
                 if features:
+                    used_cells.add(cell_name_entry)
                     for ln, feats in features.items():
                         merged_layers.setdefault(ln, []).extend(feats)
             if merged_layers:
@@ -439,6 +443,7 @@ def composite_tiles(
             for data, _cov in cell_entries:
                 features = _clip_mvt_features(data, usable, tile_bbox)
                 if features:
+                    used_cells.add(cell_name)
                     for ln, feats in features.items():
                         output_features.setdefault(ln, []).extend(feats)
 
@@ -505,6 +510,16 @@ def composite_tiles(
         }
         writer.finalize(out_header, metadata or {})
 
+    # Report cell usage
+    all_cell_names = {src.cell_name for src in sources}
+    unused_cells = sorted(all_cell_names - used_cells)
+    print(f"  {len(used_cells)} cells contributed to output, "
+          f"{len(unused_cells)} unused")
+    if unused_cells:
+        print(f"  WARNING: unused cells (tiles exist but no features in output):")
+        for cell in unused_cells:
+            print(f"    {cell}")
+
     print(f"Composited → {output_path} ({len(output_tiles)} tiles)")
 
     # Export coverage mask as GeoJSON (world minus coverage, for shading)
@@ -528,4 +543,4 @@ def composite_tiles(
         coverage_path.write_text(json.dumps(coverage_geojson))
         print(f"Coverage mask → {coverage_path}")
 
-    return output_path
+    return output_path, used_cells
