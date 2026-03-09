@@ -231,6 +231,56 @@ export async function deleteAllCharts(): Promise<void> {
   await writeMeta([]);
 }
 
+/**
+ * Download a small auxiliary file (e.g. coverage GeoJSON) to OPFS.
+ * Unlike downloadChart, this doesn't use streaming or progress — it's for small files.
+ */
+export async function downloadAuxFile(
+  url: string,
+  filename: string,
+  signal?: AbortSignal,
+): Promise<void> {
+  const response = await fetch(url, { signal });
+  if (!response.ok) {
+    throw new Error(
+      `Download failed: ${response.status} ${response.statusText}`,
+    );
+  }
+  const blob = await response.blob();
+  const root = await getRoot();
+  const handle = await root.getFileHandle(filename, { create: true });
+  const writable = await handle.createWritable();
+  await writable.write(blob);
+  await writable.close();
+}
+
+/**
+ * Get a stored auxiliary file as a blob URL, or null if not stored.
+ * Caller is responsible for revoking the URL when done.
+ */
+export async function getAuxFileURL(filename: string): Promise<string | null> {
+  const root = await getRoot();
+  try {
+    const handle = await root.getFileHandle(filename);
+    const file = await handle.getFile();
+    return URL.createObjectURL(file);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Delete an auxiliary file from OPFS.
+ */
+export async function deleteAuxFile(filename: string): Promise<void> {
+  const root = await getRoot();
+  try {
+    await root.removeEntry(filename);
+  } catch {
+    // file may not exist
+  }
+}
+
 /** Get storage estimate (used/quota in bytes). */
 export async function getStorageEstimate(): Promise<{
   used: number;

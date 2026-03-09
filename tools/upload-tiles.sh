@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Upload all nautical-*.pmtiles files to Cloudflare R2.
+# Upload all nautical-* data files (PMTiles + coverage GeoJSON) to Cloudflare R2.
 # Skips files that haven't changed since last upload (by modtime).
 # Usage: tools/upload-tiles.sh [--force]
 
@@ -16,7 +16,7 @@ fi
 uploaded=0
 skipped=0
 
-for file in public/nautical-*.pmtiles; do
+for file in public/nautical-*.pmtiles public/nautical-*.coverage.geojson; do
   [[ -f "$file" ]] || continue
 
   name=$(basename "$file")

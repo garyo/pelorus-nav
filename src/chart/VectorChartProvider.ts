@@ -1,5 +1,6 @@
 import type { LayerSpecification, SourceSpecification } from "maplibre-gl";
 import { CHART_REGIONS, type ChartRegion } from "../data/chart-catalog";
+import { getAuxFileURL } from "../data/tile-store";
 import { getSettings } from "../settings";
 import type { ChartProvider } from "./ChartProvider";
 import { getNauticalLayers } from "./nautical-style";
@@ -23,6 +24,8 @@ export class VectorChartProvider implements ChartProvider {
   readonly maxZoom = 14;
 
   private region: ChartRegion;
+  /** Blob URL for coverage GeoJSON loaded from OPFS, or null if streaming. */
+  private coverageBlobURL: string | null = null;
 
   constructor(regionId?: string) {
     this.region =
@@ -38,8 +41,19 @@ export class VectorChartProvider implements ChartProvider {
   setRegion(regionId: string): boolean {
     const newRegion = CHART_REGIONS.find((r) => r.id === regionId);
     if (!newRegion || newRegion.id === this.region.id) return false;
+    this.revokeCoverageBlobURL();
     this.region = newRegion;
     return true;
+  }
+
+  /**
+   * Try to load coverage GeoJSON from OPFS for offline use.
+   * Call this before building the style (e.g. at startup or after region switch).
+   * If the file isn't in OPFS, falls back to the remote URL.
+   */
+  async loadOfflineCoverage(): Promise<void> {
+    this.revokeCoverageBlobURL();
+    this.coverageBlobURL = await getAuxFileURL(this.region.coverageFilename);
   }
 
   getSource(): SourceSpecification {
@@ -56,7 +70,7 @@ export class VectorChartProvider implements ChartProvider {
     return {
       [COVERAGE_SOURCE_ID]: {
         type: "geojson",
-        data: `/${this.region.coverageFilename}`,
+        data: this.coverageBlobURL ?? `/${this.region.coverageFilename}`,
       },
     };
   }
@@ -74,5 +88,12 @@ export class VectorChartProvider implements ChartProvider {
 
   getAttribution(): string {
     return '&copy; <a href="https://nauticalcharts.noaa.gov">NOAA</a> ENC';
+  }
+
+  private revokeCoverageBlobURL(): void {
+    if (this.coverageBlobURL) {
+      URL.revokeObjectURL(this.coverageBlobURL);
+      this.coverageBlobURL = null;
+    }
   }
 }

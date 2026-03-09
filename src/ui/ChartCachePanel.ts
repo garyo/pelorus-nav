@@ -12,7 +12,9 @@ import { CHART_REGIONS, type ChartRegion } from "../data/chart-catalog";
 import type { StoredChartInfo } from "../data/tile-store";
 import {
   deleteAllCharts,
+  deleteAuxFile,
   deleteChart,
+  downloadAuxFile,
   downloadChart,
   getStorageEstimate,
   importChart,
@@ -188,6 +190,7 @@ export class ChartCachePanel {
         if (!confirm(`Remove offline copy of "${region.name}"?`)) return;
         (async () => {
           await deleteChart(stored.filename);
+          await deleteAuxFile(region.coverageFilename);
           this.onChartsChanged?.();
           await this.refresh();
         })().catch(console.error);
@@ -292,6 +295,13 @@ export class ChartCachePanel {
         },
         this.downloadController.signal,
       );
+      // Also download the coverage GeoJSON for offline use
+      label.textContent = `Downloading ${region.name} coverage...`;
+      await downloadAuxFile(
+        `/${region.coverageFilename}`,
+        region.coverageFilename,
+        this.downloadController.signal,
+      );
       this.onChartsChanged?.();
     } catch (err) {
       if (err instanceof DOMException && err.name === "AbortError") {
@@ -336,6 +346,10 @@ export class ChartCachePanel {
     )
       return;
     await deleteAllCharts();
+    // Also remove all coverage GeoJSON files
+    for (const region of CHART_REGIONS) {
+      await deleteAuxFile(region.coverageFilename);
+    }
     this.onChartsChanged?.();
     await this.refresh();
   }

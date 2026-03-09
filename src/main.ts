@@ -64,6 +64,7 @@ try {
 // Create vector chart provider with the user's active region
 const initialRegion = getSettings().activeRegion;
 const vectorProvider = new VectorChartProvider(initialRegion);
+await vectorProvider.loadOfflineCoverage();
 const activeRegionInfo = vectorProvider.getRegion();
 
 const chartManager = new ChartManager({
@@ -145,11 +146,13 @@ onSettingsChange((s) => {
   }
   // Switch chart region
   if (vectorProvider.setRegion(s.activeRegion)) {
-    chartManager.refreshStyle();
-    const region = vectorProvider.getRegion();
-    chartManager.map.flyTo({
-      center: region.center,
-      zoom: region.defaultZoom,
+    vectorProvider.loadOfflineCoverage().then(() => {
+      chartManager.refreshStyle();
+      const region = vectorProvider.getRegion();
+      chartManager.map.flyTo({
+        center: region.center,
+        zoom: region.defaultZoom,
+      });
     });
   }
 });
@@ -448,7 +451,7 @@ if (topBar) {
   // Chart cache panel button
   const cachePanel = new ChartCachePanel();
   cachePanel.setOnChartsChanged(() => {
-    // Reload OPFS charts into PMTiles protocol
+    // Reload OPFS charts into PMTiles protocol + refresh offline coverage
     (async () => {
       try {
         const charts = await listStoredCharts();
@@ -459,6 +462,8 @@ if (topBar) {
             protocol.add(new PMTiles(source));
           }
         }
+        await vectorProvider.loadOfflineCoverage();
+        chartManager.refreshStyle();
       } catch {
         // ignore
       }
