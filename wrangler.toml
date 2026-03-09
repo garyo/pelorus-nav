@@ -1,6 +1,6 @@
 #:schema node_modules/wrangler/config-schema.json
 name = "pelorus-nav"
-account_id = "REDACTED_ACCOUNT_ID"
+# account_id set via CLOUDFLARE_ACCOUNT_ID env var
 compatibility_date = "2025-09-23"
 main = "src/worker.ts"
 
