@@ -865,17 +865,40 @@ export function getNauticalLayers(
     },
 
     // ── Hazard symbol layers ──────────────────────────────────────────
-    // Wrecks
+    // Wrecks — dangerous wrecks (CATWRK=2) prioritised via sort key.
+    // Overlap disabled so MapLibre declutters at low zooms.
     {
       id: "s57-wrecks",
       type: "symbol",
       source: sourceId,
       "source-layer": "WRECKS",
-      minzoom: 8,
+      minzoom: 10,
       layout: {
         "icon-image": ICON_EXPR,
-        "icon-size": 0.75,
-        "icon-allow-overlap": true,
+        "icon-size": [
+          "interpolate",
+          ["linear"],
+          ["zoom"],
+          10,
+          0.45,
+          13,
+          0.75,
+        ] as unknown as ExpressionSpecification,
+        "icon-allow-overlap": [
+          "step",
+          ["zoom"],
+          false,
+          13,
+          true,
+        ] as unknown as ExpressionSpecification,
+        "icon-padding": 2,
+        // Lower sort key = higher priority. Dangerous (2) → 0, others → 1.
+        "symbol-sort-key": [
+          "case",
+          ["==", ["get", "CATWRK"], 2],
+          0,
+          1,
+        ] as unknown as ExpressionSpecification,
       },
       paint: {},
     },
@@ -885,7 +908,7 @@ export function getNauticalLayers(
       type: "fill",
       source: sourceId,
       "source-layer": "OBSTRN",
-      minzoom: 8,
+      minzoom: 11,
       filter: [
         "==",
         ["geometry-type"],
@@ -902,7 +925,7 @@ export function getNauticalLayers(
       type: "line",
       source: sourceId,
       "source-layer": "OBSTRN",
-      minzoom: 8,
+      minzoom: 11,
       filter: [
         "==",
         ["geometry-type"],
@@ -914,13 +937,13 @@ export function getNauticalLayers(
         "line-dasharray": [2, 2] as number[],
       },
     },
-    // Obstructions — point symbols
+    // Obstructions — point symbols (decluttered at low zooms)
     {
       id: "s57-obstrn",
       type: "symbol",
       source: sourceId,
       "source-layer": "OBSTRN",
-      minzoom: 8,
+      minzoom: 10,
       filter: [
         "==",
         ["geometry-type"],
@@ -928,22 +951,52 @@ export function getNauticalLayers(
       ] as unknown as ExpressionSpecification,
       layout: {
         "icon-image": ICON_EXPR,
-        "icon-size": 0.35,
-        "icon-allow-overlap": true,
+        "icon-size": [
+          "interpolate",
+          ["linear"],
+          ["zoom"],
+          10,
+          0.25,
+          13,
+          0.35,
+        ] as unknown as ExpressionSpecification,
+        "icon-allow-overlap": [
+          "step",
+          ["zoom"],
+          false,
+          13,
+          true,
+        ] as unknown as ExpressionSpecification,
+        "icon-padding": 2,
       },
       paint: {},
     },
-    // Underwater rocks
+    // Underwater rocks (decluttered at low zooms)
     {
       id: "s57-uwtroc",
       type: "symbol",
       source: sourceId,
       "source-layer": "UWTROC",
-      minzoom: 8,
+      minzoom: 10,
       layout: {
         "icon-image": ICON_EXPR,
-        "icon-size": 0.35,
-        "icon-allow-overlap": false,
+        "icon-size": [
+          "interpolate",
+          ["linear"],
+          ["zoom"],
+          10,
+          0.25,
+          13,
+          0.35,
+        ] as unknown as ExpressionSpecification,
+        "icon-allow-overlap": [
+          "step",
+          ["zoom"],
+          false,
+          13,
+          true,
+        ] as unknown as ExpressionSpecification,
+        "icon-padding": 2,
       },
       paint: {},
     },
