@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import os
 import sys
+import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
@@ -12,7 +13,7 @@ from shapely.geometry.base import BaseGeometry
 
 from .composite import CellTileSource, composite_tiles
 from .convert import convert_enc, read_compilation_scale, read_intended_use
-from .coverage import build_cell_coverage
+from .coverage import scan_all_cells
 from .download import download_enc_cell
 from .merge import merge_tiles
 from .query import build_index
@@ -328,28 +329,39 @@ def _build_composite_sources(
     return sources
 
 
+def _fmt_elapsed(seconds: float) -> str:
+    """Format elapsed time as human-readable string."""
+    if seconds < 60:
+        return f"{seconds:.1f}s"
+    minutes = int(seconds // 60)
+    secs = seconds % 60
+    return f"{minutes}m {secs:.1f}s"
+
+
 def cmd_pipeline(args: argparse.Namespace) -> None:
     """Full pipeline: convert ENC files to a single PMTiles."""
+    pipeline_start = time.monotonic()
     output_path = Path(args.output)
     enc_files = _find_enc_files(args)
     composite_only = getattr(args, "composite_only", False)
     work_dir = Path("data/work")
 
-    # Pass 1: Scan INTU values and M_COVR coverage polygons
-    print("Pass 1: Scanning INTU values and M_COVR coverage...")
+    # Pass 1: Scan INTU values and M_COVR coverage polygons (parallel)
+    pass1_start = time.monotonic()
+    scan_workers = max(1, args.jobs if args.jobs else (os.cpu_count() or 4) - 1)
+    print(f"Pass 1: Scanning INTU + M_COVR for {len(enc_files)} cells ({scan_workers} workers)...")
+    cell_metas = scan_all_cells(enc_files, jobs=scan_workers)
+
+    # Build lookup dicts from scan results
     present_intus: set[int] = set()
     cell_bands: dict[Path, int] = {}
-    for enc_path in enc_files:
-        intu = read_intended_use(enc_path)
-        if intu is not None:
-            present_intus.add(intu)
-            cell_bands[enc_path] = intu_to_scale_band(intu)
-        else:
-            cell_cscl = read_compilation_scale(enc_path)
-            if cell_cscl is not None:
-                cell_bands[enc_path] = cscl_to_scale_band(cell_cscl)
-            else:
-                cell_bands[enc_path] = 0
+    cell_coverage: dict[Path, BaseGeometry] = {}
+    for meta in cell_metas:
+        cell_bands[meta.enc_path] = meta.scale_band
+        if meta.intu is not None:
+            present_intus.add(meta.intu)
+        if meta.coverage is not None:
+            cell_coverage[meta.enc_path] = meta.coverage
 
     zoom_shift = getattr(args, "zoom_shift", 0)
     intu_zoom_ranges = compute_intu_zoom_ranges(present_intus, zoom_shift=zoom_shift)
@@ -360,15 +372,16 @@ def cmd_pipeline(args: argparse.Namespace) -> None:
     else:
         print("  No INTU values found; falling back to CSCL-based zoom")
 
-    # Build per-cell M_COVR coverage
-    cell_coverage = build_cell_coverage(enc_files)
     cells_with_coverage = len(cell_coverage)
     cells_without = len(enc_files) - cells_with_coverage
     print(f"  M_COVR: {cells_with_coverage} cells with coverage")
     if cells_without:
         print(f"  Warning: {cells_without} cells without M_COVR")
+    pass1_elapsed = time.monotonic() - pass1_start
+    print(f"  Pass 1 complete ({_fmt_elapsed(pass1_elapsed)})")
 
     # Pass 2: Convert and tile each cell independently
+    pass2_start = time.monotonic()
     if not composite_only:
         max_workers = max(1, args.jobs if args.jobs else (os.cpu_count() or 4) - 3)
         print(f"\nPass 2: Processing {len(enc_files)} ENC files ({max_workers} parallel workers)")
@@ -386,6 +399,8 @@ def cmd_pipeline(args: argparse.Namespace) -> None:
                     future.result()
                 except Exception as e:
                     print(f"Error processing {enc_path.stem}: {e}")
+        pass2_elapsed = time.monotonic() - pass2_start
+        print(f"  Pass 2 complete ({_fmt_elapsed(pass2_elapsed)})")
     else:
         print("\nPass 2: Skipped (--composite-only)")
 
@@ -419,9 +434,10 @@ def cmd_pipeline(args: argparse.Namespace) -> None:
     if args.region and args.region in REGIONS:
         region_bbox = REGIONS[args.region].bbox
 
+    composite_jobs = args.jobs if args.jobs else 0
     print(f"\n=== Compositing: {len(sources)} tile sets ===")
     result = composite_tiles(sources, output_path, debug_latlon=debug_latlon,
-                             region_bbox=region_bbox)
+                             region_bbox=region_bbox, jobs=composite_jobs)
 
     # Summary of unused cells
     if result is not None:
@@ -434,6 +450,9 @@ def cmd_pipeline(args: argparse.Namespace) -> None:
                 reason = "no tiles" if cell in cells_no_tiles else "clipped away"
                 print(f"  {cell} ({reason})")
             sys.exit(1)
+
+    pipeline_elapsed = time.monotonic() - pipeline_start
+    print(f"\n=== Pipeline complete ({_fmt_elapsed(pipeline_elapsed)}) ===")
 
 
 def main() -> None:

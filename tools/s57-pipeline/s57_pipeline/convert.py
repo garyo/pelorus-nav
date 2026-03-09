@@ -6,11 +6,8 @@ import os
 import subprocess
 from pathlib import Path
 
-from .labels import add_labels_to_geojson
+from .enrich import enrich_geojson
 from .layers import LAYER_NAMES
-from .s52_metadata import add_s52_metadata
-from .scamin import add_minzoom_to_geojson
-from .symbols import add_symbols_to_geojson
 
 
 def list_enc_layers(enc_path: Path) -> list[str]:
@@ -79,6 +76,40 @@ def read_intended_use(enc_path: Path) -> int | None:
         The intended use as an integer (1-6), or None if not found.
     """
     return _read_dsid_field(enc_path, "DSID_INTU")
+
+
+def read_dsid_metadata(enc_path: Path) -> tuple[int | None, int | None]:
+    """Read both INTU and CSCL from an S-57 ENC file in a single ogrinfo call.
+
+    Returns:
+        (intu, cscl) tuple. Either may be None if not found.
+    """
+    result = subprocess.run(
+        ["ogrinfo", "-ro", "-al", str(enc_path), "DSID"],
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode != 0:
+        return None, None
+
+    intu: int | None = None
+    cscl: int | None = None
+    for line in result.stdout.splitlines():
+        if "=" not in line:
+            continue
+        if "DSID_INTU" in line:
+            value = line.split("=")[-1].strip()
+            try:
+                intu = int(value)
+            except ValueError:
+                pass
+        elif "DSPM_CSCL" in line:
+            value = line.split("=")[-1].strip()
+            try:
+                cscl = int(value)
+            except ValueError:
+                pass
+    return intu, cscl
 
 
 def convert_layer(
@@ -160,16 +191,13 @@ def convert_enc(
     for layer_name in target_layers:
         path = convert_layer(enc_path, layer_name, output_dir)
         if path is not None:
-            if apply_scamin:
-                add_minzoom_to_geojson(
-                    path,
-                    cell_cscl=cell_cscl,
-                    cell_intu=cell_intu,
-                    intu_zoom_ranges=intu_zoom_ranges,
-                )
-            add_labels_to_geojson(path)
-            add_symbols_to_geojson(path)
-            add_s52_metadata(path)
+            enrich_geojson(
+                path,
+                cell_cscl=cell_cscl,
+                cell_intu=cell_intu,
+                intu_zoom_ranges=intu_zoom_ranges,
+                apply_scamin=apply_scamin,
+            )
             outputs.append(path)
             print(f"  Converted {layer_name} → {path.name}")
 

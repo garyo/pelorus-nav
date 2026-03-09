@@ -12,6 +12,8 @@ from __future__ import annotations
 
 import gzip
 import json
+import multiprocessing
+import os
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -21,6 +23,7 @@ from shapely import make_valid, union_all
 from shapely.geometry import box, mapping, shape
 from shapely.geometry.base import BaseGeometry
 from shapely.geometry.collection import GeometryCollection
+from shapely.io import from_wkb, to_wkb
 
 from pmtiles.convert import all_tiles, write
 from pmtiles.reader import MmapSource, Reader, zxy_to_tileid
@@ -45,16 +48,6 @@ class CellTileSource:
 def _tile_bbox_polygon(z: int, x: int, y: int) -> BaseGeometry:
     """Get a Shapely polygon for a tile's bounding box."""
     return box(*_tile_to_bbox(z, x, y))
-
-
-def _tile_intersects_bbox(
-    z: int, x: int, y: int,
-    region_bbox: tuple[float, float, float, float],
-) -> bool:
-    """Fast check if tile (z,x,y) intersects a region bbox."""
-    tw, ts, te, tn = _tile_to_bbox(z, x, y)
-    rw, rs, re, rn = region_bbox
-    return not (te < rw or tw > re or tn < rs or ts > rn)
 
 
 def _pixel_to_geo_coords(
@@ -219,11 +212,112 @@ def _encode_mvt(
     return gzip.compress(raw)
 
 
+# ── Worker functions for multiprocessing ──────────────────────────────
+
+# Serializable entry: (band, cell_name, tile_data, coverage_wkb)
+_SerEntry = tuple[int, str, bytes, bytes]
+
+
+def _composite_one_same_band(
+    args: tuple[int, int, int, list[_SerEntry]],
+) -> tuple[int, bytes | None, set[str]]:
+    """Composite a same-band tile in a worker process.
+
+    Returns (tile_id, tile_bytes_or_None, used_cells).
+    """
+    z, x, y, entries = args
+    tile_id = zxy_to_tileid(z, x, y)
+    tile_bbox = _tile_bbox_polygon(z, x, y)
+    merged_layers: dict[str, list[dict]] = {}
+    used: set[str] = set()
+
+    for _band, cell_name, data, _cov_wkb in entries:
+        features = _clip_mvt_features(data, tile_bbox, tile_bbox)
+        if features:
+            used.add(cell_name)
+            for ln, feats in features.items():
+                merged_layers.setdefault(ln, []).extend(feats)
+
+    if merged_layers:
+        return tile_id, _encode_mvt(merged_layers, tile_bbox), used
+    return tile_id, None, used
+
+
+def _composite_one_multi_band(
+    args: tuple[int, int, int, list[_SerEntry]],
+) -> tuple[int, bytes | None, set[str], bool]:
+    """Composite a multi-band tile in a worker process.
+
+    Returns (tile_id, tile_bytes_or_None, used_cells, fully_filled).
+    """
+    z, x, y, entries = args
+    tile_id = zxy_to_tileid(z, x, y)
+    tile_bbox = _tile_bbox_polygon(z, x, y)
+    used: set[str] = set()
+
+    # Group entries by cell (band + cell_name share the same coverage)
+    cell_groups: dict[
+        tuple[int, str], list[tuple[bytes, BaseGeometry]]
+    ] = {}
+    for band_val, cell_name, data, cov_wkb in entries:
+        coverage = from_wkb(cov_wkb)
+        cell_groups.setdefault((band_val, cell_name), []).append(
+            (data, coverage)
+        )
+
+    # Sort cells by band descending (highest first)
+    sorted_cells = sorted(cell_groups.keys(), key=lambda k: k[0], reverse=True)
+
+    filled = shape({"type": "Polygon", "coordinates": []})  # empty
+    output_features: dict[str, list[dict]] = {}
+
+    for cell_key in sorted_cells:
+        cell_entries = cell_groups[cell_key]
+        coverage = cell_entries[0][1]
+        _band_val, cell_name = cell_key
+
+        cell_coverage = coverage.intersection(tile_bbox)
+        if cell_coverage.is_empty:
+            continue
+
+        unfilled = tile_bbox.difference(filled)
+        if unfilled.is_empty:
+            break
+
+        usable = cell_coverage.intersection(unfilled)
+        if usable.is_empty:
+            continue
+
+        usable = make_valid(usable)
+        if usable.is_empty:
+            continue
+
+        for data, _cov in cell_entries:
+            features = _clip_mvt_features(data, usable, tile_bbox)
+            if features:
+                used.add(cell_name)
+                for ln, feats in features.items():
+                    output_features.setdefault(ln, []).extend(feats)
+
+        filled = make_valid(filled.union(cell_coverage))
+        if filled.contains(tile_bbox):
+            break
+
+    fully_filled = filled.contains(tile_bbox)
+    if output_features:
+        return tile_id, _encode_mvt(output_features, tile_bbox), used, fully_filled
+    return tile_id, None, used, fully_filled
+
+
+# ── Main composite function ──────────────────────────────────────────
+
+
 def composite_tiles(
     sources: list[CellTileSource],
     output_path: Path,
     debug_latlon: tuple[float, float] | None = None,
     region_bbox: tuple[float, float, float, float] | None = None,
+    jobs: int = 0,
 ) -> tuple[Path, set[str]] | None:
     """Composite tiles from multiple cells using M_COVR coverage clipping.
 
@@ -244,6 +338,7 @@ def composite_tiles(
             debug info for all tiles containing this point.
         region_bbox: If set, (west, south, east, north) to clip the
             coverage mask output to this bounding box.
+        jobs: Number of parallel workers for compositing (0=auto).
 
     Returns:
         Tuple of (output path, set of cell names that contributed to output),
@@ -253,19 +348,29 @@ def composite_tiles(
         print("No tile sources to composite")
         return None
 
+    t_total = time.monotonic()
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
-    # Collect all tiles: (z,x,y) → list of (band, cell_name, data, coverage)
+    # Pre-serialize coverages to WKB for multiprocessing
+    coverage_wkb: dict[str, bytes] = {}
+    for src in sources:
+        key = src.cell_name
+        if key not in coverage_wkb:
+            coverage_wkb[key] = to_wkb(src.coverage)
+
+    # Phase 1: Read tile sources
+    t0 = time.monotonic()
     tile_entries: dict[
-        tuple[int, int, int], list[tuple[int, str, bytes, BaseGeometry]]
-    ] = {}
+        tuple[int, int, int], list[tuple[int, str, bytes, bytes]]
+    ] = {}  # values: (band, cell_name, data, coverage_wkb)
 
     metadata = None
     bounds_header = None
     tile_header = None
 
-    print("Reading tile sources...")
+    print("Phase 1: Reading tile sources...")
     for src in sources:
+        cov_wkb = coverage_wkb[src.cell_name]
         with open(src.pmtiles_path, "rb") as f:
             source = MmapSource(f)
             reader = Reader(source)
@@ -299,17 +404,23 @@ def composite_tiles(
 
             for (z, x, y), data in all_tiles(source):
                 tile_entries.setdefault((z, x, y), []).append(
-                    (src.band, src.cell_name, data, src.coverage)
+                    (src.band, src.cell_name, data, cov_wkb)
                 )
 
     total_tiles = len(tile_entries)
-    single_source = 0
-    same_band = 0
-    composited = 0
-    not_fully_filled = 0
-    used_cells: set[str] = set()  # cells that contributed to output
+    t_read = time.monotonic() - t0
+    print(f"  {total_tiles} unique tile positions from {len(sources)} sources"
+          f" ({t_read:.1f}s)")
 
-    # Build set of debug tiles (tiles containing the debug point at each zoom)
+    # Phase 2: Composite
+    t0 = time.monotonic()
+    single_source = 0
+    same_band_count = 0
+    composited_count = 0
+    not_fully_filled = 0
+    used_cells: set[str] = set()
+
+    # Build set of debug tiles
     debug_tiles: set[tuple[int, int, int]] = set()
     if debug_latlon is not None:
         lat, lon = debug_latlon
@@ -319,36 +430,92 @@ def composite_tiles(
             debug_tiles.add((z, dx, dy))
             print(f"    z{z}: tile ({z},{dx},{dy})")
 
-    print(f"Compositing {total_tiles} unique tile positions...")
+    print(f"Phase 2: Compositing {total_tiles} tiles...")
 
-    output_tiles: dict[int, bytes] = {}  # tile_id → bytes
+    output_tiles: dict[int, bytes] = {}
+
+    # Partition tiles into three groups
+    single_entries: list[tuple[tuple[int, int, int], list[tuple[int, str, bytes, bytes]]]] = []
+    same_band_entries: list[tuple[int, int, int, list[_SerEntry]]] = []
+    multi_band_entries: list[tuple[int, int, int, list[_SerEntry]]] = []
 
     for (z, x, y), entries in tile_entries.items():
-        tile_id = zxy_to_tileid(z, x, y)
-        is_debug = (z, x, y) in debug_tiles
-
-        # Fast path: single entry → pass through without decode
         if len(entries) == 1:
-            single_source += 1
-            output_tiles[tile_id] = entries[0][2]
-            used_cells.add(entries[0][1])
-            if is_debug:
-                band, cell, _data, _cov = entries[0]
-                print(f"\n  DEBUG z{z}/{x}/{y}: single-source pass-through"
-                      f" (cell={cell}, band={band})")
-            continue
+            single_entries.append(((z, x, y), entries))
+        else:
+            bands_present = {e[0] for e in entries}
+            if len(bands_present) == 1:
+                same_band_entries.append((z, x, y, entries))
+            else:
+                multi_band_entries.append((z, x, y, entries))
 
-        # Check if all entries are from the same band
-        bands_present = {e[0] for e in entries}
-        if len(bands_present) == 1:
-            # Same band, multiple cells — concatenate features
+    # Fast path: single-source tiles — no decode needed
+    for (z, x, y), entries in single_entries:
+        tile_id = zxy_to_tileid(z, x, y)
+        output_tiles[tile_id] = entries[0][2]
+        used_cells.add(entries[0][1])
+        if (z, x, y) in debug_tiles:
+            band, cell, _data, _cov = entries[0]
+            print(f"\n  DEBUG z{z}/{x}/{y}: single-source pass-through"
+                  f" (cell={cell}, band={band})")
+    single_source = len(single_entries)
+    t_single = time.monotonic() - t0
+
+    # Determine worker count
+    num_workers = jobs if jobs > 0 else max(1, (os.cpu_count() or 4) - 1)
+    need_parallel = len(same_band_entries) + len(multi_band_entries)
+
+    if need_parallel > 0 and num_workers > 1:
+        print(f"  {single_source} single-source pass-through ({t_single:.1f}s)")
+        print(f"  Processing {len(same_band_entries)} same-band +"
+              f" {len(multi_band_entries)} multi-band tiles"
+              f" with {num_workers} workers...")
+
+        t1 = time.monotonic()
+        # Process same-band tiles in parallel
+        if same_band_entries:
+            with multiprocessing.Pool(num_workers) as pool:
+                for tile_id, tile_bytes, used in pool.imap_unordered(
+                    _composite_one_same_band, same_band_entries, chunksize=64,
+                ):
+                    if tile_bytes is not None:
+                        output_tiles[tile_id] = tile_bytes
+                    used_cells.update(used)
+            same_band_count = len(same_band_entries)
+
+        t_same = time.monotonic() - t1
+        print(f"  {same_band_count} same-band merged ({t_same:.1f}s)")
+
+        # Process multi-band tiles in parallel
+        t2 = time.monotonic()
+        if multi_band_entries:
+            with multiprocessing.Pool(num_workers) as pool:
+                for tile_id, tile_bytes, used, fully_filled in pool.imap_unordered(
+                    _composite_one_multi_band, multi_band_entries, chunksize=32,
+                ):
+                    if tile_bytes is not None:
+                        output_tiles[tile_id] = tile_bytes
+                    used_cells.update(used)
+                    if not fully_filled:
+                        not_fully_filled += 1
+            composited_count = len(multi_band_entries)
+
+        t_multi = time.monotonic() - t2
+        print(f"  {composited_count} multi-band composited ({t_multi:.1f}s)")
+    else:
+        # Single-threaded fallback (small tile count or 1 worker)
+        for z, x, y, entries in same_band_entries:
+            tile_id = zxy_to_tileid(z, x, y)
             tile_bbox = _tile_bbox_polygon(z, x, y)
             merged_layers: dict[str, list[dict]] = {}
+            is_debug = (z, x, y) in debug_tiles
+
             if is_debug:
                 cells = sorted({e[1] for e in entries})
                 print(f"\n  DEBUG z{z}/{x}/{y}: same-band merge"
-                      f" (band={next(iter(bands_present))}, cells={cells})")
-            for _band, cell_name_entry, data, _coverage in entries:
+                      f" (band={entries[0][0]}, cells={cells})")
+
+            for _band, cell_name_entry, data, _cov_wkb in entries:
                 features = _clip_mvt_features(data, tile_bbox, tile_bbox)
                 if features:
                     used_cells.add(cell_name_entry)
@@ -356,122 +523,85 @@ def composite_tiles(
                         merged_layers.setdefault(ln, []).extend(feats)
             if merged_layers:
                 output_tiles[tile_id] = _encode_mvt(merged_layers, tile_bbox)
-                if is_debug:
-                    layer_counts = {ln: len(fs) for ln, fs in merged_layers.items()}
-                    print(f"    output layers: {layer_counts}")
-            same_band += 1
-            continue
+            same_band_count += 1
 
-        # Multi-band tile — full compositing
-        composited += 1
-        tile_bbox = _tile_bbox_polygon(z, x, y)
-
-        if is_debug:
-            cells_by_band: dict[int, list[str]] = {}
-            for b, c, _d, _cv in entries:
-                cells_by_band.setdefault(b, []).append(c)
-            print(f"\n  DEBUG z{z}/{x}/{y}: multi-band composite")
-            for b in sorted(cells_by_band, reverse=True):
-                print(f"    band {b}: cells={sorted(set(cells_by_band[b]))}")
-
-        # Group entries by cell (band + cell_name share the same coverage).
-        # Each cell may have multiple layer tiles that all need the same
-        # usable region — we must not update 'filled' between layers of
-        # the same cell.
-        cell_groups: dict[
-            tuple[int, str], list[tuple[bytes, BaseGeometry]]
-        ] = {}  # (band, cell_name) → [(data, coverage)]
-        for band_val, cell_name, data, coverage in entries:
-            cell_groups.setdefault((band_val, cell_name), []).append(
-                (data, coverage)
-            )
-
-        # Sort cells by band descending (highest first)
-        sorted_cells = sorted(cell_groups.keys(), key=lambda k: k[0], reverse=True)
-
-        filled = shape({"type": "Polygon", "coordinates": []})  # empty
-        output_features: dict[str, list[dict]] = {}
-
-        for cell_key in sorted_cells:
-            cell_entries = cell_groups[cell_key]
-            coverage = cell_entries[0][1]  # all entries share same coverage
-            band_val, cell_name = cell_key
-
-            # cell_coverage = M_COVR ∩ tile_bbox
-            cell_coverage = coverage.intersection(tile_bbox)
-            if cell_coverage.is_empty:
-                if is_debug:
-                    print(f"    {cell_name} (band {band_val}): "
-                          f"coverage ∩ tile = empty, skipped")
-                continue
-
-            # unfilled = tile_bbox - filled
-            unfilled = tile_bbox.difference(filled)
-            if unfilled.is_empty:
-                if is_debug:
-                    print(f"    {cell_name} (band {band_val}): "
-                          f"tile fully filled, stopping")
-                break  # 100% covered
-
-            # usable = cell_coverage ∩ unfilled
-            usable = cell_coverage.intersection(unfilled)
-            if usable.is_empty:
-                if is_debug:
-                    print(f"    {cell_name} (band {band_val}): "
-                          f"coverage ∩ unfilled = empty, skipped")
-                continue
-
-            usable = make_valid(usable)
-            if usable.is_empty:
-                continue
+        for z, x, y, entries in multi_band_entries:
+            tile_id = zxy_to_tileid(z, x, y)
+            tile_bbox = _tile_bbox_polygon(z, x, y)
+            is_debug = (z, x, y) in debug_tiles
 
             if is_debug:
-                fill_pct = usable.area / tile_bbox.area * 100
-                print(f"    {cell_name} (band {band_val}): "
-                      f"usable={fill_pct:.1f}% of tile, "
-                      f"{len(cell_entries)} layer tile(s)")
+                cells_by_band: dict[int, list[str]] = {}
+                for b, c, _d, _cv in entries:
+                    cells_by_band.setdefault(b, []).append(c)
+                print(f"\n  DEBUG z{z}/{x}/{y}: multi-band composite")
+                for b in sorted(cells_by_band, reverse=True):
+                    print(f"    band {b}: cells={sorted(set(cells_by_band[b]))}")
 
-            # Clip ALL layer tiles from this cell to the same usable region
-            for data, _cov in cell_entries:
-                features = _clip_mvt_features(data, usable, tile_bbox)
-                if features:
-                    used_cells.add(cell_name)
-                    for ln, feats in features.items():
-                        output_features.setdefault(ln, []).extend(feats)
+            cell_groups: dict[
+                tuple[int, str], list[tuple[bytes, BaseGeometry]]
+            ] = {}
+            for band_val, cell_name, data, cov_wkb_entry in entries:
+                coverage = from_wkb(cov_wkb_entry)
+                cell_groups.setdefault((band_val, cell_name), []).append(
+                    (data, coverage)
+                )
 
-            # Update filled region once per cell
-            filled = make_valid(filled.union(cell_coverage))
+            sorted_cells = sorted(cell_groups.keys(), key=lambda k: k[0], reverse=True)
+            filled = shape({"type": "Polygon", "coordinates": []})
+            output_features: dict[str, list[dict]] = {}
 
-            # Check if fully covered
-            if filled.contains(tile_bbox):
-                if is_debug:
-                    print(f"    tile fully filled after {cell_name}")
-                break
+            for cell_key in sorted_cells:
+                cell_entries_inner = cell_groups[cell_key]
+                coverage = cell_entries_inner[0][1]
+                band_val, cell_name = cell_key
 
-        # Warn if multi-band tile is not fully filled
-        if not filled.contains(tile_bbox):
-            not_fully_filled += 1
-            fill_pct = filled.area / tile_bbox.area * 100 if tile_bbox.area > 0 else 0
-            if is_debug:
-                print(f"    WARNING: tile NOT fully filled "
-                      f"({fill_pct:.1f}% covered)")
+                cell_coverage = coverage.intersection(tile_bbox)
+                if cell_coverage.is_empty:
+                    continue
 
-        if output_features:
-            output_tiles[tile_id] = _encode_mvt(output_features, tile_bbox)
-            if is_debug:
-                layer_counts = {ln: len(fs) for ln, fs in output_features.items()}
-                print(f"    output layers: {layer_counts}")
+                unfilled = tile_bbox.difference(filled)
+                if unfilled.is_empty:
+                    break
 
+                usable = cell_coverage.intersection(unfilled)
+                if usable.is_empty:
+                    continue
+
+                usable = make_valid(usable)
+                if usable.is_empty:
+                    continue
+
+                for data, _cov in cell_entries_inner:
+                    features = _clip_mvt_features(data, usable, tile_bbox)
+                    if features:
+                        used_cells.add(cell_name)
+                        for ln, feats in features.items():
+                            output_features.setdefault(ln, []).extend(feats)
+
+                filled = make_valid(filled.union(cell_coverage))
+                if filled.contains(tile_bbox):
+                    break
+
+            if not filled.contains(tile_bbox):
+                not_fully_filled += 1
+
+            if output_features:
+                output_tiles[tile_id] = _encode_mvt(output_features, tile_bbox)
+            composited_count += 1
+
+    t_composite = time.monotonic() - t0
     print(
-        f"  {single_source} pass-through, {same_band} same-band merged, "
-        f"{composited} multi-band composited"
+        f"  {single_source} pass-through, {same_band_count} same-band merged, "
+        f"{composited_count} multi-band composited ({t_composite:.1f}s)"
     )
     if not_fully_filled:
         print(f"  WARNING: {not_fully_filled} multi-band tiles not fully filled")
     print(f"  {len(output_tiles)} output tiles")
 
-    # Write output PMTiles
-    print("Writing output...")
+    # Phase 3: Write output PMTiles
+    t0 = time.monotonic()
+    print("Phase 3: Writing output...")
     assert tile_header is not None
     assert bounds_header is not None
 
@@ -502,6 +632,9 @@ def composite_tiles(
         }
         writer.finalize(out_header, metadata or {})
 
+    t_write = time.monotonic() - t0
+    print(f"  Written ({t_write:.1f}s)")
+
     # Report cell usage
     all_cell_names = {src.cell_name for src in sources}
     unused_cells = sorted(all_cell_names - used_cells)
@@ -512,18 +645,18 @@ def composite_tiles(
         for cell in unused_cells:
             print(f"    {cell}")
 
-    print(f"Composited → {output_path} ({len(output_tiles)} tiles)")
+    t_total_elapsed = time.monotonic() - t_total
+    print(f"Composited → {output_path} ({len(output_tiles)} tiles,"
+          f" {t_total_elapsed:.1f}s total)")
 
-    # Export coverage mask as GeoJSON (world minus coverage, for shading)
+    # Phase 4: Export coverage mask as GeoJSON
+    t0 = time.monotonic()
     coverage_polys = [src.coverage for src in sources]
     if coverage_polys:
         coverage_union = make_valid(union_all(coverage_polys))
-        # Clip coverage to region bbox if provided, so we don't show
-        # coverage polygons from overview cells outside the actual data region
         if region_bbox is not None:
             region_poly = box(*region_bbox)
             coverage_union = make_valid(coverage_union.intersection(region_poly))
-        # World polygon (slightly beyond Web Mercator bounds)
         world = box(-180, -85.06, 180, 85.06)
         no_coverage = make_valid(world.difference(coverage_union))
         coverage_geojson = {
@@ -538,6 +671,7 @@ def composite_tiles(
         }
         coverage_path = output_path.with_suffix(".coverage.geojson")
         coverage_path.write_text(json.dumps(coverage_geojson))
-        print(f"Coverage mask → {coverage_path}")
+        t_coverage = time.monotonic() - t0
+        print(f"Coverage mask → {coverage_path} ({t_coverage:.1f}s)")
 
     return output_path, used_cells

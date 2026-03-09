@@ -1,0 +1,99 @@
+"""Single-pass GeoJSON feature enrichment.
+
+Combines minzoom/scale-band, labels, symbols, and S-52 metadata into
+one read → modify → write pass per GeoJSON file, eliminating 3 redundant
+JSON parse/serialize cycles.
+"""
+
+from __future__ import annotations
+
+import json
+from pathlib import Path
+
+from .labels import _buoy_number, _light_label
+from .s52_metadata import DISPLAY_CATEGORY, DISPLAY_PRIORITY
+from .scamin import (
+    INTU_BASE_ZOOMS,
+    cscl_to_scale_band,
+    intu_to_scale_band,
+    scamin_to_minzoom,
+)
+from .symbols import compute_symbol
+
+
+def enrich_geojson(
+    geojson_path: Path,
+    *,
+    cell_cscl: int | None = None,
+    cell_intu: int | None = None,
+    intu_zoom_ranges: dict[int, tuple[int, int, int]] | None = None,
+    apply_scamin: bool = True,
+) -> None:
+    """Enrich a GeoJSON file with all metadata in a single read/write pass.
+
+    Adds: tippecanoe minzoom (from SCAMIN), _scale_band, LABEL, SYMBOL,
+    _disp_cat, _disp_pri.
+
+    Args:
+        geojson_path: Path to the GeoJSON file (modified in-place).
+        cell_cscl: The cell's DSPM_CSCL compilation scale.
+        cell_intu: The cell's DSID_INTU intended use (1-6).
+        intu_zoom_ranges: Pre-computed ranges from compute_intu_zoom_ranges().
+        apply_scamin: Whether to add tippecanoe minzoom from SCAMIN attributes.
+    """
+    layer_name = geojson_path.stem.upper()
+
+    with open(geojson_path) as f:
+        geojson = json.load(f)
+
+    # Pre-compute per-layer constants
+    scale_band = 0
+    if apply_scamin:
+        if cell_intu is not None and cell_intu in INTU_BASE_ZOOMS:
+            scale_band = intu_to_scale_band(cell_intu)
+        elif cell_cscl is not None:
+            scale_band = cscl_to_scale_band(cell_cscl)
+
+    disp_cat = DISPLAY_CATEGORY.get(layer_name)
+    disp_pri = DISPLAY_PRIORITY.get(layer_name)
+
+    is_lights = layer_name == "LIGHTS"
+    is_buoy_beacon = layer_name in (
+        "BOYLAT", "BOYSAW", "BOYSPP", "BOYISD", "BOYCAR", "BCNLAT", "BCNCAR",
+    )
+
+    for feature in geojson.get("features", []):
+        props = feature.get("properties", {})
+
+        # --- SCAMIN → tippecanoe minzoom ---
+        if apply_scamin:
+            scamin = props.get("SCAMIN")
+            if scamin is not None and scamin > 0:
+                if "tippecanoe" not in feature:
+                    feature["tippecanoe"] = {}
+                feature["tippecanoe"]["minzoom"] = scamin_to_minzoom(scamin)
+            props["_scale_band"] = scale_band
+
+        # --- Labels ---
+        if is_lights:
+            label = _light_label(props)
+            if label:
+                props["LABEL"] = label
+        elif is_buoy_beacon:
+            label = _buoy_number(props)
+            if label:
+                props["LABEL"] = label
+
+        # --- Symbols ---
+        symbol = compute_symbol(props, layer_name)
+        if symbol:
+            props["SYMBOL"] = symbol
+
+        # --- S-52 display metadata ---
+        if disp_cat is not None:
+            props["_disp_cat"] = disp_cat
+        if disp_pri is not None:
+            props["_disp_pri"] = disp_pri
+
+    with open(geojson_path, "w") as f:
+        json.dump(geojson, f)

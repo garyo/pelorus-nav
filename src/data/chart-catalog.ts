@@ -38,12 +38,12 @@ export const CHART_REGIONS: ChartRegion[] = [
   },
   {
     id: "usvi",
-    name: "US Virgin Islands",
+    name: "USVI & Puerto Rico",
     filename: "nautical-usvi.pmtiles",
     coverageFilename: "nautical-usvi.coverage.geojson",
-    sizeEstimate: 10 * 1024 * 1024, // estimate, TBD
-    center: [-64.9, 18.0],
-    defaultZoom: 11,
+    sizeEstimate: 24 * 1024 * 1024, // ~24 MB
+    center: [-66.2, 18.1],
+    defaultZoom: 9,
   },
 ];
 

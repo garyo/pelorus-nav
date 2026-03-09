@@ -56,9 +56,9 @@ REGIONS: dict[str, Region] = {
         description="Full coverage: Long Island Sound through Downeast Maine",
     ),
     "usvi": Region(
-        name="US Virgin Islands",
-        bbox=(-65.2, 17.5, -64.4, 18.6),
-        description="St. Thomas, St. John, St. Croix with approaches",
+        name="USVI & Puerto Rico",
+        bbox=(-68.0, 17.5, -64.4, 18.7),
+        description="Puerto Rico, US Virgin Islands, and approaches west to Isla de Mona",
     ),
 }
 
@@ -177,7 +177,10 @@ def query_region(
     """
     if cache_path and cache_path.exists():
         data = json.loads(cache_path.read_text())
-        return data["cells"]
+        # Invalidate cache if bbox changed (e.g. region definition updated)
+        cached_bbox = tuple(data.get("bbox", []))
+        if cached_bbox == tuple(bbox):
+            return data["cells"]
 
     catalog = _load_or_build_catalog()
 

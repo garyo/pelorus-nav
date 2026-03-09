@@ -3,13 +3,19 @@
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import tempfile
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from dataclasses import dataclass
 from pathlib import Path
 
 from shapely import make_valid, union_all
 from shapely.geometry import mapping, shape
 from shapely.geometry.base import BaseGeometry
+
+from .convert import read_dsid_metadata
+from .scamin import cscl_to_scale_band, intu_to_scale_band
 
 
 def extract_coverage_polygon(enc_path: Path) -> BaseGeometry | None:
@@ -283,3 +289,84 @@ def clip_geojson(geojson_path: Path, clip_mask: BaseGeometry) -> int:
         json.dump(geojson, f)
 
     return removed
+
+
+@dataclass
+class CellMetadata:
+    """Combined DSID metadata and M_COVR coverage for a single cell."""
+
+    enc_path: Path
+    intu: int | None
+    cscl: int | None
+    scale_band: int
+    coverage: BaseGeometry | None
+
+
+def _scan_one_cell(enc_path: Path) -> CellMetadata:
+    """Read DSID metadata + extract M_COVR for a single cell.
+
+    Runs two subprocess calls (ogrinfo for DSID, ogr2ogr for M_COVR).
+    Designed to be called in parallel from a thread pool.
+    """
+    intu, cscl = read_dsid_metadata(enc_path)
+
+    if intu is not None:
+        band = intu_to_scale_band(intu)
+    elif cscl is not None:
+        band = cscl_to_scale_band(cscl)
+    else:
+        band = 0
+
+    coverage = extract_coverage_polygon(enc_path)
+
+    return CellMetadata(
+        enc_path=enc_path,
+        intu=intu,
+        cscl=cscl,
+        scale_band=band,
+        coverage=coverage,
+    )
+
+
+def scan_all_cells(
+    enc_files: list[Path],
+    jobs: int = 0,
+) -> list[CellMetadata]:
+    """Scan DSID metadata and M_COVR coverage for all cells in parallel.
+
+    Combines INTU/CSCL reading and M_COVR extraction into a single
+    parallel pass using threads (subprocess I/O bound, not CPU bound).
+
+    Args:
+        enc_files: List of ENC file paths.
+        jobs: Number of parallel workers (0 = auto).
+
+    Returns:
+        List of CellMetadata, one per input cell.
+    """
+    if jobs <= 0:
+        jobs = max(1, (os.cpu_count() or 4) - 1)
+
+    results: list[CellMetadata] = []
+
+    with ThreadPoolExecutor(max_workers=jobs) as executor:
+        futures = {
+            executor.submit(_scan_one_cell, enc_path): enc_path
+            for enc_path in enc_files
+        }
+        for future in as_completed(futures):
+            enc_path = futures[future]
+            try:
+                results.append(future.result())
+            except Exception as e:
+                print(f"  Error scanning {enc_path.stem}: {e}")
+                # Return a stub so pipeline can continue
+                results.append(CellMetadata(
+                    enc_path=enc_path,
+                    intu=None,
+                    cscl=None,
+                    scale_band=0,
+                    coverage=None,
+                ))
+
+    return results
