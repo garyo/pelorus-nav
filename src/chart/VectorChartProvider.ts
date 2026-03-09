@@ -3,7 +3,7 @@ import { CHART_REGIONS, type ChartRegion } from "../data/chart-catalog";
 import { getAuxFileURL } from "../data/tile-store";
 import { getSettings } from "../settings";
 import type { ChartProvider } from "./ChartProvider";
-import { getNauticalLayers } from "./nautical-style";
+import { getNauticalLayers } from "./styles";
 
 const SOURCE_ID = "s57-vector";
 const COVERAGE_SOURCE_ID = "s57-coverage";
