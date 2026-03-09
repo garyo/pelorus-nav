@@ -29,7 +29,7 @@ import { RecenterButton } from "./ui/RecenterButton";
 import { RouteManagerPanel } from "./ui/RouteManagerPanel";
 import { createSettingsPanel } from "./ui/SettingsPanel";
 import { TrackManagerPanel } from "./ui/TrackManagerPanel";
-import { parseLatLon } from "./utils/coordinates";
+import { formatLatLon, parseLatLon } from "./utils/coordinates";
 import { ChartModeController } from "./vessel/ChartMode";
 import { VesselLayer } from "./vessel/VesselLayer";
 
@@ -131,15 +131,6 @@ if (mapEl) {
 // Activate initial GPS source from settings
 navManager.setActiveProvider(getSettings().gpsSource);
 
-// Local helper for context menu formatting
-const formatDDM = (deg: number, pos: string, neg: string): string => {
-  const dir = deg >= 0 ? pos : neg;
-  const abs = Math.abs(deg);
-  const d = Math.floor(abs);
-  const m = ((abs - d) * 60).toFixed(3);
-  return `${d}\u00b0${String(m).padStart(6, "0")}'${dir}`;
-};
-
 // --- Context menu (right-click on map) ---
 const ctxMenu = document.createElement("div");
 ctxMenu.className = "map-context-menu";
@@ -188,6 +179,27 @@ chartManager.map.getCanvas().addEventListener("mousedown", (e) => {
   }
 });
 
+/** Show the context menu at the given map lat/lng and screen position. */
+const showContextMenu = (
+  lat: number,
+  lng: number,
+  clientX: number,
+  clientY: number,
+) => {
+  ctxLat = lat;
+  ctxLng = lng;
+  ctxCopyLabel.textContent = `Copy ${formatLatLon(ctxLat, "lat")} ${formatLatLon(ctxLng, "lon")}`;
+  ctxGotoInput.style.display = "none";
+
+  ctxMenu.style.display = "block";
+  const menuW = ctxMenu.offsetWidth;
+  const menuH = ctxMenu.offsetHeight;
+  const left = Math.min(clientX, window.innerWidth - menuW - 4);
+  const top = Math.min(clientY, window.innerHeight - menuH - 4);
+  ctxMenu.style.left = `${left}px`;
+  ctxMenu.style.top = `${top}px`;
+};
+
 // Show context menu on right-click (not drag)
 chartManager.map.getCanvas().addEventListener("contextmenu", (e) => {
   e.preventDefault();
@@ -201,20 +213,7 @@ chartManager.map.getCanvas().addEventListener("contextmenu", (e) => {
     e.clientX - rect.left,
     e.clientY - rect.top,
   ]);
-  ctxLat = lngLat.lat;
-  ctxLng = lngLat.lng;
-
-  ctxCopyLabel.textContent = `Copy ${formatDDM(ctxLat, "N", "S")} ${formatDDM(ctxLng, "E", "W")}`;
-  ctxGotoInput.style.display = "none";
-
-  // Position menu near click, keeping it on screen
-  ctxMenu.style.display = "block";
-  const menuW = ctxMenu.offsetWidth;
-  const menuH = ctxMenu.offsetHeight;
-  const left = Math.min(e.clientX, window.innerWidth - menuW - 4);
-  const top = Math.min(e.clientY, window.innerHeight - menuH - 4);
-  ctxMenu.style.left = `${left}px`;
-  ctxMenu.style.top = `${top}px`;
+  showContextMenu(lngLat.lat, lngLat.lng, e.clientX, e.clientY);
 });
 
 // Long-press on mobile → show context menu (touch equivalent of right-click)
@@ -246,19 +245,7 @@ chartManager.map.getCanvas().addEventListener("contextmenu", (e) => {
           touchStartX - rect.left,
           touchStartY - rect.top,
         ]);
-        ctxLat = lngLat.lat;
-        ctxLng = lngLat.lng;
-
-        ctxCopyLabel.textContent = `Copy ${formatDDM(ctxLat, "N", "S")} ${formatDDM(ctxLng, "E", "W")}`;
-        ctxGotoInput.style.display = "none";
-
-        ctxMenu.style.display = "block";
-        const menuW = ctxMenu.offsetWidth;
-        const menuH = ctxMenu.offsetHeight;
-        const left = Math.min(touchStartX, window.innerWidth - menuW - 4);
-        const top = Math.min(touchStartY, window.innerHeight - menuH - 4);
-        ctxMenu.style.left = `${left}px`;
-        ctxMenu.style.top = `${top}px`;
+        showContextMenu(lngLat.lat, lngLat.lng, touchStartX, touchStartY);
       }, LONG_PRESS_MS);
     },
     { passive: true },
@@ -297,7 +284,7 @@ chartManager.map.getCanvas().addEventListener("contextmenu", (e) => {
 // Copy position
 ctxCopy.addEventListener("click", () => {
   const text = `${ctxLat.toFixed(6)},${ctxLng.toFixed(6)}`;
-  navigator.clipboard.writeText(text);
+  navigator.clipboard.writeText(text).catch(() => {});
   hideContextMenu();
 });
 

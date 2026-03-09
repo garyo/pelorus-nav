@@ -8,6 +8,25 @@ interface Env {
   TILES: R2Bucket;
 }
 
+const ALLOWED_ORIGINS = [
+  "https://pelorus-nav.pages.dev",
+  "http://localhost",
+  "http://127.0.0.1",
+];
+
+function getAllowedOrigin(request: Request): string | null {
+  const origin = request.headers.get("origin");
+  if (!origin) return null;
+  if (
+    ALLOWED_ORIGINS.some(
+      (allowed) => origin === allowed || origin.startsWith(`${allowed}:`),
+    )
+  ) {
+    return origin;
+  }
+  return null;
+}
+
 function parseRange(
   rangeHeader: string,
 ): { offset: number; length: number } | null {
@@ -27,6 +46,11 @@ async function handleTilesRequest(
   env: Env,
   key: string,
 ): Promise<Response> {
+  const corsOrigin = getAllowedOrigin(request);
+  const corsHeaders: Record<string, string> = corsOrigin
+    ? { "access-control-allow-origin": corsOrigin }
+    : {};
+
   const rangeHeader = request.headers.get("range");
 
   if (rangeHeader) {
@@ -60,7 +84,7 @@ async function handleTilesRequest(
         "accept-ranges": "bytes",
         etag: object.httpEtag,
         "cache-control": "public, max-age=86400",
-        "access-control-allow-origin": "*",
+        ...corsHeaders,
         "access-control-expose-headers":
           "content-range, content-length, accept-ranges",
       },
@@ -79,7 +103,7 @@ async function handleTilesRequest(
       "accept-ranges": "bytes",
       etag: object.httpEtag,
       "cache-control": "public, max-age=86400",
-      "access-control-allow-origin": "*",
+      ...corsHeaders,
     },
   });
 }
@@ -90,6 +114,9 @@ export default {
 
     if (url.pathname.endsWith(".pmtiles")) {
       const key = url.pathname.slice(1);
+      if (key.includes("..") || key.includes("//")) {
+        return new Response("Bad Request", { status: 400 });
+      }
       return handleTilesRequest(request, env, key);
     }
 

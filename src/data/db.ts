@@ -7,6 +7,8 @@ import type { Route } from "./Route";
 import type { TrackMeta, TrackPoint } from "./Track";
 
 const DB_NAME = "pelorus-nav";
+// Bump DB_VERSION when adding/removing stores or indexes. In onupgradeneeded,
+// check oldVersion and apply incremental migrations (e.g. if (oldVersion < 2) ...).
 const DB_VERSION = 1;
 
 let dbPromise: Promise<IDBDatabase> | null = null;

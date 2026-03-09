@@ -12,7 +12,6 @@ from __future__ import annotations
 
 import gzip
 import json
-import math
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -24,6 +23,9 @@ from shapely.geometry.collection import GeometryCollection
 
 from pmtiles.convert import all_tiles, write
 from pmtiles.reader import MmapSource, Reader, zxy_to_tileid
+
+from .tilemath import latlon_to_tile as _latlon_to_tile
+from .tilemath import tile_to_bbox as _tile_to_bbox
 
 # MVT default extent (coordinate space 0..4096)
 _MVT_EXTENTS = 4096
@@ -37,30 +39,6 @@ class CellTileSource:
     band: int
     coverage: BaseGeometry  # M_COVR polygon for this cell
     cell_name: str = ""  # ENC cell name for grouping layers from same cell
-
-
-def _latlon_to_tile(lat: float, lon: float, z: int) -> tuple[int, int]:
-    """Convert (lat, lon) to tile (x, y) at zoom level z."""
-    n = 2**z
-    x = int((lon + 180.0) / 360.0 * n)
-    y = int(
-        (1.0 - math.log(math.tan(math.radians(lat)) + 1.0 / math.cos(math.radians(lat))) / math.pi)
-        / 2.0
-        * n
-    )
-    x = max(0, min(n - 1, x))
-    y = max(0, min(n - 1, y))
-    return x, y
-
-
-def _tile_to_bbox(z: int, x: int, y: int) -> tuple[float, float, float, float]:
-    """Convert tile (z, x, y) to (west, south, east, north) bbox in degrees."""
-    n = 2**z
-    west = x / n * 360.0 - 180.0
-    east = (x + 1) / n * 360.0 - 180.0
-    north = math.degrees(math.atan(math.sinh(math.pi * (1 - 2 * y / n))))
-    south = math.degrees(math.atan(math.sinh(math.pi * (1 - 2 * (y + 1) / n))))
-    return (west, south, east, north)
 
 
 def _tile_bbox_polygon(z: int, x: int, y: int) -> BaseGeometry:

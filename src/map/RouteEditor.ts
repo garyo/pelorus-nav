@@ -12,7 +12,7 @@ import type { Route, Waypoint } from "../data/Route";
 import { haversineDistanceNM, initialBearingDeg } from "../utils/coordinates";
 import { DraggablePoints } from "./DraggablePoints";
 import { getMode, setMode } from "./InteractionMode";
-import { ensurePointIcons, ROLE_ICON_EXPR } from "./point-icons";
+import { ensurePointIcons, pointRole, ROLE_ICON_EXPR } from "./point-icons";
 import type { RouteLayer } from "./RouteLayer";
 
 const SOURCE_ID = "_route-edit-points";
@@ -527,7 +527,10 @@ export class RouteEditor {
     if (this.selectedIndex !== null && wps[this.selectedIndex]) {
       const wp = wps[this.selectedIndex];
       const label = wp.name || `WP${this.selectedIndex + 1}`;
-      this.barText.innerHTML = `<strong>${label}</strong>`;
+      this.barText.textContent = "";
+      const strong = document.createElement("strong");
+      strong.textContent = label;
+      this.barText.appendChild(strong);
 
       this.barActions.innerHTML = "";
       const delBtn = document.createElement("button");
@@ -576,12 +579,4 @@ export class RouteEditor {
       `<strong>${wps.length} WPs \u00b7 ${totalDist.toFixed(1)} NM</strong>` +
       (lastLeg ? ` \u00a0 Last: ${lastLeg}` : "");
   }
-}
-
-/** Assign a role to a waypoint by position. */
-function pointRole(index: number, total: number): string {
-  if (total <= 1) return "waypoint";
-  if (index === 0) return "start";
-  if (index === total - 1) return "finish";
-  return "waypoint";
 }

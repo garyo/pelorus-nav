@@ -96,8 +96,12 @@ export function updateSettings(partial: Partial<Settings>): void {
   notify();
 }
 
-export function onSettingsChange(fn: SettingsListener): void {
+export function onSettingsChange(fn: SettingsListener): () => void {
   listeners.push(fn);
+  return () => {
+    const idx = listeners.indexOf(fn);
+    if (idx >= 0) listeners.splice(idx, 1);
+  };
 }
 
 /** Meters-to-unit conversion factor. */

@@ -1,7 +1,6 @@
 export type { ChartManagerOptions } from "./ChartManager";
 export { ChartManager } from "./ChartManager";
 export type { ChartProvider } from "./ChartProvider";
-export { ChartSwitcherControl } from "./ChartSwitcherControl";
 export { FeatureQueryHandler } from "./FeatureQueryHandler";
 export type { FeatureInfo } from "./feature-info";
 export { formatFeatureInfo } from "./feature-info";

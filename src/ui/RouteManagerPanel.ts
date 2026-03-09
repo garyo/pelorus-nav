@@ -19,21 +19,21 @@ export class RouteManagerPanel {
     this.editor = editor;
 
     this.el = document.createElement("div");
-    this.el.className = "route-manager-panel";
+    this.el.className = "manager-panel route-manager-panel";
     this.el.innerHTML =
-      '<div class="route-manager-header">' +
+      '<div class="manager-header">' +
       "<span>Routes</span>" +
       '<div style="display:flex;gap:6px;align-items:center">' +
       '<button class="route-editor-btn" id="route-new-btn">New</button>' +
-      '<button class="route-manager-close">&times;</button>' +
+      '<button class="manager-close">&times;</button>' +
       "</div>" +
       "</div>" +
-      '<div class="route-manager-body"></div>';
+      '<div class="manager-body"></div>';
     getPanelStack().appendChild(this.el);
 
-    this.body = this.el.querySelector(".route-manager-body") as HTMLDivElement;
+    this.body = this.el.querySelector(".manager-body") as HTMLDivElement;
     this.el
-      .querySelector(".route-manager-close")
+      .querySelector(".manager-close")
       ?.addEventListener("click", () => this.hide());
     this.el.querySelector("#route-new-btn")?.addEventListener("click", () => {
       this.hide();
@@ -65,7 +65,7 @@ export class RouteManagerPanel {
     routes.sort((a, b) => b.createdAt - a.createdAt);
 
     if (routes.length === 0) {
-      this.body.innerHTML = '<div class="route-empty">No routes</div>';
+      this.body.innerHTML = '<div class="manager-empty">No routes</div>';
       return;
     }
 
@@ -77,34 +77,34 @@ export class RouteManagerPanel {
 
   private createRouteItem(route: Route): HTMLDivElement {
     const item = document.createElement("div");
-    item.className = "route-item";
+    item.className = "manager-item";
 
     const color = document.createElement("div");
-    color.className = "route-item-color";
+    color.className = "manager-item-color";
     color.style.backgroundColor = route.color;
     color.title = "Change color";
     color.addEventListener("click", () => this.pickColor(route, color));
 
     const info = document.createElement("div");
-    info.className = "route-item-info";
+    info.className = "manager-item-info";
 
     const name = document.createElement("div");
-    name.className = "route-item-name";
+    name.className = "manager-item-name";
     name.textContent = route.name;
     name.title = "Click to rename";
     name.addEventListener("click", () => this.rename(route, name));
 
     const detail = document.createElement("div");
-    detail.className = "route-item-detail";
+    detail.className = "manager-item-detail";
     detail.textContent = `${route.waypoints.length} waypoints`;
 
     info.append(name, detail);
 
     const actions = document.createElement("div");
-    actions.className = "route-item-actions";
+    actions.className = "manager-item-actions";
 
     const editBtn = document.createElement("button");
-    editBtn.className = "route-item-btn";
+    editBtn.className = "manager-item-btn";
     editBtn.textContent = "\u270E";
     editBtn.title = "Edit";
     editBtn.addEventListener("click", () => {
@@ -113,27 +113,31 @@ export class RouteManagerPanel {
     });
 
     const toggleBtn = document.createElement("button");
-    toggleBtn.className = "route-item-btn";
+    toggleBtn.className = "manager-item-btn";
     toggleBtn.textContent = route.visible
       ? "\u{1F441}"
       : "\u{1F441}\u200D\u{1F5E8}";
     toggleBtn.title = route.visible ? "Hide" : "Show";
-    toggleBtn.addEventListener("click", async () => {
-      route.visible = !route.visible;
-      await saveRoute(route);
-      await this.routeLayer.toggleVisibility(route.id, route.visible);
-      this.refresh();
+    toggleBtn.addEventListener("click", () => {
+      (async () => {
+        route.visible = !route.visible;
+        await saveRoute(route);
+        await this.routeLayer.toggleVisibility(route.id, route.visible);
+        await this.refresh();
+      })().catch(console.error);
     });
 
     const deleteBtn = document.createElement("button");
-    deleteBtn.className = "route-item-btn";
+    deleteBtn.className = "manager-item-btn";
     deleteBtn.textContent = "\u{1F5D1}";
     deleteBtn.title = "Delete";
-    deleteBtn.addEventListener("click", async () => {
+    deleteBtn.addEventListener("click", () => {
       if (!confirm(`Delete route "${route.name}"?`)) return;
-      await deleteRoute(route.id);
-      await this.routeLayer.reloadAll();
-      this.refresh();
+      (async () => {
+        await deleteRoute(route.id);
+        await this.routeLayer.reloadAll();
+        await this.refresh();
+      })().catch(console.error);
     });
 
     actions.append(editBtn, toggleBtn, deleteBtn);

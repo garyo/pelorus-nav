@@ -132,7 +132,8 @@ export function parseGGA(sentence: string): NMEAPosition | null {
  */
 export function parseNMEA(sentence: string): NMEAPosition | null {
   const trimmed = sentence.trim();
-  if (trimmed.includes("RMC")) return parseRMC(trimmed);
-  if (trimmed.includes("GGA")) return parseGGA(trimmed);
+  const sentenceId = trimmed.split(",")[0];
+  if (sentenceId.endsWith("RMC")) return parseRMC(trimmed);
+  if (sentenceId.endsWith("GGA")) return parseGGA(trimmed);
   return null;
 }

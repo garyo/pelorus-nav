@@ -8,24 +8,12 @@ import type { NavigationDataManager } from "../navigation/NavigationDataManager"
 import type { SpeedUnit } from "../settings";
 import { getSettings } from "../settings";
 import { formatLatLon } from "../utils/coordinates";
+import { convertSpeed, speedUnitLabel } from "../utils/units";
 
 function formatSpeed(knots: number | null, unit: SpeedUnit): string {
   if (knots === null) return "--";
-  let value: number;
-  let label: string;
-  switch (unit) {
-    case "mph":
-      value = knots * 1.15078;
-      label = "mph";
-      break;
-    case "kph":
-      value = knots * 1.852;
-      label = "km/h";
-      break;
-    default:
-      value = knots;
-      label = "kn";
-  }
+  const value = convertSpeed(knots, unit);
+  const label = unit === "knots" ? "kn" : speedUnitLabel(unit);
   return `${value.toFixed(1)} ${label}`;
 }
 

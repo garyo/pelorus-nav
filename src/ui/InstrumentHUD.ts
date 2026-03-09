@@ -5,8 +5,9 @@
 
 import type { NavigationData } from "../navigation/NavigationData";
 import type { NavigationDataManager } from "../navigation/NavigationDataManager";
-import type { Settings, SpeedUnit } from "../settings";
+import type { Settings } from "../settings";
 import { getSettings, onSettingsChange } from "../settings";
+import { convertSpeed, speedUnitLabel } from "../utils/units";
 
 export interface InstrumentDef {
   id: string;
@@ -15,28 +16,6 @@ export interface InstrumentDef {
     data: NavigationData | null,
     settings: Settings,
   ): { value: string; unit: string };
-}
-
-function speedUnitLabel(unit: SpeedUnit): string {
-  switch (unit) {
-    case "mph":
-      return "mph";
-    case "kph":
-      return "km/h";
-    default:
-      return "Kt";
-  }
-}
-
-function convertSpeed(knots: number, unit: SpeedUnit): number {
-  switch (unit) {
-    case "mph":
-      return knots * 1.15078;
-    case "kph":
-      return knots * 1.852;
-    default:
-      return knots;
-  }
 }
 
 const sogInstrument: InstrumentDef = {

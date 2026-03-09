@@ -4,6 +4,7 @@
  */
 
 import { formatDepth, getSettings } from "../settings";
+import { formatLatLon } from "../utils/coordinates";
 
 export interface FeatureInfo {
   type: string;
@@ -654,14 +655,6 @@ const FORMATTERS: Record<
   LNDARE: formatLandArea,
 };
 
-function formatDDM(deg: number, pos: string, neg: string): string {
-  const dir = deg >= 0 ? pos : neg;
-  const abs = Math.abs(deg);
-  const d = Math.floor(abs);
-  const m = ((abs - d) * 60).toFixed(3);
-  return `${d}\u00b0${String(m).padStart(6, "0")}'${dir}`;
-}
-
 export function formatFeatureInfo(
   sourceLayer: string,
   properties: Record<string, unknown>,
@@ -679,7 +672,7 @@ export function formatFeatureInfo(
   if (lngLat) {
     details.push({
       label: "Position",
-      value: `${formatDDM(lngLat.lat, "N", "S")} ${formatDDM(lngLat.lng, "E", "W")}`,
+      value: `${formatLatLon(lngLat.lat, "lat")} ${formatLatLon(lngLat.lng, "lon")}`,
     });
   }
 

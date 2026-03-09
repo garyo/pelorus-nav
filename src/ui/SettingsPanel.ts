@@ -49,6 +49,7 @@ export function createSettingsPanel(container: HTMLElement): void {
 
   const panel = document.createElement("div");
   panel.className = "settings-panel";
+  // Safe: buildPanelHTML() uses only controlled enum labels, no user input
   panel.innerHTML = buildPanelHTML();
   wrapper.appendChild(panel);
 

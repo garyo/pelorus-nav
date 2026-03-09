@@ -45,6 +45,14 @@ export const ROLE_ICON_EXPR: maplibregl.ExpressionSpecification = [
   POINT_ICON_WAYPOINT, // default
 ];
 
+/** Assign a role to a waypoint by position. */
+export function pointRole(index: number, total: number): string {
+  if (total <= 1) return "waypoint";
+  if (index === 0) return "start";
+  if (index === total - 1) return "finish";
+  return "waypoint";
+}
+
 // --- Drawing helpers ---
 
 function addIcon(

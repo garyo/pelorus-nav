@@ -3,13 +3,12 @@
  * Works on Android/iOS with location permissions.
  */
 
+import { MS_TO_KNOTS } from "../utils/units";
 import type {
   NavigationData,
   NavigationDataCallback,
   NavigationDataProvider,
 } from "./NavigationData";
-
-const MS_TO_KNOTS = 1.94384;
 
 export class BrowserGeolocationProvider implements NavigationDataProvider {
   readonly id = "browser-gps";

@@ -4,13 +4,12 @@
  */
 
 import { toDegrees } from "../utils/coordinates";
+import { MS_TO_KNOTS } from "../utils/units";
 import type {
   NavigationData,
   NavigationDataCallback,
   NavigationDataProvider,
 } from "./NavigationData";
-
-const MS_TO_KNOTS = 1.94384;
 
 export class SignalKProvider implements NavigationDataProvider {
   readonly id = "signalk";
@@ -19,6 +18,7 @@ export class SignalKProvider implements NavigationDataProvider {
   private listeners: NavigationDataCallback[] = [];
   private ws: WebSocket | null = null;
   private url: string;
+  private hasPosition = false;
 
   // Accumulated state from partial updates
   private latitude = 0;
@@ -111,6 +111,7 @@ export class SignalKProvider implements NavigationDataProvider {
             const pos = value as { latitude: number; longitude: number };
             this.latitude = pos.latitude;
             this.longitude = pos.longitude;
+            this.hasPosition = true;
             changed = true;
             break;
           }
@@ -130,7 +131,7 @@ export class SignalKProvider implements NavigationDataProvider {
       }
     }
 
-    if (changed && this.latitude !== 0) {
+    if (changed && this.hasPosition) {
       const data: NavigationData = {
         latitude: this.latitude,
         longitude: this.longitude,

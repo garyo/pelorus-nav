@@ -7,7 +7,7 @@ import type maplibregl from "maplibre-gl";
 import { getAllRoutes } from "../data/db";
 import type { Route } from "../data/Route";
 import { haversineDistanceNM } from "../utils/coordinates";
-import { ensurePointIcons, ROLE_ICON_EXPR } from "./point-icons";
+import { ensurePointIcons, pointRole, ROLE_ICON_EXPR } from "./point-icons";
 
 function sourceId(routeId: string): string {
   return `_route-${routeId}`;
@@ -175,12 +175,4 @@ export class RouteLayer {
 
     return { type: "FeatureCollection", features };
   }
-}
-
-/** Assign a role to a waypoint by position. */
-function pointRole(index: number, total: number): string {
-  if (total <= 1) return "waypoint";
-  if (index === 0) return "start";
-  if (index === total - 1) return "finish";
-  return "waypoint";
 }

@@ -54,6 +54,12 @@ def download_enc_cell(
     # Extract the zip
     try:
         with zipfile.ZipFile(zip_path) as zf:
+            for member in zf.namelist():
+                target = (output_dir / member).resolve()
+                if not target.is_relative_to(output_dir.resolve()):
+                    raise zipfile.BadZipFile(
+                        f"Zip member escapes target dir: {member}"
+                    )
             zf.extractall(output_dir)
     except zipfile.BadZipFile:
         print(f"Bad zip file for {cell_name}")

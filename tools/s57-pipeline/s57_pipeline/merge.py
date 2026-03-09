@@ -10,7 +10,6 @@ See MULTI_SCALE.md.
 
 from __future__ import annotations
 
-import math
 import subprocess
 import tempfile
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -18,6 +17,8 @@ from pathlib import Path
 
 from shapely.geometry import box
 from shapely.geometry.base import BaseGeometry
+
+from .tilemath import tile_to_bbox as _tile_to_bbox
 
 
 def merge_tiles(
@@ -89,15 +90,6 @@ def _join_band(
     print(f"  Warning: band {band} tile-join failed")
     return band, None
 
-
-def _tile_to_bbox(z: int, x: int, y: int) -> tuple[float, float, float, float]:
-    """Convert tile (z, x, y) to (west, south, east, north) bbox in degrees."""
-    n = 2 ** z
-    west = x / n * 360.0 - 180.0
-    east = (x + 1) / n * 360.0 - 180.0
-    north = math.degrees(math.atan(math.sinh(math.pi * (1 - 2 * y / n))))
-    south = math.degrees(math.atan(math.sinh(math.pi * (1 - 2 * (y + 1) / n))))
-    return (west, south, east, north)
 
 
 def _coverage_contains_tile(

@@ -1,5 +1,6 @@
 import maplibregl from "maplibre-gl";
-import { onSettingsChange } from "../settings";
+import type { DepthUnit, DetailLevel } from "../settings";
+import { getSettings, onSettingsChange } from "../settings";
 import type { ChartProvider } from "./ChartProvider";
 
 export interface ChartManagerOptions {
@@ -20,6 +21,9 @@ export class ChartManager {
 
   private providers: Map<string, ChartProvider>;
   private activeProviderId: string | null = null;
+  private prevDepthUnit: DepthUnit;
+  private prevDetailLevel: DetailLevel;
+  private prevLayerGroups: Record<string, boolean>;
 
   constructor(options: ChartManagerOptions) {
     if (options.providers.length === 0) {
@@ -50,8 +54,27 @@ export class ChartManager {
       "bottom-left",
     );
 
-    // Re-apply style when settings change (e.g. depth unit)
-    onSettingsChange(() => this.refreshStyle());
+    const initial = getSettings();
+    this.prevDepthUnit = initial.depthUnit;
+    this.prevDetailLevel = initial.detailLevel;
+    this.prevLayerGroups = { ...initial.layerGroups };
+
+    // Re-apply style only when chart-relevant settings change
+    onSettingsChange(() => {
+      const s = getSettings();
+      const layersChanged =
+        JSON.stringify(s.layerGroups) !== JSON.stringify(this.prevLayerGroups);
+      if (
+        s.depthUnit !== this.prevDepthUnit ||
+        s.detailLevel !== this.prevDetailLevel ||
+        layersChanged
+      ) {
+        this.prevDepthUnit = s.depthUnit;
+        this.prevDetailLevel = s.detailLevel;
+        this.prevLayerGroups = { ...s.layerGroups };
+        this.refreshStyle();
+      }
+    });
   }
 
   /** Re-apply the current provider's style (e.g. after settings change). */

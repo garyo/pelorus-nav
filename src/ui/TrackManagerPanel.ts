@@ -20,17 +20,17 @@ export class TrackManagerPanel {
     this.recorder = recorder;
 
     this.el = document.createElement("div");
-    this.el.className = "track-manager-panel";
+    this.el.className = "manager-panel";
     this.el.innerHTML =
-      '<div class="track-manager-header">' +
+      '<div class="manager-header">' +
       "<span>Tracks</span>" +
       '<button class="track-record-btn"></button>' +
-      '<button class="track-manager-close">&times;</button>' +
+      '<button class="manager-close">&times;</button>' +
       "</div>" +
-      '<div class="track-manager-body"></div>';
+      '<div class="manager-body"></div>';
     getPanelStack().appendChild(this.el);
 
-    this.body = this.el.querySelector(".track-manager-body") as HTMLDivElement;
+    this.body = this.el.querySelector(".manager-body") as HTMLDivElement;
     this.recordBtn = this.el.querySelector(
       ".track-record-btn",
     ) as HTMLButtonElement;
@@ -45,7 +45,7 @@ export class TrackManagerPanel {
     });
 
     this.el
-      .querySelector(".track-manager-close")
+      .querySelector(".manager-close")
       ?.addEventListener("click", () => this.hide());
 
     recorder.onRecordingChange(() => {
@@ -83,7 +83,8 @@ export class TrackManagerPanel {
     metas.sort((a, b) => b.createdAt - a.createdAt);
 
     if (metas.length === 0) {
-      this.body.innerHTML = '<div class="track-empty">No recorded tracks</div>';
+      this.body.innerHTML =
+        '<div class="manager-empty">No recorded tracks</div>';
       return;
     }
 
@@ -95,55 +96,59 @@ export class TrackManagerPanel {
 
   private createTrackItem(meta: TrackMeta): HTMLDivElement {
     const item = document.createElement("div");
-    item.className = "track-item";
+    item.className = "manager-item";
 
     const color = document.createElement("div");
-    color.className = "track-item-color";
+    color.className = "manager-item-color";
     color.style.backgroundColor = meta.color;
     color.title = "Change color";
     color.addEventListener("click", () => this.pickColor(meta, color));
 
     const info = document.createElement("div");
-    info.className = "track-item-info";
+    info.className = "manager-item-info";
 
     const name = document.createElement("div");
-    name.className = "track-item-name";
+    name.className = "manager-item-name";
     name.textContent = meta.name;
     name.title = "Click to rename";
     name.addEventListener("click", () => this.rename(meta, name));
 
     const detail = document.createElement("div");
-    detail.className = "track-item-detail";
+    detail.className = "manager-item-detail";
     const date = new Date(meta.createdAt).toLocaleDateString();
     detail.textContent = `${date} \u00b7 ${meta.pointCount} pts`;
 
     info.append(name, detail);
 
     const actions = document.createElement("div");
-    actions.className = "track-item-actions";
+    actions.className = "manager-item-actions";
 
     const toggleBtn = document.createElement("button");
-    toggleBtn.className = "track-item-btn";
+    toggleBtn.className = "manager-item-btn";
     toggleBtn.textContent = meta.visible
       ? "\u{1F441}"
       : "\u{1F441}\u200D\u{1F5E8}";
     toggleBtn.title = meta.visible ? "Hide" : "Show";
-    toggleBtn.addEventListener("click", async () => {
-      meta.visible = !meta.visible;
-      await saveTrackMeta(meta);
-      await this.trackLayer.toggleTrackVisibility(meta.id, meta.visible);
-      this.refresh();
+    toggleBtn.addEventListener("click", () => {
+      (async () => {
+        meta.visible = !meta.visible;
+        await saveTrackMeta(meta);
+        await this.trackLayer.toggleTrackVisibility(meta.id, meta.visible);
+        await this.refresh();
+      })().catch(console.error);
     });
 
     const deleteBtn = document.createElement("button");
-    deleteBtn.className = "track-item-btn";
+    deleteBtn.className = "manager-item-btn";
     deleteBtn.textContent = "\u{1F5D1}";
     deleteBtn.title = "Delete";
-    deleteBtn.addEventListener("click", async () => {
+    deleteBtn.addEventListener("click", () => {
       if (!confirm(`Delete track "${meta.name}"?`)) return;
-      await deleteTrack(meta.id);
-      await this.trackLayer.reloadAll();
-      this.refresh();
+      (async () => {
+        await deleteTrack(meta.id);
+        await this.trackLayer.reloadAll();
+        await this.refresh();
+      })().catch(console.error);
     });
 
     actions.append(toggleBtn, deleteBtn);
