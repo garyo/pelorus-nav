@@ -1,6 +1,11 @@
 #!/usr/bin/env bash
 # Upload all nautical-* data files (PMTiles + coverage GeoJSON) to Cloudflare R2.
 # Skips files that haven't changed since last upload (by modtime).
+# Uses S3-compatible multipart upload (no file size limit).
+#
+# Required env vars: CLOUDFLARE_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY
+# (can be set in .env file)
+#
 # Usage: tools/upload-tiles.sh [--force]
 
 set -euo pipefail
@@ -29,7 +34,7 @@ for file in public/nautical-*.pmtiles public/nautical-*.coverage.geojson; do
   fi
 
   echo "Uploading $name ($(du -h "$file" | cut -f1))..."
-  wrangler r2 object put "${BUCKET}/${name}" --file "$file" --remote
+  bun tools/r2-upload.ts "$BUCKET" "$name" "$file"
   touch "$stamp"
   uploaded=$((uploaded + 1))
 done
