@@ -164,6 +164,8 @@ export function getNauticalLayers(
   coverageSourceId?: string,
   theme: DisplayTheme = "day",
   symbology: SymbologyScheme = "pelorus-standard",
+  shallowDepth = 5,
+  deepDepth = 20,
 ): LayerSpecification[] {
   const ctx = createStyleContext(
     sourceId,
@@ -173,6 +175,8 @@ export function getNauticalLayers(
     theme,
     coverageSourceId,
     symbology,
+    shallowDepth,
+    deepDepth,
   );
 
   // Build layer array in the exact same order as the original monolithic

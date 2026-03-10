@@ -82,6 +82,8 @@ export class VectorChartProvider implements ChartProvider {
       layerGroups,
       displayTheme,
       symbologyScheme,
+      shallowDepth,
+      deepDepth,
     } = getSettings();
     return getNauticalLayers(
       SOURCE_ID,
@@ -91,6 +93,8 @@ export class VectorChartProvider implements ChartProvider {
       COVERAGE_SOURCE_ID,
       displayTheme,
       symbologyScheme,
+      shallowDepth,
+      deepDepth,
     );
   }
 

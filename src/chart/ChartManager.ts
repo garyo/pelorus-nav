@@ -32,6 +32,8 @@ export class ChartManager {
   private prevLayerGroups: Record<string, boolean>;
   private prevDisplayTheme: DisplayTheme;
   private prevSymbology: SymbologyScheme;
+  private prevShallowDepth: number;
+  private prevDeepDepth: number;
 
   constructor(options: ChartManagerOptions) {
     if (options.providers.length === 0) {
@@ -68,6 +70,8 @@ export class ChartManager {
     this.prevLayerGroups = { ...initial.layerGroups };
     this.prevDisplayTheme = initial.displayTheme;
     this.prevSymbology = initial.symbologyScheme;
+    this.prevShallowDepth = initial.shallowDepth;
+    this.prevDeepDepth = initial.deepDepth;
 
     // Re-apply style only when chart-relevant settings change
     onSettingsChange(() => {
@@ -79,6 +83,8 @@ export class ChartManager {
         s.detailLevel !== this.prevDetailLevel ||
         s.displayTheme !== this.prevDisplayTheme ||
         s.symbologyScheme !== this.prevSymbology ||
+        s.shallowDepth !== this.prevShallowDepth ||
+        s.deepDepth !== this.prevDeepDepth ||
         layersChanged
       ) {
         this.prevDepthUnit = s.depthUnit;
@@ -86,6 +92,8 @@ export class ChartManager {
         this.prevLayerGroups = { ...s.layerGroups };
         this.prevDisplayTheme = s.displayTheme;
         this.prevSymbology = s.symbologyScheme;
+        this.prevShallowDepth = s.shallowDepth;
+        this.prevDeepDepth = s.deepDepth;
         this.refreshStyle();
       }
     });

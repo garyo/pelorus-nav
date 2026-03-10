@@ -6,9 +6,11 @@
 import {
   type ChartMode,
   type CourseLineDuration,
+  convertDepth,
   type DepthUnit,
   type DetailLevel,
   type DisplayTheme,
+  depthConversionFactor,
   depthUnitLabel,
   getSettings,
   LAYER_GROUP_LABELS,
@@ -184,6 +186,9 @@ function buildAppearanceTab(
       (v) => updateSettings({ depthUnit: v as DepthUnit }),
     ),
   );
+
+  // Depth threshold sliders
+  tab.appendChild(buildDepthThresholdSliders());
 
   // Speed units
   const SPEED_UNITS = [
@@ -374,6 +379,169 @@ function buildSelectRow(
   row.appendChild(select);
 
   return row;
+}
+
+/**
+ * Build depth threshold sliders (shallow and deep).
+ * Values are stored in meters but displayed in the user's chosen depth unit.
+ * The slider operates in display units and converts back to meters on change.
+ */
+function buildDepthThresholdSliders(): HTMLElement {
+  const container = document.createElement("div");
+
+  // Max slider values in meters for each unit (60m ≈ 200ft ≈ 33fm)
+  const MAX_METERS = 60;
+
+  function currentUnit(): DepthUnit {
+    return getSettings().depthUnit;
+  }
+
+  function maxForUnit(unit: DepthUnit): number {
+    return Math.round(convertDepth(MAX_METERS, unit));
+  }
+
+  function stepForUnit(unit: DepthUnit): number {
+    switch (unit) {
+      case "feet":
+        return 1;
+      case "fathoms":
+        return 0.5;
+      default:
+        return 0.5;
+    }
+  }
+
+  function metersToDisplay(m: number, unit: DepthUnit): number {
+    return Math.round(convertDepth(m, unit) * 10) / 10;
+  }
+
+  function displayToMeters(d: number, unit: DepthUnit): number {
+    return d / depthConversionFactor(unit);
+  }
+
+  // Shallow slider
+  const shallowRow = document.createElement("div");
+  shallowRow.className = "settings-row";
+  const shallowLabel = document.createElement("label");
+  shallowLabel.htmlFor = "settings-shallow-depth";
+  shallowLabel.textContent = "Shallow";
+  shallowRow.appendChild(shallowLabel);
+
+  const shallowGroup = document.createElement("div");
+  shallowGroup.className = "settings-slider-group";
+  const shallowSlider = document.createElement("input");
+  shallowSlider.type = "range";
+  shallowSlider.id = "settings-shallow-depth";
+  const shallowInput = document.createElement("input");
+  shallowInput.type = "number";
+
+  // Deep slider
+  const deepRow = document.createElement("div");
+  deepRow.className = "settings-row";
+  const deepLabel = document.createElement("label");
+  deepLabel.htmlFor = "settings-deep-depth";
+  deepLabel.textContent = "Deep";
+  deepRow.appendChild(deepLabel);
+
+  const deepGroup = document.createElement("div");
+  deepGroup.className = "settings-slider-group";
+  const deepSlider = document.createElement("input");
+  deepSlider.type = "range";
+  const deepInput = document.createElement("input");
+  deepInput.type = "number";
+
+  /** Suffix element showing the unit abbreviation next to each input. */
+  const shallowSuffix = document.createElement("span");
+  shallowSuffix.className = "unit-suffix";
+  const deepSuffix = document.createElement("span");
+  deepSuffix.className = "unit-suffix";
+
+  let syncing = false;
+
+  function syncSliders() {
+    syncing = true;
+    const unit = currentUnit();
+    const max = maxForUnit(unit);
+    const step = stepForUnit(unit);
+    const s = getSettings();
+    const unitStr = depthUnitLabel(unit);
+
+    shallowSlider.min = "0";
+    shallowSlider.max = String(max);
+    shallowSlider.step = String(step);
+    const shallowDisplay = metersToDisplay(s.shallowDepth, unit);
+    shallowSlider.value = String(shallowDisplay);
+    shallowInput.min = "0";
+    shallowInput.max = String(max);
+    shallowInput.step = String(step);
+    shallowInput.value = String(shallowDisplay);
+    shallowSuffix.textContent = unitStr;
+
+    deepSlider.min = "0";
+    deepSlider.max = String(max);
+    deepSlider.step = String(step);
+    const deepDisplay = metersToDisplay(s.deepDepth, unit);
+    deepSlider.value = String(deepDisplay);
+    deepInput.min = "0";
+    deepInput.max = String(max);
+    deepInput.step = String(step);
+    deepInput.value = String(deepDisplay);
+    deepSuffix.textContent = unitStr;
+    syncing = false;
+  }
+
+  syncSliders();
+
+  function applyShallow(displayVal: number) {
+    const unit = currentUnit();
+    const meters = displayToMeters(displayVal, unit);
+    const s = getSettings();
+    if (meters > s.deepDepth) {
+      updateSettings({ shallowDepth: meters, deepDepth: meters });
+    } else {
+      updateSettings({ shallowDepth: meters });
+    }
+  }
+
+  function applyDeep(displayVal: number) {
+    const unit = currentUnit();
+    const meters = displayToMeters(displayVal, unit);
+    const s = getSettings();
+    if (meters < s.shallowDepth) {
+      updateSettings({ shallowDepth: meters, deepDepth: meters });
+    } else {
+      updateSettings({ deepDepth: meters });
+    }
+  }
+
+  shallowSlider.addEventListener("input", () => {
+    applyShallow(Number(shallowSlider.value));
+  });
+
+  shallowInput.addEventListener("change", () => {
+    applyShallow(Number(shallowInput.value));
+  });
+
+  deepSlider.addEventListener("input", () => {
+    applyDeep(Number(deepSlider.value));
+  });
+
+  deepInput.addEventListener("change", () => {
+    applyDeep(Number(deepInput.value));
+  });
+
+  // Re-sync when any relevant setting changes (unit or thresholds)
+  onSettingsChange(() => {
+    if (!syncing) syncSliders();
+  });
+
+  shallowGroup.append(shallowSlider, shallowInput, shallowSuffix);
+  shallowRow.appendChild(shallowGroup);
+  deepGroup.append(deepSlider, deepInput, deepSuffix);
+  deepRow.appendChild(deepGroup);
+
+  container.append(shallowRow, deepRow);
+  return container;
 }
 
 function buildCheckboxRow(

@@ -38,6 +38,10 @@ export interface StyleContext {
   iconSizeScale: number;
   /** Per-symbol icon-offset expression, or null if not needed. */
   iconOffsetExpr: ExpressionSpecification | null;
+  /** Shallow water threshold in meters. */
+  shallowDepth: number;
+  /** Deep water threshold in meters. */
+  deepDepth: number;
 }
 
 /** Map DisplayTheme to S-52 ColourScheme. */
@@ -99,6 +103,8 @@ export function createStyleContext(
   theme: DisplayTheme,
   coverageSourceId?: string,
   symbology: SymbologyScheme = "pelorus-standard",
+  shallowDepth = 5,
+  deepDepth = 20,
 ): StyleContext {
   // Set the active colour scheme so all s52Colour() calls use it
   setActiveColourScheme(themeToScheme(theme));
@@ -127,5 +133,7 @@ export function createStyleContext(
     showOther: detailOffset >= 1,
     iconSizeScale: config.iconSizeScale,
     iconOffsetExpr,
+    shallowDepth,
+    deepDepth,
   };
 }

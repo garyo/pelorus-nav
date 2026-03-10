@@ -31,6 +31,10 @@ export interface Settings {
   simulatorSpeed: number;
   displayTheme: DisplayTheme;
   symbologyScheme: SymbologyScheme;
+  /** Shallow water threshold in meters (areas < this get DEPVS color). */
+  shallowDepth: number;
+  /** Deep water threshold in meters (areas >= this get DEPDW color). */
+  deepDepth: number;
 }
 
 const STORAGE_KEY = "pelorus-nav-settings";
@@ -68,6 +72,8 @@ const DEFAULTS: Settings = {
   simulatorSpeed: 1,
   displayTheme: "day",
   symbologyScheme: "pelorus-standard",
+  shallowDepth: 5,
+  deepDepth: 20,
 };
 
 type SettingsListener = (settings: Settings) => void;

@@ -26,7 +26,7 @@ export function getAreaLayers(ctx: StyleContext): LayerSpecification[] {
       type: "fill",
       source: ctx.sourceId,
       "source-layer": "DEPARE",
-      filter: ["<", ["get", "DRVAL1"], 5],
+      filter: ["<", ["get", "DRVAL1"], ctx.shallowDepth],
       layout: { "fill-sort-key": SCALE_SORT_KEY },
       paint: {
         "fill-color": ctx.colour("DEPVS"),
@@ -40,8 +40,8 @@ export function getAreaLayers(ctx: StyleContext): LayerSpecification[] {
       "source-layer": "DEPARE",
       filter: [
         "all",
-        [">=", ["get", "DRVAL1"], 5],
-        ["<", ["get", "DRVAL1"], 20],
+        [">=", ["get", "DRVAL1"], ctx.shallowDepth],
+        ["<", ["get", "DRVAL1"], ctx.deepDepth],
       ],
       layout: { "fill-sort-key": SCALE_SORT_KEY },
       paint: {
@@ -54,7 +54,7 @@ export function getAreaLayers(ctx: StyleContext): LayerSpecification[] {
       type: "fill",
       source: ctx.sourceId,
       "source-layer": "DEPARE",
-      filter: [">=", ["get", "DRVAL1"], 20],
+      filter: [">=", ["get", "DRVAL1"], ctx.deepDepth],
       layout: { "fill-sort-key": SCALE_SORT_KEY },
       paint: {
         "fill-color": ctx.colour("DEPDW"),
