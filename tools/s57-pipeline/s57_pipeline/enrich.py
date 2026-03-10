@@ -54,9 +54,17 @@ def enrich_geojson(
 
     # Pre-compute per-layer constants
     scale_band = 0
+    scamin_shift = 0  # zoom levels to shift SCAMIN minzooms down
     if apply_scamin:
         if cell_intu is not None and cell_intu in INTU_BASE_ZOOMS:
             scale_band = intu_to_scale_band(cell_intu)
+            # When zoom-shift is active, the cell's terrain appears earlier
+            # than SCAMIN expects. Shift SCAMIN minzooms down to match,
+            # so lights/navaids appear alongside their band's terrain.
+            if intu_zoom_ranges is not None and cell_intu in intu_zoom_ranges:
+                base_min = INTU_BASE_ZOOMS[cell_intu][0]
+                adj_min = intu_zoom_ranges[cell_intu][0]
+                scamin_shift = max(0, base_min - adj_min)
         elif cell_cscl is not None:
             scale_band = cscl_to_scale_band(cell_cscl)
 
@@ -80,6 +88,10 @@ def enrich_geojson(
                 if "tippecanoe" not in feature:
                     feature["tippecanoe"] = {}
                 minzoom = scamin_to_minzoom(scamin)
+                # Apply zoom shift so features appear alongside
+                # their band's terrain (not delayed by SCAMIN)
+                if scamin_shift > 0:
+                    minzoom = max(0, minzoom - scamin_shift)
                 # City/town names: cap at z12 so they appear earlier
                 if is_buaare and minzoom > 12:
                     minzoom = 12
