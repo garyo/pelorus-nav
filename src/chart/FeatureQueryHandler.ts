@@ -127,16 +127,28 @@ export class FeatureQueryHandler {
       return;
     }
 
-    // Query at click point, plus a wider box for text-only layers (LNDMRK)
+    // Query at click point for most layers, plus a wider bbox for thin
+    // lines (bridges, cables, etc.) and text labels that are hard to tap.
     const raw = this.map.queryRenderedFeatures(e.point, { layers });
     const bbox: [maplibregl.PointLike, maplibregl.PointLike] = [
-      [e.point.x - 20, e.point.y - 20],
-      [e.point.x + 20, e.point.y + 20],
+      [e.point.x - 10, e.point.y - 10],
+      [e.point.x + 10, e.point.y + 10],
     ];
-    const labelLayers = layers.filter((id) => id.endsWith("-label"));
-    if (labelLayers.length > 0) {
+    const looseLayers = layers.filter(
+      (id) =>
+        id.endsWith("-label") ||
+        id.startsWith("s57-bridge") ||
+        id.startsWith("s57-cblohd") ||
+        id.startsWith("s57-cblsub") ||
+        id.startsWith("s57-dykcon") ||
+        id.startsWith("s57-slotop") ||
+        id.startsWith("s57-gatcon") ||
+        id.startsWith("s57-damcon") ||
+        id.startsWith("s57-tunnel"),
+    );
+    if (looseLayers.length > 0) {
       const extra = this.map.queryRenderedFeatures(bbox, {
-        layers: labelLayers,
+        layers: looseLayers,
       });
       for (const f of extra) {
         if (!raw.some((r) => r.id === f.id && r.layer.id === f.layer.id)) {
