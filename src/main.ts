@@ -115,7 +115,7 @@ new FeatureQueryHandler(chartManager);
 
 // Settings gear in top bar
 const topBar = document.getElementById("top-bar");
-if (topBar) createSettingsPanel(topBar);
+const settingsHandle = topBar ? createSettingsPanel(topBar) : null;
 
 // --- Navigation system ---
 const navManager = new NavigationDataManager();
@@ -490,7 +490,10 @@ if (topBar) {
   trackBtn.className = "settings-btn";
   trackBtn.title = "Tracks";
   trackBtn.innerHTML = iconTrack;
-  trackBtn.addEventListener("click", () => trackPanel.toggle());
+  trackBtn.addEventListener("click", () => {
+    trackPanel.toggle();
+    settingsHandle?.hide();
+  });
   topBar.insertBefore(trackBtn, settingsWrapper);
 
   // Routes panel button
@@ -498,7 +501,10 @@ if (topBar) {
   routeBtn.className = "settings-btn";
   routeBtn.title = "Routes";
   routeBtn.innerHTML = iconRoute;
-  routeBtn.addEventListener("click", () => routePanel.toggle());
+  routeBtn.addEventListener("click", () => {
+    routePanel.toggle();
+    settingsHandle?.hide();
+  });
   topBar.insertBefore(routeBtn, settingsWrapper);
 
   // Chart cache panel button
@@ -526,8 +532,18 @@ if (topBar) {
   cacheBtn.className = "settings-btn";
   cacheBtn.title = "Offline Charts";
   cacheBtn.innerHTML = iconDownload;
-  cacheBtn.addEventListener("click", () => cachePanel.toggle());
+  cacheBtn.addEventListener("click", () => {
+    cachePanel.toggle();
+    settingsHandle?.hide();
+  });
   topBar.insertBefore(cacheBtn, settingsWrapper);
+
+  // Close manager panels when settings opens
+  settingsHandle?.onOpen(() => {
+    trackPanel.hide();
+    routePanel.hide();
+    cachePanel.hide();
+  });
 
   // Offline indicator (Step 5)
   const offlineIndicator = document.createElement("div");

@@ -43,7 +43,16 @@ const TAB_LABELS: Record<TabId, string> = {
   navigation: "Navigation",
 };
 
-export function createSettingsPanel(container: HTMLElement): void {
+export interface SettingsPanelHandle {
+  /** Close the settings panel. */
+  hide(): void;
+  /** Register a callback invoked when the settings panel opens. */
+  onOpen(fn: () => void): void;
+}
+
+export function createSettingsPanel(
+  container: HTMLElement,
+): SettingsPanelHandle {
   const wrapper = document.createElement("div");
   wrapper.className = "settings-wrapper";
 
@@ -70,10 +79,16 @@ export function createSettingsPanel(container: HTMLElement): void {
 
   container.appendChild(wrapper);
 
+  const openListeners: (() => void)[] = [];
+
   // Toggle panel
   btn.addEventListener("click", (e) => {
     e.stopPropagation();
+    const opening = !panel.classList.contains("open");
     panel.classList.toggle("open");
+    if (opening) {
+      for (const fn of openListeners) fn();
+    }
   });
 
   // Close on outside click
@@ -82,6 +97,15 @@ export function createSettingsPanel(container: HTMLElement): void {
       panel.classList.remove("open");
     }
   });
+
+  return {
+    hide() {
+      panel.classList.remove("open");
+    },
+    onOpen(fn: () => void) {
+      openListeners.push(fn);
+    },
+  };
 }
 
 function buildTabbedPanel(panel: HTMLElement): void {
