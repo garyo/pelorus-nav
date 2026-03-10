@@ -47,6 +47,111 @@ const BOYSHP: Record<number, string> = {
   5: "Spar",
 };
 
+const STATUS: Record<number, string> = {
+  1: "Permanent",
+  2: "Occasional",
+  3: "Recommended",
+  5: "Temporary",
+  8: "Private",
+  11: "Extinguished",
+  12: "Illuminated",
+  15: "Watched",
+  17: "Unwatched",
+  18: "Existence Doubtful",
+};
+
+const RESTRN: Record<number, string> = {
+  1: "Anchoring prohibited",
+  2: "Anchoring restricted",
+  3: "Fishing prohibited",
+  4: "Fishing restricted",
+  5: "Trawling prohibited",
+  6: "No wake",
+  7: "Entry restricted",
+  8: "Entry prohibited",
+  13: "Speed restricted",
+  16: "Discharging prohibited",
+};
+
+const CATBRG: Record<number, string> = {
+  2: "Fixed",
+  3: "Opening",
+  4: "Swing",
+  5: "Lifting/Bascule",
+  6: "Bascule",
+  7: "Pontoon",
+  8: "Draw",
+};
+
+const CATCBL: Record<number, string> = {
+  1: "Power",
+  2: "Telephone/Telegraph",
+  3: "Mooring",
+};
+
+const CATSCF: Record<number, string> = {
+  1: "Boat Hoist",
+  2: "Boat Yard",
+  3: "Chandler",
+  4: "Provisions",
+  7: "Fuel Station",
+  8: "Electricity",
+  10: "Launching Ramp",
+  11: "Slipway",
+  14: "Marina",
+  18: "Sailmaker",
+  26: "Pumpout",
+  27: "Emergency Phone",
+};
+
+const CATMOR: Record<number, string> = {
+  1: "Dolphin",
+  2: "Deviation Dolphin",
+  3: "Bollard",
+  4: "Wall",
+  5: "Pile",
+  6: "Chain",
+  7: "Buoy",
+};
+
+const TRAFIC: Record<number, string> = {
+  1: "Inbound",
+  2: "Outbound",
+  3: "One-way",
+  4: "Two-way",
+};
+
+const CATWAT: Record<number, string> = {
+  1: "Breakers",
+  2: "Eddies",
+  3: "Overfalls",
+  4: "Tide Rips",
+  5: "Bombora",
+};
+
+const CATGAT: Record<number, string> = {
+  1: "General",
+  2: "Flood Barrage",
+  3: "Caisson",
+  4: "Lock",
+  5: "Dyke Gate",
+};
+
+const CATPIL: Record<number, string> = {
+  1: "Cruising vessel",
+  2: "Helicopter",
+  3: "From shore",
+};
+
+const CATACH: Record<number, string> = {
+  1: "Unrestricted",
+  2: "Deep water",
+  3: "Tanker",
+  5: "Small craft",
+  6: "Small craft (mooring)",
+  9: "24-hour",
+};
+
 const CATREA: Record<number, string> = {
   1: "Offshore safety zone",
   4: "Nature reserve",
@@ -131,6 +236,24 @@ const LAYER_NAMES: Record<string, string> = {
   BUAARE: "Built-Up Area",
   LNDRGN: "Land Region",
   LNDELV: "Land Elevation",
+  BRIDGE: "Bridge",
+  PRCARE: "Precautionary Area",
+  PILBOP: "Pilot Boarding Place",
+  WATTUR: "Water Turbulence",
+  GATCON: "Gate",
+  DAMCON: "Dam",
+  TUNNEL: "Tunnel",
+  FSHFAC: "Fishing Facility",
+  DYKCON: "Dyke",
+  SLOTOP: "Slope/Cliff",
+  PYLONS: "Pylon",
+  CRANES: "Crane",
+  FORSTC: "Fort",
+  CGUSTA: "Coast Guard Station",
+  HULKES: "Hulk",
+  DRYDOC: "Dry Dock",
+  RUNWAY: "Runway",
+  AIRARE: "Airport",
 };
 
 function lookupCode(
@@ -225,6 +348,9 @@ function formatBuoy(
   const shape = lookupCode(BOYSHP, props.BOYSHP);
   if (shape) details.push({ label: "Shape", value: shape });
   addIfPresent(details, "Color", lookupAllCodes(COLOUR, props.COLOUR));
+  const status = lookupAllCodes(STATUS, props.STATUS);
+  addIfPresent(details, "Status", status);
+  addIfPresent(details, "Information", props.INFORM);
   return details;
 }
 
@@ -236,6 +362,9 @@ function formatBeacon(
   const cat = lookupCode(CATLAM, props.CATLAM);
   if (cat) details.push({ label: "Category", value: cat });
   addIfPresent(details, "Color", lookupAllCodes(COLOUR, props.COLOUR));
+  const status = lookupAllCodes(STATUS, props.STATUS);
+  addIfPresent(details, "Status", status);
+  addIfPresent(details, "Information", props.INFORM);
   return details;
 }
 
@@ -374,6 +503,8 @@ function formatRestrictedArea(
   const details: { label: string; value: string }[] = [];
   const cat = lookupCode(CATREA, props.CATREA);
   if (cat) details.push({ label: "Restriction", value: cat });
+  const restrn = lookupAllCodes(RESTRN, props.RESTRN);
+  addIfPresent(details, "Restriction", restrn);
   addIfPresent(details, "Information", props.INFORM);
   return details;
 }
@@ -677,6 +808,170 @@ function formatLandArea(
   return details;
 }
 
+function formatBridge(
+  props: Record<string, unknown>,
+): { label: string; value: string }[] {
+  const details: { label: string; value: string }[] = [];
+  addIfPresent(details, "Name", props.OBJNAM);
+  const cat = lookupCode(CATBRG, props.CATBRG);
+  addIfPresent(details, "Type", cat);
+  const unit = getSettings().depthUnit;
+  if (props.VERCLR != null) {
+    details.push({
+      label: "Vertical Clearance",
+      value: formatDepth(Number(props.VERCLR), unit),
+    });
+  }
+  if (props.HORCLR != null) {
+    details.push({
+      label: "Horizontal Clearance",
+      value: formatDepth(Number(props.HORCLR), unit),
+    });
+  }
+  if (props.VERCCL != null) {
+    details.push({
+      label: "Clearance (closed)",
+      value: formatDepth(Number(props.VERCCL), unit),
+    });
+  }
+  if (props.VERCOP != null) {
+    details.push({
+      label: "Clearance (open)",
+      value: formatDepth(Number(props.VERCOP), unit),
+    });
+  }
+  addIfPresent(details, "Information", props.INFORM);
+  return details;
+}
+
+function formatOverheadCable(
+  props: Record<string, unknown>,
+): { label: string; value: string }[] {
+  const details: { label: string; value: string }[] = [];
+  addIfPresent(details, "Name", props.OBJNAM);
+  const cat = lookupCode(CATCBL, props.CATCBL);
+  addIfPresent(details, "Type", cat);
+  const unit = getSettings().depthUnit;
+  if (props.VERCLR != null) {
+    details.push({
+      label: "Vertical Clearance",
+      value: formatDepth(Number(props.VERCLR), unit),
+    });
+  }
+  if (props.VERCSA != null) {
+    details.push({
+      label: "Safe Clearance",
+      value: formatDepth(Number(props.VERCSA), unit),
+    });
+  }
+  addIfPresent(details, "Information", props.INFORM);
+  return details;
+}
+
+function formatSmallCraftFacility(
+  props: Record<string, unknown>,
+): { label: string; value: string }[] {
+  const details: { label: string; value: string }[] = [];
+  addIfPresent(details, "Name", props.OBJNAM);
+  const cat = lookupAllCodes(CATSCF, props.CATSCF);
+  addIfPresent(details, "Facility", cat);
+  addIfPresent(details, "Information", props.INFORM);
+  return details;
+}
+
+function formatMooringFacility(
+  props: Record<string, unknown>,
+): { label: string; value: string }[] {
+  const details: { label: string; value: string }[] = [];
+  addIfPresent(details, "Name", props.OBJNAM);
+  const cat = lookupCode(CATMOR, props.CATMOR);
+  addIfPresent(details, "Type", cat);
+  addIfPresent(details, "Information", props.INFORM);
+  return details;
+}
+
+function formatFairway(
+  props: Record<string, unknown>,
+): { label: string; value: string }[] {
+  const details: { label: string; value: string }[] = [];
+  addIfPresent(details, "Name", props.OBJNAM);
+  const trafic = lookupCode(TRAFIC, props.TRAFIC);
+  addIfPresent(details, "Traffic", trafic);
+  const unit = getSettings().depthUnit;
+  if (props.DRVAL1 != null) {
+    details.push({
+      label: "Controlling Depth",
+      value: formatDepth(Number(props.DRVAL1), unit),
+    });
+  }
+  if (props.ORIENT != null) {
+    details.push({
+      label: "Orientation",
+      value: `${props.ORIENT}\u00b0`,
+    });
+  }
+  addIfPresent(details, "Information", props.INFORM);
+  return details;
+}
+
+function formatPrecautionaryArea(
+  props: Record<string, unknown>,
+): { label: string; value: string }[] {
+  const details: { label: string; value: string }[] = [];
+  addIfPresent(details, "Name", props.OBJNAM);
+  const restrn = lookupAllCodes(RESTRN, props.RESTRN);
+  addIfPresent(details, "Restriction", restrn);
+  addIfPresent(details, "Information", props.INFORM);
+  return details;
+}
+
+function formatWaterTurbulence(
+  props: Record<string, unknown>,
+): { label: string; value: string }[] {
+  const details: { label: string; value: string }[] = [];
+  const cat = lookupCode(CATWAT, props.CATWAT);
+  addIfPresent(details, "Type", cat);
+  addIfPresent(details, "Name", props.OBJNAM);
+  addIfPresent(details, "Information", props.INFORM);
+  return details;
+}
+
+function formatGate(
+  props: Record<string, unknown>,
+): { label: string; value: string }[] {
+  const details: { label: string; value: string }[] = [];
+  const cat = lookupCode(CATGAT, props.CATGAT);
+  addIfPresent(details, "Type", cat);
+  addIfPresent(details, "Name", props.OBJNAM);
+  addIfPresent(details, "Information", props.INFORM);
+  return details;
+}
+
+function formatPilotBoarding(
+  props: Record<string, unknown>,
+): { label: string; value: string }[] {
+  const details: { label: string; value: string }[] = [];
+  const cat = lookupCode(CATPIL, props.CATPIL);
+  addIfPresent(details, "Type", cat);
+  addIfPresent(details, "Name", props.OBJNAM);
+  addIfPresent(details, "Pilot District", props.NPLDST);
+  addIfPresent(details, "Information", props.INFORM);
+  return details;
+}
+
+function formatAnchorageArea(
+  props: Record<string, unknown>,
+): { label: string; value: string }[] {
+  const details: { label: string; value: string }[] = [];
+  addIfPresent(details, "Name", props.OBJNAM);
+  const cat = lookupCode(CATACH, props.CATACH);
+  addIfPresent(details, "Type", cat);
+  const restrn = lookupAllCodes(RESTRN, props.RESTRN);
+  addIfPresent(details, "Restriction", restrn);
+  addIfPresent(details, "Information", props.INFORM);
+  return details;
+}
+
 const FORMATTERS: Record<
   string,
   (props: Record<string, unknown>) => { label: string; value: string }[]
@@ -697,8 +992,17 @@ const FORMATTERS: Record<
   DEPARE: formatDepthArea,
   SOUNDG: formatSounding,
   RESARE: formatRestrictedArea,
-  ACHARE: formatRestrictedArea,
+  ACHARE: formatAnchorageArea,
   CTNARE: formatRestrictedArea,
+  BRIDGE: formatBridge,
+  CBLOHD: formatOverheadCable,
+  SMCFAC: formatSmallCraftFacility,
+  MORFAC: formatMooringFacility,
+  FAIRWY: formatFairway,
+  PRCARE: formatPrecautionaryArea,
+  WATTUR: formatWaterTurbulence,
+  GATCON: formatGate,
+  PILBOP: formatPilotBoarding,
   BCNSPP: formatBeacon,
   SBDARE: formatSeabed,
   HRBFAC: formatHarbor,

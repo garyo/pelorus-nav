@@ -704,6 +704,143 @@ export function getOtherPointLayers(ctx: StyleContext): LayerSpecification[] {
   ];
 }
 
+/** Additional point layers: pilot boarding, water turbulence, fishing, cranes, etc. */
+export function getAdditionalPointLayers(
+  ctx: StyleContext,
+): LayerSpecification[] {
+  return [
+    // Pilot Boarding Place
+    {
+      id: "s57-pilbop",
+      type: "symbol" as const,
+      source: ctx.sourceId,
+      "source-layer": "PILBOP",
+      layout: withOffset(
+        {
+          "icon-image": ctx.iconExpr,
+          "icon-size": scaledSize(0.6, ctx),
+          "icon-allow-overlap": true,
+          "text-field": ["get", "OBJNAM"] as unknown as ExpressionSpecification,
+          "text-size": 10,
+          "text-offset": [0, 1.5] as [number, number],
+          "text-allow-overlap": false,
+          "text-optional": true,
+        },
+        ctx,
+      ),
+      paint: {
+        "text-color": ctx.colour("CHBLK"),
+        "text-halo-color": ctx.colour("CHWHT"),
+        "text-halo-width": 1,
+      },
+    },
+    // Water Turbulence
+    {
+      id: "s57-wattur",
+      type: "circle" as const,
+      source: ctx.sourceId,
+      "source-layer": "WATTUR",
+      paint: {
+        "circle-radius": 6,
+        "circle-color": ctx.colour("DEPVS"),
+        "circle-stroke-color": ctx.colour("CHBLK"),
+        "circle-stroke-width": 1,
+      },
+    },
+    // Fishing Facility
+    {
+      id: "s57-fshfac",
+      type: "circle" as const,
+      source: ctx.sourceId,
+      "source-layer": "FSHFAC",
+      minzoom: ctx.detailMinzoom(12),
+      paint: {
+        "circle-radius": 5,
+        "circle-color": ctx.colour("CHMGD"),
+        "circle-stroke-color": ctx.colour("CHBLK"),
+        "circle-stroke-width": 1,
+      },
+    },
+    // Pylons
+    {
+      id: "s57-pylons",
+      type: "circle" as const,
+      source: ctx.sourceId,
+      "source-layer": "PYLONS",
+      minzoom: ctx.detailMinzoom(13),
+      paint: {
+        "circle-radius": 4,
+        "circle-color": ctx.colour("CHBRN"),
+        "circle-stroke-color": ctx.colour("CHBLK"),
+        "circle-stroke-width": 1,
+      },
+    },
+    // Cranes
+    {
+      id: "s57-cranes",
+      type: "symbol" as const,
+      source: ctx.sourceId,
+      "source-layer": "CRANES",
+      minzoom: ctx.detailMinzoom(13),
+      layout: withOffset(
+        {
+          "icon-image": ctx.iconExpr,
+          "icon-size": scaledSize(0.5, ctx),
+          "icon-allow-overlap": true,
+        },
+        ctx,
+      ),
+      paint: {},
+    },
+    // Fortified Structure
+    {
+      id: "s57-forstc",
+      type: "circle" as const,
+      source: ctx.sourceId,
+      "source-layer": "FORSTC",
+      minzoom: ctx.detailMinzoom(12),
+      paint: {
+        "circle-radius": 5,
+        "circle-color": ctx.colour("LANDF"),
+        "circle-stroke-color": ctx.colour("CHBLK"),
+        "circle-stroke-width": 1.5,
+      },
+    },
+    // Coast Guard Station
+    {
+      id: "s57-cgusta",
+      type: "symbol" as const,
+      source: ctx.sourceId,
+      "source-layer": "CGUSTA",
+      minzoom: ctx.detailMinzoom(12),
+      layout: {
+        "text-field": ["get", "OBJNAM"] as unknown as ExpressionSpecification,
+        "text-size": 10,
+        "text-allow-overlap": false,
+        "text-optional": true,
+      },
+      paint: {
+        "text-color": ctx.colour("CHBLK"),
+        "text-halo-color": ctx.colour("CHWHT"),
+        "text-halo-width": 1,
+      },
+    },
+    // Hulks
+    {
+      id: "s57-hulkes",
+      type: "circle" as const,
+      source: ctx.sourceId,
+      "source-layer": "HULKES",
+      paint: {
+        "circle-radius": 6,
+        "circle-color": ctx.colour("CHBRN"),
+        "circle-stroke-color": ctx.colour("CHBLK"),
+        "circle-stroke-width": 1.5,
+      },
+    },
+  ];
+}
+
 /** OTHER-category daymarks and topmarks. */
 export function getDaymarkTopmarkLayers(
   ctx: StyleContext,

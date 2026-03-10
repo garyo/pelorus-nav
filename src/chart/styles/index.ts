@@ -7,13 +7,22 @@
  */
 import type { LayerSpecification } from "maplibre-gl";
 import type { DepthUnit, DisplayTheme, SymbologyScheme } from "../../settings";
-import { getAreaLayers, getCoverageLayers } from "./layers/areas";
-import { getLineLayers, getOtherLineLayers } from "./layers/lines";
+import {
+  getAdditionalAreaLayers,
+  getAreaLayers,
+  getCoverageLayers,
+} from "./layers/areas";
+import {
+  getAdditionalLineLayers,
+  getLineLayers,
+  getOtherLineLayers,
+} from "./layers/lines";
 import {
   getNavigationOverlayLayers,
   getNavigationRoutingLayers,
 } from "./layers/navigation";
 import {
+  getAdditionalPointLayers,
   getDaymarkTopmarkLayers,
   getHazardLayers,
   getNavAidLayers,
@@ -55,6 +64,18 @@ const LAYER_GROUPS: Record<string, string> = {
   "s57-sbdare": "seabed",
   "s57-daymar": "daymarksTopmarks",
   "s57-topmar": "daymarksTopmarks",
+  "s57-prcare": "restrictedAreas",
+  "s57-prcare-outline": "restrictedAreas",
+  "s57-pilbop": "routing",
+  "s57-fshfac": "routing",
+  "s57-cranes": "facilities",
+  "s57-cgusta": "facilities",
+  "s57-drydoc": "facilities",
+  "s57-drydoc-outline": "facilities",
+  "s57-airare": "facilities",
+  "s57-airare-outline": "facilities",
+  "s57-runway": "facilities",
+  "s57-runway-outline": "facilities",
 };
 
 /** Display category -> layer ID mapping for filtering. */
@@ -137,6 +158,29 @@ const LAYER_CATEGORIES: Record<string, "DISPLAYBASE" | "STANDARD" | "OTHER"> = {
   "s57-magvar": "OTHER",
   "s57-daymar": "OTHER",
   "s57-topmar": "OTHER",
+  // New STANDARD layers
+  "s57-prcare": "STANDARD",
+  "s57-prcare-outline": "STANDARD",
+  "s57-pilbop": "STANDARD",
+  "s57-wattur": "STANDARD",
+  "s57-gatcon": "STANDARD",
+  "s57-damcon": "STANDARD",
+  "s57-tunnel": "STANDARD",
+  "s57-fshfac": "STANDARD",
+  "s57-dykcon": "STANDARD",
+  "s57-slotop": "STANDARD",
+  "s57-pylons": "STANDARD",
+  "s57-hulkes": "STANDARD",
+  // New OTHER layers
+  "s57-cranes": "OTHER",
+  "s57-forstc": "OTHER",
+  "s57-cgusta": "OTHER",
+  "s57-drydoc": "OTHER",
+  "s57-drydoc-outline": "OTHER",
+  "s57-runway": "OTHER",
+  "s57-runway-outline": "OTHER",
+  "s57-airare": "OTHER",
+  "s57-airare-outline": "OTHER",
 };
 
 /** Per-layer minzoom at which OTHER layers appear at Standard detail. */
@@ -216,6 +260,9 @@ export function getNauticalLayers(
     // 4. Line layers (depth contours, shoreline constructions, bridges, cables)
     ...getLineLayers(ctx),
 
+    // 4b. Additional line layers (dykes, slopes, gates, dams)
+    ...getAdditionalLineLayers(ctx),
+
     // 5. Nav aid symbols (soundings, lights, buoys, beacons)
     ...getNavAidLayers(ctx),
 
@@ -228,9 +275,16 @@ export function getNauticalLayers(
     // 8. Other nav aids (fog signals, pilings, mooring, special beacons, seabed)
     ...getOtherNavAidLayers(ctx),
 
+    // 8b. Additional point layers (pilot boarding, water turbulence, etc.)
+    ...getAdditionalPointLayers(ctx),
+
     // 9. OTHER category: cables, pipes, facilities, platforms, magvar
     ...(catFilter("OTHER", ctx.showStandard, ctx.showOther)
-      ? [...getOtherLineLayers(ctx), ...getOtherPointLayers(ctx)]
+      ? [
+          ...getOtherLineLayers(ctx),
+          ...getOtherPointLayers(ctx),
+          ...getAdditionalAreaLayers(ctx),
+        ]
       : []),
 
     // 10. Daymarks and topmarks (OTHER category)

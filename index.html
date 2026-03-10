@@ -22,7 +22,7 @@
     </noscript>
     <script>
       // Early WebGL check — runs before the module bundle loads.
-      (function() {
+      (() => {
         try {
           var c = document.createElement("canvas");
           var gl = c.getContext("webgl2") || c.getContext("webgl");

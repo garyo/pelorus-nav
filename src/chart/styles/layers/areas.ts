@@ -203,6 +203,85 @@ export function getAreaLayers(ctx: StyleContext): LayerSpecification[] {
   ];
 }
 
+/** Additional area layers: tunnels, airports, dry docks, runways. */
+export function getAdditionalAreaLayers(
+  ctx: StyleContext,
+): LayerSpecification[] {
+  return [
+    {
+      id: "s57-tunnel",
+      type: "line",
+      source: ctx.sourceId,
+      "source-layer": "TUNNEL",
+      paint: {
+        "line-color": ctx.colour("CHBLK"),
+        "line-width": 2,
+        "line-dasharray": [6, 4],
+      },
+    },
+    {
+      id: "s57-airare",
+      type: "fill",
+      source: ctx.sourceId,
+      "source-layer": "AIRARE",
+      paint: {
+        "fill-color": ctx.colour("LANDF"),
+        "fill-opacity": 0.3,
+      },
+    },
+    {
+      id: "s57-airare-outline",
+      type: "line",
+      source: ctx.sourceId,
+      "source-layer": "AIRARE",
+      paint: {
+        "line-color": ctx.colour("CHBLK"),
+        "line-width": 1,
+      },
+    },
+    {
+      id: "s57-drydoc",
+      type: "fill",
+      source: ctx.sourceId,
+      "source-layer": "DRYDOC",
+      paint: {
+        "fill-color": ctx.colour("CHBRN"),
+        "fill-opacity": 0.2,
+      },
+    },
+    {
+      id: "s57-drydoc-outline",
+      type: "line",
+      source: ctx.sourceId,
+      "source-layer": "DRYDOC",
+      paint: {
+        "line-color": ctx.colour("CHBLK"),
+        "line-width": 1,
+      },
+    },
+    {
+      id: "s57-runway",
+      type: "fill",
+      source: ctx.sourceId,
+      "source-layer": "RUNWAY",
+      paint: {
+        "fill-color": ctx.colour("LANDF"),
+        "fill-opacity": 0.4,
+      },
+    },
+    {
+      id: "s57-runway-outline",
+      type: "line",
+      source: ctx.sourceId,
+      "source-layer": "RUNWAY",
+      paint: {
+        "line-color": ctx.colour("CHBLK"),
+        "line-width": 1,
+      },
+    },
+  ];
+}
+
 /** Coverage mask layer: shades areas outside chart coverage. */
 export function getCoverageLayers(ctx: StyleContext): LayerSpecification[] {
   if (!ctx.coverageSourceId) return [];

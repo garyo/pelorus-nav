@@ -28,8 +28,7 @@ function elevationTextField(ctx: StyleContext): ExpressionSpecification {
     ] as unknown as ExpressionSpecification;
   }
 
-  const factor =
-    ctx.depthUnit === "feet" ? 3.28084 : 0.546807; /* fathoms */
+  const factor = ctx.depthUnit === "feet" ? 3.28084 : 0.546807; /* fathoms */
   return [
     "concat",
     namePrefix,

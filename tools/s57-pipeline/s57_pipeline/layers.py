@@ -106,6 +106,25 @@ LAYER_CONFIGS: list[LayerConfig] = [
     LayerConfig("OFSPLF", "infrastructure", HAZARD_ARGS),
     LayerConfig("SILTNK", "infrastructure", DEFAULT_ARGS),
     LayerConfig("MAGVAR", "labels", DENSE_POINT_ARGS),
+    # High priority (safety)
+    LayerConfig("PRCARE", "regulatory", REGULATORY_ARGS),
+    LayerConfig("PILBOP", "navaids", NAVAID_ARGS),
+    LayerConfig("WATTUR", "hazards", HAZARD_ARGS),
+    LayerConfig("GATCON", "infrastructure", DEFAULT_ARGS),
+    LayerConfig("DAMCON", "infrastructure", DEFAULT_ARGS),
+    LayerConfig("TUNNEL", "infrastructure", DEFAULT_ARGS),
+    LayerConfig("FSHFAC", "hazards", HAZARD_ARGS),
+    # Medium priority
+    LayerConfig("DYKCON", "lines", LINE_ARGS),
+    LayerConfig("SLOTOP", "lines", LINE_ARGS),
+    LayerConfig("PYLONS", "infrastructure", DEFAULT_ARGS),
+    LayerConfig("CRANES", "infrastructure", DEFAULT_ARGS),
+    LayerConfig("FORSTC", "infrastructure", DEFAULT_ARGS),
+    LayerConfig("CGUSTA", "infrastructure", DEFAULT_ARGS),
+    LayerConfig("HULKES", "hazards", HAZARD_ARGS),
+    LayerConfig("DRYDOC", "infrastructure", DEFAULT_ARGS),
+    LayerConfig("RUNWAY", "infrastructure", DEFAULT_ARGS),
+    LayerConfig("AIRARE", "infrastructure", DEFAULT_ARGS),
 ]
 
 # Quick lookup by layer name

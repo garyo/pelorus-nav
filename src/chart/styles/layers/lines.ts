@@ -67,6 +67,55 @@ export function getLineLayers(ctx: StyleContext): LayerSpecification[] {
   return layers;
 }
 
+/** STANDARD-category additional line layers: dykes, slopes, gates, dams. */
+export function getAdditionalLineLayers(
+  ctx: StyleContext,
+): LayerSpecification[] {
+  return [
+    {
+      id: "s57-dykcon",
+      type: "line" as const,
+      source: ctx.sourceId,
+      "source-layer": "DYKCON",
+      paint: {
+        "line-color": ctx.colour("CHBRN"),
+        "line-width": 1.5,
+      },
+    },
+    {
+      id: "s57-slotop",
+      type: "line" as const,
+      source: ctx.sourceId,
+      "source-layer": "SLOTOP",
+      paint: {
+        "line-color": ctx.colour("CHBRN"),
+        "line-width": 1,
+        "line-dasharray": [3, 2] as number[],
+      },
+    },
+    {
+      id: "s57-gatcon",
+      type: "line" as const,
+      source: ctx.sourceId,
+      "source-layer": "GATCON",
+      paint: {
+        "line-color": ctx.colour("CHBLK"),
+        "line-width": 2,
+      },
+    },
+    {
+      id: "s57-damcon",
+      type: "line" as const,
+      source: ctx.sourceId,
+      "source-layer": "DAMCON",
+      paint: {
+        "line-color": ctx.colour("CHBLK"),
+        "line-width": 1.5,
+      },
+    },
+  ];
+}
+
 /** OTHER-category line layers: cable areas, pipe areas, pipelines. */
 export function getOtherLineLayers(ctx: StyleContext): LayerSpecification[] {
   return [

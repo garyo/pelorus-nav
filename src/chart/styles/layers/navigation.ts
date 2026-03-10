@@ -10,6 +10,29 @@ export function getNavigationOverlayLayers(
   ctx: StyleContext,
 ): LayerSpecification[] {
   return [
+    // Precautionary Area — similar to caution area
+    {
+      id: "s57-prcare",
+      type: "fill",
+      source: ctx.sourceId,
+      "source-layer": "PRCARE",
+      paint: {
+        "fill-color": ctx.colour("CHMGF"),
+        "fill-opacity": 0.08,
+      },
+    },
+    {
+      id: "s57-prcare-outline",
+      type: "line",
+      source: ctx.sourceId,
+      "source-layer": "PRCARE",
+      paint: {
+        "line-color": ctx.colour("CHMGF"),
+        "line-width": 1,
+        "line-dasharray": [4, 2],
+        "line-opacity": 0.5,
+      },
+    },
     {
       id: "s57-fairwy",
       type: "fill",

@@ -75,6 +75,24 @@ DISPLAY_CATEGORY: dict[str, str] = {
     "DMPGRD": "OTHER",
     "OFSPLF": "OTHER",
     "MAGVAR": "OTHER",
+    # New layers
+    "PRCARE": "STANDARD",
+    "PILBOP": "STANDARD",
+    "WATTUR": "STANDARD",
+    "GATCON": "STANDARD",
+    "DAMCON": "STANDARD",
+    "TUNNEL": "STANDARD",
+    "FSHFAC": "STANDARD",
+    "DYKCON": "STANDARD",
+    "SLOTOP": "STANDARD",
+    "PYLONS": "STANDARD",
+    "CRANES": "OTHER",
+    "FORSTC": "OTHER",
+    "CGUSTA": "OTHER",
+    "HULKES": "STANDARD",
+    "DRYDOC": "OTHER",
+    "RUNWAY": "OTHER",
+    "AIRARE": "OTHER",
 }
 
 # S-52 Display Priority by S-57 object class (0-9, lower = drawn first)
@@ -152,6 +170,24 @@ DISPLAY_PRIORITY: dict[str, int] = {
     "LNDMRK": 8,
     "DAYMAR": 8,
     "TOPMAR": 8,
+    # New layers
+    "PRCARE": 5,
+    "PILBOP": 6,
+    "WATTUR": 5,
+    "GATCON": 4,
+    "DAMCON": 4,
+    "TUNNEL": 4,
+    "FSHFAC": 5,
+    "DYKCON": 4,
+    "SLOTOP": 4,
+    "PYLONS": 4,
+    "CRANES": 7,
+    "FORSTC": 7,
+    "CGUSTA": 7,
+    "HULKES": 5,
+    "DRYDOC": 7,
+    "RUNWAY": 7,
+    "AIRARE": 7,
 }
 
 
