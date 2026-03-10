@@ -293,13 +293,23 @@ def _composite_one_multi_band(
         if usable.is_empty:
             continue
 
+        # Expand clipping region slightly (~1km) so features extend past
+        # the M_COVR boundary.  Tippecanoe simplification can pull polygon
+        # vertices away from the boundary at low zoom, leaving thin gaps
+        # between adjacent cells.  The extra overlap is harmless (same
+        # depth polygons from both cells stack) and prevents white slivers.
+        clip_region = make_valid(usable.buffer(0.01))
+        clip_region = clip_region.intersection(tile_bbox)
+
         for data, _cov in cell_entries:
-            features = _clip_mvt_features(data, usable, tile_bbox)
+            features = _clip_mvt_features(data, clip_region, tile_bbox)
             if features:
                 used.add(cell_name)
                 for ln, feats in features.items():
                     output_features.setdefault(ln, []).extend(feats)
 
+        # Track filled area with the *original* (unbuffered) coverage so
+        # adjacent cells can still fill the gap from their side.
         filled = make_valid(filled.union(cell_coverage))
         if filled.contains(tile_bbox):
             break
@@ -579,13 +589,19 @@ def composite_tiles(
                 if usable.is_empty:
                     continue
 
+                # Expand clipping region slightly (~1km) to cover
+                # tippecanoe simplification gaps at cell boundaries.
+                clip_region = make_valid(usable.buffer(0.01))
+                clip_region = clip_region.intersection(tile_bbox)
+
                 for data, _cov in cell_entries_inner:
-                    features = _clip_mvt_features(data, usable, tile_bbox)
+                    features = _clip_mvt_features(data, clip_region, tile_bbox)
                     if features:
                         used_cells.add(cell_name)
                         for ln, feats in features.items():
                             output_features.setdefault(ln, []).extend(feats)
 
+                # Track filled with original coverage (not buffered)
                 filled = make_valid(filled.union(cell_coverage))
                 if filled.contains(tile_bbox):
                     break
