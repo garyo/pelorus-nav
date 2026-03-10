@@ -52,6 +52,7 @@ export class NavigationHUD {
     };
     map.on("zoom", updateZoom);
     map.on("load", updateZoom);
+    updateZoom();
 
     // Cursor position
     map.on("mousemove", (e: maplibregl.MapMouseEvent) => {

@@ -561,7 +561,7 @@ export function getOtherNavAidLayers(ctx: StyleContext): LayerSpecification[] {
       "source-layer": "SBDARE",
       minzoom: ctx.detailMinzoom(12),
       layout: {
-        "text-field": ["get", "NATSUR"],
+        "text-field": ["get", "LABEL"],
         "text-size": 10,
         "text-font": ["Noto Sans Italic"],
         "text-allow-overlap": false,

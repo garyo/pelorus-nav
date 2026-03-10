@@ -10,7 +10,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from .labels import _buoy_number, _light_label
+from .labels import _buoy_number, _light_label, _seabed_label
 from .s52_metadata import DISPLAY_CATEGORY, DISPLAY_PRIORITY
 from .scamin import (
     INTU_BASE_ZOOMS,
@@ -61,6 +61,7 @@ def enrich_geojson(
     is_buoy_beacon = layer_name in (
         "BOYLAT", "BOYSAW", "BOYSPP", "BOYISD", "BOYCAR", "BCNLAT", "BCNCAR",
     )
+    is_sbdare = layer_name == "SBDARE"
 
     for feature in geojson.get("features", []):
         props = feature.get("properties", {})
@@ -81,6 +82,10 @@ def enrich_geojson(
                 props["LABEL"] = label
         elif is_buoy_beacon:
             label = _buoy_number(props)
+            if label:
+                props["LABEL"] = label
+        elif is_sbdare:
+            label = _seabed_label(props)
             if label:
                 props["LABEL"] = label
 

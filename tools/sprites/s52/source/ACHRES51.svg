@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<?xml-stylesheet href="daySvgStyle.css" type="text/css"?>
+<svg xmlns="http://www.w3.org/2000/svg" version="1.2" baseProfile="tiny" xml:space="preserve" shape-rendering="geometricPrecision" fill-rule="evenodd" width="7.23mm" height="7.23mm" viewBox="-3.61 -3.87 7.23 7.23">
+  <title>ACHRES51</title>
+  <desc>area where anchoring is prohibited or restricted</desc>
+  <metadata>
+    <iho:S100SVG xmlns:iho="http://www.iho.int/SVGMetadata/5.2">
+      <iho:Description iho:publisher="IHB" iho:creationDate="2014-06-09" iho:source="S52Preslib4.0" iho:format="S100SVG" iho:version="0.1"/>
+    </iho:S100SVG>
+  </metadata>
+  <!-- Prohibition circle -->
+  <circle class="sCHMGD" fill="none" cx="0" cy="-0.1" r="3.2" stroke-width="0.3"/>
+  <!-- Diagonal slash (top-right to bottom-left) -->
+  <line class="sCHMGD" x1="2.26" y1="-2.36" x2="-2.26" y2="2.16" stroke-width="0.3"/>
+  <!-- Anchor inside -->
+  <!-- Ring at top -->
+  <circle class="sCHMGD" fill="none" cx="0" cy="-1.8" r="0.45" stroke-width="0.25"/>
+  <!-- Vertical shank -->
+  <line class="sCHMGD" x1="0" y1="-1.35" x2="0" y2="1.8" stroke-width="0.25"/>
+  <!-- Horizontal stock -->
+  <line class="sCHMGD" x1="-1.2" y1="-0.5" x2="1.2" y2="-0.5" stroke-width="0.25"/>
+  <!-- Left fluke -->
+  <path d="M -1.3,1.1 Q -1.0,1.8 0,1.8" class="sCHMGD" fill="none" stroke-width="0.25"/>
+  <!-- Right fluke -->
+  <path d="M 1.3,1.1 Q 1.0,1.8 0,1.8" class="sCHMGD" fill="none" stroke-width="0.25"/>
+  <circle class="pivotPoint layout" fill="none" cx="0" cy="0" r="1"/>
+</svg>

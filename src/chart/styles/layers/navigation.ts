@@ -2,7 +2,7 @@
  * Navigation layer definitions: fairways, anchorage, traffic separation,
  * recommended routes, restricted areas, caution areas, routing lines.
  */
-import type { LayerSpecification } from "maplibre-gl";
+import type { ExpressionSpecification, LayerSpecification } from "maplibre-gl";
 import type { StyleContext } from "../style-context";
 
 /** Regulatory overlay fills and outlines (always built). */
@@ -37,10 +37,54 @@ export function getNavigationOverlayLayers(
       source: ctx.sourceId,
       "source-layer": "ACHARE",
       paint: {
-        "line-color": ctx.colour("RESBL"),
+        "line-color": ctx.colour("CHMGD"),
         "line-width": 1,
         "line-dasharray": [4, 3],
         "line-opacity": 0.6,
+      },
+    },
+    // Anchorage area anchor symbol at centroid
+    {
+      id: "s57-achare-symbol",
+      type: "symbol",
+      source: ctx.sourceId,
+      "source-layer": "ACHARE",
+      minzoom: ctx.detailMinzoom(10),
+      layout: {
+        "icon-image": "ACHARE02",
+        "icon-size": 0.8,
+        "icon-allow-overlap": true,
+        "text-field": ["get", "OBJNAM"] as unknown as ExpressionSpecification,
+        "text-size": 11,
+        "text-font": ["Noto Sans Regular"],
+        "text-allow-overlap": false,
+        "text-optional": true,
+        "text-anchor": "top" as const,
+        "text-offset": [0, 1.5] as [number, number],
+      },
+      paint: {
+        "icon-opacity": 0.15,
+        "text-color": ctx.colour("CHMGD"),
+        "text-halo-color": ctx.colour("CHWHT"),
+        "text-halo-width": 1,
+        "text-opacity": 0.6,
+      },
+    },
+    // Restricted area symbol (anchoring prohibited)
+    {
+      id: "s57-resare-symbol",
+      type: "symbol",
+      source: ctx.sourceId,
+      "source-layer": "RESARE",
+      minzoom: ctx.detailMinzoom(10),
+      filter: ["in", "1", ["get", "RESTRN"]],
+      layout: {
+        "icon-image": "ACHRES51",
+        "icon-size": 0.5,
+        "icon-allow-overlap": true,
+      },
+      paint: {
+        "icon-opacity": 0.4,
       },
     },
     {
@@ -171,16 +215,33 @@ export function getNavigationRoutingLayers(
         "line-dasharray": [4, 3],
       },
     },
+    // Anchorage berths (point symbols with "Nr" labels)
     {
       id: "s57-achbrt",
-      type: "line" as const,
+      type: "symbol" as const,
       source: ctx.sourceId,
       "source-layer": "ACHBRT",
+      minzoom: ctx.detailMinzoom(11),
+      layout: {
+        "icon-image": "ACHBRT07",
+        "icon-size": 0.7,
+        "icon-allow-overlap": true,
+        "text-field": [
+          "concat",
+          "Nr ",
+          ["get", "OBJNAM"],
+        ] as unknown as ExpressionSpecification,
+        "text-size": 10,
+        "text-font": ["Noto Sans Regular"],
+        "text-allow-overlap": true,
+        "text-anchor": "top" as const,
+        "text-offset": [0, 1.2] as [number, number],
+      },
       paint: {
-        "line-color": ctx.colour("RESBL"),
-        "line-width": 1,
-        "line-dasharray": [4, 3],
-        "line-opacity": 0.6,
+        "icon-opacity": 0.5,
+        "text-color": ctx.colour("CHMGD"),
+        "text-halo-color": ctx.colour("CHWHT"),
+        "text-halo-width": 1,
       },
     },
   ];

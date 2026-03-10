@@ -55,6 +55,8 @@ DISPLAY_CATEGORY: dict[str, str] = {
     "TWRTPT": "STANDARD",
     "BCNSPP": "STANDARD",
     "ACHBRT": "STANDARD",
+    "LNDRGN": "STANDARD",
+    "LNDELV": "STANDARD",
     # OTHER — shown at full detail
     "BUISGL": "OTHER",
     "BERTHS": "OTHER",
@@ -137,6 +139,9 @@ DISPLAY_PRIORITY: dict[str, int] = {
     "HRBFAC": 7,
     "OFSPLF": 7,
     "MAGVAR": 7,
+    # Priority 7 (continued): land labels
+    "LNDRGN": 7,
+    "LNDELV": 7,
     # Priority 8: lights, fog signals, landmarks, visual marks
     "LIGHTS": 8,
     "FOGSIG": 8,

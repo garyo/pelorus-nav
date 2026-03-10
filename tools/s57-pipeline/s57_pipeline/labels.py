@@ -115,6 +115,42 @@ def _buoy_number(props: dict) -> str | None:
     return None
 
 
+# S-57 NATSUR (nature of surface) code → chart abbreviation
+NATSUR_ABBREV: dict[int, str] = {
+    1: "M",     # Mud
+    2: "Cy",    # Clay
+    3: "Si",    # Silt
+    4: "S",     # Sand
+    5: "St",    # Stone
+    6: "G",     # Gravel
+    7: "P",     # Pebbles
+    8: "Cb",    # Cobbles
+    9: "R",     # Rock
+    11: "La",   # Lava
+    14: "Co",   # Coral
+    17: "Sh",   # Shells
+    18: "Bo",   # Boulder
+}
+
+
+def _seabed_label(props: dict) -> str | None:
+    """Build a seabed nature label like 'S' (Sand) or 'S.M' (Sand/Mud)."""
+    natsur = props.get("NATSUR")
+    if not natsur:
+        return None
+    if not isinstance(natsur, list):
+        natsur = [natsur]
+    parts = []
+    for code in natsur:
+        try:
+            abbrev = NATSUR_ABBREV.get(int(code))
+            if abbrev:
+                parts.append(abbrev)
+        except (ValueError, TypeError):
+            pass
+    return ".".join(parts) if parts else None
+
+
 def add_labels_to_geojson(geojson_path: Path) -> int:
     """Add LABEL property to features in a GeoJSON file.
 
@@ -141,6 +177,8 @@ def add_labels_to_geojson(geojson_path: Path) -> int:
         elif layer_name in ("BOYLAT", "BOYSAW", "BOYSPP", "BOYISD", "BOYCAR",
                             "BCNLAT", "BCNCAR"):
             label = _buoy_number(props)
+        elif layer_name == "SBDARE":
+            label = _seabed_label(props)
 
         if label:
             props["LABEL"] = label
