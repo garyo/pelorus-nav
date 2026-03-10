@@ -154,19 +154,14 @@ We extract 50 layers covering all navigation-critical S-57 object classes. See `
 |-------|------|-------------|
 | RTPBCN | Point | RACON radar transponder beacons |
 | RDOSTA | Point | Radio stations (VHF, DGPS) |
-| CGUSTA | Point | Coast Guard stations |
-| SMCFAC | Point | Small craft facilities (ramps, fuel docks) |
-| WATTUR | Point/Poly | Water turbulence (tide rips, overfalls) |
-| LNDRGN | Point/Poly | Named land regions (capes, islands) |
-| LNDELV | Point/Line | Land elevation points/contours |
-| SLOTOP | Line | Cliff/slope top lines |
-| DYKCON | Line/Poly | Dykes/seawalls |
 | WEDKLP | Point | Weed/kelp areas |
-| SILTNK | Point/Poly | Silos/tanks (visual landmarks) |
-| RUNWAY | Polygon | Airport runways |
-| BUAARE | Poly/Point | Built-up areas (towns/cities) |
 | MARCUL | Polygon | Marine farms/aquaculture |
-| PILBOP | Point/Poly | Pilot boarding places |
+
+### Future Rendering Improvements
+
+- **MAGVAR compass roses**: Render magnetic variation (MAGVAR) as compass-rose vectors at low zoom (z7 and below) showing declination angle. Currently extracted but display disabled — plain text labels are confusing without visual context. Would be useful for passage planning.
+- **Light sectors**: Render light sector arcs (LIGHTS with SECTR1/SECTR2). Important but complex — separate project.
+- **Tidal currents**: Requires external tide/current tables for proper rendering.
 
 ### Skip (Metadata/Administrative)
 

@@ -678,29 +678,9 @@ export function getOtherPointLayers(ctx: StyleContext): LayerSpecification[] {
       ),
       paint: {},
     },
-    {
-      id: "s57-magvar",
-      type: "symbol" as const,
-      source: ctx.sourceId,
-      "source-layer": "MAGVAR",
-      minzoom: ctx.detailMinzoom(8),
-      layout: {
-        "text-field": [
-          "concat",
-          ["get", "VALMAG"],
-          "\u00b0",
-        ] as unknown as ExpressionSpecification,
-        "text-size": 10,
-        "text-font": ["Noto Sans Italic"],
-        "text-allow-overlap": false,
-        "text-padding": 20,
-      },
-      paint: {
-        "text-color": ctx.colour("NINFO"),
-        "text-halo-color": ctx.colour("CHWHT"),
-        "text-halo-width": 1,
-      },
-    },
+    // MAGVAR (magnetic variation) — disabled for now. Plain text labels
+    // are confusing without context. Future: render as compass-rose vectors
+    // at low zoom (z7 and below) for navigation use. See PLAN.md.
   ];
 }
 

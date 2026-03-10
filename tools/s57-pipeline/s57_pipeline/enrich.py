@@ -79,7 +79,11 @@ def enrich_geojson(
             if scamin is not None and scamin > 0:
                 if "tippecanoe" not in feature:
                     feature["tippecanoe"] = {}
-                feature["tippecanoe"]["minzoom"] = scamin_to_minzoom(scamin)
+                minzoom = scamin_to_minzoom(scamin)
+                # City/town names: cap at z12 so they appear earlier
+                if is_buaare and minzoom > 12:
+                    minzoom = 12
+                feature["tippecanoe"]["minzoom"] = minzoom
             props["_scale_band"] = scale_band
 
         # --- Labels ---
