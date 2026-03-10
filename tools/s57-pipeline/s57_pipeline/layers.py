@@ -70,6 +70,8 @@ LAYER_CONFIGS: list[LayerConfig] = [
     LayerConfig("LNDELV", "labels", NAVAID_ARGS),
     # Built-up areas (cities, towns)
     LayerConfig("BUAARE", "labels", DEFAULT_ARGS),
+    # Small craft facilities (marinas, yacht clubs, boat ramps)
+    LayerConfig("SMCFAC", "infrastructure", DEFAULT_ARGS),
     # Buildings, berths & pilings
     LayerConfig("BUISGL", "infrastructure", DEFAULT_ARGS),
     LayerConfig("BERTHS", "labels", DEFAULT_ARGS),

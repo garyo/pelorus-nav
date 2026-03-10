@@ -58,6 +58,7 @@ DISPLAY_CATEGORY: dict[str, str] = {
     "LNDRGN": "STANDARD",
     "LNDELV": "STANDARD",
     "BUAARE": "STANDARD",
+    "SMCFAC": "OTHER",
     # OTHER — shown at full detail
     "BUISGL": "OTHER",
     "BERTHS": "OTHER",
@@ -144,6 +145,7 @@ DISPLAY_PRIORITY: dict[str, int] = {
     "LNDRGN": 7,
     "LNDELV": 7,
     "BUAARE": 2,
+    "SMCFAC": 7,
     # Priority 8: lights, fog signals, landmarks, visual marks
     "LIGHTS": 8,
     "FOGSIG": 8,

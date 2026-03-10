@@ -197,6 +197,67 @@ export function getTextLayers(ctx: StyleContext): LayerSpecification[] {
         "text-halo-width": 1,
       },
     },
+    // Shoreline construction labels (wharves, piers)
+    {
+      id: "s57-slcons-label",
+      type: "symbol",
+      source: ctx.sourceId,
+      "source-layer": "SLCONS",
+      minzoom: ctx.detailMinzoom(13),
+      filter: ["has", "OBJNAM"],
+      layout: {
+        "symbol-placement": "line",
+        "text-field": ["get", "OBJNAM"],
+        "text-size": 10,
+        "text-allow-overlap": false,
+        "text-padding": 5,
+      },
+      paint: {
+        "text-color": ctx.colour("CHGRF"),
+        "text-halo-color": ctx.colour("CHWHT"),
+        "text-halo-width": 1,
+      },
+    },
+    // Building labels
+    {
+      id: "s57-buisgl-label",
+      type: "symbol",
+      source: ctx.sourceId,
+      "source-layer": "BUISGL",
+      minzoom: ctx.detailMinzoom(14),
+      filter: ["has", "OBJNAM"],
+      layout: {
+        "text-field": ["get", "OBJNAM"],
+        "text-size": 10,
+        "text-allow-overlap": false,
+        "text-padding": 5,
+      },
+      paint: {
+        "text-color": ctx.colour("CHGRF"),
+        "text-halo-color": ctx.colour("LANDA"),
+        "text-halo-width": 1,
+      },
+    },
+    // Small craft facilities (marinas, yacht clubs)
+    {
+      id: "s57-smcfac-label",
+      type: "symbol",
+      source: ctx.sourceId,
+      "source-layer": "SMCFAC",
+      minzoom: ctx.detailMinzoom(12),
+      filter: ["has", "OBJNAM"],
+      layout: {
+        "text-field": ["get", "OBJNAM"],
+        "text-size": 10,
+        "text-allow-overlap": false,
+        "text-padding": 5,
+      },
+      paint: {
+        "text-color": ctx.colour("CHBLK"),
+        "text-halo-color": ctx.colour("CHWHT"),
+        "text-halo-width": 1,
+      },
+    },
     {
       id: "s57-seaare-label",
       type: "symbol",

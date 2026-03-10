@@ -30,8 +30,8 @@ import { getSettings, onSettingsChange, updateSettings } from "./settings";
 import { ChartCachePanel } from "./ui/ChartCachePanel";
 import { createInstrumentHUD } from "./ui/InstrumentHUD";
 import {
-  iconDownload,
   iconGauge,
+  iconGlobe,
   iconRecord,
   iconRoute,
   iconTrack,
@@ -530,8 +530,8 @@ if (topBar) {
   });
   const cacheBtn = document.createElement("button");
   cacheBtn.className = "settings-btn";
-  cacheBtn.title = "Offline Charts";
-  cacheBtn.innerHTML = iconDownload;
+  cacheBtn.title = "Chart Regions";
+  cacheBtn.innerHTML = iconGlobe;
   cacheBtn.addEventListener("click", () => {
     cachePanel.toggle();
     settingsHandle?.hide();

@@ -126,6 +126,11 @@ const LAYER_NAMES: Record<string, string> = {
   MAGVAR: "Magnetic Variation",
   DAYMAR: "Daymark",
   TOPMAR: "Topmark",
+  SLCONS: "Shoreline Construction",
+  SMCFAC: "Small Craft Facility",
+  BUAARE: "Built-Up Area",
+  LNDRGN: "Land Region",
+  LNDELV: "Land Elevation",
 };
 
 function lookupCode(

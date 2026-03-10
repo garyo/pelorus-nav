@@ -43,6 +43,12 @@ const INTERACTIVE_LAYERS = [
   "s57-lndare-point",
   "s57-lndare",
   "s57-soundg",
+  "s57-slcons-label",
+  "s57-buisgl-label",
+  "s57-smcfac-label",
+  "s57-buaare-label",
+  "s57-lndrgn-label",
+  "s57-lndelv-label",
 ];
 
 interface QueriedFeature {
