@@ -41,6 +41,35 @@ function elevationTextField(ctx: StyleContext): ExpressionSpecification {
 export function getTextLayers(ctx: StyleContext): LayerSpecification[] {
   return [
     // ── Geographic labels ─────────────────────────────────────────────
+    // Built-up areas (cities, towns)
+    {
+      id: "s57-buaare-label",
+      type: "symbol",
+      source: ctx.sourceId,
+      "source-layer": "BUAARE",
+      minzoom: ctx.detailMinzoom(9),
+      filter: ["has", "OBJNAM"],
+      layout: {
+        "text-field": ["get", "OBJNAM"],
+        "text-size": [
+          "interpolate",
+          ["linear"],
+          ["zoom"],
+          9,
+          12,
+          14,
+          16,
+        ] as unknown as number,
+        "text-font": ["Noto Sans Bold"],
+        "text-allow-overlap": false,
+        "text-padding": 10,
+      },
+      paint: {
+        "text-color": ctx.colour("CHBLK"),
+        "text-halo-color": ctx.colour("LANDA"),
+        "text-halo-width": 2,
+      },
+    },
     {
       id: "s57-lndare-label",
       type: "symbol",

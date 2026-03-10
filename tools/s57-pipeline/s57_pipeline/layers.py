@@ -68,6 +68,8 @@ LAYER_CONFIGS: list[LayerConfig] = [
     # Land regions (named points, capes, peninsulas) & elevations
     LayerConfig("LNDRGN", "labels", DEFAULT_ARGS),
     LayerConfig("LNDELV", "labels", NAVAID_ARGS),
+    # Built-up areas (cities, towns)
+    LayerConfig("BUAARE", "labels", DEFAULT_ARGS),
     # Buildings, berths & pilings
     LayerConfig("BUISGL", "infrastructure", DEFAULT_ARGS),
     LayerConfig("BERTHS", "labels", DEFAULT_ARGS),

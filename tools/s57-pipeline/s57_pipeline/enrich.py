@@ -8,6 +8,7 @@ JSON parse/serialize cycles.
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 
 from .labels import _buoy_number, _light_label, _seabed_label
@@ -62,6 +63,7 @@ def enrich_geojson(
         "BOYLAT", "BOYSAW", "BOYSPP", "BOYISD", "BOYCAR", "BCNLAT", "BCNCAR",
     )
     is_sbdare = layer_name == "SBDARE"
+    is_buaare = layer_name == "BUAARE"
 
     for feature in geojson.get("features", []):
         props = feature.get("properties", {})
@@ -88,6 +90,15 @@ def enrich_geojson(
             label = _seabed_label(props)
             if label:
                 props["LABEL"] = label
+
+        # --- BUAARE name cleanup (strip census suffixes) ---
+        if is_buaare:
+            objnam = props.get("OBJNAM")
+            if objnam:
+                # Strip ", XX Urban Clu..." or ", XX Urban ..." suffixes
+                props["OBJNAM"] = re.sub(
+                    r",\s+\w{2}\s+Urban\b.*$", "", objnam
+                )
 
         # --- Symbols ---
         symbol = compute_symbol(props, layer_name)
