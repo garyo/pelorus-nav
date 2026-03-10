@@ -89,6 +89,7 @@ export function getNavAidLayers(ctx: StyleContext): LayerSpecification[] {
       type: "circle",
       source: ctx.sourceId,
       "source-layer": "LIGHTS",
+      minzoom: 6,
       paint: {
         "circle-radius": 12,
         "circle-color": ctx.colour("LITYW"),
@@ -104,6 +105,7 @@ export function getNavAidLayers(ctx: StyleContext): LayerSpecification[] {
       type: "symbol",
       source: ctx.sourceId,
       "source-layer": "LIGHTS",
+      minzoom: 6,
       layout: withOffset(
         {
           "icon-image": ctx.iconExpr,
@@ -238,6 +240,7 @@ export function getNavAidLayers(ctx: StyleContext): LayerSpecification[] {
       type: "symbol",
       source: ctx.sourceId,
       "source-layer": "BOYISD",
+      minzoom: 6,
       layout: withOffset(
         {
           "icon-image": ctx.iconExpr,
@@ -480,6 +483,7 @@ export function getOtherNavAidLayers(ctx: StyleContext): LayerSpecification[] {
       type: "symbol",
       source: ctx.sourceId,
       "source-layer": "FOGSIG",
+      minzoom: 6,
       layout: withOffset(
         {
           "icon-image": ctx.iconExpr,
@@ -720,6 +724,7 @@ export function getAdditionalPointLayers(
       type: "circle" as const,
       source: ctx.sourceId,
       "source-layer": "WATTUR",
+      minzoom: 6,
       paint: {
         "circle-radius": 6,
         "circle-color": ctx.colour("DEPVS"),
