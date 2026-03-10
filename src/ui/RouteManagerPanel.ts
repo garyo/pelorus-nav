@@ -8,16 +8,19 @@ import type { RouteEditor } from "../map/RouteEditor";
 import type { RouteLayer } from "../map/RouteLayer";
 import { iconEdit, iconEye, iconEyeOff, iconTrash, iconX } from "./icons";
 import { getPanelStack } from "./PanelStack";
+import { RouteDetailPanel } from "./RouteDetailPanel";
 
 export class RouteManagerPanel {
   private readonly el: HTMLDivElement;
   private readonly body: HTMLDivElement;
   private readonly routeLayer: RouteLayer;
   private readonly editor: RouteEditor;
+  private readonly detailPanel: RouteDetailPanel;
 
   constructor(routeLayer: RouteLayer, editor: RouteEditor) {
     this.routeLayer = routeLayer;
     this.editor = editor;
+    this.detailPanel = new RouteDetailPanel(routeLayer);
 
     this.el = document.createElement("div");
     this.el.className = "manager-panel route-manager-panel";
@@ -94,8 +97,10 @@ export class RouteManagerPanel {
     const name = document.createElement("div");
     name.className = "manager-item-name";
     name.textContent = route.name;
-    name.title = "Click to rename";
-    name.addEventListener("click", () => this.rename(route, name));
+    name.title = "Click for details, double-click to rename";
+    name.style.cursor = "pointer";
+    name.addEventListener("click", () => this.detailPanel.show(route));
+    name.addEventListener("dblclick", () => this.rename(route, name));
 
     const detail = document.createElement("div");
     detail.className = "manager-item-detail";

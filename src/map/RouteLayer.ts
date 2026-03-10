@@ -132,6 +132,108 @@ export class RouteLayer {
     if (this.map.getSource(sid)) this.map.removeSource(sid);
   }
 
+  // ── Leg highlighting ────────────────────────────────────────────────
+
+  private static readonly HIGHLIGHT_SOURCE = "_route-highlight";
+  private static readonly HIGHLIGHT_LINE = "_route-highlight-line";
+  private static readonly HIGHLIGHT_POINTS = "_route-highlight-points";
+
+  /** Highlight a single leg (segment between two waypoints). */
+  highlightLeg(route: Route, legIndex: number): void {
+    const wps = route.waypoints;
+    if (legIndex < 0 || legIndex >= wps.length - 1) return;
+
+    const a = wps[legIndex];
+    const b = wps[legIndex + 1];
+    const data: GeoJSON.FeatureCollection = {
+      type: "FeatureCollection",
+      features: [
+        {
+          type: "Feature",
+          properties: {},
+          geometry: {
+            type: "LineString",
+            coordinates: [
+              [a.lon, a.lat],
+              [b.lon, b.lat],
+            ],
+          },
+        },
+        {
+          type: "Feature",
+          properties: {},
+          geometry: { type: "Point", coordinates: [a.lon, a.lat] },
+        },
+        {
+          type: "Feature",
+          properties: {},
+          geometry: { type: "Point", coordinates: [b.lon, b.lat] },
+        },
+      ],
+    };
+
+    const src = this.map.getSource(RouteLayer.HIGHLIGHT_SOURCE);
+    if (src) {
+      (src as maplibregl.GeoJSONSource).setData(data);
+    } else {
+      this.map.addSource(RouteLayer.HIGHLIGHT_SOURCE, {
+        type: "geojson",
+        data,
+      });
+      this.map.addLayer({
+        id: RouteLayer.HIGHLIGHT_LINE,
+        type: "line",
+        source: RouteLayer.HIGHLIGHT_SOURCE,
+        filter: ["==", "$type", "LineString"],
+        paint: {
+          "line-color": "#ffcc00",
+          "line-width": 5,
+          "line-opacity": 0.8,
+        },
+      });
+      this.map.addLayer({
+        id: RouteLayer.HIGHLIGHT_POINTS,
+        type: "circle",
+        source: RouteLayer.HIGHLIGHT_SOURCE,
+        filter: ["==", "$type", "Point"],
+        paint: {
+          "circle-radius": 7,
+          "circle-color": "#ffcc00",
+          "circle-stroke-color": "#fff",
+          "circle-stroke-width": 2,
+        },
+      });
+    }
+  }
+
+  /** Remove leg highlight. */
+  clearHighlight(): void {
+    for (const lid of [
+      RouteLayer.HIGHLIGHT_POINTS,
+      RouteLayer.HIGHLIGHT_LINE,
+    ]) {
+      if (this.map.getLayer(lid)) this.map.removeLayer(lid);
+    }
+    if (this.map.getSource(RouteLayer.HIGHLIGHT_SOURCE)) {
+      this.map.removeSource(RouteLayer.HIGHLIGHT_SOURCE);
+    }
+  }
+
+  /** Ease the map to fit a single leg. */
+  fitLeg(route: Route, legIndex: number): void {
+    const wps = route.waypoints;
+    if (legIndex < 0 || legIndex >= wps.length - 1) return;
+    const a = wps[legIndex];
+    const b = wps[legIndex + 1];
+    this.map.fitBounds(
+      [
+        [Math.min(a.lon, b.lon), Math.min(a.lat, b.lat)],
+        [Math.max(a.lon, b.lon), Math.max(a.lat, b.lat)],
+      ],
+      { padding: 80, maxZoom: 14, duration: 500 },
+    );
+  }
+
   private routeGeoJSON(route: Route): GeoJSON.FeatureCollection {
     const features: GeoJSON.Feature[] = [];
     const wps = route.waypoints;

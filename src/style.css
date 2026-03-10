@@ -672,6 +672,65 @@ body {
   background: #cc3333;
 }
 
+/* Route detail panel (leg table) */
+.route-detail-panel {
+  width: 320px;
+}
+
+.route-detail-footer {
+  padding: 6px 12px;
+  border-top: 1px solid #444;
+  font-size: 12px;
+  color: #aaa;
+  text-align: right;
+}
+
+.route-leg-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.route-leg-table th {
+  text-align: right;
+  padding: 4px 10px;
+  color: #999;
+  font-weight: 500;
+  border-bottom: 1px solid #444;
+  position: sticky;
+  top: 0;
+  background: rgba(30, 30, 50, 0.98);
+}
+
+.route-leg-table th:first-child {
+  text-align: center;
+}
+
+.route-leg-table td {
+  text-align: right;
+  padding: 4px 10px;
+}
+
+.route-leg-table td.leg-num {
+  text-align: center;
+  color: #999;
+}
+
+.route-leg-table tbody tr {
+  cursor: pointer;
+  transition: background 0.1s;
+}
+
+.route-leg-table tbody tr:hover,
+.route-leg-table tbody tr.selected {
+  background: rgba(100, 130, 200, 0.25);
+}
+
+.route-leg-table tbody tr.selected td.leg-num {
+  color: #ffcc00;
+}
+
 /* Route header uses space-between instead of gap */
 .route-manager-panel .manager-header {
   justify-content: space-between;
