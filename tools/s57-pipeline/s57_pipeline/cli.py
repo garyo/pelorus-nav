@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import os
+import shutil
 import sys
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -232,6 +233,13 @@ def _process_cell(
 
     info = f"z{min_zoom}-{max_zoom}, band {scale_band}"
 
+    # When forcing, clean stale geojson/tiles to avoid processing
+    # leftover layers from previous runs with different layer configs.
+    if force:
+        for stale_dir in (geojson_dir, tiles_dir):
+            if stale_dir.exists():
+                shutil.rmtree(stale_dir)
+
     # Incremental: skip if tiles are newer than source
     if not force:
         existing_tiles = list(tiles_dir.glob("*.pmtiles")) if tiles_dir.exists() else []
@@ -256,23 +264,27 @@ def _process_cell(
             progress.cell_layer_done(cell_name, layer_name, "tiling")
 
     # Convert to GeoJSON and tile
+    convert_start = time.monotonic()
     geojson_files = convert_enc(
         enc_path, geojson_dir, intu_zoom_ranges=intu_zoom_ranges,
         on_layer_done=on_convert_layer,
     )
+    convert_elapsed = time.monotonic() - convert_start
     if not geojson_files:
         elapsed = time.monotonic() - cell_start
         if progress is not None:
-            progress.cell_done(cell_name, elapsed)
+            progress.cell_done(cell_name, elapsed, convert_elapsed, 0.0)
         return [], scale_band
 
+    tile_start = time.monotonic()
     tiles = tile_geojson_files(
         geojson_dir, tiles_dir, min_zoom=min_zoom, max_zoom=max_zoom,
         on_layer_done=on_tile_layer,
     )
+    tile_elapsed = time.monotonic() - tile_start
     elapsed = time.monotonic() - cell_start
     if progress is not None:
-        progress.cell_done(cell_name, elapsed)
+        progress.cell_done(cell_name, elapsed, convert_elapsed, tile_elapsed)
     return tiles, scale_band
 
 
@@ -315,9 +327,13 @@ def _find_enc_files(args: argparse.Namespace) -> list[Path]:
 def _build_composite_sources(
     enc_files: list[Path],
     cell_coverage: dict[Path, "BaseGeometry"],
+    cell_bands: dict[Path, int],
     work_dir: Path,
 ) -> list[CellTileSource]:
-    """Build CellTileSource list from existing per-cell tiles in work_dir."""
+    """Build CellTileSource list from existing per-cell tiles in work_dir.
+
+    Uses pre-scanned cell_bands from Pass 1 to avoid re-reading ENC metadata.
+    """
     from shapely.geometry import box as shapely_box
 
     sources: list[CellTileSource] = []
@@ -331,19 +347,12 @@ def _build_composite_sources(
         if not pmtiles_list:
             continue
 
-        # Determine band
-        intu = read_intended_use(enc_path)
-        if intu is not None:
-            band = intu_to_scale_band(intu)
-        else:
-            cscl = read_compilation_scale(enc_path)
-            band = cscl_to_scale_band(cscl) if cscl is not None else 0
+        band = cell_bands.get(enc_path, 0)
 
         coverage = cell_coverage.get(enc_path)
         if coverage is None:
             coverage = shapely_box(-180, -90, 180, 90)
 
-        cell_name = enc_path.stem
         for pt in pmtiles_list:
             sources.append(CellTileSource(
                 pmtiles_path=pt,
@@ -433,7 +442,8 @@ def cmd_pipeline(args: argparse.Namespace) -> None:
         progress.info("Pass 2: Skipped (--composite-only)")
 
     # Pass 3: Composite tiles using M_COVR coverage
-    sources = _build_composite_sources(enc_files, cell_coverage, work_dir)
+    pass3_start = time.monotonic()
+    sources = _build_composite_sources(enc_files, cell_coverage, cell_bands, work_dir)
     if not sources:
         progress.error("No tiles found to composite")
         sys.exit(1)
@@ -466,7 +476,6 @@ def cmd_pipeline(args: argparse.Namespace) -> None:
     composite_jobs = args.jobs if args.jobs else 0
 
     # Build composite progress callback
-    composite_start = time.monotonic()
     _composite_phase_started: dict[str, float] = {}
 
     def _on_composite_progress(phase_name: str, done: int, total: int) -> None:
@@ -503,12 +512,12 @@ def cmd_pipeline(args: argparse.Namespace) -> None:
             elapsed = now - _composite_phase_started.get("writing", now)
             progress.composite_phase_done(3, elapsed, f"{done:,} tiles written")
         elif phase_name == "complete":
-            composite_elapsed = now - composite_start
+            pass3_elapsed = now - pass3_start
             progress.composite_complete(
-                str(output_path), done, composite_elapsed,
+                str(output_path), done, pass3_elapsed,
             )
 
-    progress.info(f"Compositing: {len(sources)} tile sets")
+    progress.info(f"Pass 3: Compositing {len(sources)} tile sets")
     result = composite_tiles(
         sources, output_path, debug_latlon=debug_latlon,
         region_bbox=region_bbox, jobs=composite_jobs,

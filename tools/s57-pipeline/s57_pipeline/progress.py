@@ -63,6 +63,8 @@ class PipelineProgress:
         self._worker_slots: dict[int, _CellState | None] = {}
         self._cell_to_slot: dict[str, int] = {}
         self._recent_done: list[_CellState] = []
+        self._total_convert_time = 0.0
+        self._total_tile_time = 0.0
 
         # Pass 3 state
         self._composite_phases: dict[int, tuple[str, int, int, float]] = {}
@@ -282,10 +284,18 @@ class PipelineProgress:
         elif self.verbose:
             print(f"    {step.title()} {layer_name}")
 
-    def cell_done(self, cell_name: str, elapsed: float) -> None:
+    def cell_done(
+        self,
+        cell_name: str,
+        elapsed: float,
+        convert_time: float = 0.0,
+        tile_time: float = 0.0,
+    ) -> None:
         """Signal a cell has completed successfully."""
         with self._lock:
             self._process_done += 1
+            self._total_convert_time += convert_time
+            self._total_tile_time += tile_time
             slot_id = self._cell_to_slot.get(cell_name)
             if slot_id is not None:
                 cell_state = self._worker_slots.get(slot_id)
@@ -339,6 +349,12 @@ class PipelineProgress:
     def process_complete(self, elapsed: float) -> None:
         """Signal Pass 2 complete."""
         self._stop_live()
+        convert_str = _fmt_elapsed(self._total_convert_time)
+        tile_str = _fmt_elapsed(self._total_tile_time)
+        breakdown = (
+            f"  CPU time: converting {convert_str},"
+            f" tiling {tile_str}"
+        )
         if self._use_rich:
             console = self._get_console()
             console.print(  # type: ignore[union-attr]
@@ -346,8 +362,10 @@ class PipelineProgress:
                 f" ({_fmt_elapsed(elapsed)})"
                 f" \u2014 {self._process_done}/{self._process_total} cells"
             )
+            console.print(breakdown)  # type: ignore[union-attr]
         else:
             print(f"  Pass 2 complete ({_fmt_elapsed(elapsed)})")
+            print(breakdown)
 
     # ── Pass 3: Compositing ──
 

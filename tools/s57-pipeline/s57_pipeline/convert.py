@@ -199,7 +199,9 @@ def convert_enc(
                 intu_zoom_ranges=intu_zoom_ranges,
                 apply_scamin=apply_scamin,
             )
-            outputs.append(path)
+            # enrich_geojson may remove corrupt files
+            if path.exists():
+                outputs.append(path)
             if on_layer_done is not None:
                 on_layer_done(layer_name)
 

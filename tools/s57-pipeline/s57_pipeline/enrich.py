@@ -45,7 +45,12 @@ def enrich_geojson(
     layer_name = geojson_path.stem.upper()
 
     with open(geojson_path) as f:
-        geojson = json.load(f)
+        try:
+            geojson = json.load(f)
+        except json.JSONDecodeError:
+            # Corrupt/empty GeoJSON from ogr2ogr — remove and skip
+            geojson_path.unlink(missing_ok=True)
+            return
 
     # Pre-compute per-layer constants
     scale_band = 0
