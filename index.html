@@ -15,6 +15,28 @@
       <select id="chart-select" aria-label="Chart source"></select>
     </header>
     <div id="map"></div>
+    <noscript>
+      <p style="padding:2em;text-align:center;color:#ccc">
+        Pelorus Nav requires a browser with JavaScript and WebGL support.
+      </p>
+    </noscript>
+    <script>
+      // Early WebGL check — runs before the module bundle loads.
+      (function() {
+        try {
+          var c = document.createElement("canvas");
+          var gl = c.getContext("webgl2") || c.getContext("webgl");
+          if (!gl) throw 0;
+        } catch(e) {
+          document.getElementById("map").innerHTML =
+            '<p style="padding:2em;text-align:center;color:#ccc">' +
+            'Pelorus Nav requires a browser with WebGL support.<br>' +
+            'The Kindle browser and some older browsers do not support WebGL.' +
+            '</p>';
+          document.getElementById("chart-select").style.display = "none";
+        }
+      })();
+    </script>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>
