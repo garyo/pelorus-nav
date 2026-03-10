@@ -374,6 +374,11 @@ function pickRank(f: maplibregl.MapGeoJSONFeature): number {
   const isOutline = f.layer.id.endsWith("-outline");
   if (layerType === "circle" || layerType === "symbol") return 0; // points
   if (layerType === "line" && !isOutline) return 1; // true lines
+  // Background terrain (land, sea, depth areas) is almost never the target
+  const src = (f.layer as Record<string, unknown>)["source-layer"] as
+    | string
+    | undefined;
+  if (src === "LNDARE" || src === "SEAARE" || src === "DEPARE") return 3;
   return 2; // fills + outline strokes (area features)
 }
 
