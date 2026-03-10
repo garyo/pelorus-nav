@@ -16,6 +16,7 @@ from .convert import convert_enc, read_compilation_scale, read_intended_use
 from .coverage import scan_all_cells
 from .download import download_enc_cell
 from .merge import merge_tiles
+from .progress import PipelineProgress
 from .query import build_index
 from .regions import REGIONS, get_region_cells, query_region
 from .scamin import (
@@ -203,6 +204,7 @@ def _process_cell(
     work_dir: Path,
     force: bool,
     intu_zoom_ranges: dict[int, tuple[int, int, int]] | None = None,
+    progress: PipelineProgress | None = None,
 ) -> tuple[list[Path], int]:
     """Process a single ENC cell: convert → tile.
 
@@ -213,6 +215,7 @@ def _process_cell(
     cell_dir = work_dir / cell_name
     geojson_dir = cell_dir / "geojson"
     tiles_dir = cell_dir / "tiles"
+    cell_start = time.monotonic()
 
     # Determine cell's scale band and zoom range
     cell_intu = read_intended_use(enc_path)
@@ -227,26 +230,49 @@ def _process_cell(
             min_zoom, max_zoom = cscl_to_zoom_range(cell_cscl)
             scale_band = cscl_to_scale_band(cell_cscl)
 
+    info = f"z{min_zoom}-{max_zoom}, band {scale_band}"
+
     # Incremental: skip if tiles are newer than source
     if not force:
         existing_tiles = list(tiles_dir.glob("*.pmtiles")) if tiles_dir.exists() else []
         if existing_tiles and all(
             t.stat().st_mtime > enc_path.stat().st_mtime for t in existing_tiles
         ):
-            print(f"Skipping {cell_name} (tiles up to date)")
+            if progress is not None:
+                progress.cell_started(cell_name, info)
+                progress.cell_skipped(cell_name)
             return existing_tiles, scale_band
 
+    if progress is not None:
+        progress.cell_started(cell_name, info)
+
+    # Callbacks for per-layer progress
+    def on_convert_layer(layer_name: str) -> None:
+        if progress is not None:
+            progress.cell_layer_done(cell_name, layer_name, "converting")
+
+    def on_tile_layer(layer_name: str) -> None:
+        if progress is not None:
+            progress.cell_layer_done(cell_name, layer_name, "tiling")
+
     # Convert to GeoJSON and tile
-    print(f"Processing {cell_name} (z{min_zoom}-{max_zoom}, band {scale_band})...")
     geojson_files = convert_enc(
-        enc_path, geojson_dir, intu_zoom_ranges=intu_zoom_ranges
+        enc_path, geojson_dir, intu_zoom_ranges=intu_zoom_ranges,
+        on_layer_done=on_convert_layer,
     )
     if not geojson_files:
+        elapsed = time.monotonic() - cell_start
+        if progress is not None:
+            progress.cell_done(cell_name, elapsed)
         return [], scale_band
 
     tiles = tile_geojson_files(
         geojson_dir, tiles_dir, min_zoom=min_zoom, max_zoom=max_zoom,
+        on_layer_done=on_tile_layer,
     )
+    elapsed = time.monotonic() - cell_start
+    if progress is not None:
+        progress.cell_done(cell_name, elapsed)
     return tiles, scale_band
 
 
@@ -329,15 +355,6 @@ def _build_composite_sources(
     return sources
 
 
-def _fmt_elapsed(seconds: float) -> str:
-    """Format elapsed time as human-readable string."""
-    if seconds < 60:
-        return f"{seconds:.1f}s"
-    minutes = int(seconds // 60)
-    secs = seconds % 60
-    return f"{minutes}m {secs:.1f}s"
-
-
 def cmd_pipeline(args: argparse.Namespace) -> None:
     """Full pipeline: convert ENC files to a single PMTiles."""
     pipeline_start = time.monotonic()
@@ -345,11 +362,14 @@ def cmd_pipeline(args: argparse.Namespace) -> None:
     enc_files = _find_enc_files(args)
     composite_only = getattr(args, "composite_only", False)
     work_dir = Path("data/work")
+    verbose = getattr(args, "verbose", False)
+
+    progress = PipelineProgress(verbose=verbose)
 
     # Pass 1: Scan INTU values and M_COVR coverage polygons (parallel)
     pass1_start = time.monotonic()
     scan_workers = max(1, args.jobs if args.jobs else (os.cpu_count() or 4) - 1)
-    print(f"Pass 1: Scanning INTU + M_COVR for {len(enc_files)} cells ({scan_workers} workers)...")
+    progress.scan_start(len(enc_files))
     cell_metas = scan_all_cells(enc_files, jobs=scan_workers)
 
     # Build lookup dicts from scan results
@@ -362,34 +382,42 @@ def cmd_pipeline(args: argparse.Namespace) -> None:
             present_intus.add(meta.intu)
         if meta.coverage is not None:
             cell_coverage[meta.enc_path] = meta.coverage
+        progress.scan_cell_done()
 
     zoom_shift = getattr(args, "zoom_shift", 0)
     intu_zoom_ranges = compute_intu_zoom_ranges(present_intus, zoom_shift=zoom_shift)
+
+    # Build info strings for scan_complete
+    intu_lines: list[str] = []
     if intu_zoom_ranges:
-        print(f"  INTU bands present: {sorted(present_intus)}")
+        intu_lines.append(f"INTU bands present: {sorted(present_intus)}")
         for intu, (zmin, zmax, band) in sorted(intu_zoom_ranges.items()):
-            print(f"    INTU {intu}: z{zmin}-{zmax} (band {band})")
+            intu_lines.append(f"  INTU {intu}: z{zmin}-{zmax} (band {band})")
     else:
-        print("  No INTU values found; falling back to CSCL-based zoom")
+        intu_lines.append("No INTU values found; falling back to CSCL-based zoom")
+    intu_info = "\n".join(intu_lines)
 
     cells_with_coverage = len(cell_coverage)
     cells_without = len(enc_files) - cells_with_coverage
-    print(f"  M_COVR: {cells_with_coverage} cells with coverage")
+    mcovr_info = f"M_COVR: {cells_with_coverage} cells with coverage"
     if cells_without:
-        print(f"  Warning: {cells_without} cells without M_COVR")
+        mcovr_info += f" ({cells_without} without)"
+        progress.warning(f"{cells_without} cells without M_COVR")
+
     pass1_elapsed = time.monotonic() - pass1_start
-    print(f"  Pass 1 complete ({_fmt_elapsed(pass1_elapsed)})")
+    progress.scan_complete(pass1_elapsed, intu_info, mcovr_info)
 
     # Pass 2: Convert and tile each cell independently
     pass2_start = time.monotonic()
     if not composite_only:
         max_workers = max(1, args.jobs if args.jobs else (os.cpu_count() or 4) - 3)
-        print(f"\nPass 2: Processing {len(enc_files)} ENC files ({max_workers} parallel workers)")
+        progress.process_start(len(enc_files), max_workers)
 
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
             futures = {
                 executor.submit(
-                    _process_cell, enc_path, work_dir, args.force, intu_zoom_ranges,
+                    _process_cell, enc_path, work_dir, args.force,
+                    intu_zoom_ranges, progress,
                 ): enc_path
                 for enc_path in enc_files
             }
@@ -398,16 +426,16 @@ def cmd_pipeline(args: argparse.Namespace) -> None:
                 try:
                     future.result()
                 except Exception as e:
-                    print(f"Error processing {enc_path.stem}: {e}")
+                    progress.cell_error(enc_path.stem, str(e))
         pass2_elapsed = time.monotonic() - pass2_start
-        print(f"  Pass 2 complete ({_fmt_elapsed(pass2_elapsed)})")
+        progress.process_complete(pass2_elapsed)
     else:
-        print("\nPass 2: Skipped (--composite-only)")
+        progress.info("Pass 2: Skipped (--composite-only)")
 
     # Pass 3: Composite tiles using M_COVR coverage
     sources = _build_composite_sources(enc_files, cell_coverage, work_dir)
     if not sources:
-        print("No tiles found to composite")
+        progress.error("No tiles found to composite")
         sys.exit(1)
 
     # Report cells with no tiles at all
@@ -415,9 +443,10 @@ def cmd_pipeline(args: argparse.Namespace) -> None:
     cells_with_tiles = {src.cell_name for src in sources}
     cells_no_tiles = sorted(all_cell_names - cells_with_tiles)
     if cells_no_tiles:
-        print(f"\n  WARNING: {len(cells_no_tiles)} cells produced no tiles:")
-        for cell in cells_no_tiles:
-            print(f"    {cell}")
+        progress.warning(
+            f"{len(cells_no_tiles)} cells produced no tiles: "
+            + ", ".join(cells_no_tiles)
+        )
 
     # Parse debug-latlon if provided
     debug_latlon = None
@@ -435,24 +464,79 @@ def cmd_pipeline(args: argparse.Namespace) -> None:
         region_bbox = REGIONS[args.region].bbox
 
     composite_jobs = args.jobs if args.jobs else 0
-    print(f"\n=== Compositing: {len(sources)} tile sets ===")
-    result = composite_tiles(sources, output_path, debug_latlon=debug_latlon,
-                             region_bbox=region_bbox, jobs=composite_jobs)
+
+    # Build composite progress callback
+    composite_start = time.monotonic()
+    _composite_phase_started: dict[str, float] = {}
+
+    def _on_composite_progress(phase_name: str, done: int, total: int) -> None:
+        now = time.monotonic()
+        if phase_name == "reading":
+            if "reading" not in _composite_phase_started:
+                _composite_phase_started["reading"] = now
+                progress.composite_phase_start(1, "Reading tile sources", total)
+            progress.composite_progress(1, done)
+        elif phase_name == "reading_done":
+            elapsed = now - _composite_phase_started.get("reading", now)
+            progress.composite_phase_done(
+                1, elapsed, f"{done:,} unique tile positions from {total} sources"
+            )
+        elif phase_name == "compositing":
+            if "compositing" not in _composite_phase_started:
+                _composite_phase_started["compositing"] = now
+                progress.composite_phase_start(2, "Compositing tiles", total)
+            progress.composite_progress(2, done)
+        elif phase_name == "compositing_done":
+            elapsed = now - _composite_phase_started.get("compositing", now)
+            progress.composite_phase_done(
+                2, elapsed, f"{done:,} output tiles"
+            )
+        elif phase_name == "warning_not_filled":
+            progress.warning(
+                f"{done} multi-band tiles not fully filled"
+            )
+        elif phase_name == "writing":
+            if "writing" not in _composite_phase_started:
+                _composite_phase_started["writing"] = now
+                progress.composite_phase_start(3, "Writing output", total)
+        elif phase_name == "writing_done":
+            elapsed = now - _composite_phase_started.get("writing", now)
+            progress.composite_phase_done(3, elapsed, f"{done:,} tiles written")
+        elif phase_name == "complete":
+            composite_elapsed = now - composite_start
+            progress.composite_complete(
+                str(output_path), done, composite_elapsed,
+            )
+
+    progress.info(f"Compositing: {len(sources)} tile sets")
+    result = composite_tiles(
+        sources, output_path, debug_latlon=debug_latlon,
+        region_bbox=region_bbox, jobs=composite_jobs,
+        on_progress=_on_composite_progress,
+    )
 
     # Summary of unused cells
     if result is not None:
         _, used_cells = result
         unused_in_output = sorted(all_cell_names - used_cells)
         if unused_in_output:
-            print(f"\nERROR: {len(unused_in_output)} input cells did not "
-                  f"contribute to the final output:")
-            for cell in unused_in_output:
-                reason = "no tiles" if cell in cells_no_tiles else "clipped away"
-                print(f"  {cell} ({reason})")
+            progress.error(
+                f"{len(unused_in_output)} input cells did not "
+                f"contribute to the final output: "
+                + ", ".join(
+                    f"{cell} ({'no tiles' if cell in cells_no_tiles else 'clipped away'})"
+                    for cell in unused_in_output
+                )
+            )
             sys.exit(1)
 
     pipeline_elapsed = time.monotonic() - pipeline_start
-    print(f"\n=== Pipeline complete ({_fmt_elapsed(pipeline_elapsed)}) ===")
+    progress.print_summary(
+        total_elapsed=pipeline_elapsed,
+        output_path=str(output_path),
+        cells_processed=len(enc_files),
+        total_tiles=len(sources),
+    )
 
 
 def main() -> None:
@@ -527,6 +611,10 @@ def main() -> None:
     pl.add_argument(
         "--debug-latlon",
         help="lat,lon to debug compositing (e.g. '43.02,-70.54')",
+    )
+    pl.add_argument(
+        "-v", "--verbose", action="store_true",
+        help="Show per-layer conversion/tiling messages",
     )
     pl.set_defaults(func=cmd_pipeline)
 

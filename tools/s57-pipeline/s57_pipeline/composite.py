@@ -15,6 +15,7 @@ import json
 import multiprocessing
 import os
 import time
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -318,6 +319,7 @@ def composite_tiles(
     debug_latlon: tuple[float, float] | None = None,
     region_bbox: tuple[float, float, float, float] | None = None,
     jobs: int = 0,
+    on_progress: Callable[[str, int, int], None] | None = None,
 ) -> tuple[Path, set[str]] | None:
     """Composite tiles from multiple cells using M_COVR coverage clipping.
 
@@ -344,6 +346,10 @@ def composite_tiles(
         Tuple of (output path, set of cell names that contributed to output),
         or None on failure.
     """
+    def _report(phase_name: str, done: int, total: int) -> None:
+        if on_progress is not None:
+            on_progress(phase_name, done, total)
+
     if not sources:
         print("No tile sources to composite")
         return None
@@ -368,8 +374,8 @@ def composite_tiles(
     bounds_header = None
     tile_header = None
 
-    print("Phase 1: Reading tile sources...")
-    for src in sources:
+    _report("reading", 0, len(sources))
+    for i, src in enumerate(sources):
         cov_wkb = coverage_wkb[src.cell_name]
         with open(src.pmtiles_path, "rb") as f:
             source = MmapSource(f)
@@ -406,11 +412,11 @@ def composite_tiles(
                 tile_entries.setdefault((z, x, y), []).append(
                     (src.band, src.cell_name, data, cov_wkb)
                 )
+        _report("reading", i + 1, len(sources))
 
     total_tiles = len(tile_entries)
     t_read = time.monotonic() - t0
-    print(f"  {total_tiles} unique tile positions from {len(sources)} sources"
-          f" ({t_read:.1f}s)")
+    _report("reading_done", total_tiles, len(sources))
 
     # Phase 2: Composite
     t0 = time.monotonic()
@@ -430,7 +436,7 @@ def composite_tiles(
             debug_tiles.add((z, dx, dy))
             print(f"    z{z}: tile ({z},{dx},{dy})")
 
-    print(f"Phase 2: Compositing {total_tiles} tiles...")
+    _report("compositing", 0, total_tiles)
 
     output_tiles: dict[int, bytes] = {}
 
@@ -459,6 +465,8 @@ def composite_tiles(
             print(f"\n  DEBUG z{z}/{x}/{y}: single-source pass-through"
                   f" (cell={cell}, band={band})")
     single_source = len(single_entries)
+    tiles_composited_so_far = single_source
+    _report("compositing", tiles_composited_so_far, total_tiles)
     t_single = time.monotonic() - t0
 
     # Determine worker count
@@ -466,11 +474,6 @@ def composite_tiles(
     need_parallel = len(same_band_entries) + len(multi_band_entries)
 
     if need_parallel > 0 and num_workers > 1:
-        print(f"  {single_source} single-source pass-through ({t_single:.1f}s)")
-        print(f"  Processing {len(same_band_entries)} same-band +"
-              f" {len(multi_band_entries)} multi-band tiles"
-              f" with {num_workers} workers...")
-
         t1 = time.monotonic()
         # Process same-band tiles in parallel
         if same_band_entries:
@@ -481,10 +484,11 @@ def composite_tiles(
                     if tile_bytes is not None:
                         output_tiles[tile_id] = tile_bytes
                     used_cells.update(used)
+                    tiles_composited_so_far += 1
+                    _report("compositing", tiles_composited_so_far, total_tiles)
             same_band_count = len(same_band_entries)
 
         t_same = time.monotonic() - t1
-        print(f"  {same_band_count} same-band merged ({t_same:.1f}s)")
 
         # Process multi-band tiles in parallel
         t2 = time.monotonic()
@@ -498,10 +502,11 @@ def composite_tiles(
                     used_cells.update(used)
                     if not fully_filled:
                         not_fully_filled += 1
+                    tiles_composited_so_far += 1
+                    _report("compositing", tiles_composited_so_far, total_tiles)
             composited_count = len(multi_band_entries)
 
         t_multi = time.monotonic() - t2
-        print(f"  {composited_count} multi-band composited ({t_multi:.1f}s)")
     else:
         # Single-threaded fallback (small tile count or 1 worker)
         for z, x, y, entries in same_band_entries:
@@ -524,6 +529,8 @@ def composite_tiles(
             if merged_layers:
                 output_tiles[tile_id] = _encode_mvt(merged_layers, tile_bbox)
             same_band_count += 1
+            tiles_composited_so_far += 1
+            _report("compositing", tiles_composited_so_far, total_tiles)
 
         for z, x, y, entries in multi_band_entries:
             tile_id = zxy_to_tileid(z, x, y)
@@ -589,19 +596,17 @@ def composite_tiles(
             if output_features:
                 output_tiles[tile_id] = _encode_mvt(output_features, tile_bbox)
             composited_count += 1
+            tiles_composited_so_far += 1
+            _report("compositing", tiles_composited_so_far, total_tiles)
 
     t_composite = time.monotonic() - t0
-    print(
-        f"  {single_source} pass-through, {same_band_count} same-band merged, "
-        f"{composited_count} multi-band composited ({t_composite:.1f}s)"
-    )
+    _report("compositing_done", len(output_tiles), total_tiles)
     if not_fully_filled:
-        print(f"  WARNING: {not_fully_filled} multi-band tiles not fully filled")
-    print(f"  {len(output_tiles)} output tiles")
+        _report("warning_not_filled", not_fully_filled, composited_count)
 
     # Phase 3: Write output PMTiles
     t0 = time.monotonic()
-    print("Phase 3: Writing output...")
+    _report("writing", 0, len(output_tiles))
     assert tile_header is not None
     assert bounds_header is not None
 
@@ -633,21 +638,14 @@ def composite_tiles(
         writer.finalize(out_header, metadata or {})
 
     t_write = time.monotonic() - t0
-    print(f"  Written ({t_write:.1f}s)")
+    _report("writing_done", len(output_tiles), len(output_tiles))
 
     # Report cell usage
     all_cell_names = {src.cell_name for src in sources}
     unused_cells = sorted(all_cell_names - used_cells)
-    print(f"  {len(used_cells)} cells contributed to output, "
-          f"{len(unused_cells)} unused")
-    if unused_cells:
-        print(f"  WARNING: unused cells (tiles exist but no features in output):")
-        for cell in unused_cells:
-            print(f"    {cell}")
 
     t_total_elapsed = time.monotonic() - t_total
-    print(f"Composited → {output_path} ({len(output_tiles)} tiles,"
-          f" {t_total_elapsed:.1f}s total)")
+    _report("complete", len(output_tiles), len(output_tiles))
 
     # Phase 4: Export coverage mask as GeoJSON
     t0 = time.monotonic()
@@ -671,7 +669,5 @@ def composite_tiles(
         }
         coverage_path = output_path.with_suffix(".coverage.geojson")
         coverage_path.write_text(json.dumps(coverage_geojson))
-        t_coverage = time.monotonic() - t0
-        print(f"Coverage mask → {coverage_path} ({t_coverage:.1f}s)")
 
     return output_path, used_cells

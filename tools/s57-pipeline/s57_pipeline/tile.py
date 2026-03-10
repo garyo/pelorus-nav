@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import subprocess
+from collections.abc import Callable
 from pathlib import Path
 
 from .layers import LayerConfig, get_layer_config
@@ -62,6 +63,7 @@ def tile_geojson_files(
     tiles_dir: Path,
     min_zoom: int = 0,
     max_zoom: int = 14,
+    on_layer_done: Callable[[str], None] | None = None,
 ) -> list[Path]:
     """Convert all GeoJSON files in a directory to individual PMTiles.
 
@@ -70,6 +72,8 @@ def tile_geojson_files(
         tiles_dir: Directory for output .pmtiles files.
         min_zoom: Minimum zoom level for tile generation.
         max_zoom: Maximum zoom level for tile generation.
+        on_layer_done: Optional callback invoked with the layer name after
+            each layer is successfully tiled.
 
     Returns:
         List of paths to created PMTiles files.
@@ -87,6 +91,7 @@ def tile_geojson_files(
         )
         if result is not None:
             outputs.append(result)
-            print(f"  Tiled {layer_name} → {pmtiles_path.name}")
+            if on_layer_done is not None:
+                on_layer_done(layer_name)
 
     return outputs

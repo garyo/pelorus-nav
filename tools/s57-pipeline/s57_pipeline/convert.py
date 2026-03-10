@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 import subprocess
+from collections.abc import Callable
 from pathlib import Path
 
 from .enrich import enrich_geojson
@@ -162,6 +163,7 @@ def convert_enc(
     output_dir: Path,
     apply_scamin: bool = True,
     intu_zoom_ranges: dict[int, tuple[int, int, int]] | None = None,
+    on_layer_done: Callable[[str], None] | None = None,
 ) -> list[Path]:
     """Convert all known layers from an S-57 ENC file to GeoJSON.
 
@@ -169,6 +171,9 @@ def convert_enc(
         enc_path: Path to the .000 ENC file.
         output_dir: Directory to write GeoJSON files.
         apply_scamin: Whether to add tippecanoe minzoom from SCAMIN attributes.
+        intu_zoom_ranges: Optional INTU-based zoom range mapping.
+        on_layer_done: Optional callback invoked with the layer name after
+            each layer is successfully converted.
 
     Returns:
         List of paths to successfully created GeoJSON files.
@@ -178,10 +183,6 @@ def convert_enc(
     # Read cell metadata for zoom mapping
     cell_cscl = read_compilation_scale(enc_path) if apply_scamin else None
     cell_intu = read_intended_use(enc_path) if apply_scamin else None
-    if cell_intu is not None:
-        print(f"  Intended use (INTU): {cell_intu}")
-    if cell_cscl is not None:
-        print(f"  Compilation scale (CSCL): 1:{cell_cscl:,}")
 
     # Find which of our target layers exist in this ENC
     available = set(list_enc_layers(enc_path))
@@ -199,6 +200,7 @@ def convert_enc(
                 apply_scamin=apply_scamin,
             )
             outputs.append(path)
-            print(f"  Converted {layer_name} → {path.name}")
+            if on_layer_done is not None:
+                on_layer_done(layer_name)
 
     return outputs

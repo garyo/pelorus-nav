@@ -6,6 +6,7 @@ requires-python = ">=3.11"
 dependencies = [
     "mapbox-vector-tile>=2.0",
     "pmtiles>=3.7.0",
+    "rich>=13.0",
     "shapely>=2.0",
 ]
 
