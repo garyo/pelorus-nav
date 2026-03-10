@@ -365,7 +365,33 @@ function dedupKey(sourceLayer: string, props: Record<string, unknown>): string {
   return `${sourceLayer}:${JSON.stringify(visible)}`;
 }
 
-/** Deduplicate features by visible properties, keeping priority order. */
+/** Geometry type to sort rank: points first, then lines, then polygons. */
+function geomRank(geomType: string): number {
+  switch (geomType) {
+    case "Point":
+    case "MultiPoint":
+      return 0;
+    case "LineString":
+    case "MultiLineString":
+      return 1;
+    case "Polygon":
+    case "MultiPolygon":
+      return 2;
+    default:
+      return 3;
+  }
+}
+
+/**
+ * Deduplicate features and sort by pick relevance.
+ *
+ * Sort order: geometry type (point > line > polygon), then by layer
+ * priority index as a tiebreaker. This ensures specific features
+ * (buoys, bridges) appear before large area features (fairways,
+ * anchorages) that happen to contain the click point, while
+ * co-located same-type features (e.g. lighthouse vs fog signal)
+ * retain their intended layer priority order.
+ */
 function deduplicateFeatures(
   raw: maplibregl.MapGeoJSONFeature[],
   priorityLayers: string[],
@@ -373,9 +399,11 @@ function deduplicateFeatures(
   const seen = new Set<string>();
   const result: QueriedFeature[] = [];
 
-  // Sort by priority layer order
   const priorityIndex = new Map(priorityLayers.map((id, i) => [id, i]));
   const sorted = [...raw].sort((a, b) => {
+    const ga = geomRank(a.geometry.type);
+    const gb = geomRank(b.geometry.type);
+    if (ga !== gb) return ga - gb;
     const ai = priorityIndex.get(a.layer.id) ?? 999;
     const bi = priorityIndex.get(b.layer.id) ?? 999;
     return ai - bi;
