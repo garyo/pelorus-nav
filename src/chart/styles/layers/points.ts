@@ -83,7 +83,7 @@ export function getNavAidLayers(ctx: StyleContext): LayerSpecification[] {
       },
     },
 
-    // Lights — glow ring underneath, then icon on top
+    // Lights glow — underneath buoys and light icons
     {
       id: "s57-lights-glow",
       type: "circle",
@@ -98,31 +98,6 @@ export function getNavAidLayers(ctx: StyleContext): LayerSpecification[] {
         "circle-stroke-color": ctx.colour("LITYW"),
         "circle-opacity": 0.25,
         "circle-stroke-opacity": 0.5,
-      },
-    },
-    {
-      id: "s57-lights",
-      type: "symbol",
-      source: ctx.sourceId,
-      "source-layer": "LIGHTS",
-      minzoom: 6,
-      layout: withOffset(
-        {
-          "icon-image": ctx.iconExpr,
-          "icon-size": scaledSize(0.7, ctx),
-          "icon-allow-overlap": true,
-          "icon-optional": true,
-          "text-field": ["get", "LABEL"],
-          "text-size": 10,
-          "text-offset": [0, -1.5],
-          "text-allow-overlap": true,
-        },
-        ctx,
-      ),
-      paint: {
-        "text-color": ctx.colour("SNDG2"),
-        "text-halo-color": ctx.colour("CHWHT"),
-        "text-halo-width": 1.5,
       },
     },
 
@@ -310,6 +285,33 @@ export function getNavAidLayers(ctx: StyleContext): LayerSpecification[] {
       ),
       paint: {
         "text-color": ctx.colour("CHBLK"),
+        "text-halo-color": ctx.colour("CHWHT"),
+        "text-halo-width": 1.5,
+      },
+    },
+
+    // Light icons — rendered after buoys/beacons so teardrop appears on top
+    {
+      id: "s57-lights",
+      type: "symbol",
+      source: ctx.sourceId,
+      "source-layer": "LIGHTS",
+      minzoom: 6,
+      layout: withOffset(
+        {
+          "icon-image": ctx.iconExpr,
+          "icon-size": scaledSize(0.7, ctx),
+          "icon-allow-overlap": true,
+          "icon-optional": true,
+          "text-field": ["get", "LABEL"],
+          "text-size": 10,
+          "text-offset": [0, -1.5],
+          "text-allow-overlap": true,
+        },
+        ctx,
+      ),
+      paint: {
+        "text-color": ctx.colour("SNDG2"),
         "text-halo-color": ctx.colour("CHWHT"),
         "text-halo-width": 1.5,
       },

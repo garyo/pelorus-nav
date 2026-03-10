@@ -71,7 +71,7 @@ const DEFAULTS: Settings = {
   courseLineDuration: 0,
   simulatorSpeed: 1,
   displayTheme: "day",
-  symbologyScheme: "pelorus-standard",
+  symbologyScheme: "iho-s52",
   shallowDepth: 5,
   deepDepth: 20,
 };
