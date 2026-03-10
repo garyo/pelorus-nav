@@ -365,21 +365,20 @@ function dedupKey(sourceLayer: string, props: Record<string, unknown>): string {
   return `${sourceLayer}:${JSON.stringify(visible)}`;
 }
 
-/** Geometry type to sort rank: points first, then lines, then polygons. */
-function geomRank(geomType: string): number {
-  switch (geomType) {
-    case "Point":
-    case "MultiPoint":
-      return 0;
-    case "LineString":
-    case "MultiLineString":
-      return 1;
-    case "Polygon":
-    case "MultiPolygon":
-      return 2;
-    default:
-      return 3;
-  }
+/**
+ * Pick-relevance rank for a queried feature.
+ *
+ * Uses the MapLibre layer rendering type (not source geometry type)
+ * so that e.g. a polygon rendered as a line outline still ranks as
+ * an area feature. Outline layers (rendered as lines but representing
+ * area boundaries) are demoted to area rank.
+ */
+function pickRank(f: maplibregl.MapGeoJSONFeature): number {
+  const layerType = f.layer.type; // "circle" | "symbol" | "line" | "fill"
+  const isOutline = f.layer.id.endsWith("-outline");
+  if (layerType === "circle" || layerType === "symbol") return 0; // points
+  if (layerType === "line" && !isOutline) return 1; // true lines
+  return 2; // fills + outline strokes (area features)
 }
 
 /**
@@ -401,9 +400,9 @@ function deduplicateFeatures(
 
   const priorityIndex = new Map(priorityLayers.map((id, i) => [id, i]));
   const sorted = [...raw].sort((a, b) => {
-    const ga = geomRank(a.geometry.type);
-    const gb = geomRank(b.geometry.type);
-    if (ga !== gb) return ga - gb;
+    const ra = pickRank(a);
+    const rb = pickRank(b);
+    if (ra !== rb) return ra - rb;
     const ai = priorityIndex.get(a.layer.id) ?? 999;
     const bi = priorityIndex.get(b.layer.id) ?? 999;
     return ai - bi;
