@@ -279,6 +279,53 @@ export function getAdditionalAreaLayers(
         "line-width": 1,
       },
     },
+    // Fortified Structure (fort, castle, etc.)
+    {
+      id: "s57-forstc",
+      type: "fill",
+      source: ctx.sourceId,
+      "source-layer": "FORSTC",
+      minzoom: 13,
+      paint: {
+        "fill-color": ctx.colour("CHGRD"),
+        "fill-opacity": 0.25,
+      },
+    },
+    {
+      id: "s57-forstc-outline",
+      type: "line",
+      source: ctx.sourceId,
+      "source-layer": "FORSTC",
+      minzoom: 13,
+      paint: {
+        "line-color": ctx.colour("CHGRD"),
+        "line-width": 1,
+      },
+    },
+    // Hulks (permanently moored derelict vessel)
+    {
+      id: "s57-hulkes",
+      type: "fill",
+      source: ctx.sourceId,
+      "source-layer": "HULKES",
+      minzoom: 13,
+      paint: {
+        "fill-color": ctx.colour("CHGRD"),
+        "fill-opacity": 0.15,
+      },
+    },
+    {
+      id: "s57-hulkes-outline",
+      type: "line",
+      source: ctx.sourceId,
+      "source-layer": "HULKES",
+      minzoom: 13,
+      paint: {
+        "line-color": ctx.colour("CHGRD"),
+        "line-width": 1,
+        "line-dasharray": [4, 2] as number[],
+      },
+    },
   ];
 }
 

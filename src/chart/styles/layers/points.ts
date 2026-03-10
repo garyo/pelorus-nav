@@ -791,20 +791,6 @@ export function getAdditionalPointLayers(
       ),
       paint: {},
     },
-    // Fortified Structure
-    {
-      id: "s57-forstc",
-      type: "circle" as const,
-      source: ctx.sourceId,
-      "source-layer": "FORSTC",
-      minzoom: ctx.detailMinzoom(12),
-      paint: {
-        "circle-radius": 5,
-        "circle-color": ctx.colour("LANDF"),
-        "circle-stroke-color": ctx.colour("CHBLK"),
-        "circle-stroke-width": 1.5,
-      },
-    },
     // Coast Guard Station
     {
       id: "s57-cgusta",
@@ -822,19 +808,6 @@ export function getAdditionalPointLayers(
         "text-color": ctx.colour("CHBLK"),
         "text-halo-color": ctx.colour("CHWHT"),
         "text-halo-width": 1,
-      },
-    },
-    // Hulks
-    {
-      id: "s57-hulkes",
-      type: "circle" as const,
-      source: ctx.sourceId,
-      "source-layer": "HULKES",
-      paint: {
-        "circle-radius": 6,
-        "circle-color": ctx.colour("CHBRN"),
-        "circle-stroke-color": ctx.colour("CHBLK"),
-        "circle-stroke-width": 1.5,
       },
     },
   ];
