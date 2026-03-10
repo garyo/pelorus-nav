@@ -30,6 +30,11 @@ tools/s57-pipeline/.venv/
 public/nautical.pmtiles
 public/nautical.pmtiles.uploaded
 
+# Generated S-52 colour-applied SVGs (rebuilt by bun run sprites)
+tools/sprites/s52/day/
+tools/sprites/s52/dusk/
+tools/sprites/s52/night/
+
 # Wrangler local state
 .wrangler/
 

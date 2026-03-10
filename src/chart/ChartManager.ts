@@ -1,7 +1,13 @@
 import maplibregl from "maplibre-gl";
-import type { DepthUnit, DetailLevel, DisplayTheme } from "../settings";
+import type {
+  DepthUnit,
+  DetailLevel,
+  DisplayTheme,
+  SymbologyScheme,
+} from "../settings";
 import { getSettings, onSettingsChange } from "../settings";
 import type { ChartProvider } from "./ChartProvider";
+import { getIconScheme } from "./styles/icon-sets";
 
 export interface ChartManagerOptions {
   container: string | HTMLElement;
@@ -25,6 +31,7 @@ export class ChartManager {
   private prevDetailLevel: DetailLevel;
   private prevLayerGroups: Record<string, boolean>;
   private prevDisplayTheme: DisplayTheme;
+  private prevSymbology: SymbologyScheme;
 
   constructor(options: ChartManagerOptions) {
     if (options.providers.length === 0) {
@@ -60,6 +67,7 @@ export class ChartManager {
     this.prevDetailLevel = initial.detailLevel;
     this.prevLayerGroups = { ...initial.layerGroups };
     this.prevDisplayTheme = initial.displayTheme;
+    this.prevSymbology = initial.symbologyScheme;
 
     // Re-apply style only when chart-relevant settings change
     onSettingsChange(() => {
@@ -70,12 +78,14 @@ export class ChartManager {
         s.depthUnit !== this.prevDepthUnit ||
         s.detailLevel !== this.prevDetailLevel ||
         s.displayTheme !== this.prevDisplayTheme ||
+        s.symbologyScheme !== this.prevSymbology ||
         layersChanged
       ) {
         this.prevDepthUnit = s.depthUnit;
         this.prevDetailLevel = s.detailLevel;
         this.prevLayerGroups = { ...s.layerGroups };
         this.prevDisplayTheme = s.displayTheme;
+        this.prevSymbology = s.symbologyScheme;
         this.refreshStyle();
       }
     });
@@ -85,7 +95,7 @@ export class ChartManager {
   refreshStyle(): void {
     const provider = this.getActiveProvider();
     if (provider) {
-      this.map.setStyle(this.buildStyle(provider));
+      this.map.setStyle(this.buildStyle(provider), { diff: true });
     }
   }
 
@@ -111,18 +121,28 @@ export class ChartManager {
     }
     if (providerId === this.activeProviderId) return;
 
-    // Use setStyle to fully replace the style. This ensures custom protocols
-    // (like pmtiles://) are resolved the same way as the initial style load.
+    // Use setStyle to replace the style. diff:false forces a full rebuild
+    // since sources change across providers (e.g. different pmtiles:// URLs).
     const style = this.buildStyle(provider);
-    this.map.setStyle(style);
+    const center = this.map.getCenter();
+    const zoom = this.map.getZoom();
+    const bearing = this.map.getBearing();
+    const pitch = this.map.getPitch();
+    this.map.setStyle(style, { diff: false });
+    this.map.jumpTo({ center, zoom, bearing, pitch });
     this.activeProviderId = providerId;
   }
 
   private buildStyle(provider: ChartProvider): maplibregl.StyleSpecification {
     const extraSources = provider.getExtraSources?.() ?? {};
+    const settings = getSettings();
+    const { sprite } = getIconScheme(
+      settings.symbologyScheme,
+      settings.displayTheme,
+    );
     return {
       version: 8,
-      sprite: `${window.location.origin}/sprites/nautical`,
+      sprite: `${window.location.origin}/sprites/${sprite}`,
       glyphs: "https://demotiles.maplibre.org/font/{fontstack}/{range}.pbf",
       sources: {
         [provider.id]: provider.getSource(),

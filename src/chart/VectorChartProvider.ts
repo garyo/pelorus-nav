@@ -76,7 +76,13 @@ export class VectorChartProvider implements ChartProvider {
   }
 
   getLayers(): LayerSpecification[] {
-    const { depthUnit, detailLevel, layerGroups, displayTheme } = getSettings();
+    const {
+      depthUnit,
+      detailLevel,
+      layerGroups,
+      displayTheme,
+      symbologyScheme,
+    } = getSettings();
     return getNauticalLayers(
       SOURCE_ID,
       depthUnit,
@@ -84,6 +90,7 @@ export class VectorChartProvider implements ChartProvider {
       layerGroups,
       COVERAGE_SOURCE_ID,
       displayTheme,
+      symbologyScheme,
     );
   }
 

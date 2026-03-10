@@ -18,7 +18,7 @@
     "format": "biome format --write .",
     "typecheck": "tsc --noEmit && tsc -p tsconfig.worker.json --noEmit",
     "check": "bun run typecheck && bun run lint && bun run test",
-    "sprites": "spreet tools/sprites/svg public/sprites/nautical && spreet --retina tools/sprites/svg public/sprites/nautical@2x",
+    "sprites": "spreet tools/sprites/svg public/sprites/nautical && spreet --retina tools/sprites/svg public/sprites/nautical@2x && printf '\\n' >> public/sprites/nautical.json && printf '\\n' >> public/sprites/nautical@2x.json && bun tools/sprites/build-s52-sprites.ts",
     "tiles": "cd tools/s57-pipeline && uv run python -m s57_pipeline pipeline --region boston-test -o ../../public/nautical-boston-test.pmtiles",
     "tiles:full": "cd tools/s57-pipeline && uv run python -m s57_pipeline pipeline --region new-england --min-cells 50 -o ../../public/nautical-new-england.pmtiles",
     "tiles:usvi": "cd tools/s57-pipeline && uv run python -m s57_pipeline pipeline --region usvi -o ../../public/nautical-usvi.pmtiles",

@@ -1,0 +1,30 @@
+Third-Party Notices
+====================
+
+IHO S-52 / S-101 Portrayal Catalogue Symbols
+----------------------------------------------
+Source: openwatersio/enc-tiles (https://github.com/openwatersio/enc-tiles)
+License: Apache License 2.0
+
+The S-52 symbol SVGs in tools/sprites/s52/source/ are derived from the
+IHO S-101 Portrayal Catalogue, as packaged and distributed by the
+enc-tiles project under the Apache License, Version 2.0.
+
+Modifications made by Pelorus Nav:
+- Selected subset (~85 of 718 symbols) relevant to our use case
+- Applied day/dusk/night color transforms (inlining CSS classes as fill/stroke attributes)
+- Converted from mm-based viewBox to pixel-based dimensions for sprite generation
+
+Copyright 2023 OpenWaters.io
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.

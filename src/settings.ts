@@ -8,6 +8,10 @@ export type ChartMode = "follow" | "course-up" | "north-up" | "free";
 export type DetailLevel = -1 | 0 | 1 | 2;
 export type CourseLineDuration = 0 | 15 | 30 | 60;
 export type DisplayTheme = "day" | "dusk" | "night" | "eink";
+export type SymbologyScheme =
+  | "pelorus-standard"
+  | "iho-s52"
+  | "simplified-minimal";
 
 export interface Settings {
   depthUnit: DepthUnit;
@@ -26,6 +30,7 @@ export interface Settings {
   courseLineDuration: CourseLineDuration;
   simulatorSpeed: number;
   displayTheme: DisplayTheme;
+  symbologyScheme: SymbologyScheme;
 }
 
 const STORAGE_KEY = "pelorus-nav-settings";
@@ -62,6 +67,7 @@ const DEFAULTS: Settings = {
   courseLineDuration: 0,
   simulatorSpeed: 1,
   displayTheme: "day",
+  symbologyScheme: "pelorus-standard",
 };
 
 type SettingsListener = (settings: Settings) => void;
@@ -74,6 +80,12 @@ function load(): Settings {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (raw) {
       const parsed = JSON.parse(raw) as Partial<Settings>;
+      // Migrate old scheme names
+      if (parsed.symbologyScheme === ("ecdis-simplified" as string)) {
+        parsed.symbologyScheme = "pelorus-standard";
+      } else if (parsed.symbologyScheme === ("int-paper" as string)) {
+        parsed.symbologyScheme = "iho-s52";
+      }
       return {
         ...DEFAULTS,
         ...parsed,

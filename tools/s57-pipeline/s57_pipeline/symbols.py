@@ -189,11 +189,24 @@ def _beacon_symbol(props: dict, layer_name: str) -> str:
 
 
 def _light_symbol(props: dict) -> str:
-    """Compute SYMBOL for a light (LIGHTS)."""
+    """Compute SYMBOL for a light (LIGHTS).
+
+    Encodes both significance (major/minor based on nominal range)
+    and colour (red/green/white) so the renderer can pick the
+    correct light-flare sprite.
+    """
+    colours = _parse_colours(props)
+    # Determine colour suffix
+    if _COLOUR_GREEN in colours:
+        colour = "green"
+    elif _COLOUR_RED in colours:
+        colour = "red"
+    else:
+        colour = "white"  # white/yellow/default
+
     valnmr = props.get("VALNMR")
-    if valnmr is not None and valnmr >= 10:
-        return "light-major"
-    return "light-minor"
+    significance = "major" if valnmr is not None and valnmr >= 10 else "minor"
+    return f"light-{significance}-{colour}"
 
 
 def _bcnspp_symbol(props: dict) -> str:

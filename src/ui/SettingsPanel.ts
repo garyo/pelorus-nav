@@ -14,6 +14,7 @@ import {
   LAYER_GROUP_LABELS,
   onSettingsChange,
   type SpeedUnit,
+  type SymbologyScheme,
   updateSettings,
 } from "../settings";
 import { iconSettings } from "./icons";
@@ -154,6 +155,22 @@ function buildAppearanceTab(
       DISPLAY_THEMES,
       settings.displayTheme,
       (v) => updateSettings({ displayTheme: v as DisplayTheme }),
+    ),
+  );
+
+  // Symbology scheme
+  const SYMBOLOGY_OPTIONS = [
+    { value: "pelorus-standard", label: "Pelorus Standard" },
+    { value: "iho-s52", label: "IHO S-52" },
+    { value: "simplified-minimal", label: "Minimal" },
+  ];
+  tab.appendChild(
+    buildSelectRow(
+      "Symbology",
+      "settings-symbology",
+      SYMBOLOGY_OPTIONS,
+      settings.symbologyScheme,
+      (v) => updateSettings({ symbologyScheme: v as SymbologyScheme }),
     ),
   );
 

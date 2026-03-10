@@ -1,4 +1,8 @@
 /**
  * Re-export from styles/icon-sets.ts for backward compatibility.
  */
-export { buildIconExpression, ECDIS_SIMPLIFIED } from "./styles/icon-sets";
+export {
+  buildIconExpression,
+  getIconScheme,
+  PELORUS_STANDARD,
+} from "./styles/icon-sets";

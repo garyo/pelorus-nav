@@ -48,8 +48,9 @@ export function getTextLayers(ctx: StyleContext): LayerSpecification[] {
       minzoom: ctx.detailMinzoom(12),
       layout: {
         "icon-image": ctx.iconExpr,
-        "icon-size": 0.6,
+        "icon-size": 0.6 * ctx.iconSizeScale,
         "icon-allow-overlap": true,
+        ...(ctx.iconOffsetExpr ? { "icon-offset": ctx.iconOffsetExpr } : {}),
         "text-field": ["get", "OBJNAM"] as unknown as ExpressionSpecification,
         "text-size": 11,
         "text-allow-overlap": false,

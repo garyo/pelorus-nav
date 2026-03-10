@@ -94,17 +94,26 @@ class TestBeaconSymbol:
 
 
 class TestLightSymbol:
-    def test_major(self) -> None:
-        assert compute_symbol({"VALNMR": 15}, "LIGHTS") == "light-major"
+    def test_major_white(self) -> None:
+        assert compute_symbol({"VALNMR": 15}, "LIGHTS") == "light-major-white"
 
-    def test_minor(self) -> None:
-        assert compute_symbol({"VALNMR": 5}, "LIGHTS") == "light-minor"
+    def test_minor_white(self) -> None:
+        assert compute_symbol({"VALNMR": 5}, "LIGHTS") == "light-minor-white"
 
     def test_no_valnmr(self) -> None:
-        assert compute_symbol({}, "LIGHTS") == "light-minor"
+        assert compute_symbol({}, "LIGHTS") == "light-minor-white"
 
     def test_boundary(self) -> None:
-        assert compute_symbol({"VALNMR": 10}, "LIGHTS") == "light-major"
+        assert compute_symbol({"VALNMR": 10}, "LIGHTS") == "light-major-white"
+
+    def test_red_light(self) -> None:
+        assert compute_symbol({"VALNMR": 5, "COLOUR": ["3"]}, "LIGHTS") == "light-minor-red"
+
+    def test_green_light(self) -> None:
+        assert compute_symbol({"VALNMR": 5, "COLOUR": ["4"]}, "LIGHTS") == "light-minor-green"
+
+    def test_major_green(self) -> None:
+        assert compute_symbol({"VALNMR": 15, "COLOUR": ["4"]}, "LIGHTS") == "light-major-green"
 
 
 class TestWreckSymbol:

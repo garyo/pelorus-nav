@@ -6,7 +6,7 @@
  * category-specific layer modules.
  */
 import type { LayerSpecification } from "maplibre-gl";
-import type { DepthUnit, DisplayTheme } from "../../settings";
+import type { DepthUnit, DisplayTheme, SymbologyScheme } from "../../settings";
 import { getAreaLayers, getCoverageLayers } from "./layers/areas";
 import { getLineLayers, getOtherLineLayers } from "./layers/lines";
 import {
@@ -163,6 +163,7 @@ export function getNauticalLayers(
   layerGroups: Record<string, boolean> = {},
   coverageSourceId?: string,
   theme: DisplayTheme = "day",
+  symbology: SymbologyScheme = "pelorus-standard",
 ): LayerSpecification[] {
   const ctx = createStyleContext(
     sourceId,
@@ -171,6 +172,7 @@ export function getNauticalLayers(
     layerGroups,
     theme,
     coverageSourceId,
+    symbology,
   );
 
   // Build layer array in the exact same order as the original monolithic

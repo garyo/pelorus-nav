@@ -2,22 +2,30 @@
  * StyleContext: shared context passed to all layer-building functions.
  */
 import type { ExpressionSpecification } from "maplibre-gl";
-import type { DepthUnit, DisplayTheme } from "../../settings";
+import type { DepthUnit, DisplayTheme, SymbologyScheme } from "../../settings";
 import { depthConversionFactor } from "../../settings";
 import {
   type ColourScheme,
   s52Colour,
   setActiveColourScheme,
 } from "../s52-colours";
-import { buildIconExpression, ECDIS_SIMPLIFIED } from "./icon-sets";
+import {
+  buildIconExpression,
+  buildOffsetExpression,
+  getIconScheme,
+  getSchemeConfig,
+} from "./icon-sets";
 
 export interface StyleContext {
   theme: DisplayTheme;
+  symbology: SymbologyScheme;
   depthUnit: DepthUnit;
   detailLevel: number;
   layerGroups: Record<string, boolean>;
   colour: (token: string) => string;
   iconExpr: ExpressionSpecification;
+  /** Sprite sheet prefix for the active symbology scheme. */
+  spritePrefix: string;
   sourceId: string;
   coverageSourceId?: string;
   /** Adjusted minzoom helper: lowers base by 1 at detail level 2. */
@@ -26,6 +34,10 @@ export interface StyleContext {
   showStandard: boolean;
   /** Whether OTHER display category layers should be shown. */
   showOther: boolean;
+  /** Icon size scale factor for the active symbology scheme. */
+  iconSizeScale: number;
+  /** Per-symbol icon-offset expression, or null if not needed. */
+  iconOffsetExpr: ExpressionSpecification | null;
 }
 
 /** Map DisplayTheme to S-52 ColourScheme. */
@@ -86,24 +98,34 @@ export function createStyleContext(
   layerGroups: Record<string, boolean>,
   theme: DisplayTheme,
   coverageSourceId?: string,
+  symbology: SymbologyScheme = "pelorus-standard",
 ): StyleContext {
   // Set the active colour scheme so all s52Colour() calls use it
   setActiveColourScheme(themeToScheme(theme));
 
-  const iconExpr = buildIconExpression(ECDIS_SIMPLIFIED, "ecdis-buoy-default");
+  const scheme = getIconScheme(symbology, theme);
+  const config = getSchemeConfig(symbology);
+  const iconExpr = buildIconExpression(scheme.icons, scheme.fallback);
+  const iconOffsetExpr = config.hasOffsets
+    ? buildOffsetExpression(scheme.icons)
+    : null;
 
   return {
     theme,
+    symbology,
     depthUnit,
     detailLevel: detailOffset,
     layerGroups,
     colour: (token: string) => s52Colour(token),
     iconExpr,
+    spritePrefix: scheme.sprite,
     sourceId,
     coverageSourceId,
     detailMinzoom: (base: number) =>
       Math.max(0, detailOffset >= 2 ? base - 1 : base),
     showStandard: detailOffset >= 0,
     showOther: detailOffset >= 1,
+    iconSizeScale: config.iconSizeScale,
+    iconOffsetExpr,
   };
 }
