@@ -761,18 +761,17 @@ export function getAdditionalPointLayers(
         "circle-stroke-width": 1,
       },
     },
-    // Pylons
+    // Pylons (bridge supports — small subtle dots, subordinate to bridge line)
     {
       id: "s57-pylons",
       type: "circle" as const,
       source: ctx.sourceId,
       "source-layer": "PYLONS",
-      minzoom: ctx.detailMinzoom(13),
+      minzoom: ctx.detailMinzoom(14),
       paint: {
-        "circle-radius": 4,
-        "circle-color": ctx.colour("CHBRN"),
-        "circle-stroke-color": ctx.colour("CHBLK"),
-        "circle-stroke-width": 1,
+        "circle-radius": 2,
+        "circle-color": ctx.colour("CHGRD"),
+        "circle-stroke-width": 0,
       },
     },
     // Cranes
