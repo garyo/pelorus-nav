@@ -136,18 +136,12 @@ export class FeatureQueryHandler {
       [e.point.x - 10, e.point.y - 10],
       [e.point.x + 10, e.point.y + 10],
     ];
-    const looseLayers = layers.filter(
-      (id) =>
-        id.endsWith("-label") ||
-        id.startsWith("s57-bridge") ||
-        id.startsWith("s57-cblohd") ||
-        id.startsWith("s57-cblsub") ||
-        id.startsWith("s57-dykcon") ||
-        id.startsWith("s57-slotop") ||
-        id.startsWith("s57-gatcon") ||
-        id.startsWith("s57-damcon") ||
-        id.startsWith("s57-tunnel"),
-    );
+    // Use bbox for labels, outlines, and all line-type layers (thin targets)
+    const looseLayers = layers.filter((id) => {
+      if (id.endsWith("-label") || id.endsWith("-outline")) return true;
+      const layer = this.map.getLayer(id);
+      return layer?.type === "line";
+    });
     if (looseLayers.length > 0) {
       const extra = this.map.queryRenderedFeatures(bbox, {
         layers: looseLayers,
