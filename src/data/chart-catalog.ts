@@ -33,8 +33,8 @@ export const CHART_REGIONS: ChartRegion[] = [
     filename: "nautical-new-england.pmtiles",
     coverageFilename: "nautical-new-england.coverage.geojson",
     sizeEstimate: 287 * 1024 * 1024, // ~287 MB
-    center: [-70.9, 42.3],
-    defaultZoom: 10,
+    center: [-71.00992, 42.341893],
+    defaultZoom: 12,
   },
   {
     id: "usvi",
@@ -42,8 +42,8 @@ export const CHART_REGIONS: ChartRegion[] = [
     filename: "nautical-usvi.pmtiles",
     coverageFilename: "nautical-usvi.coverage.geojson",
     sizeEstimate: 24 * 1024 * 1024, // ~24 MB
-    center: [-66.2, 18.1],
-    defaultZoom: 9,
+    center: [-64.930893, 18.335314],
+    defaultZoom: 12,
   },
 ];
 
