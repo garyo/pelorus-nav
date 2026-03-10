@@ -180,7 +180,8 @@ function lookupAllCodes(
   if (typeof value === "string" && value.startsWith("[")) {
     try {
       const arr = JSON.parse(value);
-      if (Array.isArray(arr) && arr.length > 0) {
+      if (Array.isArray(arr)) {
+        if (arr.length === 0) return undefined;
         const names = arr
           .map((v: unknown) => {
             const n = Number(v);
@@ -188,6 +189,7 @@ function lookupAllCodes(
           })
           .filter(Boolean);
         if (names.length > 0) return names.join(", ");
+        return undefined;
       }
     } catch {
       // fall through
@@ -413,7 +415,20 @@ const CATLMK: Record<number, string> = {
 
 const FUNCTN: Record<number, string> = {
   2: "Harbour Master's Office",
+  3: "Customs Office",
   4: "Coastguard Station",
+  5: "Health Office",
+  7: "Hospital",
+  8: "Post Office",
+  9: "Hotel",
+  10: "Railway Station",
+  11: "Police Station",
+  12: "Water-Police Station",
+  13: "Pilot Office",
+  15: "Bank",
+  16: "Power Station",
+  18: "Transit Shed/Warehouse",
+  19: "Factory",
   20: "Church",
   21: "Chapel",
   22: "Temple",
@@ -474,8 +489,41 @@ function formatLandmark(
       value: formatDepth(Number(props.ELEVAT), unit),
     });
   }
-  const conspicuous = props.CONVIS === 1 ? "Yes" : undefined;
-  addIfPresent(details, "Conspicuous", conspicuous);
+  const vis = lookupCode(CONVIS, props.CONVIS);
+  addIfPresent(details, "Visibility", vis);
+  addIfPresent(details, "Information", props.INFORM);
+  return details;
+}
+
+const CONVIS: Record<number, string> = {
+  1: "Visually conspicuous",
+  2: "Not visually conspicuous",
+};
+
+function formatBuilding(
+  props: Record<string, unknown>,
+): { label: string; value: string }[] {
+  const details: { label: string; value: string }[] = [];
+  const func = lookupAllCodes(FUNCTN, props.FUNCTN);
+  addIfPresent(details, "Function", func);
+  addIfPresent(details, "Color", lookupAllCodes(COLOUR, props.COLOUR));
+  const natcon = lookupAllCodes(NATCON, props.NATCON);
+  addIfPresent(details, "Construction", natcon);
+  const unit = getSettings().depthUnit;
+  if (props.HEIGHT != null && Number(props.HEIGHT) > 0) {
+    details.push({
+      label: "Height",
+      value: formatDepth(Number(props.HEIGHT), unit),
+    });
+  }
+  if (props.ELEVAT != null && Number(props.ELEVAT) > 0) {
+    details.push({
+      label: "Elevation",
+      value: formatDepth(Number(props.ELEVAT), unit),
+    });
+  }
+  const vis = lookupCode(CONVIS, props.CONVIS);
+  addIfPresent(details, "Visibility", vis);
   addIfPresent(details, "Information", props.INFORM);
   return details;
 }
@@ -567,8 +615,8 @@ function formatOffshorePlatform(
       value: formatDepth(Number(props.HEIGHT), unit),
     });
   }
-  const conspicuous = props.CONVIS === 1 ? "Yes" : undefined;
-  addIfPresent(details, "Conspicuous", conspicuous);
+  const vis = lookupCode(CONVIS, props.CONVIS);
+  addIfPresent(details, "Visibility", vis);
   addIfPresent(details, "Information", props.INFORM);
   return details;
 }
@@ -602,8 +650,8 @@ function formatSiloTank(
       value: formatDepth(Number(props.ELEVAT), unit),
     });
   }
-  const conspicuous = props.CONVIS === 1 ? "Yes" : undefined;
-  addIfPresent(details, "Conspicuous", conspicuous);
+  const vis = lookupCode(CONVIS, props.CONVIS);
+  addIfPresent(details, "Visibility", vis);
   addIfPresent(details, "Information", props.INFORM);
   return details;
 }
@@ -658,6 +706,7 @@ const FORMATTERS: Record<
   MAGVAR: formatMagVar,
   SILTNK: formatSiloTank,
   LNDARE: formatLandArea,
+  BUISGL: formatBuilding,
 };
 
 export function formatFeatureInfo(
