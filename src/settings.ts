@@ -53,6 +53,7 @@ export const LAYER_GROUP_LABELS: Record<string, string> = {
   cablesAndPipes: "Cables & Pipes",
   facilities: "Facilities",
   magneticVariation: "Magnetic Variation",
+  depthContourLabels: "Depth Contour Labels",
   seabed: "Seabed",
   daymarksTopmarks: "Daymarks & Topmarks",
 };

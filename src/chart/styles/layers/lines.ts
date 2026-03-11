@@ -2,9 +2,32 @@
  * Line layer definitions: depth contours, coastline, shoreline constructions,
  * bridges, cables, pipelines.
  */
-import type { LayerSpecification } from "maplibre-gl";
+import type { ExpressionSpecification, LayerSpecification } from "maplibre-gl";
+import { depthConversionFactor, depthUnitLabel } from "../../../settings";
 import type { StyleContext } from "../style-context";
 import { SCALE_SORT_KEY } from "../style-context";
+
+/**
+ * Build a text-field expression that converts VALDCO (meters) to the
+ * user's depth unit and appends the unit suffix.
+ * VALDCO may be missing — show nothing in that case.
+ */
+function depthContourLabel(ctx: StyleContext): ExpressionSpecification {
+  const factor = depthConversionFactor(ctx.depthUnit);
+  const suffix = depthUnitLabel(ctx.depthUnit);
+  const converted: ExpressionSpecification = ["*", ["get", "VALDCO"], factor];
+  // Feet/fathoms: floor for safety (shoaler reading). Meters: 1 decimal.
+  const usesDecimals = ctx.depthUnit === "meters";
+  const value: ExpressionSpecification = usesDecimals
+    ? ["number-format", converted, { "max-fraction-digits": 1 }]
+    : ["number-format", ["floor", converted], { "max-fraction-digits": 0 }];
+  return [
+    "case",
+    ["has", "VALDCO"],
+    ["concat", value, suffix === "m" ? "" : suffix],
+    "",
+  ];
+}
 
 export function getLineLayers(ctx: StyleContext): LayerSpecification[] {
   const layers: LayerSpecification[] = [
@@ -17,6 +40,27 @@ export function getLineLayers(ctx: StyleContext): LayerSpecification[] {
       paint: {
         "line-color": ctx.colour("CHGRD"),
         "line-width": 0.7,
+      },
+    },
+    {
+      id: "s57-depcnt-label",
+      type: "symbol",
+      source: ctx.sourceId,
+      "source-layer": "DEPCNT",
+      layout: {
+        "symbol-placement": "line",
+        "symbol-spacing": 400,
+        "text-field": depthContourLabel(ctx),
+        "text-size": 11,
+        "text-font": ["Open Sans Regular", "Arial Unicode MS Regular"],
+        "text-anchor": "center",
+        "text-keep-upright": true,
+        "text-max-angle": 30,
+      },
+      paint: {
+        "text-color": ctx.colour("CHGRD"),
+        "text-halo-color": ctx.colour("DEPMD"),
+        "text-halo-width": 1.5,
       },
     },
     {

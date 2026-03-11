@@ -62,6 +62,7 @@ const LAYER_GROUPS: Record<string, string> = {
   "s57-dmpgrd": "facilities",
   "s57-dmpgrd-outline": "facilities",
   "s57-magvar": "magneticVariation",
+  "s57-depcnt-label": "depthContourLabels",
   "s57-sbdare": "seabed",
   "s57-daymar": "daymarksTopmarks",
   "s57-topmar": "daymarksTopmarks",
@@ -101,6 +102,7 @@ const LAYER_CATEGORIES: Record<string, "DISPLAYBASE" | "STANDARD" | "OTHER"> = {
   "s57-obstrn-line": "DISPLAYBASE",
   "s57-uwtroc": "DISPLAYBASE",
   "s57-background": "DISPLAYBASE",
+  "s57-depcnt-label": "STANDARD",
   // STANDARD
   "s57-lakare": "STANDARD",
   "s57-rivers": "STANDARD",
