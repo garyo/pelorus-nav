@@ -1,4 +1,5 @@
 #!/usr/bin/env bun
+
 /**
  * Upload a file to Cloudflare R2 using the S3-compatible API.
  * Handles files of any size via automatic multipart upload.
@@ -11,9 +12,9 @@
  * Usage: bun tools/r2-upload.ts <bucket> <key> <file>
  */
 
+import { createReadStream, statSync } from "node:fs";
 import { S3Client } from "@aws-sdk/client-s3";
 import { Upload } from "@aws-sdk/lib-storage";
-import { createReadStream, statSync } from "node:fs";
 
 const [bucket, key, filePath] = process.argv.slice(2);
 
@@ -63,7 +64,9 @@ const upload = new Upload({
 upload.on("httpUploadProgress", (progress) => {
   if (progress.loaded && fileSize > 0) {
     const pct = ((progress.loaded / fileSize) * 100).toFixed(0);
-    process.stdout.write(`\r  ${pct}% (${(progress.loaded / (1024 * 1024)).toFixed(1)} MiB)`);
+    process.stdout.write(
+      `\r  ${pct}% (${(progress.loaded / (1024 * 1024)).toFixed(1)} MiB)`,
+    );
   }
 });
 
