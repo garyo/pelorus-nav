@@ -39,11 +39,19 @@ export class ChartModeController {
 
     // Suppress jumpTo while user is interacting so drag gestures
     // aren't cancelled by GPS-tick map updates
-    this.map.on("mousedown", () => { this.userInteracting = true; });
-    this.map.on("mouseup", () => { this.userInteracting = false; });
+    this.map.on("mousedown", () => {
+      this.userInteracting = true;
+    });
+    this.map.on("mouseup", () => {
+      this.userInteracting = false;
+    });
     const canvas = this.map.getCanvas();
-    canvas.addEventListener("touchstart", () => { this.userInteracting = true; });
-    canvas.addEventListener("touchend", () => { this.userInteracting = false; });
+    canvas.addEventListener("touchstart", () => {
+      this.userInteracting = true;
+    });
+    canvas.addEventListener("touchend", () => {
+      this.userInteracting = false;
+    });
   }
 
   getMode(): ChartModeType {

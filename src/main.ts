@@ -681,7 +681,8 @@ function applyOverlayDimming(theme: string): void {
   const map = chartManager.map;
   if (!map.isStyleLoaded()) return;
 
-  const opacity = theme === "night" ? NIGHT_OPACITY : theme === "dusk" ? DUSK_OPACITY : 1;
+  const opacity =
+    theme === "night" ? NIGHT_OPACITY : theme === "dusk" ? DUSK_OPACITY : 1;
 
   for (const layer of map.getStyle().layers) {
     const id = layer.id;
@@ -721,5 +722,7 @@ function applyOverlayDimming(theme: string): void {
 onSettingsChange((s) => applyOverlayDimming(s.displayTheme));
 chartManager.map.on("style.load", () => {
   // Defer until layers are re-added after style load
-  chartManager.map.once("idle", () => applyOverlayDimming(getSettings().displayTheme));
+  chartManager.map.once("idle", () =>
+    applyOverlayDimming(getSettings().displayTheme),
+  );
 });
