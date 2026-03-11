@@ -93,7 +93,7 @@ export function getTextLayers(ctx: StyleContext): LayerSpecification[] {
       },
       paint: {
         "text-color": ctx.colour("NINFO"),
-        "text-halo-color": ctx.colour("LANDA"),
+        "text-halo-color": ctx.colour("CHWHT"),
         "text-halo-width": 1.5,
       },
     },
@@ -122,7 +122,7 @@ export function getTextLayers(ctx: StyleContext): LayerSpecification[] {
       },
       paint: {
         "text-color": ctx.colour("NINFO"),
-        "text-halo-color": ctx.colour("LANDA"),
+        "text-halo-color": ctx.colour("CHWHT"),
         "text-halo-width": 1.5,
       },
     },
