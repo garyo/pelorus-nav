@@ -49,7 +49,7 @@ export function getLineLayers(ctx: StyleContext): LayerSpecification[] {
       "source-layer": "DEPCNT",
       layout: {
         "symbol-placement": "line",
-        "symbol-spacing": 400,
+        "symbol-spacing": 100,
         "text-field": depthContourLabel(ctx),
         "text-size": 11,
         "text-font": ["Open Sans Regular", "Arial Unicode MS Regular"],
