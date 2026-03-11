@@ -154,6 +154,13 @@ export class RouteManagerPanel {
     navBtn.title = "Navigate route";
     navBtn.addEventListener("click", () => {
       if (this.activeNav) {
+        // Show route if hidden before starting navigation
+        if (!route.visible) {
+          route.visible = true;
+          saveRoute(route).catch(console.error);
+          this.routeLayer.toggleVisibility(route.id, true).catch(console.error);
+          this.refresh().catch(console.error);
+        }
         this.activeNav.startRoute(route);
       }
     });
@@ -174,6 +181,13 @@ export class RouteManagerPanel {
     toggleBtn.addEventListener("click", () => {
       (async () => {
         route.visible = !route.visible;
+        // Stop navigation if hiding the actively navigated route
+        if (!route.visible && this.activeNav) {
+          const st = this.activeNav.getState();
+          if (st.type === "route" && st.route.id === route.id) {
+            this.activeNav.stop();
+          }
+        }
         await saveRoute(route);
         await this.routeLayer.toggleVisibility(route.id, route.visible);
         await this.refresh();
