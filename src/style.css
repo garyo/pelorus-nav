@@ -1263,5 +1263,15 @@ body {
 
 /* --- Cancel nav button --- */
 .cancel-nav-btn {
-  color: #ff4444;
+  background: none;
+  border: none;
+  font-size: 22px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 4px 8px;
+  color: #ff8800;
+}
+
+.cancel-nav-btn:hover {
+  background: #f0f0f0;
 }
