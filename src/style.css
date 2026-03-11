@@ -765,6 +765,43 @@ body {
   color: #ffcc00;
 }
 
+.route-leg-table tbody tr.active-leg {
+  background: rgba(50, 180, 100, 0.2);
+}
+
+.route-leg-table tbody tr.active-leg td.leg-num {
+  color: #4caf50;
+  font-weight: bold;
+}
+
+.route-leg-table td.leg-nav-cell {
+  text-align: center;
+  padding: 2px 4px;
+  width: 28px;
+}
+
+.leg-active-marker {
+  color: #4caf50;
+  font-size: 14px;
+}
+
+.leg-nav-btn {
+  background: none;
+  border: 1px solid #666;
+  border-radius: 3px;
+  color: #aaa;
+  cursor: pointer;
+  font-size: 11px;
+  padding: 1px 4px;
+  line-height: 1;
+}
+
+.leg-nav-btn:hover {
+  background: rgba(100, 130, 200, 0.3);
+  color: #fff;
+  border-color: #88a;
+}
+
 /* Route header uses space-between instead of gap */
 .route-manager-panel .manager-header {
   justify-content: space-between;

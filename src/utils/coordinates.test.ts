@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  alongTrackDistanceNM,
   formatLatLon,
   haversineDistanceNM,
   initialBearingDeg,
@@ -141,6 +142,44 @@ describe("parseLatLon", () => {
 
   it("returns null for out-of-range lat", () => {
     expect(parseLatLon("91.0, -70.0")).toBeNull();
+  });
+});
+
+describe("alongTrackDistanceNM", () => {
+  it("returns approximately full leg distance at the endpoint", () => {
+    // A→B: equator, 0° to 1° east (≈60 NM). Point at B.
+    const atd = alongTrackDistanceNM(0, 0, 0, 1, 0, 1);
+    expect(atd).toBeCloseTo(60, 0);
+  });
+
+  it("returns ~0 at the start point", () => {
+    const atd = alongTrackDistanceNM(0, 0, 0, 1, 0, 0);
+    expect(atd).toBeCloseTo(0, 1);
+  });
+
+  it("returns half leg distance at midpoint", () => {
+    const atd = alongTrackDistanceNM(0, 0, 0, 1, 0, 0.5);
+    expect(atd).toBeCloseTo(30, 0);
+  });
+
+  it("exceeds leg distance when past the endpoint", () => {
+    // Point at 0°, 1.5° — past the endpoint at 0°, 1°
+    const legDist = haversineDistanceNM(0, 0, 0, 1);
+    const atd = alongTrackDistanceNM(0, 0, 0, 1, 0, 1.5);
+    expect(atd).toBeGreaterThan(legDist);
+  });
+
+  it("handles off-track point correctly", () => {
+    // A at 0,0 → B at 0,1. Point offset north at 0.1, 0.5
+    const atd = alongTrackDistanceNM(0, 0, 0, 1, 0.1, 0.5);
+    // Should be approximately 30 NM (halfway along)
+    expect(atd).toBeCloseTo(30, -1); // within 10 NM
+  });
+
+  it("returns negative for point behind start", () => {
+    // A at 0,0 → B at 0,1. Point behind at 0, -0.5
+    const atd = alongTrackDistanceNM(0, 0, 0, 1, 0, -0.5);
+    expect(atd).toBeLessThan(0);
   });
 });
 

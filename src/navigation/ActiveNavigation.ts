@@ -8,7 +8,11 @@ import { getAllRoutes, getAllWaypoints } from "../data/db";
 import type { Route, Waypoint } from "../data/Route";
 import type { StandaloneWaypoint } from "../data/Waypoint";
 import { getSettings } from "../settings";
-import { haversineDistanceNM, initialBearingDeg } from "../utils/coordinates";
+import {
+  alongTrackDistanceNM,
+  haversineDistanceNM,
+  initialBearingDeg,
+} from "../utils/coordinates";
 import type { NavigationData } from "./NavigationData";
 import type { NavigationDataManager } from "./NavigationDataManager";
 
@@ -19,6 +23,38 @@ type PersistedNavState =
   | { type: "idle" }
   | { type: "goto"; waypointId: string }
   | { type: "route"; routeId: string; legIndex: number };
+
+/**
+ * Determine whether the vessel should advance past the current leg target.
+ * Returns true if:
+ * - distance to target < arrivalRadiusNM (normal arrival), OR
+ * - vessel has passed the perpendicular at the target (along-track > leg distance)
+ */
+export function shouldAdvanceLeg(
+  vesselLat: number,
+  vesselLon: number,
+  fromLat: number,
+  fromLon: number,
+  toLat: number,
+  toLon: number,
+  arrivalRadiusNM: number,
+): boolean {
+  // Check simple radius first
+  const distToTarget = haversineDistanceNM(vesselLat, vesselLon, toLat, toLon);
+  if (distToTarget < arrivalRadiusNM) return true;
+
+  // Perpendicular crossing: along-track distance from "from" exceeds leg distance
+  const legDist = haversineDistanceNM(fromLat, fromLon, toLat, toLon);
+  const atd = alongTrackDistanceNM(
+    fromLat,
+    fromLon,
+    toLat,
+    toLon,
+    vesselLat,
+    vesselLon,
+  );
+  return atd >= legDist;
+}
 
 /** Pure computation — extract for testing. */
 export function computeNavigation(
@@ -83,12 +119,29 @@ export class ActiveNavigationManager {
       targetLon: target.lon,
     };
 
-    // Route mode: auto-advance on arrival
+    // Route mode: auto-advance on arrival or perpendicular crossing
     if (this.state.type === "route") {
       const arrivalRadius = getSettings().arrivalRadiusNM;
-      if (result.distanceNM < arrivalRadius) {
-        const nextIndex = this.state.legIndex + 1;
-        if (nextIndex < this.state.route.waypoints.length) {
+      const nextIndex = this.state.legIndex + 1;
+      const isLastWaypoint = nextIndex >= this.state.route.waypoints.length;
+
+      // Get previous waypoint (leg start) for perpendicular test
+      const fromWp = this.state.route.waypoints[this.state.legIndex - 1];
+      const advance =
+        fromWp && !isLastWaypoint
+          ? shouldAdvanceLeg(
+              data.latitude,
+              data.longitude,
+              fromWp.lat,
+              fromWp.lon,
+              target.lat,
+              target.lon,
+              arrivalRadius,
+            )
+          : result.distanceNM < arrivalRadius; // final wp or no "from": radius only
+
+      if (advance) {
+        if (!isLastWaypoint) {
           this.state = {
             type: "route",
             route: this.state.route,
@@ -154,6 +207,15 @@ export class ActiveNavigationManager {
     this.lastInfo = null;
     this.persist();
     this.notify();
+  }
+
+  /** Jump to a specific leg by waypoint index (1-based: legIndex=1 targets waypoint[1]). */
+  setLeg(index: number): void {
+    if (this.state.type !== "route") return;
+    if (index < 1 || index >= this.state.route.waypoints.length) return;
+    this.state = { ...this.state, legIndex: index };
+    this.persist();
+    this.recompute();
   }
 
   nextLeg(): void {
@@ -238,10 +300,7 @@ export class ActiveNavigationManager {
         const routes = await getAllRoutes();
         const route = routes.find((r) => r.id === saved.routeId);
         if (route && route.waypoints.length >= 2) {
-          const legIndex = Math.min(
-            saved.legIndex,
-            route.waypoints.length - 1,
-          );
+          const legIndex = Math.min(saved.legIndex, route.waypoints.length - 1);
           this.state = { type: "route", route, legIndex };
           this.recompute();
         } else {
@@ -259,9 +318,10 @@ export class ActiveNavigationManager {
       case "goto":
         saved = {
           type: "goto",
-          waypointId: "id" in this.state.waypoint
-            ? (this.state.waypoint as StandaloneWaypoint).id
-            : "",
+          waypointId:
+            "id" in this.state.waypoint
+              ? (this.state.waypoint as StandaloneWaypoint).id
+              : "",
         };
         break;
       case "route":

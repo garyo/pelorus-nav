@@ -6,7 +6,10 @@
 
 import type { Route } from "../data/Route";
 import type { RouteLayer } from "../map/RouteLayer";
-import type { ActiveNavigationManager } from "../navigation/ActiveNavigation";
+import type {
+  ActiveNavCallback,
+  ActiveNavigationManager,
+} from "../navigation/ActiveNavigation";
 import { haversineDistanceNM, initialBearingDeg } from "../utils/coordinates";
 import { iconNavigation, iconX, setIcon } from "./icons";
 import { getPanelStack } from "./PanelStack";
@@ -58,6 +61,7 @@ export class RouteDetailPanel {
   private readonly routeLayer: RouteLayer;
   private activeNav: ActiveNavigationManager | null = null;
   private currentRoute: Route | null = null;
+  private navCallback: ActiveNavCallback | null = null;
 
   constructor(routeLayer: RouteLayer) {
     this.routeLayer = routeLayer;
@@ -106,12 +110,35 @@ export class RouteDetailPanel {
     this.header.textContent = route.name;
     this.render();
     this.el.classList.add("open");
+    // Subscribe to nav state changes to keep active leg highlighting current
+    if (this.activeNav && !this.navCallback) {
+      this.navCallback = (_info, _state) => {
+        if (this.currentRoute && this.el.classList.contains("open")) {
+          this.render();
+        }
+      };
+      this.activeNav.subscribe(this.navCallback);
+    }
   }
 
   hide(): void {
     this.el.classList.remove("open");
     this.routeLayer.clearHighlight();
     this.currentRoute = null;
+    if (this.activeNav && this.navCallback) {
+      this.activeNav.unsubscribe(this.navCallback);
+      this.navCallback = null;
+    }
+  }
+
+  /** Returns the active leg index if navigating this route, or -1. */
+  private getActiveLegIndex(): number {
+    if (!this.activeNav || !this.currentRoute) return -1;
+    const st = this.activeNav.getState();
+    if (st.type === "route" && st.route.id === this.currentRoute.id) {
+      return st.legIndex;
+    }
+    return -1;
   }
 
   private render(): void {
@@ -127,24 +154,53 @@ export class RouteDetailPanel {
       return;
     }
 
+    const activeLegIdx = this.getActiveLegIndex();
+
     // Build table
     const table = document.createElement("table");
     table.className = "route-leg-table";
 
     const thead = document.createElement("thead");
     thead.innerHTML =
-      "<tr><th>Leg</th><th>Course</th><th>Dist</th><th>Total</th></tr>";
+      activeLegIdx >= 0
+        ? "<tr><th></th><th>Leg</th><th>Course</th><th>Dist</th><th>Total</th></tr>"
+        : "<tr><th>Leg</th><th>Course</th><th>Dist</th><th>Total</th></tr>";
     table.appendChild(thead);
 
     const tbody = document.createElement("tbody");
     for (const leg of legs) {
       const tr = document.createElement("tr");
+      // legIndex in the route is leg.index + 1 (targeting destination waypoint)
+      const isActive = activeLegIdx === leg.index + 1;
+      if (isActive) tr.classList.add("active-leg");
+
+      let navCell = "";
+      if (activeLegIdx >= 0) {
+        navCell = `<td class="leg-nav-cell">${
+          isActive
+            ? '<span class="leg-active-marker" title="Current target">►</span>'
+            : '<button class="leg-nav-btn" title="Navigate to this leg">►</button>'
+        }</td>`;
+      }
+
       tr.innerHTML =
+        navCell +
         `<td class="leg-num">${leg.index + 1}</td>` +
         `<td class="leg-course">${fmtCourse(leg.course)}</td>` +
         `<td class="leg-dist">${fmtDist(leg.dist)}</td>` +
         `<td class="leg-cum">${fmtDist(leg.cumDist)}</td>`;
       tr.title = `${leg.from} → ${leg.to}`;
+
+      // Nav-to button click
+      if (activeLegIdx >= 0 && !isActive) {
+        const navBtn = tr.querySelector(".leg-nav-btn");
+        if (navBtn) {
+          navBtn.addEventListener("click", (e) => {
+            e.stopPropagation();
+            this.activeNav?.setLeg(leg.index + 1);
+          });
+        }
+      }
 
       tr.addEventListener("mouseenter", () => {
         this.selectRow(tr, leg.index);

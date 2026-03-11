@@ -140,6 +140,49 @@ export function projectPoint(
   return [toDegrees(lambda2), toDegrees(phi2)];
 }
 
+/**
+ * Along-track distance in NM: how far a point has progressed along
+ * the great-circle path from start to end.
+ * Positive = toward end, can exceed leg distance (past perpendicular at end).
+ */
+export function alongTrackDistanceNM(
+  startLat: number,
+  startLon: number,
+  endLat: number,
+  endLon: number,
+  pointLat: number,
+  pointLon: number,
+): number {
+  const R_NM = 3440.065;
+  const distStartPoint =
+    haversineDistanceNM(startLat, startLon, pointLat, pointLon) / R_NM; // angular
+  const bearingStartEnd = toRadians(
+    initialBearingDeg(startLat, startLon, endLat, endLon),
+  );
+  const bearingStartPoint = toRadians(
+    initialBearingDeg(startLat, startLon, pointLat, pointLon),
+  );
+
+  // Cross-track distance (angular)
+  const xtd = Math.asin(
+    Math.sin(distStartPoint) * Math.sin(bearingStartPoint - bearingStartEnd),
+  );
+
+  // Along-track distance (angular)
+  const atd = Math.acos(Math.cos(distStartPoint) / Math.cos(xtd));
+
+  // Sign: positive if heading generally toward end, negative if behind start
+  // Use dot-product of bearing difference to determine sign
+  const bearingDiff = bearingStartPoint - bearingStartEnd;
+  const sign =
+    Math.abs(bearingDiff) > Math.PI / 2 &&
+    Math.abs(bearingDiff) < (3 * Math.PI) / 2
+      ? -1
+      : 1;
+
+  return sign * atd * R_NM;
+}
+
 export function parseLatLon(input: string): [number, number] | null {
   const s = input.trim();
   if (!s) return null;
