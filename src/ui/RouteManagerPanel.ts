@@ -64,6 +64,15 @@ export class RouteManagerPanel {
     this.detailPanel.setActiveNav(activeNav);
   }
 
+  /** Show the detail panel for the currently navigated route (if any). */
+  showActiveRoute(): void {
+    if (!this.activeNav) return;
+    const st = this.activeNav.getState();
+    if (st.type === "route") {
+      this.detailPanel.show(st.route);
+    }
+  }
+
   toggle(): void {
     if (this.el.classList.contains("open")) {
       this.hide();

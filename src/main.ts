@@ -538,6 +538,7 @@ INSTRUMENTS.set("dtw", {
 
 // Wire HUD to show BRG/DTW cells during active navigation
 instrumentHUD.setActiveNav(activeNav);
+instrumentHUD.onNavCellClick(() => routePanel.showActiveRoute());
 
 // Restore persisted navigation state (after all subscribers are wired up)
 await activeNav.restore();

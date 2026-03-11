@@ -14,8 +14,6 @@ import type { NavigationDataManager } from "../navigation/NavigationDataManager"
 const SOURCE_ID = "_bearing-line";
 const LINE_LAYER = "_bearing-line-layer";
 const TARGET_LAYER = "_bearing-line-target";
-const VESSEL_ICON_LAYER = "_vessel-icon";
-
 export class BearingLine {
   private readonly map: maplibregl.Map;
   private readonly activeNav: ActiveNavigationManager;
@@ -66,41 +64,32 @@ export class BearingLine {
       data: { type: "FeatureCollection", features: [] },
     });
 
-    const beforeLayer = this.map.getLayer(VESSEL_ICON_LAYER)
-      ? VESSEL_ICON_LAYER
-      : undefined;
-
-    this.map.addLayer(
-      {
-        id: LINE_LAYER,
-        type: "line",
-        source: SOURCE_ID,
-        filter: ["==", "$type", "LineString"],
-        paint: {
-          "line-color": "#ffdd00",
-          "line-width": 2.5,
-          "line-opacity": 0.8,
-          "line-dasharray": [4, 3],
-        },
+    // Append on top — VesselLayer.ensureOnTop() keeps the boat above us
+    this.map.addLayer({
+      id: LINE_LAYER,
+      type: "line",
+      source: SOURCE_ID,
+      filter: ["==", "$type", "LineString"],
+      paint: {
+        "line-color": "#ffdd00",
+        "line-width": 2.5,
+        "line-opacity": 0.8,
+        "line-dasharray": [4, 3],
       },
-      beforeLayer,
-    );
+    });
 
-    this.map.addLayer(
-      {
-        id: TARGET_LAYER,
-        type: "circle",
-        source: SOURCE_ID,
-        filter: ["==", "$type", "Point"],
-        paint: {
-          "circle-radius": 8,
-          "circle-color": "transparent",
-          "circle-stroke-color": "#ffdd00",
-          "circle-stroke-width": 2.5,
-        },
+    this.map.addLayer({
+      id: TARGET_LAYER,
+      type: "circle",
+      source: SOURCE_ID,
+      filter: ["==", "$type", "Point"],
+      paint: {
+        "circle-radius": 8,
+        "circle-color": "transparent",
+        "circle-stroke-color": "#ffdd00",
+        "circle-stroke-width": 2.5,
       },
-      beforeLayer,
-    );
+    });
   }
 
   private setLine(
@@ -109,6 +98,10 @@ export class BearingLine {
     endLon: number,
     endLat: number,
   ): void {
+    // Keep bearing line above routes/waypoints (vessel ensures it stays above us)
+    if (this.map.getLayer(LINE_LAYER)) this.map.moveLayer(LINE_LAYER);
+    if (this.map.getLayer(TARGET_LAYER)) this.map.moveLayer(TARGET_LAYER);
+
     const source = this.map.getSource(SOURCE_ID) as
       | maplibregl.GeoJSONSource
       | undefined;

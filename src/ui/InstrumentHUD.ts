@@ -61,6 +61,8 @@ const NAV_INSTRUMENT_IDS = ["dtw", "brg"];
 export interface InstrumentHUDHandle {
   element: HTMLElement;
   setActiveNav(activeNav: ActiveNavigationManager): void;
+  /** Register a callback invoked when user clicks a nav instrument cell (DTW/BRG). */
+  onNavCellClick(callback: () => void): void;
 }
 
 export function createInstrumentHUD(
@@ -71,6 +73,7 @@ export function createInstrumentHUD(
 
   let lastData: NavigationData | null = null;
   let navActive = false;
+  let navCellClickCallback: (() => void) | null = null;
 
   /** Rebuild all cells from scratch. */
   const rebuild = () => {
@@ -89,6 +92,10 @@ export function createInstrumentHUD(
     if (navActive) {
       const group = document.createElement("div");
       group.className = "instrument-nav-group";
+      group.style.cursor = "pointer";
+      group.addEventListener("click", () => {
+        if (navCellClickCallback) navCellClickCallback();
+      });
       for (let i = 0; i < NAV_INSTRUMENT_IDS.length; i++) {
         const def = INSTRUMENTS.get(NAV_INSTRUMENT_IDS[i]);
         if (!def) continue;
@@ -118,6 +125,9 @@ export function createInstrumentHUD(
 
   return {
     element: container,
+    onNavCellClick(callback: () => void) {
+      navCellClickCallback = callback;
+    },
     setActiveNav(activeNav: ActiveNavigationManager) {
       const onNavChange = (_info: unknown, state: ActiveNavigationState) => {
         const active = state.type !== "idle";
