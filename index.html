@@ -24,10 +24,10 @@
       // Early WebGL check — runs before the module bundle loads.
       (() => {
         try {
-          var c = document.createElement("canvas");
-          var gl = c.getContext("webgl2") || c.getContext("webgl");
+          const c = document.createElement("canvas");
+          const gl = c.getContext("webgl2") || c.getContext("webgl");
           if (!gl) throw 0;
-        } catch(e) {
+        } catch(_e) {
           document.getElementById("map").innerHTML =
             '<p style="padding:2em;text-align:center;color:#ccc">' +
             'Pelorus Nav requires a browser with WebGL support.<br>' +

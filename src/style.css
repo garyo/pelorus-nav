@@ -456,30 +456,6 @@ body {
   border-left: 1px solid #ccc;
 }
 
-.instrument-nav-group .instrument-cell--bordered {
-  border-left: 1px solid #ccc;
-}
-
-.instrument-nav-group .instrument-cell--nav {
-  flex: 1;
-}
-
-@media (max-width: 600px) {
-  .instrument-nav-group {
-    flex-basis: 100%;
-    border-left: none;
-    border-top: 1px solid #ccc;
-  }
-
-  .instrument-cell--nav {
-    height: 70px;
-  }
-
-  .instrument-cell--nav .instrument-value {
-    font-size: 36px;
-  }
-}
-
 .instrument-cell--bordered {
   border-left: 1px solid #ccc;
 }
@@ -507,6 +483,30 @@ body {
 .instrument-unit {
   font-size: 20px;
   color: #444;
+}
+
+.instrument-nav-group .instrument-cell--bordered {
+  border-left: 1px solid #ccc;
+}
+
+.instrument-nav-group .instrument-cell--nav {
+  flex: 1;
+}
+
+@media (max-width: 600px) {
+  .instrument-nav-group {
+    flex-basis: 100%;
+    border-left: none;
+    border-top: 1px solid #ccc;
+  }
+
+  .instrument-nav-group .instrument-cell--nav {
+    height: 70px;
+  }
+
+  .instrument-nav-group .instrument-cell--nav .instrument-value {
+    font-size: 36px;
+  }
 }
 
 /* Re-center button */
