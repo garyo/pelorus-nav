@@ -23,6 +23,7 @@ import {
 } from "./layers/navigation";
 import {
   getAdditionalPointLayers,
+  getBuoyBeaconLayers,
   getDaymarkTopmarkLayers,
   getHazardLayers,
   getNavAidLayers,
@@ -233,23 +234,30 @@ export function getNauticalLayers(
     deepDepth,
   );
 
-  // Build layer array in the exact same order as the original monolithic
-  // function. Layer draw order is critical for correct rendering.
+  // LAYER ORDER — controls both draw order and collision priority.
   //
-  // Original order:
-  //   1. Background + area fills (DEPARE, LNDARE, COALNE, LAKARE, RIVERS,
-  //      DRGARE, PONTON, BUISGL, UNSARE)
-  //   2. Regulatory overlay fills/outlines (FAIRWY, ACHARE, TSSLPT, RESARE, CTNARE)
-  //   3. Routing lines [STANDARD] (NAVLNE, RECTRC, DWRTCL, TSSBND, TSEZNE, TWRTPT, ACHBRT)
+  // IMPORTANT: MapLibre processes symbol layers for collision detection
+  // in REVERSE style order (see pauseable_placement.ts). Later layers
+  // get placed FIRST and win collisions. This means:
+  //   - Layers at the END of this array have HIGHEST collision priority
+  //   - Layers at the START have LOWEST collision priority
+  //
+  // For this reason, buoys/beacons are placed late (section 12) so
+  // their labels win over soundings, SBDARE, and other info labels.
+  //
+  // Section order:
+  //   1. Background + area fills
+  //   2. Regulatory overlay fills/outlines
+  //   3. Routing lines [STANDARD]
   //   4. Line layers (DEPCNT, SLCONS, BRIDGE, CBLSUB, CBLOHD)
-  //   5. Nav aid symbols (SOUNDG, LIGHTS, buoys, beacons lat/car)
-  //   6. Labels + landmarks (LNDARE-label, LNDMRK, berths, SEAARE-label)
+  //   5. Nav aid base (SOUNDG, LIGHTS glow + icons)
+  //   6. Labels + landmarks
   //   7. Hazards (WRECKS, OBSTRN, UWTROC)
   //   8. Other nav aids (FOGSIG, PILPNT, MORFAC, BCNSPP, SBDARE)
-  //   9. OTHER category [conditional] (CBLARE, PIPARE, PIPSOL, DMPGRD,
-  //      SILTNK, HRBFAC, OFSPLF, MAGVAR)
+  //   9. OTHER category [conditional]
   //  10. Daymarks/topmarks [OTHER]
   //  11. Coverage mask
+  //  12. Buoys + beacons (highest collision priority)
 
   const layers: LayerSpecification[] = [
     // 1. Area fills (background, depth areas, land, coastline, lakes, etc.)
@@ -269,7 +277,7 @@ export function getNauticalLayers(
     // 4b. Additional line layers (dykes, slopes, gates, dams)
     ...getAdditionalLineLayers(ctx),
 
-    // 5. Nav aid symbols (soundings, lights, buoys, beacons)
+    // 5. Nav aid base (soundings, light glow + icons)
     ...getNavAidLayers(ctx),
 
     // 6. Labels + landmarks
@@ -300,6 +308,10 @@ export function getNauticalLayers(
 
     // 11. Coverage mask (on top of all chart layers)
     ...getCoverageLayers(ctx),
+
+    // 12. Buoys + beacons — placed last for highest collision priority.
+    // Their labels win over soundings, SBDARE, and other info text.
+    ...getBuoyBeaconLayers(ctx),
   ];
 
   // Apply display category and layer group filtering

@@ -62,10 +62,10 @@ function withOffset(
   return { ...layout, "icon-offset": ctx.iconOffsetExpr };
 }
 
-/** Soundings, lights, buoys, and beacons (before the label section). */
+/** Soundings and light indicators (lower-priority nav aid symbols). */
 export function getNavAidLayers(ctx: StyleContext): LayerSpecification[] {
   return [
-    // Soundings — depth label only
+    // Soundings
     {
       id: "s57-soundg",
       type: "symbol",
@@ -101,6 +101,44 @@ export function getNavAidLayers(ctx: StyleContext): LayerSpecification[] {
       },
     },
 
+    // Light icons — rendered after buoys/beacons so teardrop appears on top
+    {
+      id: "s57-lights",
+      type: "symbol",
+      source: ctx.sourceId,
+      "source-layer": "LIGHTS",
+      minzoom: 6,
+      layout: withOffset(
+        {
+          "icon-image": ctx.iconExpr,
+          "icon-size": scaledSize(0.7, ctx),
+          "icon-allow-overlap": true,
+          "icon-ignore-placement": true,
+          "icon-optional": true,
+          "text-field": ["get", "LABEL"],
+          "text-size": 10,
+          "text-offset": [0, -1.5],
+          "text-allow-overlap": true,
+          "text-ignore-placement": true,
+        },
+        ctx,
+      ),
+      paint: {
+        "text-color": ctx.colour("SNDG2"),
+        "text-halo-color": ctx.colour("CHWHT"),
+        "text-halo-width": 1.5,
+      },
+    },
+  ];
+}
+
+/**
+ * Buoy and beacon layers — placed late in the style for high collision
+ * priority (MapLibre places symbols in reverse style order, so later
+ * layers get placed first and win collisions).
+ */
+export function getBuoyBeaconLayers(ctx: StyleContext): LayerSpecification[] {
+  return [
     // Lateral buoys
     {
       id: "s57-boylat",
@@ -285,35 +323,6 @@ export function getNavAidLayers(ctx: StyleContext): LayerSpecification[] {
       ),
       paint: {
         "text-color": ctx.colour("CHBLK"),
-        "text-halo-color": ctx.colour("CHWHT"),
-        "text-halo-width": 1.5,
-      },
-    },
-
-    // Light icons — rendered after buoys/beacons so teardrop appears on top
-    {
-      id: "s57-lights",
-      type: "symbol",
-      source: ctx.sourceId,
-      "source-layer": "LIGHTS",
-      minzoom: 6,
-      layout: withOffset(
-        {
-          "icon-image": ctx.iconExpr,
-          "icon-size": scaledSize(0.7, ctx),
-          "icon-allow-overlap": true,
-          "icon-ignore-placement": true,
-          "icon-optional": true,
-          "text-field": ["get", "LABEL"],
-          "text-size": 10,
-          "text-offset": [0, -1.5],
-          "text-allow-overlap": true,
-          "text-ignore-placement": true,
-        },
-        ctx,
-      ),
-      paint: {
-        "text-color": ctx.colour("SNDG2"),
         "text-halo-color": ctx.colour("CHWHT"),
         "text-halo-width": 1.5,
       },
