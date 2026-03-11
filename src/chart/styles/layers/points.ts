@@ -100,8 +100,20 @@ export function getNavAidLayers(ctx: StyleContext): LayerSpecification[] {
         "circle-stroke-opacity": 0.5,
       },
     },
+  ];
+}
 
-    // Light icons — rendered after buoys/beacons so teardrop appears on top
+/**
+ * Lights, buoys, and beacons — placed late in the style for high
+ * collision priority (MapLibre places symbols in reverse style order,
+ * so later layers get placed first and win collisions).
+ * Buoys/beacons come after lights so their labels win over light
+ * characteristics when they share the same object.
+ */
+export function getBuoyBeaconLayers(ctx: StyleContext): LayerSpecification[] {
+  return [
+    // Light icons + characteristics — lower priority than buoys/beacons
+    // but higher than soundings/SBDARE/text labels.
     {
       id: "s57-lights",
       type: "symbol",
@@ -118,8 +130,8 @@ export function getNavAidLayers(ctx: StyleContext): LayerSpecification[] {
           "text-field": ["get", "LABEL"],
           "text-size": 10,
           "text-offset": [0, -1.5],
-          "text-allow-overlap": true,
-          "text-ignore-placement": true,
+          "text-allow-overlap": false,
+          "text-optional": true,
         },
         ctx,
       ),
@@ -129,16 +141,7 @@ export function getNavAidLayers(ctx: StyleContext): LayerSpecification[] {
         "text-halo-width": 1.5,
       },
     },
-  ];
-}
 
-/**
- * Buoy and beacon layers — placed late in the style for high collision
- * priority (MapLibre places symbols in reverse style order, so later
- * layers get placed first and win collisions).
- */
-export function getBuoyBeaconLayers(ctx: StyleContext): LayerSpecification[] {
-  return [
     // Lateral buoys
     {
       id: "s57-boylat",
@@ -151,6 +154,7 @@ export function getBuoyBeaconLayers(ctx: StyleContext): LayerSpecification[] {
           "icon-image": ctx.iconExpr,
           "icon-size": scaledSize(0.75, ctx),
           "icon-allow-overlap": true,
+          "icon-ignore-placement": true,
           "text-field": LABEL_EXPR,
           "text-size": 11,
           "text-offset": [0, 1.5],
@@ -178,6 +182,7 @@ export function getBuoyBeaconLayers(ctx: StyleContext): LayerSpecification[] {
           "icon-image": ctx.iconExpr,
           "icon-size": scaledSize(0.75, ctx),
           "icon-allow-overlap": true,
+          "icon-ignore-placement": true,
           "text-field": LABEL_EXPR,
           "text-size": 11,
           "text-offset": [0, 1.5],
@@ -205,6 +210,7 @@ export function getBuoyBeaconLayers(ctx: StyleContext): LayerSpecification[] {
           "icon-image": ctx.iconExpr,
           "icon-size": scaledSize(0.75, ctx),
           "icon-allow-overlap": true,
+          "icon-ignore-placement": true,
           "text-field": LABEL_EXPR,
           "text-size": 11,
           "text-offset": [0, 1.5],
@@ -232,6 +238,7 @@ export function getBuoyBeaconLayers(ctx: StyleContext): LayerSpecification[] {
           "icon-image": ctx.iconExpr,
           "icon-size": scaledSize(0.7, ctx),
           "icon-allow-overlap": true,
+          "icon-ignore-placement": true,
           "text-field": LABEL_EXPR,
           "text-size": 11,
           "text-offset": [0, 1.5],
@@ -259,6 +266,7 @@ export function getBuoyBeaconLayers(ctx: StyleContext): LayerSpecification[] {
           "icon-image": ctx.iconExpr,
           "icon-size": scaledSize(0.75, ctx),
           "icon-allow-overlap": true,
+          "icon-ignore-placement": true,
           "text-field": LABEL_EXPR,
           "text-size": 11,
           "text-offset": [0, 1.5],
@@ -286,6 +294,7 @@ export function getBuoyBeaconLayers(ctx: StyleContext): LayerSpecification[] {
           "icon-image": ctx.iconExpr,
           "icon-size": scaledSize(0.7, ctx),
           "icon-allow-overlap": true,
+          "icon-ignore-placement": true,
           "text-field": LABEL_EXPR,
           "text-size": 11,
           "text-offset": [0, 1.5],
@@ -313,6 +322,7 @@ export function getBuoyBeaconLayers(ctx: StyleContext): LayerSpecification[] {
           "icon-image": ctx.iconExpr,
           "icon-size": scaledSize(0.7, ctx),
           "icon-allow-overlap": true,
+          "icon-ignore-placement": true,
           "text-field": LABEL_EXPR,
           "text-size": 11,
           "text-offset": [0, 1.5],
@@ -555,6 +565,7 @@ export function getOtherNavAidLayers(ctx: StyleContext): LayerSpecification[] {
           "icon-image": ctx.iconExpr,
           "icon-size": scaledSize(0.7, ctx),
           "icon-allow-overlap": true,
+          "icon-ignore-placement": true,
           "text-field": LABEL_EXPR,
           "text-size": 11,
           "text-offset": [0, 1.5],
