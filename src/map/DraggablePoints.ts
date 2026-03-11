@@ -17,6 +17,9 @@ export class DraggablePoints {
 
   private dragging = false;
   private dragIndex = -1;
+  /** Pixel offset from mousedown to feature anchor, to avoid jump on pickup. */
+  private dragOffsetX = 0;
+  private dragOffsetY = 0;
 
   constructor(map: maplibregl.Map, layerId: string, onDrag: DragCallback) {
     this.map = map;
@@ -55,8 +58,12 @@ export class DraggablePoints {
 
   private onMouseDown(e: maplibregl.MapLayerMouseEvent): void {
     const feature = e.features?.[0];
-    if (!feature) return;
+    if (!feature || feature.geometry.type !== "Point") return;
     e.preventDefault();
+    const coords = feature.geometry.coordinates;
+    const featurePx = this.map.project([coords[0], coords[1]]);
+    this.dragOffsetX = featurePx.x - e.point.x;
+    this.dragOffsetY = featurePx.y - e.point.y;
     this.startDrag((feature.properties?.index as number) ?? 0);
   }
 
@@ -70,7 +77,11 @@ export class DraggablePoints {
       return;
     }
     e.preventDefault();
-    this.onDrag(this.dragIndex, e.lngLat);
+    const lngLat = this.map.unproject([
+      e.point.x + this.dragOffsetX,
+      e.point.y + this.dragOffsetY,
+    ]);
+    this.onDrag(this.dragIndex, lngLat);
   }
 
   private onMouseUp(): void {
@@ -90,8 +101,15 @@ export class DraggablePoints {
       layers: [this.layerId],
     });
     if (features.length === 0) return;
+    const feature = features[0];
+    if (feature.geometry.type === "Point") {
+      const coords = feature.geometry.coordinates;
+      const featurePx = this.map.project([coords[0], coords[1]]);
+      this.dragOffsetX = featurePx.x - point[0];
+      this.dragOffsetY = featurePx.y - point[1];
+    }
     e.preventDefault();
-    this.startDrag((features[0].properties?.index as number) ?? 0);
+    this.startDrag((feature.properties?.index as number) ?? 0);
   }
 
   private onTouchMove(e: TouchEvent): void {
@@ -100,8 +118,8 @@ export class DraggablePoints {
     const touch = e.touches[0];
     const rect = this.map.getCanvas().getBoundingClientRect();
     const lngLat = this.map.unproject([
-      touch.clientX - rect.left,
-      touch.clientY - rect.top,
+      touch.clientX - rect.left + this.dragOffsetX,
+      touch.clientY - rect.top + this.dragOffsetY,
     ]);
     this.onDrag(this.dragIndex, lngLat);
   }
