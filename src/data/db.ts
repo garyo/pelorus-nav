@@ -5,11 +5,12 @@
 
 import type { Route } from "./Route";
 import type { TrackMeta, TrackPoint } from "./Track";
+import type { StandaloneWaypoint } from "./Waypoint";
 
 const DB_NAME = "pelorus-nav";
 // Bump DB_VERSION when adding/removing stores or indexes. In onupgradeneeded,
 // check oldVersion and apply incremental migrations (e.g. if (oldVersion < 2) ...).
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 
 let dbPromise: Promise<IDBDatabase> | null = null;
 
@@ -17,19 +18,19 @@ function openDB(): Promise<IDBDatabase> {
   if (dbPromise) return dbPromise;
   dbPromise = new Promise((resolve, reject) => {
     const req = indexedDB.open(DB_NAME, DB_VERSION);
-    req.onupgradeneeded = () => {
+    req.onupgradeneeded = (event) => {
       const db = req.result;
-      if (!db.objectStoreNames.contains("tracks")) {
+      const oldVersion = (event as IDBVersionChangeEvent).oldVersion;
+      if (oldVersion < 1) {
         db.createObjectStore("tracks", { keyPath: "id" });
-      }
-      if (!db.objectStoreNames.contains("trackPoints")) {
-        const store = db.createObjectStore("trackPoints", {
+        const ptStore = db.createObjectStore("trackPoints", {
           autoIncrement: true,
         });
-        store.createIndex("byTrack", "trackId");
-      }
-      if (!db.objectStoreNames.contains("routes")) {
+        ptStore.createIndex("byTrack", "trackId");
         db.createObjectStore("routes", { keyPath: "id" });
+      }
+      if (oldVersion < 2) {
+        db.createObjectStore("waypoints", { keyPath: "id" });
       }
     };
     req.onsuccess = () => resolve(req.result);
@@ -132,6 +133,38 @@ export async function deleteRoute(id: string): Promise<void> {
   return new Promise((resolve, reject) => {
     const tx = db.transaction("routes", "readwrite");
     tx.objectStore("routes").delete(id);
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+}
+
+// --- Waypoints ---
+
+export async function saveWaypoint(wp: StandaloneWaypoint): Promise<void> {
+  const db = await openDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction("waypoints", "readwrite");
+    tx.objectStore("waypoints").put(wp);
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+}
+
+export async function getAllWaypoints(): Promise<StandaloneWaypoint[]> {
+  const db = await openDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction("waypoints", "readonly");
+    const req = tx.objectStore("waypoints").getAll();
+    req.onsuccess = () => resolve(req.result as StandaloneWaypoint[]);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+export async function deleteWaypoint(id: string): Promise<void> {
+  const db = await openDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction("waypoints", "readwrite");
+    tx.objectStore("waypoints").delete(id);
     tx.oncomplete = () => resolve();
     tx.onerror = () => reject(tx.error);
   });

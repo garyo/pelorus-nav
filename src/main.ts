@@ -12,11 +12,13 @@ import {
 } from "./chart";
 import { OPFSSource } from "./data/opfs-source";
 import { getChartFile, listStoredCharts } from "./data/tile-store";
+import { BearingLine } from "./map/BearingLine";
 import { MeasurementLayer } from "./map/MeasurementLayer";
 import { RouteEditor } from "./map/RouteEditor";
 import { RouteLayer } from "./map/RouteLayer";
 import { TrackLayer } from "./map/TrackLayer";
 import { TrackRecorder } from "./map/TrackRecorder";
+import { WaypointLayer } from "./map/WaypointLayer";
 import {
   BrowserGeolocationProvider,
   type NavigationData,
@@ -25,13 +27,16 @@ import {
   SimulatorProvider,
   WebSerialNMEAProvider,
 } from "./navigation";
+import { ActiveNavigationManager } from "./navigation/ActiveNavigation";
 import { CourseSmoothing } from "./navigation/CourseSmoothing";
 import { getSettings, onSettingsChange, updateSettings } from "./settings";
+import { CancelNavButton } from "./ui/CancelNavButton";
 import { ChartCachePanel } from "./ui/ChartCachePanel";
-import { createInstrumentHUD } from "./ui/InstrumentHUD";
+import { createInstrumentHUD, INSTRUMENTS } from "./ui/InstrumentHUD";
 import {
   iconGauge,
   iconGlobe,
+  iconPin,
   iconRecord,
   iconRoute,
   iconTrack,
@@ -41,6 +46,7 @@ import { RecenterButton } from "./ui/RecenterButton";
 import { RouteManagerPanel } from "./ui/RouteManagerPanel";
 import { createSettingsPanel } from "./ui/SettingsPanel";
 import { TrackManagerPanel } from "./ui/TrackManagerPanel";
+import { WaypointManagerPanel } from "./ui/WaypointManagerPanel";
 import { formatLatLon, parseLatLon } from "./utils/coordinates";
 import { ChartModeController } from "./vessel/ChartMode";
 import { CourseLine } from "./vessel/CourseLine";
@@ -122,6 +128,7 @@ const navManager = new NavigationDataManager();
 
 // Register available GPS providers
 const simulator = new SimulatorProvider();
+simulator.setSpeedMultiplier(getSettings().simulatorSpeed);
 navManager.registerProvider(simulator);
 navManager.registerProvider(new BrowserGeolocationProvider());
 if (WebSerialNMEAProvider.isAvailable()) {
@@ -217,9 +224,9 @@ new NavigationHUD(chartManager.map, navManager);
 const mapEl = document.getElementById("map");
 const instrumentHUD = createInstrumentHUD(navManager);
 if (mapEl) {
-  mapEl.insertAdjacentElement("beforebegin", instrumentHUD);
+  mapEl.insertAdjacentElement("beforebegin", instrumentHUD.element);
 } else {
-  document.body.appendChild(instrumentHUD);
+  document.body.appendChild(instrumentHUD.element);
 }
 
 // Activate initial GPS source from settings
@@ -261,7 +268,18 @@ const ctxRoute = document.createElement("div");
 ctxRoute.className = "map-context-item";
 ctxRoute.textContent = "Route from here";
 
-ctxMenu.append(ctxCopy, ctxMeasure, ctxRoute, ctxGoto, ctxGotoInput);
+const ctxWaypoint = document.createElement("div");
+ctxWaypoint.className = "map-context-item";
+ctxWaypoint.textContent = "Mark waypoint here";
+
+ctxMenu.append(
+  ctxCopy,
+  ctxWaypoint,
+  ctxMeasure,
+  ctxRoute,
+  ctxGoto,
+  ctxGotoInput,
+);
 
 // Track right-mouse drag vs click
 let rightDownX = 0;
@@ -422,10 +440,34 @@ ctxRoute.addEventListener("click", () => {
   routeEditor.startFromPoint(ctxLat, ctxLng);
 });
 
-// ESC key: clear measurement (or future tools)
+ctxWaypoint.addEventListener("click", () => {
+  hideContextMenu();
+  const wp: import("./data/Waypoint").StandaloneWaypoint = {
+    id: crypto.randomUUID(),
+    lat: ctxLat,
+    lon: ctxLng,
+    name: `WP ${formatLatLon(ctxLat, "lat")}`,
+    notes: "",
+    icon: "default",
+    createdAt: Date.now(),
+    updatedAt: Date.now(),
+  };
+  waypointLayer
+    .addWaypoint(wp)
+    .then(() => {
+      waypointPanel.show();
+    })
+    .catch(console.error);
+});
+
+// ESC key: cancel active navigation or clear measurement
 document.addEventListener("keydown", (e) => {
   if (e.key === "Escape") {
-    measurementLayer.clear();
+    if (activeNav.getState().type !== "idle") {
+      activeNav.stop();
+    } else {
+      measurementLayer.clear();
+    }
   }
 });
 
@@ -448,6 +490,53 @@ if (getSettings().trackRecordingEnabled) trackRecorder.start();
 const routeLayer = new RouteLayer(chartManager.map);
 const routeEditor = new RouteEditor(chartManager.map, routeLayer);
 const routePanel = new RouteManagerPanel(routeLayer, routeEditor);
+
+// --- Waypoints + Active Navigation ---
+const activeNav = new ActiveNavigationManager(navManager);
+const waypointLayer = new WaypointLayer(chartManager.map);
+new BearingLine(chartManager.map, activeNav, navManager);
+const waypointPanel = new WaypointManagerPanel(waypointLayer, activeNav);
+routePanel.setActiveNav(activeNav);
+
+// Cancel navigation control
+const cancelNavBtn = new CancelNavButton(activeNav);
+chartManager.map.addControl(cancelNavBtn, "bottom-left");
+
+// Register BRG/DTW instruments (before restore so HUD is ready)
+INSTRUMENTS.set("brg", {
+  id: "brg",
+  label: "Bearing to wpt",
+  format() {
+    const info = activeNav.getInfo();
+    if (!info) return { value: "--", unit: "T" };
+    return {
+      value: `${info.bearingDeg.toFixed(0).padStart(3, "0")}\u00b0`,
+      unit: "T",
+    };
+  },
+});
+
+INSTRUMENTS.set("dtw", {
+  id: "dtw",
+  label: "Dist to wpt",
+  format() {
+    const info = activeNav.getInfo();
+    if (!info) return { value: "--", unit: "NM" };
+    return {
+      value:
+        info.distanceNM < 10
+          ? info.distanceNM.toFixed(2)
+          : info.distanceNM.toFixed(1),
+      unit: "NM",
+    };
+  },
+});
+
+// Wire HUD to show BRG/DTW cells during active navigation
+instrumentHUD.setActiveNav(activeNav);
+
+// Restore persisted navigation state (after all subscribers are wired up)
+await activeNav.restore();
 
 // Add toolbar buttons to top bar
 if (topBar) {
@@ -507,6 +596,17 @@ if (topBar) {
   });
   topBar.insertBefore(routeBtn, settingsWrapper);
 
+  // Waypoints panel button
+  const waypointBtn = document.createElement("button");
+  waypointBtn.className = "settings-btn";
+  waypointBtn.title = "Waypoints";
+  waypointBtn.innerHTML = iconPin;
+  waypointBtn.addEventListener("click", () => {
+    waypointPanel.toggle();
+    settingsHandle?.hide();
+  });
+  topBar.insertBefore(waypointBtn, settingsWrapper);
+
   // Chart cache panel button
   const cachePanel = new ChartCachePanel();
   cachePanel.setOnChartsChanged(() => {
@@ -542,6 +642,7 @@ if (topBar) {
   settingsHandle?.onOpen(() => {
     trackPanel.hide();
     routePanel.hide();
+    waypointPanel.hide();
     cachePanel.hide();
   });
 

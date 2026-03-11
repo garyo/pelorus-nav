@@ -6,8 +6,9 @@
 
 import type { Route } from "../data/Route";
 import type { RouteLayer } from "../map/RouteLayer";
+import type { ActiveNavigationManager } from "../navigation/ActiveNavigation";
 import { haversineDistanceNM, initialBearingDeg } from "../utils/coordinates";
-import { iconX } from "./icons";
+import { iconNavigation, iconX, setIcon } from "./icons";
 import { getPanelStack } from "./PanelStack";
 
 interface Leg {
@@ -55,6 +56,7 @@ export class RouteDetailPanel {
   private readonly body: HTMLDivElement;
   private readonly footer: HTMLDivElement;
   private readonly routeLayer: RouteLayer;
+  private activeNav: ActiveNavigationManager | null = null;
   private currentRoute: Route | null = null;
 
   constructor(routeLayer: RouteLayer) {
@@ -65,7 +67,10 @@ export class RouteDetailPanel {
     this.el.innerHTML =
       '<div class="manager-header">' +
       '<span class="route-detail-title"></span>' +
+      '<div style="display:flex;gap:6px;align-items:center">' +
+      '<button class="route-nav-btn manager-item-btn" title="Navigate route"></button>' +
       '<button class="manager-close"></button>' +
+      "</div>" +
       "</div>" +
       '<div class="manager-body"></div>' +
       '<div class="route-detail-footer"></div>';
@@ -79,9 +84,21 @@ export class RouteDetailPanel {
       ".route-detail-footer",
     ) as HTMLDivElement;
 
+    const navBtn = this.el.querySelector(".route-nav-btn") as HTMLElement;
+    setIcon(navBtn, iconNavigation);
+    navBtn.addEventListener("click", () => {
+      if (this.activeNav && this.currentRoute) {
+        this.activeNav.startRoute(this.currentRoute);
+      }
+    });
+
     const closeBtn = this.el.querySelector(".manager-close") as HTMLElement;
     closeBtn.innerHTML = iconX;
     closeBtn.addEventListener("click", () => this.hide());
+  }
+
+  setActiveNav(activeNav: ActiveNavigationManager): void {
+    this.activeNav = activeNav;
   }
 
   show(route: Route): void {

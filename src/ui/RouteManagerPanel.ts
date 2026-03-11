@@ -6,7 +6,16 @@ import { deleteRoute, getAllRoutes, saveRoute } from "../data/db";
 import type { Route } from "../data/Route";
 import type { RouteEditor } from "../map/RouteEditor";
 import type { RouteLayer } from "../map/RouteLayer";
-import { iconEdit, iconEye, iconEyeOff, iconTrash, iconX } from "./icons";
+import type { ActiveNavigationManager } from "../navigation/ActiveNavigation";
+import {
+  iconEdit,
+  iconEye,
+  iconEyeOff,
+  iconNavigation,
+  iconTrash,
+  iconX,
+  setIcon,
+} from "./icons";
 import { getPanelStack } from "./PanelStack";
 import { RouteDetailPanel } from "./RouteDetailPanel";
 
@@ -16,6 +25,7 @@ export class RouteManagerPanel {
   private readonly routeLayer: RouteLayer;
   private readonly editor: RouteEditor;
   private readonly detailPanel: RouteDetailPanel;
+  private activeNav: ActiveNavigationManager | null = null;
 
   constructor(routeLayer: RouteLayer, editor: RouteEditor) {
     this.routeLayer = routeLayer;
@@ -47,6 +57,11 @@ export class RouteManagerPanel {
     });
 
     editor.onEditorChange(() => this.refresh());
+  }
+
+  setActiveNav(activeNav: ActiveNavigationManager): void {
+    this.activeNav = activeNav;
+    this.detailPanel.setActiveNav(activeNav);
   }
 
   toggle(): void {
@@ -99,8 +114,21 @@ export class RouteManagerPanel {
     name.textContent = route.name;
     name.title = "Click for details, double-click to rename";
     name.style.cursor = "pointer";
-    name.addEventListener("click", () => this.detailPanel.show(route));
-    name.addEventListener("dblclick", () => this.rename(route, name));
+    let clickTimer: ReturnType<typeof setTimeout> | null = null;
+    name.addEventListener("click", () => {
+      if (clickTimer) return; // second click of a dblclick — ignore
+      clickTimer = setTimeout(() => {
+        clickTimer = null;
+        this.detailPanel.show(route);
+      }, 250);
+    });
+    name.addEventListener("dblclick", () => {
+      if (clickTimer) {
+        clearTimeout(clickTimer);
+        clickTimer = null;
+      }
+      this.rename(route, name);
+    });
 
     const detail = document.createElement("div");
     detail.className = "manager-item-detail";
@@ -110,6 +138,16 @@ export class RouteManagerPanel {
 
     const actions = document.createElement("div");
     actions.className = "manager-item-actions";
+
+    const navBtn = document.createElement("button");
+    navBtn.className = "manager-item-btn";
+    setIcon(navBtn, iconNavigation);
+    navBtn.title = "Navigate route";
+    navBtn.addEventListener("click", () => {
+      if (this.activeNav) {
+        this.activeNav.startRoute(route);
+      }
+    });
 
     const editBtn = document.createElement("button");
     editBtn.className = "manager-item-btn";
@@ -146,7 +184,7 @@ export class RouteManagerPanel {
       })().catch(console.error);
     });
 
-    actions.append(editBtn, toggleBtn, deleteBtn);
+    actions.append(navBtn, editBtn, toggleBtn, deleteBtn);
     item.append(color, info, actions);
     return item;
   }

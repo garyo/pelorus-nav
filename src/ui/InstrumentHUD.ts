@@ -1,8 +1,13 @@
 /**
  * Instrument HUD: large, high-visibility data display at top of screen.
  * Shows SOG and COG (or other instruments) in big readable text.
+ * When active navigation is running, DTW and BRG cells are appended.
  */
 
+import type {
+  ActiveNavigationManager,
+  ActiveNavigationState,
+} from "../navigation/ActiveNavigation";
 import type { NavigationData } from "../navigation/NavigationData";
 import type { NavigationDataManager } from "../navigation/NavigationDataManager";
 import type { Settings } from "../settings";
@@ -18,120 +23,146 @@ export interface InstrumentDef {
   ): { value: string; unit: string };
 }
 
-const sogInstrument: InstrumentDef = {
-  id: "sog",
-  label: "Speed",
-  format(data, settings) {
-    if (!data || data.sog === null) {
-      return { value: "--", unit: speedUnitLabel(settings.speedUnit) };
-    }
-    const converted = convertSpeed(data.sog, settings.speedUnit);
-    return {
-      value: converted.toFixed(1),
-      unit: speedUnitLabel(settings.speedUnit),
-    };
-  },
-};
-
-const cogInstrument: InstrumentDef = {
-  id: "cog",
-  label: "Heading",
-  format(data) {
-    if (!data || data.cog === null) {
-      return { value: "--", unit: "T" };
-    }
-    return {
-      value: `${data.cog.toFixed(0).padStart(3, "0")}\u00b0`,
-      unit: "T",
-    };
-  },
-};
-
 export const INSTRUMENTS: Map<string, InstrumentDef> = new Map([
-  ["sog", sogInstrument],
-  ["cog", cogInstrument],
+  [
+    "sog",
+    {
+      id: "sog",
+      label: "Speed",
+      format(data, settings) {
+        if (!data || data.sog === null) {
+          return { value: "--", unit: speedUnitLabel(settings.speedUnit) };
+        }
+        return {
+          value: convertSpeed(data.sog, settings.speedUnit).toFixed(1),
+          unit: speedUnitLabel(settings.speedUnit),
+        };
+      },
+    },
+  ],
+  [
+    "cog",
+    {
+      id: "cog",
+      label: "Heading",
+      format(data) {
+        if (!data || data.cog === null) return { value: "--", unit: "T" };
+        return {
+          value: `${data.cog.toFixed(0).padStart(3, "0")}\u00b0`,
+          unit: "T",
+        };
+      },
+    },
+  ],
 ]);
+
+const NAV_INSTRUMENT_IDS = ["dtw", "brg"];
+
+export interface InstrumentHUDHandle {
+  element: HTMLElement;
+  setActiveNav(activeNav: ActiveNavigationManager): void;
+}
 
 export function createInstrumentHUD(
   navManager: NavigationDataManager,
-): HTMLElement {
+): InstrumentHUDHandle {
   const container = document.createElement("div");
   container.className = "instrument-hud";
 
-  const settings = getSettings();
-  const cellIds = settings.instrumentCells;
-
-  interface CellElements {
-    label: HTMLSpanElement;
-    value: HTMLSpanElement;
-    unit: HTMLSpanElement;
-  }
-
-  const cells: CellElements[] = cellIds.map((id, index) => {
-    const cellDiv = document.createElement("div");
-    cellDiv.className = "instrument-cell";
-    if (index > 0) {
-      cellDiv.classList.add("instrument-cell--bordered");
-    }
-
-    const label = document.createElement("span");
-    label.className = "instrument-label";
-
-    const valueRow = document.createElement("div");
-    valueRow.className = "instrument-value-row";
-
-    const value = document.createElement("span");
-    value.className = "instrument-value";
-
-    const unit = document.createElement("span");
-    unit.className = "instrument-unit";
-
-    valueRow.append(value, unit);
-    cellDiv.append(label, valueRow);
-    container.appendChild(cellDiv);
-
-    const def = INSTRUMENTS.get(id);
-    if (def) {
-      label.textContent = def.label;
-      const formatted = def.format(null, getSettings());
-      value.textContent = formatted.value;
-      unit.textContent = formatted.unit;
-    }
-
-    return { label, value, unit };
-  });
-
-  // Update on nav data
   let lastData: NavigationData | null = null;
+  let navActive = false;
 
-  const updateCells = () => {
+  /** Rebuild all cells from scratch. */
+  const rebuild = () => {
+    container.innerHTML = "";
     const s = getSettings();
-    for (let i = 0; i < cellIds.length; i++) {
-      const def = INSTRUMENTS.get(s.instrumentCells[i]);
-      if (def) {
-        cells[i].label.textContent = def.label;
-        const formatted = def.format(lastData, s);
-        cells[i].value.textContent = formatted.value;
-        cells[i].unit.textContent = formatted.unit;
+    const baseIds = s.instrumentCells;
+
+    // Base cells
+    for (let i = 0; i < baseIds.length; i++) {
+      const def = INSTRUMENTS.get(baseIds[i]);
+      if (!def) continue;
+      container.appendChild(buildCell(def, i > 0, lastData, s));
+    }
+
+    // Nav cells (grouped so they wrap together)
+    if (navActive) {
+      const group = document.createElement("div");
+      group.className = "instrument-nav-group";
+      for (let i = 0; i < NAV_INSTRUMENT_IDS.length; i++) {
+        const def = INSTRUMENTS.get(NAV_INSTRUMENT_IDS[i]);
+        if (!def) continue;
+        const cell = buildCell(def, i > 0, lastData, s);
+        cell.classList.add("instrument-cell--nav");
+        group.appendChild(cell);
       }
+      container.appendChild(group);
     }
   };
 
   navManager.subscribe((data) => {
     lastData = data;
-    updateCells();
+    rebuild();
   });
 
-  // Show/hide based on settings
   const applyVisibility = (s: Settings) => {
     container.style.display = s.showInstrumentHUD ? "flex" : "none";
   };
   applyVisibility(getSettings());
-
   onSettingsChange((s) => {
     applyVisibility(s);
-    updateCells();
+    rebuild();
   });
 
-  return container;
+  rebuild();
+
+  return {
+    element: container,
+    setActiveNav(activeNav: ActiveNavigationManager) {
+      const onNavChange = (_info: unknown, state: ActiveNavigationState) => {
+        const active = state.type !== "idle";
+        if (active !== navActive) {
+          navActive = active;
+          rebuild();
+        }
+      };
+      activeNav.subscribe(onNavChange);
+      if (activeNav.getState().type !== "idle") {
+        navActive = true;
+        rebuild();
+      }
+    },
+  };
+}
+
+function buildCell(
+  def: InstrumentDef,
+  bordered: boolean,
+  data: NavigationData | null,
+  settings: Settings,
+): HTMLDivElement {
+  const div = document.createElement("div");
+  div.className = "instrument-cell";
+  if (bordered) div.classList.add("instrument-cell--bordered");
+
+  const label = document.createElement("span");
+  label.className = "instrument-label";
+  label.textContent = def.label;
+
+  const valueRow = document.createElement("div");
+  valueRow.className = "instrument-value-row";
+
+  const formatted = def.format(data, settings);
+
+  const value = document.createElement("span");
+  value.className = "instrument-value";
+  value.textContent = formatted.value;
+
+  const unit = document.createElement("span");
+  unit.className = "instrument-unit";
+  unit.textContent = formatted.unit;
+
+  valueRow.append(value, unit);
+  div.append(label, valueRow);
+  return div;
 }

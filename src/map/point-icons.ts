@@ -16,6 +16,10 @@ export const POINT_ICON_START = "_pt-start";
 export const POINT_ICON_WAYPOINT = "_pt-waypoint";
 export const POINT_ICON_FINISH = "_pt-finish";
 export const POINT_ICON_MIDPOINT = "_pt-midpoint";
+export const POINT_ICON_ANCHOR = "_pt-anchor";
+export const POINT_ICON_HAZARD = "_pt-hazard";
+export const POINT_ICON_FUEL = "_pt-fuel";
+export const POINT_ICON_POI = "_pt-poi";
 
 /** Register all point icons on the map. Safe to call multiple times. */
 export function ensurePointIcons(map: maplibregl.Map): void {
@@ -25,6 +29,10 @@ export function ensurePointIcons(map: maplibregl.Map): void {
   addIcon(map, POINT_ICON_WAYPOINT, drawWaypoint);
   addIcon(map, POINT_ICON_FINISH, drawFinish);
   addIcon(map, POINT_ICON_MIDPOINT, drawMidpoint);
+  addIcon(map, POINT_ICON_ANCHOR, drawAnchor);
+  addIcon(map, POINT_ICON_HAZARD, drawHazard);
+  addIcon(map, POINT_ICON_FUEL, drawFuel);
+  addIcon(map, POINT_ICON_POI, drawPoi);
 }
 
 /**
@@ -42,6 +50,24 @@ export const ROLE_ICON_EXPR: maplibregl.ExpressionSpecification = [
   POINT_ICON_FINISH,
   "midpoint",
   POINT_ICON_MIDPOINT,
+  POINT_ICON_WAYPOINT, // default
+];
+
+/**
+ * MapLibre expression that maps a standalone waypoint's "icon" property
+ * to the correct icon name. Falls back to the default waypoint icon.
+ */
+export const WAYPOINT_ICON_EXPR: maplibregl.ExpressionSpecification = [
+  "match",
+  ["get", "icon"],
+  "anchorage",
+  POINT_ICON_ANCHOR,
+  "hazard",
+  POINT_ICON_HAZARD,
+  "fuel",
+  POINT_ICON_FUEL,
+  "poi",
+  POINT_ICON_POI,
   POINT_ICON_WAYPOINT, // default
 ];
 
@@ -135,6 +161,89 @@ function drawMidpoint(ctx: CanvasRenderingContext2D): void {
   ctx.moveTo(cx, cx - s);
   ctx.lineTo(cx, cx + s);
   ctx.stroke();
+}
+
+/** Blue circle with anchor symbol. */
+function drawAnchor(ctx: CanvasRenderingContext2D): void {
+  const cx = SIZE / 2;
+  ctx.beginPath();
+  ctx.arc(cx, cx, cx - 1.5, 0, Math.PI * 2);
+  ctx.fillStyle = "#3366cc";
+  ctx.fill();
+  ctx.strokeStyle = "#fff";
+  ctx.lineWidth = 3;
+  ctx.stroke();
+
+  // Anchor symbol (simplified)
+  ctx.strokeStyle = "#fff";
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.arc(cx, cx - 4, 2.5, 0, Math.PI * 2); // ring
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(cx, cx - 1.5);
+  ctx.lineTo(cx, cx + 6); // shaft
+  ctx.moveTo(cx - 4, cx + 3);
+  ctx.lineTo(cx, cx + 6);
+  ctx.lineTo(cx + 4, cx + 3); // flukes
+  ctx.stroke();
+}
+
+/** Red circle with exclamation mark. */
+function drawHazard(ctx: CanvasRenderingContext2D): void {
+  const cx = SIZE / 2;
+  ctx.beginPath();
+  ctx.arc(cx, cx, cx - 1.5, 0, Math.PI * 2);
+  ctx.fillStyle = "#cc2222";
+  ctx.fill();
+  ctx.strokeStyle = "#fff";
+  ctx.lineWidth = 3;
+  ctx.stroke();
+
+  // Exclamation mark
+  ctx.fillStyle = "#fff";
+  ctx.font = "bold 16px sans-serif";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillText("!", cx, cx);
+}
+
+/** Green circle with fuel pump. */
+function drawFuel(ctx: CanvasRenderingContext2D): void {
+  const cx = SIZE / 2;
+  ctx.beginPath();
+  ctx.arc(cx, cx, cx - 1.5, 0, Math.PI * 2);
+  ctx.fillStyle = "#228833";
+  ctx.fill();
+  ctx.strokeStyle = "#fff";
+  ctx.lineWidth = 3;
+  ctx.stroke();
+
+  // "F" letter
+  ctx.fillStyle = "#fff";
+  ctx.font = "bold 14px sans-serif";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillText("F", cx, cx);
+}
+
+/** Purple circle with star. */
+function drawPoi(ctx: CanvasRenderingContext2D): void {
+  const cx = SIZE / 2;
+  ctx.beginPath();
+  ctx.arc(cx, cx, cx - 1.5, 0, Math.PI * 2);
+  ctx.fillStyle = "#8833aa";
+  ctx.fill();
+  ctx.strokeStyle = "#fff";
+  ctx.lineWidth = 3;
+  ctx.stroke();
+
+  // Star symbol
+  ctx.fillStyle = "#fff";
+  ctx.font = "16px sans-serif";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillText("★", cx, cx + 1);
 }
 
 /** Checkerboard circle — finish flag. */

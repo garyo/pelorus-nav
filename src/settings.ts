@@ -31,6 +31,8 @@ export interface Settings {
   simulatorSpeed: number;
   displayTheme: DisplayTheme;
   symbologyScheme: SymbologyScheme;
+  /** Arrival radius in NM — auto-advance route legs when closer than this. */
+  arrivalRadiusNM: number;
   /** Shallow water threshold in meters (areas < this get DEPVS color). */
   shallowDepth: number;
   /** Deep water threshold in meters (areas >= this get DEPDW color). */
@@ -69,6 +71,7 @@ const DEFAULTS: Settings = {
   activeTrackColor: "#ff4444",
   activeRegion: "new-england",
   courseLineDuration: 0,
+  arrivalRadiusNM: 0.1,
   simulatorSpeed: 1,
   displayTheme: "day",
   symbologyScheme: "iho-s52",

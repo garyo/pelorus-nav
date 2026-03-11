@@ -114,6 +114,22 @@ export const iconCloudOff = svg(
     '<line x1="1" y1="1" x2="23" y2="23"/>',
 );
 
+/** Map pin / waypoint marker. */
+export const iconPin = svg(
+  '<path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 1 1 18 0z"/>' +
+    '<circle cx="12" cy="10" r="3"/>',
+);
+
+/** Compass / navigation arrow. */
+export const iconNavigation = svg(
+  '<polygon points="3 11 22 2 13 21 11 13 3 11"/>',
+);
+
+/** Square with X / stop-cancel. */
+export const iconSquare = svg(
+  '<rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>',
+);
+
 /** Upload / folder-up / import. */
 export const iconUpload = svg(
   '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>' +
