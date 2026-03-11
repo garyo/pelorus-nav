@@ -4,7 +4,9 @@
  */
 
 import type maplibregl from "maplibre-gl";
+import { getSettings } from "../settings";
 import { haversineDistanceNM, initialBearingDeg } from "../utils/coordinates";
+import { formatBearing } from "../utils/magnetic";
 import { DraggablePoints } from "./DraggablePoints";
 import { getMode, setMode } from "./InteractionMode";
 import { ensurePointIcons, ROLE_ICON_EXPR } from "./point-icons";
@@ -226,11 +228,25 @@ export class MeasurementLayer {
       this.pointA.lng,
     );
 
+    const { bearingMode } = getSettings();
+    const fmtBrg = formatBearing(
+      bearing,
+      bearingMode,
+      this.pointA.lat,
+      this.pointA.lng,
+    );
+    const fmtRev = formatBearing(
+      reverseBearing,
+      bearingMode,
+      this.pointB.lat,
+      this.pointB.lng,
+    );
+
     this.panel.innerHTML =
       '<div class="measure-panel-text">' +
       `<strong>${dist.toFixed(2)} NM</strong> &nbsp; ` +
-      `${bearing.toFixed(1)}&deg;T &nbsp; ` +
-      `(rev ${reverseBearing.toFixed(1)}&deg;T)` +
+      `${fmtBrg} &nbsp; ` +
+      `(rev ${fmtRev})` +
       "</div>" +
       '<button class="measure-panel-close">&times;</button>';
     this.panel

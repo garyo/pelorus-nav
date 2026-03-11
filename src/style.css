@@ -59,6 +59,7 @@ body {
   color: #aaa;
   text-transform: uppercase;
   letter-spacing: 0.5px;
+  margin-right: 4px;
 }
 
 .settings-btn {

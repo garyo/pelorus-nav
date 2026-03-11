@@ -49,6 +49,7 @@ import { createSettingsPanel } from "./ui/SettingsPanel";
 import { TrackManagerPanel } from "./ui/TrackManagerPanel";
 import { WaypointManagerPanel } from "./ui/WaypointManagerPanel";
 import { formatLatLon, parseLatLon } from "./utils/coordinates";
+import { applyDeclination, bearingModeLabel } from "./utils/magnetic";
 import { ChartModeController } from "./vessel/ChartMode";
 import { CourseLine } from "./vessel/CourseLine";
 import { VesselLayer } from "./vessel/VesselLayer";
@@ -510,12 +511,17 @@ chartManager.map.addControl(cancelNavBtn, "bottom-left");
 INSTRUMENTS.set("brg", {
   id: "brg",
   label: "Bearing to wpt",
-  format() {
+  format(data, settings) {
     const info = activeNav.getInfo();
-    if (!info) return { value: "--", unit: "T" };
+    const mode = settings.bearingMode;
+    const label = bearingModeLabel(mode);
+    if (!info) return { value: "--", unit: label };
+    const lat = data?.latitude ?? 0;
+    const lon = data?.longitude ?? 0;
+    const display = applyDeclination(info.bearingDeg, mode, lat, lon);
     return {
-      value: `${info.bearingDeg.toFixed(0).padStart(3, "0")}\u00b0`,
-      unit: "T",
+      value: `${Math.round(display).toString().padStart(3, "0")}\u00b0`,
+      unit: label,
     };
   },
 });

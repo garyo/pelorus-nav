@@ -32,6 +32,7 @@
   },
   "license": "MIT",
   "dependencies": {
+    "magvar": "^2.0.1",
     "maplibre-gl": "^5.19.0",
     "pmtiles": "^4.4.0"
   },

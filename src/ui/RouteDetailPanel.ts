@@ -10,7 +10,9 @@ import type {
   ActiveNavCallback,
   ActiveNavigationManager,
 } from "../navigation/ActiveNavigation";
+import { getSettings } from "../settings";
 import { haversineDistanceNM, initialBearingDeg } from "../utils/coordinates";
+import { formatBearing } from "../utils/magnetic";
 import { iconNavigation, iconX, setIcon } from "./icons";
 import { getPanelStack } from "./PanelStack";
 
@@ -21,6 +23,8 @@ interface Leg {
   course: number;
   dist: number;
   cumDist: number;
+  fromLat: number;
+  fromLon: number;
 }
 
 function buildLegs(route: Route): Leg[] {
@@ -40,6 +44,8 @@ function buildLegs(route: Route): Leg[] {
       course,
       dist,
       cumDist,
+      fromLat: a.lat,
+      fromLon: a.lon,
     });
   }
   return legs;
@@ -49,8 +55,9 @@ function fmtDist(nm: number): string {
   return nm < 10 ? nm.toFixed(2) : nm.toFixed(1);
 }
 
-function fmtCourse(deg: number): string {
-  return `${Math.round(deg).toString().padStart(3, "0")}°T`;
+function fmtCourse(deg: number, lat: number, lon: number): string {
+  const { bearingMode } = getSettings();
+  return formatBearing(deg, bearingMode, lat, lon);
 }
 
 export class RouteDetailPanel {
@@ -186,7 +193,7 @@ export class RouteDetailPanel {
       tr.innerHTML =
         navCell +
         `<td class="leg-num">${leg.index + 1}</td>` +
-        `<td class="leg-course">${fmtCourse(leg.course)}</td>` +
+        `<td class="leg-course">${fmtCourse(leg.course, leg.fromLat, leg.fromLon)}</td>` +
         `<td class="leg-dist">${fmtDist(leg.dist)}</td>` +
         `<td class="leg-cum">${fmtDist(leg.cumDist)}</td>`;
       tr.title = `${leg.from} → ${leg.to}`;

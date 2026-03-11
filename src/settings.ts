@@ -8,6 +8,7 @@ export type ChartMode = "follow" | "course-up" | "north-up" | "free";
 export type DetailLevel = -1 | 0 | 1 | 2;
 export type CourseLineDuration = 0 | 15 | 30 | 60;
 export type DisplayTheme = "day" | "dusk" | "night" | "eink";
+export type BearingMode = "true" | "magnetic";
 export type SymbologyScheme =
   | "pelorus-standard"
   | "iho-s52"
@@ -33,6 +34,8 @@ export interface Settings {
   symbologyScheme: SymbologyScheme;
   /** Arrival radius in NM — auto-advance route legs when closer than this. */
   arrivalRadiusNM: number;
+  /** Display bearings as true or magnetic. */
+  bearingMode: BearingMode;
   /** Show OSM raster tiles underneath S-57 vector charts for land context. */
   showOSMUnderlay: boolean;
   /** Shallow water threshold in meters (areas < this get DEPVS color). */
@@ -77,6 +80,7 @@ const DEFAULTS: Settings = {
   simulatorSpeed: 1,
   displayTheme: "day",
   symbologyScheme: "iho-s52",
+  bearingMode: "magnetic",
   showOSMUnderlay: false,
   shallowDepth: 5,
   deepDepth: 20,

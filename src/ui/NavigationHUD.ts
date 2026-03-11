@@ -8,6 +8,7 @@ import type { NavigationDataManager } from "../navigation/NavigationDataManager"
 import type { SpeedUnit } from "../settings";
 import { getSettings } from "../settings";
 import { formatLatLon } from "../utils/coordinates";
+import { formatBearing, formatDeclination } from "../utils/magnetic";
 import { convertSpeed, speedUnitLabel } from "../utils/units";
 
 function formatSpeed(knots: number | null, unit: SpeedUnit): string {
@@ -17,9 +18,10 @@ function formatSpeed(knots: number | null, unit: SpeedUnit): string {
   return `${value.toFixed(1)} ${label}`;
 }
 
-function formatCOG(cog: number | null): string {
+function formatCOG(cog: number | null, lat: number, lon: number): string {
   if (cog === null) return "--";
-  return `${cog.toFixed(0).padStart(3, "0")}\u00b0T`;
+  const { bearingMode } = getSettings();
+  return formatBearing(cog, bearingMode, lat, lon);
 }
 
 /** Shorten GPS source name for compact display. */
@@ -72,8 +74,12 @@ export class NavigationHUD {
     // GPS data
     navManager.subscribe((data) => {
       const settings = getSettings();
-      this.cogSogLine.textContent = `COG ${formatCOG(data.cog)}  SOG ${formatSpeed(data.sog, settings.speedUnit)}`;
-      this.gpsLine.textContent = `GPS: ${formatLatLon(data.latitude, "lat")} ${formatLatLon(data.longitude, "lon")} [${shortSource(data.source)}]`;
+      this.cogSogLine.textContent = `COG ${formatCOG(data.cog, data.latitude, data.longitude)}  SOG ${formatSpeed(data.sog, settings.speedUnit)}`;
+      const varText =
+        settings.bearingMode === "magnetic"
+          ? `  ${formatDeclination(data.latitude, data.longitude)}`
+          : "";
+      this.gpsLine.textContent = `GPS: ${formatLatLon(data.latitude, "lat")} ${formatLatLon(data.longitude, "lon")} [${shortSource(data.source)}]${varText}`;
     });
   }
 

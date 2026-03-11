@@ -12,6 +12,7 @@ import type { NavigationData } from "../navigation/NavigationData";
 import type { NavigationDataManager } from "../navigation/NavigationDataManager";
 import type { Settings } from "../settings";
 import { getSettings, onSettingsChange } from "../settings";
+import { applyDeclination, bearingModeLabel } from "../utils/magnetic";
 import { convertSpeed, speedUnitLabel } from "../utils/units";
 
 export interface InstrumentDef {
@@ -45,11 +46,19 @@ export const INSTRUMENTS: Map<string, InstrumentDef> = new Map([
     {
       id: "cog",
       label: "Heading",
-      format(data) {
-        if (!data || data.cog === null) return { value: "--", unit: "T" };
+      format(data, settings) {
+        const mode = settings.bearingMode;
+        const label = bearingModeLabel(mode);
+        if (!data || data.cog === null) return { value: "--", unit: label };
+        const display = applyDeclination(
+          data.cog,
+          mode,
+          data.latitude,
+          data.longitude,
+        );
         return {
-          value: `${data.cog.toFixed(0).padStart(3, "0")}\u00b0`,
-          unit: "T",
+          value: `${Math.round(display).toString().padStart(3, "0")}\u00b0`,
+          unit: label,
         };
       },
     },

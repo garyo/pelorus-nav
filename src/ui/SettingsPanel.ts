@@ -4,6 +4,7 @@
  */
 
 import {
+  type BearingMode,
   type ChartMode,
   type CourseLineDuration,
   convertDepth,
@@ -19,6 +20,7 @@ import {
   type SymbologyScheme,
   updateSettings,
 } from "../settings";
+import { bearingModeLabel } from "../utils/magnetic";
 import { iconSettings } from "./icons";
 
 const DEPTH_UNITS: { value: DepthUnit; label: string }[] = [
@@ -62,8 +64,16 @@ export function createSettingsPanel(
   unitBadge.textContent = depthUnitLabel(getSettings().depthUnit);
   wrapper.appendChild(unitBadge);
 
+  // Bearing mode indicator
+  const bearingBadge = document.createElement("span");
+  bearingBadge.className = "depth-unit-badge";
+  const initSettings = getSettings();
+  bearingBadge.textContent = `\u00b0${bearingModeLabel(initSettings.bearingMode)}`;
+  wrapper.appendChild(bearingBadge);
+
   onSettingsChange((s) => {
     unitBadge.textContent = depthUnitLabel(s.depthUnit);
+    bearingBadge.textContent = `\u00b0${bearingModeLabel(s.bearingMode)}`;
   });
 
   const btn = document.createElement("button");
@@ -227,6 +237,21 @@ function buildAppearanceTab(
       SPEED_UNITS,
       settings.speedUnit,
       (v) => updateSettings({ speedUnit: v as SpeedUnit }),
+    ),
+  );
+
+  // Bearings (true/magnetic)
+  const BEARING_MODES = [
+    { value: "magnetic", label: "Magnetic" },
+    { value: "true", label: "True" },
+  ];
+  tab.appendChild(
+    buildSelectRow(
+      "Bearings",
+      "settings-bearing-mode",
+      BEARING_MODES,
+      settings.bearingMode,
+      (v) => updateSettings({ bearingMode: v as BearingMode }),
     ),
   );
 
