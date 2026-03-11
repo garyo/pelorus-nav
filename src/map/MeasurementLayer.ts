@@ -4,12 +4,12 @@
  */
 
 import type maplibregl from "maplibre-gl";
-import { getSettings } from "../settings";
+import { getSettings, onSettingsChange } from "../settings";
 import { haversineDistanceNM, initialBearingDeg } from "../utils/coordinates";
 import { formatBearing } from "../utils/magnetic";
 import { DraggablePoints } from "./DraggablePoints";
 import { getMode, setMode } from "./InteractionMode";
-import { ensurePointIcons, ROLE_ICON_EXPR } from "./point-icons";
+import { ensureMeasureIcons, MEASURE_ICON_EXPR } from "./point-icons";
 
 const SOURCE_POINTS = "_measure-points";
 const SOURCE_LINE = "_measure-line";
@@ -28,6 +28,9 @@ export class MeasurementLayer {
   private draggable: DraggablePoints | null = null;
   private panel: HTMLDivElement;
   private clickHandler: ((e: maplibregl.MapMouseEvent) => void) | null = null;
+  private moveHandler: ((e: maplibregl.MapMouseEvent) => void) | null = null;
+  /** Temporary cursor position used as preview before second point is placed. */
+  private preview: MeasurePoint | null = null;
 
   constructor(map: maplibregl.Map) {
     this.map = map;
@@ -39,6 +42,8 @@ export class MeasurementLayer {
 
     map.on("style.load", () => this.setupLayers());
     if (map.isStyleLoaded()) this.setupLayers();
+
+    onSettingsChange(() => this.showPanel());
   }
 
   /** Start measurement from a given point (called from context menu). */
@@ -50,14 +55,27 @@ export class MeasurementLayer {
     this.updateSources();
     this.showPanel();
 
+    this.moveHandler = (e: maplibregl.MapMouseEvent) => {
+      if (getMode() !== "measure") return;
+      if (!this.pointA || this.pointB) return;
+      this.preview = { lng: e.lngLat.lng, lat: e.lngLat.lat };
+      this.updateSources();
+      this.showPanel();
+    };
+    this.map.on("mousemove", this.moveHandler);
+
     this.clickHandler = (e: maplibregl.MapMouseEvent) => {
       if (getMode() !== "measure") return;
       if (!this.pointA || this.pointB) return;
       this.pointB = { lng: e.lngLat.lng, lat: e.lngLat.lat };
+      this.preview = null;
       this.updateSources();
       this.showPanel();
       this.setupDrag();
-      // Remove click handler after second point placed
+      if (this.moveHandler) {
+        this.map.off("mousemove", this.moveHandler);
+        this.moveHandler = null;
+      }
       if (this.clickHandler) {
         this.map.off("click", this.clickHandler);
         this.clickHandler = null;
@@ -74,6 +92,11 @@ export class MeasurementLayer {
       this.map.off("click", this.clickHandler);
       this.clickHandler = null;
     }
+    if (this.moveHandler) {
+      this.map.off("mousemove", this.moveHandler);
+      this.moveHandler = null;
+    }
+    this.preview = null;
     if (this.draggable) {
       this.draggable.destroy();
       this.draggable = null;
@@ -109,14 +132,15 @@ export class MeasurementLayer {
       },
     });
 
-    ensurePointIcons(this.map);
+    ensureMeasureIcons(this.map);
     this.map.addLayer({
       id: LAYER_POINTS,
       type: "symbol",
       source: SOURCE_POINTS,
       layout: {
-        "icon-image": ROLE_ICON_EXPR,
+        "icon-image": MEASURE_ICON_EXPR,
         "icon-size": 1,
+        "icon-anchor": "bottom",
         "icon-allow-overlap": true,
       },
     });
@@ -146,6 +170,8 @@ export class MeasurementLayer {
       | undefined;
     if (!lineSrc || !ptSrc) return;
 
+    const endPoint = this.pointB ?? this.preview;
+
     const points: GeoJSON.Feature[] = [];
     if (this.pointA) {
       points.push({
@@ -169,7 +195,7 @@ export class MeasurementLayer {
     }
     ptSrc.setData({ type: "FeatureCollection", features: points });
 
-    if (this.pointA && this.pointB) {
+    if (this.pointA && endPoint) {
       lineSrc.setData({
         type: "FeatureCollection",
         features: [
@@ -180,7 +206,7 @@ export class MeasurementLayer {
               type: "LineString",
               coordinates: [
                 [this.pointA.lng, this.pointA.lat],
-                [this.pointB.lng, this.pointB.lat],
+                [endPoint.lng, endPoint.lat],
               ],
             },
           },
@@ -199,7 +225,9 @@ export class MeasurementLayer {
 
     this.panel.style.display = "block";
 
-    if (!this.pointB) {
+    const endPoint = this.pointB ?? this.preview;
+
+    if (!endPoint) {
       this.panel.innerHTML =
         '<div class="measure-panel-text">Click to place second point</div>' +
         '<button class="measure-panel-close">&times;</button>';
@@ -212,18 +240,18 @@ export class MeasurementLayer {
     const dist = haversineDistanceNM(
       this.pointA.lat,
       this.pointA.lng,
-      this.pointB.lat,
-      this.pointB.lng,
+      endPoint.lat,
+      endPoint.lng,
     );
     const bearing = initialBearingDeg(
       this.pointA.lat,
       this.pointA.lng,
-      this.pointB.lat,
-      this.pointB.lng,
+      endPoint.lat,
+      endPoint.lng,
     );
     const reverseBearing = initialBearingDeg(
-      this.pointB.lat,
-      this.pointB.lng,
+      endPoint.lat,
+      endPoint.lng,
       this.pointA.lat,
       this.pointA.lng,
     );
@@ -238,8 +266,8 @@ export class MeasurementLayer {
     const fmtRev = formatBearing(
       reverseBearing,
       bearingMode,
-      this.pointB.lat,
-      this.pointB.lng,
+      endPoint.lat,
+      endPoint.lng,
     );
 
     this.panel.innerHTML =
