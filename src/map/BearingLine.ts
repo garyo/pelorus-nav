@@ -77,7 +77,7 @@ export class BearingLine {
         source: SOURCE_ID,
         filter: ["==", "$type", "LineString"],
         paint: {
-          "line-color": "#ff8800",
+          "line-color": "#ffdd00",
           "line-width": 2.5,
           "line-opacity": 0.8,
           "line-dasharray": [4, 3],
@@ -95,7 +95,7 @@ export class BearingLine {
         paint: {
           "circle-radius": 8,
           "circle-color": "transparent",
-          "circle-stroke-color": "#ff8800",
+          "circle-stroke-color": "#ffdd00",
           "circle-stroke-width": 2.5,
         },
       },

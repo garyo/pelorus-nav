@@ -12,6 +12,8 @@ const VESSEL_SOURCE = "_vessel-position";
 const ACCURACY_SOURCE = "_vessel-accuracy";
 const VESSEL_ICON = "_vessel-icon";
 const ICON_SIZE = 32;
+const SHADOW_PAD = 8; // extra canvas space for drop shadow
+const CANVAS_SIZE = ICON_SIZE + SHADOW_PAD * 2;
 
 export class VesselLayer {
   private readonly map: maplibregl.Map;
@@ -50,13 +52,21 @@ export class VesselLayer {
   private createVesselIcon(): void {
     const canvas = document.createElement("canvas");
     const ratio = window.devicePixelRatio || 1;
-    canvas.width = ICON_SIZE * ratio;
-    canvas.height = ICON_SIZE * ratio;
+    canvas.width = CANVAS_SIZE * ratio;
+    canvas.height = CANVAS_SIZE * ratio;
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
     ctx.scale(ratio, ratio);
+    // Offset drawing so the icon is centered with padding for shadow
+    ctx.translate(SHADOW_PAD, SHADOW_PAD);
     const cx = ICON_SIZE / 2;
+
+    // Drop shadow for contrast against busy charts (DEBUG: exaggerated)
+    ctx.shadowColor = "rgba(0, 0, 0, 1)";
+    ctx.shadowBlur = 6;
+    ctx.shadowOffsetX = 0;
+    ctx.shadowOffsetY = 0;
 
     // Draw a vessel triangle pointing up (north)
     ctx.beginPath();
@@ -78,9 +88,10 @@ export class VesselLayer {
     this.map.addImage(
       VESSEL_ICON,
       {
-        width: ICON_SIZE * ratio,
-        height: ICON_SIZE * ratio,
-        data: ctx.getImageData(0, 0, ICON_SIZE * ratio, ICON_SIZE * ratio).data,
+        width: CANVAS_SIZE * ratio,
+        height: CANVAS_SIZE * ratio,
+        data: ctx.getImageData(0, 0, CANVAS_SIZE * ratio, CANVAS_SIZE * ratio)
+          .data,
       },
       { pixelRatio: ratio },
     );
@@ -140,9 +151,24 @@ export class VesselLayer {
     this.updateAccuracyVisibility();
   }
 
+  /** Move vessel layers to the top so nothing draws over the boat. */
+  private ensureOnTop(): void {
+    if (this.map.getLayer("_vessel-accuracy-fill")) {
+      this.map.moveLayer("_vessel-accuracy-fill");
+    }
+    if (this.map.getLayer("_vessel-accuracy-outline")) {
+      this.map.moveLayer("_vessel-accuracy-outline");
+    }
+    if (this.map.getLayer("_vessel-icon")) {
+      this.map.moveLayer("_vessel-icon");
+    }
+  }
+
   private updatePosition(): void {
     const data = this.lastData;
     if (!data) return;
+
+    this.ensureOnTop();
 
     const vesselSource = this.map.getSource(VESSEL_SOURCE) as
       | maplibregl.GeoJSONSource

@@ -574,6 +574,7 @@ body {
   flex-direction: column;
   gap: 8px;
   max-height: calc(100vh - 54px);
+  overflow-y: auto;
   pointer-events: none;
 }
 

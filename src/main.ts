@@ -42,6 +42,7 @@ import {
   iconTrack,
 } from "./ui/icons";
 import { NavigationHUD } from "./ui/NavigationHUD";
+import { trackInstrumentHUD } from "./ui/PanelStack";
 import { RecenterButton } from "./ui/RecenterButton";
 import { RouteManagerPanel } from "./ui/RouteManagerPanel";
 import { createSettingsPanel } from "./ui/SettingsPanel";
@@ -228,6 +229,9 @@ if (mapEl) {
 } else {
   document.body.appendChild(instrumentHUD.element);
 }
+
+// Keep panel stack below instrument HUD
+trackInstrumentHUD(instrumentHUD.element);
 
 // Activate initial GPS source from settings
 navManager.setActiveProvider(getSettings().gpsSource);
