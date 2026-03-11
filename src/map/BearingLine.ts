@@ -99,8 +99,14 @@ export class BearingLine {
     endLat: number,
   ): void {
     // Keep bearing line above routes/waypoints (vessel ensures it stays above us)
-    if (this.map.getLayer(LINE_LAYER)) this.map.moveLayer(LINE_LAYER);
-    if (this.map.getLayer(TARGET_LAYER)) this.map.moveLayer(TARGET_LAYER);
+    // Only move if not already near the top to avoid symbol re-placement churn
+    const layers = this.map.getStyle().layers;
+    const topIdx = layers.length - 1;
+    const lineIdx = layers.findIndex((l) => l.id === LINE_LAYER);
+    if (lineIdx >= 0 && lineIdx < topIdx - 3) {
+      this.map.moveLayer(LINE_LAYER);
+      this.map.moveLayer(TARGET_LAYER);
+    }
 
     const source = this.map.getSource(SOURCE_ID) as
       | maplibregl.GeoJSONSource

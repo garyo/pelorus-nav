@@ -153,6 +153,11 @@ export class VesselLayer {
 
   /** Move vessel layers to the top so nothing draws over the boat. */
   private ensureOnTop(): void {
+    const layers = this.map.getStyle().layers;
+    if (!layers.length) return;
+    const topId = layers[layers.length - 1].id;
+    // Already on top — skip to avoid unnecessary symbol re-placement
+    if (topId === "_vessel-icon") return;
     if (this.map.getLayer("_vessel-accuracy-fill")) {
       this.map.moveLayer("_vessel-accuracy-fill");
     }
