@@ -274,6 +274,16 @@ function buildAppearanceTab(
     ),
   );
 
+  // OSM underlay (only useful with vector charts)
+  tab.appendChild(
+    buildCheckboxRow(
+      "OSM map under vector charts",
+      "settings-osm-underlay",
+      settings.showOSMUnderlay,
+      (v) => updateSettings({ showOSMUnderlay: v }),
+    ),
+  );
+
   return tab;
 }
 

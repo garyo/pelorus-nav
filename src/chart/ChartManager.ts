@@ -7,6 +7,7 @@ import type {
 } from "../settings";
 import { getSettings, onSettingsChange } from "../settings";
 import type { ChartProvider } from "./ChartProvider";
+import { applyOSMUnderlay, getOSMUnderlaySource } from "./osm-underlay";
 import { getIconScheme } from "./styles/icon-sets";
 
 export interface ChartManagerOptions {
@@ -32,6 +33,7 @@ export class ChartManager {
   private prevLayerGroups: Record<string, boolean>;
   private prevDisplayTheme: DisplayTheme;
   private prevSymbology: SymbologyScheme;
+  private prevShowOSMUnderlay: boolean;
   private prevShallowDepth: number;
   private prevDeepDepth: number;
 
@@ -70,6 +72,7 @@ export class ChartManager {
     this.prevLayerGroups = { ...initial.layerGroups };
     this.prevDisplayTheme = initial.displayTheme;
     this.prevSymbology = initial.symbologyScheme;
+    this.prevShowOSMUnderlay = initial.showOSMUnderlay;
     this.prevShallowDepth = initial.shallowDepth;
     this.prevDeepDepth = initial.deepDepth;
 
@@ -83,6 +86,7 @@ export class ChartManager {
         s.detailLevel !== this.prevDetailLevel ||
         s.displayTheme !== this.prevDisplayTheme ||
         s.symbologyScheme !== this.prevSymbology ||
+        s.showOSMUnderlay !== this.prevShowOSMUnderlay ||
         s.shallowDepth !== this.prevShallowDepth ||
         s.deepDepth !== this.prevDeepDepth ||
         layersChanged
@@ -92,6 +96,7 @@ export class ChartManager {
         this.prevLayerGroups = { ...s.layerGroups };
         this.prevDisplayTheme = s.displayTheme;
         this.prevSymbology = s.symbologyScheme;
+        this.prevShowOSMUnderlay = s.showOSMUnderlay;
         this.prevShallowDepth = s.shallowDepth;
         this.prevDeepDepth = s.deepDepth;
         this.refreshStyle();
@@ -148,15 +153,26 @@ export class ChartManager {
       settings.symbologyScheme,
       settings.displayTheme,
     );
+
+    let sources: Record<string, maplibregl.SourceSpecification> = {
+      [provider.id]: provider.getSource(),
+      ...extraSources,
+    };
+    let layers = provider.getLayers();
+
+    // Merge OSM underlay for vector chart providers
+    if (settings.showOSMUnderlay && provider.type === "vector") {
+      const osm = getOSMUnderlaySource();
+      sources = { ...sources, [osm.id]: osm.source };
+      layers = applyOSMUnderlay(layers, 0.3, settings.displayTheme);
+    }
+
     return {
       version: 8,
       sprite: `${window.location.origin}/sprites/${sprite}`,
       glyphs: "https://demotiles.maplibre.org/font/{fontstack}/{range}.pbf",
-      sources: {
-        [provider.id]: provider.getSource(),
-        ...extraSources,
-      },
-      layers: provider.getLayers(),
+      sources,
+      layers,
     };
   }
 }
