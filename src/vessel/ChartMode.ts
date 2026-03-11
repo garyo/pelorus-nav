@@ -16,6 +16,8 @@ export class ChartModeController {
   private modeBeforeFree: ChartModeType = "north-up";
   private lastData: NavigationData | null = null;
   private lastSmoothed: SmoothedCourse | null = null;
+  /** True while mouse/touch is down — suppresses jumpTo so drag can start. */
+  private userInteracting = false;
 
   constructor(map: maplibregl.Map) {
     this.map = map;
@@ -26,7 +28,6 @@ export class ChartModeController {
 
     // Detect user-initiated pan/zoom → switch to free mode
     this.map.on("movestart", (e) => {
-      // Only user gestures have originalEvent
       if (
         this.mode !== "free" &&
         (e as maplibregl.MapMouseEvent).originalEvent
@@ -35,6 +36,14 @@ export class ChartModeController {
         this.setMode("free");
       }
     });
+
+    // Suppress jumpTo while user is interacting so drag gestures
+    // aren't cancelled by GPS-tick map updates
+    this.map.on("mousedown", () => { this.userInteracting = true; });
+    this.map.on("mouseup", () => { this.userInteracting = false; });
+    const canvas = this.map.getCanvas();
+    canvas.addEventListener("touchstart", () => { this.userInteracting = true; });
+    canvas.addEventListener("touchend", () => { this.userInteracting = false; });
   }
 
   getMode(): ChartModeType {
@@ -69,7 +78,7 @@ export class ChartModeController {
     if (smoothed !== undefined) {
       this.lastSmoothed = smoothed;
     }
-    if (this.mode !== "free") {
+    if (this.mode !== "free" && !this.userInteracting) {
       this.applyPosition(data);
     }
   }

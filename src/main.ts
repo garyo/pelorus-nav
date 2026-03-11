@@ -717,6 +717,9 @@ function applyOverlayDimming(theme: string): void {
   }
 }
 
-// Apply on theme change and whenever layers are re-added after style load
+// Apply on theme change and after style reloads (when layers are re-added)
 onSettingsChange((s) => applyOverlayDimming(s.displayTheme));
-chartManager.map.on("sourcedata", () => applyOverlayDimming(getSettings().displayTheme));
+chartManager.map.on("style.load", () => {
+  // Defer until layers are re-added after style load
+  chartManager.map.once("idle", () => applyOverlayDimming(getSettings().displayTheme));
+});

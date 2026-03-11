@@ -18,6 +18,7 @@ function createMockMap() {
     }),
     jumpTo: vi.fn(),
     getBearing: vi.fn(() => 0),
+    getCanvas: vi.fn(() => ({ addEventListener: vi.fn() })),
     _fire(event: string, payload: unknown) {
       for (const fn of handlers[event] ?? []) {
         fn(payload);
