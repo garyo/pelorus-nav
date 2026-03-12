@@ -78,11 +78,10 @@ body {
 
 .settings-panel {
   display: none;
-  position: absolute;
-  z-index: 20;
-  top: 100%;
-  right: 0;
-  margin-top: 4px;
+  position: fixed;
+  z-index: 50;
+  top: 40px;
+  right: 12px;
   background: rgba(30, 30, 50, 0.95);
   border: 1px solid #444;
   border-radius: 6px;
@@ -1415,20 +1414,12 @@ body {
     padding: 10px 16px;
   }
 
-  .topbar-menu .settings-wrapper .settings-btn {
-    padding: 2px 4px;
-    width: auto;
-    min-height: auto;
-  }
-
-  /* Settings panel: fixed overlay on mobile, anchored to top */
+  /* Settings panel: full-width overlay on mobile */
   .settings-panel {
-    position: fixed;
     top: 36px;
     right: 0;
     left: 0;
     width: 100%;
-    margin-top: 0;
     border-radius: 0;
     max-height: calc(100vh - 36px);
     overflow-y: auto;

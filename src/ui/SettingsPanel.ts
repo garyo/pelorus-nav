@@ -85,7 +85,7 @@ export function createSettingsPanel(
   const panel = document.createElement("div");
   panel.className = "settings-panel";
   buildTabbedPanel(panel);
-  wrapper.appendChild(panel);
+  document.body.appendChild(panel);
 
   container.appendChild(wrapper);
 
@@ -101,9 +101,10 @@ export function createSettingsPanel(
     }
   });
 
-  // Close on outside click
+  // Close on outside click — check both wrapper and panel (different DOM trees)
   document.addEventListener("click", (e) => {
-    if (!wrapper.contains(e.target as Node)) {
+    const target = e.target as Node;
+    if (!wrapper.contains(target) && !panel.contains(target)) {
       panel.classList.remove("open");
     }
   });

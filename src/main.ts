@@ -133,6 +133,7 @@ if (hamburgerBtn && topbarMenu) {
   hamburgerBtn.addEventListener("click", (e) => {
     e.stopPropagation();
     topbarMenu.classList.toggle("open");
+    settingsHandle?.hide();
   });
   document.addEventListener("click", (e) => {
     if (!topbarMenu.contains(e.target as Node) && e.target !== hamburgerBtn) {
@@ -691,6 +692,7 @@ if (topbarMenu) {
     routePanel.hide();
     waypointPanel.hide();
     cachePanel.hide();
+    closeHamburger();
   });
 
   // Offline indicator
