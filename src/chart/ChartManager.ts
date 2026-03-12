@@ -56,6 +56,7 @@ export class ChartManager {
       style: this.buildStyle(initialProvider),
       center: options.center,
       zoom: options.zoom,
+      attributionControl: false,
     });
 
     this.activeProviderId = initialId;

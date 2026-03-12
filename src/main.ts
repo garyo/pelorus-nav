@@ -50,6 +50,7 @@ import { TrackManagerPanel } from "./ui/TrackManagerPanel";
 import { WaypointManagerPanel } from "./ui/WaypointManagerPanel";
 import { formatLatLon, parseLatLon } from "./utils/coordinates";
 import { applyDeclination, bearingModeLabel } from "./utils/magnetic";
+import { generateUUID } from "./utils/uuid";
 import { ChartModeController } from "./vessel/ChartMode";
 import { CourseLine } from "./vessel/CourseLine";
 import { VesselLayer } from "./vessel/VesselLayer";
@@ -121,9 +122,24 @@ chartSelect.addEventListener("change", () => {
 
 new FeatureQueryHandler(chartManager);
 
-// Settings gear in top bar
-const topBar = document.getElementById("top-bar");
-const settingsHandle = topBar ? createSettingsPanel(topBar) : null;
+// Settings gear in top bar menu
+const topbarMenu = document.getElementById("topbar-menu");
+const settingsHandle = topbarMenu ? createSettingsPanel(topbarMenu) : null;
+
+// Hamburger toggle for mobile
+const hamburgerBtn = document.getElementById("hamburger-btn");
+const closeHamburger = () => topbarMenu?.classList.remove("open");
+if (hamburgerBtn && topbarMenu) {
+  hamburgerBtn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    topbarMenu.classList.toggle("open");
+  });
+  document.addEventListener("click", (e) => {
+    if (!topbarMenu.contains(e.target as Node) && e.target !== hamburgerBtn) {
+      closeHamburger();
+    }
+  });
+}
 
 // --- Navigation system ---
 const navManager = new NavigationDataManager();
@@ -448,7 +464,7 @@ ctxRoute.addEventListener("click", () => {
 ctxWaypoint.addEventListener("click", () => {
   hideContextMenu();
   const wp: import("./data/Waypoint").StandaloneWaypoint = {
-    id: crypto.randomUUID(),
+    id: generateUUID(),
     lat: ctxLat,
     lon: ctxLng,
     name: `WP ${formatLatLon(ctxLat, "lat")}`,
@@ -549,15 +565,24 @@ instrumentHUD.onNavCellClick(() => routePanel.showActiveRoute());
 // Restore persisted navigation state (after all subscribers are wired up)
 await activeNav.restore();
 
-// Add toolbar buttons to top bar
-if (topBar) {
-  const settingsWrapper = topBar.querySelector(".settings-wrapper");
+// Helper: add a text label span for mobile menu display
+const addMenuLabel = (btn: HTMLElement, label: string) => {
+  const span = document.createElement("span");
+  span.className = "topbar-menu-label";
+  span.textContent = label;
+  btn.appendChild(span);
+};
+
+// Add toolbar buttons to top bar menu
+if (topbarMenu) {
+  const settingsWrapper = topbarMenu.querySelector(".settings-wrapper");
 
   // Record track toggle
   const recordBtn = document.createElement("button");
   recordBtn.className = "topbar-toggle topbar-record";
   recordBtn.title = "Record track";
   recordBtn.innerHTML = iconRecord;
+  addMenuLabel(recordBtn, "Record");
   const updateRecordBtn = () => {
     const on = trackRecorder.isRecording();
     recordBtn.classList.toggle("active", on);
@@ -565,58 +590,67 @@ if (topBar) {
   };
   recordBtn.addEventListener("click", () => {
     updateSettings({ trackRecordingEnabled: !trackRecorder.isRecording() });
+    closeHamburger();
   });
   trackRecorder.onRecordingChange(updateRecordBtn);
   updateRecordBtn();
-  topBar.insertBefore(recordBtn, settingsWrapper);
+  topbarMenu.insertBefore(recordBtn, settingsWrapper);
 
   // Instrument HUD toggle
   const hudBtn = document.createElement("button");
   hudBtn.className = "topbar-toggle";
   hudBtn.title = "Instrument HUD";
   hudBtn.innerHTML = iconGauge;
+  addMenuLabel(hudBtn, "Instruments");
   const updateHudBtn = () => {
     hudBtn.classList.toggle("active", getSettings().showInstrumentHUD);
   };
   hudBtn.addEventListener("click", () => {
     updateSettings({ showInstrumentHUD: !getSettings().showInstrumentHUD });
+    closeHamburger();
   });
   onSettingsChange(updateHudBtn);
   updateHudBtn();
-  topBar.insertBefore(hudBtn, settingsWrapper);
+  topbarMenu.insertBefore(hudBtn, settingsWrapper);
 
   // Tracks panel button
   const trackBtn = document.createElement("button");
   trackBtn.className = "settings-btn";
   trackBtn.title = "Tracks";
   trackBtn.innerHTML = iconTrack;
+  addMenuLabel(trackBtn, "Tracks");
   trackBtn.addEventListener("click", () => {
     trackPanel.toggle();
     settingsHandle?.hide();
+    closeHamburger();
   });
-  topBar.insertBefore(trackBtn, settingsWrapper);
+  topbarMenu.insertBefore(trackBtn, settingsWrapper);
 
   // Routes panel button
   const routeBtn = document.createElement("button");
   routeBtn.className = "settings-btn";
   routeBtn.title = "Routes";
   routeBtn.innerHTML = iconRoute;
+  addMenuLabel(routeBtn, "Routes");
   routeBtn.addEventListener("click", () => {
     routePanel.toggle();
     settingsHandle?.hide();
+    closeHamburger();
   });
-  topBar.insertBefore(routeBtn, settingsWrapper);
+  topbarMenu.insertBefore(routeBtn, settingsWrapper);
 
   // Waypoints panel button
   const waypointBtn = document.createElement("button");
   waypointBtn.className = "settings-btn";
   waypointBtn.title = "Waypoints";
   waypointBtn.innerHTML = iconPin;
+  addMenuLabel(waypointBtn, "Waypoints");
   waypointBtn.addEventListener("click", () => {
     waypointPanel.toggle();
     settingsHandle?.hide();
+    closeHamburger();
   });
-  topBar.insertBefore(waypointBtn, settingsWrapper);
+  topbarMenu.insertBefore(waypointBtn, settingsWrapper);
 
   // Chart cache panel button
   const cachePanel = new ChartCachePanel();
@@ -643,11 +677,13 @@ if (topBar) {
   cacheBtn.className = "settings-btn";
   cacheBtn.title = "Chart Regions";
   cacheBtn.innerHTML = iconGlobe;
+  addMenuLabel(cacheBtn, "Charts");
   cacheBtn.addEventListener("click", () => {
     cachePanel.toggle();
     settingsHandle?.hide();
+    closeHamburger();
   });
-  topBar.insertBefore(cacheBtn, settingsWrapper);
+  topbarMenu.insertBefore(cacheBtn, settingsWrapper);
 
   // Close manager panels when settings opens
   settingsHandle?.onOpen(() => {
@@ -657,13 +693,13 @@ if (topBar) {
     cachePanel.hide();
   });
 
-  // Offline indicator (Step 5)
+  // Offline indicator
   const offlineIndicator = document.createElement("div");
   offlineIndicator.className = "offline-indicator";
   offlineIndicator.innerHTML =
     '<div class="offline-dot"></div><span>Offline</span>';
   offlineIndicator.style.display = "none";
-  topBar.insertBefore(offlineIndicator, settingsWrapper);
+  topbarMenu.insertBefore(offlineIndicator, settingsWrapper);
 
   const updateOnlineStatus = () => {
     offlineIndicator.style.display = navigator.onLine ? "none" : "flex";

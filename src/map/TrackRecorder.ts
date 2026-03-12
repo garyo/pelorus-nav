@@ -14,6 +14,7 @@ import type { TrackMeta, TrackPoint } from "../data/Track";
 import type { NavigationData } from "../navigation/NavigationData";
 import type { NavigationDataManager } from "../navigation/NavigationDataManager";
 import { haversineDistanceNM } from "../utils/coordinates";
+import { generateUUID } from "../utils/uuid";
 
 const MIN_INTERVAL_MS = 1000;
 const MIN_MOVE_NM = 5 / 1852; // 5 meters in NM
@@ -149,7 +150,7 @@ export class TrackRecorder {
       const date = new Date(now);
       const name = `Track ${date.toISOString().slice(0, 16).replace("T", " ")}`;
       this.currentTrack = {
-        id: crypto.randomUUID(),
+        id: generateUUID(),
         name,
         createdAt: now,
         color: "#ff4444",

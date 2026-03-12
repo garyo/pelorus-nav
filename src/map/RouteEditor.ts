@@ -10,6 +10,7 @@ import type maplibregl from "maplibre-gl";
 import { saveRoute } from "../data/db";
 import type { Route, Waypoint } from "../data/Route";
 import { haversineDistanceNM, initialBearingDeg } from "../utils/coordinates";
+import { generateUUID } from "../utils/uuid";
 import { DraggablePoints } from "./DraggablePoints";
 import { getMode, setMode } from "./InteractionMode";
 import { ensurePointIcons, pointRole, ROLE_ICON_EXPR } from "./point-icons";
@@ -84,7 +85,7 @@ export class RouteEditor {
   /** Start a new route with the first waypoint at the given position. */
   startFromPoint(lat: number, lon: number): void {
     this.startEditing({
-      id: crypto.randomUUID(),
+      id: generateUUID(),
       name: `Route ${new Date().toISOString().slice(0, 16).replace("T", " ")}`,
       createdAt: Date.now(),
       color: "#4488cc",
@@ -102,7 +103,7 @@ export class RouteEditor {
     }
 
     this.route = route ?? {
-      id: crypto.randomUUID(),
+      id: generateUUID(),
       name: `Route ${new Date().toISOString().slice(0, 16).replace("T", " ")}`,
       createdAt: Date.now(),
       color: "#4488cc",

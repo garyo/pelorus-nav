@@ -3,6 +3,8 @@
  *
  * Downloads entire PMTiles files to Origin Private File System for
  * reliable offline access. Metadata stored as a JSON sidecar file.
+ *
+ * Gracefully degrades when OPFS is unavailable (insecure context / old browser).
  */
 
 const META_FILENAME = "_charts-meta.json";
@@ -15,14 +17,20 @@ export interface StoredChartInfo {
   etag?: string; // for update detection
 }
 
-/** Get OPFS root directory handle. */
-async function getRoot(): Promise<FileSystemDirectoryHandle> {
-  return navigator.storage.getDirectory();
+/** Get OPFS root directory handle (returns null in insecure contexts). */
+async function getRoot(): Promise<FileSystemDirectoryHandle | null> {
+  if (!navigator.storage?.getDirectory) return null;
+  try {
+    return await navigator.storage.getDirectory();
+  } catch {
+    return null;
+  }
 }
 
 /** Read metadata sidecar from OPFS. */
 async function readMeta(): Promise<StoredChartInfo[]> {
   const root = await getRoot();
+  if (!root) return [];
   try {
     const handle = await root.getFileHandle(META_FILENAME);
     const file = await handle.getFile();
@@ -36,6 +44,7 @@ async function readMeta(): Promise<StoredChartInfo[]> {
 /** Write metadata sidecar to OPFS. */
 async function writeMeta(charts: StoredChartInfo[]): Promise<void> {
   const root = await getRoot();
+  if (!root) return;
   const handle = await root.getFileHandle(META_FILENAME, { create: true });
   const writable = await handle.createWritable();
   await writable.write(JSON.stringify(charts, null, 2));
@@ -58,6 +67,9 @@ export async function downloadChart(
   onProgress: (loaded: number, total: number) => void,
   signal?: AbortSignal,
 ): Promise<void> {
+  const root = await getRoot();
+  if (!root) throw new Error("Offline storage is not available (OPFS)");
+
   const response = await fetch(url, { signal });
   if (!response.ok) {
     throw new Error(
@@ -67,7 +79,6 @@ export async function downloadChart(
 
   const total = Number(response.headers.get("content-length") || 0);
   const etag = response.headers.get("etag") ?? undefined;
-  const root = await getRoot();
 
   const tempName = `${filename}.downloading`;
 
@@ -163,6 +174,7 @@ export async function downloadChart(
  */
 export async function importChart(file: File): Promise<void> {
   const root = await getRoot();
+  if (!root) throw new Error("Offline storage is not available (OPFS)");
   const handle = await root.getFileHandle(file.name, { create: true });
   const writable = await handle.createWritable();
   await writable.write(file);
@@ -189,6 +201,7 @@ export async function importChart(file: File): Promise<void> {
 /** Get a File handle for a stored chart (for PMTiles FileSource). */
 export async function getChartFile(filename: string): Promise<File | null> {
   const root = await getRoot();
+  if (!root) return null;
   try {
     const handle = await root.getFileHandle(filename);
     return handle.getFile();
@@ -200,6 +213,7 @@ export async function getChartFile(filename: string): Promise<File | null> {
 /** Delete a stored chart file and update metadata. */
 export async function deleteChart(filename: string): Promise<void> {
   const root = await getRoot();
+  if (!root) return;
   try {
     await root.removeEntry(filename);
   } catch {
@@ -215,6 +229,7 @@ export async function deleteChart(filename: string): Promise<void> {
 export async function deleteAllCharts(): Promise<void> {
   const meta = await readMeta();
   const root = await getRoot();
+  if (!root) return;
   for (const chart of meta) {
     try {
       await root.removeEntry(chart.filename);
@@ -240,6 +255,8 @@ export async function downloadAuxFile(
   filename: string,
   signal?: AbortSignal,
 ): Promise<void> {
+  const root = await getRoot();
+  if (!root) throw new Error("Offline storage is not available (OPFS)");
   const response = await fetch(url, { signal });
   if (!response.ok) {
     throw new Error(
@@ -247,7 +264,6 @@ export async function downloadAuxFile(
     );
   }
   const blob = await response.blob();
-  const root = await getRoot();
   const handle = await root.getFileHandle(filename, { create: true });
   const writable = await handle.createWritable();
   await writable.write(blob);
@@ -260,6 +276,7 @@ export async function downloadAuxFile(
  */
 export async function getAuxFileURL(filename: string): Promise<string | null> {
   const root = await getRoot();
+  if (!root) return null;
   try {
     const handle = await root.getFileHandle(filename);
     const file = await handle.getFile();
@@ -274,6 +291,7 @@ export async function getAuxFileURL(filename: string): Promise<string | null> {
  */
 export async function deleteAuxFile(filename: string): Promise<void> {
   const root = await getRoot();
+  if (!root) return;
   try {
     await root.removeEntry(filename);
   } catch {

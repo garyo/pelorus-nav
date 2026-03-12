@@ -1314,3 +1314,198 @@ body {
 .cancel-nav-btn:hover {
   background: #f0f0f0;
 }
+
+/* ── Hamburger menu & mobile responsive ──────────────────────────── */
+
+/* Desktop: hamburger hidden, menu children flow inline */
+.hamburger-btn {
+  display: none;
+  background: none;
+  border: none;
+  color: #e0e0e0;
+  font-size: 20px;
+  cursor: pointer;
+  padding: 2px 6px;
+  line-height: 1;
+}
+
+.topbar-menu {
+  display: contents;
+}
+
+.topbar-menu-label {
+  display: none;
+}
+
+/* Hide cursor coords on touch-only (no hover) devices */
+@media (hover: none) {
+  .nav-hud-cursor-coords {
+    display: none;
+  }
+}
+
+/* Nav HUD collapse toggle — hidden on desktop */
+.nav-hud-toggle {
+  display: none;
+  background: none;
+  border: none;
+  color: inherit;
+  font-size: 12px;
+  cursor: pointer;
+  padding: 4px 8px;
+  min-width: 30px;
+  min-height: 30px;
+  line-height: 1;
+  float: right;
+}
+
+/* ── Mobile (≤768px) ─────────────────────────────────────────────── */
+@media (max-width: 768px) {
+  .hamburger-btn {
+    display: block;
+    margin-left: auto;
+  }
+
+  .topbar-menu {
+    display: none;
+    position: absolute;
+    top: 36px;
+    right: 0;
+    width: 220px;
+    flex-direction: column;
+    background: rgba(26, 26, 46, 0.95);
+    border: 1px solid #444;
+    border-radius: 0 0 6px 6px;
+    z-index: 30;
+    padding: 4px 0;
+  }
+
+  .topbar-menu.open {
+    display: flex;
+  }
+
+  .topbar-menu-label {
+    display: inline;
+    margin-left: 8px;
+    font-size: 13px;
+  }
+
+  /* Menu items: touch-friendly rows */
+  .topbar-menu .settings-btn,
+  .topbar-menu .topbar-toggle {
+    display: flex;
+    align-items: center;
+    padding: 10px 16px;
+    min-width: 44px;
+    min-height: 44px;
+    width: 100%;
+    text-align: left;
+    border-radius: 0;
+  }
+
+  .topbar-menu .settings-btn:hover,
+  .topbar-menu .topbar-toggle:hover {
+    background: rgba(100, 130, 200, 0.2);
+  }
+
+  /* Settings wrapper fills menu width */
+  .topbar-menu .settings-wrapper {
+    margin-left: 0;
+    width: 100%;
+    padding: 10px 16px;
+  }
+
+  .topbar-menu .settings-wrapper .settings-btn {
+    padding: 2px 4px;
+    width: auto;
+    min-height: auto;
+  }
+
+  /* Settings panel: fixed overlay on mobile, anchored to top */
+  .settings-panel {
+    position: fixed;
+    top: 36px;
+    right: 0;
+    left: 0;
+    width: 100%;
+    margin-top: 0;
+    border-radius: 0;
+    max-height: calc(100vh - 36px);
+    overflow-y: auto;
+  }
+
+  /* Offline indicator in menu */
+  .topbar-menu .offline-indicator {
+    padding: 6px 16px;
+  }
+
+  /* Nav HUD: smaller, show toggle */
+  .nav-hud {
+    font-size: 11px;
+    bottom: 10px;
+    right: 6px;
+  }
+
+  .nav-hud-toggle {
+    display: inline-block;
+  }
+
+  /* Touch targets */
+  .settings-btn,
+  .topbar-toggle {
+    min-width: 44px;
+    min-height: 44px;
+  }
+}
+
+/* ── Landscape small screens ─────────────────────────────────────── */
+@media (max-height: 500px) {
+  .settings-panel {
+    max-height: calc(100vh - 50px);
+    overflow-y: auto;
+  }
+}
+
+@media (orientation: landscape) and (max-height: 500px) {
+  .instrument-hud {
+    min-height: auto;
+  }
+
+  .instrument-cell {
+    height: 60px;
+    padding: 2px 12px;
+  }
+
+  .instrument-value {
+    font-size: 36px;
+  }
+}
+
+/* ── Theme overrides for hamburger menu ──────────────────────────── */
+[data-theme="night"] .hamburger-btn {
+  color: #cc3333;
+}
+
+[data-theme="night"] .topbar-menu {
+  background: rgba(26, 10, 10, 0.95);
+  border-color: #442222;
+}
+
+[data-theme="dusk"] .hamburger-btn {
+  color: #b0b0c0;
+}
+
+[data-theme="dusk"] .topbar-menu {
+  background: rgba(42, 42, 53, 0.95);
+  border-color: #555566;
+}
+
+[data-theme="eink"] .hamburger-btn {
+  color: #000000;
+}
+
+[data-theme="eink"] .topbar-menu {
+  background: #ffffff;
+  border: 2px solid #000000;
+  border-radius: 0;
+}

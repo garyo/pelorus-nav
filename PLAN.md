@@ -483,7 +483,7 @@ DSID, M_COVR, M_NPUB, M_NSYS, M_QUAL, C_AGGR, C_ASSO, NEWOBJ, ADMARE, CONZNE, CO
 4. Keyboard shortcuts (desktop): +/- zoom, arrow pan, R re-center, N north-up, C course-up
 5. Touch gestures: pinch-zoom, two-finger rotate (for course-up), double-tap zoom
 6. Loading states, error states, empty states for all screens
-7. About/license page (open source license info)
+7. About/license page (open source license info, data source attribution/credits for NOAA, OSM, MapLibre, etc.)
 
 ### Acceptance Criteria
 - [ ] All settings persist across sessions
@@ -713,3 +713,9 @@ Phase 2A (GPS) can also start in parallel with Phase 1.
 - **PMTiles format**: https://protomaps.com/docs/pmtiles
 - **S-52 presentation library** (reference): https://github.com/sduclos/S52
 - **MarineCharts.io** (commercial vector tile API, for prototyping): https://marinecharts.io/
+
+---
+
+## Known Issues
+
+- **Overlapping semi-transparent land areas with OSM underlay**: When `showOSMUnderlay` is enabled, LNDARE polygons are rendered at `fill-opacity: 0.3` so OSM shows through. Overlapping LNDARE polygons from different ENC cells cause darker patches where they stack (e.g. around 42.370,-71.095). Root cause: same-band compositing merges features without clipping, and multi-band compositing uses a ~1km buffer for gap prevention. Fix requires pipeline changes (union/dissolve LNDARE per tile during compositing) + retiling. MapLibre has no "flat" blend mode for fill layers, so no frontend-only workaround exists.

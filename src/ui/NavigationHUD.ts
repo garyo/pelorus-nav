@@ -40,36 +40,55 @@ export class NavigationHUD {
     this.container = document.createElement("div");
     this.container.className = "nav-hud";
 
-    this.cursorLine = document.createElement("div");
-    this.cogSogLine = document.createElement("div");
-    this.gpsLine = document.createElement("div");
+    // Collapse toggle for mobile
+    const toggleBtn = document.createElement("button");
+    toggleBtn.className = "nav-hud-toggle";
+    toggleBtn.textContent = "\u25BC";
+    toggleBtn.setAttribute("aria-label", "Toggle HUD details");
+    let hudCollapsed = false;
+    toggleBtn.addEventListener("click", () => {
+      hudCollapsed = !hudCollapsed;
+      toggleBtn.textContent = hudCollapsed ? "\u25B2" : "\u25BC";
+      cursorSpan.style.display = hudCollapsed ? "none" : "";
+      this.cogSogLine.style.display = hudCollapsed ? "none" : "";
+      this.gpsLine.style.display = hudCollapsed ? "none" : "";
+    });
 
-    this.container.append(this.cursorLine, this.cogSogLine, this.gpsLine);
+    this.cursorLine = document.createElement("div");
+    const zoomSpan = document.createElement("span");
+    const cursorSpan = document.createElement("span");
+    cursorSpan.className = "nav-hud-cursor-coords";
+    this.cursorLine.append(cursorSpan, zoomSpan);
+
+    this.cogSogLine = document.createElement("div");
+    this.cogSogLine.textContent = "COG --  SOG --";
+    this.gpsLine = document.createElement("div");
+    this.gpsLine.textContent = "GPS: --";
+
+    this.container.append(
+      toggleBtn,
+      this.cursorLine,
+      this.cogSogLine,
+      this.gpsLine,
+    );
     document.body.appendChild(this.container);
 
-    // Cursor position + zoom on same line
-    let zoomText = `z${map.getZoom().toFixed(1)}`;
-    let cursorText = "";
-
-    const updateCursorLine = () => {
-      this.cursorLine.textContent = cursorText
-        ? `${cursorText}  ${zoomText}`
-        : zoomText;
-    };
-
+    // Zoom (always shown)
     const updateZoom = () => {
-      zoomText = `z${map.getZoom().toFixed(1)}`;
-      updateCursorLine();
+      zoomSpan.textContent = `z${map.getZoom().toFixed(1)}`;
     };
     map.on("zoom", updateZoom);
     map.on("load", updateZoom);
-    updateCursorLine();
+    updateZoom();
 
-    map.on("mousemove", (e: maplibregl.MapMouseEvent) => {
-      const { lng, lat } = e.lngLat;
-      cursorText = `${formatLatLon(lat, "lat")} ${formatLatLon(lng, "lon")}`;
-      updateCursorLine();
-    });
+    // Cursor coords — only on devices with a pointer that can hover
+    const canHover = window.matchMedia("(hover: hover)").matches;
+    if (canHover) {
+      map.on("mousemove", (e: maplibregl.MapMouseEvent) => {
+        const { lng, lat } = e.lngLat;
+        cursorSpan.textContent = `${formatLatLon(lat, "lat")} ${formatLatLon(lng, "lon")}  `;
+      });
+    }
 
     // GPS data
     navManager.subscribe((data) => {
