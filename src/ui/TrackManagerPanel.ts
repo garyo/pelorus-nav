@@ -6,7 +6,7 @@ import { deleteTrack, getAllTrackMetas, saveTrackMeta } from "../data/db";
 import type { TrackMeta } from "../data/Track";
 import type { TrackLayer } from "../map/TrackLayer";
 import type { TrackRecorder } from "../map/TrackRecorder";
-import { iconEye, iconEyeOff, iconTrash, iconX } from "./icons";
+import { iconEye, iconEyeOff, iconTrash, iconX, setIcon } from "./icons";
 import { getPanelStack } from "./PanelStack";
 
 export class TrackManagerPanel {
@@ -47,7 +47,7 @@ export class TrackManagerPanel {
 
     const closeBtn = this.el.querySelector(".manager-close") as HTMLElement;
     if (closeBtn) {
-      closeBtn.innerHTML = iconX;
+      setIcon(closeBtn, iconX);
       closeBtn.addEventListener("click", () => this.hide());
     }
 
@@ -128,7 +128,7 @@ export class TrackManagerPanel {
 
     const toggleBtn = document.createElement("button");
     toggleBtn.className = "manager-item-btn";
-    toggleBtn.innerHTML = meta.visible ? iconEye : iconEyeOff;
+    setIcon(toggleBtn, meta.visible ? iconEye : iconEyeOff);
     toggleBtn.title = meta.visible ? "Hide" : "Show";
     toggleBtn.addEventListener("click", () => {
       (async () => {
@@ -141,7 +141,7 @@ export class TrackManagerPanel {
 
     const deleteBtn = document.createElement("button");
     deleteBtn.className = "manager-item-btn";
-    deleteBtn.innerHTML = iconTrash;
+    setIcon(deleteBtn, iconTrash);
     deleteBtn.title = "Delete";
     deleteBtn.addEventListener("click", () => {
       if (!confirm(`Delete track "${meta.name}"?`)) return;

@@ -21,7 +21,7 @@ import {
   updateSettings,
 } from "../settings";
 import { bearingModeLabel } from "../utils/magnetic";
-import { iconSettings } from "./icons";
+import { iconSettings, setIcon } from "./icons";
 
 const DEPTH_UNITS: { value: DepthUnit; label: string }[] = [
   { value: "meters", label: "Meters" },
@@ -79,7 +79,7 @@ export function createSettingsPanel(
   const btn = document.createElement("button");
   btn.className = "settings-btn";
   btn.setAttribute("aria-label", "Settings");
-  btn.innerHTML = iconSettings;
+  setIcon(btn, iconSettings);
   wrapper.appendChild(btn);
 
   const panel = document.createElement("div");

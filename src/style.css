@@ -686,6 +686,14 @@ body {
   color: #fff;
 }
 
+.route-nav-btn.active {
+  color: #ff8800;
+}
+
+.route-nav-btn.active:hover {
+  color: #ffaa44;
+}
+
 .manager-empty {
   padding: 12px;
   text-align: center;

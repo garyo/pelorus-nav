@@ -27,6 +27,7 @@ import {
   iconTrash,
   iconUpload,
   iconX,
+  setIcon,
 } from "./icons";
 import { getPanelStack } from "./PanelStack";
 
@@ -63,7 +64,7 @@ export class ChartCachePanel {
     ) as HTMLDivElement;
 
     const closeBtn = this.el.querySelector(".manager-close") as HTMLElement;
-    closeBtn.innerHTML = iconX;
+    setIcon(closeBtn, iconX);
     closeBtn.addEventListener("click", () => this.hide());
   }
 
@@ -184,7 +185,7 @@ export class ChartCachePanel {
       // Delete offline copy
       const deleteBtn = document.createElement("button");
       deleteBtn.className = "manager-item-btn";
-      deleteBtn.innerHTML = iconTrash;
+      setIcon(deleteBtn, iconTrash);
       deleteBtn.title = "Remove offline copy";
       deleteBtn.addEventListener("click", () => {
         if (!confirm(`Remove offline copy of "${region.name}"?`)) return;
@@ -200,7 +201,7 @@ export class ChartCachePanel {
       // Download for offline
       const dlBtn = document.createElement("button");
       dlBtn.className = "manager-item-btn";
-      dlBtn.innerHTML = iconDownload;
+      setIcon(dlBtn, iconDownload);
       dlBtn.title = "Download for offline use";
       dlBtn.addEventListener("click", () => {
         this.startDownload(region);
@@ -236,7 +237,7 @@ export class ChartCachePanel {
 
     const deleteBtn = document.createElement("button");
     deleteBtn.className = "manager-item-btn";
-    deleteBtn.innerHTML = iconTrash;
+    setIcon(deleteBtn, iconTrash);
     deleteBtn.title = "Delete";
     deleteBtn.addEventListener("click", () => {
       if (!confirm(`Delete "${chart.filename}"?`)) return;

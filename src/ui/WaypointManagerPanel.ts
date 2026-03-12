@@ -46,7 +46,7 @@ export class WaypointManagerPanel {
     this.body = this.el.querySelector(".manager-body") as HTMLDivElement;
     const closeBtn = this.el.querySelector(".manager-close") as HTMLElement;
     if (closeBtn) {
-      closeBtn.innerHTML = iconX;
+      setIcon(closeBtn, iconX);
       closeBtn.addEventListener("click", () => this.hide());
     }
   }

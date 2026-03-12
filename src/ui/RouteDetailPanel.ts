@@ -69,6 +69,7 @@ export class RouteDetailPanel {
   private activeNav: ActiveNavigationManager | null = null;
   private currentRoute: Route | null = null;
   private navCallback: ActiveNavCallback | null = null;
+  private readonly navBtn: HTMLButtonElement;
 
   constructor(routeLayer: RouteLayer) {
     this.routeLayer = routeLayer;
@@ -95,16 +96,20 @@ export class RouteDetailPanel {
       ".route-detail-footer",
     ) as HTMLDivElement;
 
-    const navBtn = this.el.querySelector(".route-nav-btn") as HTMLElement;
-    setIcon(navBtn, iconNavigation);
-    navBtn.addEventListener("click", () => {
+    this.navBtn = this.el.querySelector(".route-nav-btn") as HTMLButtonElement;
+    setIcon(this.navBtn, iconNavigation);
+    this.navBtn.addEventListener("click", () => {
       if (this.activeNav && this.currentRoute) {
-        this.activeNav.startRoute(this.currentRoute);
+        if (this.isNavigatingCurrentRoute()) {
+          this.activeNav.stop();
+        } else {
+          this.activeNav.startRoute(this.currentRoute);
+        }
       }
     });
 
     const closeBtn = this.el.querySelector(".manager-close") as HTMLElement;
-    closeBtn.innerHTML = iconX;
+    setIcon(closeBtn, iconX);
     closeBtn.addEventListener("click", () => this.hide());
   }
 
@@ -138,6 +143,13 @@ export class RouteDetailPanel {
     }
   }
 
+  /** Returns true if actively navigating the currently displayed route. */
+  private isNavigatingCurrentRoute(): boolean {
+    if (!this.activeNav || !this.currentRoute) return false;
+    const st = this.activeNav.getState();
+    return st.type === "route" && st.route.id === this.currentRoute.id;
+  }
+
   /** Returns the active leg index if navigating this route, or -1. */
   private getActiveLegIndex(): number {
     if (!this.activeNav || !this.currentRoute) return -1;
@@ -162,6 +174,9 @@ export class RouteDetailPanel {
     }
 
     const activeLegIdx = this.getActiveLegIndex();
+    const navigating = activeLegIdx >= 0;
+    this.navBtn.classList.toggle("active", navigating);
+    this.navBtn.title = navigating ? "Stop navigation" : "Navigate route";
 
     // Build table
     const table = document.createElement("table");

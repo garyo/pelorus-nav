@@ -1,4 +1,4 @@
-import { iconChevronDown, iconChevronUp, iconX } from "../ui/icons";
+import { iconChevronDown, iconChevronUp, iconX, setIcon } from "../ui/icons";
 import type { FeatureInfo } from "./feature-info";
 
 /**
@@ -32,7 +32,7 @@ export class FeatureInfoPanel {
 
     this.closeBtn = document.createElement("button");
     this.closeBtn.className = "feature-info-close";
-    this.closeBtn.innerHTML = iconX;
+    setIcon(this.closeBtn, iconX);
     this.closeBtn.setAttribute("aria-label", "Close");
     this.closeBtn.addEventListener("click", (e) => {
       e.stopPropagation();
@@ -51,7 +51,7 @@ export class FeatureInfoPanel {
 
     this.prevBtn = document.createElement("button");
     this.prevBtn.className = "feature-info-nav-btn";
-    this.prevBtn.innerHTML = iconChevronUp;
+    setIcon(this.prevBtn, iconChevronUp);
     this.prevBtn.setAttribute("aria-label", "Previous feature");
     this.prevBtn.addEventListener("click", () => this.onCyclePrev?.());
 
@@ -59,7 +59,7 @@ export class FeatureInfoPanel {
 
     this.nextBtn = document.createElement("button");
     this.nextBtn.className = "feature-info-nav-btn";
-    this.nextBtn.innerHTML = iconChevronDown;
+    setIcon(this.nextBtn, iconChevronDown);
     this.nextBtn.setAttribute("aria-label", "Next feature");
     this.nextBtn.addEventListener("click", () => this.onCycleNext?.());
 

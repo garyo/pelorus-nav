@@ -139,9 +139,10 @@ export const iconUpload = svg(
 
 /**
  * Set an element's innerHTML to an icon SVG.
- * Convenience wrapper that also sets aria-hidden.
+ * Marks the SVG as aria-hidden so screen readers skip the decorative icon.
  */
 export function setIcon(el: HTMLElement, icon: string): void {
   el.innerHTML = icon;
-  el.setAttribute("aria-hidden", "true");
+  const svg = el.querySelector("svg");
+  if (svg) svg.setAttribute("aria-hidden", "true");
 }

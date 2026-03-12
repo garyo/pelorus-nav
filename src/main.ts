@@ -40,6 +40,7 @@ import {
   iconRecord,
   iconRoute,
   iconTrack,
+  setIcon,
 } from "./ui/icons";
 import { NavigationHUD } from "./ui/NavigationHUD";
 import { trackInstrumentHUD } from "./ui/PanelStack";
@@ -582,7 +583,7 @@ if (topbarMenu) {
   const recordBtn = document.createElement("button");
   recordBtn.className = "topbar-toggle topbar-record";
   recordBtn.title = "Record track";
-  recordBtn.innerHTML = iconRecord;
+  setIcon(recordBtn, iconRecord);
   addMenuLabel(recordBtn, "Record");
   const updateRecordBtn = () => {
     const on = trackRecorder.isRecording();
@@ -601,7 +602,7 @@ if (topbarMenu) {
   const hudBtn = document.createElement("button");
   hudBtn.className = "topbar-toggle";
   hudBtn.title = "Instrument HUD";
-  hudBtn.innerHTML = iconGauge;
+  setIcon(hudBtn, iconGauge);
   addMenuLabel(hudBtn, "Instruments");
   const updateHudBtn = () => {
     hudBtn.classList.toggle("active", getSettings().showInstrumentHUD);
@@ -618,7 +619,7 @@ if (topbarMenu) {
   const trackBtn = document.createElement("button");
   trackBtn.className = "settings-btn";
   trackBtn.title = "Tracks";
-  trackBtn.innerHTML = iconTrack;
+  setIcon(trackBtn, iconTrack);
   addMenuLabel(trackBtn, "Tracks");
   trackBtn.addEventListener("click", () => {
     trackPanel.toggle();
@@ -631,7 +632,7 @@ if (topbarMenu) {
   const routeBtn = document.createElement("button");
   routeBtn.className = "settings-btn";
   routeBtn.title = "Routes";
-  routeBtn.innerHTML = iconRoute;
+  setIcon(routeBtn, iconRoute);
   addMenuLabel(routeBtn, "Routes");
   routeBtn.addEventListener("click", () => {
     routePanel.toggle();
@@ -644,7 +645,7 @@ if (topbarMenu) {
   const waypointBtn = document.createElement("button");
   waypointBtn.className = "settings-btn";
   waypointBtn.title = "Waypoints";
-  waypointBtn.innerHTML = iconPin;
+  setIcon(waypointBtn, iconPin);
   addMenuLabel(waypointBtn, "Waypoints");
   waypointBtn.addEventListener("click", () => {
     waypointPanel.toggle();
@@ -677,7 +678,7 @@ if (topbarMenu) {
   const cacheBtn = document.createElement("button");
   cacheBtn.className = "settings-btn";
   cacheBtn.title = "Chart Regions";
-  cacheBtn.innerHTML = iconGlobe;
+  setIcon(cacheBtn, iconGlobe);
   addMenuLabel(cacheBtn, "Charts");
   cacheBtn.addEventListener("click", () => {
     cachePanel.toggle();

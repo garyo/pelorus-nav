@@ -3,7 +3,7 @@
  */
 
 import type maplibregl from "maplibre-gl";
-import { iconCrosshair } from "./icons";
+import { iconCrosshair, setIcon } from "./icons";
 
 export interface RecenterButtonOptions {
   onRecenter: () => void;
@@ -27,7 +27,7 @@ export class RecenterButton implements maplibregl.IControl {
     button.className = "recenter-btn";
     button.setAttribute("aria-label", "Re-center on vessel");
     button.title = "Re-center on vessel";
-    button.innerHTML = iconCrosshair;
+    setIcon(button, iconCrosshair);
     button.addEventListener("click", () => this.onRecenter());
 
     this.container.appendChild(button);

@@ -9,7 +9,7 @@ import type {
   ActiveNavigationManager,
   ActiveNavigationState,
 } from "../navigation/ActiveNavigation";
-import { iconNavigation } from "./icons";
+import { iconNavigation, setIcon } from "./icons";
 
 export class CancelNavButton implements maplibregl.IControl {
   private container: HTMLDivElement | null = null;
@@ -30,7 +30,7 @@ export class CancelNavButton implements maplibregl.IControl {
     button.className = "cancel-nav-btn";
     button.setAttribute("aria-label", "Cancel navigation");
     button.title = "Cancel navigation";
-    button.innerHTML = iconNavigation;
+    setIcon(button, iconNavigation);
     button.addEventListener("click", () => this.activeNav.stop());
 
     this.container.appendChild(button);

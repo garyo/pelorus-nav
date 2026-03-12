@@ -48,7 +48,7 @@ export class RouteManagerPanel {
     this.body = this.el.querySelector(".manager-body") as HTMLDivElement;
     const closeBtn = this.el.querySelector(".manager-close") as HTMLElement;
     if (closeBtn) {
-      closeBtn.innerHTML = iconX;
+      setIcon(closeBtn, iconX);
       closeBtn.addEventListener("click", () => this.hide());
     }
     this.el.querySelector("#route-new-btn")?.addEventListener("click", () => {
@@ -149,25 +149,37 @@ export class RouteManagerPanel {
     actions.className = "manager-item-actions";
 
     const navBtn = document.createElement("button");
-    navBtn.className = "manager-item-btn";
+    navBtn.className = "manager-item-btn route-nav-btn";
     setIcon(navBtn, iconNavigation);
-    navBtn.title = "Navigate route";
+    // Highlight if already navigating this route
+    const navState = this.activeNav?.getState();
+    const isNavActive =
+      navState?.type === "route" && navState.route.id === route.id;
+    navBtn.classList.toggle("active", isNavActive);
+    navBtn.title = isNavActive ? "Stop navigation" : "Navigate route";
     navBtn.addEventListener("click", () => {
       if (this.activeNav) {
-        // Show route if hidden before starting navigation
-        if (!route.visible) {
-          route.visible = true;
-          saveRoute(route).catch(console.error);
-          this.routeLayer.toggleVisibility(route.id, true).catch(console.error);
-          this.refresh().catch(console.error);
+        const st = this.activeNav.getState();
+        if (st.type === "route" && st.route.id === route.id) {
+          this.activeNav.stop();
+        } else {
+          // Show route if hidden before starting navigation
+          if (!route.visible) {
+            route.visible = true;
+            saveRoute(route).catch(console.error);
+            this.routeLayer
+              .toggleVisibility(route.id, true)
+              .catch(console.error);
+          }
+          this.activeNav.startRoute(route);
         }
-        this.activeNav.startRoute(route);
+        this.refresh().catch(console.error);
       }
     });
 
     const editBtn = document.createElement("button");
     editBtn.className = "manager-item-btn";
-    editBtn.innerHTML = iconEdit;
+    setIcon(editBtn, iconEdit);
     editBtn.title = "Edit";
     editBtn.addEventListener("click", () => {
       this.hide();
@@ -176,7 +188,7 @@ export class RouteManagerPanel {
 
     const toggleBtn = document.createElement("button");
     toggleBtn.className = "manager-item-btn";
-    toggleBtn.innerHTML = route.visible ? iconEye : iconEyeOff;
+    setIcon(toggleBtn, route.visible ? iconEye : iconEyeOff);
     toggleBtn.title = route.visible ? "Hide" : "Show";
     toggleBtn.addEventListener("click", () => {
       (async () => {
@@ -196,7 +208,7 @@ export class RouteManagerPanel {
 
     const deleteBtn = document.createElement("button");
     deleteBtn.className = "manager-item-btn";
-    deleteBtn.innerHTML = iconTrash;
+    setIcon(deleteBtn, iconTrash);
     deleteBtn.title = "Delete";
     deleteBtn.addEventListener("click", () => {
       if (!confirm(`Delete route "${route.name}"?`)) return;
