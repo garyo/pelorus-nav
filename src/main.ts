@@ -224,6 +224,7 @@ onSettingsChange((s) => {
     navManager.setActiveProvider(s.gpsSource);
   }
   simulator.setSpeedMultiplier(s.simulatorSpeed);
+  navManager.setRateMode(s.gpsRateMode, s.manualUpdateIntervalMs);
   // Switch chart region
   if (vectorProvider.setRegion(s.activeRegion)) {
     vectorProvider.loadOfflineCoverage().then(() => {
@@ -252,8 +253,15 @@ if (mapEl) {
 // Keep panel stack below instrument HUD
 trackInstrumentHUD(instrumentHUD.element);
 
+// Configure adaptive GPS rate from settings
+const initGpsSettings = getSettings();
+navManager.setRateMode(
+  initGpsSettings.gpsRateMode,
+  initGpsSettings.manualUpdateIntervalMs,
+);
+
 // Activate initial GPS source from settings
-navManager.setActiveProvider(getSettings().gpsSource);
+navManager.setActiveProvider(initGpsSettings.gpsSource);
 
 // --- Context menu (right-click on map) ---
 const ctxMenu = document.createElement("div");

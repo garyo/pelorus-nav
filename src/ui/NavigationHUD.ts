@@ -4,6 +4,7 @@
  */
 
 import type maplibregl from "maplibre-gl";
+import type { AdaptiveTier } from "../navigation/AdaptiveRate";
 import type { NavigationDataManager } from "../navigation/NavigationDataManager";
 import type { SpeedUnit } from "../settings";
 import { getSettings } from "../settings";
@@ -28,6 +29,16 @@ function formatCOG(cog: number | null, lat: number, lon: number): string {
 function shortSource(source: string): string {
   if (source === "simulator") return "sim";
   return source;
+}
+
+const TIER_ICONS: Record<AdaptiveTier, string> = {
+  fast: "\u25B2", // ▲
+  medium: "\u25CF", // ●
+  slow: "\u25A0", // ■
+};
+
+function formatRateIndicator(tier: AdaptiveTier, intervalMs: number): string {
+  return `${TIER_ICONS[tier]}${(intervalMs / 1000).toFixed(0)}s`;
 }
 
 export class NavigationHUD {
@@ -98,7 +109,12 @@ export class NavigationHUD {
         settings.bearingMode === "magnetic"
           ? `  ${formatDeclination(data.latitude, data.longitude)}`
           : "";
-      this.gpsLine.textContent = `GPS: ${formatLatLon(data.latitude, "lat")} ${formatLatLon(data.longitude, "lon")} [${shortSource(data.source)}]${varText}`;
+      const adaptiveState = navManager.getAdaptiveState();
+      const rateText =
+        navManager.getRateMode() === "adaptive"
+          ? ` ${formatRateIndicator(adaptiveState.tier, adaptiveState.intervalMs)}`
+          : "";
+      this.gpsLine.textContent = `GPS: ${formatLatLon(data.latitude, "lat")} ${formatLatLon(data.longitude, "lon")} [${shortSource(data.source)}]${rateText}${varText}`;
     });
   }
 

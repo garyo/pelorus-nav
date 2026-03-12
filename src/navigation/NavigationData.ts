@@ -38,4 +38,6 @@ export interface NavigationDataProvider {
   subscribe(callback: NavigationDataCallback): void;
   /** Unsubscribe from updates */
   unsubscribe(callback: NavigationDataCallback): void;
+  /** Optional: hint the desired update interval (for battery savings). */
+  setDesiredIntervalMs?(ms: number): void;
 }

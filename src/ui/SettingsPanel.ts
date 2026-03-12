@@ -13,6 +13,7 @@ import {
   type DisplayTheme,
   depthConversionFactor,
   depthUnitLabel,
+  type GpsRateMode,
   getSettings,
   LAYER_GROUP_LABELS,
   onSettingsChange,
@@ -405,6 +406,43 @@ function buildNavigationTab(
         }),
     ),
   );
+
+  // GPS rate mode
+  const GPS_RATE_MODES = [
+    { value: "adaptive", label: "Adaptive" },
+    { value: "manual", label: "Manual" },
+  ];
+  tab.appendChild(
+    buildSelectRow(
+      "GPS rate",
+      "settings-gps-rate-mode",
+      GPS_RATE_MODES,
+      settings.gpsRateMode,
+      (v) => {
+        updateSettings({ gpsRateMode: v as GpsRateMode });
+      },
+    ),
+  );
+
+  // Manual interval (shown only when manual mode selected)
+  const MANUAL_INTERVAL_OPTIONS = [
+    { value: "2000", label: "2s" },
+    { value: "5000", label: "5s" },
+    { value: "10000", label: "10s" },
+  ];
+  const manualRow = buildSelectRow(
+    "Update interval",
+    "settings-manual-interval",
+    MANUAL_INTERVAL_OPTIONS,
+    String(settings.manualUpdateIntervalMs),
+    (v) => updateSettings({ manualUpdateIntervalMs: Number(v) }),
+  );
+  manualRow.style.display = settings.gpsRateMode === "manual" ? "" : "none";
+  tab.appendChild(manualRow);
+
+  onSettingsChange((s) => {
+    manualRow.style.display = s.gpsRateMode === "manual" ? "" : "none";
+  });
 
   return tab;
 }

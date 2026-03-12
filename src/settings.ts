@@ -13,13 +13,15 @@ export type SymbologyScheme =
   | "pelorus-standard"
   | "iho-s52"
   | "simplified-minimal";
+export type GpsRateMode = "adaptive" | "manual";
 
 export interface Settings {
   depthUnit: DepthUnit;
   speedUnit: SpeedUnit;
   chartMode: ChartMode;
   gpsSource: string;
-  updateRateHz: number;
+  gpsRateMode: GpsRateMode;
+  manualUpdateIntervalMs: number;
   showAccuracyCircle: boolean;
   detailLevel: DetailLevel;
   layerGroups: Record<string, boolean>;
@@ -67,7 +69,8 @@ const DEFAULTS: Settings = {
   speedUnit: "knots",
   chartMode: "north-up",
   gpsSource: "none",
-  updateRateHz: 1,
+  gpsRateMode: "adaptive",
+  manualUpdateIntervalMs: 2000,
   showAccuracyCircle: true,
   detailLevel: 0,
   layerGroups: { ...DEFAULT_LAYER_GROUPS },
@@ -102,6 +105,16 @@ function load(): Settings {
         parsed.symbologyScheme = "pelorus-standard";
       } else if (parsed.symbologyScheme === ("int-paper" as string)) {
         parsed.symbologyScheme = "iho-s52";
+      }
+      // Migrate old updateRateHz → gpsRateMode + manualUpdateIntervalMs
+      const legacy = parsed as Record<string, unknown>;
+      if ("updateRateHz" in legacy) {
+        if (!parsed.gpsRateMode) {
+          parsed.gpsRateMode = "adaptive";
+          const hz = legacy.updateRateHz as number;
+          parsed.manualUpdateIntervalMs = Math.round(1000 / Math.max(hz, 0.1));
+        }
+        delete legacy.updateRateHz;
       }
       return {
         ...DEFAULTS,

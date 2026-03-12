@@ -106,6 +106,15 @@ export class SimulatorProvider implements NavigationDataProvider {
     this.opts.speedMultiplier = multiplier;
   }
 
+  setDesiredIntervalMs(ms: number): void {
+    if (ms === this.opts.intervalMs) return;
+    this.opts.intervalMs = ms;
+    if (this.timer) {
+      clearInterval(this.timer);
+      this.timer = setInterval(() => this.tick(), ms);
+    }
+  }
+
   private tick(): void {
     const elapsed =
       ((Date.now() - this.startTime) / 1000) * this.opts.speedMultiplier;
@@ -171,12 +180,15 @@ export class SimulatorProvider implements NavigationDataProvider {
     const lng = from[1] + (to[1] - from[1]) * segFraction;
 
     const cog = initialBearingDeg(from[0], from[1], to[0], to[1]);
+    // Report effective SOG (base speed × multiplier) so nav data is
+    // self-consistent with position changes between fixes.
+    const effectiveSpeed = speedKn * this.opts.speedMultiplier;
 
     return {
       latitude: lat,
       longitude: lng,
       cog,
-      sog: speedKn,
+      sog: effectiveSpeed,
       heading: cog,
       accuracy: 5,
       timestamp: Date.now(),
@@ -209,7 +221,7 @@ export class SimulatorProvider implements NavigationDataProvider {
       latitude: lat,
       longitude: lng,
       cog,
-      sog: speedKn,
+      sog: speedKn * this.opts.speedMultiplier,
       heading: cog,
       accuracy: 5,
       timestamp: Date.now(),
