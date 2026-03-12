@@ -718,4 +718,6 @@ Phase 2A (GPS) can also start in parallel with Phase 1.
 
 ## Known Issues
 
+- **Background track recording not possible as a PWA**: iOS suspends JavaScript ~3s after backgrounding; Android Chrome explicitly disables background geolocation; Service Workers have no Geolocation API access. No reliable workaround exists (silent audio blocked on iOS 15+, Background Sync unsupported on iOS, Periodic Background Sync intervals too long). The only path to background GPS recording would be a Capacitor/native wrapper for access to platform background location APIs. Current mitigation: Wake Lock API keeps screen on while navigating, and track state is saved to IndexedDB frequently so the app resumes with a gap rather than losing data.
+
 - **Overlapping semi-transparent land areas with OSM underlay**: When `showOSMUnderlay` is enabled, LNDARE polygons are rendered at `fill-opacity: 0.3` so OSM shows through. Overlapping LNDARE polygons from different ENC cells cause darker patches where they stack (e.g. around 42.370,-71.095). Root cause: same-band compositing merges features without clipping, and multi-band compositing uses a ~1km buffer for gap prevention. Fix requires pipeline changes (union/dissolve LNDARE per tile during compositing) + retiling. MapLibre has no "flat" blend mode for fill layers, so no frontend-only workaround exists.

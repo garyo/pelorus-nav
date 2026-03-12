@@ -48,6 +48,7 @@ import { RecenterButton } from "./ui/RecenterButton";
 import { RouteManagerPanel } from "./ui/RouteManagerPanel";
 import { createSettingsPanel } from "./ui/SettingsPanel";
 import { TrackManagerPanel } from "./ui/TrackManagerPanel";
+import { WakeLockController } from "./ui/WakeLock";
 import { WaypointManagerPanel } from "./ui/WaypointManagerPanel";
 import { formatLatLon, parseLatLon } from "./utils/coordinates";
 import { applyDeclination, bearingModeLabel } from "./utils/magnetic";
@@ -225,6 +226,8 @@ onSettingsChange((s) => {
   }
   simulator.setSpeedMultiplier(s.simulatorSpeed);
   navManager.setRateMode(s.gpsRateMode, s.manualUpdateIntervalMs);
+  wakeLockCtrl.setMode(s.wakeLock);
+  wakeLockCtrl.setGpsActive(s.gpsSource !== "none");
   // Switch chart region
   if (vectorProvider.setRegion(s.activeRegion)) {
     vectorProvider.loadOfflineCoverage().then(() => {
@@ -259,6 +262,11 @@ navManager.setRateMode(
   initGpsSettings.gpsRateMode,
   initGpsSettings.manualUpdateIntervalMs,
 );
+
+// Screen wake lock
+const wakeLockCtrl = new WakeLockController();
+wakeLockCtrl.setMode(initGpsSettings.wakeLock);
+wakeLockCtrl.setGpsActive(initGpsSettings.gpsSource !== "none");
 
 // Activate initial GPS source from settings
 navManager.setActiveProvider(initGpsSettings.gpsSource);

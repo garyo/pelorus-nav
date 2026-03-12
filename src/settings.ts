@@ -14,6 +14,7 @@ export type SymbologyScheme =
   | "iho-s52"
   | "simplified-minimal";
 export type GpsRateMode = "adaptive" | "manual";
+export type WakeLockMode = "off" | "when-nav" | "always";
 
 export interface Settings {
   depthUnit: DepthUnit;
@@ -44,6 +45,8 @@ export interface Settings {
   shallowDepth: number;
   /** Deep water threshold in meters (areas >= this get DEPDW color). */
   deepDepth: number;
+  /** Screen wake lock: off, when GPS active, or always. */
+  wakeLock: WakeLockMode;
 }
 
 const STORAGE_KEY = "pelorus-nav-settings";
@@ -88,6 +91,7 @@ const DEFAULTS: Settings = {
   showOSMUnderlay: false,
   shallowDepth: 5,
   deepDepth: 20,
+  wakeLock: "when-nav",
 };
 
 type SettingsListener = (settings: Settings) => void;

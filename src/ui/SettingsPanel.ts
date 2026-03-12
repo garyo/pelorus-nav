@@ -20,6 +20,7 @@ import {
   type SpeedUnit,
   type SymbologyScheme,
   updateSettings,
+  type WakeLockMode,
 } from "../settings";
 import { bearingModeLabel } from "../utils/magnetic";
 import { iconSettings, setIcon } from "./icons";
@@ -443,6 +444,22 @@ function buildNavigationTab(
   onSettingsChange((s) => {
     manualRow.style.display = s.gpsRateMode === "manual" ? "" : "none";
   });
+
+  // Wake lock (keep screen on)
+  const WAKE_LOCK_OPTIONS = [
+    { value: "off", label: "Off" },
+    { value: "when-nav", label: "When GPS active" },
+    { value: "always", label: "Always" },
+  ];
+  tab.appendChild(
+    buildSelectRow(
+      "Keep screen on",
+      "settings-wake-lock",
+      WAKE_LOCK_OPTIONS,
+      settings.wakeLock,
+      (v) => updateSettings({ wakeLock: v as WakeLockMode }),
+    ),
+  );
 
   return tab;
 }
