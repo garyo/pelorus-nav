@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" version="1.2" baseProfile="tiny" xml:space="preserve" shape-rendering="geometricPrecision" fill-rule="evenodd" width="13" height="13" viewBox="-1.66 -1.66 3.32 3.32">
+  <title>SILBUI01</title>
+  <desc>silo</desc>
+  <metadata>
+    <iho:S100SVG xmlns:iho="http://www.iho.int/SVGMetadata/5.2">
+      <iho:Description iho:publisher="IHB" iho:creationDate="2014-06-09" iho:source="S52Preslib4.0" iho:format="S100SVG" iho:version="0.1"/>
+    </iho:S100SVG>
+  </metadata>
+  
+  
+  <circle cx="0" cy="0" r="1.5" fill="#604020"/>
+  <circle stroke-width="0.32"  cx="0" cy="0" r="1.5" fill="none" stroke="#202020"/>
+  
+</svg>

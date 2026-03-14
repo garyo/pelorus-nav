@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" version="1.2" baseProfile="tiny" xml:space="preserve" shape-rendering="geometricPrecision" fill-rule="evenodd" width="16" height="13" viewBox="-2.19 -1.8 4.32 3.57">
+  <title>UWTROC04</title>
+  <desc>rock which covers and uncovers or is awash at low water</desc>
+  <metadata>
+    <iho:S100SVG xmlns:iho="http://www.iho.int/SVGMetadata/5.2">
+      <iho:Description iho:publisher="IHB" iho:creationDate="2014-06-09" iho:source="S52Preslib4.0" iho:format="S100SVG" iho:version="0.1"/>
+    </iho:S100SVG>
+  </metadata>
+  
+  
+  <path d=" M 1.97,0 L -2.03,0" stroke-width="0.32" fill="none" stroke="#000000" stroke-linecap="round" stroke-linejoin="round" />
+  <path d=" M 1.14,-1.63 L -1.21,1.61" stroke-width="0.32" fill="none" stroke="#000000" stroke-linecap="round" stroke-linejoin="round" />
+  <path d=" M 1.14,1.55 L -1.26,-1.64" stroke-width="0.32" fill="none" stroke="#000000" stroke-linecap="round" stroke-linejoin="round" />
+  
+</svg>

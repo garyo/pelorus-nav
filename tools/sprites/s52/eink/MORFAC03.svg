@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" version="1.2" baseProfile="tiny" xml:space="preserve" shape-rendering="geometricPrecision" fill-rule="evenodd" width="12" height="12" viewBox="-1.76 -1.61 3.17 3.17">
+  <title>MORFAC03</title>
+  <desc>mooring dolphin</desc>
+  <metadata>
+    <iho:S100SVG xmlns:iho="http://www.iho.int/SVGMetadata/5.2">
+      <iho:Description iho:publisher="IHB" iho:creationDate="2014-06-09" iho:source="S52Preslib4.0" iho:format="S100SVG" iho:version="0.1"/>
+    </iho:S100SVG>
+  </metadata>
+  
+  
+  <path d=" M -1.44,-1.29 L 1.09,-1.29 L 1.09,1.24 L -1.42,1.24 L -1.44,-1.29 Z" fill="#b0b0b0"/>
+  <path d=" M -1.44,-1.29 L 1.09,-1.29 L 1.09,1.24 L -1.42,1.24 L -1.44,-1.29" stroke-width="0.64" fill="none" stroke="#000000" stroke-linecap="round" stroke-linejoin="round" />
+  
+</svg>

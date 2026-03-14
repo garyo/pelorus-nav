@@ -36,6 +36,8 @@ import { createInstrumentHUD, INSTRUMENTS } from "./ui/InstrumentHUD";
 import {
   iconGauge,
   iconGlobe,
+  iconMaximize,
+  iconMinimize,
   iconPin,
   iconRecord,
   iconRoute,
@@ -711,6 +713,29 @@ if (topbarMenu) {
     cachePanel.hide();
     closeHamburger();
   });
+
+  // Fullscreen toggle
+  const fullscreenBtn = document.createElement("button");
+  fullscreenBtn.className = "topbar-toggle";
+  fullscreenBtn.title = "Fullscreen";
+  setIcon(fullscreenBtn, iconMaximize);
+  addMenuLabel(fullscreenBtn, "Fullscreen");
+  const updateFullscreenBtn = () => {
+    const isFs = !!document.fullscreenElement;
+    fullscreenBtn.classList.toggle("active", isFs);
+    setIcon(fullscreenBtn, isFs ? iconMinimize : iconMaximize);
+    fullscreenBtn.title = isFs ? "Exit fullscreen" : "Fullscreen";
+  };
+  fullscreenBtn.addEventListener("click", () => {
+    if (document.fullscreenElement) {
+      document.exitFullscreen();
+    } else {
+      document.documentElement.requestFullscreen();
+    }
+    closeHamburger();
+  });
+  document.addEventListener("fullscreenchange", updateFullscreenBtn);
+  topbarMenu.insertBefore(fullscreenBtn, settingsWrapper);
 
   // Offline indicator
   const offlineIndicator = document.createElement("div");

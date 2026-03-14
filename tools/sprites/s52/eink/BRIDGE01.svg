@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" version="1.2" baseProfile="tiny" xml:space="preserve" shape-rendering="geometricPrecision" fill-rule="evenodd" width="16" height="16" viewBox="-2.16 -2.15 4.32 4.32">
+  <title>BRIDGE01</title>
+  <desc>symbol for opening bridge</desc>
+  <metadata>
+    <iho:S100SVG xmlns:iho="http://www.iho.int/SVGMetadata/5.2">
+      <iho:Description iho:publisher="IHB" iho:creationDate="2014-06-09" iho:source="S52Preslib4.0" iho:format="S100SVG" iho:version="0.1"/>
+    </iho:S100SVG>
+  </metadata>
+  
+  
+  <circle stroke-width="0.32"  cx="0" cy="0.01" r="2" fill="none" stroke="#6600aa"/>
+  <circle stroke-width="0.32"  cx="0.01" cy="-0.03" r="1.15" fill="none" stroke="#6600aa"/>
+  
+</svg>

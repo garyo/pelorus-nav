@@ -13,6 +13,7 @@ import {
   buildIconExpression,
   buildOffsetExpression,
   getIconScheme,
+  getIconSizeScale,
   getSchemeConfig,
 } from "./icon-sets";
 
@@ -131,7 +132,7 @@ export function createStyleContext(
       Math.max(0, detailOffset >= 2 ? base - 1 : base),
     showStandard: detailOffset >= 0,
     showOther: detailOffset >= 1,
-    iconSizeScale: config.iconSizeScale,
+    iconSizeScale: getIconSizeScale(symbology, theme),
     iconOffsetExpr,
     shallowDepth,
     deepDepth,

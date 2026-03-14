@@ -228,9 +228,10 @@ const NIGHT: Record<string, string> = {
 };
 
 /**
- * EINK palette: derived from DAY with greyscale conversions.
- * Water/depth becomes light grey, land becomes medium grey,
- * text stays black, safety items (dangers, caution) stay visible.
+ * EINK palette: high-contrast for color e-ink displays (e.g. Bigme 7 Pro).
+ * Background elements (water, land) stay greyscale for clarity.
+ * Navigational colors (red/green buoys, lights) use vivid, saturated values
+ * to compensate for the very muted color gamut of e-ink screens.
  */
 const EINK: Record<string, string> = {
   NODTA: "#c0c0c0",
@@ -238,24 +239,24 @@ const EINK: Record<string, string> = {
   CHBLK: "#000000",
   CHGRD: "#404040",
   CHGRF: "#707070",
-  CHRED: "#000000",
-  CHGRN: "#505050",
-  CHYLW: "#808080",
-  CHMGD: "#404040",
+  CHRED: "#aa0000", // vivid red — port buoys, dangers
+  CHGRN: "#50ff00", // vivid green — starboard buoys
+  CHYLW: "#ffff15", // vivid yellow — special buoys
+  CHMGD: "#6600aa", // vivid magenta — magnetic variation
   CHMGF: "#909090",
-  CHBRN: "#606060",
-  CHWHT: "#e8e8e8",
+  CHBRN: "#604020", // saturated brown — land contours
+  CHWHT: "#f0f0f0",
   SCLBR: "#000000",
   CHCOR: "#000000",
-  LITRD: "#000000",
-  LITGN: "#505050",
-  LITYW: "#808080",
-  ISDNG: "#505050",
-  DNGHL: "#000000",
+  LITRD: "#aa0000", // vivid red — red light flares
+  LITGN: "#50ff00", // vivid green — green light flares
+  LITYW: "#ffff15", // vivid yellow — yellow lights
+  ISDNG: "#aa0000", // danger — vivid red
+  DNGHL: "#aa0000", // danger highlight — vivid red
   TRFCD: "#505050",
   TRFCF: "#a0a0a0",
-  LANDA: "#909090",
-  LANDF: "#707070",
+  LANDA: "#b0b0b0",
+  LANDF: "#202020", // land features (towers, chimneys) — near-black for e-ink
   CSTLN: "#000000",
   SNDG1: "#404040",
   SNDG2: "#000000",
@@ -270,35 +271,35 @@ const EINK: Record<string, string> = {
   RADLO: "#303030",
   ARPAT: "#404040",
   NINFO: "#000000",
-  RESBL: "#303030",
+  RESBL: "#0000aa", // restricted area — vivid blue
   ADINF: "#606060",
   RESGR: "#707070",
   SHIPS: "#000000",
   PSTRK: "#000000",
   SYTRK: "#707070",
-  PLRTE: "#000000",
-  APLRT: "#000000",
+  PLRTE: "#aa0000", // route line — vivid red
+  APLRT: "#aa0000", // alert — vivid red
   UINFD: "#000000",
   UINFF: "#404040",
   UIBCK: "#ffffff",
   UIAFD: "#d0d0d0",
-  UINFR: "#000000",
-  UINFG: "#505050",
-  UINFO: "#000000",
-  UINFB: "#303030",
-  UINFM: "#505050",
+  UINFR: "#aa0000", // UI red
+  UINFG: "#50ff00", // UI green
+  UINFO: "#cc6600", // UI orange
+  UINFB: "#0000aa", // UI blue
+  UINFM: "#6600aa", // UI magenta
   UIBDR: "#000000",
   UIAFF: "#909090",
   OUTLW: "#000000",
-  OUTLL: "#606060",
+  OUTLL: "#303030", // lighter outline — darkened for e-ink
   RES01: "#707070",
   RES02: "#707070",
   RES03: "#707070",
   BKAJ1: "#000000",
   BKAJ2: "#101010",
   MARBL: "#303030",
-  MARCY: "#404040",
-  MARMG: "#505050",
+  MARCY: "#008888", // cyan marker — saturated
+  MARMG: "#880088", // magenta marker — saturated
   MARWH: "#707070",
   // Additional tokens
   APTS1: "#606060",

@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" version="1.2" baseProfile="tiny" xml:space="preserve" shape-rendering="geometricPrecision" fill-rule="evenodd" width="14" height="20" viewBox="-1.85 -2.55 3.58 5.32">
+  <title>BOYSPP35</title>
+  <desc>special purpose ice buoy or spar or pillar shaped buoy, simplified</desc>
+  <metadata>
+    <iho:S100SVG xmlns:iho="http://www.iho.int/SVGMetadata/5.2">
+      <iho:Description iho:publisher="IHO" iho:creationDate="2024-02-08" iho:source="S52Preslib4.0" iho:format="S100SVG" iho:version="1.0"/>
+    </iho:S100SVG>
+  </metadata>
+  <circle cx="-1.64" cy="2.66" r="0.05" stroke-width="0.064" fill="#ffff15"  />
+  <path d=" M -1.69,2.61 L 0.12,-2.39 L 1.57,-2.39 L -0.22,2.61 L -1.67,2.61 L -1.69,2.61 Z" fill="#ffff15"/>
+  <path d=" M -1.69,2.61 L 0.12,-2.39 L 1.57,-2.39 L -0.22,2.61 L -1.67,2.61" stroke-width="0.32" fill="none" stroke="#000000" stroke-linecap="round" stroke-linejoin="round"  />
+  <circle cx="-0.01" cy="0.01" r="0.15" stroke-width="0.064" fill="#000000"  />
+  
+  
+  
+</svg>

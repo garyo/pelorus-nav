@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" version="1.2" baseProfile="tiny" xml:space="preserve" shape-rendering="geometricPrecision" fill-rule="evenodd" width="13" height="17" viewBox="-1.66 -3.16 3.32 4.42">
+  <title>WNDMIL02</title>
+  <desc>windmill</desc>
+  <metadata>
+    <iho:S100SVG xmlns:iho="http://www.iho.int/SVGMetadata/5.2">
+      <iho:Description iho:publisher="IHB" iho:creationDate="2014-06-09" iho:source="S52Preslib4.0" iho:format="S100SVG" iho:version="0.1"/>
+    </iho:S100SVG>
+  </metadata>
+  
+  
+  <circle stroke-width="0.32"  cx="0" cy="0" r="1.1" fill="none" stroke="#202020"/>
+  <path d=" M 1.5,-3 L -1.5,0" stroke-width="0.32" fill="none" stroke="#202020" stroke-linecap="round" stroke-linejoin="round" />
+  <path d=" M -1.5,-3 L 1.5,0" stroke-width="0.32" fill="none" stroke="#202020" stroke-linecap="round" stroke-linejoin="round" />
+  
+</svg>

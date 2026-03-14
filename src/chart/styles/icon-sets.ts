@@ -135,8 +135,8 @@ export const IHO_S52: Record<string, string> = {
   "cardinal-w": "BOYCAR04",
 
   // Beacons
-  "beacon-port": "BCNLAT15",
-  "beacon-stbd": "BCNLAT16",
+  "beacon-port": "BCNLAT16",
+  "beacon-stbd": "BCNLAT15",
   "beacon-cardinal": "BCNCAR01",
   "beacon-default": "BCNGEN01",
 
@@ -277,8 +277,8 @@ interface SchemeConfig {
   /** Single sprite prefix or per-theme prefixes for S-52 colour variants. */
   sprite: string | Record<DisplayTheme, string>;
   fallback: string;
-  /** Icon size scale factor (default 1.0). S-52 symbols are smaller than Pelorus Standard. */
-  iconSizeScale: number;
+  /** Icon size scale factor (default 1.0). Single value or per-theme overrides. */
+  iconSizeScale: number | Partial<Record<DisplayTheme, number>>;
   /** Whether this scheme has per-symbol offsets. */
   hasOffsets: boolean;
 }
@@ -289,7 +289,7 @@ const SCHEME_MAP: Record<SymbologyScheme, SchemeConfig> = {
     icons: PELORUS_STANDARD,
     sprite: "nautical",
     fallback: "ecdis-buoy-default",
-    iconSizeScale: 1.0,
+    iconSizeScale: { eink: 2.0 },
     hasOffsets: false,
   },
   "iho-s52": {
@@ -298,17 +298,17 @@ const SCHEME_MAP: Record<SymbologyScheme, SchemeConfig> = {
       day: "s52-day",
       dusk: "s52-dusk",
       night: "s52-night",
-      eink: "s52-day",
+      eink: "s52-eink",
     },
     fallback: "BCNGEN01",
-    iconSizeScale: 1.0,
+    iconSizeScale: { eink: 2.0 },
     hasOffsets: true,
   },
   "simplified-minimal": {
     icons: SIMPLIFIED_MINIMAL,
     sprite: "nautical",
     fallback: "ecdis-buoy-default",
-    iconSizeScale: 1.0,
+    iconSizeScale: { eink: 2.0 },
     hasOffsets: false,
   },
 };
@@ -316,6 +316,16 @@ const SCHEME_MAP: Record<SymbologyScheme, SchemeConfig> = {
 /** Get the full scheme config for a symbology scheme. */
 export function getSchemeConfig(scheme: SymbologyScheme): SchemeConfig {
   return SCHEME_MAP[scheme];
+}
+
+/** Resolve the icon size scale factor for a scheme + theme. */
+export function getIconSizeScale(
+  scheme: SymbologyScheme,
+  theme: DisplayTheme = "day",
+): number {
+  const raw = SCHEME_MAP[scheme].iconSizeScale;
+  if (typeof raw === "number") return raw;
+  return raw[theme] ?? 1.0;
 }
 
 /** Get the icon set, resolved sprite prefix, and fallback for a symbology scheme. */

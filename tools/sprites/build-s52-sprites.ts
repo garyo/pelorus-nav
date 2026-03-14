@@ -16,7 +16,7 @@ import { join } from "node:path";
 
 const ROOT = join(import.meta.dirname, "s52");
 const SOURCE_DIR = join(ROOT, "source");
-const THEMES = ["day", "dusk", "night"] as const;
+const THEMES = ["day", "dusk", "night", "eink"] as const;
 const SPREET = join(process.env.HOME ?? "~", ".cargo/bin/spreet");
 const OUTPUT_DIR = join(import.meta.dirname, "../../public/sprites");
 
@@ -204,6 +204,10 @@ for (const theme of THEMES) {
   for (const file of sourceFiles) {
     const svg = readFileSync(join(SOURCE_DIR, file), "utf-8");
     let coloured = applyColours(svg, colourMaps[theme]);
+    // E-ink: remove fill-opacity to make light flares fully opaque
+    if (theme === "eink") {
+      coloured = coloured.replace(/\s*fill-opacity="[^"]*"/g, "");
+    }
     // Rotate light flare teardrops 135° (up → down-right per S-52 convention)
     const symbolName = file.replace(".svg", "");
     if (LIGHT_FLARE_SYMBOLS.has(symbolName)) {

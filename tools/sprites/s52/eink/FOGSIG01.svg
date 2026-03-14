@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" version="1.2" baseProfile="tiny" xml:space="preserve" shape-rendering="geometricPrecision" fill-rule="evenodd" width="21" height="18" viewBox="-5.17 -0.32 5.49 4.85">
+  <title>FOGSIG01</title>
+  <desc>fog signal</desc>
+  <metadata>
+    <iho:S100SVG xmlns:iho="http://www.iho.int/SVGMetadata/5.2">
+      <iho:Description iho:publisher="IHB" iho:creationDate="2014-06-09" iho:source="S52Preslib4.0" iho:format="S100SVG" iho:version="0.1"/>
+    </iho:S100SVG>
+  </metadata>
+  
+  
+  <path d=" M -4.85,0.37 L -4.66,1.4 L -4.22,2.4 L -3.72,3.12 L -3.04,3.75 L -2.38,4.21" stroke-width="0.64" fill="none" stroke="#909090" stroke-linecap="round" stroke-linejoin="round" />
+  <path d=" M -3.63,0.31 L -3.44,1.09 L -3.04,1.84 L -2.63,2.5 L -2.13,2.93 L -1.79,3.09" stroke-width="0.64" fill="none" stroke="#909090" stroke-linecap="round" stroke-linejoin="round" />
+  <path d=" M -2.41,0.21 L -2.25,1 L -1.82,1.62 L -1.41,1.96 L -1.22,2.12" stroke-width="0.64" fill="none" stroke="#909090" stroke-linecap="round" stroke-linejoin="round" />
+  
+</svg>

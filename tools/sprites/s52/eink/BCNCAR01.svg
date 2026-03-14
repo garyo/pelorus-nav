@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" version="1.2" baseProfile="tiny" xml:space="preserve" shape-rendering="geometricPrecision" fill-rule="evenodd" width="16" height="24" viewBox="-2.16 -3.21 4.34 6.44">
+  <title>BCNCAR01</title>
+  <desc>cardinal beacon, north, simplified</desc>
+  <metadata>
+    <iho:S100SVG xmlns:iho="http://www.iho.int/SVGMetadata/5.2">
+      <iho:Description iho:publisher="IHB" iho:creationDate="2014-06-09" iho:source="S52Preslib4.0" iho:format="S100SVG" iho:version="0.1"/>
+    </iho:S100SVG>
+  </metadata>
+  
+  
+  <path d=" M 0,0.3 L -1.98,3.02 L 2,3.07 L 0,0.3 Z" fill="#ffff15"/>
+  <path d=" M 0,-3.05 L 2.02,-0.3 L -1.95,-0.3 L 0,-3.05 Z" fill="#ffff15"/>
+  <path d=" M 0,-3.05 L -2,-0.3 L 2,-0.3 L 0,-3.05" stroke-width="0.32" fill="none" stroke="#000000" stroke-linecap="round" stroke-linejoin="round" />
+  <path d=" M -2,3.05 L 2,3.05 L 0,0.3 L -2,3.05" stroke-width="0.32" fill="none" stroke="#000000" stroke-linecap="round" stroke-linejoin="round" />
+  
+</svg>

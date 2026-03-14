@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" version="1.2" baseProfile="tiny" xml:space="preserve" shape-rendering="geometricPrecision" fill-rule="evenodd" width="17" height="17" viewBox="-2.19 -2.19 4.38 4.38">
+  <title>BOYSAW12</title>
+  <desc>safe water buoy, simplified</desc>
+  <metadata>
+    <iho:S100SVG xmlns:iho="http://www.iho.int/SVGMetadata/5.2">
+      <iho:Description iho:publisher="IHB" iho:creationDate="2014-06-09" iho:source="S52Preslib4.0" iho:format="S100SVG" iho:version="0.1"/>
+    </iho:S100SVG>
+  </metadata>
+  
+  
+  <circle cx="0" cy="0" r="2" fill="#aa0000"/>
+  <circle stroke-width="0.32"  cx="0" cy="0" r="2.03" fill="none" stroke="#000000"/>
+  <circle cx="0" cy="0" r="0.15" fill="#000000"/>
+  
+</svg>

@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" version="1.2" baseProfile="tiny" xml:space="preserve" shape-rendering="geometricPrecision" fill-rule="evenodd" width="11" height="18" viewBox="-1.57 -4.6 2.85 4.76">
+  <title>PRICKE04</title>
+  <desc>withy, starboard-hand, paper-chart</desc>
+  <metadata>
+    <iho:S100SVG xmlns:iho="http://www.iho.int/SVGMetadata/5.2">
+      <iho:Description iho:publisher="IHB" iho:creationDate="2014-06-09" iho:source="S52Preslib4.0" iho:format="S100SVG" iho:version="0.1"/>
+    </iho:S100SVG>
+  </metadata>
+  
+  
+  <path d=" M -1,0 L 1.09,0" stroke-width="0.32" fill="none" stroke="#000000" stroke-linecap="round" stroke-linejoin="round" />
+  <path d=" M 0,0 L 0,-2" stroke-width="0.32" fill="none" stroke="#000000" stroke-linecap="round" stroke-linejoin="round" />
+  <path d=" M -1.41,-1.22 L -0.75,-1.91 L 0,-2.1 L 0.59,-2 L 1.12,-1.44" stroke-width="0.32" fill="none" stroke="#000000" stroke-linecap="round" stroke-linejoin="round" />
+  <path d=" M -0.82,-3.13 L -0.22,-3.63 L 0.18,-3.66 L 0.68,-3.44 L 1.06,-2.91" stroke-width="0.32" fill="none" stroke="#000000" stroke-linecap="round" stroke-linejoin="round" />
+  <path d=" M 0.5,-4.44 L 0.18,-3.69 L 0.03,-3 L 0,-2" stroke-width="0.32" fill="none" stroke="#000000" stroke-linecap="round" stroke-linejoin="round" />
+  
+</svg>
