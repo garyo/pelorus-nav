@@ -1,6 +1,7 @@
 /**
  * User settings persisted to localStorage.
  */
+import { Capacitor } from "@capacitor/core";
 
 export type DepthUnit = "meters" | "feet" | "fathoms";
 export type SpeedUnit = "knots" | "mph" | "kph";
@@ -71,7 +72,7 @@ const DEFAULTS: Settings = {
   depthUnit: "meters",
   speedUnit: "knots",
   chartMode: "north-up",
-  gpsSource: "none",
+  gpsSource: Capacitor.isNativePlatform() ? "capacitor-gps" : "none",
   gpsRateMode: "adaptive",
   manualUpdateIntervalMs: 2000,
   showAccuracyCircle: true,

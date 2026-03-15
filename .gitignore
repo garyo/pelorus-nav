@@ -38,5 +38,12 @@ tools/sprites/s52/night/
 # Wrangler local state
 .wrangler/
 
+# Android build artifacts
+android/app/build/
+android/.gradle/
+android/build/
+android/capacitor-cordova-android-plugins/build/
+*.apk
+
 # Claude
 .claude/

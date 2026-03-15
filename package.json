@@ -28,16 +28,25 @@
     "tiles:download:usvi": "cd tools/s57-pipeline && uv run python -m s57_pipeline download --region usvi",
     "tiles:upload": "tools/upload-tiles.sh",
     "tiles:upload:force": "tools/upload-tiles.sh --force",
-    "deploy": "bun run build && wrangler deploy"
+    "tiles:check": "tools/check-enc-updates.sh",
+    "tiles:update": "tools/check-enc-updates.sh --rebuild --upload",
+    "deploy": "bun run build && wrangler deploy",
+    "cap:sync": "bun run build && rm -f dist/*.pmtiles dist/*.coverage.geojson && bunx cap sync android",
+    "cap:run": "bun run build && rm -f dist/*.pmtiles dist/*.coverage.geojson && bunx cap sync android && bunx cap run android",
+    "cap:build": "bun run build && rm -f dist/*.pmtiles dist/*.coverage.geojson && bunx cap sync android && cd android && ./gradlew assembleDebug"
   },
   "license": "MIT",
   "dependencies": {
+    "@capacitor/app": "^8.0.1",
+    "@capacitor/core": "^8.2.0",
     "magvar": "^2.0.1",
     "maplibre-gl": "^5.19.0",
     "pmtiles": "^4.4.0"
   },
   "devDependencies": {
     "@aws-sdk/client-s3": "^3.1006.0",
+    "@capacitor/android": "^8.2.0",
+    "@capacitor/cli": "^8.2.0",
     "@aws-sdk/lib-storage": "^3.1006.0",
     "@biomejs/biome": "^2.4.5",
     "@cloudflare/workers-types": "^4.20260305.1",

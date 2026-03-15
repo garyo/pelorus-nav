@@ -9,6 +9,7 @@
  */
 
 import { CHART_REGIONS, type ChartRegion } from "../data/chart-catalog";
+import { chartAssetBase } from "../data/remote-url";
 import type { StoredChartInfo } from "../data/tile-store";
 import {
   deleteAllCharts,
@@ -287,7 +288,7 @@ export class ChartCachePanel {
 
     try {
       await downloadChart(
-        `/${region.filename}`,
+        `${chartAssetBase()}/${region.filename}`,
         region.filename,
         (loaded, total) => {
           const pct = total > 0 ? (loaded / total) * 100 : 0;
@@ -299,7 +300,7 @@ export class ChartCachePanel {
       // Also download the coverage GeoJSON for offline use
       label.textContent = `Downloading ${region.name} coverage...`;
       await downloadAuxFile(
-        `/${region.coverageFilename}`,
+        `${chartAssetBase()}/${region.coverageFilename}`,
         region.coverageFilename,
         this.downloadController.signal,
       );

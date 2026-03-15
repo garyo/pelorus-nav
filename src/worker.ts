@@ -9,7 +9,9 @@ interface Env {
 }
 
 const ALLOWED_ORIGINS = [
+  "https://pelorus-nav.com",
   "https://pelorus-nav.pages.dev",
+  "https://localhost", // Capacitor Android WebView
   "http://localhost",
   "http://127.0.0.1",
 ];
@@ -116,6 +118,23 @@ async function handleTilesRequest(
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
+
+    // Handle CORS preflight for tile/coverage requests
+    if (request.method === "OPTIONS") {
+      const corsOrigin = getAllowedOrigin(request);
+      if (corsOrigin) {
+        return new Response(null, {
+          status: 204,
+          headers: {
+            "access-control-allow-origin": corsOrigin,
+            "access-control-allow-methods": "GET, HEAD, OPTIONS",
+            "access-control-allow-headers": "range",
+            "access-control-max-age": "86400",
+          },
+        });
+      }
+      return new Response(null, { status: 204 });
+    }
 
     // Serve PMTiles and coverage GeoJSON from R2
     if (

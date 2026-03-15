@@ -4,78 +4,84 @@ import type { ChartManager } from "./ChartManager";
 import { FeatureInfoPanel } from "./FeatureInfoPanel";
 import { formatFeatureInfo } from "./feature-info";
 
-/** Layers in query priority order: nav aids, hazards, regulatory, terrain */
-const INTERACTIVE_LAYERS = [
-  "s57-boylat",
-  "s57-boycar",
-  "s57-boysaw",
-  "s57-boyspp",
-  "s57-boyisd",
-  "s57-bcnlat",
-  "s57-bcncar",
-  "s57-lndmrk",
-  "s57-lights",
-  "s57-fogsig",
-  "s57-wrecks",
-  "s57-obstrn",
-  "s57-obstrn-area",
-  "s57-obstrn-line",
-  "s57-uwtroc",
-  "s57-resare",
-  "s57-achare",
-  "s57-ctnare",
-  "s57-fairwy",
-  "s57-tsslpt",
-  "s57-pilpnt",
-  "s57-morfac",
-  "s57-cblsub",
-  "s57-cblohd",
-  "s57-cblare",
-  "s57-pipare",
-  "s57-pipsol",
-  "s57-siltnk",
-  "s57-siltnk-icon",
-  "s57-hrbfac",
-  "s57-ofsplf",
-  "s57-berths-label",
-  "s57-buisgl",
-  "s57-seaare-label",
-  "s57-lndare-point",
-  "s57-lndare",
-  "s57-soundg",
-  "s57-slcons-label",
-  "s57-buisgl-label",
-  "s57-smcfac-label",
-  "s57-buaare-label",
-  "s57-lndrgn-label",
-  "s57-lndelv-label",
-  "s57-bridge",
-  "s57-prcare",
-  "s57-prcare-outline",
-  "s57-pilbop",
-  "s57-wattur",
-  "s57-gatcon",
-  "s57-damcon",
-  "s57-tunnel",
-  "s57-fshfac",
-  "s57-dykcon",
-  "s57-slotop",
-  "s57-pylons",
-  "s57-cranes",
-  "s57-forstc",
-  "s57-forstc-outline",
-  "s57-cgusta",
-  "s57-hulkes",
-  "s57-hulkes-outline",
-  "s57-drydoc",
-  "s57-drydoc-outline",
-  "s57-runway",
-  "s57-runway-outline",
-  "s57-airare",
-  "s57-airare-outline",
-  "s57-fairwy-outline",
-  "s57-achare-symbol",
+/**
+ * Interactive layer suffixes in query priority order.
+ * Used to match multi-region prefixed layers (e.g. s57-new-england-boylat).
+ */
+const INTERACTIVE_SUFFIXES = [
+  "-boylat",
+  "-boycar",
+  "-boysaw",
+  "-boyspp",
+  "-boyisd",
+  "-bcnlat",
+  "-bcncar",
+  "-lndmrk",
+  "-lights",
+  "-fogsig",
+  "-wrecks",
+  "-obstrn",
+  "-obstrn-area",
+  "-obstrn-line",
+  "-uwtroc",
+  "-resare",
+  "-achare",
+  "-ctnare",
+  "-fairwy",
+  "-tsslpt",
+  "-pilpnt",
+  "-morfac",
+  "-cblsub",
+  "-cblohd",
+  "-cblare",
+  "-pipare",
+  "-pipsol",
+  "-siltnk",
+  "-siltnk-icon",
+  "-hrbfac",
+  "-ofsplf",
+  "-berths-label",
+  "-buisgl",
+  "-seaare-label",
+  "-lndare-point",
+  "-lndare",
+  "-soundg",
+  "-slcons-label",
+  "-buisgl-label",
+  "-smcfac-label",
+  "-buaare-label",
+  "-lndrgn-label",
+  "-lndelv-label",
+  "-bridge",
+  "-prcare",
+  "-prcare-outline",
+  "-pilbop",
+  "-wattur",
+  "-gatcon",
+  "-damcon",
+  "-tunnel",
+  "-fshfac",
+  "-dykcon",
+  "-slotop",
+  "-pylons",
+  "-cranes",
+  "-forstc",
+  "-forstc-outline",
+  "-cgusta",
+  "-hulkes",
+  "-hulkes-outline",
+  "-drydoc",
+  "-drydoc-outline",
+  "-runway",
+  "-runway-outline",
+  "-airare",
+  "-airare-outline",
+  "-fairwy-outline",
+  "-achare-symbol",
 ];
+
+/** Map suffix → priority rank for deduplication ordering. */
+const SUFFIX_PRIORITY = new Map(INTERACTIVE_SUFFIXES.map((s, i) => [s, i]));
 
 interface QueriedFeature {
   sourceLayer: string;
@@ -115,9 +121,14 @@ export class FeatureQueryHandler {
   }
 
   private getVisibleInteractiveLayers(): string[] {
-    return INTERACTIVE_LAYERS.filter(
-      (id) => this.map.getLayer(id) !== undefined,
-    );
+    return this.map
+      .getStyle()
+      .layers.map((l) => l.id)
+      .filter(
+        (id) =>
+          id.startsWith("s57-") &&
+          INTERACTIVE_SUFFIXES.some((s) => id.endsWith(s)),
+      );
   }
 
   private handleClick(e: maplibregl.MapMouseEvent): void {
@@ -153,7 +164,7 @@ export class FeatureQueryHandler {
       }
     }
 
-    const features = deduplicateFeatures(raw, layers);
+    const features = deduplicateFeatures(raw);
 
     if (features.length === 0) {
       this.dismiss();
@@ -382,6 +393,14 @@ function pickRank(f: maplibregl.MapGeoJSONFeature): number {
   return 2; // fills + outline strokes (area features)
 }
 
+/** Get priority rank for a layer ID based on its suffix. */
+function layerPriority(layerId: string): number {
+  for (const [suffix, rank] of SUFFIX_PRIORITY) {
+    if (layerId.endsWith(suffix)) return rank;
+  }
+  return 999;
+}
+
 /**
  * Deduplicate features and sort by pick relevance.
  *
@@ -394,18 +413,16 @@ function pickRank(f: maplibregl.MapGeoJSONFeature): number {
  */
 function deduplicateFeatures(
   raw: maplibregl.MapGeoJSONFeature[],
-  priorityLayers: string[],
 ): QueriedFeature[] {
   const seen = new Set<string>();
   const result: QueriedFeature[] = [];
 
-  const priorityIndex = new Map(priorityLayers.map((id, i) => [id, i]));
   const sorted = [...raw].sort((a, b) => {
     const ra = pickRank(a);
     const rb = pickRank(b);
     if (ra !== rb) return ra - rb;
-    const ai = priorityIndex.get(a.layer.id) ?? 999;
-    const bi = priorityIndex.get(b.layer.id) ?? 999;
+    const ai = layerPriority(a.layer.id);
+    const bi = layerPriority(b.layer.id);
     return ai - bi;
   });
 

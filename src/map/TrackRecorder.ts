@@ -9,10 +9,12 @@
  * Track meta is not saved until the first point arrives (avoids zero-point tracks).
  */
 
+import { Capacitor } from "@capacitor/core";
 import { appendTrackPoint, getTrackPoints, saveTrackMeta } from "../data/db";
 import type { TrackMeta, TrackPoint } from "../data/Track";
 import type { NavigationData } from "../navigation/NavigationData";
 import type { NavigationDataManager } from "../navigation/NavigationDataManager";
+import { BackgroundGPS } from "../plugins/BackgroundGPS";
 import { haversineDistanceNM } from "../utils/coordinates";
 import { generateUUID } from "../utils/uuid";
 
@@ -37,6 +39,15 @@ export class TrackRecorder {
 
   constructor(navManager: NavigationDataManager) {
     this.navManager = navManager;
+
+    // Recover background GPS points when app returns to foreground
+    if (Capacitor.isNativePlatform()) {
+      document.addEventListener("visibilitychange", () => {
+        if (document.visibilityState === "visible" && this.recording) {
+          this.recoverBackgroundPoints().catch(console.error);
+        }
+      });
+    }
   }
 
   isRecording(): boolean {
@@ -112,6 +123,64 @@ export class TrackRecorder {
       // Corrupt localStorage entry — ignore
       localStorage.removeItem(ACTIVE_TRACK_KEY);
     }
+  }
+
+  /**
+   * Pull GPS points recorded by the native foreground service while
+   * the WebView was suspended. Inserts them into the active IndexedDB track.
+   */
+  async recoverBackgroundPoints(): Promise<void> {
+    if (!Capacitor.isNativePlatform()) return;
+
+    const { points } = await BackgroundGPS.getRecordedPoints();
+    if (points.length === 0) return;
+
+    // Ensure we have an active track
+    if (!this.currentTrack) {
+      const now = points[0].timestamp;
+      const date = new Date(now);
+      const name = `Track ${date.toISOString().slice(0, 16).replace("T", " ")}`;
+      this.currentTrack = {
+        id: generateUUID(),
+        name,
+        createdAt: now,
+        color: "#ff4444",
+        visible: true,
+        pointCount: 0,
+      };
+      this.trackPersisted = false;
+    }
+
+    // Persist meta if not yet done
+    if (!this.trackPersisted) {
+      await saveTrackMeta(this.currentTrack);
+      this.trackPersisted = true;
+      this.notify();
+    }
+
+    // Insert points that are newer than our last recorded timestamp
+    for (const pt of points) {
+      if (pt.timestamp <= this.lastRecordedTime) continue;
+
+      const trackPoint: TrackPoint = {
+        lat: pt.lat,
+        lon: pt.lon,
+        timestamp: pt.timestamp,
+        sog: pt.speed >= 0 ? pt.speed * 1.94384 : null, // m/s → knots
+        cog: pt.course >= 0 ? pt.course : null,
+      };
+
+      await appendTrackPoint(this.currentTrack.id, trackPoint);
+      this.currentTrack.pointCount++;
+      this.lastRecordedTime = pt.timestamp;
+      this.lastLat = pt.lat;
+      this.lastLon = pt.lon;
+    }
+
+    // Save updated meta and clear native buffer
+    await saveTrackMeta(this.currentTrack);
+    localStorage.setItem(ACTIVE_TRACK_KEY, JSON.stringify(this.currentTrack));
+    await BackgroundGPS.clearRecordedPoints();
   }
 
   private async onNavData(data: NavigationData): Promise<void> {

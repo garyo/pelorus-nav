@@ -48,17 +48,11 @@ function osmBrightness(theme: DisplayTheme): number {
 }
 
 /**
- * Water-area fill layers that must become opaque when OSM underlay is active,
- * to prevent OSM from bleeding through on water. These layers normally have
- * reduced opacity (FAIRWY is 0, DRGARE is 0.5, etc.) but with OSM underneath
- * they must fully hide the basemap on water.
+ * Water-area fill layer suffixes that must become opaque when OSM underlay
+ * is active, to prevent OSM from bleeding through on water.
+ * Matches any region prefix: s57-{regionId}-fairwy, etc.
  */
-const WATER_FILL_IDS = new Set([
-  "s57-fairwy",
-  "s57-drgare",
-  "s57-lakare",
-  "s57-rivers",
-]);
+const WATER_FILL_SUFFIXES = ["-fairwy", "-drgare", "-lakare", "-rivers"];
 
 /**
  * Merge OSM underlay into S-57 layers.
@@ -66,6 +60,9 @@ const WATER_FILL_IDS = new Set([
  * - Makes the background layer transparent (DEPARE + water fills cover water)
  * - Makes water-area fills fully opaque to hide OSM on water
  * - Reduces land area opacity so OSM shows through
+ *
+ * Uses suffix matching so this works with multi-region prefixed layer IDs
+ * (e.g. s57-new-england-lndare, s57-usvi-lndare).
  */
 export function applyOSMUnderlay(
   s57Layers: LayerSpecification[],
@@ -82,15 +79,15 @@ export function applyOSMUnderlay(
   };
 
   const adjusted = s57Layers.map((layer): LayerSpecification => {
-    if (layer.id === "s57-background" && layer.type === "background") {
+    if (layer.type === "background") {
       const bg = layer as BackgroundLayerSpecification;
       return { ...bg, paint: { ...bg.paint, "background-opacity": 0 } };
     }
-    if (layer.id === "s57-lndare" && layer.type === "fill") {
+    if (layer.type === "fill" && layer.id.endsWith("-lndare")) {
       const fill = layer as FillLayerSpecification;
       return { ...fill, paint: { ...fill.paint, "fill-opacity": landOpacity } };
     }
-    if (layer.id === "s57-buisgl" && layer.type === "fill") {
+    if (layer.type === "fill" && layer.id.endsWith("-buisgl")) {
       const fill = layer as FillLayerSpecification;
       return {
         ...fill,
@@ -101,7 +98,10 @@ export function applyOSMUnderlay(
       };
     }
     // Make water-area fills opaque to hide OSM on water
-    if (WATER_FILL_IDS.has(layer.id) && layer.type === "fill") {
+    if (
+      layer.type === "fill" &&
+      WATER_FILL_SUFFIXES.some((s) => layer.id.endsWith(s))
+    ) {
       const fill = layer as FillLayerSpecification;
       return { ...fill, paint: { ...fill.paint, "fill-opacity": 1 } };
     }

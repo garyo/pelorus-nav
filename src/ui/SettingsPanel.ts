@@ -3,6 +3,7 @@
  * Tabs: Appearance, Chart Layers, Navigation.
  */
 
+import { CapacitorGPSProvider } from "../navigation/CapacitorGPSProvider";
 import {
   type BearingMode,
   type ChartMode,
@@ -336,11 +337,14 @@ function buildNavigationTab(
 ): HTMLElement {
   const tab = document.createElement("div");
 
-  // GPS source
-  const GPS_SOURCES = [
+  // GPS source — "Device GPS" auto-selects native Capacitor or browser geolocation
+  const deviceGpsValue = CapacitorGPSProvider.isAvailable()
+    ? "capacitor-gps"
+    : "browser-gps";
+  const GPS_SOURCES: { value: string; label: string }[] = [
     { value: "none", label: "None" },
     { value: "simulator", label: "Simulator" },
-    { value: "browser-gps", label: "Browser GPS" },
+    { value: deviceGpsValue, label: "Device GPS" },
     { value: "web-serial", label: "USB GPS (Serial)" },
     { value: "signalk", label: "Signal K" },
   ];
