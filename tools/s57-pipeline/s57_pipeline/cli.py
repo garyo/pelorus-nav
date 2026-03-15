@@ -541,6 +541,14 @@ def cmd_pipeline(args: argparse.Namespace) -> None:
                 )
                 clipped = []  # don't treat as error
 
+            if no_tiles and region_bbox is not None:
+                progress.warning(
+                    f"{len(no_tiles)} input cells produced no tiles "
+                    f"(features may be outside region): "
+                    + ", ".join(no_tiles)
+                )
+                no_tiles = []  # don't treat as error
+
             unexpected = no_tiles + clipped
             if unexpected:
                 progress.error(
