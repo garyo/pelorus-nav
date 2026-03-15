@@ -43,9 +43,9 @@ describe("findRegionForPosition", () => {
   });
 
   // Shared latitude boundaries — first match wins
-  it("returns southern-new-england at 42.0°N (SNE/NNE boundary)", () => {
+  it("returns northern-new-england at 42.0°N (SNE/NNE boundary)", () => {
     const region = findRegionForPosition(42.0, -71.0);
-    expect(region?.id).toBe("southern-new-england");
+    expect(region?.id).toBe("northern-new-england");
   });
 
   it("returns southern-new-england at 41.0°N (SNE/NY boundary)", () => {

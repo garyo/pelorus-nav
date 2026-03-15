@@ -20,7 +20,7 @@ describe("VectorChartProvider", () => {
     if (source.type === "vector") {
       expect(source.tiles?.[0]).toContain("pmtiles://");
       expect(source.tiles?.[0]).toContain("{z}/{x}/{y}");
-      expect(source.tiles?.[0]).toContain("nautical-southern-new-england.pmtiles");
+      expect(source.tiles?.[0]).toContain("nautical-northern-new-england.pmtiles");
     }
   });
 
