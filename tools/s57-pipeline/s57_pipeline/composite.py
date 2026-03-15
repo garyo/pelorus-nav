@@ -395,6 +395,8 @@ def composite_tiles(
     _report("reading", 0, len(sources))
     for i, src in enumerate(sources):
         cov_wkb = coverage_wkb[src.cell_name]
+        if src.pmtiles_path.stat().st_size == 0:
+            continue  # skip empty PMTiles (no features for this layer)
         with open(src.pmtiles_path, "rb") as f:
             source = MmapSource(f)
             reader = Reader(source)
