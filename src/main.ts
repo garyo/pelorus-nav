@@ -274,24 +274,15 @@ onSettingsChange((s) => {
   wakeLockCtrl.setMode(s.wakeLock);
   wakeLockCtrl.setGpsActive(s.gpsSource !== "none");
   // Switch active region (UI only — all regions are always rendered).
-  // flyTo on region switch when GPS isn't in the target region.
+  // Always flyTo the region center on manual region switch.
   vectorProvider.setActiveRegion(s.activeRegion);
   const region = vectorProvider.getRegion();
   if (region.id !== prevActiveRegion) {
     prevActiveRegion = region.id;
-    const lastPos = navManager.getLastData();
-    const gpsInRegion =
-      lastPos &&
-      lastPos.latitude >= region.bbox[1] &&
-      lastPos.latitude <= region.bbox[3] &&
-      lastPos.longitude >= region.bbox[0] &&
-      lastPos.longitude <= region.bbox[2];
-    if (!gpsInRegion) {
-      chartManager.map.flyTo({
-        center: region.center,
-        zoom: region.defaultZoom,
-      });
-    }
+    chartManager.map.flyTo({
+      center: region.center,
+      zoom: region.defaultZoom,
+    });
   }
 });
 
