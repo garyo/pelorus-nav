@@ -11,6 +11,7 @@ import {
   VectorChartProvider,
 } from "./chart";
 import { OPFSSource } from "./data/opfs-source";
+import { chartAssetBase } from "./data/remote-url";
 import { getChartFile, listStoredCharts } from "./data/tile-store";
 import { BearingLine } from "./map/BearingLine";
 import { MeasurementLayer } from "./map/MeasurementLayer";
@@ -21,6 +22,7 @@ import { TrackRecorder } from "./map/TrackRecorder";
 import { WaypointLayer } from "./map/WaypointLayer";
 import {
   BrowserGeolocationProvider,
+  CapacitorGPSProvider,
   type NavigationData,
   NavigationDataManager,
   SignalKProvider,
@@ -29,6 +31,7 @@ import {
 } from "./navigation";
 import { ActiveNavigationManager } from "./navigation/ActiveNavigation";
 import { CourseSmoothing } from "./navigation/CourseSmoothing";
+import { RegionAutoSwitch } from "./navigation/RegionAutoSwitch";
 import { getSettings, onSettingsChange, updateSettings } from "./settings";
 import { CancelNavButton } from "./ui/CancelNavButton";
 import { ChartCachePanel } from "./ui/ChartCachePanel";
@@ -69,7 +72,8 @@ try {
   for (const chart of storedCharts) {
     const file = await getChartFile(chart.filename);
     if (file) {
-      const source = new OPFSSource(file, `/${chart.filename}`);
+      const key = `${chartAssetBase()}/${chart.filename}`;
+      const source = new OPFSSource(file, key);
       protocol.add(new PMTiles(source));
     }
   }
@@ -88,10 +92,10 @@ const applyDisplayTheme = (theme: string) => {
 applyDisplayTheme(getSettings().displayTheme);
 onSettingsChange((s) => applyDisplayTheme(s.displayTheme));
 
-// Create vector chart provider with the user's active region
+// Create vector chart provider — loads ALL regions simultaneously
 const initialRegion = getSettings().activeRegion;
 const vectorProvider = new VectorChartProvider(initialRegion);
-await vectorProvider.loadOfflineCoverage();
+await vectorProvider.loadAllOfflineCoverage();
 const activeRegionInfo = vectorProvider.getRegion();
 
 const chartManager = new ChartManager({
@@ -106,6 +110,35 @@ const chartManager = new ChartManager({
   ],
   initialProviderId: "s57-vector",
 });
+
+// E-ink frame rate throttle: limit repaints to ~4 fps to reduce ghosting
+const EINK_FRAME_INTERVAL = 250; // ms between frames
+{
+  const map = chartManager.map;
+  const originalTriggerRepaint = map.triggerRepaint.bind(map);
+  let lastFrameTime = 0;
+  let pendingFrame: ReturnType<typeof setTimeout> | null = null;
+
+  const throttledRepaint = () => {
+    if (getSettings().displayTheme !== "eink") {
+      originalTriggerRepaint();
+      return;
+    }
+    const now = performance.now();
+    const elapsed = now - lastFrameTime;
+    if (elapsed >= EINK_FRAME_INTERVAL) {
+      lastFrameTime = now;
+      originalTriggerRepaint();
+    } else if (!pendingFrame) {
+      pendingFrame = setTimeout(() => {
+        pendingFrame = null;
+        lastFrameTime = performance.now();
+        originalTriggerRepaint();
+      }, EINK_FRAME_INTERVAL - elapsed);
+    }
+  };
+  map.triggerRepaint = throttledRepaint;
+}
 
 // Populate chart selector in top bar
 const chartSelect = document.getElementById(
@@ -153,6 +186,10 @@ const navManager = new NavigationDataManager();
 const simulator = new SimulatorProvider();
 simulator.setSpeedMultiplier(getSettings().simulatorSpeed);
 navManager.registerProvider(simulator);
+if (CapacitorGPSProvider.isAvailable()) {
+  navManager.registerProvider(new CapacitorGPSProvider());
+}
+// Browser geolocation works in both WebView and browser
 navManager.registerProvider(new BrowserGeolocationProvider());
 if (WebSerialNMEAProvider.isAvailable()) {
   navManager.registerProvider(new WebSerialNMEAProvider());
@@ -201,19 +238,24 @@ let prevLat = -999;
 let prevLon = -999;
 chartManager.map.on("render", () => {
   if (!lastNavData) return;
+  const isEink = getSettings().displayTheme === "eink";
+  // E-ink: snap to target in one frame (no multi-frame animation)
+  if (isEink) {
+    courseSmoother.snapToTarget();
+  }
   const smoothed = courseSmoother.smooth(performance.now());
   if (!smoothed) return;
   // Always update position/bearing (needed for recentering on straight courses)
   chartMode.update(lastNavData, smoothed);
   courseLine.update(lastNavData, smoothed);
-  // Keep animating while values are still converging
+  // Keep animating while values are still converging (not on e-ink)
   const cogDelta = Math.abs(smoothed.cog - prevCog);
   const posDelta =
     Math.abs(smoothed.lat - prevLat) + Math.abs(smoothed.lon - prevLon);
   prevCog = smoothed.cog;
   prevLat = smoothed.lat;
   prevLon = smoothed.lon;
-  if (cogDelta >= 0.01 || posDelta >= 1e-7) {
+  if (!isEink && (cogDelta >= 0.01 || posDelta >= 1e-7)) {
     chartManager.map.triggerRepaint();
   }
 });
@@ -230,16 +272,23 @@ onSettingsChange((s) => {
   navManager.setRateMode(s.gpsRateMode, s.manualUpdateIntervalMs);
   wakeLockCtrl.setMode(s.wakeLock);
   wakeLockCtrl.setGpsActive(s.gpsSource !== "none");
-  // Switch chart region
-  if (vectorProvider.setRegion(s.activeRegion)) {
-    vectorProvider.loadOfflineCoverage().then(() => {
-      chartManager.refreshStyle();
-      const region = vectorProvider.getRegion();
+  // Switch active region (UI only — all regions are always rendered).
+  // Only flyTo on manual region switch (when GPS isn't in the target region).
+  if (vectorProvider.setActiveRegion(s.activeRegion)) {
+    const region = vectorProvider.getRegion();
+    const lastPos = navManager.getLastData();
+    const gpsInRegion =
+      lastPos &&
+      lastPos.latitude >= region.bbox[1] &&
+      lastPos.latitude <= region.bbox[3] &&
+      lastPos.longitude >= region.bbox[0] &&
+      lastPos.longitude <= region.bbox[2];
+    if (!gpsInRegion) {
       chartManager.map.flyTo({
         center: region.center,
         zoom: region.defaultZoom,
       });
-    });
+    }
   }
 });
 
@@ -272,6 +321,9 @@ wakeLockCtrl.setGpsActive(initGpsSettings.gpsSource !== "none");
 
 // Activate initial GPS source from settings
 navManager.setActiveProvider(initGpsSettings.gpsSource);
+
+// Auto-switch active region based on GPS position
+new RegionAutoSwitch(navManager);
 
 // --- Context menu (right-click on map) ---
 const ctxMenu = document.createElement("div");
@@ -682,11 +734,12 @@ if (topbarMenu) {
         for (const chart of charts) {
           const file = await getChartFile(chart.filename);
           if (file) {
-            const source = new OPFSSource(file, `/${chart.filename}`);
+            const key = `${chartAssetBase()}/${chart.filename}`;
+            const source = new OPFSSource(file, key);
             protocol.add(new PMTiles(source));
           }
         }
-        await vectorProvider.loadOfflineCoverage();
+        await vectorProvider.loadAllOfflineCoverage();
         chartManager.refreshStyle();
       } catch {
         // ignore

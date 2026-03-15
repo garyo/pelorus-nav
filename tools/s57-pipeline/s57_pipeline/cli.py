@@ -529,15 +529,29 @@ def cmd_pipeline(args: argparse.Namespace) -> None:
         _, used_cells = result
         unused_in_output = sorted(all_cell_names - used_cells)
         if unused_in_output:
-            progress.error(
-                f"{len(unused_in_output)} input cells did not "
-                f"contribute to the final output: "
-                + ", ".join(
-                    f"{cell} ({'no tiles' if cell in cells_no_tiles else 'clipped away'})"
-                    for cell in unused_in_output
+            # When region_bbox is set, cells whose coverage falls entirely
+            # outside the region are expected to be clipped away.
+            clipped = [c for c in unused_in_output if c not in cells_no_tiles]
+            no_tiles = [c for c in unused_in_output if c in cells_no_tiles]
+
+            if clipped and region_bbox is not None:
+                progress.warning(
+                    f"{len(clipped)} input cells clipped away by region bbox: "
+                    + ", ".join(clipped)
                 )
-            )
-            sys.exit(1)
+                clipped = []  # don't treat as error
+
+            unexpected = no_tiles + clipped
+            if unexpected:
+                progress.error(
+                    f"{len(unexpected)} input cells did not "
+                    f"contribute to the final output: "
+                    + ", ".join(
+                        f"{cell} ({'no tiles' if cell in cells_no_tiles else 'clipped away'})"
+                        for cell in unexpected
+                    )
+                )
+                sys.exit(1)
 
     pipeline_elapsed = time.monotonic() - pipeline_start
     progress.print_summary(

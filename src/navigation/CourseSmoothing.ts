@@ -118,6 +118,17 @@ export class CourseSmoothing {
   }
 
   /**
+   * Snap smoothed values to their targets immediately.
+   * Use on e-ink to avoid multi-frame convergence animation.
+   */
+  snapToTarget(): void {
+    this.smoothedCog = this.targetCog;
+    this.smoothedSog = this.targetSog;
+    this.smoothedLat = this.targetLat;
+    this.smoothedLon = this.targetLon;
+  }
+
+  /**
    * Run exponential smoothing toward the buffer-averaged target.
    * Call on every render frame for fluid animation.
    * Returns the smoothed COG/SOG, or null if no samples yet.

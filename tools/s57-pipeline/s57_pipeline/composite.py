@@ -29,6 +29,7 @@ from shapely.io import from_wkb, to_wkb
 from pmtiles.convert import all_tiles, write
 from pmtiles.reader import MmapSource, Reader, zxy_to_tileid
 
+from .regions import _bbox_intersects
 from .tilemath import latlon_to_tile as _latlon_to_tile
 from .tilemath import tile_to_bbox as _tile_to_bbox
 
@@ -367,6 +368,13 @@ def composite_tiles(
     t_total = time.monotonic()
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
+    # Clip source coverages to region bbox so tiles outside the region
+    # are naturally excluded by the M_COVR compositing logic.
+    if region_bbox is not None:
+        region_poly = box(*region_bbox)
+        for src in sources:
+            src.coverage = make_valid(src.coverage.intersection(region_poly))
+
     # Pre-serialize coverages to WKB for multiprocessing
     coverage_wkb: dict[str, bytes] = {}
     for src in sources:
@@ -419,6 +427,11 @@ def composite_tiles(
                 }
 
             for (z, x, y), data in all_tiles(source):
+                if region_bbox is not None:
+                    if not _bbox_intersects(
+                        _tile_to_bbox(z, x, y), region_bbox
+                    ):
+                        continue
                 tile_entries.setdefault((z, x, y), []).append(
                     (src.band, src.cell_name, data, cov_wkb)
                 )
