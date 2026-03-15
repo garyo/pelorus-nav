@@ -97,6 +97,7 @@ const initialRegion = getSettings().activeRegion;
 const vectorProvider = new VectorChartProvider(initialRegion);
 await vectorProvider.loadAllOfflineCoverage();
 const activeRegionInfo = vectorProvider.getRegion();
+let prevActiveRegion = activeRegionInfo.id;
 
 const chartManager = new ChartManager({
   container: "map",
@@ -273,9 +274,11 @@ onSettingsChange((s) => {
   wakeLockCtrl.setMode(s.wakeLock);
   wakeLockCtrl.setGpsActive(s.gpsSource !== "none");
   // Switch active region (UI only — all regions are always rendered).
-  // Only flyTo on manual region switch (when GPS isn't in the target region).
-  if (vectorProvider.setActiveRegion(s.activeRegion)) {
-    const region = vectorProvider.getRegion();
+  // flyTo on region switch when GPS isn't in the target region.
+  vectorProvider.setActiveRegion(s.activeRegion);
+  const region = vectorProvider.getRegion();
+  if (region.id !== prevActiveRegion) {
+    prevActiveRegion = region.id;
     const lastPos = navManager.getLastData();
     const gpsInRegion =
       lastPos &&

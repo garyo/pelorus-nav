@@ -45,8 +45,8 @@ export const CHART_REGIONS: ChartRegion[] = [
     filename: "nautical-northern-new-england.pmtiles",
     coverageFilename: "nautical-northern-new-england.coverage.geojson",
     sizeEstimate: 150 * 1024 * 1024, // ~150 MB (estimate)
-    center: [-70.0, 43.5],
-    defaultZoom: 10,
+    center: [-71.01, 42.34],
+    defaultZoom: 12,
     bbox: [-74.0, 42.0, -65.5, 48.0],
   },
   {
