@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # Build PMTiles for one or all regions.
 # Usage: build-tiles.sh <region|all|east-coast> [--force]
-#   region: boston-test, new-england, new-york, mid-atlantic, south-atlantic, usvi
-#   east-coast: builds all four mainland regions
+#   Regions are defined in s57-pipeline/s57_pipeline/regions.py
+#   east-coast: builds all mainland regions (excludes USVI)
 #   all: builds all regions including USVI
 #   --force: force rebuild all cells
 
@@ -26,36 +26,13 @@ unify_coverage() {
 
 build_region() {
   local region="$1"
+  local output="$OUTPUT_DIR/nautical-${region}.pmtiles"
   local min_cells_arg=""
-  local output
 
   case "$region" in
-    boston-test)
-      output="$OUTPUT_DIR/nautical-boston-test.pmtiles"
-      ;;
-    new-england)
-      output="$OUTPUT_DIR/nautical-new-england.pmtiles"
-      min_cells_arg="--min-cells 50"
-      ;;
-    new-york)
-      output="$OUTPUT_DIR/nautical-new-york.pmtiles"
-      min_cells_arg="--min-cells 30"
-      ;;
-    mid-atlantic)
-      output="$OUTPUT_DIR/nautical-mid-atlantic.pmtiles"
-      min_cells_arg="--min-cells 30"
-      ;;
-    south-atlantic)
-      output="$OUTPUT_DIR/nautical-south-atlantic.pmtiles"
-      min_cells_arg="--min-cells 30"
-      ;;
-    usvi)
-      output="$OUTPUT_DIR/nautical-usvi.pmtiles"
-      ;;
-    *)
-      echo "Unknown region: $region" >&2
-      exit 1
-      ;;
+    boston-test) ;;
+    usvi) ;;
+    *) min_cells_arg="--min-cells 30" ;;
   esac
 
   echo "=== Building $region ==="
@@ -70,14 +47,16 @@ build_region() {
 
 case "$REGION" in
   east-coast)
-    build_region new-england
+    build_region southern-new-england
+    build_region northern-new-england
     build_region new-york
     build_region mid-atlantic
     build_region south-atlantic
     unify_coverage
     ;;
   all)
-    build_region new-england
+    build_region southern-new-england
+    build_region northern-new-england
     build_region new-york
     build_region mid-atlantic
     build_region south-atlantic

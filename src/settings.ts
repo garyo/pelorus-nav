@@ -82,7 +82,7 @@ const DEFAULTS: Settings = {
   instrumentCells: ["sog", "cog"],
   trackRecordingEnabled: false,
   activeTrackColor: "#ff4444",
-  activeRegion: "new-england",
+  activeRegion: "northern-new-england",
   courseLineDuration: 0,
   arrivalRadiusNM: 0.1,
   simulatorSpeed: 1,

@@ -51,7 +51,7 @@ build-tools/
 # Tile data files (mbtiles/pmtiles downloads in root, etc.)
 *.mbtiles
 /*.pmtiles
-data/
+/data/
 
 # Build logs
 *.log

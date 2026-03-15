@@ -50,10 +50,15 @@ REGIONS: dict[str, Region] = {
         bbox=(-71.3, 41.9, -69.9, 42.7),
         description="Boston area with approach charts -- dev iteration",
     ),
-    "new-england": Region(
-        name="New England",
-        bbox=(-74.0, 41.0, -65.5, 47.5),
-        description="CT coast through Downeast Maine",
+    "southern-new-england": Region(
+        name="Southern New England",
+        bbox=(-74.0, 41.0, -65.5, 42.0),
+        description="CT coast, RI, Buzzards Bay, Martha's Vineyard, Nantucket",
+    ),
+    "northern-new-england": Region(
+        name="Northern New England",
+        bbox=(-74.0, 42.0, -65.5, 48.0),
+        description="Cape Cod, Boston, NH coast, Maine through Downeast",
     ),
     "new-york": Region(
         name="New York & NJ",

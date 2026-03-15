@@ -37,7 +37,7 @@ class MockNavManager {
 describe("RegionAutoSwitch", () => {
   beforeEach(() => {
     storage.clear();
-    updateSettings({ activeRegion: "new-england" });
+    updateSettings({ activeRegion: "northern-new-england" });
   });
 
   afterEach(() => {
@@ -48,12 +48,12 @@ describe("RegionAutoSwitch", () => {
     const mock = new MockNavManager();
     new RegionAutoSwitch(mock as never);
 
-    expect(getSettings().activeRegion).toBe("new-england");
+    expect(getSettings().activeRegion).toBe("northern-new-england");
 
     // 3 fixes in USVI
     mock.pushFix(18.34, -64.93);
     mock.pushFix(18.34, -64.93);
-    expect(getSettings().activeRegion).toBe("new-england"); // not yet
+    expect(getSettings().activeRegion).toBe("northern-new-england"); // not yet
     mock.pushFix(18.34, -64.93);
     expect(getSettings().activeRegion).toBe("usvi"); // switched!
   });
@@ -69,7 +69,7 @@ describe("RegionAutoSwitch", () => {
     // Now 3 more in USVI — should need full 3 again
     mock.pushFix(18.34, -64.93);
     mock.pushFix(18.34, -64.93);
-    expect(getSettings().activeRegion).toBe("new-england");
+    expect(getSettings().activeRegion).toBe("northern-new-england");
     mock.pushFix(18.34, -64.93);
     expect(getSettings().activeRegion).toBe("usvi");
   });
@@ -81,6 +81,6 @@ describe("RegionAutoSwitch", () => {
     mock.pushFix(0, 0);
     mock.pushFix(0, 0);
     mock.pushFix(0, 0);
-    expect(getSettings().activeRegion).toBe("new-england");
+    expect(getSettings().activeRegion).toBe("northern-new-england");
   });
 });

@@ -62,7 +62,7 @@ const WATER_FILL_SUFFIXES = ["-fairwy", "-drgare", "-lakare", "-rivers"];
  * - Reduces land area opacity so OSM shows through
  *
  * Uses suffix matching so this works with multi-region prefixed layer IDs
- * (e.g. s57-new-england-lndare, s57-usvi-lndare).
+ * (e.g. s57-northern-new-england-lndare, s57-usvi-lndare).
  */
 export function applyOSMUnderlay(
   s57Layers: LayerSpecification[],

@@ -6,7 +6,7 @@ import { formatFeatureInfo } from "./feature-info";
 
 /**
  * Interactive layer suffixes in query priority order.
- * Used to match multi-region prefixed layers (e.g. s57-new-england-boylat).
+ * Used to match multi-region prefixed layers (e.g. s57-northern-new-england-boylat).
  */
 const INTERACTIVE_SUFFIXES = [
   "-boylat",

@@ -20,7 +20,7 @@ describe("VectorChartProvider", () => {
     if (source.type === "vector") {
       expect(source.tiles?.[0]).toContain("pmtiles://");
       expect(source.tiles?.[0]).toContain("{z}/{x}/{y}");
-      expect(source.tiles?.[0]).toContain("nautical-new-england.pmtiles");
+      expect(source.tiles?.[0]).toContain("nautical-southern-new-england.pmtiles");
     }
   });
 
@@ -36,7 +36,7 @@ describe("VectorChartProvider", () => {
   });
 
   it("setActiveRegion changes the active region", () => {
-    const p = new VectorChartProvider("new-england");
+    const p = new VectorChartProvider("northern-new-england");
     expect(p.setActiveRegion("usvi")).toBe(true);
     expect(p.getRegion().id).toBe("usvi");
     // No-op for same region

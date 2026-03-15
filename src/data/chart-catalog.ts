@@ -30,14 +30,24 @@ export interface ChartRegion {
  */
 export const CHART_REGIONS: ChartRegion[] = [
   {
-    id: "new-england",
-    name: "New England",
-    filename: "nautical-new-england.pmtiles",
-    coverageFilename: "nautical-new-england.coverage.geojson",
-    sizeEstimate: 287 * 1024 * 1024, // ~287 MB
-    center: [-71.00992, 42.341893],
-    defaultZoom: 12,
-    bbox: [-74.0, 41.0, -65.5, 47.5],
+    id: "southern-new-england",
+    name: "Southern New England",
+    filename: "nautical-southern-new-england.pmtiles",
+    coverageFilename: "nautical-southern-new-england.coverage.geojson",
+    sizeEstimate: 150 * 1024 * 1024, // ~150 MB (estimate)
+    center: [-71.5, 41.5],
+    defaultZoom: 11,
+    bbox: [-74.0, 41.0, -65.5, 42.0],
+  },
+  {
+    id: "northern-new-england",
+    name: "Northern New England",
+    filename: "nautical-northern-new-england.pmtiles",
+    coverageFilename: "nautical-northern-new-england.coverage.geojson",
+    sizeEstimate: 150 * 1024 * 1024, // ~150 MB (estimate)
+    center: [-70.0, 43.5],
+    defaultZoom: 10,
+    bbox: [-74.0, 42.0, -65.5, 48.0],
   },
   {
     id: "new-york",

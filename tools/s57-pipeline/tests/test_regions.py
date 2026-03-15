@@ -28,7 +28,8 @@ class TestRegionDefinitions:
 
     def test_known_regions_exist(self) -> None:
         assert "boston-test" in REGIONS
-        assert "new-england" in REGIONS
+        assert "southern-new-england" in REGIONS
+        assert "northern-new-england" in REGIONS
 
 
 class TestQueryRegion:
