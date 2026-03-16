@@ -13,7 +13,8 @@ from pathlib import Path
 from shapely.geometry.base import BaseGeometry
 
 from .composite import CellTileSource, composite_tiles
-from .convert import convert_enc, read_compilation_scale, read_intended_use
+from .convert import convert_enc, list_enc_layers, read_compilation_scale, read_intended_use
+from .layers import LAYER_NAMES
 from .coverage import scan_all_cells
 from .download import download_enc_cell
 from .merge import merge_tiles
@@ -240,16 +241,29 @@ def _process_cell(
             if stale_dir.exists():
                 shutil.rmtree(stale_dir)
 
-    # Incremental: skip if tiles are newer than source
+    # Incremental: skip if tiles are newer than source AND geojson
+    # layers match what we'd produce from the current ENC.  This catches
+    # stale caches from prior runs where some layers failed silently.
     if not force:
         existing_tiles = list(tiles_dir.glob("*.pmtiles")) if tiles_dir.exists() else []
         if existing_tiles and all(
             t.stat().st_mtime > enc_path.stat().st_mtime for t in existing_tiles
         ):
-            if progress is not None:
-                progress.cell_started(cell_name, info)
-                progress.cell_skipped(cell_name)
-            return existing_tiles, scale_band
+            # Verify the geojson dir has the layers we expect
+            available = set(list_enc_layers(enc_path))
+            expected_gj = {
+                name.lower() for name in LAYER_NAMES if name in available
+            }
+            actual_gj = {
+                p.stem for p in geojson_dir.glob("*.geojson")
+            } if geojson_dir.exists() else set()
+            missing = expected_gj - actual_gj
+            if not missing:
+                if progress is not None:
+                    progress.cell_started(cell_name, info)
+                    progress.cell_skipped(cell_name)
+                return existing_tiles, scale_band
+            # Missing layers — fall through to reconvert
 
     if progress is not None:
         progress.cell_started(cell_name, info)

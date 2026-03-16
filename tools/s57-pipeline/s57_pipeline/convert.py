@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import os
 import subprocess
 from collections.abc import Callable
@@ -147,11 +148,27 @@ def convert_layer(
 
     result = subprocess.run(cmd, capture_output=True, text=True, env=env)
 
-    if result.returncode != 0 or not output_path.exists():
+    if result.returncode != 0:
+        # Clean up partial output on failure
+        output_path.unlink(missing_ok=True)
+        return None
+
+    if not output_path.exists():
         return None
 
     # Check if file has features (ogr2ogr creates empty files for missing layers)
     if output_path.stat().st_size < 100:
+        output_path.unlink(missing_ok=True)
+        return None
+
+    # Validate JSON is parseable (catches truncated writes from disk-full, etc.)
+    try:
+        with open(output_path) as f:
+            data = json.load(f)
+        if not data.get("features"):
+            output_path.unlink(missing_ok=True)
+            return None
+    except (json.JSONDecodeError, OSError):
         output_path.unlink(missing_ok=True)
         return None
 

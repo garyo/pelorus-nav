@@ -53,6 +53,12 @@ def tile_layer(
 
     if result.returncode != 0:
         print(f"  tippecanoe error for {layer_name}: {result.stderr}")
+        output_path.unlink(missing_ok=True)
+        return None
+
+    # Remove empty output (no features survived zoom filtering)
+    if output_path.exists() and output_path.stat().st_size == 0:
+        output_path.unlink()
         return None
 
     return output_path
