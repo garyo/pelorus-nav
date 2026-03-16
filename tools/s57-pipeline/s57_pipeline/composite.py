@@ -372,12 +372,11 @@ def composite_tiles(
     t_total = time.monotonic()
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
-    # Clip source coverages to region bbox so tiles outside the region
-    # are naturally excluded by the M_COVR compositing logic.
-    if region_bbox is not None:
-        region_poly = box(*region_bbox)
-        for src in sources:
-            src.coverage = make_valid(src.coverage.intersection(region_poly))
+    # NOTE: M_COVR coverages are NOT clipped to region_bbox.
+    # Tile-center ownership (below) ensures each tile is produced by
+    # exactly one region.  The compositing uses full M_COVR so it can
+    # fill the entire tile — critical at low zoom where tiles span
+    # well past the region boundary.
 
     # Pre-serialize coverages to WKB for multiprocessing
     coverage_wkb: dict[str, bytes] = {}
@@ -442,7 +441,7 @@ def composite_tiles(
                     tw, ts, te, tn = _tile_to_bbox(z, x, y)
                     cx, cy = (tw + te) / 2, (ts + tn) / 2
                     rw, rs, re, rn = region_bbox
-                    if not (rw <= cx <= re and rs <= cy <= rn):
+                    if not (rw <= cx < re and rs <= cy < rn):
                         continue
                 tile_entries.setdefault((z, x, y), []).append(
                     (src.band, src.cell_name, data, cov_wkb)
