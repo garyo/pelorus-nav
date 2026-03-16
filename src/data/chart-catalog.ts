@@ -57,7 +57,7 @@ export const CHART_REGIONS: ChartRegion[] = [
     sizeEstimate: 200 * 1024 * 1024, // ~200 MB (estimate)
     center: [-73.8, 40.4],
     defaultZoom: 10,
-    bbox: [-76.0, 39.0, -71.0, 41.0],
+    bbox: [-76.0, 39.0, -65.5, 41.0],
   },
   {
     id: "mid-atlantic",
@@ -67,7 +67,7 @@ export const CHART_REGIONS: ChartRegion[] = [
     sizeEstimate: 250 * 1024 * 1024, // ~250 MB (estimate)
     center: [-76.0, 37.5],
     defaultZoom: 9,
-    bbox: [-77.5, 35.0, -74.5, 39.0],
+    bbox: [-77.5, 35.0, -65.5, 39.0],
   },
   {
     id: "south-atlantic",
@@ -77,7 +77,7 @@ export const CHART_REGIONS: ChartRegion[] = [
     sizeEstimate: 400 * 1024 * 1024, // ~400 MB (estimate)
     center: [-80.0, 30.0],
     defaultZoom: 8,
-    bbox: [-82.5, 24.3, -75.0, 35.0],
+    bbox: [-82.5, 24.3, -65.5, 35.0],
   },
   {
     id: "usvi",
