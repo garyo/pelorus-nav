@@ -29,12 +29,21 @@ from shapely.io import from_wkb, to_wkb
 from pmtiles.convert import all_tiles, write
 from pmtiles.reader import MmapSource, Reader, zxy_to_tileid
 
-from .regions import _bbox_intersects
 from .tilemath import latlon_to_tile as _latlon_to_tile
 from .tilemath import tile_to_bbox as _tile_to_bbox
 
 # MVT default extent (coordinate space 0..4096)
 _MVT_EXTENTS = 4096
+
+# Region bbox for worker processes (set via pool initializer).
+# Used to prevent the 0.01° buffer from extending past region boundaries.
+_worker_region_bbox: tuple[float, float, float, float] | None = None
+
+
+def _init_worker(region_bbox: tuple[float, float, float, float] | None) -> None:
+    """Pool initializer: set the region bbox in each worker process."""
+    global _worker_region_bbox  # noqa: PLW0603
+    _worker_region_bbox = region_bbox
 
 
 @dataclass
@@ -300,7 +309,12 @@ def _composite_one_multi_band(
         # between adjacent cells.  The extra overlap is harmless (same
         # depth polygons from both cells stack) and prevents white slivers.
         clip_region = make_valid(usable.buffer(0.01))
-        clip_region = clip_region.intersection(tile_bbox)
+        # Clip buffer to tile bbox AND region bbox so it doesn't leak
+        # into adjacent regions (which would cause double rendering).
+        clip_bounds = tile_bbox
+        if _worker_region_bbox is not None:
+            clip_bounds = clip_bounds.intersection(box(*_worker_region_bbox))
+        clip_region = clip_region.intersection(clip_bounds)
 
         for data, _cov in cell_entries:
             features = _clip_mvt_features(data, clip_region, tile_bbox)
@@ -430,9 +444,9 @@ def composite_tiles(
 
             for (z, x, y), data in all_tiles(source):
                 if region_bbox is not None:
-                    if not _bbox_intersects(
-                        _tile_to_bbox(z, x, y), region_bbox
-                    ):
+                    tb = _tile_to_bbox(z, x, y)
+                    if (tb[2] < region_bbox[0] or tb[0] > region_bbox[2]
+                            or tb[3] < region_bbox[1] or tb[1] > region_bbox[3]):
                         continue
                 tile_entries.setdefault((z, x, y), []).append(
                     (src.band, src.cell_name, data, cov_wkb)
@@ -518,7 +532,11 @@ def composite_tiles(
         # Process multi-band tiles in parallel
         t2 = time.monotonic()
         if multi_band_entries:
-            with multiprocessing.Pool(num_workers) as pool:
+            with multiprocessing.Pool(
+                num_workers,
+                initializer=_init_worker,
+                initargs=(region_bbox,),
+            ) as pool:
                 for tile_id, tile_bytes, used, fully_filled in pool.imap_unordered(
                     _composite_one_multi_band, multi_band_entries, chunksize=32,
                 ):
@@ -607,7 +625,12 @@ def composite_tiles(
                 # Expand clipping region slightly (~1km) to cover
                 # tippecanoe simplification gaps at cell boundaries.
                 clip_region = make_valid(usable.buffer(0.01))
-                clip_region = clip_region.intersection(tile_bbox)
+                # Clip buffer to tile bbox AND region bbox so it doesn't
+                # leak into adjacent regions (double rendering).
+                clip_bounds = tile_bbox
+                if region_bbox is not None:
+                    clip_bounds = clip_bounds.intersection(box(*region_bbox))
+                clip_region = clip_region.intersection(clip_bounds)
 
                 for data, _cov in cell_entries_inner:
                     features = _clip_mvt_features(data, clip_region, tile_bbox)
