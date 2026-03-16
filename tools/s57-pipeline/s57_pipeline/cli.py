@@ -303,13 +303,38 @@ def _process_cell(
 
 
 def _find_enc_files(args: argparse.Namespace) -> list[Path]:
-    """Resolve ENC files from --region or --input args."""
+    """Resolve ENC files from --region or --input args.
+
+    When building a region, the cell query bbox is expanded by 3° so
+    that cells from adjacent regions are available for compositing.
+    At low zoom (z5-z7), tiles span several degrees past the region
+    boundary, and the owning region needs cells from neighbors to fill
+    the full tile.  Tile-center ownership (z8+) prevents double
+    rendering; the extra cells just ensure complete tile coverage.
+    """
     if args.region:
         if args.region not in REGIONS:
             print(f"Unknown region: {args.region}")
             print(f"Available regions: {', '.join(REGIONS)}")
             sys.exit(1)
+        # Start with exact region cells, then add low-band (2-3)
+        # overview cells from an expanded bbox.  At low zoom (z5-z7),
+        # tiles span several degrees past the region boundary — the
+        # overview cells ensure full coverage in those tiles.  High-band
+        # cells aren't needed (they don't have tiles at low zoom).
+        region = REGIONS[args.region]
         cell_list = get_region_cells(args.region)
+        expanded_bbox = (
+            region.bbox[0] - 5, region.bbox[1] - 5,
+            region.bbox[2] + 5, region.bbox[3] + 5,
+        )
+        expanded_cells = query_region(expanded_bbox)
+        overview_extras = [
+            c for c in expanded_cells
+            if c not in set(cell_list) and int(c[2]) <= 3
+        ]
+        if overview_extras:
+            cell_list = cell_list + overview_extras
         input_dir = Path(args.input)
         enc_files = []
         for cell_name in cell_list:
