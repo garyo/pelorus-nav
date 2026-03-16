@@ -27,8 +27,19 @@ function formatCOG(cog: number | null, lat: number, lon: number): string {
 
 /** Shorten GPS source name for compact display. */
 function shortSource(source: string): string {
-  if (source === "simulator") return "sim";
-  return source;
+  switch (source) {
+    case "simulator":
+      return "\u25B6SIM"; // ▶SIM
+    case "browser-gps":
+    case "capacitor-gps":
+      return "\uD83D\uDCCD"; // 📍
+    case "web-serial":
+      return "USB";
+    case "signalk":
+      return "\u2693SK"; // ⚓SK
+    default:
+      return source;
+  }
 }
 
 const TIER_ICONS: Record<AdaptiveTier, string> = {
