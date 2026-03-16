@@ -204,9 +204,9 @@ def query_region(
 
     catalog = _load_or_build_catalog()
 
-    cells = sorted(
+    cells = sorted(set(
         e.name for e in catalog if _bbox_intersects(e.bbox, bbox)
-    )
+    ))
 
     if cache_path:
         cache_path.parent.mkdir(parents=True, exist_ok=True)
