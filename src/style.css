@@ -14,6 +14,11 @@ body {
   font-family: system-ui, -apple-system, sans-serif;
 }
 
+/* Crosshair cursor on the map for precise position identification */
+.maplibregl-canvas {
+  cursor: crosshair !important;
+}
+
 body {
   display: flex;
   flex-direction: column;
