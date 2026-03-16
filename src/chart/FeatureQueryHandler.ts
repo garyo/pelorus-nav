@@ -121,9 +121,10 @@ export class FeatureQueryHandler {
   }
 
   private getVisibleInteractiveLayers(): string[] {
-    return this.map
-      .getStyle()
-      .layers.map((l) => l.id)
+    const style = this.map.getStyle();
+    if (!style?.layers) return [];
+    return style.layers
+      .map((l) => l.id)
       .filter(
         (id) =>
           id.startsWith("s57-") &&
