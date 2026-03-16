@@ -35,16 +35,6 @@ from .tilemath import tile_to_bbox as _tile_to_bbox
 # MVT default extent (coordinate space 0..4096)
 _MVT_EXTENTS = 4096
 
-# Region bbox for worker processes (set via pool initializer).
-# Used to prevent the 0.01° buffer from extending past region boundaries.
-_worker_region_bbox: tuple[float, float, float, float] | None = None
-
-
-def _init_worker(region_bbox: tuple[float, float, float, float] | None) -> None:
-    """Pool initializer: set the region bbox in each worker process."""
-    global _worker_region_bbox  # noqa: PLW0603
-    _worker_region_bbox = region_bbox
-
 
 @dataclass
 class CellTileSource:
@@ -308,13 +298,13 @@ def _composite_one_multi_band(
         # vertices away from the boundary at low zoom, leaving thin gaps
         # between adjacent cells.  The extra overlap is harmless (same
         # depth polygons from both cells stack) and prevents white slivers.
+        #
+        # The buffer is clipped to tile_bbox only — NOT to region_bbox.
+        # Region boundary overlap is prevented by tile-center ownership
+        # (each tile is assigned to exactly one region), so the buffer
+        # can safely extend past the region boundary within this tile.
         clip_region = make_valid(usable.buffer(0.01))
-        # Clip buffer to tile bbox AND region bbox so it doesn't leak
-        # into adjacent regions (which would cause double rendering).
-        clip_bounds = tile_bbox
-        if _worker_region_bbox is not None:
-            clip_bounds = clip_bounds.intersection(box(*_worker_region_bbox))
-        clip_region = clip_region.intersection(clip_bounds)
+        clip_region = clip_region.intersection(tile_bbox)
 
         for data, _cov in cell_entries:
             features = _clip_mvt_features(data, clip_region, tile_bbox)
@@ -444,9 +434,15 @@ def composite_tiles(
 
             for (z, x, y), data in all_tiles(source):
                 if region_bbox is not None:
-                    tb = _tile_to_bbox(z, x, y)
-                    if (tb[2] < region_bbox[0] or tb[0] > region_bbox[2]
-                            or tb[3] < region_bbox[1] or tb[1] > region_bbox[3]):
+                    # Tile-center ownership: a tile belongs to the region
+                    # containing its center point.  This ensures each tile
+                    # is produced by exactly one region, preventing double
+                    # rendering at region boundaries while the 0.01° buffer
+                    # prevents slivers (same as inter-cell M_COVR edges).
+                    tw, ts, te, tn = _tile_to_bbox(z, x, y)
+                    cx, cy = (tw + te) / 2, (ts + tn) / 2
+                    rw, rs, re, rn = region_bbox
+                    if not (rw <= cx <= re and rs <= cy <= rn):
                         continue
                 tile_entries.setdefault((z, x, y), []).append(
                     (src.band, src.cell_name, data, cov_wkb)
@@ -532,11 +528,7 @@ def composite_tiles(
         # Process multi-band tiles in parallel
         t2 = time.monotonic()
         if multi_band_entries:
-            with multiprocessing.Pool(
-                num_workers,
-                initializer=_init_worker,
-                initargs=(region_bbox,),
-            ) as pool:
+            with multiprocessing.Pool(num_workers) as pool:
                 for tile_id, tile_bytes, used, fully_filled in pool.imap_unordered(
                     _composite_one_multi_band, multi_band_entries, chunksize=32,
                 ):
@@ -625,12 +617,7 @@ def composite_tiles(
                 # Expand clipping region slightly (~1km) to cover
                 # tippecanoe simplification gaps at cell boundaries.
                 clip_region = make_valid(usable.buffer(0.01))
-                # Clip buffer to tile bbox AND region bbox so it doesn't
-                # leak into adjacent regions (double rendering).
-                clip_bounds = tile_bbox
-                if region_bbox is not None:
-                    clip_bounds = clip_bounds.intersection(box(*region_bbox))
-                clip_region = clip_region.intersection(clip_bounds)
+                clip_region = clip_region.intersection(tile_bbox)
 
                 for data, _cov in cell_entries_inner:
                     features = _clip_mvt_features(data, clip_region, tile_bbox)
