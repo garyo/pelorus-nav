@@ -433,18 +433,27 @@ def composite_tiles(
 
             for (z, x, y), data in all_tiles(source):
                 if region_bbox is not None:
-                    # Tile-center ownership: a tile belongs to the region
-                    # containing its center point.  This ensures each tile
-                    # is produced by exactly one region, preventing double
-                    # rendering at all zoom levels.  At low zoom, where
-                    # tiles extend well past the region boundary, the
-                    # expanded cell query (3° padding) ensures the region
-                    # has cells to fill the full tile.
                     tw, ts, te, tn = _tile_to_bbox(z, x, y)
-                    cx, cy = (tw + te) / 2, (ts + tn) / 2
                     rw, rs, re, rn = region_bbox
-                    if not (rw <= cx < re and rs <= cy < rn):
-                        continue
+                    if z >= 8:
+                        # Tile-center ownership at z8+: tiles are small
+                        # enough (~1.4° x 0.4°) that center falls inside
+                        # exactly one region.  Prevents double rendering
+                        # of detailed features at region boundaries.
+                        cx, cy = (tw + te) / 2, (ts + tn) / 2
+                        if not (rw <= cx < re and rs <= cy < rn):
+                            continue
+                    else:
+                        # At z0-z7, tiles span 2.8-360° — far larger than
+                        # most regions.  Tile-center ownership fails here
+                        # because centers land outside ALL region bboxes
+                        # (e.g., z0 center is 0°,0°; z3 is -67.5°,20.5°).
+                        # Use bbox-intersects so every overlapping region
+                        # contributes.  At these zooms only overview cells
+                        # (INTU 1-2) produce tiles, so duplicates across
+                        # regions are identical and harmless.
+                        if te < rw or tw > re or tn < rs or ts > rn:
+                            continue
                 tile_entries.setdefault((z, x, y), []).append(
                     (src.band, src.cell_name, data, cov_wkb)
                 )
