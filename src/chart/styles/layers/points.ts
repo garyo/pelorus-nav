@@ -717,18 +717,88 @@ export function getAdditionalPointLayers(
   ctx: StyleContext,
 ): LayerSpecification[] {
   return [
-    // Pilot Boarding Place
+    // Pilot Boarding Place — area fill (S-52: LS(DASH,2,TRFCF))
     {
       id: "s57-pilbop",
+      type: "fill" as const,
+      source: ctx.sourceId,
+      "source-layer": "PILBOP",
+      filter: [
+        "==",
+        ["geometry-type"],
+        "Polygon",
+      ] as unknown as ExpressionSpecification,
+      paint: {
+        "fill-color": ctx.colour("TRFCF"),
+        "fill-opacity": 0.06,
+      },
+    },
+    {
+      id: "s57-pilbop-outline",
+      type: "line" as const,
+      source: ctx.sourceId,
+      "source-layer": "PILBOP",
+      filter: [
+        "==",
+        ["geometry-type"],
+        "Polygon",
+      ] as unknown as ExpressionSpecification,
+      paint: {
+        "line-color": ctx.colour("TRFCF"),
+        "line-width": 2,
+        "line-dasharray": [6, 3] as number[],
+      },
+    },
+    // Pilot Boarding Place — area label at centroid (S-52: SY(PILBOP02) + text)
+    {
+      id: "s57-pilbop-label",
       type: "symbol" as const,
       source: ctx.sourceId,
       "source-layer": "PILBOP",
+      filter: [
+        "==",
+        ["geometry-type"],
+        "Polygon",
+      ] as unknown as ExpressionSpecification,
+      layout: {
+        "text-field": [
+          "case",
+          ["has", "OBJNAM"],
+          ["concat", "Plt ", ["get", "OBJNAM"]],
+          "Plt",
+        ] as unknown as ExpressionSpecification,
+        "text-size": 10,
+        "text-allow-overlap": false,
+        "text-optional": true,
+      },
+      paint: {
+        "text-color": ctx.colour("CHBLK"),
+        "text-halo-color": ctx.colour("CHWHT"),
+        "text-halo-width": 1,
+      },
+    },
+    // Pilot Boarding Place — point symbol (S-52: SY(PILBOP02) + TE('Plt %s'))
+    {
+      id: "s57-pilbop-point",
+      type: "symbol" as const,
+      source: ctx.sourceId,
+      "source-layer": "PILBOP",
+      filter: [
+        "==",
+        ["geometry-type"],
+        "Point",
+      ] as unknown as ExpressionSpecification,
       layout: withOffset(
         {
           "icon-image": ctx.iconExpr,
           "icon-size": scaledSize(0.6, ctx),
           "icon-allow-overlap": true,
-          "text-field": ["get", "OBJNAM"] as unknown as ExpressionSpecification,
+          "text-field": [
+            "case",
+            ["has", "OBJNAM"],
+            ["concat", "Plt ", ["get", "OBJNAM"]],
+            "Plt",
+          ] as unknown as ExpressionSpecification,
           "text-size": 10,
           "text-offset": [0, 1.5] as [number, number],
           "text-allow-overlap": false,

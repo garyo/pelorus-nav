@@ -21,8 +21,9 @@ coverage/
 # Bun
 bun.lock
 
-# S-57 pipeline data (large ENC files and generated tiles)
-tools/s57-pipeline/data/
+# Tile pipeline data (large ENC files and generated tiles)
+tile-data/
+tools/s57-pipeline/data
 tools/s57-pipeline/.venv/
 **/__pycache__/
 
@@ -55,8 +56,6 @@ build-tools/
 
 # Build logs
 *.log
-tools/build-*-timed.sh
-tools/build-timing.log
 
 # Misc
 .knownPackages

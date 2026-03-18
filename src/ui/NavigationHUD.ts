@@ -11,6 +11,7 @@ import { getSettings } from "../settings";
 import { formatLatLon } from "../utils/coordinates";
 import { formatBearing, formatDeclination } from "../utils/magnetic";
 import { convertSpeed, speedUnitLabel } from "../utils/units";
+import { GoToDialog } from "./GoToDialog";
 
 function formatSpeed(knots: number | null, unit: SpeedUnit): string {
   if (knots === null) return "--";
@@ -94,6 +95,13 @@ export class NavigationHUD {
       this.gpsLine,
     );
     document.body.appendChild(this.container);
+
+    // Click on HUD (not the toggle button) opens Go-To dialog
+    const goToDialog = new GoToDialog(map);
+    this.container.addEventListener("click", (e) => {
+      if (e.target === toggleBtn) return;
+      goToDialog.toggle();
+    });
 
     // Zoom (always shown)
     const updateZoom = () => {

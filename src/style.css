@@ -431,6 +431,88 @@ body {
   z-index: 9999;
   border-radius: 4px;
   line-height: 1.6;
+  cursor: pointer;
+}
+
+/* Go-To coordinate dialog */
+.goto-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 10001;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.3);
+}
+
+.goto-card {
+  background: rgba(30, 30, 50, 0.95);
+  border: 1px solid #555;
+  border-radius: 8px;
+  padding: 14px 16px;
+  color: #e0e0e0;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
+  font:
+    13px system-ui,
+    -apple-system,
+    sans-serif;
+}
+
+.goto-label {
+  font-weight: bold;
+  margin-bottom: 8px;
+}
+
+.goto-input {
+  width: 280px;
+  padding: 6px 8px;
+  font: 14px monospace;
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+  border: 1px solid #666;
+  border-radius: 4px;
+  outline: none;
+}
+
+.goto-input:focus {
+  border-color: #6af;
+}
+
+.goto-error {
+  display: block;
+  color: #f66;
+  font-size: 12px;
+  min-height: 18px;
+}
+
+.goto-hint {
+  font-size: 11px;
+  color: #999;
+  margin-bottom: 10px;
+}
+
+.goto-buttons {
+  display: flex;
+  gap: 8px;
+}
+
+.goto-btn {
+  padding: 4px 14px;
+  border: 1px solid #666;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.08);
+  color: #e0e0e0;
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.goto-btn:hover {
+  background: rgba(100, 130, 200, 0.3);
+}
+
+.goto-btn-go {
+  background: rgba(100, 170, 255, 0.2);
+  border-color: #6af;
 }
 
 /* Instrument HUD */

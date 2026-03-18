@@ -56,6 +56,9 @@ const INTERACTIVE_SUFFIXES = [
   "-prcare",
   "-prcare-outline",
   "-pilbop",
+  "-pilbop-outline",
+  "-pilbop-label",
+  "-pilbop-point",
   "-wattur",
   "-gatcon",
   "-damcon",
@@ -84,6 +87,7 @@ const INTERACTIVE_SUFFIXES = [
 const SUFFIX_PRIORITY = new Map(INTERACTIVE_SUFFIXES.map((s, i) => [s, i]));
 
 interface QueriedFeature {
+  source: string;
   sourceLayer: string;
   properties: Record<string, unknown>;
   geometry: GeoJSON.Geometry;
@@ -99,7 +103,8 @@ export class FeatureQueryHandler {
   private readonly map: maplibregl.Map;
   private currentFeatures: QueriedFeature[] = [];
   private currentIndex = 0;
-  private highlightSourceId = "_feature-highlight";
+  /** Track highlight layer IDs we've added so we can update/remove filters. */
+  private highlightLayerIds: string[] = [];
 
   constructor(chartManager: ChartManager) {
     this.map = chartManager.map;
@@ -116,8 +121,8 @@ export class FeatureQueryHandler {
       this.handleMouseMove(e),
     );
 
-    // Set up highlight source/layer after each style load
-    this.map.on("style.load", () => this.setupHighlightLayer());
+    // Set up highlight layers after each style load
+    this.map.on("style.load", () => this.setupHighlightLayers());
   }
 
   private getVisibleInteractiveLayers(): string[] {
@@ -228,76 +233,112 @@ export class FeatureQueryHandler {
     this.clearHighlight();
   }
 
-  private setupHighlightLayer(): void {
-    if (this.map.getSource(this.highlightSourceId)) return;
-
-    this.map.addSource(this.highlightSourceId, {
-      type: "geojson",
-      data: { type: "FeatureCollection", features: [] },
-    });
-
-    this.map.addLayer({
-      id: "_feature-highlight-line",
-      type: "line",
-      source: this.highlightSourceId,
-      paint: {
-        "line-color": "#ff6600",
-        "line-width": 3,
-        "line-opacity": 0.9,
-      },
-    });
-
-    this.map.addLayer({
-      id: "_feature-highlight-circle",
-      type: "circle",
-      source: this.highlightSourceId,
-      filter: ["==", "$type", "Point"],
-      paint: {
-        "circle-radius": 14,
-        "circle-color": "transparent",
-        "circle-stroke-color": "#ff6600",
-        "circle-stroke-width": 3,
-        "circle-stroke-opacity": 0.9,
-      },
-    });
-
-    this.map.addLayer({
-      id: "_feature-highlight-fill",
-      type: "fill",
-      source: this.highlightSourceId,
-      filter: ["==", "$type", "Polygon"],
-      paint: {
-        "fill-color": "#ff6600",
-        "fill-opacity": 0.15,
-      },
-    });
+  /**
+   * Reset highlight layers on style reload.
+   */
+  private setupHighlightLayers(): void {
+    this.highlightLayerIds = [];
   }
 
+  /**
+   * Highlight a feature using filter-based layers that match by FIDN.
+   * This highlights the full feature across all loaded tiles, not just
+   * the clicked tile fragment.
+   */
   private highlightFeature(feature: QueriedFeature): void {
-    const source = this.map.getSource(this.highlightSourceId) as
-      | maplibregl.GeoJSONSource
-      | undefined;
-    if (!source) return;
+    this.clearHighlight();
 
-    source.setData({
-      type: "FeatureCollection",
-      features: [
-        {
-          type: "Feature",
-          geometry: feature.geometry,
-          properties: {},
+    const fidn = feature.properties.FIDN;
+    if (fidn == null) return;
+
+    const source = feature.source;
+    const sourceLayer = feature.sourceLayer;
+    const fidnFilter = [
+      "==",
+      "FIDN",
+      fidn,
+    ] as unknown as maplibregl.FilterSpecification;
+
+    const geomType = feature.geometry.type;
+    const layerId = `_hl-${source}-${sourceLayer}`;
+
+    // Only create the highlight layer type matching the feature's geometry
+    if (geomType === "Polygon" || geomType === "MultiPolygon") {
+      this.addHighlightLayer(layerId + "-fill", fidnFilter, {
+        id: layerId + "-fill",
+        type: "fill",
+        source,
+        "source-layer": sourceLayer,
+        filter: fidnFilter,
+        paint: {
+          "fill-color": "#ff6600",
+          "fill-opacity": 0.15,
         },
-      ],
-    });
+      });
+      this.addHighlightLayer(layerId + "-line", fidnFilter, {
+        id: layerId + "-line",
+        type: "line",
+        source,
+        "source-layer": sourceLayer,
+        filter: fidnFilter,
+        paint: {
+          "line-color": "#ff6600",
+          "line-width": 3,
+          "line-opacity": 0.9,
+        },
+      });
+    } else if (geomType === "LineString" || geomType === "MultiLineString") {
+      this.addHighlightLayer(layerId + "-line", fidnFilter, {
+        id: layerId + "-line",
+        type: "line",
+        source,
+        "source-layer": sourceLayer,
+        filter: fidnFilter,
+        paint: {
+          "line-color": "#ff6600",
+          "line-width": 3,
+          "line-opacity": 0.9,
+        },
+      });
+    } else {
+      // Point / MultiPoint
+      this.addHighlightLayer(layerId + "-circle", fidnFilter, {
+        id: layerId + "-circle",
+        type: "circle",
+        source,
+        "source-layer": sourceLayer,
+        filter: fidnFilter,
+        paint: {
+          "circle-radius": 14,
+          "circle-color": "transparent",
+          "circle-stroke-color": "#ff6600",
+          "circle-stroke-width": 3,
+          "circle-stroke-opacity": 0.9,
+        },
+      });
+    }
+  }
+
+  private addHighlightLayer(
+    id: string,
+    filter: maplibregl.FilterSpecification,
+    spec: maplibregl.LayerSpecification,
+  ): void {
+    if (!this.map.getLayer(id)) {
+      this.map.addLayer(spec);
+    } else {
+      this.map.setFilter(id, filter);
+    }
+    this.highlightLayerIds.push(id);
   }
 
   private clearHighlight(): void {
-    const source = this.map.getSource(this.highlightSourceId) as
-      | maplibregl.GeoJSONSource
-      | undefined;
-    if (!source) return;
-
-    source.setData({ type: "FeatureCollection", features: [] });
+    for (const layerId of this.highlightLayerIds) {
+      if (this.map.getLayer(layerId)) {
+        this.map.removeLayer(layerId);
+      }
+    }
+    this.highlightLayerIds = [];
   }
 }
 
@@ -383,15 +424,13 @@ function dedupKey(sourceLayer: string, props: Record<string, unknown>): string {
  */
 function pickRank(f: maplibregl.MapGeoJSONFeature): number {
   const layerType = f.layer.type; // "circle" | "symbol" | "line" | "fill"
-  const isOutline = f.layer.id.endsWith("-outline");
   if (layerType === "circle" || layerType === "symbol") return 0; // points
-  if (layerType === "line" && !isOutline) return 1; // true lines
-  // Background terrain (land, sea, depth areas) is almost never the target
-  const src = (f.layer as Record<string, unknown>)["source-layer"] as
-    | string
-    | undefined;
-  if (src === "LNDARE" || src === "SEAARE" || src === "DEPARE") return 3;
-  return 2; // fills + outline strokes (area features)
+  // Line layers rendering polygon geometry are area outlines, not true lines
+  const geomType = f.geometry.type;
+  const isAreaGeom =
+    geomType === "Polygon" || geomType === "MultiPolygon";
+  if (layerType === "line" && !isAreaGeom) return 1; // true lines
+  return 2; // all area features (fills + area outlines)
 }
 
 /** Get priority rank for a layer ID based on its suffix. */
@@ -403,9 +442,49 @@ function layerPriority(layerId: string): number {
 }
 
 /**
+ * Approximate feature size via bounding box area of the geometry.
+ * Smaller features (islands, berths) sort before larger ones
+ * (sea areas, restricted zones). Returns 0 for points.
+ */
+function bboxArea(f: maplibregl.MapGeoJSONFeature): number {
+  const geom = f.geometry;
+  if (geom.type === "Point" || geom.type === "MultiPoint") return 0;
+
+  let minX = Infinity;
+  let minY = Infinity;
+  let maxX = -Infinity;
+  let maxY = -Infinity;
+
+  const visit = (coords: number[]) => {
+    if (coords[0] < minX) minX = coords[0];
+    if (coords[1] < minY) minY = coords[1];
+    if (coords[0] > maxX) maxX = coords[0];
+    if (coords[1] > maxY) maxY = coords[1];
+  };
+
+  // Walk all coordinate arrays regardless of nesting depth
+  const walk = (arr: unknown): void => {
+    if (
+      Array.isArray(arr) &&
+      arr.length >= 2 &&
+      typeof arr[0] === "number"
+    ) {
+      visit(arr as number[]);
+    } else if (Array.isArray(arr)) {
+      for (const item of arr) walk(item);
+    }
+  };
+  walk((geom as GeoJSON.Geometry & { coordinates: unknown }).coordinates);
+
+  if (!Number.isFinite(minX)) return 0;
+  return (maxX - minX) * (maxY - minY);
+}
+
+/**
  * Deduplicate features and sort by pick relevance.
  *
- * Sort order: geometry type (point > line > polygon), then by layer
+ * Sort order: geometry type (point > line > polygon), then scale
+ * (smaller/local features first via SCAMIN), then by layer
  * priority index as a tiebreaker. This ensures specific features
  * (buoys, bridges) appear before large area features (fairways,
  * anchorages) that happen to contain the click point, while
@@ -422,6 +501,10 @@ function deduplicateFeatures(
     const ra = pickRank(a);
     const rb = pickRank(b);
     if (ra !== rb) return ra - rb;
+    // Within the same geometry rank, sort smaller features first
+    const sa = bboxArea(a);
+    const sb = bboxArea(b);
+    if (sa !== sb) return sa - sb;
     const ai = layerPriority(a.layer.id);
     const bi = layerPriority(b.layer.id);
     return ai - bi;
@@ -435,6 +518,7 @@ function deduplicateFeatures(
     seen.add(key);
 
     result.push({
+      source: f.source,
       sourceLayer,
       properties: props,
       geometry: f.geometry,

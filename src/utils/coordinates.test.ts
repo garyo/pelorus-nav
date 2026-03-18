@@ -143,6 +143,46 @@ describe("parseLatLon", () => {
   it("returns null for out-of-range lat", () => {
     expect(parseLatLon("91.0, -70.0")).toBeNull();
   });
+
+  it("parses DMS format", () => {
+    const result = parseLatLon("42°18'17.7\"N, 70°56'47.2\"W");
+    expect(result).not.toBeNull();
+    if (!result) return;
+    expect(result[0]).toBeCloseTo(42.3049, 3);
+    expect(result[1]).toBeCloseTo(-70.9464, 3);
+  });
+
+  it("parses 'deg' keyword", () => {
+    const result = parseLatLon("42deg18.295N, 70deg56.787W");
+    expect(result).not.toBeNull();
+    if (!result) return;
+    expect(result[0]).toBeCloseTo(42.30492, 3);
+    expect(result[1]).toBeCloseTo(-70.94645, 3);
+  });
+
+  it("parses negative sign as W/S", () => {
+    const result = parseLatLon("-42.305, -70.946");
+    expect(result).not.toBeNull();
+    if (!result) return;
+    expect(result[0]).toBeCloseTo(-42.305);
+    expect(result[1]).toBeCloseTo(-70.946);
+  });
+
+  it("parses space-separated DMS without symbols", () => {
+    const result = parseLatLon("42 18 17.7 N, 70 56 47.2 W");
+    expect(result).not.toBeNull();
+    if (!result) return;
+    expect(result[0]).toBeCloseTo(42.3049, 3);
+    expect(result[1]).toBeCloseTo(-70.9464, 3);
+  });
+
+  it("parses hemisphere-separated coordinates without comma", () => {
+    const result = parseLatLon("42°18.295'N 70°56.787'W");
+    expect(result).not.toBeNull();
+    if (!result) return;
+    expect(result[0]).toBeCloseTo(42.30492, 3);
+    expect(result[1]).toBeCloseTo(-70.94645, 3);
+  });
 });
 
 describe("alongTrackDistanceNM", () => {

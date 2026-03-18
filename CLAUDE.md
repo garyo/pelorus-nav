@@ -53,18 +53,18 @@ Pelorus Nav — open-source web-based marine chartplotter (PWA). See PLAN.md for
 Python CLI for converting NOAA S-57 ENC data → PMTiles vector tiles.
 Requires `gdal` and `tippecanoe` installed via brew.
 
-### Tile build scripts (preferred)
-- `bun run tiles:eastcoast` — build all east coast regions (SNE, NNE, NY, Mid-Atlantic, South Atlantic)
-- `bun run tiles:usvi` — build USVI region
-- `bun run tiles:all` — build all regions including USVI
-- `bun run tiles:all:fresh` — download ENCs then build all regions
-- `tools/build-tiles.sh <region> [--download] [--force]` — build a single region
-  - Regions: `southern-new-england`, `northern-new-england`, `new-york`, `mid-atlantic`, `south-atlantic`, `usvi`, `boston-test`
-  - `--force` rebuilds all cells; `--download` downloads ENCs first
-  - Output goes to `public/nautical-<region>.pmtiles`
+### Tile build scripts
+All tile workflows go through `tools/build-tiles.sh` (run `--help` for full usage):
+- `bun run tiles` — build boston-test region (quick dev iteration)
+- `bun run tiles:build` — build all production regions
+- `bun run tiles:build:fresh` — download ENCs then build all regions
+- `bun run tiles:check` — check NOAA for ENC updates (report only)
 - `bun run tiles:upload` — upload built tiles to CDN
-- `bun run tiles:check` — check for NOAA ENC updates
-- `bun run tiles:update` — check, rebuild, and upload if updates found
+- `bun run tiles:update` — full unattended cycle (check → download → build → upload)
+- `tools/build-tiles.sh --build --region <name>` — build a single region
+  - Regions: `southern-new-england`, `northern-new-england`, `new-york`, `mid-atlantic`, `south-atlantic`, `usvi`, `boston-test`
+  - `--force` rebuilds all cells; `--download` downloads ENCs first; `--composite-only` re-composites only
+  - Output goes to `public/nautical-<region>.pmtiles`
 
 ### Low-level pipeline commands
 - `cd tools/s57-pipeline && uv run python -m s57_pipeline download --region <region>` — download ENC cells

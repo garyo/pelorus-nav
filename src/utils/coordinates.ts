@@ -45,36 +45,60 @@ export function formatLatLon(value: number, type: "lat" | "lon"): string {
 }
 
 /**
- * Parse a single coordinate component from DDM format like "42°18.295'N"
- * or plain decimal degrees like "-70.946". Returns NaN on failure.
+ * Parse a single coordinate component from various formats.
+ * Returns NaN on failure.
+ *
+ * Supported formats:
+ * - DMS: 42°18'17.7"N, 42 18 17.7 N, 42deg18'17.7"N
+ * - DDM: 42°18.295'N, 42°18.295N
+ * - Decimal: 42.305N, -70.946, 42.305
+ * - Negative sign as S/W: -42.305 = 42.305S
+ * - "deg" as degree symbol: 42deg18.295N
  */
 function parseDDMComponent(s: string): number {
-  const trimmed = s.trim();
+  // Normalise: replace "deg" with °, strip trailing comma
+  const trimmed = s.trim().replace(/deg/gi, "°").replace(/,\s*$/, "");
 
-  // Try DDM: 42°18.295'N or 42°18.295N (quote optional)
-  const ddm = trimmed.match(
-    /^(\d+)\s*[°]\s*(\d+(?:\.\d+)?)\s*'?\s*([NSEWnsew])$/,
+  // Extract leading sign and trailing hemisphere
+  let sign = 1;
+  let str = trimmed;
+
+  // Leading minus
+  if (str.startsWith("-")) {
+    sign = -1;
+    str = str.slice(1).trim();
+  }
+
+  // Trailing hemisphere letter
+  const hemiMatch = str.match(/\s*([NSEWnsew])\s*$/);
+  if (hemiMatch) {
+    const dir = hemiMatch[1].toUpperCase();
+    if (dir === "S" || dir === "W") sign = -1;
+    str = str.slice(0, -hemiMatch[0].length).trim();
+  }
+
+  // Try DMS: 42°18'17.7" or 42 18 17.7 or 42°18'17.7
+  const dms = str.match(
+    /^(\d+)\s*[°\s]\s*(\d+)\s*['\u2032\s]\s*(\d+(?:\.\d+)?)\s*["\u2033]?\s*$/,
   );
+  if (dms) {
+    const deg = parseInt(dms[1], 10);
+    const min = parseInt(dms[2], 10);
+    const sec = parseFloat(dms[3]);
+    return sign * (deg + min / 60 + sec / 3600);
+  }
+
+  // Try DDM: 42°18.295 or 42°18.295'
+  const ddm = str.match(/^(\d+)\s*[°\s]\s*(\d+(?:\.\d+)?)\s*['\u2032]?\s*$/);
   if (ddm) {
     const deg = parseInt(ddm[1], 10);
     const min = parseFloat(ddm[2]);
-    const dir = ddm[3].toUpperCase();
-    const sign = dir === "S" || dir === "W" ? -1 : 1;
     return sign * (deg + min / 60);
   }
 
-  // Try decimal with hemisphere suffix: 42.305N, 70.946W
-  const decSuffix = trimmed.match(/^(\d+(?:\.\d+)?)\s*([NSEWnsew])$/);
-  if (decSuffix) {
-    const val = parseFloat(decSuffix[1]);
-    const dir = decSuffix[2].toUpperCase();
-    const sign = dir === "S" || dir === "W" ? -1 : 1;
-    return sign * val;
-  }
-
-  // Plain decimal (possibly negative)
-  const val = parseFloat(trimmed);
-  return Number.isNaN(val) ? NaN : val;
+  // Plain decimal: 42.305 or 70.946
+  const val = parseFloat(str);
+  return Number.isNaN(val) ? NaN : sign * val;
 }
 
 /**
@@ -187,26 +211,41 @@ export function parseLatLon(input: string): [number, number] | null {
   const s = input.trim();
   if (!s) return null;
 
-  // Split on comma, or on whitespace between two coordinate-like tokens
-  let parts: string[];
+  // Split on comma first — unambiguous separator
   if (s.includes(",")) {
-    parts = s.split(",").map((p) => p.trim());
-  } else {
-    // Split on whitespace, but rejoin tokens that are part of the same DDM
-    // component (e.g. "42 ° 18.295 ' N" is unusual but handle "42°18.295'N 70°56.787'W")
-    parts = s.split(/\s+/);
+    const parts = s.split(",").map((p) => p.trim());
+    if (parts.length === 2) {
+      return tryParsePair(parts[0], parts[1]);
+    }
+    return null;
   }
 
-  if (parts.length !== 2) return null;
+  // No comma — try splitting on hemisphere boundary:
+  // A hemisphere letter (N/S/E/W) followed by whitespace and then
+  // more coordinate text is a natural split point.
+  const hemiSplit = s.match(/^(.+?[NSEWnsew])\s+(.+)$/);
+  if (hemiSplit) {
+    const result = tryParsePair(hemiSplit[1], hemiSplit[2]);
+    if (result) return result;
+  }
 
-  const a = parseDDMComponent(parts[0]);
-  const b = parseDDMComponent(parts[1]);
+  // Simple two-token split (plain decimals like "-42.305 -70.946")
+  const tokens = s.split(/\s+/);
+  if (tokens.length === 2) {
+    return tryParsePair(tokens[0], tokens[1]);
+  }
+
+  return null;
+}
+
+function tryParsePair(first: string, second: string): [number, number] | null {
+  const a = parseDDMComponent(first);
+  const b = parseDDMComponent(second);
   if (Number.isNaN(a) || Number.isNaN(b)) return null;
 
   // Validate ranges: lat [-90,90], lon [-180,180]
   if (Math.abs(a) <= 90 && Math.abs(b) <= 180) {
     return [a, b];
   }
-
   return null;
 }
