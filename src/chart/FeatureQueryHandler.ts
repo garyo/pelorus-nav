@@ -264,6 +264,9 @@ export class FeatureQueryHandler {
 
     // Only create the highlight layer type matching the feature's geometry
     if (geomType === "Polygon" || geomType === "MultiPolygon") {
+      // Use fill-only highlight for polygons — adding a line outline would
+      // trace tile-clipped edges, creating visible straight lines at tile
+      // boundaries.
       this.addHighlightLayer(layerId + "-fill", fidnFilter, {
         id: layerId + "-fill",
         type: "fill",
@@ -272,19 +275,7 @@ export class FeatureQueryHandler {
         filter: fidnFilter,
         paint: {
           "fill-color": "#ff6600",
-          "fill-opacity": 0.15,
-        },
-      });
-      this.addHighlightLayer(layerId + "-line", fidnFilter, {
-        id: layerId + "-line",
-        type: "line",
-        source,
-        "source-layer": sourceLayer,
-        filter: fidnFilter,
-        paint: {
-          "line-color": "#ff6600",
-          "line-width": 3,
-          "line-opacity": 0.9,
+          "fill-opacity": 0.25,
         },
       });
     } else if (geomType === "LineString" || geomType === "MultiLineString") {
