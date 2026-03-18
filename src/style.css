@@ -15,7 +15,8 @@ body {
 }
 
 /* Crosshair cursor on the map for precise position identification */
-.maplibregl-canvas {
+.maplibregl-canvas,
+.maplibregl-canvas-container.maplibregl-interactive {
   cursor: crosshair !important;
 }
 

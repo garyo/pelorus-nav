@@ -76,6 +76,17 @@ def _parse_colours(props: dict) -> list[int]:
         return result
     if isinstance(colour, (int, float)):
         return [int(colour)]
+    # GDAL encodes S-57 list attributes as comma-separated strings (e.g. "3,4,3")
+    if isinstance(colour, str):
+        result = []
+        for part in colour.split(","):
+            part = part.strip()
+            if part:
+                try:
+                    result.append(int(part))
+                except ValueError:
+                    pass
+        return result
     return []
 
 
@@ -151,8 +162,18 @@ _COLOUR_ORANGE = 11
 
 
 def _boyspp_symbol(props: dict) -> str:
-    """Compute SYMBOL for a special purpose buoy (BOYSPP)."""
+    """Compute SYMBOL for a special purpose buoy (BOYSPP).
+
+    Some preferred channel buoys are encoded as BOYSPP rather than BOYLAT.
+    Detect red-green or green-red banded patterns and assign preferred channel symbols.
+    """
     colours = _parse_colours(props)
+    # Preferred channel buoys (may be encoded as BOYSPP instead of BOYLAT)
+    if len(colours) >= 3:
+        if colours[0] == _COLOUR_RED and colours[1] == _COLOUR_GREEN:
+            return "preferred-port"  # red-green-red (same as BOYLAT convention)
+        if colours[0] == _COLOUR_GREEN and colours[1] == _COLOUR_RED:
+            return "preferred-stbd"  # green-red-green (same as BOYLAT convention)
     if len(colours) >= 2 and _COLOUR_WHITE in colours and _COLOUR_ORANGE in colours:
         return "special-wo"  # white-orange info/regulatory buoy
     return "special"

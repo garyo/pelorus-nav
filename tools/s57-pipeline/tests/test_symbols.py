@@ -78,6 +78,38 @@ class TestSpecialBuoys:
     def test_isolated_danger(self) -> None:
         assert compute_symbol({}, "BOYISD") == "isolated-danger"
 
+    def test_boyspp_preferred_port_rgr(self) -> None:
+        """Red-green-red BOYSPP = preferred channel (same as BOYLAT convention)."""
+        props = {"COLOUR": [3, 4, 3]}
+        assert compute_symbol(props, "BOYSPP") == "preferred-port"
+
+    def test_boyspp_preferred_stbd_grg(self) -> None:
+        """Green-red-green BOYSPP = preferred channel (same as BOYLAT convention)."""
+        props = {"COLOUR": [4, 3, 4]}
+        assert compute_symbol(props, "BOYSPP") == "preferred-stbd"
+
+    def test_boyspp_preferred_csv_string(self) -> None:
+        """GDAL comma-separated string COLOUR for preferred channel."""
+        props = {"COLOUR": "3,4,3"}
+        assert compute_symbol(props, "BOYSPP") == "preferred-port"
+
+
+class TestColourParsing:
+    """Test _parse_colours handles various GDAL output formats."""
+
+    def test_csv_string(self) -> None:
+        """GDAL comma-separated string format."""
+        props = {"COLOUR": "3,4,3"}
+        assert compute_symbol(props, "BOYLAT") == "preferred-port"
+
+    def test_csv_string_with_spaces(self) -> None:
+        props = {"COLOUR": "3, 4, 3"}
+        assert compute_symbol(props, "BOYLAT") == "preferred-port"
+
+    def test_single_string(self) -> None:
+        props = {"COLOUR": "4", "CATLAM": 1}
+        assert compute_symbol(props, "BOYLAT") == "lateral-port-can"
+
 
 class TestBeaconSymbol:
     def test_port(self) -> None:

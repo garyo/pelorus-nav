@@ -118,9 +118,11 @@ export const IHO_S52: Record<string, string> = {
   "lateral-port-spherical": "BOYSAW12",
   "lateral-stbd-spherical": "BOYSAW12",
 
-  // Preferred channel (banded) buoys
-  "preferred-port": "BOYSPP15",
-  "preferred-stbd": "BOYSPP25",
+  // Preferred channel (banded) buoys — use lateral symbols for dominant color
+  // Red-green-red (preferred-port): dominant red = starboard lateral symbol
+  // Green-red-green (preferred-stbd): dominant green = port lateral symbol
+  "preferred-port": "BOYLAT14",
+  "preferred-stbd": "BOYLAT13",
 
   // Special buoys
   safewater: "BOYSAW12",
