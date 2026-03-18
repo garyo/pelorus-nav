@@ -808,6 +808,22 @@ function formatLandArea(
   return details;
 }
 
+function formatLandElevation(
+  props: Record<string, unknown>,
+): { label: string; value: string }[] {
+  const details: { label: string; value: string }[] = [];
+  addIfPresent(details, "Name", props.OBJNAM);
+  const unit = getSettings().depthUnit;
+  if (props.ELEVAT != null) {
+    details.push({
+      label: "Elevation",
+      value: formatDepth(Number(props.ELEVAT), unit),
+    });
+  }
+  addIfPresent(details, "Information", props.INFORM);
+  return details;
+}
+
 function formatBridge(
   props: Record<string, unknown>,
 ): { label: string; value: string }[] {
@@ -1010,6 +1026,7 @@ const FORMATTERS: Record<
   MAGVAR: formatMagVar,
   SILTNK: formatSiloTank,
   LNDARE: formatLandArea,
+  LNDELV: formatLandElevation,
   BUISGL: formatBuilding,
 };
 
