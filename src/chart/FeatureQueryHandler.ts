@@ -253,6 +253,15 @@ export class FeatureQueryHandler {
 
     const source = feature.source;
     const sourceLayer = feature.sourceLayer;
+
+    // Soundings share a single FIDN per sounding group, so filter-based
+    // highlighting would select every sounding in the area. Use a
+    // temporary GeoJSON source with the exact clicked point instead.
+    if (sourceLayer === "SOUNDG" && feature.geometry.type === "Point") {
+      this.highlightPointGeometry(feature.geometry as GeoJSON.Point);
+      return;
+    }
+
     const fidnFilter = [
       "==",
       "FIDN",
@@ -323,6 +332,42 @@ export class FeatureQueryHandler {
     this.highlightLayerIds.push(id);
   }
 
+  private static readonly HL_POINT_SOURCE = "_hl-point-src";
+  private static readonly HL_POINT_LAYER = "_hl-point";
+
+  /** Highlight a single point using a temporary GeoJSON source. */
+  private highlightPointGeometry(point: GeoJSON.Point): void {
+    const srcId = FeatureQueryHandler.HL_POINT_SOURCE;
+    const layerId = FeatureQueryHandler.HL_POINT_LAYER;
+
+    const geojson: GeoJSON.FeatureCollection = {
+      type: "FeatureCollection",
+      features: [{ type: "Feature", geometry: point, properties: {} }],
+    };
+
+    if (this.map.getSource(srcId)) {
+      (this.map.getSource(srcId) as maplibregl.GeoJSONSource).setData(geojson);
+    } else {
+      this.map.addSource(srcId, { type: "geojson", data: geojson });
+    }
+
+    if (!this.map.getLayer(layerId)) {
+      this.map.addLayer({
+        id: layerId,
+        type: "circle",
+        source: srcId,
+        paint: {
+          "circle-radius": 14,
+          "circle-color": "transparent",
+          "circle-stroke-color": "#ff6600",
+          "circle-stroke-width": 3,
+          "circle-stroke-opacity": 0.9,
+        },
+      });
+    }
+    this.highlightLayerIds.push(layerId);
+  }
+
   private clearHighlight(): void {
     for (const layerId of this.highlightLayerIds) {
       if (this.map.getLayer(layerId)) {
@@ -330,6 +375,11 @@ export class FeatureQueryHandler {
       }
     }
     this.highlightLayerIds = [];
+    // Clean up temporary point source
+    const srcId = FeatureQueryHandler.HL_POINT_SOURCE;
+    if (this.map.getSource(srcId)) {
+      this.map.removeSource(srcId);
+    }
   }
 }
 
