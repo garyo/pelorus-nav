@@ -4,6 +4,29 @@ import type { ChartManager } from "./ChartManager";
 import { FeatureInfoPanel } from "./FeatureInfoPanel";
 import { formatFeatureInfo } from "./feature-info";
 
+/** Polygon source layers that commonly span tile boundaries.
+ *  Highlight outlines are suppressed for these to avoid tile-edge artifacts. */
+const TILE_SPANNING_LAYERS = new Set([
+  "LNDARE",
+  "DEPARE",
+  "RESARE",
+  "ACHARE",
+  "CTNARE",
+  "FAIRWY",
+  "TSSLPT",
+  "TSEZNE",
+  "TWRTPT",
+  "SEAARE",
+  "CBLARE",
+  "PIPARE",
+  "DMPGRD",
+  "PRCARE",
+  "LAKARE",
+  "RIVERS",
+  "UNSARE",
+  "DRGARE",
+]);
+
 /**
  * Interactive layer suffixes in query priority order.
  * Used to match multi-region prefixed layers (e.g. s57-northern-new-england-boylat).
@@ -273,9 +296,6 @@ export class FeatureQueryHandler {
 
     // Only create the highlight layer type matching the feature's geometry
     if (geomType === "Polygon" || geomType === "MultiPolygon") {
-      // Use fill-only highlight for polygons — adding a line outline would
-      // trace tile-clipped edges, creating visible straight lines at tile
-      // boundaries.
       this.addHighlightLayer(layerId + "-fill", fidnFilter, {
         id: layerId + "-fill",
         type: "fill",
@@ -287,6 +307,23 @@ export class FeatureQueryHandler {
           "fill-opacity": 0.25,
         },
       });
+      // Large-area layers span tile boundaries, so a line outline would
+      // trace tile-clipped edges as visible straight lines. Only add the
+      // outline for smaller polygon features (forts, buildings, etc.).
+      if (!TILE_SPANNING_LAYERS.has(sourceLayer)) {
+        this.addHighlightLayer(layerId + "-line", fidnFilter, {
+          id: layerId + "-line",
+          type: "line",
+          source,
+          "source-layer": sourceLayer,
+          filter: fidnFilter,
+          paint: {
+            "line-color": "#ff6600",
+            "line-width": 3,
+            "line-opacity": 0.9,
+          },
+        });
+      }
     } else if (geomType === "LineString" || geomType === "MultiLineString") {
       this.addHighlightLayer(layerId + "-line", fidnFilter, {
         id: layerId + "-line",

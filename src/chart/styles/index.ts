@@ -187,8 +187,8 @@ const LAYER_CATEGORIES: Record<string, "DISPLAYBASE" | "STANDARD" | "OTHER"> = {
   "s57-hulkes-outline": "STANDARD",
   // New OTHER layers
   "s57-cranes": "OTHER",
-  "s57-forstc": "OTHER",
-  "s57-forstc-outline": "OTHER",
+  "s57-forstc": "STANDARD",
+  "s57-forstc-outline": "STANDARD",
   "s57-cgusta": "OTHER",
   "s57-drydoc": "OTHER",
   "s57-drydoc-outline": "OTHER",
