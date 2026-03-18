@@ -78,6 +78,9 @@ All tile workflows go through `tools/build-tiles.sh` (run `--help` for full usag
 - `bun run cap:build` — build, sync, and assemble debug APK
 - PMTiles and coverage GeoJSON are excluded from the Android bundle (stripped from `dist/`)
 
+## References
+- S-52 compliant chart sprites: https://github.com/openwatersio/enc-tiles
+
 ## Git
 - Conventional commits: `feat:`, `fix:`, `test:`, `chore:`, `docs:`
 - Run `bun run check` before committing

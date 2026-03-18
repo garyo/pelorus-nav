@@ -8,7 +8,7 @@ import subprocess
 from collections.abc import Callable
 from pathlib import Path
 
-from .enrich import enrich_geojson
+from .enrich import correlate_topmarks, enrich_geojson
 from .layers import LAYER_NAMES
 
 
@@ -221,5 +221,9 @@ def convert_enc(
                 outputs.append(path)
             if on_layer_done is not None:
                 on_layer_done(layer_name)
+
+    # Cross-reference TOPMAR features with buoys/beacons so the frontend
+    # can adjust label offsets when a topmark is present.
+    correlate_topmarks(output_dir)
 
     return outputs

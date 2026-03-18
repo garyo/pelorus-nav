@@ -454,6 +454,13 @@
     "x": 64,
     "y": 176
   },
+  "TOPMAR13": {
+    "height": 56,
+    "pixelRatio": 2,
+    "width": 24,
+    "x": 28,
+    "y": 512
+  },
   "TOPMAR14": {
     "height": 56,
     "pixelRatio": 2,
@@ -530,6 +537,13 @@
     "width": 20,
     "x": 146,
     "y": 124
+  },
+  "TOPMAR65": {
+    "height": 56,
+    "pixelRatio": 2,
+    "width": 24,
+    "x": 0,
+    "y": 512
   },
   "TOWERS01": {
     "height": 50,

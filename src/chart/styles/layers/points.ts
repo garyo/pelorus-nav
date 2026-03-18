@@ -129,7 +129,12 @@ export function getBuoyBeaconLayers(ctx: StyleContext): LayerSpecification[] {
           "icon-optional": true,
           "text-field": ["get", "LABEL"],
           "text-size": 10,
-          "text-offset": [0, -1.5],
+          "text-offset": [
+            "case",
+            ["==", ["get", "HAS_TOPMAR"], 1],
+            ["literal", [0, -2.4]],
+            ["literal", [0, -1.5]],
+          ] as unknown as [number, number],
           "text-allow-overlap": false,
           "text-optional": true,
         },
@@ -920,7 +925,7 @@ export function getDaymarkTopmarkLayers(
       layout: withOffset(
         {
           "icon-image": ctx.iconExpr,
-          "icon-size": scaledSize(0.45, ctx),
+          "icon-size": scaledSize(0.7, ctx),
           "icon-allow-overlap": true,
           // For Pelorus Standard, topmarks are shifted up to sit above beacons.
           // For S-52, the per-symbol offset expression handles this.

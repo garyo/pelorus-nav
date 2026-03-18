@@ -134,3 +134,69 @@ def enrich_geojson(
 
     with open(geojson_path, "w") as f:
         json.dump(geojson, f)
+
+
+# Layers whose features may have co-located TOPMAR features.
+_TOPMAR_PARENT_LAYERS = {
+    "BOYLAT", "BOYSAW", "BOYSPP", "BOYISD", "BOYCAR",
+    "BCNLAT", "BCNCAR", "BCNSPP",
+    "LIGHTS", "FOGSIG",
+}
+
+
+def correlate_topmarks(output_dir: Path) -> None:
+    """Mark buoy/beacon features that have a co-located TOPMAR.
+
+    Reads the TOPMAR GeoJSON (if present) and builds a coordinate lookup.
+    Then scans each buoy/beacon GeoJSON and sets ``HAS_TOPMAR=1`` on
+    features whose position matches a topmark within ~1 m.
+
+    This allows the frontend to use a data-driven text offset so that
+    labels clear the topmark symbol.
+    """
+    topmar_path = output_dir / "topmar.geojson"
+    if not topmar_path.exists():
+        return
+
+    with open(topmar_path) as f:
+        try:
+            topmar_geojson = json.load(f)
+        except json.JSONDecodeError:
+            return
+
+    # Build set of rounded coordinates (5 decimal places ≈ 1 m)
+    topmar_coords: set[tuple[float, float]] = set()
+    for feat in topmar_geojson.get("features", []):
+        geom = feat.get("geometry")
+        if geom and geom.get("type") == "Point":
+            coords = geom["coordinates"]
+            topmar_coords.add((round(coords[0], 5), round(coords[1], 5)))
+
+    if not topmar_coords:
+        return
+
+    # Annotate parent buoy/beacon features
+    for layer_name in _TOPMAR_PARENT_LAYERS:
+        path = output_dir / f"{layer_name.lower()}.geojson"
+        if not path.exists():
+            continue
+
+        with open(path) as f:
+            try:
+                geojson = json.load(f)
+            except json.JSONDecodeError:
+                continue
+
+        modified = False
+        for feat in geojson.get("features", []):
+            geom = feat.get("geometry")
+            if geom and geom.get("type") == "Point":
+                coords = geom["coordinates"]
+                key = (round(coords[0], 5), round(coords[1], 5))
+                if key in topmar_coords:
+                    feat.setdefault("properties", {})["HAS_TOPMAR"] = 1
+                    modified = True
+
+        if modified:
+            with open(path, "w") as f:
+                json.dump(geojson, f)

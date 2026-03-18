@@ -166,8 +166,8 @@ const LAYER_CATEGORIES: Record<string, "DISPLAYBASE" | "STANDARD" | "OTHER"> = {
   "s57-buisgl-label": "OTHER",
   "s57-ofsplf": "OTHER",
   "s57-magvar": "OTHER",
-  "s57-daymar": "OTHER",
-  "s57-topmar": "OTHER",
+  "s57-daymar": "STANDARD",
+  "s57-topmar": "STANDARD",
   // New STANDARD layers
   "s57-prcare": "STANDARD",
   "s57-prcare-outline": "STANDARD",

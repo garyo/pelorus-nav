@@ -241,10 +241,14 @@ TOPSHP_CONE_DOWN = 2
 TOPSHP_SPHERE = 3
 TOPSHP_2CONES_UP = 4
 TOPSHP_2CONES_DOWN = 5
+TOPSHP_SQUARE = 6
 TOPSHP_CYLINDER = 7
+TOPSHP_2CONES_BASE_TO_BASE = 8
+TOPSHP_2CONES_POINT_TO_POINT = 9
 TOPSHP_X = 10
 TOPSHP_2SPHERES = 12
-TOPSHP_SQUARE = 6
+TOPSHP_FLAG = 13
+TOPSHP_T_SHAPE = 33
 
 
 def _daymar_symbol(props: dict) -> str:
@@ -276,9 +280,16 @@ def _topmar_symbol(props: dict) -> str:
         TOPSHP_CONE_UP: "topmark-cone-up",
         TOPSHP_CONE_DOWN: "topmark-cone-down",
         TOPSHP_SPHERE: "topmark-sphere",
-        TOPSHP_X: "topmark-x",
         TOPSHP_2CONES_UP: "topmark-2cones-up",
         TOPSHP_2CONES_DOWN: "topmark-2cones-down",
+        TOPSHP_SQUARE: "topmark-board",
+        TOPSHP_CYLINDER: "topmark-cylinder",
+        TOPSHP_2CONES_BASE_TO_BASE: "topmark-2cones-base-to-base",
+        TOPSHP_2CONES_POINT_TO_POINT: "topmark-2cones-point-to-point",
+        TOPSHP_X: "topmark-x",
+        TOPSHP_2SPHERES: "topmark-2spheres",
+        TOPSHP_FLAG: "topmark-flag",
+        TOPSHP_T_SHAPE: "topmark-t-shape",
     }
     if topshp is None:
         return "topmark-sphere"
