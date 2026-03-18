@@ -235,20 +235,23 @@ def _bcnspp_symbol(props: dict) -> str:
     return "beacon-special"
 
 
-# S-57 TOPSHP (topmark shape) codes
+# S-57 TOPSHP (topmark shape) codes — from IHO S-57 Appendix A, attribute 171
 TOPSHP_CONE_UP = 1
 TOPSHP_CONE_DOWN = 2
 TOPSHP_SPHERE = 3
-TOPSHP_2CONES_UP = 4
-TOPSHP_2CONES_DOWN = 5
-TOPSHP_SQUARE = 6
-TOPSHP_CYLINDER = 7
-TOPSHP_2CONES_BASE_TO_BASE = 8
-TOPSHP_2CONES_POINT_TO_POINT = 9
-TOPSHP_X = 10
-TOPSHP_2SPHERES = 12
-TOPSHP_FLAG = 13
-TOPSHP_T_SHAPE = 33
+TOPSHP_2SPHERES = 4
+TOPSHP_CYLINDER = 5
+TOPSHP_BOARD = 6
+TOPSHP_X = 7
+TOPSHP_UPRIGHT_CROSS = 8
+TOPSHP_CUBE_UP = 9
+TOPSHP_2CONES_POINT_TO_POINT = 10
+TOPSHP_2CONES_BASE_TO_BASE = 11
+TOPSHP_RHOMBUS = 12
+TOPSHP_2CONES_UP = 13
+TOPSHP_2CONES_DOWN = 14
+TOPSHP_FLAG = 17
+TOPSHP_T_SHAPE = 28
 
 
 def _daymar_symbol(props: dict) -> str:
@@ -259,7 +262,7 @@ def _daymar_symbol(props: dict) -> str:
     shape = "square"
     if topshp == TOPSHP_CONE_UP:
         shape = "triangle"
-    elif topshp == TOPSHP_SQUARE or topshp == TOPSHP_CYLINDER:
+    elif topshp == TOPSHP_BOARD or topshp == TOPSHP_CYLINDER:
         shape = "square"
 
     colour = "red"
@@ -280,14 +283,14 @@ def _topmar_symbol(props: dict) -> str:
         TOPSHP_CONE_UP: "topmark-cone-up",
         TOPSHP_CONE_DOWN: "topmark-cone-down",
         TOPSHP_SPHERE: "topmark-sphere",
+        TOPSHP_2SPHERES: "topmark-2spheres",
+        TOPSHP_CYLINDER: "topmark-cylinder",
+        TOPSHP_BOARD: "topmark-board",
+        TOPSHP_X: "topmark-x",
+        TOPSHP_2CONES_POINT_TO_POINT: "topmark-2cones-point-to-point",
+        TOPSHP_2CONES_BASE_TO_BASE: "topmark-2cones-base-to-base",
         TOPSHP_2CONES_UP: "topmark-2cones-up",
         TOPSHP_2CONES_DOWN: "topmark-2cones-down",
-        TOPSHP_SQUARE: "topmark-board",
-        TOPSHP_CYLINDER: "topmark-cylinder",
-        TOPSHP_2CONES_BASE_TO_BASE: "topmark-2cones-base-to-base",
-        TOPSHP_2CONES_POINT_TO_POINT: "topmark-2cones-point-to-point",
-        TOPSHP_X: "topmark-x",
-        TOPSHP_2SPHERES: "topmark-2spheres",
         TOPSHP_FLAG: "topmark-flag",
         TOPSHP_T_SHAPE: "topmark-t-shape",
     }
