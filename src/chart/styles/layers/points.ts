@@ -112,41 +112,6 @@ export function getNavAidLayers(ctx: StyleContext): LayerSpecification[] {
  */
 export function getBuoyBeaconLayers(ctx: StyleContext): LayerSpecification[] {
   return [
-    // Light icons + characteristics — lower priority than buoys/beacons
-    // but higher than soundings/SBDARE/text labels.
-    {
-      id: "s57-lights",
-      type: "symbol",
-      source: ctx.sourceId,
-      "source-layer": "LIGHTS",
-      minzoom: 6,
-      layout: withOffset(
-        {
-          "icon-image": ctx.iconExpr,
-          "icon-size": scaledSize(0.7, ctx),
-          "icon-allow-overlap": true,
-          "icon-ignore-placement": true,
-          "icon-optional": true,
-          "text-field": ["get", "LABEL"],
-          "text-size": 10,
-          "text-offset": [
-            "case",
-            ["==", ["get", "HAS_TOPMAR"], 1],
-            ["literal", [0, -2.4]],
-            ["literal", [0, -1.5]],
-          ] as unknown as [number, number],
-          "text-allow-overlap": false,
-          "text-optional": true,
-        },
-        ctx,
-      ),
-      paint: {
-        "text-color": ctx.colour("SNDG2"),
-        "text-halo-color": ctx.colour("CHWHT"),
-        "text-halo-width": 1.5,
-      },
-    },
-
     // Lateral buoys
     {
       id: "s57-boylat",
@@ -338,6 +303,43 @@ export function getBuoyBeaconLayers(ctx: StyleContext): LayerSpecification[] {
       ),
       paint: {
         "text-color": ctx.colour("CHBLK"),
+        "text-halo-color": ctx.colour("CHWHT"),
+        "text-halo-width": 1.5,
+      },
+    },
+
+    // Light icons + characteristics — drawn last so teardrops render
+    // on top of buoy/beacon icons. Buoy labels still win collisions
+    // because MapLibre places symbols in reverse order (buoys placed
+    // first = higher priority), and light text is optional.
+    {
+      id: "s57-lights",
+      type: "symbol",
+      source: ctx.sourceId,
+      "source-layer": "LIGHTS",
+      minzoom: 6,
+      layout: withOffset(
+        {
+          "icon-image": ctx.iconExpr,
+          "icon-size": scaledSize(0.7, ctx),
+          "icon-allow-overlap": true,
+          "icon-ignore-placement": true,
+          "icon-optional": true,
+          "text-field": ["get", "LABEL"],
+          "text-size": 10,
+          "text-offset": [
+            "case",
+            ["==", ["get", "HAS_TOPMAR"], 1],
+            ["literal", [0, -2.4]],
+            ["literal", [0, -1.5]],
+          ] as unknown as [number, number],
+          "text-allow-overlap": false,
+          "text-optional": true,
+        },
+        ctx,
+      ),
+      paint: {
+        "text-color": ctx.colour("SNDG2"),
         "text-halo-color": ctx.colour("CHWHT"),
         "text-halo-width": 1.5,
       },
