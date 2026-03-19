@@ -17,6 +17,8 @@ const SOURCE_ID = "_light-sectors";
 const LAYER_RANGE_FILL = "_light-range";
 const LAYER_RANGE_BORDER = "_light-range-border";
 const LAYER_BEARING = "_light-bearing";
+const LAYER_ARC_BORDER = "_light-arc-border";
+const LAYER_ARC = "_light-arc";
 
 /**
  * Arc radius in degrees at zoom 14. Halves for each zoom level down
@@ -26,7 +28,7 @@ const LAYER_BEARING = "_light-bearing";
 const ARC_RADIUS_Z14 = 0.004;
 
 /** Minimum zoom to show light sectors. */
-const MIN_ZOOM = 10;
+const MIN_ZOOM = 9;
 
 /** Compute arc radius in degrees for the given zoom level. */
 function arcRadiusForZoom(zoom: number): number {
@@ -57,12 +59,11 @@ function generateArc(
   startBearing: number,
   endBearing: number,
   radiusDeg: number,
-  stepsPerDeg = 2,
 ): Position[] {
   let sweep = (endBearing - startBearing) % 360;
   if (sweep <= 0) sweep += 360;
 
-  const nPts = Math.max(Math.round(sweep * stepsPerDeg), 2);
+  const nPts = Math.max(Math.round(sweep * 2), 2);
   const step = sweep / nPts;
   const pts: Position[] = [];
   for (let i = 0; i <= nPts; i++) {
@@ -130,35 +131,107 @@ interface LightsProps {
   LITVIS?: number;
 }
 
+/** Ratio of inner sector arc radius to main range circle radius. */
+const SECTOR_INNER_RATIO = 0.8;
+
+interface SectorInfo {
+  s1: number;
+  s2: number;
+  colour: string;
+}
+
+interface PositionGroup {
+  lon: number;
+  lat: number;
+  sectors: SectorInfo[];
+  hasRangeCircle: boolean;
+  rangeColour: string;
+  /** Highest VALNMR across all features at this position. */
+  maxValnmr: number;
+}
+
 function buildFeatures(
   lightsFeatures: Feature[],
   radiusDeg: number,
 ): FeatureCollection {
   const features: Feature<LineString>[] = [];
 
-  // Deduplicate range circle candidates by position (highest VALNMR wins)
-  const rangeCandidates = new Map<
-    string,
-    { lon: number; lat: number; valnmr: number; colour: string }
-  >();
+  // Group all LIGHTS features by position
+  const groups = new Map<string, PositionGroup>();
 
   for (const f of lightsFeatures) {
     if (f.geometry.type !== "Point") continue;
     const [lon, lat] = f.geometry.coordinates;
     const props = f.properties as LightsProps;
+    const key = `${lon.toFixed(5)},${lat.toFixed(5)}`;
+
+    let group = groups.get(key);
+    if (!group) {
+      group = {
+        lon,
+        lat,
+        sectors: [],
+        hasRangeCircle: false,
+        rangeColour: "white",
+        maxValnmr: 0,
+      };
+      groups.set(key, group);
+    }
+
     const sectr1 = props.SECTR1;
     const sectr2 = props.SECTR2;
     const valnmr = props.VALNMR;
     const colour = rangeCircleColour(props.COLOUR);
 
+    // Track highest VALNMR across all features at this position
+    if (valnmr != null) {
+      const nmr = Number(valnmr);
+      if (nmr > group.maxValnmr) group.maxValnmr = nmr;
+    }
+
     if (sectr1 != null && sectr2 != null) {
       const s1 = Number(sectr1);
       const s2 = Number(sectr2);
-      if (Number.isNaN(s1) || Number.isNaN(s2)) continue;
+      if (!Number.isNaN(s1) && !Number.isNaN(s2)) {
+        // S-57 bearings are FROM seaward; flip 180° to get FROM the light
+        group.sectors.push({
+          s1: (s1 + 180) % 360,
+          s2: (s2 + 180) % 360,
+          colour,
+        });
+      }
+    } else if (valnmr != null && Number(valnmr) >= 10) {
+      group.hasRangeCircle = true;
+      if (group.rangeColour === "white" && colour !== "white") {
+        group.rangeColour = colour;
+      }
+    }
+  }
 
-      // Bearing lines: V-shape through origin
-      const p1 = arcPoint(lon, lat, s1, radiusDeg);
-      const p2 = arcPoint(lon, lat, s2, radiusDeg);
+  // Generate geometry for each position
+  for (const g of groups.values()) {
+    const { lon, lat, sectors, hasRangeCircle, rangeColour, maxValnmr } = g;
+
+    // Subtle VALNMR scaling: blend halfway between fixed and sqrt(VALNMR/20)
+    const rawScale = maxValnmr > 0 ? Math.sqrt(maxValnmr / 20) : 1;
+    const valnmrScale = 0.5 + 0.5 * rawScale;
+    const r = radiusDeg * valnmrScale;
+
+    // Range circle at full radius
+    if (hasRangeCircle) {
+      const circle = generateCircle(lon, lat, r);
+      features.push({
+        type: "Feature",
+        geometry: { type: "LineString", coordinates: circle },
+        properties: { _type: "range", _colour: rangeColour },
+      });
+    }
+
+    // Sector bearing lines (dashed black) extend 10% beyond the arc
+    const bearingRadius = r * 1.1;
+    for (const { s1, s2 } of sectors) {
+      const p1 = arcPoint(lon, lat, s1, bearingRadius);
+      const p2 = arcPoint(lon, lat, s2, bearingRadius);
       features.push({
         type: "Feature",
         geometry: {
@@ -167,32 +240,20 @@ function buildFeatures(
         },
         properties: { _type: "bearing" },
       });
-    } else if (valnmr != null && Number(valnmr) >= 10) {
-      // Range circle candidate — deduplicate by position.
-      // Keep highest VALNMR for radius, but prefer non-white colour
-      // (e.g. Baker's Island: white+red alternating → red circle).
-      const nmr = Number(valnmr);
-      const key = `${lon.toFixed(5)},${lat.toFixed(5)}`;
-      const existing = rangeCandidates.get(key);
-      if (!existing) {
-        rangeCandidates.set(key, { lon, lat, valnmr: nmr, colour });
-      } else {
-        if (nmr > existing.valnmr) existing.valnmr = nmr;
-        if (existing.colour === "white" && colour !== "white") {
-          existing.colour = colour;
-        }
+    }
+
+    // Sector arcs — inner if range circle exists, full radius otherwise
+    if (sectors.length > 0) {
+      const arcRadius = hasRangeCircle ? r * SECTOR_INNER_RATIO : r;
+      for (const { s1, s2, colour } of sectors) {
+        const arcPts = generateArc(lon, lat, s1, s2, arcRadius);
+        features.push({
+          type: "Feature",
+          geometry: { type: "LineString", coordinates: arcPts },
+          properties: { _type: "arc", _colour: colour },
+        });
       }
     }
-  }
-
-  // Generate range circles
-  for (const { lon, lat, colour } of rangeCandidates.values()) {
-    const circle = generateCircle(lon, lat, radiusDeg);
-    features.push({
-      type: "Feature",
-      geometry: { type: "LineString", coordinates: circle },
-      properties: { _type: "range", _colour: colour },
-    });
   }
 
   return { type: "FeatureCollection", features };
@@ -261,6 +322,7 @@ export class LightSectorLayer {
     this.map.addSource(SOURCE_ID, {
       type: "geojson",
       data: { type: "FeatureCollection", features: [] },
+      tolerance: 0,
     });
 
     const rangeColorExpr = [
@@ -316,6 +378,34 @@ export class LightSectorLayer {
         "line-width": 1,
         "line-dasharray": [6, 3],
         "line-opacity": 0.8,
+      },
+    });
+
+    // Sector arcs: black casing
+    this.map.addLayer({
+      id: LAYER_ARC_BORDER,
+      type: "line",
+      source: SOURCE_ID,
+      minzoom: MIN_ZOOM,
+      filter: ["==", ["get", "_type"], "arc"],
+      paint: {
+        "line-color": s52Colour("CHBLK"),
+        "line-width": 5,
+        "line-opacity": 0.9,
+      },
+    });
+
+    // Sector arcs: coloured fill (inner when range circle present)
+    this.map.addLayer({
+      id: LAYER_ARC,
+      type: "line",
+      source: SOURCE_ID,
+      minzoom: MIN_ZOOM,
+      filter: ["==", ["get", "_type"], "arc"],
+      paint: {
+        "line-color": rangeColorExpr as never,
+        "line-width": 3,
+        "line-opacity": 0.9,
       },
     });
   }
