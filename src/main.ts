@@ -160,6 +160,11 @@ chartSelect.addEventListener("change", () => {
 
 new FeatureQueryHandler(chartManager);
 
+// Light sector arcs and range circles (client-side generated from LIGHTS data)
+import { LightSectorLayer } from "./chart/LightSectorLayer";
+
+new LightSectorLayer(chartManager.map);
+
 // Settings gear in top bar menu
 const topbarMenu = document.getElementById("topbar-menu");
 const settingsHandle = topbarMenu ? createSettingsPanel(topbarMenu) : null;
