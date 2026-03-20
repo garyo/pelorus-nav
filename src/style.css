@@ -12,6 +12,8 @@ body {
   height: 100%;
   overflow: hidden;
   font-family: system-ui, -apple-system, sans-serif;
+  /* Below-topbar offset: topbar height + system safe area (camera cutout etc.) */
+  --topbar-bottom: calc(36px + env(safe-area-inset-top, 0px));
 }
 
 /* Crosshair cursor on the map for precise position identification */
@@ -25,12 +27,12 @@ body {
   flex-direction: column;
 }
 
-/* Top bar */
+/* Top bar — padded below system status bar / camera cutout */
 #top-bar {
   display: flex;
   align-items: center;
-  height: 36px;
-  padding: 0 12px;
+  height: calc(36px + env(safe-area-inset-top, 0px));
+  padding: env(safe-area-inset-top, 0px) 12px 0;
   background: rgba(26, 26, 46, 0.9);
   color: #e0e0e0;
   font-size: 14px;
@@ -637,7 +639,7 @@ body {
 /* Measurement panel */
 .measure-panel {
   position: fixed;
-  top: 44px;
+  top: var(--topbar-bottom);
   left: 50%;
   transform: translateX(-50%);
   background: rgba(30, 30, 50, 0.92);
@@ -677,7 +679,7 @@ body {
 /* Panel stack — fixed container for side panels */
 .panel-stack {
   position: fixed;
-  top: 44px;
+  top: var(--topbar-bottom);
   right: 10px;
   z-index: 10000;
   display: flex;
@@ -928,7 +930,7 @@ body {
 
 .route-editor-bar {
   position: fixed;
-  top: 44px;
+  top: var(--topbar-bottom);
   left: 50%;
   transform: translateX(-50%);
   background: rgba(30, 30, 50, 0.92);
@@ -1488,7 +1490,7 @@ body {
   .topbar-menu {
     display: none;
     position: absolute;
-    top: 36px;
+    top: 100%;
     right: 0;
     width: 220px;
     flex-direction: column;
@@ -1536,12 +1538,12 @@ body {
 
   /* Settings panel: full-width overlay on mobile */
   .settings-panel {
-    top: 36px;
+    top: var(--topbar-bottom);
     right: 0;
     left: 0;
     width: 100%;
     border-radius: 0;
-    max-height: calc(100vh - 36px);
+    max-height: calc(100vh - var(--topbar-bottom));
     overflow-y: auto;
   }
 
@@ -1621,7 +1623,7 @@ body {
 
 .plot-toolbar {
   position: fixed;
-  top: 44px;
+  top: var(--topbar-bottom);
   left: 50%;
   transform: translateX(-50%);
   background: rgba(30, 30, 50, 0.92);
@@ -1707,7 +1709,7 @@ body {
 
 .plot-bearing-input {
   position: fixed;
-  top: 82px;
+  top: calc(var(--topbar-bottom) + 52px);
   left: 50%;
   transform: translateX(-50%);
   background: rgba(30, 30, 50, 0.95);
