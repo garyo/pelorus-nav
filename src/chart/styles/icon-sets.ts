@@ -442,11 +442,15 @@ export function buildLayerExpressions(
   layerName: string,
   iconSet: Record<string, string>,
   fallback: string,
-): { iconExpr: ExpressionSpecification; offsetExpr: ExpressionSpecification | null } {
+): {
+  iconExpr: ExpressionSpecification;
+  offsetExpr: ExpressionSpecification | null;
+} {
   // Helper: look up sprite for a semantic symbol name
   const sp = (key: string): string => iconSet[key] ?? fallback;
   // Helper: get offset for a sprite name
-  const off = (sprite: string): [number, number] => S52_OFFSETS[sprite] ?? [0, 0];
+  const off = (sprite: string): [number, number] =>
+    S52_OFFSETS[sprite] ?? [0, 0];
 
   // Helper: constant symbol (no attribute lookup needed)
   const constant = (sym: string) => {
@@ -500,7 +504,11 @@ export function buildLayerExpressions(
   // Append trailing comma so single-value "3" → "3," and index-of always finds a comma.
   const cps = ["concat", colourStr, ","];
   const colourPadded = ["concat", ",", colourStr, ","];
-  const colContains = (code: number): unknown[] => ["in", `,${code},`, colourPadded];
+  const colContains = (code: number): unknown[] => [
+    "in",
+    `,${code},`,
+    colourPadded,
+  ];
   // First colour code: characters before the first comma
   const firstComma = ["index-of", ",", cps];
   const c0 = ["to-number", ["slice", cps, 0, firstComma], 0];
@@ -515,7 +523,11 @@ export function buildLayerExpressions(
   // GDAL/ogr2ogr encodes StringList attributes as JSON arrays (e.g. ["9"]), so we
   // check for the quoted value as a substring: "9" in ["9"] or ["9","15"].
   const catsStr = ["to-string", ["coalesce", ["get", "CATSPM"], ""]];
-  const isSuperbuoyByCat = ["any", ["in", '"9"', catsStr], ["in", '"15"', catsStr]];
+  const isSuperbuoyByCat = [
+    "any",
+    ["in", '"9"', catsStr],
+    ["in", '"15"', catsStr],
+  ];
 
   switch (layerName) {
     // ── Simple constants ─────────────────────────────────────────────────
@@ -544,13 +556,43 @@ export function buildLayerExpressions(
 
     // ── Simple attribute matches ─────────────────────────────────────────
     case "BOYCAR":
-      return matchOnAttr(["get", "CATCAM"], [[1, "cardinal-n"], [2, "cardinal-s"], [3, "cardinal-e"], [4, "cardinal-w"]], "cardinal-n");
+      return matchOnAttr(
+        ["get", "CATCAM"],
+        [
+          [1, "cardinal-n"],
+          [2, "cardinal-s"],
+          [3, "cardinal-e"],
+          [4, "cardinal-w"],
+        ],
+        "cardinal-n",
+      );
     case "BCNLAT":
-      return matchOnAttr(["get", "CATLAM"], [[PORT, "beacon-port"], [STBD, "beacon-stbd"]], "beacon-default");
+      return matchOnAttr(
+        ["get", "CATLAM"],
+        [
+          [PORT, "beacon-port"],
+          [STBD, "beacon-stbd"],
+        ],
+        "beacon-default",
+      );
     case "UWTROC":
-      return matchOnAttr(["get", "WATLEV"], [[WATLEV_DRY, "rock-above"], [WATLEV_AWASH, "rock-awash"]], "rock-underwater");
+      return matchOnAttr(
+        ["get", "WATLEV"],
+        [
+          [WATLEV_DRY, "rock-above"],
+          [WATLEV_AWASH, "rock-awash"],
+        ],
+        "rock-underwater",
+      );
     case "OBSTRN":
-      return matchOnAttr(["get", "CATOBS"], [[CATOBS_FOUL_AREA, "obstruction-foul"], [CATOBS_FOUL_GROUND, "obstruction-foul"]], "obstruction");
+      return matchOnAttr(
+        ["get", "CATOBS"],
+        [
+          [CATOBS_FOUL_AREA, "obstruction-foul"],
+          [CATOBS_FOUL_GROUND, "obstruction-foul"],
+        ],
+        "obstruction",
+      );
     case "TOPMAR":
       return matchOnAttr(
         ["get", "TOPSHP"],
@@ -590,10 +632,14 @@ export function buildLayerExpressions(
     case "WRECKS": {
       const iconExpr = [
         "case",
-        ["==", ["get", "CATWRK"], CATWRK_MAST], sp("wreck-mast"),
-        ["==", ["get", "CATWRK"], CATWRK_NONDANGEROUS], sp("wreck-nondangerous"),
-        ["==", ["get", "WATLEV"], WATLEV_SUBMERGED], sp("wreck-dangerous"),
-        ["==", ["get", "CATWRK"], CATWRK_DANGEROUS], sp("wreck-dangerous"),
+        ["==", ["get", "CATWRK"], CATWRK_MAST],
+        sp("wreck-mast"),
+        ["==", ["get", "CATWRK"], CATWRK_NONDANGEROUS],
+        sp("wreck-nondangerous"),
+        ["==", ["get", "WATLEV"], WATLEV_SUBMERGED],
+        sp("wreck-dangerous"),
+        ["==", ["get", "CATWRK"], CATWRK_DANGEROUS],
+        sp("wreck-dangerous"),
         sp("wreck-nondangerous"),
       ] as unknown as ExpressionSpecification;
       // Compute offsets for wreck sprites
@@ -601,16 +647,23 @@ export function buildLayerExpressions(
       const nonDangOff = off(sp("wreck-nondangerous"));
       const dangOff = off(sp("wreck-dangerous"));
       const hasWreckOff =
-        mastOff[0] !== 0 || mastOff[1] !== 0 ||
-        nonDangOff[0] !== 0 || nonDangOff[1] !== 0 ||
-        dangOff[0] !== 0 || dangOff[1] !== 0;
+        mastOff[0] !== 0 ||
+        mastOff[1] !== 0 ||
+        nonDangOff[0] !== 0 ||
+        nonDangOff[1] !== 0 ||
+        dangOff[0] !== 0 ||
+        dangOff[1] !== 0;
       const offsetExpr = hasWreckOff
         ? ([
             "case",
-            ["==", ["get", "CATWRK"], CATWRK_MAST], ["literal", mastOff],
-            ["==", ["get", "CATWRK"], CATWRK_NONDANGEROUS], ["literal", nonDangOff],
-            ["==", ["get", "WATLEV"], WATLEV_SUBMERGED], ["literal", dangOff],
-            ["==", ["get", "CATWRK"], CATWRK_DANGEROUS], ["literal", dangOff],
+            ["==", ["get", "CATWRK"], CATWRK_MAST],
+            ["literal", mastOff],
+            ["==", ["get", "CATWRK"], CATWRK_NONDANGEROUS],
+            ["literal", nonDangOff],
+            ["==", ["get", "WATLEV"], WATLEV_SUBMERGED],
+            ["literal", dangOff],
+            ["==", ["get", "CATWRK"], CATWRK_DANGEROUS],
+            ["literal", dangOff],
             ["literal", nonDangOff],
           ] as unknown as ExpressionSpecification)
         : null;
@@ -628,8 +681,10 @@ export function buildLayerExpressions(
       const isMajor = [">=", ["coalesce", ["get", "VALNMR"], 0], 10];
       const iconExpr = [
         "case",
-        colContains(GREEN), ["case", isMajor, majorGreen, minorGreen],
-        colContains(RED), ["case", isMajor, majorRed, minorRed],
+        colContains(GREEN),
+        ["case", isMajor, majorGreen, minorGreen],
+        colContains(RED),
+        ["case", isMajor, majorRed, minorRed],
         ["case", isMajor, majorWhite, minorWhite],
       ] as unknown as ExpressionSpecification;
       // Offsets — all light sprites typically share the same offset
@@ -639,9 +694,14 @@ export function buildLayerExpressions(
       const oMinorR = off(minorRed);
       const oMajorW = off(majorWhite);
       const oMinorW = off(minorWhite);
-      const hasLightOff = [oMajorG, oMinorG, oMajorR, oMinorR, oMajorW, oMinorW].some(
-        (o) => o[0] !== 0 || o[1] !== 0,
-      );
+      const hasLightOff = [
+        oMajorG,
+        oMinorG,
+        oMajorR,
+        oMinorR,
+        oMajorW,
+        oMinorW,
+      ].some((o) => o[0] !== 0 || o[1] !== 0);
       const offsetExpr = hasLightOff
         ? ([
             "case",
@@ -659,11 +719,15 @@ export function buildLayerExpressions(
     case "BOYSPP": {
       const iconExpr = [
         "case",
-        isPrefPort, sp("preferred-port"),
-        isPrefStbd, sp("preferred-stbd"),
-        ["all", colContains(WHITE), colContains(ORANGE)], sp("special-wo"),
+        isPrefPort,
+        sp("preferred-port"),
+        isPrefStbd,
+        sp("preferred-stbd"),
+        ["all", colContains(WHITE), colContains(ORANGE)],
+        sp("special-wo"),
         // Superbuoys: BOYSHP=7, CATSPM=9 (ODAS), or CATSPM=15 (LANBY)
-        ["any", ["==", ["get", "BOYSHP"], SUPER], isSuperbuoyByCat], sp("superbuoy"),
+        ["any", ["==", ["get", "BOYSHP"], SUPER], isSuperbuoyByCat],
+        sp("superbuoy"),
         sp("special"),
       ] as unknown as ExpressionSpecification;
       const oPrefPort = off(sp("preferred-port"));
@@ -671,16 +735,24 @@ export function buildLayerExpressions(
       const oSpecialWo = off(sp("special-wo"));
       const oSuperbuoy = off(sp("superbuoy"));
       const oSpecial = off(sp("special"));
-      const hasBoysppOff = [oPrefPort, oPrefStbd, oSpecialWo, oSuperbuoy, oSpecial].some(
-        (o) => o[0] !== 0 || o[1] !== 0,
-      );
+      const hasBoysppOff = [
+        oPrefPort,
+        oPrefStbd,
+        oSpecialWo,
+        oSuperbuoy,
+        oSpecial,
+      ].some((o) => o[0] !== 0 || o[1] !== 0);
       const offsetExpr = hasBoysppOff
         ? ([
             "case",
-            isPrefPort, ["literal", oPrefPort],
-            isPrefStbd, ["literal", oPrefStbd],
-            ["all", colContains(WHITE), colContains(ORANGE)], ["literal", oSpecialWo],
-            ["any", ["==", ["get", "BOYSHP"], SUPER], isSuperbuoyByCat], ["literal", oSuperbuoy],
+            isPrefPort,
+            ["literal", oPrefPort],
+            isPrefStbd,
+            ["literal", oPrefStbd],
+            ["all", colContains(WHITE), colContains(ORANGE)],
+            ["literal", oSpecialWo],
+            ["any", ["==", ["get", "BOYSHP"], SUPER], isSuperbuoyByCat],
+            ["literal", oSuperbuoy],
             ["literal", oSpecial],
           ] as unknown as ExpressionSpecification)
         : null;
@@ -707,39 +779,63 @@ export function buildLayerExpressions(
       const prefStbd = sp("preferred-stbd");
 
       const portShapeExpr = [
-        "match", boyshp,
-        CONICAL, portConical,
-        CAN, portCan,
-        SPHERICAL, portSpherical,
-        PILLAR, portPillar,
-        SPAR, portSpar,
-        BARREL, portPillar,
-        SUPER, portPillar,
-        ICE, portPillar,
+        "match",
+        boyshp,
+        CONICAL,
+        portConical,
+        CAN,
+        portCan,
+        SPHERICAL,
+        portSpherical,
+        PILLAR,
+        portPillar,
+        SPAR,
+        portSpar,
+        BARREL,
+        portPillar,
+        SUPER,
+        portPillar,
+        ICE,
+        portPillar,
         portCan, // default
       ];
       const stbdShapeExpr = [
-        "match", boyshp,
-        CONICAL, stbdConical,
-        CAN, stbdCan,
-        SPHERICAL, stbdSpherical,
-        PILLAR, stbdPillar,
-        SPAR, stbdSpar,
-        BARREL, stbdPillar,
-        SUPER, stbdPillar,
-        ICE, stbdPillar,
+        "match",
+        boyshp,
+        CONICAL,
+        stbdConical,
+        CAN,
+        stbdCan,
+        SPHERICAL,
+        stbdSpherical,
+        PILLAR,
+        stbdPillar,
+        SPAR,
+        stbdSpar,
+        BARREL,
+        stbdPillar,
+        SUPER,
+        stbdPillar,
+        ICE,
+        stbdPillar,
         stbdConical, // default for stbd (IALA-B default is conical)
       ];
 
       const iconExpr = [
         "case",
         // Preferred-channel buoys: CATLAM=3/4 takes priority over colour checks
-        ["==", ["get", "CATLAM"], CATLAM_PREF_STBD], prefPort,
-        ["==", ["get", "CATLAM"], CATLAM_PREF_PORT], prefStbd,
-        isPrefPort, prefPort,
-        isPrefStbd, prefStbd,
-        ["==", ["get", "CATLAM"], PORT], portShapeExpr,
-        ["==", ["get", "CATLAM"], STBD], stbdShapeExpr,
+        ["==", ["get", "CATLAM"], CATLAM_PREF_STBD],
+        prefPort,
+        ["==", ["get", "CATLAM"], CATLAM_PREF_PORT],
+        prefStbd,
+        isPrefPort,
+        prefPort,
+        isPrefStbd,
+        prefStbd,
+        ["==", ["get", "CATLAM"], PORT],
+        portShapeExpr,
+        ["==", ["get", "CATLAM"], STBD],
+        stbdShapeExpr,
         fallback,
       ] as unknown as ExpressionSpecification;
 
@@ -752,24 +848,51 @@ export function buildLayerExpressions(
       const oConicalStbd = off(stbdConical);
       const oPrefPort = off(prefPort);
       const oPrefStbd = off(prefStbd);
-      const hasBoylatOff = [oPillarPort, oCanPort, oConicalPort, oPillarStbd, oCanStbd, oConicalStbd, oPrefPort, oPrefStbd].some(
-        (o) => o[0] !== 0 || o[1] !== 0,
-      );
+      const hasBoylatOff = [
+        oPillarPort,
+        oCanPort,
+        oConicalPort,
+        oPillarStbd,
+        oCanStbd,
+        oConicalStbd,
+        oPrefPort,
+        oPrefStbd,
+      ].some((o) => o[0] !== 0 || o[1] !== 0);
 
       let offsetExpr: ExpressionSpecification | null = null;
       if (hasBoylatOff) {
         // Pillar shapes: PILLAR(4), SPAR(5), BARREL(6), SUPER(7), ICE(8)
-        const isPillarShape = ["in", boyshp, ["literal", [PILLAR, SPAR, BARREL, SUPER, ICE]]];
-        const portOffExpr = ["case", isPillarShape, ["literal", oPillarPort], ["literal", oCanPort]];
-        const stbdOffExpr = ["case", isPillarShape, ["literal", oPillarStbd], ["literal", oCanStbd]];
+        const isPillarShape = [
+          "in",
+          boyshp,
+          ["literal", [PILLAR, SPAR, BARREL, SUPER, ICE]],
+        ];
+        const portOffExpr = [
+          "case",
+          isPillarShape,
+          ["literal", oPillarPort],
+          ["literal", oCanPort],
+        ];
+        const stbdOffExpr = [
+          "case",
+          isPillarShape,
+          ["literal", oPillarStbd],
+          ["literal", oCanStbd],
+        ];
         offsetExpr = [
           "case",
-          ["==", ["get", "CATLAM"], CATLAM_PREF_STBD], ["literal", oPrefPort],
-          ["==", ["get", "CATLAM"], CATLAM_PREF_PORT], ["literal", oPrefStbd],
-          isPrefPort, ["literal", oPrefPort],
-          isPrefStbd, ["literal", oPrefStbd],
-          ["==", ["get", "CATLAM"], PORT], portOffExpr,
-          ["==", ["get", "CATLAM"], STBD], stbdOffExpr,
+          ["==", ["get", "CATLAM"], CATLAM_PREF_STBD],
+          ["literal", oPrefPort],
+          ["==", ["get", "CATLAM"], CATLAM_PREF_PORT],
+          ["literal", oPrefStbd],
+          isPrefPort,
+          ["literal", oPrefPort],
+          isPrefStbd,
+          ["literal", oPrefStbd],
+          ["==", ["get", "CATLAM"], PORT],
+          portOffExpr,
+          ["==", ["get", "CATLAM"], STBD],
+          stbdOffExpr,
           ["literal", [0, 0]],
         ] as unknown as ExpressionSpecification;
       }
@@ -783,22 +906,30 @@ export function buildLayerExpressions(
       const colHasGreen = colContains(GREEN);
       const iconExpr = [
         "case",
-        ["all", topIsTriangle, colHasGreen], sp("daymark-triangle-green"),
-        topIsTriangle, sp("daymark-triangle-red"),
-        colHasGreen, sp("daymark-square-green"),
+        ["all", topIsTriangle, colHasGreen],
+        sp("daymark-triangle-green"),
+        topIsTriangle,
+        sp("daymark-triangle-red"),
+        colHasGreen,
+        sp("daymark-square-green"),
         sp("daymark-square-red"),
       ] as unknown as ExpressionSpecification;
       const oTG = off(sp("daymark-triangle-green"));
       const oTR = off(sp("daymark-triangle-red"));
       const oSG = off(sp("daymark-square-green"));
       const oSR = off(sp("daymark-square-red"));
-      const hasDaymarOff = [oTG, oTR, oSG, oSR].some((o) => o[0] !== 0 || o[1] !== 0);
+      const hasDaymarOff = [oTG, oTR, oSG, oSR].some(
+        (o) => o[0] !== 0 || o[1] !== 0,
+      );
       const offsetExpr = hasDaymarOff
         ? ([
             "case",
-            ["all", topIsTriangle, colHasGreen], ["literal", oTG],
-            topIsTriangle, ["literal", oTR],
-            colHasGreen, ["literal", oSG],
+            ["all", topIsTriangle, colHasGreen],
+            ["literal", oTG],
+            topIsTriangle,
+            ["literal", oTR],
+            colHasGreen,
+            ["literal", oSG],
             ["literal", oSR],
           ] as unknown as ExpressionSpecification)
         : null;
