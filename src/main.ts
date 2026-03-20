@@ -203,8 +203,12 @@ const closeHamburger = () => topbarMenu?.classList.remove("open");
 if (hamburgerBtn && topbarMenu) {
   hamburgerBtn.addEventListener("click", (e) => {
     e.stopPropagation();
+    // If settings is open, just close it (don't open the menu)
+    if (settingsHandle?.isOpen()) {
+      settingsHandle.hide();
+      return;
+    }
     topbarMenu.classList.toggle("open");
-    settingsHandle?.hide();
   });
   document.addEventListener("click", (e) => {
     if (!topbarMenu.contains(e.target as Node) && e.target !== hamburgerBtn) {

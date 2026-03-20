@@ -51,6 +51,8 @@ const TAB_LABELS: Record<TabId, string> = {
 export interface SettingsPanelHandle {
   /** Close the settings panel. */
   hide(): void;
+  /** Whether the settings panel is currently open. */
+  isOpen(): boolean;
   /** Register a callback invoked when the settings panel opens. */
   onOpen(fn: () => void): void;
 }
@@ -115,6 +117,9 @@ export function createSettingsPanel(
   return {
     hide() {
       panel.classList.remove("open");
+    },
+    isOpen() {
+      return panel.classList.contains("open");
     },
     onOpen(fn: () => void) {
       openListeners.push(fn);
