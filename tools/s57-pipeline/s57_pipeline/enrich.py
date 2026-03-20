@@ -116,9 +116,17 @@ def enrich_geojson(
                     r",\s+\w{2}\s+Urban\b.*$", "", objnam
                 )
 
-        # Note: COLOUR stays as a comma-separated string (or int for
-        # single-colour features) — ordered colour checks (c0, c1) are
-        # computed at runtime in the MapLibre style layer expressions.
+        # Flatten list attributes (COLOUR, CATSPM, COLPAT, STATUS, etc.)
+        # from JSON arrays to comma-separated strings. ogr2ogr writes S-57
+        # StringList fields as JSON arrays (e.g. ["1","11"]), but MVT only
+        # supports flat values, so tippecanoe would serialize them as the
+        # literal string '["1","11"]'. We flatten here so MapLibre sees "1,11".
+        for key in ("COLOUR", "CATSPM", "CATCAM", "CATLAM", "COLPAT",
+                     "STATUS", "CATOBS", "CATWRK", "WATLEV", "BOYSHP",
+                     "CATLIT", "CATMOR", "CATACH"):
+            val = props.get(key)
+            if isinstance(val, list):
+                props[key] = ",".join(str(v) for v in val)
 
     with open(geojson_path, "w") as f:
         json.dump(geojson, f)
