@@ -99,10 +99,20 @@ await vectorProvider.loadAllOfflineCoverage();
 const activeRegionInfo = vectorProvider.getRegion();
 let prevActiveRegion = activeRegionInfo.id;
 
+// Restore saved map position, falling back to the active region's default
+const MAP_POS_KEY = "pelorus-nav-map-position";
+const savedPos = (() => {
+  try {
+    const raw = localStorage.getItem(MAP_POS_KEY);
+    if (raw) return JSON.parse(raw) as { center: [number, number]; zoom: number };
+  } catch { /* ignore */ }
+  return null;
+})();
+
 const chartManager = new ChartManager({
   container: "map",
-  center: activeRegionInfo.center,
-  zoom: activeRegionInfo.defaultZoom,
+  center: savedPos?.center ?? activeRegionInfo.center,
+  zoom: savedPos?.zoom ?? activeRegionInfo.defaultZoom,
   providers: [
     new NOAAChartProvider(),
     new NOAAECDISProvider(),
@@ -110,6 +120,15 @@ const chartManager = new ChartManager({
     vectorProvider,
   ],
   initialProviderId: "s57-vector",
+});
+
+// Persist map position on every move so refresh restores it
+chartManager.map.on("moveend", () => {
+  const c = chartManager.map.getCenter();
+  localStorage.setItem(
+    MAP_POS_KEY,
+    JSON.stringify({ center: [c.lng, c.lat], zoom: chartManager.map.getZoom() }),
+  );
 });
 
 // E-ink frame rate throttle: limit repaints to ~4 fps to reduce ghosting
