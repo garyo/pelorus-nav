@@ -192,36 +192,35 @@ def cmd_download(args: argparse.Namespace) -> None:
                     else:
                         skipped += 1
 
-    if skipped:
-        print(f"Skipping {skipped} up-to-date cells")
-
     if not to_download:
-        print("All cells already downloaded and up to date")
+        if skipped:
+            print(f"All {skipped} cells already downloaded and up to date")
+        else:
+            print("All cells already downloaded and up to date")
         return
 
     max_workers = min(8, args.jobs if args.jobs else 8)
-    print(f"Downloading {len(to_download)} cells ({max_workers} parallel)...")
+
+    progress = PipelineProgress(verbose=getattr(args, "verbose", False))
+    progress.download_start(len(to_download), max_workers)
+    for _ in range(skipped):
+        progress.download_cell_skipped("")
 
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
         futures = {
-            executor.submit(download_enc_cell, cell_name, output_dir): cell_name
+            executor.submit(
+                download_enc_cell, cell_name, output_dir, progress
+            ): cell_name
             for cell_name in to_download
         }
-        done = 0
-        failed = 0
         for future in as_completed(futures):
             cell_name = futures[future]
             try:
-                result = future.result()
-                if result:
-                    done += 1
-                else:
-                    failed += 1
+                future.result()
             except Exception as e:
-                print(f"Error downloading {cell_name}: {e}")
-                failed += 1
+                progress.download_cell_error(cell_name, str(e))
 
-    print(f"Downloaded {done} cells ({failed} failed, {skipped} skipped)")
+    progress.download_complete()
 
 
 def cmd_convert(args: argparse.Namespace) -> None:

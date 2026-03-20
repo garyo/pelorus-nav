@@ -5,6 +5,10 @@ from __future__ import annotations
 import subprocess
 import zipfile
 from pathlib import Path
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from .progress import PipelineProgress
 
 # NOAA ENC download base URL
 NOAA_ENC_BASE = "https://charts.noaa.gov/ENCs"
@@ -13,6 +17,7 @@ NOAA_ENC_BASE = "https://charts.noaa.gov/ENCs"
 def download_enc_cell(
     cell_name: str,
     output_dir: Path,
+    progress: PipelineProgress | None = None,
 ) -> Path | None:
     """Download a single ENC cell zip from NOAA and extract it.
 
@@ -26,6 +31,7 @@ def download_enc_cell(
     Args:
         cell_name: ENC cell name (e.g., "US5MA22M").
         output_dir: Directory to extract into.
+        progress: Optional progress reporter.
 
     Returns:
         Path to the extracted .000 file, or None on failure.
@@ -35,7 +41,11 @@ def download_enc_cell(
     tmp_path = output_dir / f"{cell_name}.zip.tmp"
 
     url = f"{NOAA_ENC_BASE}/{cell_name}.zip"
-    print(f"Downloading {url} ...")
+
+    if progress:
+        progress.download_cell_started(cell_name)
+    else:
+        print(f"Downloading {url} ...")
 
     result = subprocess.run(
         ["curl", "-fsSL", "-o", str(tmp_path), url],
@@ -44,12 +54,19 @@ def download_enc_cell(
     )
 
     if result.returncode != 0:
-        print(f"Download failed for {cell_name}: {result.stderr}")
+        err = f"curl failed: {result.stderr.strip()}"
+        if progress:
+            progress.download_cell_error(cell_name, err)
+        else:
+            print(f"Download failed for {cell_name}: {result.stderr}")
         tmp_path.unlink(missing_ok=True)
         return None
 
     # Atomic rename from temp to final zip
     tmp_path.rename(zip_path)
+
+    if progress:
+        progress.download_cell_extracting(cell_name)
 
     # Extract the zip
     try:
@@ -62,7 +79,11 @@ def download_enc_cell(
                     )
             zf.extractall(output_dir)
     except zipfile.BadZipFile:
-        print(f"Bad zip file for {cell_name}")
+        err = "bad zip file"
+        if progress:
+            progress.download_cell_error(cell_name, err)
+        else:
+            print(f"Bad zip file for {cell_name}")
         zip_path.unlink(missing_ok=True)
         return None
 
@@ -74,8 +95,15 @@ def download_enc_cell(
     enc_files = list(output_dir.rglob(f"{cell_name}/{cell_name}.000"))
 
     if enc_files:
-        print(f"Extracted {enc_files[0]}")
+        if progress:
+            progress.download_cell_done(cell_name)
+        else:
+            print(f"Extracted {enc_files[0]}")
         return enc_files[0]
 
-    print(f"No .000 file found after extracting {cell_name}")
+    err = "no .000 file found after extraction"
+    if progress:
+        progress.download_cell_error(cell_name, err)
+    else:
+        print(f"No .000 file found after extracting {cell_name}")
     return None

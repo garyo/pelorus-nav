@@ -284,18 +284,46 @@ export class PlottingLayer {
       },
     });
 
-    // Symbol layer (nav symbols: DR, fix, EP, running fix)
-    ensurePlotIcons(this.map);
+    // Drag handle points — added before icon-dependent layers so they
+    // always render even if canvas icon registration fails on some devices
+    // Use string "1"/"0" for selected to avoid boolean serialization issues
+    // on some mobile WebViews where true/false → 1/0
     this.map.addLayer({
-      id: LAYER_SYMBOLS,
-      type: "symbol",
-      source: SOURCE_SYMBOLS,
-      layout: {
-        "icon-image": PLOT_SHAPE_ICON_EXPR,
-        "icon-size": 1,
-        "icon-allow-overlap": true,
+      id: LAYER_POINTS,
+      type: "circle",
+      source: SOURCE_POINTS,
+      paint: {
+        "circle-radius": ["case", ["==", ["get", "mode"], "plot"], 8, 5],
+        "circle-color": [
+          "case",
+          ["==", ["get", "selected"], "1"],
+          "#4488cc",
+          "#333",
+        ],
+        "circle-stroke-color": "#fff",
+        "circle-stroke-width": 2,
+        "circle-opacity": ["case", ["==", ["get", "mode"], "plot"], 1, 0.6],
       },
     });
+
+    // Symbol icons (nav symbols: DR, fix, EP, running fix)
+    // Wrapped in try-catch: canvas icon registration can fail on some
+    // mobile WebViews — symbols degrade gracefully to just the label
+    try {
+      ensurePlotIcons(this.map);
+      this.map.addLayer({
+        id: LAYER_SYMBOLS,
+        type: "symbol",
+        source: SOURCE_SYMBOLS,
+        layout: {
+          "icon-image": PLOT_SHAPE_ICON_EXPR,
+          "icon-size": 1,
+          "icon-allow-overlap": true,
+        },
+      });
+    } catch {
+      console.warn("Plot symbol icons unavailable on this device");
+    }
 
     // Symbol labels (below the symbol)
     this.map.addLayer({
@@ -313,25 +341,6 @@ export class PlottingLayer {
         "text-color": "#222",
         "text-halo-color": "#fff",
         "text-halo-width": 1.5,
-      },
-    });
-
-    // Drag handle points (on top of everything)
-    this.map.addLayer({
-      id: LAYER_POINTS,
-      type: "circle",
-      source: SOURCE_POINTS,
-      paint: {
-        "circle-radius": ["case", ["==", ["get", "mode"], "plot"], 6, 4],
-        "circle-color": [
-          "case",
-          ["==", ["get", "selected"], true],
-          "#4488cc",
-          "#333",
-        ],
-        "circle-stroke-color": "#fff",
-        "circle-stroke-width": 2,
-        "circle-opacity": ["case", ["==", ["get", "mode"], "plot"], 1, 0.6],
       },
     });
   }
@@ -398,7 +407,7 @@ export class PlottingLayer {
             id: el.id,
             index: ptIdx++,
             mode: inPlotMode ? "plot" : "view",
-            selected: isSelected,
+            selected: isSelected ? "1" : "0",
           },
           geometry: { type: "Point", coordinates: [el.lon, el.lat] },
         });
@@ -434,7 +443,7 @@ export class PlottingLayer {
             id: el.id,
             index: ptIdx++,
             mode: inPlotMode ? "plot" : "view",
-            selected: isSelected,
+            selected: isSelected ? "1" : "0",
           },
           geometry: { type: "Point", coordinates: [el.lon1, el.lat1] },
         });
@@ -446,7 +455,7 @@ export class PlottingLayer {
             id: el.id,
             index: ptIdx++,
             mode: inPlotMode ? "plot" : "view",
-            selected: isSelected,
+            selected: isSelected ? "1" : "0",
           },
           geometry: { type: "Point", coordinates: [el.lon2, el.lat2] },
         });
@@ -496,7 +505,7 @@ export class PlottingLayer {
             id: el.id,
             index: ptIdx++,
             mode: inPlotMode ? "plot" : "view",
-            selected: isSelected,
+            selected: isSelected ? "1" : "0",
           },
           geometry: { type: "Point", coordinates: [el.lon, el.lat] },
         });
@@ -514,7 +523,7 @@ export class PlottingLayer {
             id: el.id,
             index: ptIdx++,
             mode: inPlotMode ? "plot" : "view",
-            selected: isSelected,
+            selected: isSelected ? "1" : "0",
           },
           geometry: { type: "Point", coordinates: [el.lon, el.lat] },
         });
@@ -530,7 +539,7 @@ export class PlottingLayer {
           id: "__pending",
           index: ptIdx++,
           mode: "plot",
-          selected: false,
+          selected: "0",
         },
         geometry: {
           type: "Point",

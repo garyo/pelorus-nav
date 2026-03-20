@@ -164,6 +164,164 @@ class PipelineProgress:
 
         self._live.update(lines)  # type: ignore[union-attr]
 
+    # ── Download phase ──
+
+    def download_start(self, total_cells: int, max_workers: int) -> None:
+        """Signal start of download phase."""
+        self._dl_total = total_cells
+        self._dl_done = 0
+        self._dl_failed = 0
+        self._dl_skipped = 0
+        self._dl_max_workers = max_workers
+        self._dl_worker_slots: dict[int, _CellState | None] = {
+            i: None for i in range(1, max_workers + 1)
+        }
+        self._dl_cell_to_slot: dict[str, int] = {}
+        if self._use_rich:
+            self._start_live()
+            self._update_download_display()
+        else:
+            print(
+                f"Downloading {total_cells} cells"
+                f" ({max_workers} parallel)..."
+            )
+
+    def download_cell_started(self, cell_name: str) -> None:
+        """Signal a cell download has started."""
+        with self._lock:
+            slot_id = None
+            for sid, state in self._dl_worker_slots.items():
+                if state is None or state.step in ("done", "error", "skipped"):
+                    slot_id = sid
+                    break
+            if slot_id is None:
+                slot_id = 1
+            cell_state = _CellState(name=cell_name, step="downloading")
+            self._dl_worker_slots[slot_id] = cell_state
+            self._dl_cell_to_slot[cell_name] = slot_id
+        if self._use_rich:
+            with self._lock:
+                self._update_download_display()
+
+    def download_cell_extracting(self, cell_name: str) -> None:
+        """Signal a cell is being extracted."""
+        with self._lock:
+            slot_id = self._dl_cell_to_slot.get(cell_name)
+            if slot_id is not None:
+                cell_state = self._dl_worker_slots.get(slot_id)
+                if cell_state is not None:
+                    cell_state.step = "extracting"
+        if self._use_rich:
+            with self._lock:
+                self._update_download_display()
+
+    def download_cell_done(self, cell_name: str) -> None:
+        """Signal a cell download completed successfully."""
+        with self._lock:
+            self._dl_done += 1
+            slot_id = self._dl_cell_to_slot.get(cell_name)
+            if slot_id is not None:
+                cell_state = self._dl_worker_slots.get(slot_id)
+                if cell_state is not None:
+                    cell_state.step = "done"
+        if self._use_rich:
+            with self._lock:
+                self._update_download_display()
+        elif not self.verbose:
+            done = self._dl_done + self._dl_failed
+            total = self._dl_total
+            if done % 50 == 0 or done == total:
+                print(f"  ... {done}/{total}")
+
+    def download_cell_error(self, cell_name: str, error: str) -> None:
+        """Signal a cell download failed."""
+        with self._lock:
+            self._dl_failed += 1
+            slot_id = self._dl_cell_to_slot.get(cell_name)
+            if slot_id is not None:
+                cell_state = self._dl_worker_slots.get(slot_id)
+                if cell_state is not None:
+                    cell_state.step = "error"
+                    cell_state.error = error
+            self.errors.append(f"Download {cell_name}: {error}")
+        if self._use_rich:
+            with self._lock:
+                self._update_download_display()
+        else:
+            print(f"  Error downloading {cell_name}: {error}")
+
+    def download_cell_skipped(self, cell_name: str) -> None:
+        """Signal a cell was skipped (already up to date)."""
+        with self._lock:
+            self._dl_skipped += 1
+
+    def download_complete(self) -> None:
+        """Signal download phase complete."""
+        self._stop_live()
+        done = self._dl_done
+        failed = self._dl_failed
+        skipped = self._dl_skipped
+        if self._use_rich:
+            console = self._get_console()
+            parts = [f"{done} downloaded"]
+            if failed:
+                parts.append(f"[red]{failed} failed[/red]")
+            if skipped:
+                parts.append(f"{skipped} skipped")
+            console.print(  # type: ignore[union-attr]
+                f"[bold]Download complete[/bold] \u2014 {', '.join(parts)}"
+            )
+        else:
+            print(f"Downloaded {done} cells ({failed} failed, {skipped} skipped)")
+
+    def _update_download_display(self) -> None:
+        """Update the download progress display."""
+        if not self._use_rich or self._live is None:
+            return
+        from rich.text import Text
+
+        text = Text()
+        done_total = self._dl_done + self._dl_failed
+        pct = int(done_total / self._dl_total * 100) if self._dl_total > 0 else 0
+        bar_width = 40
+        filled = int(bar_width * done_total / self._dl_total) if self._dl_total > 0 else 0
+        bar = "\u2501" * filled + "\u2591" * (bar_width - filled)
+
+        text.append(
+            f"Downloading {self._dl_total} cells"
+            f" ({self._dl_max_workers} workers)\n",
+            style="bold",
+        )
+        text.append(
+            f"{bar} {done_total}/{self._dl_total}"
+            f" cells  {pct}%\n\n",
+        )
+
+        for slot_id in sorted(self._dl_worker_slots):
+            cell_state = self._dl_worker_slots[slot_id]
+            if cell_state is None:
+                text.append(f"  [{slot_id}] ", style="dim")
+                text.append("(idle)\n", style="dim")
+            elif cell_state.step == "done":
+                text.append(f"  [{slot_id}] {cell_state.name}  ", style="dim")
+                text.append("\u2713 done\n", style="green")
+            elif cell_state.step == "error":
+                text.append(f"  [{slot_id}] {cell_state.name}  ", style="dim")
+                text.append(f"\u2717 {cell_state.error}\n", style="red")
+            elif cell_state.step == "extracting":
+                text.append(f"  [{slot_id}] {cell_state.name}  ")
+                text.append("extracting\n", style="yellow")
+            else:
+                text.append(f"  [{slot_id}] {cell_state.name}  ")
+                text.append("downloading\n")
+
+        if self.errors:
+            text.append("\n")
+            for err in self.errors[-5:]:
+                text.append(f"  \u2717 {err}\n", style="red")
+
+        self._live.update(text)  # type: ignore[union-attr]
+
     # ── Pass 1: Scanning ──
 
     def scan_start(self, total_cells: int) -> None:
