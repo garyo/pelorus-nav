@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" version="1.2" baseProfile="tiny" xml:space="preserve" shape-rendering="geometricPrecision" fill-rule="evenodd" width="30" height="20" viewBox="-2.8 -1.85 5.6 3.7">
+  <title>BOYSUP02</title>
+  <desc>super-buoy ODAS + LANBY, simplified</desc>
+  <metadata>
+    <iho:S100SVG xmlns:iho="http://www.iho.int/SVGMetadata/5.2">
+      <iho:Description iho:publisher="IHB" iho:creationDate="2014-06-09" iho:source="S52Preslib4.0" iho:format="S100SVG" iho:version="0.1"/>
+    </iho:S100SVG>
+  </metadata>
+  
+  
+  <!-- Trapezoid fill (wider at bottom = hull, narrower at top = deck) -->
+  <polygon points="-2.5,1.55 -1.85,-0.3 1.85,-0.3 2.5,1.55" fill="#000000"/>
+  <!-- Trapezoid outline (three sides: left, top, right; bottom is waterline) -->
+  <polygon stroke-width="0.25" points="-2.5,1.55 -1.85,-0.3 1.85,-0.3 2.5,1.55" fill="none" stroke="#000000" stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- Mast extending upward from center of deck -->
+  <line stroke-width="0.25" x1="0" y1="-0.3" x2="0" y2="-1.55" stroke="#000000" stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- Position indicator -->
+  <circle cx="0" cy="0.4" r="0.15" fill="#000000"/>
+  
+</svg>

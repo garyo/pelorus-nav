@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<?xml-stylesheet href="daySvgStyle.css" type="text/css"?>
+<svg xmlns="http://www.w3.org/2000/svg" version="1.2" baseProfile="tiny" xml:space="preserve" shape-rendering="geometricPrecision" fill-rule="evenodd" width="7.84mm" height="5.18mm" viewBox="-2.8 -1.85 5.6 3.7">
+  <title>BOYSUP02</title>
+  <desc>super-buoy ODAS + LANBY, simplified</desc>
+  <metadata>
+    <iho:S100SVG xmlns:iho="http://www.iho.int/SVGMetadata/5.2">
+      <iho:Description iho:publisher="IHB" iho:creationDate="2014-06-09" iho:source="S52Preslib4.0" iho:format="S100SVG" iho:version="0.1"/>
+    </iho:S100SVG>
+  </metadata>
+  <rect class="symbolBox layout" fill="none" x="-2.5" y="-1.55" height="3.1" width="5.0"/>
+  <rect class="svgBox layout" fill="none" x="-2.8" y="-1.85" height="3.7" width="5.6"/>
+  <!-- Trapezoid fill (wider at bottom = hull, narrower at top = deck) -->
+  <polygon class="fCHBLK" points="-2.5,1.55 -1.85,-0.3 1.85,-0.3 2.5,1.55"/>
+  <!-- Trapezoid outline (three sides: left, top, right; bottom is waterline) -->
+  <polygon class="f0 sCHBLK sl" stroke-width="0.25" points="-2.5,1.55 -1.85,-0.3 1.85,-0.3 2.5,1.55"/>
+  <!-- Mast extending upward from center of deck -->
+  <line class="sCHBLK sl" stroke-width="0.25" x1="0" y1="-0.3" x2="0" y2="-1.55"/>
+  <!-- Position indicator -->
+  <circle class="fCHBLK" cx="0" cy="0.4" r="0.15"/>
+  <circle class="pivotPoint layout" fill="none" cx="0" cy="0.4" r="1"/>
+</svg>

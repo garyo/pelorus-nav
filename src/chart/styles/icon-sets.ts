@@ -136,7 +136,7 @@ export const IHO_S52: Record<string, string> = {
   safewater: "BOYSAW12",
   special: "BOYSPP11",
   "special-wo": "BOYSPP35",
-  superbuoy: "BOYSPP15",
+  superbuoy: "BOYSUP02",
   "isolated-danger": "BOYISD12",
 
   // Cardinal buoys
@@ -243,6 +243,7 @@ const S52_OFFSETS: Record<string, [number, number]> = {
   BOYSPP15: [-2, 0],
   BOYSPP25: [-2, 0],
   BOYSPP35: [-2, 0],
+  BOYSUP02: [-2, 0],
   BCNLAT15: [0.5, 0],
   BCNLAT16: [0.5, 0],
   BCNCAR01: [0, 0],
@@ -509,6 +510,13 @@ export function buildLayerExpressions(
   const c1 = ["to-number", ["slice", afterFirst, 0, secondComma], 0];
   const isPrefPort = ["all", ["==", c0, RED], ["==", c1, GREEN]];
   const isPrefStbd = ["all", ["==", c0, GREEN], ["==", c1, RED]];
+  // S-52 BOYSPP01: CATSPM=9 (ODAS) and CATSPM=15 (LANBY) trigger the superbuoy trapezoid,
+  // same as BOYSHP=7. (Source: OpenCPN chartsymbols.xml lookup IDs 1053/1063)
+  // GDAL/ogr2ogr encodes StringList attributes as JSON arrays (e.g. ["9"]), so we
+  // check for the quoted value as a substring: "9" in ["9"] or ["9","15"].
+  const catsStr = ["to-string", ["coalesce", ["get", "CATSPM"], ""]];
+  const isSuperbuoyByCat = ["any", ["in", '"9"', catsStr], ["in", '"15"', catsStr]];
+
   switch (layerName) {
     // ── Simple constants ─────────────────────────────────────────────────
     case "BOYSAW":
@@ -654,7 +662,8 @@ export function buildLayerExpressions(
         isPrefPort, sp("preferred-port"),
         isPrefStbd, sp("preferred-stbd"),
         ["all", colContains(WHITE), colContains(ORANGE)], sp("special-wo"),
-        ["==", ["get", "BOYSHP"], SUPER], sp("superbuoy"),
+        // Superbuoys: BOYSHP=7, CATSPM=9 (ODAS), or CATSPM=15 (LANBY)
+        ["any", ["==", ["get", "BOYSHP"], SUPER], isSuperbuoyByCat], sp("superbuoy"),
         sp("special"),
       ] as unknown as ExpressionSpecification;
       const oPrefPort = off(sp("preferred-port"));
@@ -671,7 +680,7 @@ export function buildLayerExpressions(
             isPrefPort, ["literal", oPrefPort],
             isPrefStbd, ["literal", oPrefStbd],
             ["all", colContains(WHITE), colContains(ORANGE)], ["literal", oSpecialWo],
-            ["==", ["get", "BOYSHP"], SUPER], ["literal", oSuperbuoy],
+            ["any", ["==", ["get", "BOYSHP"], SUPER], isSuperbuoyByCat], ["literal", oSuperbuoy],
             ["literal", oSpecial],
           ] as unknown as ExpressionSpecification)
         : null;
