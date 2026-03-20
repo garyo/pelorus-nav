@@ -85,6 +85,12 @@ export class PlottingLayer {
   private segmentTouchMove: ((e: TouchEvent) => void) | null = null;
   private segmentTouchEnd: ((e: TouchEvent) => void) | null = null;
 
+  /** Touch tap detector for selection (works around DraggablePoints eating touch events). */
+  private tapTouchStart: ((e: TouchEvent) => void) | null = null;
+  private tapTouchEnd: ((e: TouchEvent) => void) | null = null;
+  private tapStartPoint: { x: number; y: number } | null = null;
+  private tapStartTime = 0;
+
   /** Bearing/text input popup element, if open. */
   private popupInputEl: HTMLDivElement | null = null;
 
@@ -573,12 +579,88 @@ export class PlottingLayer {
 
   // --- Interaction ---
 
+  /** Install touch tap detector for element selection on mobile. */
+  private installTapHandler(): void {
+    this.removeTapHandler();
+    const canvas = this.map.getCanvas();
+    const TAP_THRESHOLD = 10; // px
+    const TAP_MAX_MS = 300;
+
+    this.tapTouchStart = (e: TouchEvent) => {
+      if (e.touches.length !== 1) return;
+      const t = e.touches[0];
+      this.tapStartPoint = { x: t.clientX, y: t.clientY };
+      this.tapStartTime = Date.now();
+    };
+
+    this.tapTouchEnd = (e: TouchEvent) => {
+      if (!this.tapStartPoint) return;
+      if (getMode() !== "plot") return;
+      if (this.toolbar.getTool() !== "none") return;
+      const elapsed = Date.now() - this.tapStartTime;
+      if (elapsed > TAP_MAX_MS) return;
+
+      // Use changedTouches for the lift-off position
+      const t = e.changedTouches[0];
+      if (!t) return;
+      const dx = t.clientX - this.tapStartPoint.x;
+      const dy = t.clientY - this.tapStartPoint.y;
+      if (dx * dx + dy * dy > TAP_THRESHOLD * TAP_THRESHOLD) return;
+
+      // It's a tap — do selection query
+      const rect = canvas.getBoundingClientRect();
+      const point: [number, number] = [
+        t.clientX - rect.left,
+        t.clientY - rect.top,
+      ];
+      const hitLayers = [
+        LAYER_POINTS,
+        LAYER_LINES,
+        LAYER_SYMBOLS,
+        LAYER_LABELS,
+        LAYER_LINE_LABELS,
+        LAYER_SYM_LABELS,
+      ].filter((id) => this.map.getLayer(id));
+      const features = this.map.queryRenderedFeatures(point, {
+        layers: hitLayers,
+      });
+      if (features.length > 0) {
+        const id = features[0].properties?.id as string;
+        if (id && id !== "__pending") {
+          this.selectElement(id);
+          return;
+        }
+      }
+      this.selectElement(null);
+    };
+
+    canvas.addEventListener("touchstart", this.tapTouchStart, {
+      passive: true,
+    });
+    canvas.addEventListener("touchend", this.tapTouchEnd);
+  }
+
+  private removeTapHandler(): void {
+    const canvas = this.map.getCanvas();
+    if (this.tapTouchStart) {
+      canvas.removeEventListener("touchstart", this.tapTouchStart);
+      this.tapTouchStart = null;
+    }
+    if (this.tapTouchEnd) {
+      canvas.removeEventListener("touchend", this.tapTouchEnd);
+      this.tapTouchEnd = null;
+    }
+    this.tapStartPoint = null;
+  }
+
   private installClickHandler(): void {
     this.removeClickHandler();
     // Also install segment drag-to-draw if segment tool is active
     if (this.toolbar.getTool() === "segment") {
       this.installSegmentDraw();
     }
+    // Touch tap handler for selection on mobile
+    this.installTapHandler();
 
     this.clickHandler = (e: maplibregl.MapMouseEvent) => {
       if (getMode() !== "plot") return;
@@ -627,6 +709,7 @@ export class PlottingLayer {
       this.map.off("click", this.clickHandler);
       this.clickHandler = null;
     }
+    this.removeTapHandler();
   }
 
   /** Install mousedown/mousemove/mouseup for drag-to-draw segment lines. */
