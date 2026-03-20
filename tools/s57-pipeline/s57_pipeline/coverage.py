@@ -16,6 +16,7 @@ from shapely.geometry.base import BaseGeometry
 
 from .convert import read_dsid_metadata
 from .scamin import cscl_to_scale_band, intu_to_scale_band
+from .state import StateDB
 
 
 def extract_coverage_polygon(enc_path: Path) -> BaseGeometry | None:
@@ -331,15 +332,20 @@ def _scan_one_cell(enc_path: Path) -> CellMetadata:
 def scan_all_cells(
     enc_files: list[Path],
     jobs: int = 0,
+    db: StateDB | None = None,
 ) -> list[CellMetadata]:
     """Scan DSID metadata and M_COVR coverage for all cells in parallel.
 
     Combines INTU/CSCL reading and M_COVR extraction into a single
     parallel pass using threads (subprocess I/O bound, not CPU bound).
 
+    When a StateDB is provided, uses cached scan results for cells whose
+    NOAA date hasn't changed, avoiding ~2 subprocess calls per cache hit.
+
     Args:
         enc_files: List of ENC file paths.
         jobs: Number of parallel workers (0 = auto).
+        db: Optional StateDB for scan caching.
 
     Returns:
         List of CellMetadata, one per input cell.
@@ -348,19 +354,54 @@ def scan_all_cells(
         jobs = max(1, (os.cpu_count() or 4) - 1)
 
     results: list[CellMetadata] = []
+    to_scan: list[Path] = []
+    cache_hits = 0
 
+    # Check cache for each cell
+    for enc_path in enc_files:
+        if db is not None:
+            cell_name = enc_path.stem
+            noaa_date = db.get_noaa_date(cell_name)
+            cached = db.get_scan_cache(cell_name)
+            if cached is not None and noaa_date and cached[0] == noaa_date:
+                # Cache hit — reconstruct CellMetadata from cached values
+                coverage = _wkb_to_coverage(cached[4])
+                results.append(CellMetadata(
+                    enc_path=enc_path,
+                    intu=cached[1],
+                    cscl=cached[2],
+                    scale_band=cached[3],
+                    coverage=coverage,
+                ))
+                cache_hits += 1
+                continue
+        to_scan.append(enc_path)
+
+    if cache_hits:
+        print(f"  Scan cache: {cache_hits} hits, {len(to_scan)} misses")
+
+    # Scan cache misses in parallel
     with ThreadPoolExecutor(max_workers=jobs) as executor:
         futures = {
             executor.submit(_scan_one_cell, enc_path): enc_path
-            for enc_path in enc_files
+            for enc_path in to_scan
         }
         for future in as_completed(futures):
             enc_path = futures[future]
             try:
-                results.append(future.result())
+                meta = future.result()
+                results.append(meta)
+                # Write to cache
+                if db is not None:
+                    noaa_date = db.get_noaa_date(enc_path.stem) or ""
+                    coverage_wkb = _coverage_to_wkb(meta.coverage)
+                    db.set_scan_cache(
+                        enc_path.stem, noaa_date,
+                        meta.intu, meta.cscl, meta.scale_band,
+                        coverage_wkb,
+                    )
             except Exception as e:
                 print(f"  Error scanning {enc_path.stem}: {e}")
-                # Return a stub so pipeline can continue
                 results.append(CellMetadata(
                     enc_path=enc_path,
                     intu=None,
@@ -370,3 +411,19 @@ def scan_all_cells(
                 ))
 
     return results
+
+
+def _coverage_to_wkb(geom: BaseGeometry | None) -> bytes | None:
+    """Serialize a Shapely geometry to WKB bytes."""
+    if geom is None:
+        return None
+    from shapely import wkb
+    return wkb.dumps(geom)
+
+
+def _wkb_to_coverage(data: bytes | None) -> BaseGeometry | None:
+    """Deserialize WKB bytes to a Shapely geometry."""
+    if data is None:
+        return None
+    from shapely import wkb
+    return wkb.loads(data)

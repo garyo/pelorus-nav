@@ -28,6 +28,7 @@ from .scamin import (
     intu_to_scale_band,
     intu_to_zoom_range,
 )
+from .state import StateDB, compute_config_hash, is_cell_dirty, is_region_dirty, migrate_json_state
 from .tile import tile_geojson_files
 
 
@@ -130,9 +131,8 @@ def _check_cell_head(cell: str, timeout: int = 15) -> tuple[str, str]:
 
 def cmd_download(args: argparse.Namespace) -> None:
     """Download ENC cells from NOAA."""
-    import json
-
     output_dir = Path(args.output)
+    db = StateDB()
 
     if args.cell:
         cells = args.cell
@@ -148,14 +148,12 @@ def cmd_download(args: argparse.Namespace) -> None:
         cells = get_region_cells("boston-test")
         print(f"Downloading {len(cells)} boston-test cells (default)...")
 
-    # Load state file so we can detect cells changed on NOAA
-    state_file = Path(args.output).parent / "enc-update-state.json"
-    state: dict[str, dict[str, str]] = {}
-    if state_file.exists():
-        try:
-            state = json.loads(state_file.read_text())
-        except Exception:
-            pass
+    # Load NOAA date state from DB (migrate legacy JSON on first run)
+    migrate_json_state(db, Path(args.output).parent / "enc-update-state.json")
+    noaa_state = db.get_all_noaa_state()
+    state: dict[str, dict[str, str]] = {
+        name: {"last_modified": date} for name, date in noaa_state.items()
+    }
 
     # Decide which cells need downloading
     force: bool = getattr(args, "force", False)
@@ -186,6 +184,8 @@ def cmd_download(args: argparse.Namespace) -> None:
                 futures = {pool.submit(_check_cell_head, c): c for c in present}
                 for future in as_completed(futures):
                     cell_name, noaa_date = future.result()
+                    if noaa_date:
+                        db.upsert_noaa_state(cell_name, noaa_date)
                     stored_date = state.get(cell_name, {}).get("last_modified", "")
                     if noaa_date and noaa_date != stored_date:
                         to_download.append(cell_name)
@@ -463,11 +463,18 @@ def cmd_pipeline(args: argparse.Namespace) -> None:
 
     progress = PipelineProgress(verbose=verbose)
 
+    # Open state DB and migrate legacy JSON state
+    db = StateDB()
+    migrate_json_state(db, Path("data/enc-update-state.json"))
+    zoom_shift = getattr(args, "zoom_shift", 0)
+    config_hash = compute_config_hash(zoom_shift)
+    progress.info(f"Config hash: {config_hash}")
+
     # Pass 1: Scan INTU values and M_COVR coverage polygons (parallel)
     pass1_start = time.monotonic()
     scan_workers = max(1, args.jobs if args.jobs else (os.cpu_count() or 4) - 1)
     progress.scan_start(len(enc_files))
-    cell_metas = scan_all_cells(enc_files, jobs=scan_workers)
+    cell_metas = scan_all_cells(enc_files, jobs=scan_workers, db=db)
 
     # Build lookup dicts from scan results
     present_intus: set[int] = set()
@@ -507,8 +514,20 @@ def cmd_pipeline(args: argparse.Namespace) -> None:
     # Pass 2: Convert and tile each cell independently
     pass2_start = time.monotonic()
     if not composite_only:
+        # Filter to dirty cells (unless --force)
+        if args.force:
+            cells_to_process = enc_files
+        else:
+            cells_to_process = [
+                p for p in enc_files
+                if is_cell_dirty(p.stem, db, config_hash, work_dir)
+            ]
+        skipped_cells = len(enc_files) - len(cells_to_process)
+        if skipped_cells:
+            progress.info(f"Pass 2: Skipping {skipped_cells} unchanged cells")
+
         max_workers = max(1, args.jobs if args.jobs else (os.cpu_count() or 4) - 3)
-        progress.process_start(len(enc_files), max_workers)
+        progress.process_start(len(cells_to_process), max_workers)
 
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
             futures = {
@@ -516,20 +535,48 @@ def cmd_pipeline(args: argparse.Namespace) -> None:
                     _process_cell, enc_path, work_dir, args.force,
                     intu_zoom_ranges, progress,
                 ): enc_path
-                for enc_path in enc_files
+                for enc_path in cells_to_process
             }
             for future in as_completed(futures):
                 enc_path = futures[future]
                 try:
-                    future.result()
+                    tiles, _band = future.result()
+                    # Record successful build in state DB
+                    noaa_date = db.get_noaa_date(enc_path.stem) or ""
+                    db.set_build_state(
+                        enc_path.stem, noaa_date, config_hash,
+                        len(tiles), success=True,
+                    )
                 except Exception as e:
                     progress.cell_error(enc_path.stem, str(e))
+                    noaa_date = db.get_noaa_date(enc_path.stem) or ""
+                    db.set_build_state(
+                        enc_path.stem, noaa_date, config_hash,
+                        0, success=False,
+                    )
         pass2_elapsed = time.monotonic() - pass2_start
         progress.process_complete(pass2_elapsed)
     else:
         progress.info("Pass 2: Skipped (--composite-only)")
 
     # Pass 3: Composite tiles using M_COVR coverage
+    # Check if region needs recompositing
+    region_name = args.region or "default"
+    region_cell_names = [p.stem for p in enc_files]
+    if not args.force and not composite_only and not is_region_dirty(
+        region_name, db, config_hash, region_cell_names,
+    ):
+        pipeline_elapsed = time.monotonic() - pipeline_start
+        progress.info(f"Pass 3: Region '{region_name}' unchanged, skipping composite")
+        progress.print_summary(
+            total_elapsed=pipeline_elapsed,
+            output_path=str(output_path),
+            cells_processed=len(enc_files),
+            total_tiles=0,
+        )
+        db.close()
+        return
+
     pass3_start = time.monotonic()
     sources = _build_composite_sources(enc_files, cell_coverage, cell_bands, work_dir)
     if not sources:
@@ -648,6 +695,19 @@ def cmd_pipeline(args: argparse.Namespace) -> None:
                     )
                 )
                 sys.exit(1)
+
+    # Record composite state and cell snapshot
+    output_size = output_path.stat().st_size if output_path.exists() else 0
+    db.set_composite_state(
+        region_name, config_hash, output_size,
+        output_checksum=None, success=True,
+    )
+    snapshot = {
+        p.stem: (db.get_noaa_date(p.stem) or "", config_hash)
+        for p in enc_files
+    }
+    db.set_region_cell_snapshot(region_name, snapshot)
+    db.close()
 
     pipeline_elapsed = time.monotonic() - pipeline_start
     progress.print_summary(

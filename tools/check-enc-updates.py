@@ -33,6 +33,7 @@ PIPELINE_DIR = TOOLS_DIR / "s57-pipeline"
 sys.path.insert(0, str(PIPELINE_DIR))
 
 from s57_pipeline.regions import REGIONS, get_region_cells  # noqa: E402
+from s57_pipeline.state import StateDB  # noqa: E402
 
 NOAA_BASE = "https://charts.noaa.gov/ENCs"
 STATE_FILE = PIPELINE_DIR / "data" / "enc-update-state.json"
@@ -62,15 +63,34 @@ def check_cell(
         return (cell, f"error:{e}", "")
 
 
+def _open_db() -> StateDB:
+    return StateDB(PIPELINE_DIR / "data" / "pipeline-state.db")
+
+
 def load_state() -> dict[str, dict[str, str]]:
+    """Load NOAA state from the pipeline state DB (with JSON fallback)."""
+    # Migrate legacy JSON if DB is empty
+    db = _open_db()
+    from s57_pipeline.state import migrate_json_state  # noqa: E402
+    migrate_json_state(db, STATE_FILE)
+    all_state = db.get_all_noaa_state()
+    db.close()
+    if all_state:
+        return {name: {"last_modified": date} for name, date in all_state.items()}
+    # Legacy fallback
     if STATE_FILE.exists():
         return json.loads(STATE_FILE.read_text())
     return {}
 
 
 def save_state(state: dict[str, dict[str, str]]) -> None:
-    STATE_FILE.parent.mkdir(parents=True, exist_ok=True)
-    STATE_FILE.write_text(json.dumps(state, indent=2, sort_keys=True) + "\n")
+    """Save NOAA state to the pipeline state DB."""
+    db = _open_db()
+    for cell_name, info in state.items():
+        last_mod = info.get("last_modified", "")
+        if last_mod:
+            db.upsert_noaa_state(cell_name, last_mod)
+    db.close()
 
 
 def main() -> None:
