@@ -190,6 +190,7 @@ export class PlottingLayer {
     this.toolbar.setTool("segment");
     this.segmentStart = { lat, lon };
     this.toolbar.setStatus("Drag to set endpoint");
+    this.installSegmentDraw();
     this.updateSources();
   }
 
