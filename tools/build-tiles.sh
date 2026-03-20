@@ -25,6 +25,14 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_DIR="$SCRIPT_DIR/.."
+
+# Load .env for R2 upload credentials (if present)
+if [[ -f "$PROJECT_DIR/.env" ]]; then
+  set -a
+  # shellcheck source=/dev/null
+  source "$PROJECT_DIR/.env"
+  set +a
+fi
 PIPELINE_DIR="$SCRIPT_DIR/s57-pipeline"
 OUTPUT_DIR="$PROJECT_DIR/public"
 STAMP_DIR="$OUTPUT_DIR"
