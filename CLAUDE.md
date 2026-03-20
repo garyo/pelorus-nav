@@ -77,6 +77,10 @@ All tile workflows go through `tools/build-tiles.sh` (run `--help` for full usag
 - `bun run cap:run` — build, sync, and run on connected device/emulator
 - `bun run cap:build` — build, sync, and assemble debug APK
 - PMTiles and coverage GeoJSON are excluded from the Android bundle (stripped from `dist/`)
+- Vite copies all of `public/` into `dist/` during build (no way to exclude files). The cap scripts
+  then `rm -f dist/*.pmtiles dist/*.coverage.geojson` before syncing to Android to keep the APK small.
+  The originals in `public/` are untouched — the dev server (`bun run dev`) serves from `public/` directly,
+  so running `cap:build` while the dev server is active is safe.
 
 ## References
 - S-52 compliant chart sprites: https://github.com/openwatersio/enc-tiles
