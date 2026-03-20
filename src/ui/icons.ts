@@ -153,6 +153,13 @@ export const iconMinimize = svg(
     '<line x1="10" y1="14" x2="3" y2="21"/>',
 );
 
+/** Plotting / drafting compass (two lines crossing). */
+export const iconPlot = svg(
+  '<line x1="4" y1="20" x2="20" y2="4"/>' +
+    '<line x1="4" y1="4" x2="20" y2="20"/>' +
+    '<circle cx="12" cy="12" r="2"/>',
+);
+
 /**
  * Set an element's innerHTML to an icon SVG.
  * Marks the SVG as aria-hidden so screen readers skip the decorative icon.

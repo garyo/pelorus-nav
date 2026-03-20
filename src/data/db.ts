@@ -3,6 +3,7 @@
  * Thin wrapper — no library dependency.
  */
 
+import type { PlottingSheet } from "../map/plotting/PlottingTypes";
 import type { Route } from "./Route";
 import type { TrackMeta, TrackPoint } from "./Track";
 import type { StandaloneWaypoint } from "./Waypoint";
@@ -10,7 +11,7 @@ import type { StandaloneWaypoint } from "./Waypoint";
 const DB_NAME = "pelorus-nav";
 // Bump DB_VERSION when adding/removing stores or indexes. In onupgradeneeded,
 // check oldVersion and apply incremental migrations (e.g. if (oldVersion < 2) ...).
-const DB_VERSION = 2;
+const DB_VERSION = 3;
 
 let dbPromise: Promise<IDBDatabase> | null = null;
 
@@ -31,6 +32,9 @@ function openDB(): Promise<IDBDatabase> {
       }
       if (oldVersion < 2) {
         db.createObjectStore("waypoints", { keyPath: "id" });
+      }
+      if (oldVersion < 3) {
+        db.createObjectStore("plottingSheets", { keyPath: "id" });
       }
     };
     req.onsuccess = () => resolve(req.result);
@@ -165,6 +169,40 @@ export async function deleteWaypoint(id: string): Promise<void> {
   return new Promise((resolve, reject) => {
     const tx = db.transaction("waypoints", "readwrite");
     tx.objectStore("waypoints").delete(id);
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+}
+
+// --- Plotting Sheets ---
+
+export async function savePlottingSheet(sheet: PlottingSheet): Promise<void> {
+  const db = await openDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction("plottingSheets", "readwrite");
+    tx.objectStore("plottingSheets").put(sheet);
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+}
+
+export async function getPlottingSheet(
+  id: string,
+): Promise<PlottingSheet | undefined> {
+  const db = await openDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction("plottingSheets", "readonly");
+    const req = tx.objectStore("plottingSheets").get(id);
+    req.onsuccess = () => resolve(req.result as PlottingSheet | undefined);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+export async function deletePlottingSheet(id: string): Promise<void> {
+  const db = await openDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction("plottingSheets", "readwrite");
+    tx.objectStore("plottingSheets").delete(id);
     tx.oncomplete = () => resolve();
     tx.onerror = () => reject(tx.error);
   });

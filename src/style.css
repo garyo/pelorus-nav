@@ -404,6 +404,28 @@ body {
   background: rgba(100, 130, 200, 0.3);
 }
 
+/* Submenu support */
+.map-context-submenu-parent {
+  position: relative;
+}
+
+.map-context-submenu {
+  display: none;
+  position: absolute;
+  left: 100%;
+  top: -4px;
+  background: rgba(30, 30, 50, 0.95);
+  border: 1px solid #555;
+  border-radius: 6px;
+  padding: 4px 0;
+  min-width: 140px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+}
+
+.map-context-submenu-parent:hover > .map-context-submenu {
+  display: block;
+}
+
 .map-context-input {
   width: calc(100% - 16px);
   margin: 4px 8px;
@@ -1179,7 +1201,8 @@ body {
   color: #cc3333;
 }
 
-[data-theme="night"] .map-context-menu {
+[data-theme="night"] .map-context-menu,
+[data-theme="night"] .map-context-submenu {
   background: rgba(26, 10, 10, 0.95);
   border-color: #442222;
   color: #cc3333;
@@ -1335,7 +1358,8 @@ body {
   color: #000000;
 }
 
-[data-theme="eink"] .map-context-menu {
+[data-theme="eink"] .map-context-menu,
+[data-theme="eink"] .map-context-submenu {
   background: #ffffff;
   border: 2px solid #000000;
   border-radius: 0;
@@ -1590,5 +1614,175 @@ body {
 [data-theme="eink"] .topbar-menu {
   background: #ffffff;
   border: 2px solid #000000;
+  border-radius: 0;
+}
+
+/* --- Plot toolbar --- */
+
+.plot-toolbar {
+  position: fixed;
+  top: 44px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(30, 30, 50, 0.92);
+  color: #fff;
+  padding: 6px 12px;
+  border-radius: 6px;
+  z-index: 10000;
+  font:
+    13px system-ui,
+    -apple-system,
+    sans-serif;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  min-width: 340px;
+  max-width: calc(100vw - 16px);
+}
+
+.plot-toolbar-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  justify-content: space-evenly;
+}
+
+.plot-toolbar-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+}
+
+.plot-toolbar-status {
+  font-size: 12px;
+  opacity: 0.7;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.plot-toolbar-btn {
+  background: #4488cc;
+  border: none;
+  color: #fff;
+  border-radius: 4px;
+  padding: 4px 8px;
+  cursor: pointer;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.plot-toolbar-btn:hover:not(:disabled) {
+  background: #5599dd;
+}
+
+.plot-toolbar-btn:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.plot-toolbar-btn.active {
+  background: #66aaee;
+  box-shadow: inset 0 0 0 2px #fff;
+}
+
+.plot-toolbar-btn--danger {
+  background: #cc3333;
+}
+
+.plot-toolbar-btn--danger:hover:not(:disabled) {
+  background: #dd4444;
+}
+
+.plot-toolbar-btn--secondary {
+  background: #555;
+}
+
+.plot-toolbar-btn--secondary:hover {
+  background: #777;
+}
+
+.plot-bearing-input {
+  position: fixed;
+  top: 82px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(30, 30, 50, 0.95);
+  padding: 8px 12px;
+  border-radius: 6px;
+  z-index: 10001;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+.plot-bearing-field {
+  width: 140px;
+  padding: 4px 8px;
+  border: 1px solid #666;
+  border-radius: 4px;
+  background: #222;
+  color: #fff;
+  font-size: 14px;
+  outline: none;
+}
+
+.plot-bearing-field:focus {
+  border-color: #4488cc;
+}
+
+.plot-toolbar-btn--sym {
+  min-width: 32px;
+  padding: 4px 5px;
+}
+
+.plot-toolbar-edit {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.plot-edit-field {
+  display: flex;
+  align-items: center;
+}
+
+/* Theme overrides for plot toolbar */
+
+[data-theme="night"] .plot-toolbar,
+[data-theme="night"] .plot-bearing-input {
+  background: rgba(30, 10, 10, 0.95);
+}
+
+[data-theme="eink"] .plot-toolbar,
+[data-theme="eink"] .plot-bearing-input {
+  background: #ffffff;
+  color: #000000;
+  border: 2px solid #000000;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+[data-theme="eink"] .plot-toolbar-btn {
+  background: #cccccc;
+  color: #000000;
+  border: 1px solid #000000;
+  border-radius: 0;
+}
+
+[data-theme="eink"] .plot-toolbar-btn.active {
+  background: #000000;
+  color: #ffffff;
+  box-shadow: none;
+}
+
+[data-theme="eink"] .plot-bearing-field {
+  background: #ffffff;
+  color: #000000;
+  border: 1px solid #000000;
   border-radius: 0;
 }

@@ -14,7 +14,9 @@ import { OPFSSource } from "./data/opfs-source";
 import { chartAssetBase } from "./data/remote-url";
 import { getChartFile, listStoredCharts } from "./data/tile-store";
 import { BearingLine } from "./map/BearingLine";
+import { getMode, setMode } from "./map/InteractionMode";
 import { MeasurementLayer } from "./map/MeasurementLayer";
+import { PlottingLayer } from "./map/plotting/PlottingLayer";
 import { RouteEditor } from "./map/RouteEditor";
 import { RouteLayer } from "./map/RouteLayer";
 import { TrackLayer } from "./map/TrackLayer";
@@ -42,6 +44,7 @@ import {
   iconMaximize,
   iconMinimize,
   iconPin,
+  iconPlot,
   iconRecord,
   iconRoute,
   iconTrack,
@@ -104,8 +107,11 @@ const MAP_POS_KEY = "pelorus-nav-map-position";
 const savedPos = (() => {
   try {
     const raw = localStorage.getItem(MAP_POS_KEY);
-    if (raw) return JSON.parse(raw) as { center: [number, number]; zoom: number };
-  } catch { /* ignore */ }
+    if (raw)
+      return JSON.parse(raw) as { center: [number, number]; zoom: number };
+  } catch {
+    /* ignore */
+  }
   return null;
 })();
 
@@ -127,7 +133,10 @@ chartManager.map.on("moveend", () => {
   const c = chartManager.map.getCenter();
   localStorage.setItem(
     MAP_POS_KEY,
-    JSON.stringify({ center: [c.lng, c.lat], zoom: chartManager.map.getZoom() }),
+    JSON.stringify({
+      center: [c.lng, c.lat],
+      zoom: chartManager.map.getZoom(),
+    }),
   );
 });
 
@@ -383,11 +392,35 @@ const ctxWaypoint = document.createElement("div");
 ctxWaypoint.className = "map-context-item";
 ctxWaypoint.textContent = "Mark waypoint here";
 
+// Plot submenu
+const ctxPlot = document.createElement("div");
+ctxPlot.className = "map-context-item map-context-submenu-parent";
+ctxPlot.textContent = "Plot \u25B8";
+
+const ctxPlotSub = document.createElement("div");
+ctxPlotSub.className = "map-context-submenu";
+
+const ctxPlotBearing = document.createElement("div");
+ctxPlotBearing.className = "map-context-item";
+ctxPlotBearing.textContent = "Bearing line";
+
+const ctxPlotLine = document.createElement("div");
+ctxPlotLine.className = "map-context-item";
+ctxPlotLine.textContent = "Segment line";
+
+const ctxPlotSymbol = document.createElement("div");
+ctxPlotSymbol.className = "map-context-item";
+ctxPlotSymbol.textContent = "Symbol";
+
+ctxPlotSub.append(ctxPlotBearing, ctxPlotLine, ctxPlotSymbol);
+ctxPlot.appendChild(ctxPlotSub);
+
 ctxMenu.append(
   ctxCopy,
   ctxWaypoint,
   ctxMeasure,
   ctxRoute,
+  ctxPlot,
   ctxGoto,
   ctxGotoInput,
 );
@@ -539,6 +572,24 @@ ctxGotoInput.addEventListener("keydown", (e) => {
   e.stopPropagation(); // don't let MapLibre handle these keys
 });
 
+// --- Plotting layer ---
+const plottingLayer = new PlottingLayer(chartManager.map);
+
+ctxPlotBearing.addEventListener("click", () => {
+  hideContextMenu();
+  plottingLayer.promptBearing(ctxLat, ctxLng);
+});
+
+ctxPlotLine.addEventListener("click", () => {
+  hideContextMenu();
+  plottingLayer.startSegmentFrom(ctxLat, ctxLng);
+});
+
+ctxPlotSymbol.addEventListener("click", () => {
+  hideContextMenu();
+  plottingLayer.placeSymbolAt(ctxLat, ctxLng);
+});
+
 // --- Measurement tool ---
 const measurementLayer = new MeasurementLayer(chartManager.map);
 ctxMeasure.addEventListener("click", () => {
@@ -571,11 +622,13 @@ ctxWaypoint.addEventListener("click", () => {
     .catch(console.error);
 });
 
-// ESC key: cancel active navigation or clear measurement
+// ESC key: cancel active navigation, exit plot mode, or clear measurement
 document.addEventListener("keydown", (e) => {
   if (e.key === "Escape") {
     if (activeNav.getState().type !== "idle") {
       activeNav.stop();
+    } else if (getMode() === "plot") {
+      setMode("query");
     } else {
       measurementLayer.clear();
     }
@@ -742,6 +795,18 @@ if (topbarMenu) {
   });
   topbarMenu.insertBefore(waypointBtn, settingsWrapper);
 
+  // Plot mode button
+  const plotBtn = document.createElement("button");
+  plotBtn.className = "settings-btn";
+  plotBtn.title = "Plot";
+  setIcon(plotBtn, iconPlot);
+  addMenuLabel(plotBtn, "Plot");
+  plotBtn.addEventListener("click", () => {
+    plottingLayer.enterPlotMode();
+    closeHamburger();
+  });
+  topbarMenu.insertBefore(plotBtn, settingsWrapper);
+
   // Chart cache panel button
   const cachePanel = new ChartCachePanel();
   cachePanel.setOnChartsChanged(() => {
@@ -847,7 +912,8 @@ function applyOverlayDimming(theme: string): void {
       id.startsWith("_route-line-") ||
       id.startsWith("_route-labels-") ||
       id === "_bearing-line-layer" ||
-      id === "_bearing-line-target";
+      id === "_bearing-line-target" ||
+      id.startsWith("_plot-");
 
     if (!isOverlay) continue;
 
