@@ -93,6 +93,16 @@ class TestSpecialBuoys:
         props = {"COLOUR": "3,4,3"}
         assert compute_symbol(props, "BOYSPP") == "preferred-port"
 
+    def test_superbuoy(self) -> None:
+        """BOYSHP=7 (superbuoy/LANBY) → trapezoid symbol."""
+        props = {"BOYSHP": 7}
+        assert compute_symbol(props, "BOYSPP") == "superbuoy"
+
+    def test_superbuoy_with_colour(self) -> None:
+        """Superbuoy with yellow colour still uses superbuoy symbol."""
+        props = {"BOYSHP": 7, "COLOUR": "6"}
+        assert compute_symbol(props, "BOYSPP") == "superbuoy"
+
 
 class TestColourParsing:
     """Test _parse_colours handles various GDAL output formats."""

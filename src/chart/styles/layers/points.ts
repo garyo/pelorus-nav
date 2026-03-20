@@ -52,14 +52,14 @@ function scaledSize(
 }
 
 /**
- * Add icon-offset to a symbol layer layout if the scheme has per-symbol offsets.
+ * Add icon-offset to a symbol layer layout if an offset expression is provided.
  */
 function withOffset(
   layout: SymbolLayerSpecification["layout"],
-  ctx: StyleContext,
+  offsetExpr: ExpressionSpecification | null,
 ): SymbolLayerSpecification["layout"] {
-  if (!ctx.iconOffsetExpr) return layout;
-  return { ...layout, "icon-offset": ctx.iconOffsetExpr };
+  if (!offsetExpr) return layout;
+  return { ...layout, "icon-offset": offsetExpr };
 }
 
 /** Soundings and light indicators (lower-priority nav aid symbols). */
@@ -111,6 +111,15 @@ export function getNavAidLayers(ctx: StyleContext): LayerSpecification[] {
  * characteristics when they share the same object.
  */
 export function getBuoyBeaconLayers(ctx: StyleContext): LayerSpecification[] {
+  const boylat = ctx.layerExprs("BOYLAT");
+  const boycar = ctx.layerExprs("BOYCAR");
+  const boysaw = ctx.layerExprs("BOYSAW");
+  const boyspp = ctx.layerExprs("BOYSPP");
+  const boyisd = ctx.layerExprs("BOYISD");
+  const bcnlat = ctx.layerExprs("BCNLAT");
+  const bcncar = ctx.layerExprs("BCNCAR");
+  const lights = ctx.layerExprs("LIGHTS");
+
   return [
     // Lateral buoys
     {
@@ -121,7 +130,7 @@ export function getBuoyBeaconLayers(ctx: StyleContext): LayerSpecification[] {
       minzoom: 8,
       layout: withOffset(
         {
-          "icon-image": ctx.iconExpr,
+          "icon-image": boylat.iconExpr,
           "icon-size": scaledSize(0.75, ctx),
           "icon-allow-overlap": true,
           "icon-ignore-placement": true,
@@ -131,7 +140,7 @@ export function getBuoyBeaconLayers(ctx: StyleContext): LayerSpecification[] {
           "text-allow-overlap": false,
           "text-optional": true,
         },
-        ctx,
+        boylat.offsetExpr,
       ),
       paint: {
         "text-color": ctx.colour("CHBLK"),
@@ -149,7 +158,7 @@ export function getBuoyBeaconLayers(ctx: StyleContext): LayerSpecification[] {
       minzoom: 8,
       layout: withOffset(
         {
-          "icon-image": ctx.iconExpr,
+          "icon-image": boycar.iconExpr,
           "icon-size": scaledSize(0.75, ctx),
           "icon-allow-overlap": true,
           "icon-ignore-placement": true,
@@ -159,7 +168,7 @@ export function getBuoyBeaconLayers(ctx: StyleContext): LayerSpecification[] {
           "text-allow-overlap": false,
           "text-optional": true,
         },
-        ctx,
+        boycar.offsetExpr,
       ),
       paint: {
         "text-color": ctx.colour("CHBLK"),
@@ -177,7 +186,7 @@ export function getBuoyBeaconLayers(ctx: StyleContext): LayerSpecification[] {
       minzoom: 8,
       layout: withOffset(
         {
-          "icon-image": ctx.iconExpr,
+          "icon-image": boysaw.iconExpr,
           "icon-size": scaledSize(0.75, ctx),
           "icon-allow-overlap": true,
           "icon-ignore-placement": true,
@@ -187,7 +196,7 @@ export function getBuoyBeaconLayers(ctx: StyleContext): LayerSpecification[] {
           "text-allow-overlap": false,
           "text-optional": true,
         },
-        ctx,
+        boysaw.offsetExpr,
       ),
       paint: {
         "text-color": ctx.colour("CHBLK"),
@@ -205,7 +214,7 @@ export function getBuoyBeaconLayers(ctx: StyleContext): LayerSpecification[] {
       minzoom: 8,
       layout: withOffset(
         {
-          "icon-image": ctx.iconExpr,
+          "icon-image": boyspp.iconExpr,
           "icon-size": scaledSize(0.7, ctx),
           "icon-allow-overlap": true,
           "icon-ignore-placement": true,
@@ -215,7 +224,7 @@ export function getBuoyBeaconLayers(ctx: StyleContext): LayerSpecification[] {
           "text-allow-overlap": false,
           "text-optional": true,
         },
-        ctx,
+        boyspp.offsetExpr,
       ),
       paint: {
         "text-color": ctx.colour("CHBLK"),
@@ -233,7 +242,7 @@ export function getBuoyBeaconLayers(ctx: StyleContext): LayerSpecification[] {
       minzoom: 6,
       layout: withOffset(
         {
-          "icon-image": ctx.iconExpr,
+          "icon-image": boyisd.iconExpr,
           "icon-size": scaledSize(0.75, ctx),
           "icon-allow-overlap": true,
           "icon-ignore-placement": true,
@@ -243,7 +252,7 @@ export function getBuoyBeaconLayers(ctx: StyleContext): LayerSpecification[] {
           "text-allow-overlap": false,
           "text-optional": true,
         },
-        ctx,
+        boyisd.offsetExpr,
       ),
       paint: {
         "text-color": ctx.colour("CHBLK"),
@@ -261,7 +270,7 @@ export function getBuoyBeaconLayers(ctx: StyleContext): LayerSpecification[] {
       minzoom: 8,
       layout: withOffset(
         {
-          "icon-image": ctx.iconExpr,
+          "icon-image": bcnlat.iconExpr,
           "icon-size": scaledSize(0.7, ctx),
           "icon-allow-overlap": true,
           "icon-ignore-placement": true,
@@ -271,7 +280,7 @@ export function getBuoyBeaconLayers(ctx: StyleContext): LayerSpecification[] {
           "text-allow-overlap": false,
           "text-optional": true,
         },
-        ctx,
+        bcnlat.offsetExpr,
       ),
       paint: {
         "text-color": ctx.colour("CHBLK"),
@@ -289,7 +298,7 @@ export function getBuoyBeaconLayers(ctx: StyleContext): LayerSpecification[] {
       minzoom: 8,
       layout: withOffset(
         {
-          "icon-image": ctx.iconExpr,
+          "icon-image": bcncar.iconExpr,
           "icon-size": scaledSize(0.7, ctx),
           "icon-allow-overlap": true,
           "icon-ignore-placement": true,
@@ -299,7 +308,7 @@ export function getBuoyBeaconLayers(ctx: StyleContext): LayerSpecification[] {
           "text-allow-overlap": false,
           "text-optional": true,
         },
-        ctx,
+        bcncar.offsetExpr,
       ),
       paint: {
         "text-color": ctx.colour("CHBLK"),
@@ -320,7 +329,7 @@ export function getBuoyBeaconLayers(ctx: StyleContext): LayerSpecification[] {
       minzoom: 6,
       layout: withOffset(
         {
-          "icon-image": ctx.iconExpr,
+          "icon-image": lights.iconExpr,
           "icon-size": scaledSize(0.7, ctx),
           "icon-allow-overlap": true,
           "icon-ignore-placement": true,
@@ -336,7 +345,7 @@ export function getBuoyBeaconLayers(ctx: StyleContext): LayerSpecification[] {
           "text-allow-overlap": false,
           "text-optional": true,
         },
-        ctx,
+        lights.offsetExpr,
       ),
       paint: {
         "text-color": ctx.colour("SNDG2"),
@@ -349,6 +358,10 @@ export function getBuoyBeaconLayers(ctx: StyleContext): LayerSpecification[] {
 
 /** Hazard layers: wrecks, obstructions, underwater rocks. */
 export function getHazardLayers(ctx: StyleContext): LayerSpecification[] {
+  const wrecks = ctx.layerExprs("WRECKS");
+  const obstrn = ctx.layerExprs("OBSTRN");
+  const uwtroc = ctx.layerExprs("UWTROC");
+
   return [
     // Wrecks
     {
@@ -359,7 +372,7 @@ export function getHazardLayers(ctx: StyleContext): LayerSpecification[] {
       minzoom: 10,
       layout: withOffset(
         {
-          "icon-image": ctx.iconExpr,
+          "icon-image": wrecks.iconExpr,
           "icon-size": scaledSize(
             [
               "interpolate",
@@ -387,7 +400,7 @@ export function getHazardLayers(ctx: StyleContext): LayerSpecification[] {
             1,
           ] as unknown as ExpressionSpecification,
         },
-        ctx,
+        wrecks.offsetExpr,
       ),
       paint: {},
     },
@@ -440,7 +453,7 @@ export function getHazardLayers(ctx: StyleContext): LayerSpecification[] {
       ] as unknown as ExpressionSpecification,
       layout: withOffset(
         {
-          "icon-image": ctx.iconExpr,
+          "icon-image": obstrn.iconExpr,
           "icon-size": scaledSize(
             [
               "interpolate",
@@ -462,7 +475,7 @@ export function getHazardLayers(ctx: StyleContext): LayerSpecification[] {
           ] as unknown as ExpressionSpecification,
           "icon-padding": 2,
         },
-        ctx,
+        obstrn.offsetExpr,
       ),
       paint: {},
     },
@@ -475,7 +488,7 @@ export function getHazardLayers(ctx: StyleContext): LayerSpecification[] {
       minzoom: 10,
       layout: withOffset(
         {
-          "icon-image": ctx.iconExpr,
+          "icon-image": uwtroc.iconExpr,
           "icon-size": scaledSize(
             [
               "interpolate",
@@ -497,7 +510,7 @@ export function getHazardLayers(ctx: StyleContext): LayerSpecification[] {
           ] as unknown as ExpressionSpecification,
           "icon-padding": 2,
         },
-        ctx,
+        uwtroc.offsetExpr,
       ),
       paint: {},
     },
@@ -506,6 +519,11 @@ export function getHazardLayers(ctx: StyleContext): LayerSpecification[] {
 
 /** Other nav aid layers: fog signals, pilings, mooring, special beacons, seabed. */
 export function getOtherNavAidLayers(ctx: StyleContext): LayerSpecification[] {
+  const fogsig = ctx.layerExprs("FOGSIG");
+  const pilpnt = ctx.layerExprs("PILPNT");
+  const morfac = ctx.layerExprs("MORFAC");
+  const bcnspp = ctx.layerExprs("BCNSPP");
+
   return [
     // Fog signals
     {
@@ -516,12 +534,12 @@ export function getOtherNavAidLayers(ctx: StyleContext): LayerSpecification[] {
       minzoom: 6,
       layout: withOffset(
         {
-          "icon-image": ctx.iconExpr,
+          "icon-image": fogsig.iconExpr,
           "icon-size": scaledSize(0.6, ctx),
           "icon-allow-overlap": true,
           "icon-ignore-placement": true,
         },
-        ctx,
+        fogsig.offsetExpr,
       ),
       paint: {},
     },
@@ -534,11 +552,11 @@ export function getOtherNavAidLayers(ctx: StyleContext): LayerSpecification[] {
       minzoom: ctx.detailMinzoom(13),
       layout: withOffset(
         {
-          "icon-image": ctx.iconExpr,
+          "icon-image": pilpnt.iconExpr,
           "icon-size": scaledSize(0.6, ctx),
           "icon-allow-overlap": true,
         },
-        ctx,
+        pilpnt.offsetExpr,
       ),
       paint: {},
     },
@@ -551,11 +569,11 @@ export function getOtherNavAidLayers(ctx: StyleContext): LayerSpecification[] {
       minzoom: ctx.detailMinzoom(13),
       layout: withOffset(
         {
-          "icon-image": ctx.iconExpr,
+          "icon-image": morfac.iconExpr,
           "icon-size": scaledSize(0.5, ctx),
           "icon-allow-overlap": true,
         },
-        ctx,
+        morfac.offsetExpr,
       ),
       paint: {},
     },
@@ -569,7 +587,7 @@ export function getOtherNavAidLayers(ctx: StyleContext): LayerSpecification[] {
       minzoom: 8,
       layout: withOffset(
         {
-          "icon-image": ctx.iconExpr,
+          "icon-image": bcnspp.iconExpr,
           "icon-size": scaledSize(0.7, ctx),
           "icon-allow-overlap": true,
           "icon-ignore-placement": true,
@@ -579,7 +597,7 @@ export function getOtherNavAidLayers(ctx: StyleContext): LayerSpecification[] {
           "text-allow-overlap": false,
           "text-optional": true,
         },
-        ctx,
+        bcnspp.offsetExpr,
       ),
       paint: {
         "text-color": ctx.colour("CHBLK"),
@@ -613,6 +631,10 @@ export function getOtherNavAidLayers(ctx: StyleContext): LayerSpecification[] {
 
 /** OTHER-category point layers: facilities, platforms, magvar, etc. */
 export function getOtherPointLayers(ctx: StyleContext): LayerSpecification[] {
+  const siltnk = ctx.layerExprs("SILTNK");
+  const hrbfac = ctx.layerExprs("HRBFAC");
+  const ofsplf = ctx.layerExprs("OFSPLF");
+
   return [
     {
       id: "s57-dmpgrd",
@@ -665,11 +687,11 @@ export function getOtherPointLayers(ctx: StyleContext): LayerSpecification[] {
       minzoom: ctx.detailMinzoom(13),
       layout: withOffset(
         {
-          "icon-image": ctx.iconExpr,
+          "icon-image": siltnk.iconExpr,
           "icon-size": scaledSize(0.5, ctx),
           "icon-allow-overlap": true,
         },
-        ctx,
+        siltnk.offsetExpr,
       ),
       paint: {},
     },
@@ -681,7 +703,7 @@ export function getOtherPointLayers(ctx: StyleContext): LayerSpecification[] {
       minzoom: ctx.detailMinzoom(13),
       layout: withOffset(
         {
-          "icon-image": ctx.iconExpr,
+          "icon-image": hrbfac.iconExpr,
           "icon-size": scaledSize(0.6, ctx),
           "icon-allow-overlap": true,
           "text-field": ["get", "OBJNAM"] as unknown as ExpressionSpecification,
@@ -690,7 +712,7 @@ export function getOtherPointLayers(ctx: StyleContext): LayerSpecification[] {
           "text-allow-overlap": false,
           "text-optional": true,
         },
-        ctx,
+        hrbfac.offsetExpr,
       ),
       paint: {
         "text-color": ctx.colour("CHBLK"),
@@ -705,11 +727,11 @@ export function getOtherPointLayers(ctx: StyleContext): LayerSpecification[] {
       "source-layer": "OFSPLF",
       layout: withOffset(
         {
-          "icon-image": ctx.iconExpr,
+          "icon-image": ofsplf.iconExpr,
           "icon-size": scaledSize(0.6, ctx),
           "icon-allow-overlap": true,
         },
-        ctx,
+        ofsplf.offsetExpr,
       ),
       paint: {},
     },
@@ -723,6 +745,9 @@ export function getOtherPointLayers(ctx: StyleContext): LayerSpecification[] {
 export function getAdditionalPointLayers(
   ctx: StyleContext,
 ): LayerSpecification[] {
+  const pilbop = ctx.layerExprs("PILBOP");
+  const cranes = ctx.layerExprs("CRANES");
+
   return [
     // Pilot Boarding Place — area fill (S-52: LS(DASH,2,TRFCF))
     {
@@ -797,7 +822,7 @@ export function getAdditionalPointLayers(
       ] as unknown as ExpressionSpecification,
       layout: withOffset(
         {
-          "icon-image": ctx.iconExpr,
+          "icon-image": pilbop.iconExpr,
           "icon-size": scaledSize(0.6, ctx),
           "icon-allow-overlap": true,
           "text-field": [
@@ -811,7 +836,7 @@ export function getAdditionalPointLayers(
           "text-allow-overlap": false,
           "text-optional": true,
         },
-        ctx,
+        pilbop.offsetExpr,
       ),
       paint: {
         "text-color": ctx.colour("CHBLK"),
@@ -869,11 +894,11 @@ export function getAdditionalPointLayers(
       minzoom: ctx.detailMinzoom(13),
       layout: withOffset(
         {
-          "icon-image": ctx.iconExpr,
+          "icon-image": cranes.iconExpr,
           "icon-size": scaledSize(0.5, ctx),
           "icon-allow-overlap": true,
         },
-        ctx,
+        cranes.offsetExpr,
       ),
       paint: {},
     },
@@ -903,6 +928,9 @@ export function getAdditionalPointLayers(
 export function getDaymarkTopmarkLayers(
   ctx: StyleContext,
 ): LayerSpecification[] {
+  const daymar = ctx.layerExprs("DAYMAR");
+  const topmar = ctx.layerExprs("TOPMAR");
+
   return [
     {
       id: "s57-daymar",
@@ -911,11 +939,11 @@ export function getDaymarkTopmarkLayers(
       "source-layer": "DAYMAR",
       layout: withOffset(
         {
-          "icon-image": ctx.iconExpr,
+          "icon-image": daymar.iconExpr,
           "icon-size": scaledSize(0.6, ctx),
           "icon-allow-overlap": true,
         },
-        ctx,
+        daymar.offsetExpr,
       ),
       paint: {},
     },
@@ -926,16 +954,16 @@ export function getDaymarkTopmarkLayers(
       "source-layer": "TOPMAR",
       layout: withOffset(
         {
-          "icon-image": ctx.iconExpr,
+          "icon-image": topmar.iconExpr,
           "icon-size": scaledSize(0.7, ctx),
           "icon-allow-overlap": true,
           // For Pelorus Standard, topmarks are shifted up to sit above beacons.
           // For S-52, the per-symbol offset expression handles this.
-          ...(ctx.iconOffsetExpr
+          ...(topmar.offsetExpr
             ? {}
             : { "icon-offset": [0, -10] as [number, number] }),
         },
-        ctx,
+        topmar.offsetExpr,
       ),
       paint: {},
     },

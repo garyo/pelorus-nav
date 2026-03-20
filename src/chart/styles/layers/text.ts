@@ -153,30 +153,33 @@ export function getTextLayers(ctx: StyleContext): LayerSpecification[] {
       },
     },
     // Landmarks (lighthouses, monuments, towers, chimneys, windmills)
-    {
-      id: "s57-lndmrk",
-      type: "symbol",
-      source: ctx.sourceId,
-      "source-layer": "LNDMRK",
-      minzoom: ctx.detailMinzoom(12),
-      layout: {
-        "icon-image": ctx.iconExpr,
-        "icon-size": 0.6 * ctx.iconSizeScale,
-        "icon-allow-overlap": true,
-        ...(ctx.iconOffsetExpr ? { "icon-offset": ctx.iconOffsetExpr } : {}),
-        "text-field": ["get", "OBJNAM"] as unknown as ExpressionSpecification,
-        "text-size": 11,
-        "text-allow-overlap": false,
-        "text-optional": true,
-        "text-anchor": "top" as const,
-        "text-offset": [0, 1.2] as [number, number],
-      },
-      paint: {
-        "text-color": ctx.colour("CHBLK"),
-        "text-halo-color": ctx.colour("CHWHT"),
-        "text-halo-width": 1.5,
-      },
-    },
+    (() => {
+      const lndmrk = ctx.layerExprs("LNDMRK");
+      return {
+        id: "s57-lndmrk",
+        type: "symbol" as const,
+        source: ctx.sourceId,
+        "source-layer": "LNDMRK",
+        minzoom: ctx.detailMinzoom(12),
+        layout: {
+          "icon-image": lndmrk.iconExpr,
+          "icon-size": 0.6 * ctx.iconSizeScale,
+          "icon-allow-overlap": true,
+          ...(lndmrk.offsetExpr ? { "icon-offset": lndmrk.offsetExpr } : {}),
+          "text-field": ["get", "OBJNAM"] as unknown as ExpressionSpecification,
+          "text-size": 11,
+          "text-allow-overlap": false,
+          "text-optional": true,
+          "text-anchor": "top" as const,
+          "text-offset": [0, 1.2] as [number, number],
+        },
+        paint: {
+          "text-color": ctx.colour("CHBLK"),
+          "text-halo-color": ctx.colour("CHWHT"),
+          "text-halo-width": 1.5,
+        },
+      };
+    })(),
     {
       id: "s57-berths-label",
       type: "symbol",

@@ -176,7 +176,7 @@ def main() -> None:
                 print(f"  ... checked {checked} / {total}")
 
     # Summarize per region
-    total_changed = 0
+    changed_cells: set[str] = set()
     changed_regions: list[str] = []
 
     for region_name in args.regions:
@@ -189,8 +189,10 @@ def main() -> None:
             status, last_modified = results[cell]
             if status == "new":
                 region_new += 1
+                changed_cells.add(cell)
             elif status == "changed":
                 region_changed += 1
+                changed_cells.add(cell)
                 if not args.quiet and not args.json:
                     old = state.get(cell, {}).get("last_modified", "")
                     print(f"  UPDATED: {cell} (was: {old}, now: {last_modified})")
@@ -200,7 +202,6 @@ def main() -> None:
                     print(f"  ERROR: {cell} ({status})")
 
         region_total = region_changed + region_new
-        total_changed += region_total
 
         if region_total > 0:
             changed_regions.append(region_name)
@@ -219,6 +220,7 @@ def main() -> None:
                 print(f"  ({region_errors} errors)")
 
     # Output
+    total_changed = len(changed_cells)
     if args.json:
         output = {
             "changed_regions": changed_regions,

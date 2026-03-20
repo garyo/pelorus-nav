@@ -12,14 +12,12 @@ import re
 from pathlib import Path
 
 from .labels import _buoy_number, _light_label, _seabed_label
-from .s52_metadata import DISPLAY_CATEGORY, DISPLAY_PRIORITY
 from .scamin import (
     INTU_BASE_ZOOMS,
     cscl_to_scale_band,
     intu_to_scale_band,
     scamin_to_minzoom,
 )
-from .symbols import compute_symbol
 
 
 def enrich_geojson(
@@ -32,8 +30,8 @@ def enrich_geojson(
 ) -> None:
     """Enrich a GeoJSON file with all metadata in a single read/write pass.
 
-    Adds: tippecanoe minzoom (from SCAMIN), _scale_band, LABEL, SYMBOL,
-    _disp_cat, _disp_pri.
+    Adds: tippecanoe minzoom (from SCAMIN), _scale_band, LABEL,
+    _disp_cat, _disp_pri. Normalizes COLOUR to a JSON array.
 
     Args:
         geojson_path: Path to the GeoJSON file (modified in-place).
@@ -67,9 +65,6 @@ def enrich_geojson(
                 scamin_shift = max(0, base_min - adj_min)
         elif cell_cscl is not None:
             scale_band = cscl_to_scale_band(cell_cscl)
-
-    disp_cat = DISPLAY_CATEGORY.get(layer_name)
-    disp_pri = DISPLAY_PRIORITY.get(layer_name)
 
     is_lights = layer_name == "LIGHTS"
     is_buoy_beacon = layer_name in (
@@ -121,16 +116,9 @@ def enrich_geojson(
                     r",\s+\w{2}\s+Urban\b.*$", "", objnam
                 )
 
-        # --- Symbols ---
-        symbol = compute_symbol(props, layer_name)
-        if symbol:
-            props["SYMBOL"] = symbol
-
-        # --- S-52 display metadata ---
-        if disp_cat is not None:
-            props["_disp_cat"] = disp_cat
-        if disp_pri is not None:
-            props["_disp_pri"] = disp_pri
+        # Note: COLOUR stays as a comma-separated string (or int for
+        # single-colour features) — ordered colour checks (c0, c1) are
+        # computed at runtime in the MapLibre style layer expressions.
 
     with open(geojson_path, "w") as f:
         json.dump(geojson, f)

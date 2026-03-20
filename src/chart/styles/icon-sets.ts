@@ -31,6 +31,7 @@ export const PELORUS_STANDARD: Record<string, string> = {
   safewater: "ecdis-buoy-spherical-rw",
   special: "ecdis-buoy-pillar-yellow",
   "special-wo": "ecdis-buoy-pillar-wo",
+  superbuoy: "ecdis-buoy-pillar-yellow",
   "isolated-danger": "ecdis-buoy-isolated-danger",
 
   // Cardinal buoys
@@ -135,6 +136,7 @@ export const IHO_S52: Record<string, string> = {
   safewater: "BOYSAW12",
   special: "BOYSPP11",
   "special-wo": "BOYSPP35",
+  superbuoy: "BOYSPP15",
   "isolated-danger": "BOYISD12",
 
   // Cardinal buoys
@@ -366,6 +368,437 @@ export function getIconScheme(
   const sprite =
     typeof config.sprite === "string" ? config.sprite : config.sprite[theme];
   return { icons: config.icons, sprite, fallback: config.fallback };
+}
+
+// ── S-57 attribute constants ───────────────────────────────────────────────
+// COLOUR codes
+const RED = 3;
+const GREEN = 4;
+const WHITE = 1;
+// const YELLOW = 6;
+const ORANGE = 11;
+// BOYSHP codes
+const CONICAL = 1;
+const CAN = 2;
+const SPHERICAL = 3;
+const PILLAR = 4;
+const SPAR = 5;
+const BARREL = 6;
+const SUPER = 7;
+const ICE = 8;
+// CATLAM
+const PORT = 1;
+const STBD = 2;
+const CATLAM_PREF_STBD = 3; // preferred channel to starboard (red/green/red in IALA-B)
+const CATLAM_PREF_PORT = 4; // preferred channel to port (green/red/green in IALA-B)
+// CATCAM
+// const CATCAM_N = 1;
+// const CATCAM_S = 2;
+// const CATCAM_E = 3;
+// const CATCAM_W = 4;
+// WATLEV
+const WATLEV_DRY = 2;
+const WATLEV_SUBMERGED = 3;
+const WATLEV_AWASH = 5;
+// CATWRK
+const CATWRK_NONDANGEROUS = 1;
+const CATWRK_DANGEROUS = 2;
+const CATWRK_MAST = 4;
+// CATOBS
+const CATOBS_FOUL_AREA = 6;
+const CATOBS_FOUL_GROUND = 7;
+// TOPSHP codes
+const TOPSHP_CONE_UP = 1;
+const TOPSHP_CONE_DOWN = 2;
+const TOPSHP_SPHERE = 3;
+const TOPSHP_2SPHERES = 4;
+const TOPSHP_CYLINDER = 5;
+const TOPSHP_BOARD = 6;
+const TOPSHP_X = 7;
+const TOPSHP_2CONES_PTP = 10;
+const TOPSHP_2CONES_BTB = 11;
+const TOPSHP_2CONES_UP = 13;
+const TOPSHP_2CONES_DOWN = 14;
+const TOPSHP_FLAG = 17;
+const TOPSHP_T_SHAPE = 28;
+// CATLMK
+const CATLMK_CHIMNEY = 3;
+const CATLMK_FLAGSTAFF = 5;
+const CATLMK_MAST = 7;
+const CATLMK_MONUMENT = 9;
+const CATLMK_TOWER = 17;
+const CATLMK_WINDMILL = 18;
+const CATLMK_WINDMOTOR = 19;
+
+/**
+ * Build per-layer MapLibre icon and offset expressions from raw S-57 attributes.
+ *
+ * This replaces the role of the Python compute_symbol() function in symbols.py,
+ * but operates at the MapLibre expression level so symbol logic can change
+ * without rebuilding tiles.
+ */
+export function buildLayerExpressions(
+  layerName: string,
+  iconSet: Record<string, string>,
+  fallback: string,
+): { iconExpr: ExpressionSpecification; offsetExpr: ExpressionSpecification | null } {
+  // Helper: look up sprite for a semantic symbol name
+  const sp = (key: string): string => iconSet[key] ?? fallback;
+  // Helper: get offset for a sprite name
+  const off = (sprite: string): [number, number] => S52_OFFSETS[sprite] ?? [0, 0];
+
+  // Helper: constant symbol (no attribute lookup needed)
+  const constant = (sym: string) => {
+    const sprite = sp(sym);
+    const o = off(sprite);
+    return {
+      iconExpr: sprite as unknown as ExpressionSpecification,
+      offsetExpr:
+        o[0] !== 0 || o[1] !== 0
+          ? (["literal", o] as unknown as ExpressionSpecification)
+          : null,
+    };
+  };
+
+  // Helper: match on a single attribute; cases is [[value, symbolName], ...]
+  const matchOnAttr = (
+    attrExpr: unknown,
+    cases: Array<[number, string]>,
+    defaultSym: string,
+  ) => {
+    const iconArr: unknown[] = ["match", attrExpr];
+    const offArr: unknown[] = ["match", attrExpr];
+    let hasOffsets = false;
+    for (const [val, sym] of cases) {
+      const sprite = sp(sym);
+      const o = off(sprite);
+      iconArr.push(val, sprite);
+      offArr.push(val, ["literal", o]);
+      if (o[0] !== 0 || o[1] !== 0) hasOffsets = true;
+    }
+    const defSprite = sp(defaultSym);
+    const defOff = off(defSprite);
+    iconArr.push(defSprite);
+    offArr.push(["literal", defOff]);
+    if (defOff[0] !== 0 || defOff[1] !== 0) hasOffsets = true;
+    return {
+      iconExpr: iconArr as unknown as ExpressionSpecification,
+      offsetExpr: hasOffsets
+        ? (offArr as unknown as ExpressionSpecification)
+        : null,
+    };
+  };
+
+  // Shared colour helpers.
+  // MVT doesn't support array properties, so COLOUR is a comma-separated
+  // string (or int for single-colour features from GDAL). We use comma-padding
+  // for reliable "contains" checks: ",3," in ",3,4,3," matches but ",1," in
+  // ",11," does not (no false positives). For ordered first/second checks,
+  // we extract c0 and c1 at runtime using string slice/index operations.
+  const colourStr = ["to-string", ["coalesce", ["get", "COLOUR"], ""]];
+  // Append trailing comma so single-value "3" → "3," and index-of always finds a comma.
+  const cps = ["concat", colourStr, ","];
+  const colourPadded = ["concat", ",", colourStr, ","];
+  const colContains = (code: number): unknown[] => ["in", `,${code},`, colourPadded];
+  // First colour code: characters before the first comma
+  const firstComma = ["index-of", ",", cps];
+  const c0 = ["to-number", ["slice", cps, 0, firstComma], 0];
+  // Second colour code: characters between first and second comma
+  const afterFirst = ["concat", ["slice", cps, ["+", firstComma, 1]], ","];
+  const secondComma = ["index-of", ",", afterFirst];
+  const c1 = ["to-number", ["slice", afterFirst, 0, secondComma], 0];
+  const isPrefPort = ["all", ["==", c0, RED], ["==", c1, GREEN]];
+  const isPrefStbd = ["all", ["==", c0, GREEN], ["==", c1, RED]];
+  switch (layerName) {
+    // ── Simple constants ─────────────────────────────────────────────────
+    case "BOYSAW":
+      return constant("safewater");
+    case "BOYISD":
+      return constant("isolated-danger");
+    case "FOGSIG":
+      return constant("fogsig");
+    case "MORFAC":
+      return constant("mooring");
+    case "PILPNT":
+      return constant("piling");
+    case "BCNSPP":
+      return constant("beacon-special");
+    case "HRBFAC":
+      return constant("harbor");
+    case "OFSPLF":
+      return constant("platform");
+    case "SILTNK":
+      return constant("tank");
+    case "BCNCAR":
+      return constant("beacon-cardinal");
+    case "PILBOP":
+      return constant("beacon-default");
+
+    // ── Simple attribute matches ─────────────────────────────────────────
+    case "BOYCAR":
+      return matchOnAttr(["get", "CATCAM"], [[1, "cardinal-n"], [2, "cardinal-s"], [3, "cardinal-e"], [4, "cardinal-w"]], "cardinal-n");
+    case "BCNLAT":
+      return matchOnAttr(["get", "CATLAM"], [[PORT, "beacon-port"], [STBD, "beacon-stbd"]], "beacon-default");
+    case "UWTROC":
+      return matchOnAttr(["get", "WATLEV"], [[WATLEV_DRY, "rock-above"], [WATLEV_AWASH, "rock-awash"]], "rock-underwater");
+    case "OBSTRN":
+      return matchOnAttr(["get", "CATOBS"], [[CATOBS_FOUL_AREA, "obstruction-foul"], [CATOBS_FOUL_GROUND, "obstruction-foul"]], "obstruction");
+    case "TOPMAR":
+      return matchOnAttr(
+        ["get", "TOPSHP"],
+        [
+          [TOPSHP_CONE_UP, "topmark-cone-up"],
+          [TOPSHP_CONE_DOWN, "topmark-cone-down"],
+          [TOPSHP_SPHERE, "topmark-sphere"],
+          [TOPSHP_2SPHERES, "topmark-2spheres"],
+          [TOPSHP_CYLINDER, "topmark-cylinder"],
+          [TOPSHP_BOARD, "topmark-board"],
+          [TOPSHP_X, "topmark-x"],
+          [TOPSHP_2CONES_PTP, "topmark-2cones-point-to-point"],
+          [TOPSHP_2CONES_BTB, "topmark-2cones-base-to-base"],
+          [TOPSHP_2CONES_UP, "topmark-2cones-up"],
+          [TOPSHP_2CONES_DOWN, "topmark-2cones-down"],
+          [TOPSHP_FLAG, "topmark-flag"],
+          [TOPSHP_T_SHAPE, "topmark-t-shape"],
+        ],
+        "topmark-sphere",
+      );
+    case "LNDMRK":
+      return matchOnAttr(
+        ["to-number", ["coalesce", ["get", "CATLMK"], 0], 0],
+        [
+          [CATLMK_CHIMNEY, "landmark-chimney"],
+          [CATLMK_FLAGSTAFF, "landmark-flagstaff"],
+          [CATLMK_MAST, "landmark-tower"],
+          [CATLMK_MONUMENT, "landmark-monument"],
+          [CATLMK_TOWER, "landmark-tower"],
+          [CATLMK_WINDMILL, "landmark-windmill"],
+          [CATLMK_WINDMOTOR, "landmark-windmotor"],
+        ],
+        "landmark-default",
+      );
+
+    // ── WRECKS ────────────────────────────────────────────────────────────
+    case "WRECKS": {
+      const iconExpr = [
+        "case",
+        ["==", ["get", "CATWRK"], CATWRK_MAST], sp("wreck-mast"),
+        ["==", ["get", "CATWRK"], CATWRK_NONDANGEROUS], sp("wreck-nondangerous"),
+        ["==", ["get", "WATLEV"], WATLEV_SUBMERGED], sp("wreck-dangerous"),
+        ["==", ["get", "CATWRK"], CATWRK_DANGEROUS], sp("wreck-dangerous"),
+        sp("wreck-nondangerous"),
+      ] as unknown as ExpressionSpecification;
+      // Compute offsets for wreck sprites
+      const mastOff = off(sp("wreck-mast"));
+      const nonDangOff = off(sp("wreck-nondangerous"));
+      const dangOff = off(sp("wreck-dangerous"));
+      const hasWreckOff =
+        mastOff[0] !== 0 || mastOff[1] !== 0 ||
+        nonDangOff[0] !== 0 || nonDangOff[1] !== 0 ||
+        dangOff[0] !== 0 || dangOff[1] !== 0;
+      const offsetExpr = hasWreckOff
+        ? ([
+            "case",
+            ["==", ["get", "CATWRK"], CATWRK_MAST], ["literal", mastOff],
+            ["==", ["get", "CATWRK"], CATWRK_NONDANGEROUS], ["literal", nonDangOff],
+            ["==", ["get", "WATLEV"], WATLEV_SUBMERGED], ["literal", dangOff],
+            ["==", ["get", "CATWRK"], CATWRK_DANGEROUS], ["literal", dangOff],
+            ["literal", nonDangOff],
+          ] as unknown as ExpressionSpecification)
+        : null;
+      return { iconExpr, offsetExpr };
+    }
+
+    // ── LIGHTS ────────────────────────────────────────────────────────────
+    case "LIGHTS": {
+      const majorGreen = sp("light-major-green");
+      const minorGreen = sp("light-minor-green");
+      const majorRed = sp("light-major-red");
+      const minorRed = sp("light-minor-red");
+      const majorWhite = sp("light-major-white");
+      const minorWhite = sp("light-minor-white");
+      const isMajor = [">=", ["coalesce", ["get", "VALNMR"], 0], 10];
+      const iconExpr = [
+        "case",
+        colContains(GREEN), ["case", isMajor, majorGreen, minorGreen],
+        colContains(RED), ["case", isMajor, majorRed, minorRed],
+        ["case", isMajor, majorWhite, minorWhite],
+      ] as unknown as ExpressionSpecification;
+      // Offsets — all light sprites typically share the same offset
+      const oMajorG = off(majorGreen);
+      const oMinorG = off(minorGreen);
+      const oMajorR = off(majorRed);
+      const oMinorR = off(minorRed);
+      const oMajorW = off(majorWhite);
+      const oMinorW = off(minorWhite);
+      const hasLightOff = [oMajorG, oMinorG, oMajorR, oMinorR, oMajorW, oMinorW].some(
+        (o) => o[0] !== 0 || o[1] !== 0,
+      );
+      const offsetExpr = hasLightOff
+        ? ([
+            "case",
+            colContains(GREEN),
+            ["case", isMajor, ["literal", oMajorG], ["literal", oMinorG]],
+            colContains(RED),
+            ["case", isMajor, ["literal", oMajorR], ["literal", oMinorR]],
+            ["case", isMajor, ["literal", oMajorW], ["literal", oMinorW]],
+          ] as unknown as ExpressionSpecification)
+        : null;
+      return { iconExpr, offsetExpr };
+    }
+
+    // ── BOYSPP ────────────────────────────────────────────────────────────
+    case "BOYSPP": {
+      const iconExpr = [
+        "case",
+        isPrefPort, sp("preferred-port"),
+        isPrefStbd, sp("preferred-stbd"),
+        ["all", colContains(WHITE), colContains(ORANGE)], sp("special-wo"),
+        ["==", ["get", "BOYSHP"], SUPER], sp("superbuoy"),
+        sp("special"),
+      ] as unknown as ExpressionSpecification;
+      const oPrefPort = off(sp("preferred-port"));
+      const oPrefStbd = off(sp("preferred-stbd"));
+      const oSpecialWo = off(sp("special-wo"));
+      const oSuperbuoy = off(sp("superbuoy"));
+      const oSpecial = off(sp("special"));
+      const hasBoysppOff = [oPrefPort, oPrefStbd, oSpecialWo, oSuperbuoy, oSpecial].some(
+        (o) => o[0] !== 0 || o[1] !== 0,
+      );
+      const offsetExpr = hasBoysppOff
+        ? ([
+            "case",
+            isPrefPort, ["literal", oPrefPort],
+            isPrefStbd, ["literal", oPrefStbd],
+            ["all", colContains(WHITE), colContains(ORANGE)], ["literal", oSpecialWo],
+            ["==", ["get", "BOYSHP"], SUPER], ["literal", oSuperbuoy],
+            ["literal", oSpecial],
+          ] as unknown as ExpressionSpecification)
+        : null;
+      return { iconExpr, offsetExpr };
+    }
+
+    // ── BOYLAT ────────────────────────────────────────────────────────────
+    case "BOYLAT": {
+      const boyshp = ["coalesce", ["get", "BOYSHP"], CAN];
+      // Port shapes
+      const portConical = sp("lateral-port-conical");
+      const portCan = sp("lateral-port-can");
+      const portSpherical = sp("lateral-port-spherical");
+      const portPillar = sp("lateral-port-pillar");
+      const portSpar = sp("lateral-port-spar");
+      // Starboard shapes
+      const stbdConical = sp("lateral-stbd-conical");
+      const stbdCan = sp("lateral-stbd-can");
+      const stbdSpherical = sp("lateral-stbd-spherical");
+      const stbdPillar = sp("lateral-stbd-pillar");
+      const stbdSpar = sp("lateral-stbd-spar");
+      // Preferred channel
+      const prefPort = sp("preferred-port");
+      const prefStbd = sp("preferred-stbd");
+
+      const portShapeExpr = [
+        "match", boyshp,
+        CONICAL, portConical,
+        CAN, portCan,
+        SPHERICAL, portSpherical,
+        PILLAR, portPillar,
+        SPAR, portSpar,
+        BARREL, portPillar,
+        SUPER, portPillar,
+        ICE, portPillar,
+        portCan, // default
+      ];
+      const stbdShapeExpr = [
+        "match", boyshp,
+        CONICAL, stbdConical,
+        CAN, stbdCan,
+        SPHERICAL, stbdSpherical,
+        PILLAR, stbdPillar,
+        SPAR, stbdSpar,
+        BARREL, stbdPillar,
+        SUPER, stbdPillar,
+        ICE, stbdPillar,
+        stbdConical, // default for stbd (IALA-B default is conical)
+      ];
+
+      const iconExpr = [
+        "case",
+        // Preferred-channel buoys: CATLAM=3/4 takes priority over colour checks
+        ["==", ["get", "CATLAM"], CATLAM_PREF_STBD], prefPort,
+        ["==", ["get", "CATLAM"], CATLAM_PREF_PORT], prefStbd,
+        isPrefPort, prefPort,
+        isPrefStbd, prefStbd,
+        ["==", ["get", "CATLAM"], PORT], portShapeExpr,
+        ["==", ["get", "CATLAM"], STBD], stbdShapeExpr,
+        fallback,
+      ] as unknown as ExpressionSpecification;
+
+      // Offset: pillar-type shapes get pillar offset; can-type shapes get can offset
+      const oPillarPort = off(portPillar);
+      const oCanPort = off(portCan);
+      const oConicalPort = off(portConical);
+      const oPillarStbd = off(stbdPillar);
+      const oCanStbd = off(stbdCan);
+      const oConicalStbd = off(stbdConical);
+      const oPrefPort = off(prefPort);
+      const oPrefStbd = off(prefStbd);
+      const hasBoylatOff = [oPillarPort, oCanPort, oConicalPort, oPillarStbd, oCanStbd, oConicalStbd, oPrefPort, oPrefStbd].some(
+        (o) => o[0] !== 0 || o[1] !== 0,
+      );
+
+      let offsetExpr: ExpressionSpecification | null = null;
+      if (hasBoylatOff) {
+        // Pillar shapes: PILLAR(4), SPAR(5), BARREL(6), SUPER(7), ICE(8)
+        const isPillarShape = ["in", boyshp, ["literal", [PILLAR, SPAR, BARREL, SUPER, ICE]]];
+        const portOffExpr = ["case", isPillarShape, ["literal", oPillarPort], ["literal", oCanPort]];
+        const stbdOffExpr = ["case", isPillarShape, ["literal", oPillarStbd], ["literal", oCanStbd]];
+        offsetExpr = [
+          "case",
+          ["==", ["get", "CATLAM"], CATLAM_PREF_STBD], ["literal", oPrefPort],
+          ["==", ["get", "CATLAM"], CATLAM_PREF_PORT], ["literal", oPrefStbd],
+          isPrefPort, ["literal", oPrefPort],
+          isPrefStbd, ["literal", oPrefStbd],
+          ["==", ["get", "CATLAM"], PORT], portOffExpr,
+          ["==", ["get", "CATLAM"], STBD], stbdOffExpr,
+          ["literal", [0, 0]],
+        ] as unknown as ExpressionSpecification;
+      }
+
+      return { iconExpr, offsetExpr };
+    }
+
+    // ── DAYMAR ────────────────────────────────────────────────────────────
+    case "DAYMAR": {
+      const topIsTriangle = ["==", ["get", "TOPSHP"], TOPSHP_CONE_UP];
+      const colHasGreen = colContains(GREEN);
+      const iconExpr = [
+        "case",
+        ["all", topIsTriangle, colHasGreen], sp("daymark-triangle-green"),
+        topIsTriangle, sp("daymark-triangle-red"),
+        colHasGreen, sp("daymark-square-green"),
+        sp("daymark-square-red"),
+      ] as unknown as ExpressionSpecification;
+      const oTG = off(sp("daymark-triangle-green"));
+      const oTR = off(sp("daymark-triangle-red"));
+      const oSG = off(sp("daymark-square-green"));
+      const oSR = off(sp("daymark-square-red"));
+      const hasDaymarOff = [oTG, oTR, oSG, oSR].some((o) => o[0] !== 0 || o[1] !== 0);
+      const offsetExpr = hasDaymarOff
+        ? ([
+            "case",
+            ["all", topIsTriangle, colHasGreen], ["literal", oTG],
+            topIsTriangle, ["literal", oTR],
+            colHasGreen, ["literal", oSG],
+            ["literal", oSR],
+          ] as unknown as ExpressionSpecification)
+        : null;
+      return { iconExpr, offsetExpr };
+    }
+
+    default:
+      return constant(fallback);
+  }
 }
 
 /**

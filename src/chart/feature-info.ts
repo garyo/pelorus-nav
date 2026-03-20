@@ -178,8 +178,6 @@ const INTERNAL_FIELDS = new Set([
   "SCAMIN",
   "SCAMAX",
   "_scale_band",
-  "_disp_cat",
-  "_disp_pri",
 ]);
 
 // Human-readable names for S-57 object classes

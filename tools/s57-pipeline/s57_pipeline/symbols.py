@@ -176,6 +176,9 @@ def _boyspp_symbol(props: dict) -> str:
             return "preferred-stbd"  # green-red-green (same as BOYLAT convention)
     if len(colours) >= 2 and _COLOUR_WHITE in colours and _COLOUR_ORANGE in colours:
         return "special-wo"  # white-orange info/regulatory buoy
+    # Superbuoy (LANBY/large data buoy) — trapezoid symbol
+    if props.get("BOYSHP") == BOYSHP_SUPER:
+        return "superbuoy"
     return "special"
 
 

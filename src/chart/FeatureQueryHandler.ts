@@ -472,7 +472,6 @@ const DEDUP_IGNORE = new Set([
   "SORIND",
   "SCAMIN",
   "SCAMAX",
-  "SYMBOL",
 ]);
 
 /** Build a stable key from user-visible properties for deduplication.
@@ -505,8 +504,7 @@ function pickRank(f: maplibregl.MapGeoJSONFeature): number {
   if (layerType === "circle" || layerType === "symbol") return 0; // points
   // Line layers rendering polygon geometry are area outlines, not true lines
   const geomType = f.geometry.type;
-  const isAreaGeom =
-    geomType === "Polygon" || geomType === "MultiPolygon";
+  const isAreaGeom = geomType === "Polygon" || geomType === "MultiPolygon";
   if (layerType === "line" && !isAreaGeom) return 1; // true lines
   return 2; // all area features (fills + area outlines)
 }
@@ -542,11 +540,7 @@ function bboxArea(f: maplibregl.MapGeoJSONFeature): number {
 
   // Walk all coordinate arrays regardless of nesting depth
   const walk = (arr: unknown): void => {
-    if (
-      Array.isArray(arr) &&
-      arr.length >= 2 &&
-      typeof arr[0] === "number"
-    ) {
+    if (Array.isArray(arr) && arr.length >= 2 && typeof arr[0] === "number") {
       visit(arr as number[]);
     } else if (Array.isArray(arr)) {
       for (const item of arr) walk(item);

@@ -114,8 +114,24 @@ def cmd_query(args: argparse.Namespace) -> None:
         sys.exit(1)
 
 
+def _check_cell_head(cell: str, timeout: int = 15) -> tuple[str, str]:
+    """HTTP HEAD a NOAA ENC cell. Returns (cell, last_modified)."""
+    from urllib.error import URLError
+    from urllib.request import Request, urlopen
+
+    url = f"https://charts.noaa.gov/ENCs/{cell}.zip"
+    try:
+        req = Request(url, method="HEAD")
+        with urlopen(req, timeout=timeout) as resp:
+            return (cell, resp.headers.get("Last-Modified", ""))
+    except (URLError, Exception):
+        return (cell, "")
+
+
 def cmd_download(args: argparse.Namespace) -> None:
     """Download ENC cells from NOAA."""
+    import json
+
     output_dir = Path(args.output)
 
     if args.cell:
@@ -132,22 +148,55 @@ def cmd_download(args: argparse.Namespace) -> None:
         cells = get_region_cells("boston-test")
         print(f"Downloading {len(cells)} boston-test cells (default)...")
 
-    # Filter to cells that need downloading
-    to_download = []
+    # Load state file so we can detect cells changed on NOAA
+    state_file = Path(args.output).parent / "enc-update-state.json"
+    state: dict[str, dict[str, str]] = {}
+    if state_file.exists():
+        try:
+            state = json.loads(state_file.read_text())
+        except Exception:
+            pass
+
+    # Decide which cells need downloading
+    force: bool = getattr(args, "force", False)
+    to_download: list[str] = []
     skipped = 0
-    for cell_name in cells:
-        # NOAA zips extract to {cell}/ or ENC_ROOT/{cell}/
-        enc_files = list(output_dir.rglob(f"{cell_name}/{cell_name}.000"))
-        if enc_files:
-            skipped += 1
-        else:
-            to_download.append(cell_name)
+
+    if force:
+        # Unconditionally re-download everything
+        to_download = list(cells)
+    else:
+        # Split into missing (always download) and present (check NOAA date)
+        missing = []
+        present = []
+        for cell_name in cells:
+            enc_files = list(output_dir.rglob(f"{cell_name}/{cell_name}.000"))
+            if enc_files:
+                present.append(cell_name)
+            else:
+                missing.append(cell_name)
+
+        to_download.extend(missing)
+
+        if present:
+            # HEAD-check existing cells in parallel to detect upstream changes
+            print(f"Checking {len(present)} existing cells for updates...")
+            max_check = min(20, args.jobs if args.jobs else 20)
+            with ThreadPoolExecutor(max_workers=max_check) as pool:
+                futures = {pool.submit(_check_cell_head, c): c for c in present}
+                for future in as_completed(futures):
+                    cell_name, noaa_date = future.result()
+                    stored_date = state.get(cell_name, {}).get("last_modified", "")
+                    if noaa_date and noaa_date != stored_date:
+                        to_download.append(cell_name)
+                    else:
+                        skipped += 1
 
     if skipped:
-        print(f"Skipping {skipped} already-downloaded cells")
+        print(f"Skipping {skipped} up-to-date cells")
 
     if not to_download:
-        print("All cells already downloaded")
+        print("All cells already downloaded and up to date")
         return
 
     max_workers = min(8, args.jobs if args.jobs else 8)
@@ -643,6 +692,7 @@ def main() -> None:
     dl.add_argument("--output", "-o", default="data/enc", help="Output directory")
     dl.add_argument("--cell", "-c", action="append", help="Cell name (repeatable)")
     dl.add_argument("--region", "-r", help="Named region (e.g. boston-test, new-england)")
+    dl.add_argument("--force", "-f", action="store_true", help="Re-download all cells unconditionally")
     dl.add_argument(
         "--jobs", "-j", type=int, default=0,
         help="Parallel downloads (default: 8)",

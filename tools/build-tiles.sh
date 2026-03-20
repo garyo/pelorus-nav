@@ -18,6 +18,7 @@
 #
 # Modifiers:
 #   --force           Force rebuild / re-upload regardless of state
+#   --force-download  Re-download all cells even if already up to date
 #   --zoom-shift N    Pass zoom-shift to pipeline (default: 2)
 
 set -euo pipefail
@@ -51,6 +52,7 @@ OP_BUILD=false
 OP_UPLOAD=false
 COMPOSITE_ONLY=false
 FORCE=false
+FORCE_DOWNLOAD=false
 EAST_COAST=false
 ZOOM_SHIFT=""
 REGIONS=()
@@ -63,8 +65,9 @@ while [[ $# -gt 0 ]]; do
     --upload)     OP_UPLOAD=true ;;
     --update)     OP_CHECK=true; OP_DOWNLOAD=true; OP_BUILD=true; OP_UPLOAD=true ;;
     --composite-only) COMPOSITE_ONLY=true ;;
-    --force)      FORCE=true ;;
-    --east-coast) EAST_COAST=true ;;
+    --force)          FORCE=true ;;
+    --force-download) FORCE_DOWNLOAD=true ;;
+    --east-coast)     EAST_COAST=true ;;
     --zoom-shift) shift; ZOOM_SHIFT="$1" ;;
     --region)     shift; REGIONS+=("$1") ;;
     --help|-h)
@@ -149,8 +152,12 @@ do_download() {
   local region="$1"
   echo "--- Downloading $region ---"
   local start=$SECONDS
+  local extra_args=()
+  if $FORCE_DOWNLOAD; then
+    extra_args+=(--force)
+  fi
   cd "$PIPELINE_DIR"
-  uv run python -m s57_pipeline download --region "$region"
+  uv run python -m s57_pipeline download --region "$region" "${extra_args[@]}"
   local elapsed=$((SECONDS - start))
   echo "Download $region: $(format_elapsed $elapsed)"
 }

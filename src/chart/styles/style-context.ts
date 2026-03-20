@@ -11,6 +11,7 @@ import {
 } from "../s52-colours";
 import {
   buildIconExpression,
+  buildLayerExpressions,
   buildOffsetExpression,
   getIconScheme,
   getIconSizeScale,
@@ -39,6 +40,11 @@ export interface StyleContext {
   iconSizeScale: number;
   /** Per-symbol icon-offset expression, or null if not needed. */
   iconOffsetExpr: ExpressionSpecification | null;
+  /** Per-layer icon and offset expressions computed from raw S-57 attributes. */
+  layerExprs: (layerName: string) => {
+    iconExpr: ExpressionSpecification;
+    offsetExpr: ExpressionSpecification | null;
+  };
   /** Shallow water threshold in meters. */
   shallowDepth: number;
   /** Deep water threshold in meters. */
@@ -60,14 +66,14 @@ function themeToScheme(theme: DisplayTheme): ColourScheme {
 }
 
 /**
- * Composite sort-key: combines S-52 display priority and scale band.
- * Lower _disp_pri draws first (area fills before symbols), and within
- * the same priority, higher _scale_band renders on top (detailed over overview).
+ * Sort key: higher _scale_band renders on top (detailed over overview).
+ * _disp_pri is constant per source layer so it adds no ordering value here;
+ * draw order between layers is controlled by the style layer array order.
  */
 export const SCALE_SORT_KEY = [
-  "+",
-  ["*", ["coalesce", ["get", "_disp_pri"], 0], 10],
-  ["coalesce", ["get", "_scale_band"], 0],
+  "coalesce",
+  ["get", "_scale_band"],
+  0,
 ] as unknown as ExpressionSpecification;
 
 /** Label expression: shows quoted LABEL if present, else empty string. */
@@ -134,6 +140,8 @@ export function createStyleContext(
     showOther: detailOffset >= 1,
     iconSizeScale: getIconSizeScale(symbology, theme),
     iconOffsetExpr,
+    layerExprs: (layerName: string) =>
+      buildLayerExpressions(layerName, scheme.icons, scheme.fallback),
     shallowDepth,
     deepDepth,
   };
