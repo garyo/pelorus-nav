@@ -53,6 +53,14 @@ Pelorus Nav — open-source web-based marine chartplotter (PWA). See PLAN.md for
 Python CLI for converting NOAA S-57 ENC data → PMTiles vector tiles.
 Requires `gdal` and `tippecanoe` installed via brew.
 
+### List attribute encoding
+S-57 has list-typed attributes (COLOUR, CATSPM, STATUS, etc.) that ogr2ogr outputs
+as JSON arrays (e.g. `["1","11"]`). Since MVT only supports flat values, the pipeline's
+`enrich_geojson` step flattens **all** list-valued properties to comma-separated strings
+(e.g. `"1,11"`). Front-end code should never expect JSON arrays — always comma-separated
+strings or plain integers. The MapLibre style expressions use comma-padding (`",1,11,"`)
+for reliable substring matching.
+
 ### Tile build scripts
 All tile workflows go through `tools/build-tiles.sh` (run `--help` for full usage):
 - `bun run tiles` — build boston-test region (quick dev iteration)
