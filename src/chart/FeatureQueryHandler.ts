@@ -173,15 +173,16 @@ export class FeatureQueryHandler {
     // Query at click point for most layers, plus a wider bbox for thin
     // lines (bridges, cables, etc.) and text labels that are hard to tap.
     const raw = this.map.queryRenderedFeatures(e.point, { layers });
+
     const bbox: [maplibregl.PointLike, maplibregl.PointLike] = [
       [e.point.x - 10, e.point.y - 10],
       [e.point.x + 10, e.point.y + 10],
     ];
-    // Use bbox for labels, outlines, and all line-type layers (thin targets)
+    // Use bbox for labels, outlines, small circles, and line-type layers (thin/small targets)
     const looseLayers = layers.filter((id) => {
       if (id.endsWith("-label") || id.endsWith("-outline")) return true;
       const layer = this.map.getLayer(id);
-      return layer?.type === "line";
+      return layer?.type === "line" || layer?.type === "circle";
     });
     if (looseLayers.length > 0) {
       const extra = this.map.queryRenderedFeatures(bbox, {
@@ -195,7 +196,6 @@ export class FeatureQueryHandler {
     }
 
     const features = deduplicateFeatures(raw);
-
     if (features.length === 0) {
       this.dismiss();
       return;
@@ -444,10 +444,12 @@ function correlateLandmarkNames(features: QueriedFeature[]): void {
     }
   }
 
-  // Remove featureless LNDARE (just "Land Area" with no useful details)
+  // Remove featureless LNDARE polygons (just "Land Area" with no useful details).
+  // Keep LNDARE points — they represent islets and rocks that are navigational features.
   for (let i = features.length - 1; i >= 0; i--) {
     if (
       features[i].sourceLayer === "LNDARE" &&
+      features[i].geometry.type !== "Point" &&
       !features[i].properties.OBJNAM &&
       !features[i].properties.INFORM
     ) {

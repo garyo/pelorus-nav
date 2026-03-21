@@ -84,7 +84,7 @@ export function getAreaLayers(ctx: StyleContext): LayerSpecification[] {
         "fill-opacity": 1,
       },
     },
-    // Bridge piers / pilings encoded as LNDARE points
+    // Bridge piers / pilings / islets encoded as LNDARE points
     {
       id: "s57-lndare-point",
       type: "circle",
@@ -93,10 +93,10 @@ export function getAreaLayers(ctx: StyleContext): LayerSpecification[] {
       minzoom: ctx.detailMinzoom(13),
       filter: ["==", ["geometry-type"], "Point"],
       paint: {
-        "circle-radius": 4,
+        "circle-radius": 3,
         "circle-color": ctx.colour("CHBRN"),
         "circle-stroke-color": ctx.colour("CHBLK"),
-        "circle-stroke-width": 1,
+        "circle-stroke-width": 0.5,
       },
     },
     // Coastline — interleaved here between land and lake fills
