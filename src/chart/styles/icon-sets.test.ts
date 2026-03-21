@@ -7,11 +7,7 @@
  */
 
 import { describe, expect, it } from "vitest";
-import {
-  IHO_S52,
-  PELORUS_STANDARD,
-  SIMPLIFIED_MINIMAL,
-} from "./icon-sets";
+import { IHO_S52, PELORUS_STANDARD, SIMPLIFIED_MINIMAL } from "./icon-sets";
 import { resolveIcon } from "./test-helpers";
 
 // ── Icon set completeness ──────────────────────────────────────────────

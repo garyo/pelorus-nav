@@ -60,5 +60,8 @@ build-tools/
 .knownPackages
 licenses/
 
+# Reference repos (local only, not for linting)
+refs/
+
 # Claude
 .claude/
