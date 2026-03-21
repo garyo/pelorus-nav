@@ -298,6 +298,21 @@ function lookupAllCodes(
   value: unknown,
 ): string | undefined {
   if (value == null) return undefined;
+
+  // Handle comma-separated codes (e.g. "1,11" from flattened S-57 lists)
+  if (typeof value === "string" && value.includes(",")) {
+    const names = value
+      .split(",")
+      .map((part) => {
+        const n = Number(part.trim());
+        return Number.isNaN(n) ? part.trim() : (table[n] ?? String(n));
+      })
+      .filter(Boolean);
+    if (names.length > 0) return names.join(", ");
+    return undefined;
+  }
+
+  // Legacy: JSON array strings (e.g. '["1","11"]' from old tiles)
   if (typeof value === "string" && value.startsWith("[")) {
     try {
       const arr = JSON.parse(value);
@@ -316,6 +331,7 @@ function lookupAllCodes(
       // fall through
     }
   }
+
   const num = Number(value);
   if (Number.isNaN(num)) return typeof value === "string" ? value : undefined;
   return table[num] ?? String(value);
