@@ -867,17 +867,17 @@ export function buildLayerExpressions(
 
       const iconExpr = [
         "case",
-        // Preferred-channel buoys: CATLAM=3/4 takes priority over colour checks
-        // CATLAM=3 (pref stbd) = green dominant → green icon
-        // CATLAM=4 (pref port) = red dominant → red icon
+        // Preferred-channel buoys: use shape-aware icons with dominant color
+        // CATLAM=3 (pref stbd) = green dominant → port shape set (green)
+        // CATLAM=4 (pref port) = red dominant → stbd shape set (red)
         ["==", ["get", "CATLAM"], CATLAM_PREF_STBD],
-        prefStbd,
+        portShapeExpr,
         ["==", ["get", "CATLAM"], CATLAM_PREF_PORT],
-        prefPort,
+        stbdShapeExpr,
         isPrefPort,
-        prefPort,
+        stbdShapeExpr,
         isPrefStbd,
-        prefStbd,
+        portShapeExpr,
         ["==", ["get", "CATLAM"], PORT],
         portShapeExpr,
         ["==", ["get", "CATLAM"], STBD],
@@ -927,14 +927,15 @@ export function buildLayerExpressions(
         ];
         offsetExpr = [
           "case",
+          // Preferred channel: use shape-aware offsets matching dominant color
           ["==", ["get", "CATLAM"], CATLAM_PREF_STBD],
-          ["literal", oPrefStbd],
+          portOffExpr,
           ["==", ["get", "CATLAM"], CATLAM_PREF_PORT],
-          ["literal", oPrefPort],
+          stbdOffExpr,
           isPrefPort,
-          ["literal", oPrefPort],
+          stbdOffExpr,
           isPrefStbd,
-          ["literal", oPrefStbd],
+          portOffExpr,
           ["==", ["get", "CATLAM"], PORT],
           portOffExpr,
           ["==", ["get", "CATLAM"], STBD],
