@@ -398,8 +398,8 @@ const ICE = 8;
 // CATLAM
 const PORT = 1;
 const STBD = 2;
-const CATLAM_PREF_STBD = 3; // preferred channel to starboard (red/green/red in IALA-B)
-const CATLAM_PREF_PORT = 4; // preferred channel to port (green/red/green in IALA-B)
+const CATLAM_PREF_STBD = 3; // preferred channel to starboard (green/red/green in IALA-B, dominant green)
+const CATLAM_PREF_PORT = 4; // preferred channel to port (red/green/red in IALA-B, dominant red)
 // CATCAM
 // const CATCAM_N = 1;
 // const CATCAM_S = 2;
@@ -868,10 +868,12 @@ export function buildLayerExpressions(
       const iconExpr = [
         "case",
         // Preferred-channel buoys: CATLAM=3/4 takes priority over colour checks
+        // CATLAM=3 (pref stbd) = green dominant → green icon
+        // CATLAM=4 (pref port) = red dominant → red icon
         ["==", ["get", "CATLAM"], CATLAM_PREF_STBD],
-        prefPort,
-        ["==", ["get", "CATLAM"], CATLAM_PREF_PORT],
         prefStbd,
+        ["==", ["get", "CATLAM"], CATLAM_PREF_PORT],
+        prefPort,
         isPrefPort,
         prefPort,
         isPrefStbd,
@@ -926,9 +928,9 @@ export function buildLayerExpressions(
         offsetExpr = [
           "case",
           ["==", ["get", "CATLAM"], CATLAM_PREF_STBD],
-          ["literal", oPrefPort],
-          ["==", ["get", "CATLAM"], CATLAM_PREF_PORT],
           ["literal", oPrefStbd],
+          ["==", ["get", "CATLAM"], CATLAM_PREF_PORT],
+          ["literal", oPrefPort],
           isPrefPort,
           ["literal", oPrefPort],
           isPrefStbd,
