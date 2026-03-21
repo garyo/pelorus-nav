@@ -138,8 +138,6 @@ export const IHO_S52: Record<string, string> = {
 
   // Special buoys (shape-specific)
   // BOYSPP11 = spherical, BOYSPP15 = conical, BOYSPP25 = can, BOYSPP35 = pillar
-  // Note: BOYSPP35 is colored white/orange but has the correct pillar shape;
-  // a yellow-colored pillar sprite would be ideal but doesn't exist in the set yet.
   safewater: "BOYSAW12",
   special: "BOYSPP11",
   "special-conical": "BOYSPP15",
