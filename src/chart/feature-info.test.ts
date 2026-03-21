@@ -166,3 +166,178 @@ describe("formatFeatureInfo", () => {
     expect(info.name).toBe("Castle Island");
   });
 });
+
+// --- Color code lookup tests ---
+// These test lookupCode/lookupAllCodes through formatFeatureInfo,
+// covering all encoding formats: integer, comma-separated, legacy JSON array.
+
+describe("colour code display", () => {
+  it("displays single integer colour code", () => {
+    const info = formatFeatureInfo("BOYLAT", {
+      CATLAM: 1,
+      COLOUR: 4,
+    });
+    const color = info.details.find((d) => d.label === "Color");
+    expect(color?.value).toBe("Green");
+  });
+
+  it("displays single string colour code", () => {
+    const info = formatFeatureInfo("BOYLAT", {
+      CATLAM: 1,
+      COLOUR: "4",
+    });
+    const color = info.details.find((d) => d.label === "Color");
+    expect(color?.value).toBe("Green");
+  });
+
+  it("displays comma-separated colour codes as names", () => {
+    const info = formatFeatureInfo("BOYLAT", {
+      CATLAM: 1,
+      COLOUR: "1,11",
+    });
+    const color = info.details.find((d) => d.label === "Color");
+    expect(color?.value).toBe("White, Orange");
+  });
+
+  it("displays multi-colour comma-separated (3 colours)", () => {
+    const info = formatFeatureInfo("BOYLAT", {
+      CATLAM: 1,
+      COLOUR: "4,3,4",
+    });
+    const color = info.details.find((d) => d.label === "Color");
+    expect(color?.value).toBe("Green, Red, Green");
+  });
+
+  it("displays legacy JSON array colour codes", () => {
+    const info = formatFeatureInfo("BOYLAT", {
+      CATLAM: 1,
+      COLOUR: '["1","11"]',
+    });
+    const color = info.details.find((d) => d.label === "Color");
+    expect(color?.value).toBe("White, Orange");
+  });
+
+  it("handles unknown colour code gracefully", () => {
+    const info = formatFeatureInfo("BOYLAT", {
+      CATLAM: 1,
+      COLOUR: "99",
+    });
+    const color = info.details.find((d) => d.label === "Color");
+    expect(color?.value).toBe("99");
+  });
+
+  it("handles comma-separated with unknown code", () => {
+    const info = formatFeatureInfo("BOYLAT", {
+      CATLAM: 1,
+      COLOUR: "4,99",
+    });
+    const color = info.details.find((d) => d.label === "Color");
+    expect(color?.value).toBe("Green, 99");
+  });
+
+  it("handles null/undefined colour", () => {
+    const info = formatFeatureInfo("BOYLAT", {
+      CATLAM: 1,
+    });
+    const color = info.details.find((d) => d.label === "Color");
+    expect(color).toBeUndefined();
+  });
+});
+
+// --- Status code display ---
+
+describe("status code display", () => {
+  it("displays single status code", () => {
+    const info = formatFeatureInfo("BOYSPP", {
+      STATUS: "1",
+    });
+    const status = info.details.find((d) => d.label === "Status");
+    expect(status?.value).toBe("Permanent");
+  });
+
+  it("displays comma-separated status codes", () => {
+    const info = formatFeatureInfo("BOYSPP", {
+      STATUS: "5,8",
+    });
+    const status = info.details.find((d) => d.label === "Status");
+    expect(status?.value).toBe("Temporary, Private");
+  });
+});
+
+// --- BOYSPP (special purpose buoy) formatting ---
+
+describe("special purpose buoy formatting", () => {
+  it("formats a yellow can special buoy", () => {
+    const info = formatFeatureInfo("BOYSPP", {
+      OBJNAM: "Anchorage Buoy A",
+      LABEL: "A",
+      BOYSHP: 2,
+      COLOUR: "6",
+      STATUS: "1",
+    });
+    expect(info.type).toBe("Special Purpose Buoy");
+    expect(info.details).toContainEqual({ label: "Shape", value: "Can" });
+    expect(info.details).toContainEqual({ label: "Color", value: "Yellow" });
+    expect(info.details).toContainEqual({
+      label: "Status",
+      value: "Permanent",
+    });
+  });
+
+  it("formats a white/orange pillar special buoy", () => {
+    const info = formatFeatureInfo("BOYSPP", {
+      OBJNAM: "Security Zone Buoy 26",
+      LABEL: "26",
+      BOYSHP: 4,
+      COLOUR: "1,11",
+      STATUS: "8",
+    });
+    expect(info.details).toContainEqual({ label: "Shape", value: "Pillar" });
+    expect(info.details).toContainEqual({
+      label: "Color",
+      value: "White, Orange",
+    });
+    expect(info.details).toContainEqual({
+      label: "Status",
+      value: "Private",
+    });
+  });
+});
+
+// --- BOYLAT preferred channel buoys ---
+
+describe("preferred channel buoy formatting", () => {
+  it("formats a preferred channel to starboard (green dominant)", () => {
+    const info = formatFeatureInfo("BOYLAT", {
+      OBJNAM: "Junction Buoy PR",
+      LABEL: "PR",
+      BOYSHP: 4,
+      CATLAM: 3,
+      COLOUR: "4,3,4",
+    });
+    expect(info.details).toContainEqual({
+      label: "Category",
+      value: "Preferred channel to starboard",
+    });
+    expect(info.details).toContainEqual({
+      label: "Color",
+      value: "Green, Red, Green",
+    });
+    expect(info.details).toContainEqual({ label: "Shape", value: "Pillar" });
+  });
+
+  it("formats a preferred channel to port (red dominant)", () => {
+    const info = formatFeatureInfo("BOYLAT", {
+      CATLAM: 4,
+      COLOUR: "3,4,3",
+    });
+    expect(info.details).toContainEqual({
+      label: "Category",
+      value: "Preferred channel to port",
+    });
+    expect(info.details).toContainEqual({
+      label: "Color",
+      value: "Red, Green, Red",
+    });
+  });
+});

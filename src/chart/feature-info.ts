@@ -16,6 +16,8 @@ export interface FeatureInfo {
 const CATLAM: Record<number, string> = {
   1: "Port",
   2: "Starboard",
+  3: "Preferred channel to starboard",
+  4: "Preferred channel to port",
 };
 
 const CATWRK: Record<number, string> = {
@@ -259,14 +261,8 @@ function lookupCode(
   value: unknown,
 ): string | undefined {
   if (value == null) return undefined;
-  // Handle comma-separated codes (e.g. "1,11") — take first value
-  if (typeof value === "string" && value.includes(",")) {
-    const first = value.split(",")[0].trim();
-    const num = Number(first);
-    if (!Number.isNaN(num)) return table[num];
-    return undefined;
-  }
   // Legacy: stringified arrays like '["17"]' from old tiles
+  // Must check before comma-separated, since JSON arrays also contain commas.
   if (typeof value === "string" && value.startsWith("[")) {
     try {
       const arr = JSON.parse(value);
@@ -277,6 +273,13 @@ function lookupCode(
     } catch {
       // fall through
     }
+  }
+  // Comma-separated codes (e.g. "1,11") — take first value
+  if (typeof value === "string" && value.includes(",")) {
+    const first = value.split(",")[0].trim();
+    const num = Number(first);
+    if (!Number.isNaN(num)) return table[num];
+    return undefined;
   }
   const num = Number(value);
   if (Number.isNaN(num)) return undefined;
@@ -306,20 +309,8 @@ function lookupAllCodes(
 ): string | undefined {
   if (value == null) return undefined;
 
-  // Handle comma-separated codes (e.g. "1,11" from flattened S-57 lists)
-  if (typeof value === "string" && value.includes(",")) {
-    const names = value
-      .split(",")
-      .map((part) => {
-        const n = Number(part.trim());
-        return Number.isNaN(n) ? part.trim() : (table[n] ?? String(n));
-      })
-      .filter(Boolean);
-    if (names.length > 0) return names.join(", ");
-    return undefined;
-  }
-
   // Legacy: JSON array strings (e.g. '["1","11"]' from old tiles)
+  // Must check before comma-separated, since JSON arrays also contain commas.
   if (typeof value === "string" && value.startsWith("[")) {
     try {
       const arr = JSON.parse(value);
@@ -337,6 +328,19 @@ function lookupAllCodes(
     } catch {
       // fall through
     }
+  }
+
+  // Comma-separated codes (e.g. "1,11" from flattened S-57 lists)
+  if (typeof value === "string" && value.includes(",")) {
+    const names = value
+      .split(",")
+      .map((part) => {
+        const n = Number(part.trim());
+        return Number.isNaN(n) ? part.trim() : (table[n] ?? String(n));
+      })
+      .filter(Boolean);
+    if (names.length > 0) return names.join(", ");
+    return undefined;
   }
 
   const num = Number(value);
