@@ -1059,8 +1059,13 @@ export function formatFeatureInfo(
   sourceLayer: string,
   properties: Record<string, unknown>,
   lngLat?: { lng: number; lat: number },
+  geometryType?: string,
 ): FeatureInfo {
-  const type = LAYER_NAMES[sourceLayer] ?? sourceLayer;
+  let type = LAYER_NAMES[sourceLayer] ?? sourceLayer;
+  // LNDARE points are islets/rocks too small for a polygon — not generic "Land Area"
+  if (sourceLayer === "LNDARE" && geometryType === "Point") {
+    type = "Islet / Rock";
+  }
   const name =
     properties.OBJNAM != null ? String(properties.OBJNAM) : undefined;
 

@@ -233,6 +233,7 @@ export class FeatureQueryHandler {
       feature.sourceLayer,
       feature.properties,
       feature.lngLat,
+      feature.geometry.type,
     );
     this.panel.show(info, this.currentIndex, this.currentFeatures.length);
     this.highlightFeature(feature);
