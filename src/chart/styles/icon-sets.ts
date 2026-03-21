@@ -27,9 +27,12 @@ export const PELORUS_STANDARD: Record<string, string> = {
   "preferred-port": "ecdis-buoy-can-rg",
   "preferred-stbd": "ecdis-buoy-can-gr",
 
-  // Special buoys
+  // Special buoys (shape-specific)
   safewater: "ecdis-buoy-spherical-rw",
   special: "ecdis-buoy-pillar-yellow",
+  "special-conical": "ecdis-buoy-pillar-yellow",
+  "special-can": "ecdis-buoy-pillar-yellow",
+  "special-pillar": "ecdis-buoy-pillar-yellow",
   "special-wo": "ecdis-buoy-pillar-wo",
   superbuoy: "ecdis-buoy-pillar-yellow",
   "isolated-danger": "ecdis-buoy-isolated-danger",
@@ -115,10 +118,11 @@ export const PELORUS_STANDARD: Record<string, string> = {
  */
 export const IHO_S52: Record<string, string> = {
   // Lateral buoys (IALA-B: port=green, starboard=red)
+  // BOYLAT13/14 = conical (triangular), BOYLAT23/24 = can/pillar (rectangular)
   "lateral-port-conical": "BOYLAT13",
   "lateral-stbd-conical": "BOYLAT14",
-  "lateral-port-can": "BOYLAT13",
-  "lateral-stbd-can": "BOYLAT14",
+  "lateral-port-can": "BOYLAT23",
+  "lateral-stbd-can": "BOYLAT24",
   "lateral-port-pillar": "BOYLAT23",
   "lateral-stbd-pillar": "BOYLAT24",
   "lateral-port-spar": "BOYLAT23",
@@ -132,9 +136,13 @@ export const IHO_S52: Record<string, string> = {
   "preferred-port": "BOYLAT14",
   "preferred-stbd": "BOYLAT13",
 
-  // Special buoys
+  // Special buoys (shape-specific)
+  // BOYSPP11 = conical/spherical, BOYSPP25 = can/pillar, BOYSPP35 = white/orange
   safewater: "BOYSAW12",
   special: "BOYSPP11",
+  "special-conical": "BOYSPP15",
+  "special-can": "BOYSPP25",
+  "special-pillar": "BOYSPP25",
   "special-wo": "BOYSPP35",
   superbuoy: "BOYSUP02",
   "isolated-danger": "BOYISD12",
@@ -717,6 +725,22 @@ export function buildLayerExpressions(
 
     // ── BOYSPP ────────────────────────────────────────────────────────────
     case "BOYSPP": {
+      // Shape-aware fallback: conical, can/pillar, or generic
+      const specialShapeExpr = [
+        "match",
+        ["coalesce", ["get", "BOYSHP"], 0],
+        CONICAL,
+        sp("special-conical"),
+        CAN,
+        sp("special-can"),
+        PILLAR,
+        sp("special-pillar"),
+        SPAR,
+        sp("special-pillar"),
+        BARREL,
+        sp("special-pillar"),
+        sp("special"), // default (spherical, unknown)
+      ];
       const iconExpr = [
         "case",
         isPrefPort,
@@ -728,19 +752,25 @@ export function buildLayerExpressions(
         // Superbuoys: BOYSHP=7, CATSPM=9 (ODAS), or CATSPM=15 (LANBY)
         ["any", ["==", ["get", "BOYSHP"], SUPER], isSuperbuoyByCat],
         sp("superbuoy"),
-        sp("special"),
+        specialShapeExpr,
       ] as unknown as ExpressionSpecification;
       const oPrefPort = off(sp("preferred-port"));
       const oPrefStbd = off(sp("preferred-stbd"));
       const oSpecialWo = off(sp("special-wo"));
       const oSuperbuoy = off(sp("superbuoy"));
       const oSpecial = off(sp("special"));
+      const oSpecialCan = off(sp("special-can"));
+      const oSpecialPillar = off(sp("special-pillar"));
+      const oSpecialConical = off(sp("special-conical"));
       const hasBoysppOff = [
         oPrefPort,
         oPrefStbd,
         oSpecialWo,
         oSuperbuoy,
         oSpecial,
+        oSpecialCan,
+        oSpecialPillar,
+        oSpecialConical,
       ].some((o) => o[0] !== 0 || o[1] !== 0);
       const offsetExpr = hasBoysppOff
         ? ([
@@ -753,7 +783,21 @@ export function buildLayerExpressions(
             ["literal", oSpecialWo],
             ["any", ["==", ["get", "BOYSHP"], SUPER], isSuperbuoyByCat],
             ["literal", oSuperbuoy],
-            ["literal", oSpecial],
+            [
+              "match",
+              ["coalesce", ["get", "BOYSHP"], 0],
+              CONICAL,
+              ["literal", oSpecialConical],
+              CAN,
+              ["literal", oSpecialCan],
+              PILLAR,
+              ["literal", oSpecialPillar],
+              SPAR,
+              ["literal", oSpecialPillar],
+              BARREL,
+              ["literal", oSpecialPillar],
+              ["literal", oSpecial],
+            ],
           ] as unknown as ExpressionSpecification)
         : null;
       return { iconExpr, offsetExpr };
