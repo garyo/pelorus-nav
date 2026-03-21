@@ -145,8 +145,48 @@ for r in data.get('changed_regions', []):
   total_changed=$(echo "$json_output" | python3 -c "import sys,json; print(json.load(sys.stdin).get('total_changed',0))")
 
   echo "Checked $total_checked cells: $total_changed changed"
+
+  # Also check for cells with failed builds — these need rebuilding
+  # even if NOAA dates haven't changed.
+  local failed_regions
+  failed_regions=$(cd "$PIPELINE_DIR" && uv run python -c "
+import sys
+sys.path.insert(0, '.')
+from s57_pipeline.state import StateDB
+from s57_pipeline.regions import REGIONS, get_region_cells
+db = StateDB()
+failed = {name for name, in db._conn.execute(
+    'SELECT cell_name FROM cell_build_state WHERE success = 0'
+).fetchall()}
+db.close()
+if not failed:
+    sys.exit(0)
+regions = set()
+for r in REGIONS:
+    if r == 'boston-test':
+        continue
+    cells = set(get_region_cells(r))
+    if cells & failed:
+        regions.add(r)
+for r in sorted(regions):
+    print(r)
+" 2>/dev/null || true)
+
+  while IFS= read -r region; do
+    if [[ -n "$region" ]]; then
+      # Add to CHANGED_REGIONS if not already present
+      local found=false
+      for existing in "${CHANGED_REGIONS[@]}"; do
+        [[ "$existing" == "$region" ]] && found=true && break
+      done
+      if ! $found; then
+        CHANGED_REGIONS+=("$region")
+      fi
+    fi
+  done <<< "$failed_regions"
+
   if [[ ${#CHANGED_REGIONS[@]} -gt 0 ]]; then
-    echo "Changed regions: ${CHANGED_REGIONS[*]}"
+    echo "Regions to update: ${CHANGED_REGIONS[*]}"
   else
     echo "All regions up to date."
   fi
