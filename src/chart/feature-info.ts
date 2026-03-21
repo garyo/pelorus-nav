@@ -259,7 +259,14 @@ function lookupCode(
   value: unknown,
 ): string | undefined {
   if (value == null) return undefined;
-  // Handle stringified arrays like '["17"]' from vector tiles
+  // Handle comma-separated codes (e.g. "1,11") — take first value
+  if (typeof value === "string" && value.includes(",")) {
+    const first = value.split(",")[0].trim();
+    const num = Number(first);
+    if (!Number.isNaN(num)) return table[num];
+    return undefined;
+  }
+  // Legacy: stringified arrays like '["17"]' from old tiles
   if (typeof value === "string" && value.startsWith("[")) {
     try {
       const arr = JSON.parse(value);
