@@ -805,7 +805,8 @@ export function buildLayerExpressions(
 
     // ── BOYLAT ────────────────────────────────────────────────────────────
     case "BOYLAT": {
-      const boyshp = ["coalesce", ["get", "BOYSHP"], CAN];
+      // IALA-B defaults: port=can, starboard=conical when BOYSHP is absent
+      const boyshp = ["coalesce", ["get", "BOYSHP"], 0]; // 0 = use per-side default
       // Port shapes
       const portConical = sp("lateral-port-conical");
       const portCan = sp("lateral-port-can");
@@ -841,7 +842,7 @@ export function buildLayerExpressions(
         portPillar,
         ICE,
         portPillar,
-        portCan, // default
+        portCan, // default: IALA-B port = can
       ];
       const stbdShapeExpr = [
         "match",
@@ -862,7 +863,7 @@ export function buildLayerExpressions(
         stbdPillar,
         ICE,
         stbdPillar,
-        stbdConical, // default for stbd (IALA-B default is conical)
+        stbdConical, // default: IALA-B starboard = conical
       ];
 
       const iconExpr = [

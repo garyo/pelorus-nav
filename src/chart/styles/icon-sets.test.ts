@@ -155,13 +155,12 @@ describe("BOYLAT icon resolution", () => {
     expect(resolveIcon("BOYLAT", { CATLAM: 2, BOYSHP: 4 })).toBe("BOYLAT24");
   });
 
-  it("port with no BOYSHP defaults to can → BOYLAT23", () => {
+  it("port with no BOYSHP defaults to can (IALA-B) → BOYLAT23", () => {
     expect(resolveIcon("BOYLAT", { CATLAM: 1 })).toBe("BOYLAT23");
   });
 
-  it("starboard with no BOYSHP defaults to can (CAN=2) → stbd conical fallback", () => {
-    // BOYSHP defaults to CAN(2) via coalesce, stbd can → BOYLAT24
-    expect(resolveIcon("BOYLAT", { CATLAM: 2 })).toBe("BOYLAT24");
+  it("starboard with no BOYSHP defaults to conical (IALA-B) → BOYLAT14", () => {
+    expect(resolveIcon("BOYLAT", { CATLAM: 2 })).toBe("BOYLAT14");
   });
 });
 
