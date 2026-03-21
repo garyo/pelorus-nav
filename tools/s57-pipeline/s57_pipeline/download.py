@@ -68,6 +68,15 @@ def download_enc_cell(
     if progress:
         progress.download_cell_extracting(cell_name)
 
+    # Remove stale update files (.001, .002, etc.) from previous editions.
+    # GDAL's S-57 driver auto-applies update files in the same directory;
+    # stale updates from a prior edition cause "not recognized as supported
+    # file format" errors.
+    for pattern in (f"{cell_name}/{cell_name}.*", f"ENC_ROOT/{cell_name}/{cell_name}.*"):
+        for old_file in output_dir.glob(pattern):
+            if old_file.suffix not in (".zip", ".zip.tmp"):
+                old_file.unlink(missing_ok=True)
+
     # Extract the zip
     try:
         with zipfile.ZipFile(zip_path) as zf:
