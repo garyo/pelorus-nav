@@ -116,15 +116,12 @@ def enrich_geojson(
                     r",\s+\w{2}\s+Urban\b.*$", "", objnam
                 )
 
-        # Flatten list attributes (COLOUR, CATSPM, COLPAT, STATUS, etc.)
-        # from JSON arrays to comma-separated strings. ogr2ogr writes S-57
-        # StringList fields as JSON arrays (e.g. ["1","11"]), but MVT only
-        # supports flat values, so tippecanoe would serialize them as the
-        # literal string '["1","11"]'. We flatten here so MapLibre sees "1,11".
-        for key in ("COLOUR", "CATSPM", "CATCAM", "CATLAM", "COLPAT",
-                     "STATUS", "CATOBS", "CATWRK", "WATLEV", "BOYSHP",
-                     "CATLIT", "CATMOR", "CATACH"):
-            val = props.get(key)
+        # Flatten any list-valued properties to comma-separated strings.
+        # ogr2ogr writes S-57 StringList fields as JSON arrays (e.g.
+        # ["1","11"]), but MVT only supports flat values — tippecanoe
+        # would serialize them as '["1","11"]'. Flatten so MapLibre
+        # sees "1,11" for reliable substring matching.
+        for key, val in props.items():
             if isinstance(val, list):
                 props[key] = ",".join(str(v) for v in val)
 
