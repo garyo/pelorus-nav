@@ -39,6 +39,7 @@ const INTERACTIVE_SUFFIXES = [
   "-boyisd",
   "-bcnlat",
   "-bcncar",
+  "-bcnspp",
   "-lndmrk",
   "-lights",
   "-fogsig",
