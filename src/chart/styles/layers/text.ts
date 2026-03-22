@@ -8,6 +8,7 @@
 import type { ExpressionSpecification, LayerSpecification } from "maplibre-gl";
 import { depthUnitLabel } from "../../../settings";
 import type { StyleContext } from "../style-context";
+import { scaledTextSize } from "../style-context";
 
 /** Build a MapLibre expression for elevation text: converts ELEVAT to depth unit with suffix. */
 function elevationTextField(ctx: StyleContext): ExpressionSpecification {
@@ -50,15 +51,18 @@ export function getTextLayers(ctx: StyleContext): LayerSpecification[] {
       filter: ["has", "OBJNAM"],
       layout: {
         "text-field": ["get", "OBJNAM"],
-        "text-size": [
-          "interpolate",
-          ["linear"],
-          ["zoom"],
-          9,
-          12,
-          14,
-          16,
-        ] as unknown as number,
+        "text-size": scaledTextSize(
+          [
+            "interpolate",
+            ["linear"],
+            ["zoom"],
+            9,
+            12,
+            14,
+            16,
+          ] as unknown as ExpressionSpecification,
+          ctx,
+        ),
         "text-font": ["Noto Sans Bold"],
         "text-allow-overlap": false,
         "text-padding": 10,
@@ -78,15 +82,18 @@ export function getTextLayers(ctx: StyleContext): LayerSpecification[] {
       filter: ["has", "OBJNAM"],
       layout: {
         "text-field": ["get", "OBJNAM"],
-        "text-size": [
-          "interpolate",
-          ["linear"],
-          ["zoom"],
-          11,
-          10,
-          14,
-          13,
-        ] as unknown as number,
+        "text-size": scaledTextSize(
+          [
+            "interpolate",
+            ["linear"],
+            ["zoom"],
+            11,
+            10,
+            14,
+            13,
+          ] as unknown as ExpressionSpecification,
+          ctx,
+        ),
         "text-font": ["Noto Sans Italic"],
         "text-allow-overlap": false,
         "text-padding": 10,
@@ -107,15 +114,18 @@ export function getTextLayers(ctx: StyleContext): LayerSpecification[] {
       filter: ["has", "OBJNAM"],
       layout: {
         "text-field": ["get", "OBJNAM"],
-        "text-size": [
-          "interpolate",
-          ["linear"],
-          ["zoom"],
-          11,
-          10,
-          14,
-          13,
-        ] as unknown as number,
+        "text-size": scaledTextSize(
+          [
+            "interpolate",
+            ["linear"],
+            ["zoom"],
+            11,
+            10,
+            14,
+            13,
+          ] as unknown as ExpressionSpecification,
+          ctx,
+        ),
         "text-font": ["Noto Sans Italic"],
         "text-allow-overlap": false,
         "text-padding": 10,
@@ -138,7 +148,7 @@ export function getTextLayers(ctx: StyleContext): LayerSpecification[] {
         "icon-size": 1.0,
         "icon-allow-overlap": true,
         "text-field": elevationTextField(ctx),
-        "text-size": 10,
+        "text-size": scaledTextSize(10, ctx),
         "text-font": ["Noto Sans Regular"],
         "text-allow-overlap": false,
         "text-optional": true,
@@ -167,7 +177,7 @@ export function getTextLayers(ctx: StyleContext): LayerSpecification[] {
           "icon-allow-overlap": true,
           ...(lndmrk.offsetExpr ? { "icon-offset": lndmrk.offsetExpr } : {}),
           "text-field": ["get", "OBJNAM"] as unknown as ExpressionSpecification,
-          "text-size": 11,
+          "text-size": scaledTextSize(11, ctx),
           "text-allow-overlap": false,
           "text-optional": true,
           "text-anchor": "top" as const,
@@ -189,7 +199,7 @@ export function getTextLayers(ctx: StyleContext): LayerSpecification[] {
       filter: ["has", "OBJNAM"],
       layout: {
         "text-field": ["get", "OBJNAM"],
-        "text-size": 10,
+        "text-size": scaledTextSize(10, ctx),
         "text-allow-overlap": false,
         "text-padding": 5,
       },
@@ -210,7 +220,7 @@ export function getTextLayers(ctx: StyleContext): LayerSpecification[] {
       layout: {
         "symbol-placement": "line",
         "text-field": ["get", "OBJNAM"],
-        "text-size": 10,
+        "text-size": scaledTextSize(10, ctx),
         "text-allow-overlap": false,
         "text-padding": 5,
       },
@@ -230,7 +240,7 @@ export function getTextLayers(ctx: StyleContext): LayerSpecification[] {
       filter: ["has", "OBJNAM"],
       layout: {
         "text-field": ["get", "OBJNAM"],
-        "text-size": 10,
+        "text-size": scaledTextSize(10, ctx),
         "text-allow-overlap": false,
         "text-padding": 5,
       },
@@ -250,7 +260,7 @@ export function getTextLayers(ctx: StyleContext): LayerSpecification[] {
       filter: ["has", "OBJNAM"],
       layout: {
         "text-field": ["get", "OBJNAM"],
-        "text-size": 10,
+        "text-size": scaledTextSize(10, ctx),
         "text-allow-overlap": false,
         "text-padding": 5,
       },
@@ -269,15 +279,18 @@ export function getTextLayers(ctx: StyleContext): LayerSpecification[] {
       filter: ["has", "OBJNAM"],
       layout: {
         "text-field": ["get", "OBJNAM"],
-        "text-size": [
-          "interpolate",
-          ["linear"],
-          ["zoom"],
-          10,
-          10,
-          14,
-          12,
-        ] as unknown as number,
+        "text-size": scaledTextSize(
+          [
+            "interpolate",
+            ["linear"],
+            ["zoom"],
+            10,
+            10,
+            14,
+            12,
+          ] as unknown as ExpressionSpecification,
+          ctx,
+        ),
         "text-font": ["Noto Sans Italic"],
         "text-allow-overlap": false,
         "text-padding": 10,

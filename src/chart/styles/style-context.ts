@@ -49,6 +49,8 @@ export interface StyleContext {
   shallowDepth: number;
   /** Deep water threshold in meters. */
   deepDepth: number;
+  /** Text size scale factor (1 = default). */
+  textSizeScale: number;
 }
 
 /** Map DisplayTheme to S-52 ColourScheme. */
@@ -101,6 +103,46 @@ export function depthTextField(unit: DepthUnit): ExpressionSpecification {
   ] as unknown as ExpressionSpecification;
 }
 
+/**
+ * Scale a numeric or expression-based size value by a scale factor.
+ * Handles plain numbers, interpolate, and step expressions.
+ */
+export function scaleSize(
+  base: number | ExpressionSpecification,
+  scale: number,
+): number | ExpressionSpecification {
+  if (scale === 1.0) return base;
+  if (typeof base === "number") return base * scale;
+  const arr = base as unknown[];
+  if (arr[0] === "interpolate") {
+    const scaled = [...arr];
+    for (let i = 4; i < scaled.length; i += 2) {
+      if (typeof scaled[i] === "number") {
+        scaled[i] = (scaled[i] as number) * scale;
+      }
+    }
+    return scaled as unknown as ExpressionSpecification;
+  }
+  if (arr[0] === "step") {
+    const scaled = [...arr];
+    for (let i = 2; i < scaled.length; i += 2) {
+      if (typeof scaled[i] === "number") {
+        scaled[i] = (scaled[i] as number) * scale;
+      }
+    }
+    return scaled as unknown as ExpressionSpecification;
+  }
+  return base;
+}
+
+/** Scale a text-size value by the context's textSizeScale. */
+export function scaledTextSize(
+  base: number | ExpressionSpecification,
+  ctx: StyleContext,
+): number | ExpressionSpecification {
+  return scaleSize(base, ctx.textSizeScale);
+}
+
 /** Create a StyleContext from the given parameters. */
 export function createStyleContext(
   sourceId: string,
@@ -112,6 +154,8 @@ export function createStyleContext(
   symbology: SymbologyScheme = "pelorus-standard",
   shallowDepth = 5,
   deepDepth = 20,
+  textScale = 1,
+  iconScale = 1,
 ): StyleContext {
   // Set the active colour scheme so all s52Colour() calls use it
   setActiveColourScheme(themeToScheme(theme));
@@ -138,11 +182,12 @@ export function createStyleContext(
       Math.max(0, detailOffset >= 2 ? base - 1 : base),
     showStandard: detailOffset >= 0,
     showOther: detailOffset >= 1,
-    iconSizeScale: getIconSizeScale(symbology, theme),
+    iconSizeScale: getIconSizeScale(symbology, theme) * iconScale,
     iconOffsetExpr,
     layerExprs: (layerName: string) =>
       buildLayerExpressions(layerName, scheme.icons, scheme.fallback),
     shallowDepth,
     deepDepth,
+    textSizeScale: textScale,
   };
 }

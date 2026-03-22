@@ -48,6 +48,10 @@ export interface Settings {
   deepDepth: number;
   /** Screen wake lock: off, when GPS active, or always. */
   wakeLock: WakeLockMode;
+  /** Scale factor for chart text labels (1 = default). */
+  textScale: number;
+  /** Scale factor for chart icons (1 = default, multiplied with scheme/theme scale). */
+  iconScale: number;
 }
 
 const STORAGE_KEY = "pelorus-nav-settings";
@@ -95,6 +99,8 @@ const DEFAULTS: Settings = {
   shallowDepth: 5,
   deepDepth: 20,
   wakeLock: "when-nav",
+  textScale: 1,
+  iconScale: 1,
 };
 
 type SettingsListener = (settings: Settings) => void;

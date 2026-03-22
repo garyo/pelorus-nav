@@ -219,19 +219,142 @@ function buildAppearanceTab(
     ),
   );
 
-  // Depth units
+  // ── Chart display ───────────────────────────────────────────────
+
+  // Detail level slider
+  {
+    const row = document.createElement("div");
+    row.className = "settings-row";
+
+    const label = document.createElement("label");
+    label.htmlFor = "settings-detail-level";
+    label.textContent = "Detail";
+    row.appendChild(label);
+
+    const sliderGroup = document.createElement("div");
+    sliderGroup.className = "settings-slider-group";
+
+    const slider = document.createElement("input");
+    slider.type = "range";
+    slider.id = "settings-detail-level";
+    slider.min = "-1";
+    slider.max = "2";
+    slider.step = "1";
+    slider.value = String(settings.detailLevel);
+
+    const sliderLabel = document.createElement("span");
+    sliderLabel.id = "settings-detail-label";
+    sliderLabel.textContent = DETAIL_LABELS[settings.detailLevel];
+
+    slider.addEventListener("input", () => {
+      const level = Number(slider.value) as DetailLevel;
+      sliderLabel.textContent = DETAIL_LABELS[level];
+      updateSettings({ detailLevel: level });
+    });
+
+    sliderGroup.append(slider, sliderLabel);
+    row.appendChild(sliderGroup);
+    tab.appendChild(row);
+  }
+
+  // Chart text size slider
+  {
+    const row = document.createElement("div");
+    row.className = "settings-row";
+
+    const label = document.createElement("label");
+    label.htmlFor = "settings-text-scale";
+    label.textContent = "Chart text size";
+    row.appendChild(label);
+
+    const sliderGroup = document.createElement("div");
+    sliderGroup.className = "settings-slider-group";
+
+    const slider = document.createElement("input");
+    slider.type = "range";
+    slider.id = "settings-text-scale";
+    slider.min = "0.75";
+    slider.max = "2";
+    slider.step = "0.05";
+    slider.value = String(settings.textScale);
+
+    const sliderLabel = document.createElement("span");
+    sliderLabel.id = "settings-text-scale-label";
+    sliderLabel.textContent = `${Math.round(settings.textScale * 100)}%`;
+
+    slider.addEventListener("input", () => {
+      const scale = Number.parseFloat(slider.value);
+      sliderLabel.textContent = `${Math.round(scale * 100)}%`;
+      updateSettings({ textScale: scale });
+    });
+
+    sliderGroup.append(slider, sliderLabel);
+    row.appendChild(sliderGroup);
+    tab.appendChild(row);
+  }
+
+  // Chart icon size slider
+  {
+    const row = document.createElement("div");
+    row.className = "settings-row";
+
+    const label = document.createElement("label");
+    label.htmlFor = "settings-icon-scale";
+    label.textContent = "Chart icon size";
+    row.appendChild(label);
+
+    const sliderGroup = document.createElement("div");
+    sliderGroup.className = "settings-slider-group";
+
+    const slider = document.createElement("input");
+    slider.type = "range";
+    slider.id = "settings-icon-scale";
+    slider.min = "0.75";
+    slider.max = "2";
+    slider.step = "0.05";
+    slider.value = String(settings.iconScale);
+
+    const sliderLabel = document.createElement("span");
+    sliderLabel.id = "settings-icon-scale-label";
+    sliderLabel.textContent = `${Math.round(settings.iconScale * 100)}%`;
+
+    slider.addEventListener("input", () => {
+      const scale = Number.parseFloat(slider.value);
+      sliderLabel.textContent = `${Math.round(scale * 100)}%`;
+      updateSettings({ iconScale: scale });
+    });
+
+    sliderGroup.append(slider, sliderLabel);
+    row.appendChild(sliderGroup);
+    tab.appendChild(row);
+  }
+
+  // OSM underlay (only useful with vector charts)
   tab.appendChild(
-    buildSelectRow(
-      "Depth units",
-      "settings-depth-unit",
-      DEPTH_UNITS,
-      settings.depthUnit,
-      (v) => updateSettings({ depthUnit: v as DepthUnit }),
+    buildCheckboxRow(
+      "OSM map under vector charts",
+      "settings-osm-underlay",
+      settings.showOSMUnderlay,
+      (v) => updateSettings({ showOSMUnderlay: v }),
     ),
   );
 
-  // Depth threshold sliders
-  tab.appendChild(buildDepthThresholdSliders());
+  // ── Units & measurement ─────────────────────────────────────────
+
+  // Bearings (true/magnetic)
+  const BEARING_MODES = [
+    { value: "magnetic", label: "Magnetic" },
+    { value: "true", label: "True" },
+  ];
+  tab.appendChild(
+    buildSelectRow(
+      "Bearings",
+      "settings-bearing-mode",
+      BEARING_MODES,
+      settings.bearingMode,
+      (v) => updateSettings({ bearingMode: v as BearingMode }),
+    ),
+  );
 
   // Speed units
   const SPEED_UNITS = [
@@ -249,54 +372,21 @@ function buildAppearanceTab(
     ),
   );
 
-  // Bearings (true/magnetic)
-  const BEARING_MODES = [
-    { value: "magnetic", label: "Magnetic" },
-    { value: "true", label: "True" },
-  ];
+  // Depth units
   tab.appendChild(
     buildSelectRow(
-      "Bearings",
-      "settings-bearing-mode",
-      BEARING_MODES,
-      settings.bearingMode,
-      (v) => updateSettings({ bearingMode: v as BearingMode }),
+      "Depth units",
+      "settings-depth-unit",
+      DEPTH_UNITS,
+      settings.depthUnit,
+      (v) => updateSettings({ depthUnit: v as DepthUnit }),
     ),
   );
 
-  // Detail level slider
-  const row = document.createElement("div");
-  row.className = "settings-row";
+  // Depth threshold sliders
+  tab.appendChild(buildDepthThresholdSliders());
 
-  const label = document.createElement("label");
-  label.htmlFor = "settings-detail-level";
-  label.textContent = "Detail";
-  row.appendChild(label);
-
-  const sliderGroup = document.createElement("div");
-  sliderGroup.className = "settings-slider-group";
-
-  const slider = document.createElement("input");
-  slider.type = "range";
-  slider.id = "settings-detail-level";
-  slider.min = "-1";
-  slider.max = "2";
-  slider.step = "1";
-  slider.value = String(settings.detailLevel);
-
-  const sliderLabel = document.createElement("span");
-  sliderLabel.id = "settings-detail-label";
-  sliderLabel.textContent = DETAIL_LABELS[settings.detailLevel];
-
-  slider.addEventListener("input", () => {
-    const level = Number(slider.value) as DetailLevel;
-    sliderLabel.textContent = DETAIL_LABELS[level];
-    updateSettings({ detailLevel: level });
-  });
-
-  sliderGroup.append(slider, sliderLabel);
-  row.appendChild(sliderGroup);
-  tab.appendChild(row);
+  // ── Overlays ────────────────────────────────────────────────────
 
   // Accuracy circle
   tab.appendChild(
@@ -305,16 +395,6 @@ function buildAppearanceTab(
       "settings-accuracy-circle",
       settings.showAccuracyCircle,
       (v) => updateSettings({ showAccuracyCircle: v }),
-    ),
-  );
-
-  // OSM underlay (only useful with vector charts)
-  tab.appendChild(
-    buildCheckboxRow(
-      "OSM map under vector charts",
-      "settings-osm-underlay",
-      settings.showOSMUnderlay,
-      (v) => updateSettings({ showOSMUnderlay: v }),
     ),
   );
 

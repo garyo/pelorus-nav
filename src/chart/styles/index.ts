@@ -229,6 +229,8 @@ export function getNauticalLayers(
   symbology: SymbologyScheme = "pelorus-standard",
   shallowDepth = 5,
   deepDepth = 20,
+  textScale = 1,
+  iconScale = 1,
 ): LayerSpecification[] {
   const ctx = createStyleContext(
     sourceId,
@@ -240,6 +242,8 @@ export function getNauticalLayers(
     symbology,
     shallowDepth,
     deepDepth,
+    textScale,
+    iconScale,
   );
 
   // LAYER ORDER — controls both draw order and collision priority.

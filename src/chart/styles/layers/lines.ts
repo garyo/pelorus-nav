@@ -5,7 +5,7 @@
 import type { ExpressionSpecification, LayerSpecification } from "maplibre-gl";
 import { depthConversionFactor, depthUnitLabel } from "../../../settings";
 import type { StyleContext } from "../style-context";
-import { SCALE_SORT_KEY } from "../style-context";
+import { SCALE_SORT_KEY, scaledTextSize } from "../style-context";
 
 /**
  * Build a text-field expression that converts VALDCO (meters) to the
@@ -51,7 +51,7 @@ export function getLineLayers(ctx: StyleContext): LayerSpecification[] {
         "symbol-placement": "line",
         "symbol-spacing": 100,
         "text-field": depthContourLabel(ctx),
-        "text-size": 11,
+        "text-size": scaledTextSize(11, ctx),
         "text-font": ["Open Sans Regular", "Arial Unicode MS Regular"],
         "text-anchor": "center",
         "text-keep-upright": true,

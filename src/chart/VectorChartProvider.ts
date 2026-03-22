@@ -103,6 +103,8 @@ export class VectorChartProvider implements ChartProvider {
       symbologyScheme,
       shallowDepth,
       deepDepth,
+      textScale,
+      iconScale,
     } = getSettings();
 
     const allLayers: LayerSpecification[] = [];
@@ -122,6 +124,8 @@ export class VectorChartProvider implements ChartProvider {
         symbologyScheme,
         shallowDepth,
         deepDepth,
+        textScale,
+        iconScale,
       );
 
       // Prefix layer IDs: s57-xxx → s57-{regionId}-xxx

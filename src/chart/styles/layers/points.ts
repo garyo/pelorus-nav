@@ -9,46 +9,21 @@ import type {
   SymbolLayerSpecification,
 } from "maplibre-gl";
 import type { StyleContext } from "../style-context";
-import { depthTextField, LABEL_EXPR } from "../style-context";
+import {
+  depthTextField,
+  LABEL_EXPR,
+  scaledTextSize,
+  scaleSize,
+} from "../style-context";
 
 /**
  * Scale an icon-size value by the context's iconSizeScale.
- * For interpolate/step expressions, scales each numeric output stop
- * directly (MapLibre requires zoom expressions at the top level).
  */
 function scaledSize(
   base: number | ExpressionSpecification,
   ctx: StyleContext,
 ): number | ExpressionSpecification {
-  if (ctx.iconSizeScale === 1.0) return base;
-  if (typeof base === "number") return base * ctx.iconSizeScale;
-  // Scale numeric output values inside interpolate/step expressions.
-  // interpolate: ["interpolate", interpType, input, z1, v1, z2, v2, ...]
-  //   → values at indices 4, 6, 8, ... (every even index from 4)
-  // step: ["step", input, defaultVal, z1, v1, z2, v2, ...]
-  //   → default at index 2, then values at indices 4, 6, 8, ...
-  const arr = base as unknown[];
-  if (arr[0] === "interpolate") {
-    const scaled = [...arr];
-    // Starts at index 3: z1, v1, z2, v2 → values at 4, 6, ...
-    for (let i = 4; i < scaled.length; i += 2) {
-      if (typeof scaled[i] === "number") {
-        scaled[i] = (scaled[i] as number) * ctx.iconSizeScale;
-      }
-    }
-    return scaled as unknown as ExpressionSpecification;
-  }
-  if (arr[0] === "step") {
-    const scaled = [...arr];
-    // Default value at index 2, then z1, v1, z2, v2 → values at 2, 4, 6, ...
-    for (let i = 2; i < scaled.length; i += 2) {
-      if (typeof scaled[i] === "number") {
-        scaled[i] = (scaled[i] as number) * ctx.iconSizeScale;
-      }
-    }
-    return scaled as unknown as ExpressionSpecification;
-  }
-  return base;
+  return scaleSize(base, ctx.iconSizeScale);
 }
 
 /**
@@ -73,7 +48,7 @@ export function getNavAidLayers(ctx: StyleContext): LayerSpecification[] {
       "source-layer": "SOUNDG",
       layout: {
         "text-field": depthTextField(ctx.depthUnit),
-        "text-size": 10,
+        "text-size": scaledTextSize(10, ctx),
         "text-allow-overlap": false,
       },
       paint: {
@@ -135,7 +110,7 @@ export function getBuoyBeaconLayers(ctx: StyleContext): LayerSpecification[] {
           "icon-allow-overlap": true,
           "icon-ignore-placement": true,
           "text-field": LABEL_EXPR,
-          "text-size": 11,
+          "text-size": scaledTextSize(11, ctx),
           "text-offset": [0, 1.5],
           "text-allow-overlap": false,
           "text-optional": true,
@@ -163,7 +138,7 @@ export function getBuoyBeaconLayers(ctx: StyleContext): LayerSpecification[] {
           "icon-allow-overlap": true,
           "icon-ignore-placement": true,
           "text-field": LABEL_EXPR,
-          "text-size": 11,
+          "text-size": scaledTextSize(11, ctx),
           "text-offset": [0, 1.5],
           "text-allow-overlap": false,
           "text-optional": true,
@@ -191,7 +166,7 @@ export function getBuoyBeaconLayers(ctx: StyleContext): LayerSpecification[] {
           "icon-allow-overlap": true,
           "icon-ignore-placement": true,
           "text-field": LABEL_EXPR,
-          "text-size": 11,
+          "text-size": scaledTextSize(11, ctx),
           "text-offset": [0, 1.5],
           "text-allow-overlap": false,
           "text-optional": true,
@@ -219,7 +194,7 @@ export function getBuoyBeaconLayers(ctx: StyleContext): LayerSpecification[] {
           "icon-allow-overlap": true,
           "icon-ignore-placement": true,
           "text-field": LABEL_EXPR,
-          "text-size": 11,
+          "text-size": scaledTextSize(11, ctx),
           "text-offset": [0, 1.5],
           "text-allow-overlap": false,
           "text-optional": true,
@@ -247,7 +222,7 @@ export function getBuoyBeaconLayers(ctx: StyleContext): LayerSpecification[] {
           "icon-allow-overlap": true,
           "icon-ignore-placement": true,
           "text-field": LABEL_EXPR,
-          "text-size": 11,
+          "text-size": scaledTextSize(11, ctx),
           "text-offset": [0, 1.5],
           "text-allow-overlap": false,
           "text-optional": true,
@@ -275,7 +250,7 @@ export function getBuoyBeaconLayers(ctx: StyleContext): LayerSpecification[] {
           "icon-allow-overlap": true,
           "icon-ignore-placement": true,
           "text-field": LABEL_EXPR,
-          "text-size": 11,
+          "text-size": scaledTextSize(11, ctx),
           "text-offset": [0, 1.5],
           "text-allow-overlap": false,
           "text-optional": true,
@@ -303,7 +278,7 @@ export function getBuoyBeaconLayers(ctx: StyleContext): LayerSpecification[] {
           "icon-allow-overlap": true,
           "icon-ignore-placement": true,
           "text-field": LABEL_EXPR,
-          "text-size": 11,
+          "text-size": scaledTextSize(11, ctx),
           "text-offset": [0, 1.5],
           "text-allow-overlap": false,
           "text-optional": true,
@@ -335,7 +310,7 @@ export function getBuoyBeaconLayers(ctx: StyleContext): LayerSpecification[] {
           "icon-ignore-placement": true,
           "icon-optional": true,
           "text-field": ["get", "LABEL"],
-          "text-size": 10,
+          "text-size": scaledTextSize(10, ctx),
           "text-offset": [
             "case",
             ["==", ["get", "HAS_TOPMAR"], 1],
@@ -592,7 +567,7 @@ export function getOtherNavAidLayers(ctx: StyleContext): LayerSpecification[] {
           "icon-allow-overlap": true,
           "icon-ignore-placement": true,
           "text-field": LABEL_EXPR,
-          "text-size": 11,
+          "text-size": scaledTextSize(11, ctx),
           "text-offset": [0, 1.5],
           "text-allow-overlap": false,
           "text-optional": true,
@@ -615,7 +590,7 @@ export function getOtherNavAidLayers(ctx: StyleContext): LayerSpecification[] {
       minzoom: ctx.detailMinzoom(12),
       layout: {
         "text-field": ["get", "LABEL"],
-        "text-size": 10,
+        "text-size": scaledTextSize(10, ctx),
         "text-font": ["Noto Sans Italic"],
         "text-allow-overlap": false,
         "text-padding": 5,
@@ -707,7 +682,7 @@ export function getOtherPointLayers(ctx: StyleContext): LayerSpecification[] {
           "icon-size": scaledSize(0.6, ctx),
           "icon-allow-overlap": true,
           "text-field": ["get", "OBJNAM"] as unknown as ExpressionSpecification,
-          "text-size": 10,
+          "text-size": scaledTextSize(10, ctx),
           "text-offset": [0, 1.5] as [number, number],
           "text-allow-overlap": false,
           "text-optional": true,
@@ -799,7 +774,7 @@ export function getAdditionalPointLayers(
           ["concat", "Plt ", ["get", "OBJNAM"]],
           "Plt",
         ] as unknown as ExpressionSpecification,
-        "text-size": 10,
+        "text-size": scaledTextSize(10, ctx),
         "text-allow-overlap": false,
         "text-optional": true,
       },
@@ -831,7 +806,7 @@ export function getAdditionalPointLayers(
             ["concat", "Plt ", ["get", "OBJNAM"]],
             "Plt",
           ] as unknown as ExpressionSpecification,
-          "text-size": 10,
+          "text-size": scaledTextSize(10, ctx),
           "text-offset": [0, 1.5] as [number, number],
           "text-allow-overlap": false,
           "text-optional": true,
@@ -911,7 +886,7 @@ export function getAdditionalPointLayers(
       minzoom: ctx.detailMinzoom(12),
       layout: {
         "text-field": ["get", "OBJNAM"] as unknown as ExpressionSpecification,
-        "text-size": 10,
+        "text-size": scaledTextSize(10, ctx),
         "text-allow-overlap": false,
         "text-optional": true,
       },

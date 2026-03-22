@@ -4,6 +4,7 @@
  */
 import type { ExpressionSpecification, LayerSpecification } from "maplibre-gl";
 import type { StyleContext } from "../style-context";
+import { scaledTextSize } from "../style-context";
 
 /** Regulatory overlay fills and outlines (always built). */
 export function getNavigationOverlayLayers(
@@ -78,7 +79,7 @@ export function getNavigationOverlayLayers(
         "icon-size": 0.8,
         "icon-allow-overlap": true,
         "text-field": ["get", "OBJNAM"] as unknown as ExpressionSpecification,
-        "text-size": 11,
+        "text-size": scaledTextSize(11, ctx),
         "text-font": ["Noto Sans Regular"],
         "text-allow-overlap": false,
         "text-optional": true,
@@ -254,7 +255,7 @@ export function getNavigationRoutingLayers(
           "Nr ",
           ["get", "OBJNAM"],
         ] as unknown as ExpressionSpecification,
-        "text-size": 10,
+        "text-size": scaledTextSize(10, ctx),
         "text-font": ["Noto Sans Regular"],
         "text-allow-overlap": true,
         "text-anchor": "top" as const,

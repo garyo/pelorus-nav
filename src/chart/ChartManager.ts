@@ -36,6 +36,8 @@ export class ChartManager {
   private prevShowOSMUnderlay: boolean;
   private prevShallowDepth: number;
   private prevDeepDepth: number;
+  private prevTextScale: number;
+  private prevIconScale: number;
 
   constructor(options: ChartManagerOptions) {
     if (options.providers.length === 0) {
@@ -76,6 +78,8 @@ export class ChartManager {
     this.prevShowOSMUnderlay = initial.showOSMUnderlay;
     this.prevShallowDepth = initial.shallowDepth;
     this.prevDeepDepth = initial.deepDepth;
+    this.prevTextScale = initial.textScale;
+    this.prevIconScale = initial.iconScale;
 
     // Re-apply style only when chart-relevant settings change
     onSettingsChange(() => {
@@ -90,6 +94,8 @@ export class ChartManager {
         s.showOSMUnderlay !== this.prevShowOSMUnderlay ||
         s.shallowDepth !== this.prevShallowDepth ||
         s.deepDepth !== this.prevDeepDepth ||
+        s.textScale !== this.prevTextScale ||
+        s.iconScale !== this.prevIconScale ||
         layersChanged
       ) {
         this.prevDepthUnit = s.depthUnit;
@@ -100,6 +106,8 @@ export class ChartManager {
         this.prevShowOSMUnderlay = s.showOSMUnderlay;
         this.prevShallowDepth = s.shallowDepth;
         this.prevDeepDepth = s.deepDepth;
+        this.prevTextScale = s.textScale;
+        this.prevIconScale = s.iconScale;
         this.refreshStyle();
       }
     });
