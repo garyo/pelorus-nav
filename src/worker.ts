@@ -45,6 +45,7 @@ function parseRange(
 
 function contentTypeForKey(key: string): string {
   if (key.endsWith(".geojson")) return "application/geo+json";
+  if (key.endsWith(".json")) return "application/json";
   return "application/octet-stream";
 }
 
@@ -136,10 +137,11 @@ export default {
       return new Response(null, { status: 204 });
     }
 
-    // Serve PMTiles and coverage GeoJSON from R2
+    // Serve PMTiles, coverage GeoJSON, and search indices from R2
     if (
       url.pathname.endsWith(".pmtiles") ||
-      url.pathname.endsWith(".coverage.geojson")
+      url.pathname.endsWith(".coverage.geojson") ||
+      url.pathname.endsWith(".search.json")
     ) {
       const key = url.pathname.slice(1);
       if (key.includes("..") || key.includes("//")) {
