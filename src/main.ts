@@ -12,6 +12,7 @@ import {
 } from "./chart";
 import { OPFSSource } from "./data/opfs-source";
 import { chartAssetBase } from "./data/remote-url";
+import { loadAllSearchIndices } from "./data/search-index";
 import { getChartFile, listStoredCharts } from "./data/tile-store";
 import { BearingLine } from "./map/BearingLine";
 import { getMode, setMode } from "./map/InteractionMode";
@@ -38,7 +39,6 @@ import { getSettings, onSettingsChange, updateSettings } from "./settings";
 import { CancelNavButton } from "./ui/CancelNavButton";
 import { ChartCachePanel } from "./ui/ChartCachePanel";
 import { createInstrumentHUD, INSTRUMENTS } from "./ui/InstrumentHUD";
-import { loadAllSearchIndices } from "./data/search-index";
 import {
   iconGauge,
   iconGlobe,
@@ -52,11 +52,11 @@ import {
   iconTrack,
   setIcon,
 } from "./ui/icons";
-import { SearchDialog } from "./ui/SearchDialog";
 import { NavigationHUD } from "./ui/NavigationHUD";
 import { trackInstrumentHUD } from "./ui/PanelStack";
 import { RecenterButton } from "./ui/RecenterButton";
 import { RouteManagerPanel } from "./ui/RouteManagerPanel";
+import { SearchDialog } from "./ui/SearchDialog";
 import { createSettingsPanel } from "./ui/SettingsPanel";
 import { TrackManagerPanel } from "./ui/TrackManagerPanel";
 import { WakeLockController } from "./ui/WakeLock";

@@ -57,12 +57,10 @@ const TYPE_PRIORITY: Record<string, number> = {
  * Approximate distance in nautical miles between two [lon, lat] points.
  * Uses equirectangular approximation — good enough for ranking.
  */
-function approxDistanceNM(
-  a: [number, number],
-  b: [number, number],
-): number {
+function approxDistanceNM(a: [number, number], b: [number, number]): number {
   const dLat = (b[1] - a[1]) * 60;
-  const dLon = (b[0] - a[0]) * 60 * Math.cos(((a[1] + b[1]) / 2) * (Math.PI / 180));
+  const dLon =
+    (b[0] - a[0]) * 60 * Math.cos(((a[1] + b[1]) / 2) * (Math.PI / 180));
   return Math.sqrt(dLat * dLat + dLon * dLon);
 }
 

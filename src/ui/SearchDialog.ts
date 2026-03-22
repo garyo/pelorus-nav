@@ -5,10 +5,7 @@
 
 import type maplibregl from "maplibre-gl";
 import type { SearchEntry } from "../data/search-index";
-import {
-  searchFeatures,
-  type SearchResult,
-} from "../search/feature-search";
+import { type SearchResult, searchFeatures } from "../search/feature-search";
 import { getSettings } from "../settings";
 
 export class SearchDialog {
@@ -216,10 +213,7 @@ export class SearchDialog {
   }
 
   private escapeHtml(s: string): string {
-    return s
-      .replace(/&/g, "&amp;")
-      .replace(/</g, "&lt;")
-      .replace(/>/g, "&gt;");
+    return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
   }
 
   private formatDistance(nm: number): string {

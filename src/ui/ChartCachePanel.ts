@@ -193,7 +193,9 @@ export class ChartCachePanel {
         (async () => {
           await deleteChart(stored.filename);
           await deleteAuxFile(region.coverageFilename);
-          await deleteAuxFile(region.filename.replace(".pmtiles", ".search.json"));
+          await deleteAuxFile(
+            region.filename.replace(".pmtiles", ".search.json"),
+          );
           this.onChartsChanged?.();
           await this.refresh();
         })().catch(console.error);
@@ -306,7 +308,10 @@ export class ChartCachePanel {
         this.downloadController.signal,
       );
       // Download search index (non-fatal if missing)
-      const searchFilename = region.filename.replace(".pmtiles", ".search.json");
+      const searchFilename = region.filename.replace(
+        ".pmtiles",
+        ".search.json",
+      );
       try {
         await downloadAuxFile(
           `${chartAssetBase()}/${searchFilename}`,
