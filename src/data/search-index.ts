@@ -73,8 +73,8 @@ export async function loadSearchIndex(
     const entries = data.features.map(parseRawEntry);
     cache.set(regionId, entries);
     return entries;
-  } catch {
-    // Index file may not exist yet for this region
+  } catch (err) {
+    console.warn(`Search index load failed for ${regionId}:`, err);
     return [];
   }
 }

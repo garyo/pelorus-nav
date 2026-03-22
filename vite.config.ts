@@ -22,7 +22,7 @@ export default defineConfig({
       registerType: "autoUpdate",
       workbox: {
         globPatterns: ["**/*.{js,css,html,svg,png,woff2,json}"],
-        globIgnores: ["**/*.pmtiles", "**/*.geojson"],
+        globIgnores: ["**/*.pmtiles", "**/*.geojson", "**/*.search.json"],
         navigateFallback: "/index.html",
         runtimeCaching: [
           {

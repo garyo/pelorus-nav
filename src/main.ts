@@ -331,7 +331,10 @@ new NavigationHUD(chartManager.map, navManager);
 
 // Search dialog for chart features
 const searchDialog = new SearchDialog(chartManager.map);
-loadAllSearchIndices().then((entries) => searchDialog.setEntries(entries));
+loadAllSearchIndices().then((entries) => {
+  console.log(`Search index: loaded ${entries.length} features`);
+  searchDialog.setEntries(entries);
+});
 
 // Instrument HUD (large data display) — insert before map so it pushes map down
 const mapEl = document.getElementById("map");
