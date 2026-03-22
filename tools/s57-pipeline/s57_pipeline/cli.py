@@ -21,6 +21,7 @@ from .merge import merge_tiles
 from .progress import PipelineProgress
 from .query import build_index
 from .regions import REGIONS, get_region_cells, query_region
+from .search_index import extract_search_index, write_search_index
 from .scamin import (
     compute_intu_zoom_ranges,
     cscl_to_scale_band,
@@ -695,6 +696,16 @@ def cmd_pipeline(args: argparse.Namespace) -> None:
                 )
                 sys.exit(1)
 
+    # Pass 4: Extract search index
+    search_index_path = output_path.with_suffix(".search.json")
+    cell_names = [p.stem for p in enc_files]
+    progress.info(f"Pass 4: Extracting search index for {len(cell_names)} cells")
+    search_features = extract_search_index(Path("data/work"), cell_names)
+    write_search_index(search_features, search_index_path)
+    progress.info(
+        f"Search index: {len(search_features)} named features → {search_index_path}"
+    )
+
     # Record composite state and cell snapshot
     output_size = output_path.stat().st_size if output_path.exists() else 0
     db.set_composite_state(
@@ -715,6 +726,30 @@ def cmd_pipeline(args: argparse.Namespace) -> None:
         cells_processed=len(enc_files),
         total_tiles=len(sources),
     )
+
+
+def cmd_search_index(args: argparse.Namespace) -> None:
+    """Generate a search index from already-processed GeoJSON files."""
+    work_dir = Path("data/work")
+    output_path = Path(args.output)
+
+    if args.region:
+        if args.region not in REGIONS:
+            print(f"Unknown region: {args.region}")
+            print(f"Available regions: {', '.join(REGIONS)}")
+            sys.exit(1)
+        cell_names = get_region_cells(args.region)
+    else:
+        # Discover all cells in work dir
+        cell_names = [
+            d.name for d in sorted(work_dir.iterdir())
+            if d.is_dir() and (d / "geojson").exists()
+        ]
+
+    print(f"Scanning {len(cell_names)} cells for named features...")
+    features = extract_search_index(work_dir, cell_names)
+    write_search_index(features, output_path)
+    print(f"Search index: {len(features)} named features → {output_path}")
 
 
 def main() -> None:
@@ -796,6 +831,15 @@ def main() -> None:
         help="Show per-layer conversion/tiling messages",
     )
     pl.set_defaults(func=cmd_pipeline)
+
+    # search-index
+    si = subparsers.add_parser("search-index", help="Generate search index from processed cells")
+    si.add_argument("--region", "-r", help="Named region to filter cells")
+    si.add_argument(
+        "--output", "-o", default="data/search-index.json",
+        help="Output JSON path (default: data/search-index.json)",
+    )
+    si.set_defaults(func=cmd_search_index)
 
     args = parser.parse_args()
     args.func(args)

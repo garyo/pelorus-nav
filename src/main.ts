@@ -38,6 +38,7 @@ import { getSettings, onSettingsChange, updateSettings } from "./settings";
 import { CancelNavButton } from "./ui/CancelNavButton";
 import { ChartCachePanel } from "./ui/ChartCachePanel";
 import { createInstrumentHUD, INSTRUMENTS } from "./ui/InstrumentHUD";
+import { loadAllSearchIndices } from "./data/search-index";
 import {
   iconGauge,
   iconGlobe,
@@ -47,9 +48,11 @@ import {
   iconPlot,
   iconRecord,
   iconRoute,
+  iconSearch,
   iconTrack,
   setIcon,
 } from "./ui/icons";
+import { SearchDialog } from "./ui/SearchDialog";
 import { NavigationHUD } from "./ui/NavigationHUD";
 import { trackInstrumentHUD } from "./ui/PanelStack";
 import { RecenterButton } from "./ui/RecenterButton";
@@ -325,6 +328,10 @@ onSettingsChange((s) => {
 
 // Navigation HUD (replaces ad-hoc zoom/cursor display)
 new NavigationHUD(chartManager.map, navManager);
+
+// Search dialog for chart features
+const searchDialog = new SearchDialog(chartManager.map);
+loadAllSearchIndices().then((entries) => searchDialog.setEntries(entries));
 
 // Instrument HUD (large data display) — insert before map so it pushes map down
 const mapEl = document.getElementById("map");
@@ -637,6 +644,11 @@ document.addEventListener("keydown", (e) => {
       measurementLayer.clear();
     }
   }
+  // Ctrl+F / Cmd+F: open search dialog
+  if ((e.ctrlKey || e.metaKey) && e.key === "f") {
+    e.preventDefault();
+    searchDialog.toggle();
+  }
 });
 
 // --- Track recording ---
@@ -844,6 +856,18 @@ if (topbarMenu) {
     closeHamburger();
   });
   topbarMenu.insertBefore(cacheBtn, settingsWrapper);
+
+  // Search button
+  const searchBtn = document.createElement("button");
+  searchBtn.className = "settings-btn";
+  searchBtn.title = "Search";
+  setIcon(searchBtn, iconSearch);
+  addMenuLabel(searchBtn, "Search");
+  searchBtn.addEventListener("click", () => {
+    searchDialog.show();
+    closeHamburger();
+  });
+  topbarMenu.insertBefore(searchBtn, settingsWrapper);
 
   // Close manager panels when settings opens
   settingsHandle?.onOpen(() => {

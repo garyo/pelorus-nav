@@ -193,6 +193,7 @@ export class ChartCachePanel {
         (async () => {
           await deleteChart(stored.filename);
           await deleteAuxFile(region.coverageFilename);
+          await deleteAuxFile(region.filename.replace(".pmtiles", ".search.json"));
           this.onChartsChanged?.();
           await this.refresh();
         })().catch(console.error);
@@ -304,6 +305,17 @@ export class ChartCachePanel {
         region.coverageFilename,
         this.downloadController.signal,
       );
+      // Download search index (non-fatal if missing)
+      const searchFilename = region.filename.replace(".pmtiles", ".search.json");
+      try {
+        await downloadAuxFile(
+          `${chartAssetBase()}/${searchFilename}`,
+          searchFilename,
+          this.downloadController.signal,
+        );
+      } catch {
+        // Search index may not exist yet for this region — not critical
+      }
       this.onChartsChanged?.();
     } catch (err) {
       if (err instanceof DOMException && err.name === "AbortError") {
@@ -348,9 +360,10 @@ export class ChartCachePanel {
     )
       return;
     await deleteAllCharts();
-    // Also remove all coverage GeoJSON files
+    // Also remove all coverage GeoJSON and search index files
     for (const region of CHART_REGIONS) {
       await deleteAuxFile(region.coverageFilename);
+      await deleteAuxFile(region.filename.replace(".pmtiles", ".search.json"));
     }
     this.onChartsChanged?.();
     await this.refresh();

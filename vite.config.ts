@@ -9,6 +9,13 @@ export default defineConfig({
   server: {
     host: true,
     port: 5173,
+    watch: {
+      ignored: ["**/refs/**"],
+    },
+  },
+  optimizeDeps: {
+    exclude: [],
+    entries: ["src/main.ts", "src/worker.ts"],
   },
   plugins: [
     VitePWA({

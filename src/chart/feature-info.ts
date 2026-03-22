@@ -183,7 +183,7 @@ const INTERNAL_FIELDS = new Set([
 ]);
 
 // Human-readable names for S-57 object classes
-const LAYER_NAMES: Record<string, string> = {
+export const LAYER_NAMES: Record<string, string> = {
   BOYLAT: "Lateral Buoy",
   BOYCAR: "Cardinal Buoy",
   BOYSAW: "Safe Water Buoy",

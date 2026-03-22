@@ -255,7 +255,7 @@ do_upload() {
   local uploaded=0
   local skipped=0
 
-  for file in "$OUTPUT_DIR"/nautical-*.pmtiles "$OUTPUT_DIR"/nautical-*.coverage.geojson; do
+  for file in "$OUTPUT_DIR"/nautical-*.pmtiles "$OUTPUT_DIR"/nautical-*.coverage.geojson "$OUTPUT_DIR"/nautical-*.search.json; do
     [[ -f "$file" ]] || continue
 
     local name

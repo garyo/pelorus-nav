@@ -81,6 +81,12 @@ export const iconEdit = svg(
   '<path d="M17 3a2.83 2.83 0 0 1 4 4L7.5 20.5 2 22l1.5-5.5z"/>',
 );
 
+/** Magnifying glass / search. */
+export const iconSearch = svg(
+  '<circle cx="11" cy="11" r="8"/>' +
+    '<line x1="21" y1="21" x2="16.65" y2="16.65"/>',
+);
+
 /** X / close. */
 export const iconX = svg(
   '<line x1="18" y1="6" x2="6" y2="18"/>' +
