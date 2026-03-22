@@ -36,12 +36,14 @@ import { ActiveNavigationManager } from "./navigation/ActiveNavigation";
 import { CourseSmoothing } from "./navigation/CourseSmoothing";
 import { RegionAutoSwitch } from "./navigation/RegionAutoSwitch";
 import { getSettings, onSettingsChange, updateSettings } from "./settings";
+import { AboutDialog } from "./ui/AboutDialog";
 import { CancelNavButton } from "./ui/CancelNavButton";
 import { ChartCachePanel } from "./ui/ChartCachePanel";
 import { createInstrumentHUD, INSTRUMENTS } from "./ui/InstrumentHUD";
 import {
   iconGauge,
   iconGlobe,
+  iconInfo,
   iconMaximize,
   iconMinimize,
   iconPin,
@@ -915,6 +917,19 @@ if (topbarMenu) {
   window.addEventListener("online", updateOnlineStatus);
   window.addEventListener("offline", updateOnlineStatus);
   updateOnlineStatus();
+
+  // About button (circle-? icon, left of settings gear)
+  const aboutDialog = new AboutDialog();
+  const aboutBtn = document.createElement("button");
+  aboutBtn.className = "settings-btn";
+  aboutBtn.title = "About";
+  setIcon(aboutBtn, iconInfo);
+  addMenuLabel(aboutBtn, "About");
+  aboutBtn.addEventListener("click", () => {
+    aboutDialog.toggle();
+    closeHamburger();
+  });
+  topbarMenu.insertBefore(aboutBtn, settingsWrapper);
 }
 
 // Dismiss on click elsewhere or map interaction

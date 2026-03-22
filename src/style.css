@@ -539,6 +539,90 @@ body {
   border-color: #6af;
 }
 
+/* About dialog */
+.about-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 10001;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.3);
+}
+
+.about-card {
+  background: rgba(30, 30, 50, 0.95);
+  border: 1px solid #555;
+  border-radius: 8px;
+  padding: 20px 24px;
+  color: #e0e0e0;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
+  font:
+    13px system-ui,
+    -apple-system,
+    sans-serif;
+  width: 480px;
+  max-width: calc(100vw - 32px);
+  max-height: calc(100vh - 64px);
+  overflow-y: auto;
+}
+
+.about-title {
+  font-size: 18px;
+  font-weight: bold;
+  color: #fff;
+  margin-bottom: 2px;
+}
+
+.about-tagline {
+  font-size: 12px;
+  color: #999;
+  margin-bottom: 10px;
+}
+
+.about-author {
+  margin-bottom: 10px;
+}
+
+.about-links {
+  display: flex;
+  gap: 16px;
+  margin-bottom: 14px;
+}
+
+.about-links a {
+  color: #6af;
+  text-decoration: none;
+}
+
+.about-links a:hover {
+  text-decoration: underline;
+}
+
+.about-credits-heading {
+  font-size: 11px;
+  color: #888;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 6px;
+}
+
+.about-credits {
+  list-style: none;
+  font-size: 12px;
+  color: #bbb;
+  line-height: 1.6;
+}
+
+.about-credits a {
+  color: #6af;
+  text-decoration: none;
+}
+
+.about-credits a:hover {
+  text-decoration: underline;
+}
+
 /* Search dialog */
 .search-overlay {
   display: none;
