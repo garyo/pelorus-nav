@@ -25,18 +25,20 @@ def enrich_geojson(
     *,
     cell_cscl: int | None = None,
     cell_intu: int | None = None,
+    cell_id: int | None = None,
     intu_zoom_ranges: dict[int, tuple[int, int, int]] | None = None,
     apply_scamin: bool = True,
 ) -> None:
     """Enrich a GeoJSON file with all metadata in a single read/write pass.
 
-    Adds: tippecanoe minzoom (from SCAMIN), _scale_band, LABEL,
+    Adds: tippecanoe minzoom (from SCAMIN), _scale_band, _cell_id, LABEL,
     _disp_cat, _disp_pri. Normalizes COLOUR to a JSON array.
 
     Args:
         geojson_path: Path to the GeoJSON file (modified in-place).
         cell_cscl: The cell's DSPM_CSCL compilation scale.
         cell_intu: The cell's DSID_INTU intended use (1-6).
+        cell_id: Numeric identifier for the source ENC cell.
         intu_zoom_ranges: Pre-computed ranges from compute_intu_zoom_ranges().
         apply_scamin: Whether to add tippecanoe minzoom from SCAMIN attributes.
     """
@@ -92,6 +94,8 @@ def enrich_geojson(
                     minzoom = 12
                 feature["tippecanoe"]["minzoom"] = minzoom
             props["_scale_band"] = scale_band
+            if cell_id is not None:
+                props["_cell_id"] = cell_id
 
         # --- Labels ---
         if is_lights:

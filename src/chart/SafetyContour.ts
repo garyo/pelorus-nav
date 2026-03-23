@@ -2,11 +2,17 @@
  * Safety contour — finds the shallowest depth contour ≥ safetyDepth
  * and bolds it by updating a MapLibre filter at runtime.
  *
- * Follows the same algorithm as OpenCPN's BuildDepthContourArray() +
- * SetSafetyContour() (s57chart.cpp): scan DEPCNT features for unique
- * VALDCO values, pick the smallest ≥ safetyDepth, bold that line.
+ * Different ENC cells have different contour sets (e.g., inner harbor
+ * has 1,2,3,5,7,10m; outer harbor has 5,10,20,30m). We resolve the
+ * safety contour independently per `_cell_id` (source ENC cell), then
+ * build a single MapLibre `match` expression that picks the correct
+ * VALDCO for each feature's cell.
+ *
+ * Based on OpenCPN's BuildDepthContourArray() + SetSafetyContour().
  */
+
 import type maplibregl from "maplibre-gl";
+import type { FilterSpecification } from "maplibre-gl";
 import { CHART_REGIONS } from "../data/chart-catalog";
 import { getSettings, onSettingsChange } from "../settings";
 import { s52Colour } from "./s52-colours";
@@ -29,11 +35,12 @@ function getVectorSourceIds(): string[] {
 
 export class SafetyContour {
   private readonly map: maplibregl.Map;
-  private resolvedValue: number | null = null;
   private prevSafetyDepth: number;
   private scanTimer: ReturnType<typeof setTimeout> | null = null;
-  /** Cached sorted array of all unique VALDCO values from loaded tiles. */
-  private knownValdco: number[] = [];
+  /** Cached sorted VALDCO values grouped by _cell_id. */
+  private valdcoByCell = new Map<number, number[]>();
+  /** Current per-cell resolved safety contour values. */
+  private resolvedByCell = new Map<number, number>();
   /** Suppress sourcedata re-scans during our own paint updates. */
   private updating = false;
 
@@ -78,9 +85,9 @@ export class SafetyContour {
     }, 1000);
   }
 
-  /** Scan all loaded DEPCNT features and cache unique VALDCO values. */
+  /** Scan all loaded DEPCNT features and cache VALDCO values grouped by _cell_id. */
   private scanTiles(): void {
-    const valdcoSet = new Set<number>();
+    const byCell = new Map<number, Set<number>>();
 
     for (const srcId of getVectorSourceIds()) {
       try {
@@ -88,9 +95,11 @@ export class SafetyContour {
           sourceLayer: "DEPCNT",
         });
         for (const f of features) {
+          const cellId = (f.properties?._cell_id as number) ?? 0;
           const v = f.properties?.VALDCO;
           if (typeof v === "number" && v > 0) {
-            valdcoSet.add(v);
+            if (!byCell.has(cellId)) byCell.set(cellId, new Set());
+            byCell.get(cellId)!.add(v);
           }
         }
       } catch {
@@ -98,16 +107,42 @@ export class SafetyContour {
       }
     }
 
-    this.knownValdco = [...valdcoSet].sort((a, b) => a - b);
+    // Store as sorted arrays per cell
+    this.valdcoByCell = new Map(
+      [...byCell].map(([cellId, vals]) => [
+        cellId,
+        [...vals].sort((a, b) => a - b),
+      ]),
+    );
+
+    console.log(
+      "[SafetyContour] scanTiles — VALDCO by cell:",
+      Object.fromEntries(
+        [...this.valdcoByCell].map(([id, v]) => [`cell_${id}`, v]),
+      ),
+    );
+
     this.resolveFromCache(getSettings().safetyDepth);
   }
 
-  /** Pick the smallest cached VALDCO >= safetyDepth and update the filter. */
+  /** Resolve the safety contour per cell from cached VALDCO values. */
   private resolveFromCache(safetyDepth: number): void {
-    const newValue = this.knownValdco.find((v) => v >= safetyDepth) ?? null;
+    const resolved = new Map<number, number>();
+    for (const [cellId, vals] of this.valdcoByCell) {
+      const v = vals.find((val) => val >= safetyDepth);
+      if (v !== undefined) resolved.set(cellId, v);
+    }
 
-    if (newValue === this.resolvedValue) return;
-    this.resolvedValue = newValue;
+    console.log(
+      `[SafetyContour] resolve safetyDepth=${safetyDepth.toFixed(2)}m → per-cell:`,
+      Object.fromEntries(
+        [...resolved].map(([id, v]) => [`cell_${id}`, `${v}m`]),
+      ),
+    );
+
+    // Check if anything changed
+    if (mapsEqual(this.resolvedByCell, resolved)) return;
+    this.resolvedByCell = resolved;
     this.applyFilter();
   }
 
@@ -132,28 +167,59 @@ export class SafetyContour {
 
   /** Re-apply the current filter after a style rebuild resets layers to placeholder. */
   private reapplyFilter(): void {
-    if (this.resolvedValue !== null) {
+    if (this.resolvedByCell.size > 0) {
       this.applyFilter();
     }
   }
 
-  /** Update the filter on all safety contour layers to match the resolved VALDCO. */
+  /** Build and apply the per-cell safety contour filter to all region layers. */
   private applyFilter(): void {
-    const filterValue = this.resolvedValue ?? -1; // -1 = impossible match
-    const layerIds = getSafetyContourLayerIds();
+    const filter = buildPerCellFilter(this.resolvedByCell);
+    console.log("[SafetyContour] applyFilter:", JSON.stringify(filter));
 
-    for (const layerId of layerIds) {
+    for (const layerId of getSafetyContourLayerIds()) {
       try {
-        const exists = !!this.map.getLayer(layerId);
-        console.log(
-          `[SafetyContour] setFilter(${layerId}, VALDCO==${filterValue}), layer exists=${exists}`,
-        );
-        if (exists) {
-          this.map.setFilter(layerId, ["==", ["get", "VALDCO"], filterValue]);
+        if (this.map.getLayer(layerId)) {
+          this.map.setFilter(layerId, filter);
         }
-      } catch (err) {
-        console.warn(`[SafetyContour] setFilter(${layerId}) failed:`, err);
+      } catch {
+        // Layer may not exist yet during style transitions
       }
     }
   }
+}
+
+/**
+ * Build a MapLibre filter that matches each DEPCNT feature's VALDCO
+ * against the resolved safety contour for its _cell_id.
+ *
+ * Result: ["==", ["get", "VALDCO"], ["match", ["get", "_cell_id"], id1, val1, id2, val2, ..., -1]]
+ */
+function buildPerCellFilter(
+  resolvedByCell: Map<number, number>,
+): FilterSpecification {
+  if (resolvedByCell.size === 0) {
+    return ["==", ["get", "VALDCO"], -1] as FilterSpecification;
+  }
+
+  const matchArgs: (string | number | unknown[])[] = [["get", "_cell_id"]];
+  for (const [cellId, valdco] of resolvedByCell) {
+    matchArgs.push(cellId, valdco);
+  }
+  matchArgs.push(-1); // default — impossible match
+
+  return [
+    "==",
+    ["get", "VALDCO"],
+    ["match", ...matchArgs],
+  ] as unknown as FilterSpecification;
+}
+
+/** Compare two Map<number, number> for equality. */
+function mapsEqual(a: Map<number, number>, b: Map<number, number>): boolean {
+  if (a.size !== b.size) return false;
+  for (const [k, v] of a) {
+    if (b.get(k) !== v) return false;
+  }
+  return true;
 }

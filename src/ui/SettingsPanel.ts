@@ -747,7 +747,9 @@ function buildDepthThresholdSliders(): HTMLElement {
 
   syncSliders();
 
-  // Enforce shallow ≤ safety ≤ deep ordering (all values in meters)
+  // Ordering rules:
+  // - Moving a shallower slider UP pushes deeper sliders along
+  // - Moving a deeper slider DOWN clamps at the next shallower value
   function applyShallowMeters(meters: number) {
     const s = getSettings();
     if (meters > s.deepDepth) {
@@ -765,28 +767,20 @@ function buildDepthThresholdSliders(): HTMLElement {
 
   function applySafetyMeters(meters: number) {
     const s = getSettings();
-    if (meters < s.shallowDepth) {
-      updateSettings({ shallowDepth: meters, safetyDepth: meters });
-    } else if (meters > s.deepDepth) {
-      updateSettings({ safetyDepth: meters, deepDepth: meters });
+    // Clamp at shallow (don't push shallow down)
+    const clamped = Math.max(meters, s.shallowDepth);
+    if (clamped > s.deepDepth) {
+      updateSettings({ safetyDepth: clamped, deepDepth: clamped });
     } else {
-      updateSettings({ safetyDepth: meters });
+      updateSettings({ safetyDepth: clamped });
     }
   }
 
   function applyDeepMeters(meters: number) {
     const s = getSettings();
-    if (meters < s.shallowDepth) {
-      updateSettings({
-        shallowDepth: meters,
-        safetyDepth: meters,
-        deepDepth: meters,
-      });
-    } else if (meters < s.safetyDepth) {
-      updateSettings({ safetyDepth: meters, deepDepth: meters });
-    } else {
-      updateSettings({ deepDepth: meters });
-    }
+    // Clamp at safety (don't push safety or shallow down)
+    const clamped = Math.max(meters, s.safetyDepth);
+    updateSettings({ deepDepth: clamped });
   }
 
   // Snap meters to the nearest display step so we don't fire redundant updates
@@ -797,6 +791,33 @@ function buildDepthThresholdSliders(): HTMLElement {
     const display = Math.round((meters * factor) / step) * step;
     return display / factor;
   }
+
+  // Arrow key handler: step by one display unit instead of raw slider ticks
+  function handleArrowKey(
+    e: KeyboardEvent,
+    applyFn: (m: number) => void,
+    getCurrentMeters: () => number,
+  ) {
+    if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
+    e.preventDefault();
+    const step = stepForUnit(currentUnit());
+    const factor = depthConversionFactor(currentUnit());
+    const currentDisplay = getCurrentMeters() * factor;
+    const delta = e.key === "ArrowRight" ? step : -step;
+    const newDisplay = Math.max(0, currentDisplay + delta);
+    const newMeters = newDisplay / factor;
+    applyFn(snapMeters(newMeters));
+  }
+
+  shallowSlider.addEventListener("keydown", (e) =>
+    handleArrowKey(e, applyShallowMeters, () => getSettings().shallowDepth),
+  );
+  safetySlider.addEventListener("keydown", (e) =>
+    handleArrowKey(e, applySafetyMeters, () => getSettings().safetyDepth),
+  );
+  deepSlider.addEventListener("keydown", (e) =>
+    handleArrowKey(e, applyDeepMeters, () => getSettings().deepDepth),
+  );
 
   // Slider handlers: convert slider position → meters, snap, skip if unchanged
   shallowSlider.addEventListener("input", () => {

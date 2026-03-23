@@ -200,6 +200,8 @@ def convert_enc(
     # Read cell metadata for zoom mapping
     cell_cscl = read_compilation_scale(enc_path) if apply_scamin else None
     cell_intu = read_intended_use(enc_path) if apply_scamin else None
+    # Stable 16-bit cell identifier from filename (e.g. "US5MA22M" → int)
+    cell_id = hash(enc_path.stem) & 0xFFFF
 
     # Find which of our target layers exist in this ENC
     available = set(list_enc_layers(enc_path))
@@ -213,6 +215,7 @@ def convert_enc(
                 path,
                 cell_cscl=cell_cscl,
                 cell_intu=cell_intu,
+                cell_id=cell_id,
                 intu_zoom_ranges=intu_zoom_ranges,
                 apply_scamin=apply_scamin,
             )
