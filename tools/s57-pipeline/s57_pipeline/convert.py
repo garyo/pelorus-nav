@@ -8,7 +8,7 @@ import subprocess
 from collections.abc import Callable
 from pathlib import Path
 
-from .enrich import correlate_topmarks, enrich_geojson
+from .enrich import annotate_enclosing_depth, correlate_topmarks, enrich_geojson
 from .layers import LAYER_NAMES
 
 
@@ -228,5 +228,9 @@ def convert_enc(
     # Cross-reference TOPMAR features with buoys/beacons so the frontend
     # can adjust label offsets when a topmark is present.
     correlate_topmarks(output_dir)
+
+    # Annotate hazard features with enclosing DEPARE depth for isolated
+    # danger detection (S-52 UDWHAZ05).
+    annotate_enclosing_depth(output_dir)
 
     return outputs

@@ -216,193 +216,200 @@
     "x": 128,
     "y": 64
   },
-  "ecdis-landmark-chimney": {
+  "ecdis-isolated-danger": {
     "height": 32,
     "pixelRatio": 1,
     "width": 32,
     "x": 160,
+    "y": 64
+  },
+  "ecdis-landmark-chimney": {
+    "height": 32,
+    "pixelRatio": 1,
+    "width": 32,
+    "x": 192,
     "y": 64
   },
   "ecdis-landmark-default": {
     "height": 32,
     "pixelRatio": 1,
     "width": 32,
-    "x": 192,
+    "x": 224,
     "y": 64
   },
   "ecdis-landmark-flagstaff": {
     "height": 32,
     "pixelRatio": 1,
     "width": 32,
-    "x": 224,
-    "y": 64
+    "x": 64,
+    "y": 96
   },
   "ecdis-landmark-monument": {
     "height": 32,
     "pixelRatio": 1,
     "width": 32,
     "x": 64,
-    "y": 96
+    "y": 128
   },
   "ecdis-landmark-tower": {
     "height": 32,
     "pixelRatio": 1,
     "width": 32,
     "x": 64,
-    "y": 128
+    "y": 160
   },
   "ecdis-landmark-windmill": {
     "height": 32,
     "pixelRatio": 1,
     "width": 32,
     "x": 64,
-    "y": 160
+    "y": 192
   },
   "ecdis-landmark-windmotor": {
     "height": 32,
     "pixelRatio": 1,
     "width": 32,
     "x": 64,
-    "y": 192
+    "y": 224
   },
   "ecdis-light-major": {
     "height": 32,
     "pixelRatio": 1,
     "width": 32,
-    "x": 64,
-    "y": 224
+    "x": 96,
+    "y": 96
   },
   "ecdis-light-minor": {
     "height": 32,
     "pixelRatio": 1,
     "width": 32,
-    "x": 96,
+    "x": 128,
     "y": 96
   },
   "ecdis-mooring": {
     "height": 32,
     "pixelRatio": 1,
     "width": 32,
-    "x": 128,
+    "x": 160,
     "y": 96
   },
   "ecdis-obstruction": {
     "height": 32,
     "pixelRatio": 1,
     "width": 32,
-    "x": 160,
+    "x": 192,
     "y": 96
   },
   "ecdis-obstruction-foul": {
     "height": 32,
     "pixelRatio": 1,
     "width": 32,
-    "x": 192,
+    "x": 224,
     "y": 96
   },
   "ecdis-piling": {
     "height": 32,
     "pixelRatio": 1,
     "width": 32,
-    "x": 224,
-    "y": 96
+    "x": 96,
+    "y": 128
   },
   "ecdis-platform": {
     "height": 32,
     "pixelRatio": 1,
     "width": 32,
     "x": 96,
-    "y": 128
+    "y": 160
   },
   "ecdis-rock-above": {
     "height": 32,
     "pixelRatio": 1,
     "width": 32,
     "x": 96,
-    "y": 160
+    "y": 192
   },
   "ecdis-rock-awash": {
     "height": 32,
     "pixelRatio": 1,
     "width": 32,
     "x": 96,
-    "y": 192
+    "y": 224
   },
   "ecdis-rock-underwater": {
     "height": 32,
     "pixelRatio": 1,
     "width": 32,
-    "x": 96,
-    "y": 224
+    "x": 128,
+    "y": 128
   },
   "ecdis-tank": {
     "height": 32,
     "pixelRatio": 1,
     "width": 32,
-    "x": 128,
+    "x": 160,
     "y": 128
   },
   "ecdis-topmark-2cones-down": {
     "height": 32,
     "pixelRatio": 1,
     "width": 32,
-    "x": 160,
+    "x": 192,
     "y": 128
   },
   "ecdis-topmark-2cones-up": {
     "height": 32,
     "pixelRatio": 1,
     "width": 32,
-    "x": 192,
+    "x": 224,
     "y": 128
   },
   "ecdis-topmark-cone-down": {
     "height": 32,
     "pixelRatio": 1,
     "width": 32,
-    "x": 224,
-    "y": 128
+    "x": 128,
+    "y": 160
   },
   "ecdis-topmark-cone-up": {
     "height": 32,
     "pixelRatio": 1,
     "width": 32,
     "x": 128,
-    "y": 160
+    "y": 192
   },
   "ecdis-topmark-sphere": {
     "height": 32,
     "pixelRatio": 1,
     "width": 32,
     "x": 128,
-    "y": 192
-  },
-  "ecdis-topmark-x": {
-    "height": 32,
-    "pixelRatio": 1,
-    "width": 32,
-    "x": 128,
     "y": 224
   },
-  "ecdis-wreck-dangerous": {
+  "ecdis-topmark-x": {
     "height": 32,
     "pixelRatio": 1,
     "width": 32,
     "x": 160,
     "y": 160
   },
-  "ecdis-wreck-mast": {
+  "ecdis-wreck-dangerous": {
     "height": 32,
     "pixelRatio": 1,
     "width": 32,
     "x": 192,
     "y": 160
   },
-  "ecdis-wreck-nondangerous": {
+  "ecdis-wreck-mast": {
     "height": 32,
     "pixelRatio": 1,
     "width": 32,
     "x": 224,
     "y": 160
+  },
+  "ecdis-wreck-nondangerous": {
+    "height": 32,
+    "pixelRatio": 1,
+    "width": 32,
+    "x": 160,
+    "y": 192
   }
 }

@@ -57,6 +57,9 @@ export const PELORUS_STANDARD: Record<string, string> = {
   "light-minor-green": "ecdis-light-minor",
   "light-minor-white": "ecdis-light-minor",
 
+  // Isolated danger overlay (S-52 UDWHAZ05)
+  "isolated-danger-symbol": "ecdis-isolated-danger",
+
   // Hazards
   "wreck-dangerous": "ecdis-wreck-dangerous",
   "wreck-nondangerous": "ecdis-wreck-nondangerous",
@@ -166,6 +169,9 @@ export const IHO_S52: Record<string, string> = {
   "light-minor-red": "LIGHTS11",
   "light-minor-green": "LIGHTS12",
   "light-minor-white": "LIGHTS13",
+
+  // Isolated danger overlay (S-52 UDWHAZ05)
+  "isolated-danger-symbol": "ISODGR01",
 
   // Hazards
   "wreck-dangerous": "WRECKS01",

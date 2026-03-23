@@ -32,6 +32,14 @@ function getDepareMediumLayerIds(): string[] {
   return CHART_REGIONS.map((r) => `s57-${r.id}-depare-medium`);
 }
 
+/** All region-prefixed isolated danger overlay layer IDs. */
+function getIsolatedDangerLayerIds(): string[] {
+  const hazards = ["wrecks", "obstrn", "uwtroc"];
+  return CHART_REGIONS.flatMap((r) =>
+    hazards.map((h) => `s57-${r.id}-${h}-isodgr`),
+  );
+}
+
 function getVectorSourceIds(): string[] {
   return CHART_REGIONS.map((r, i) =>
     i === 0 ? "s57-vector" : `s57-vector-${r.id}`,
@@ -205,11 +213,32 @@ export class SafetyContour {
     }
   }
 
+  /** Update isolated danger overlay filters based on safetyDepth. */
+  private updateIsolatedDangerFilters(safetyDepth: number): void {
+    const filter = [
+      "all",
+      ["has", "_enclosing_depth"],
+      ["has", "VALSOU"],
+      ["<=", ["get", "VALSOU"], safetyDepth],
+      [">=", ["get", "_enclosing_depth"], safetyDepth],
+    ];
+    for (const layerId of getIsolatedDangerLayerIds()) {
+      try {
+        if (this.map.getLayer(layerId)) {
+          this.map.setFilter(layerId, filter as unknown as FilterSpecification);
+        }
+      } catch {
+        // Layer may not exist yet
+      }
+    }
+  }
+
   /** Apply all targeted updates for a safetyDepth change. */
   private applyAll(safetyDepth: number): void {
     this.applyContourFilter();
     this.updateSoundingColors(safetyDepth);
     this.updateDepareColors(safetyDepth);
+    this.updateIsolatedDangerFilters(safetyDepth);
   }
 
   /** Re-apply everything after a full style rebuild resets layers to placeholder. */

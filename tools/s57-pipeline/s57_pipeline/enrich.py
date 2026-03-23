@@ -10,6 +10,11 @@ from __future__ import annotations
 import json
 import re
 from pathlib import Path
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from shapely import STRtree
+    from shapely.geometry import Polygon
 
 from .labels import _buoy_number, _light_label, _seabed_label
 from .scamin import (
@@ -197,3 +202,108 @@ def correlate_topmarks(output_dir: Path) -> None:
         if modified:
             with open(path, "w") as f:
                 json.dump(geojson, f)
+
+
+# Layers that may be isolated dangers (S-52 UDWHAZ05).
+_HAZARD_LAYERS = {"OBSTRN", "WRECKS", "UWTROC"}
+
+
+def annotate_enclosing_depth(output_dir: Path) -> None:
+    """Add ``_enclosing_depth`` to hazard features from enclosing DEPARE polygons.
+
+    For each OBSTRN, WRECKS, and UWTROC point feature, finds the enclosing
+    DEPARE polygon and stores its DRVAL1 as ``_enclosing_depth``.  The frontend
+    uses this to display the S-52 isolated danger symbol (ISODGR) when a hazard
+    is shallower than safetyDepth but lies in otherwise safe water.
+    """
+    depare_path = output_dir / "depare.geojson"
+    if not depare_path.exists():
+        return
+
+    # Build spatial index of DEPARE polygons
+    depare_polys, depare_drval1 = _load_depare_index(depare_path)
+    if not depare_polys:
+        return
+
+    from shapely import STRtree  # noqa: F811
+    from shapely.geometry import Point
+
+    tree = STRtree(depare_polys)
+
+    for layer_name in _HAZARD_LAYERS:
+        path = output_dir / f"{layer_name.lower()}.geojson"
+        if not path.exists():
+            continue
+
+        with open(path) as f:
+            try:
+                geojson = json.load(f)
+            except json.JSONDecodeError:
+                continue
+
+        modified = False
+        for feat in geojson.get("features", []):
+            geom = feat.get("geometry")
+            if not geom or geom.get("type") != "Point":
+                continue
+            coords = geom["coordinates"]
+            pt = Point(coords[0], coords[1])
+
+            # Find enclosing DEPARE polygon(s) — take the one with highest DRVAL1
+            # (most detailed / highest scale band wins in overlap areas)
+            best_drval1: float | None = None
+            for idx in tree.query(pt):
+                poly = depare_polys[idx]
+                if poly.contains(pt):
+                    drval1 = depare_drval1[idx]
+                    if best_drval1 is None or drval1 > best_drval1:
+                        best_drval1 = drval1
+
+            if best_drval1 is not None:
+                feat.setdefault("properties", {})["_enclosing_depth"] = best_drval1
+                modified = True
+
+        if modified:
+            with open(path, "w") as f:
+                json.dump(geojson, f)
+
+
+def _load_depare_index(
+    depare_path: Path,
+) -> tuple[list[Polygon], list[float]]:
+    """Load DEPARE polygons and their DRVAL1 values for spatial indexing."""
+    from shapely.geometry import shape
+
+    with open(depare_path) as f:
+        try:
+            geojson = json.load(f)
+        except json.JSONDecodeError:
+            return [], []
+
+    polys: list[Polygon] = []
+    drval1s: list[float] = []
+
+    for feat in geojson.get("features", []):
+        geom = feat.get("geometry")
+        props = feat.get("properties", {})
+        drval1 = props.get("DRVAL1")
+        if geom is None or drval1 is None:
+            continue
+        geom_type = geom.get("type", "")
+        if geom_type not in ("Polygon", "MultiPolygon"):
+            continue
+        try:
+            shp = shape(geom)
+            if not shp.is_valid:
+                shp = shp.buffer(0)
+            if geom_type == "MultiPolygon":
+                for p in shp.geoms:
+                    polys.append(p)
+                    drval1s.append(float(drval1))
+            else:
+                polys.append(shp)
+                drval1s.append(float(drval1))
+        except Exception:
+            continue
+
+    return polys, drval1s

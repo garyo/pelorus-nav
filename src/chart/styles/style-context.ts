@@ -25,6 +25,8 @@ export interface StyleContext {
   detailLevel: number;
   layerGroups: Record<string, boolean>;
   colour: (token: string) => string;
+  /** Look up the sprite name for a semantic icon name in the active scheme. */
+  icon: (name: string) => string;
   iconExpr: ExpressionSpecification;
   /** Sprite sheet prefix for the active symbology scheme. */
   spritePrefix: string;
@@ -177,6 +179,7 @@ export function createStyleContext(
     detailLevel: detailOffset,
     layerGroups,
     colour: (token: string) => s52Colour(token),
+    icon: (name: string) => scheme.icons[name] ?? scheme.fallback,
     iconExpr,
     spritePrefix: scheme.sprite,
     sourceId,

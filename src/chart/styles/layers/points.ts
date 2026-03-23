@@ -494,7 +494,38 @@ export function getHazardLayers(ctx: StyleContext): LayerSpecification[] {
       ),
       paint: {},
     },
+
+    // Isolated danger overlays (S-52 UDWHAZ05): magenta diamond symbol
+    // for hazards with depth ≤ safetyDepth that lie in safe water
+    // (_enclosing_depth ≥ safetyDepth). Added by pipeline enrichment.
+    ...isolatedDangerLayers(ctx),
   ];
+}
+
+/** Isolated danger overlay layers for WRECKS, OBSTRN, UWTROC. */
+function isolatedDangerLayers(ctx: StyleContext): LayerSpecification[] {
+  const filter: ExpressionSpecification = [
+    "all",
+    ["has", "_enclosing_depth"],
+    ["has", "VALSOU"],
+    ["<=", ["get", "VALSOU"], ctx.safetyDepth],
+    [">=", ["get", "_enclosing_depth"], ctx.safetyDepth],
+  ] as unknown as ExpressionSpecification;
+
+  return (["WRECKS", "OBSTRN", "UWTROC"] as const).map((layer) => ({
+    id: `s57-${layer.toLowerCase()}-isodgr`,
+    type: "symbol" as const,
+    source: ctx.sourceId,
+    "source-layer": layer,
+    minzoom: 10,
+    filter,
+    layout: {
+      "icon-image": ctx.icon("isolated-danger-symbol"),
+      "icon-size": scaledSize(0.7, ctx) as number,
+      "icon-allow-overlap": true,
+    },
+    paint: {},
+  }));
 }
 
 /** Other nav aid layers: fog signals, pilings, mooring, special beacons, seabed. */

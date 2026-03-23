@@ -90,6 +90,23 @@ All tile workflows go through `tools/build-tiles.sh` (run `--help` for full usag
   The originals in `public/` are untouched — the dev server (`bun run dev`) serves from `public/` directly,
   so running `cap:build` while the dev server is active is safe.
 
+## Sprites
+The app uses **two separate sprite systems** — both must be updated when adding a new symbol:
+
+1. **Nautical sprites** (`tools/sprites/svg/`) — used by Pelorus Standard and Minimal symbology.
+   SVGs go in `tools/sprites/svg/`, use hardcoded colors, named `ecdis-*.svg`.
+
+2. **S-52 sprites** (`tools/sprites/s52/source/`) — used by IHO S-52 symbology.
+   SVGs go in `tools/sprites/s52/source/`, use CSS color classes (`fCHBLK`, `sCHMGD`, `fISDNG`, etc.)
+   that are replaced per-theme (day/dusk/night/eink). Named with S-52 symbol codes (e.g., `ISODGR01.svg`).
+   Color class reference: `tools/sprites/s52/daySvgStyle.css` and `tools/sprites/s52/colours.json`.
+
+**Rebuild sprites** after any change: `bun run sprites`
+
+The active symbology scheme determines which sprite sheet MapLibre loads. If a symbol is referenced in a
+layer's `icon-image` but only exists in the wrong sprite sheet, MapLibre will log
+"Image could not be loaded" and show nothing.
+
 ## References
 - S-52 compliant chart sprites: https://github.com/openwatersio/enc-tiles
 

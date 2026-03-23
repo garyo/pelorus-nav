@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32">
+  <!-- S-52 ISODGR01: Isolated danger — magenta octagon with white cross -->
+  <polygon points="16,1 25,5 31,14 25,23 16,27 7,23 1,14 7,5" fill="#c045d1" stroke="#000" stroke-width="1.5"/>
+  <line x1="9" y1="9" x2="23" y2="23" stroke="#fff" stroke-width="3"/>
+  <line x1="23" y1="9" x2="9" y2="23" stroke="#fff" stroke-width="3"/>
+</svg>
