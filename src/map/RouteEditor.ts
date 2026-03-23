@@ -121,14 +121,18 @@ export class RouteEditor {
     this.clickHandler = (e: maplibregl.MapMouseEvent) => {
       if (getMode() !== "route-edit" || !this.route) return;
 
-      // Check midpoint click first (insert between waypoints)
+      // Check midpoint click first (insert between waypoints or prepend)
       const midFeatures = this.map.queryRenderedFeatures(e.point, {
         layers: [LAYER_MIDPOINTS],
       });
       if (midFeatures.length > 0) {
-        const insertAfter =
-          (midFeatures[0].properties?.insertAfter as number) ?? 0;
-        this.insertWaypointAfter(insertAfter, e.lngLat.lat, e.lngLat.lng);
+        const props = midFeatures[0].properties;
+        if (props?.insertBefore === 0) {
+          this.prependWaypoint(e.lngLat.lat, e.lngLat.lng);
+        } else {
+          const insertAfter = (props?.insertAfter as number) ?? 0;
+          this.insertWaypointAfter(insertAfter, e.lngLat.lat, e.lngLat.lng);
+        }
         return;
       }
 
@@ -212,6 +216,20 @@ export class RouteEditor {
       }
     }
     this.selectedIndex = null;
+    this.updateSources();
+    this.updateBar();
+    this.setupDrag();
+  }
+
+  private prependWaypoint(lat: number, lon: number): void {
+    if (!this.route) return;
+    const newWp: Waypoint = { lat, lon, name: "" };
+    this.route.waypoints.unshift(newWp);
+    // Renumber names
+    for (let i = 0; i < this.route.waypoints.length; i++) {
+      this.route.waypoints[i].name = `WP${i + 1}`;
+    }
+    this.selectedIndex = 0;
     this.updateSources();
     this.updateBar();
     this.setupDrag();
@@ -421,9 +439,32 @@ export class RouteEditor {
     }));
     ptSrc.setData({ type: "FeatureCollection", features: points });
 
-    // Ghost midpoints between consecutive waypoints
+    // Ghost midpoints between consecutive waypoints + prepend handle
     if (midSrc) {
       const midpoints: GeoJSON.Feature[] = [];
+
+      // Prepend handle: offset from start in the opposite direction of the route
+      if (wps.length >= 2) {
+        const dLat = wps[0].lat - wps[1].lat;
+        const dLon = wps[0].lon - wps[1].lon;
+        const len = Math.sqrt(dLat * dLat + dLon * dLon);
+        if (len > 0) {
+          // Place handle at ~40% of the first leg length, opposite direction
+          const scale = Math.min(0.8, 0.004 / len) * len;
+          midpoints.push({
+            type: "Feature",
+            properties: { role: "midpoint", insertBefore: 0 },
+            geometry: {
+              type: "Point",
+              coordinates: [
+                wps[0].lon + (dLon / len) * scale,
+                wps[0].lat + (dLat / len) * scale,
+              ],
+            },
+          });
+        }
+      }
+
       for (let i = 0; i < wps.length - 1; i++) {
         const midLat = (wps[i].lat + wps[i + 1].lat) / 2;
         const midLon = (wps[i].lon + wps[i + 1].lon) / 2;
@@ -486,23 +527,47 @@ export class RouteEditor {
       return;
     }
 
+    const features: GeoJSON.Feature[] = [];
+
+    // Append preview: dashed line from last waypoint to cursor
     const last = wps[wps.length - 1];
-    src.setData({
-      type: "FeatureCollection",
-      features: [
-        {
+    features.push({
+      type: "Feature",
+      properties: {},
+      geometry: {
+        type: "LineString",
+        coordinates: [
+          [last.lon, last.lat],
+          [cursor.lng, cursor.lat],
+        ],
+      },
+    });
+
+    // Prepend connector: short dashed line from start to prepend handle
+    if (wps.length >= 2) {
+      const dLat = wps[0].lat - wps[1].lat;
+      const dLon = wps[0].lon - wps[1].lon;
+      const len = Math.sqrt(dLat * dLat + dLon * dLon);
+      if (len > 0) {
+        const scale = Math.min(0.8, 0.004 / len) * len;
+        features.push({
           type: "Feature",
           properties: {},
           geometry: {
             type: "LineString",
             coordinates: [
-              [last.lon, last.lat],
-              [cursor.lng, cursor.lat],
+              [wps[0].lon, wps[0].lat],
+              [
+                wps[0].lon + (dLon / len) * scale,
+                wps[0].lat + (dLat / len) * scale,
+              ],
             ],
           },
-        },
-      ],
-    });
+        });
+      }
+    }
+
+    src.setData({ type: "FeatureCollection", features });
   }
 
   private clearSources(): void {
