@@ -819,37 +819,48 @@ function buildDepthThresholdSliders(): HTMLElement {
     handleArrowKey(e, applyDeepMeters, () => getSettings().deepDepth),
   );
 
-  // Slider handlers: convert slider position → meters, snap, skip if unchanged
+  // Slider handlers: convert slider position → meters, snap, skip if unchanged.
+  // Guard with `syncing` (syncSliders setting .value re-fires input events)
+  // and use tolerance to avoid floating-point churn.
+  const EPS = 1e-1;
+
   shallowSlider.addEventListener("input", () => {
+    if (syncing) return;
     const m = snapMeters(sliderToMeters(Number(shallowSlider.value)));
-    if (m !== getSettings().shallowDepth) applyShallowMeters(m);
+    if (Math.abs(m - getSettings().shallowDepth) > EPS) applyShallowMeters(m);
   });
 
   safetySlider.addEventListener("input", () => {
+    if (syncing) return;
     const m = snapMeters(sliderToMeters(Number(safetySlider.value)));
-    if (m !== getSettings().safetyDepth) applySafetyMeters(m);
+    if (Math.abs(m - getSettings().safetyDepth) > EPS) applySafetyMeters(m);
   });
 
   deepSlider.addEventListener("input", () => {
+    if (syncing) return;
     const m = snapMeters(sliderToMeters(Number(deepSlider.value)));
-    if (m !== getSettings().deepDepth) applyDeepMeters(m);
+    if (Math.abs(m - getSettings().deepDepth) > EPS) applyDeepMeters(m);
   });
 
   // Number input handlers: convert display units → meters
+  // Guard with `syncing` to prevent re-fire when syncSliders() sets .value
   shallowInput.addEventListener("change", () => {
-    applyShallowMeters(
-      displayToMeters(Number(shallowInput.value), currentUnit()),
-    );
+    if (!syncing)
+      applyShallowMeters(
+        displayToMeters(Number(shallowInput.value), currentUnit()),
+      );
   });
 
   safetyInput.addEventListener("change", () => {
-    applySafetyMeters(
-      displayToMeters(Number(safetyInput.value), currentUnit()),
-    );
+    if (!syncing)
+      applySafetyMeters(
+        displayToMeters(Number(safetyInput.value), currentUnit()),
+      );
   });
 
   deepInput.addEventListener("change", () => {
-    applyDeepMeters(displayToMeters(Number(deepInput.value), currentUnit()));
+    if (!syncing)
+      applyDeepMeters(displayToMeters(Number(deepInput.value), currentUnit()));
   });
 
   // Re-sync when any relevant setting changes (unit or thresholds)

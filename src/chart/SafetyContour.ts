@@ -27,6 +27,17 @@ function getSoundingLayerIds(): string[] {
   return CHART_REGIONS.map((r) => `s57-${r.id}-soundg`);
 }
 
+/** All region-prefixed DEPARE medium-shallow and medium-deep layer IDs. */
+function getDepareLayerIds(): {
+  medShallow: string[];
+  medDeep: string[];
+} {
+  return {
+    medShallow: CHART_REGIONS.map((r) => `s57-${r.id}-depare-medium-shallow`),
+    medDeep: CHART_REGIONS.map((r) => `s57-${r.id}-depare-medium-deep`),
+  };
+}
+
 function getVectorSourceIds(): string[] {
   return CHART_REGIONS.map((r, i) =>
     i === 0 ? "s57-vector" : `s57-vector-${r.id}`,
@@ -43,6 +54,10 @@ export class SafetyContour {
   private resolvedByCell = new Map<number, number>();
   /** Suppress sourcedata re-scans during our own paint updates. */
   private updating = false;
+  /** Throttled safety depth update — max one apply per THROTTLE_MS. */
+  private pendingSafetyDepth: number | null = null;
+  private throttleTimer: ReturnType<typeof setTimeout> | null = null;
+  private static readonly THROTTLE_MS = 250;
 
   constructor(map: maplibregl.Map) {
     this.map = map;
@@ -55,19 +70,34 @@ export class SafetyContour {
       }
     });
 
-    // Re-apply filter after style rebuild (ChartManager resets layers to placeholder)
+    // Re-apply filter after a FULL style rebuild (ChartManager resets layers
+    // to placeholder). Guard with `updating` to break styledata feedback loop
+    // from our own setFilter/setPaintProperty calls.
     map.on("styledata", () => {
-      this.reapplyFilter();
+      if (!this.updating) {
+        this.reapplyAll();
+      }
     });
 
-    // When safetyDepth changes, resolve from cache (instant) + update sounding colors
+    // When safetyDepth changes, resolve from cache (instant) + targeted updates
+    // Throttle MapLibre updates — apply immediately on first change,
+    // then no more than once per THROTTLE_MS while dragging.
     onSettingsChange((s) => {
       if (s.safetyDepth !== this.prevSafetyDepth) {
         this.prevSafetyDepth = s.safetyDepth;
-        this.resolveFromCache(s.safetyDepth);
-        this.updating = true;
-        this.updateSoundingColors(s.safetyDepth);
-        this.updating = false;
+        this.pendingSafetyDepth = s.safetyDepth;
+        if (!this.throttleTimer) {
+          // Fire immediately on first change
+          this.flushPending();
+          // Then suppress further applies for THROTTLE_MS
+          this.throttleTimer = setTimeout(() => {
+            this.throttleTimer = null;
+            // Apply the latest value if it changed during the throttle window
+            if (this.pendingSafetyDepth !== null) {
+              this.flushPending();
+            }
+          }, SafetyContour.THROTTLE_MS);
+        }
       }
     });
 
@@ -75,6 +105,17 @@ export class SafetyContour {
     map.on("load", () => {
       this.scanTiles();
     });
+  }
+
+  /** Apply the pending safetyDepth update to MapLibre. */
+  private flushPending(): void {
+    const depth = this.pendingSafetyDepth;
+    if (depth === null) return;
+    this.pendingSafetyDepth = null;
+    this.resolveFromCache(depth);
+    this.updating = true;
+    this.applyAll(depth);
+    this.updating = false;
   }
 
   /** Debounced tile scan — only re-queries features at most once per 1s. */
@@ -115,13 +156,6 @@ export class SafetyContour {
       ]),
     );
 
-    console.log(
-      "[SafetyContour] scanTiles — VALDCO by cell:",
-      Object.fromEntries(
-        [...this.valdcoByCell].map(([id, v]) => [`cell_${id}`, v]),
-      ),
-    );
-
     this.resolveFromCache(getSettings().safetyDepth);
   }
 
@@ -133,17 +167,53 @@ export class SafetyContour {
       if (v !== undefined) resolved.set(cellId, v);
     }
 
-    console.log(
-      `[SafetyContour] resolve safetyDepth=${safetyDepth.toFixed(2)}m → per-cell:`,
-      Object.fromEntries(
-        [...resolved].map(([id, v]) => [`cell_${id}`, `${v}m`]),
-      ),
-    );
-
     // Check if anything changed
     if (mapsEqual(this.resolvedByCell, resolved)) return;
     this.resolvedByCell = resolved;
-    this.applyFilter();
+    this.applyContourFilter();
+  }
+
+  /** Update DEPARE medium-shallow/medium-deep filters (avoids full style rebuild). */
+  private updateDepareFilters(safetyDepth: number): void {
+    const { medShallow, medDeep } = getDepareLayerIds();
+    const shallowDepth = getSettings().shallowDepth;
+    const deepDepth = getSettings().deepDepth;
+
+    const medShallowFilter = [
+      "all",
+      [">=", ["get", "DRVAL1"], shallowDepth],
+      ["<", ["get", "DRVAL1"], safetyDepth],
+    ];
+    const medDeepFilter = [
+      "all",
+      [">=", ["get", "DRVAL1"], safetyDepth],
+      ["<", ["get", "DRVAL1"], deepDepth],
+    ];
+
+    for (const layerId of medShallow) {
+      try {
+        if (this.map.getLayer(layerId)) {
+          this.map.setFilter(
+            layerId,
+            medShallowFilter as unknown as FilterSpecification,
+          );
+        }
+      } catch {
+        // Layer may not exist yet
+      }
+    }
+    for (const layerId of medDeep) {
+      try {
+        if (this.map.getLayer(layerId)) {
+          this.map.setFilter(
+            layerId,
+            medDeepFilter as unknown as FilterSpecification,
+          );
+        }
+      } catch {
+        // Layer may not exist yet
+      }
+    }
   }
 
   /** Update sounding text color based on safetyDepth (avoids full style rebuild). */
@@ -165,17 +235,23 @@ export class SafetyContour {
     }
   }
 
-  /** Re-apply the current filter after a style rebuild resets layers to placeholder. */
-  private reapplyFilter(): void {
+  /** Apply all targeted updates for a safetyDepth change. */
+  private applyAll(safetyDepth: number): void {
+    this.applyContourFilter();
+    this.updateSoundingColors(safetyDepth);
+    this.updateDepareFilters(safetyDepth);
+  }
+
+  /** Re-apply everything after a full style rebuild resets layers to placeholder. */
+  private reapplyAll(): void {
     if (this.resolvedByCell.size > 0) {
-      this.applyFilter();
+      this.applyAll(getSettings().safetyDepth);
     }
   }
 
-  /** Build and apply the per-cell safety contour filter to all region layers. */
-  private applyFilter(): void {
+  /** Apply the per-cell safety contour filter to all region layers. */
+  private applyContourFilter(): void {
     const filter = buildPerCellFilter(this.resolvedByCell);
-    console.log("[SafetyContour] applyFilter:", JSON.stringify(filter));
 
     for (const layerId of getSafetyContourLayerIds()) {
       try {

@@ -34,18 +34,34 @@ export function getAreaLayers(ctx: StyleContext): LayerSpecification[] {
       },
     },
     {
-      id: "s57-depare-medium",
+      id: "s57-depare-medium-shallow",
       type: "fill",
       source: ctx.sourceId,
       "source-layer": "DEPARE",
       filter: [
         "all",
         [">=", ["get", "DRVAL1"], ctx.shallowDepth],
-        ["<", ["get", "DRVAL1"], ctx.deepDepth],
+        ["<", ["get", "DRVAL1"], ctx.safetyDepth],
       ],
       layout: { "fill-sort-key": SCALE_SORT_KEY },
       paint: {
         "fill-color": ctx.colour("DEPMS"),
+        "fill-opacity": 1,
+      },
+    },
+    {
+      id: "s57-depare-medium-deep",
+      type: "fill",
+      source: ctx.sourceId,
+      "source-layer": "DEPARE",
+      filter: [
+        "all",
+        [">=", ["get", "DRVAL1"], ctx.safetyDepth],
+        ["<", ["get", "DRVAL1"], ctx.deepDepth],
+      ],
+      layout: { "fill-sort-key": SCALE_SORT_KEY },
+      paint: {
+        "fill-color": ctx.colour("DEPMD"),
         "fill-opacity": 1,
       },
     },

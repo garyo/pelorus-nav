@@ -108,9 +108,29 @@ export class ChartManager {
         this.prevDeepDepth = s.deepDepth;
         this.prevTextScale = s.textScale;
         this.prevIconScale = s.iconScale;
-        this.refreshStyle();
+        this.throttledRefreshStyle();
       }
     });
+  }
+
+  private refreshPending = false;
+  private refreshTimer: ReturnType<typeof setTimeout> | null = null;
+  private static readonly REFRESH_THROTTLE_MS = 250;
+
+  /** Throttle style rebuilds — fire immediately, then at most once per 250ms. */
+  private throttledRefreshStyle(): void {
+    if (!this.refreshTimer) {
+      this.refreshStyle();
+      this.refreshTimer = setTimeout(() => {
+        this.refreshTimer = null;
+        if (this.refreshPending) {
+          this.refreshPending = false;
+          this.refreshStyle();
+        }
+      }, ChartManager.REFRESH_THROTTLE_MS);
+    } else {
+      this.refreshPending = true;
+    }
   }
 
   /** Re-apply the current provider's style (e.g. after settings change). */
