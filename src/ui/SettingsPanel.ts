@@ -593,15 +593,15 @@ function buildSelectRow(
 function buildDepthThresholdSliders(): HTMLElement {
   const container = document.createElement("div");
 
-  // Max slider values in meters for each unit (60m ≈ 200ft ≈ 33fm)
-  const MAX_METERS = 60;
+  // Piecewise-linear slider: first half covers 0–KNEE_METERS,
+  // second half covers KNEE_METERS–MAX_METERS, giving finer control
+  // at shallow depths where precision matters most.
+  const MAX_METERS = 30;
+  const KNEE_METERS = 6; // ~20ft — midpoint of slider
+  const SLIDER_MAX = 1000; // internal slider resolution
 
   function currentUnit(): DepthUnit {
     return getSettings().depthUnit;
-  }
-
-  function maxForUnit(unit: DepthUnit): number {
-    return Math.round(convertDepth(MAX_METERS, unit));
   }
 
   function stepForUnit(unit: DepthUnit): number {
@@ -615,12 +615,36 @@ function buildDepthThresholdSliders(): HTMLElement {
     }
   }
 
+  /** Convert meters to display value in the user's depth unit. */
   function metersToDisplay(m: number, unit: DepthUnit): number {
     return Math.round(convertDepth(m, unit) * 10) / 10;
   }
 
+  /** Convert display value back to meters. */
   function displayToMeters(d: number, unit: DepthUnit): number {
     return d / depthConversionFactor(unit);
+  }
+
+  /** Map meters (0–MAX_METERS) to slider position (0–SLIDER_MAX), piecewise linear. */
+  function metersToSlider(m: number): number {
+    if (m <= KNEE_METERS) {
+      return (m / KNEE_METERS) * (SLIDER_MAX / 2);
+    }
+    return (
+      SLIDER_MAX / 2 +
+      ((m - KNEE_METERS) / (MAX_METERS - KNEE_METERS)) * (SLIDER_MAX / 2)
+    );
+  }
+
+  /** Map slider position (0–SLIDER_MAX) back to meters, piecewise linear. */
+  function sliderToMeters(pos: number): number {
+    if (pos <= SLIDER_MAX / 2) {
+      return (pos / (SLIDER_MAX / 2)) * KNEE_METERS;
+    }
+    return (
+      KNEE_METERS +
+      ((pos - SLIDER_MAX / 2) / (SLIDER_MAX / 2)) * (MAX_METERS - KNEE_METERS)
+    );
   }
 
   // Shallow slider
@@ -683,98 +707,128 @@ function buildDepthThresholdSliders(): HTMLElement {
   function syncSliders() {
     syncing = true;
     const unit = currentUnit();
-    const max = maxForUnit(unit);
     const step = stepForUnit(unit);
+    const maxDisplay = metersToDisplay(MAX_METERS, unit);
     const s = getSettings();
     const unitStr = depthUnitLabel(unit);
 
+    // Sliders use internal 0–SLIDER_MAX range with piecewise mapping
     shallowSlider.min = "0";
-    shallowSlider.max = String(max);
-    shallowSlider.step = String(step);
-    const shallowDisplay = metersToDisplay(s.shallowDepth, unit);
-    shallowSlider.value = String(shallowDisplay);
+    shallowSlider.max = String(SLIDER_MAX);
+    shallowSlider.step = "1";
+    shallowSlider.value = String(Math.round(metersToSlider(s.shallowDepth)));
     shallowInput.min = "0";
-    shallowInput.max = String(max);
+    shallowInput.max = String(maxDisplay);
     shallowInput.step = String(step);
-    shallowInput.value = String(shallowDisplay);
+    shallowInput.value = String(metersToDisplay(s.shallowDepth, unit));
     shallowSuffix.textContent = unitStr;
 
     safetySlider.min = "0";
-    safetySlider.max = String(max);
-    safetySlider.step = String(step);
-    const safetyDisplay = metersToDisplay(s.safetyDepth, unit);
-    safetySlider.value = String(safetyDisplay);
+    safetySlider.max = String(SLIDER_MAX);
+    safetySlider.step = "1";
+    safetySlider.value = String(Math.round(metersToSlider(s.safetyDepth)));
     safetyInput.min = "0";
-    safetyInput.max = String(max);
+    safetyInput.max = String(maxDisplay);
     safetyInput.step = String(step);
-    safetyInput.value = String(safetyDisplay);
+    safetyInput.value = String(metersToDisplay(s.safetyDepth, unit));
     safetySuffix.textContent = unitStr;
 
     deepSlider.min = "0";
-    deepSlider.max = String(max);
-    deepSlider.step = String(step);
-    const deepDisplay = metersToDisplay(s.deepDepth, unit);
-    deepSlider.value = String(deepDisplay);
+    deepSlider.max = String(SLIDER_MAX);
+    deepSlider.step = "1";
+    deepSlider.value = String(Math.round(metersToSlider(s.deepDepth)));
     deepInput.min = "0";
-    deepInput.max = String(max);
+    deepInput.max = String(maxDisplay);
     deepInput.step = String(step);
-    deepInput.value = String(deepDisplay);
+    deepInput.value = String(metersToDisplay(s.deepDepth, unit));
     deepSuffix.textContent = unitStr;
     syncing = false;
   }
 
   syncSliders();
 
-  function applyShallow(displayVal: number) {
-    const unit = currentUnit();
-    const meters = displayToMeters(displayVal, unit);
+  // Enforce shallow ≤ safety ≤ deep ordering (all values in meters)
+  function applyShallowMeters(meters: number) {
     const s = getSettings();
     if (meters > s.deepDepth) {
-      updateSettings({ shallowDepth: meters, deepDepth: meters });
+      updateSettings({
+        shallowDepth: meters,
+        safetyDepth: meters,
+        deepDepth: meters,
+      });
+    } else if (meters > s.safetyDepth) {
+      updateSettings({ shallowDepth: meters, safetyDepth: meters });
     } else {
       updateSettings({ shallowDepth: meters });
     }
   }
 
-  function applyDeep(displayVal: number) {
-    const unit = currentUnit();
-    const meters = displayToMeters(displayVal, unit);
+  function applySafetyMeters(meters: number) {
     const s = getSettings();
     if (meters < s.shallowDepth) {
-      updateSettings({ shallowDepth: meters, deepDepth: meters });
+      updateSettings({ shallowDepth: meters, safetyDepth: meters });
+    } else if (meters > s.deepDepth) {
+      updateSettings({ safetyDepth: meters, deepDepth: meters });
+    } else {
+      updateSettings({ safetyDepth: meters });
+    }
+  }
+
+  function applyDeepMeters(meters: number) {
+    const s = getSettings();
+    if (meters < s.shallowDepth) {
+      updateSettings({
+        shallowDepth: meters,
+        safetyDepth: meters,
+        deepDepth: meters,
+      });
+    } else if (meters < s.safetyDepth) {
+      updateSettings({ safetyDepth: meters, deepDepth: meters });
     } else {
       updateSettings({ deepDepth: meters });
     }
   }
 
-  function applySafety(displayVal: number) {
+  // Snap meters to the nearest display step so we don't fire redundant updates
+  function snapMeters(meters: number): number {
     const unit = currentUnit();
-    const meters = displayToMeters(displayVal, unit);
-    updateSettings({ safetyDepth: meters });
+    const step = stepForUnit(unit);
+    const factor = depthConversionFactor(unit);
+    const display = Math.round((meters * factor) / step) * step;
+    return display / factor;
   }
 
+  // Slider handlers: convert slider position → meters, snap, skip if unchanged
   shallowSlider.addEventListener("input", () => {
-    applyShallow(Number(shallowSlider.value));
-  });
-
-  shallowInput.addEventListener("change", () => {
-    applyShallow(Number(shallowInput.value));
+    const m = snapMeters(sliderToMeters(Number(shallowSlider.value)));
+    if (m !== getSettings().shallowDepth) applyShallowMeters(m);
   });
 
   safetySlider.addEventListener("input", () => {
-    applySafety(Number(safetySlider.value));
-  });
-
-  safetyInput.addEventListener("change", () => {
-    applySafety(Number(safetyInput.value));
+    const m = snapMeters(sliderToMeters(Number(safetySlider.value)));
+    if (m !== getSettings().safetyDepth) applySafetyMeters(m);
   });
 
   deepSlider.addEventListener("input", () => {
-    applyDeep(Number(deepSlider.value));
+    const m = snapMeters(sliderToMeters(Number(deepSlider.value)));
+    if (m !== getSettings().deepDepth) applyDeepMeters(m);
+  });
+
+  // Number input handlers: convert display units → meters
+  shallowInput.addEventListener("change", () => {
+    applyShallowMeters(
+      displayToMeters(Number(shallowInput.value), currentUnit()),
+    );
+  });
+
+  safetyInput.addEventListener("change", () => {
+    applySafetyMeters(
+      displayToMeters(Number(safetyInput.value), currentUnit()),
+    );
   });
 
   deepInput.addEventListener("change", () => {
-    applyDeep(Number(deepInput.value));
+    applyDeepMeters(displayToMeters(Number(deepInput.value), currentUnit()));
   });
 
   // Re-sync when any relevant setting changes (unit or thresholds)
