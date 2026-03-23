@@ -27,15 +27,9 @@ function getSoundingLayerIds(): string[] {
   return CHART_REGIONS.map((r) => `s57-${r.id}-soundg`);
 }
 
-/** All region-prefixed DEPARE medium-shallow and medium-deep layer IDs. */
-function getDepareLayerIds(): {
-  medShallow: string[];
-  medDeep: string[];
-} {
-  return {
-    medShallow: CHART_REGIONS.map((r) => `s57-${r.id}-depare-medium-shallow`),
-    medDeep: CHART_REGIONS.map((r) => `s57-${r.id}-depare-medium-deep`),
-  };
+/** All region-prefixed DEPARE medium layer IDs. */
+function getDepareMediumLayerIds(): string[] {
+  return CHART_REGIONS.map((r) => `s57-${r.id}-depare-medium`);
 }
 
 function getVectorSourceIds(): string[] {
@@ -173,42 +167,18 @@ export class SafetyContour {
     this.applyContourFilter();
   }
 
-  /** Update DEPARE medium-shallow/medium-deep filters (avoids full style rebuild). */
-  private updateDepareFilters(safetyDepth: number): void {
-    const { medShallow, medDeep } = getDepareLayerIds();
-    const shallowDepth = getSettings().shallowDepth;
-    const deepDepth = getSettings().deepDepth;
-
-    const medShallowFilter = [
-      "all",
-      [">=", ["get", "DRVAL1"], shallowDepth],
+  /** Update DEPARE medium layer fill-color expression for the safety boundary. */
+  private updateDepareColors(safetyDepth: number): void {
+    const colorExpr = [
+      "case",
       ["<", ["get", "DRVAL1"], safetyDepth],
+      s52Colour("DEPMS"),
+      s52Colour("DEPMD"),
     ];
-    const medDeepFilter = [
-      "all",
-      [">=", ["get", "DRVAL1"], safetyDepth],
-      ["<", ["get", "DRVAL1"], deepDepth],
-    ];
-
-    for (const layerId of medShallow) {
+    for (const layerId of getDepareMediumLayerIds()) {
       try {
         if (this.map.getLayer(layerId)) {
-          this.map.setFilter(
-            layerId,
-            medShallowFilter as unknown as FilterSpecification,
-          );
-        }
-      } catch {
-        // Layer may not exist yet
-      }
-    }
-    for (const layerId of medDeep) {
-      try {
-        if (this.map.getLayer(layerId)) {
-          this.map.setFilter(
-            layerId,
-            medDeepFilter as unknown as FilterSpecification,
-          );
+          this.map.setPaintProperty(layerId, "fill-color", colorExpr);
         }
       } catch {
         // Layer may not exist yet
@@ -239,7 +209,7 @@ export class SafetyContour {
   private applyAll(safetyDepth: number): void {
     this.applyContourFilter();
     this.updateSoundingColors(safetyDepth);
-    this.updateDepareFilters(safetyDepth);
+    this.updateDepareColors(safetyDepth);
   }
 
   /** Re-apply everything after a full style rebuild resets layers to placeholder. */

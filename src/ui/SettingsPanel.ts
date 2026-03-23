@@ -843,24 +843,24 @@ function buildDepthThresholdSliders(): HTMLElement {
   });
 
   // Number input handlers: convert display units → meters
-  // Guard with `syncing` to prevent re-fire when syncSliders() sets .value
+  // Guard with syncing + epsilon to prevent re-fire when syncSliders() sets .value
+  // (some browsers fire change asynchronously after syncing flag is cleared)
   shallowInput.addEventListener("change", () => {
-    if (!syncing)
-      applyShallowMeters(
-        displayToMeters(Number(shallowInput.value), currentUnit()),
-      );
+    if (syncing) return;
+    const m = displayToMeters(Number(shallowInput.value), currentUnit());
+    if (Math.abs(m - getSettings().shallowDepth) > EPS) applyShallowMeters(m);
   });
 
   safetyInput.addEventListener("change", () => {
-    if (!syncing)
-      applySafetyMeters(
-        displayToMeters(Number(safetyInput.value), currentUnit()),
-      );
+    if (syncing) return;
+    const m = displayToMeters(Number(safetyInput.value), currentUnit());
+    if (Math.abs(m - getSettings().safetyDepth) > EPS) applySafetyMeters(m);
   });
 
   deepInput.addEventListener("change", () => {
-    if (!syncing)
-      applyDeepMeters(displayToMeters(Number(deepInput.value), currentUnit()));
+    if (syncing) return;
+    const m = displayToMeters(Number(deepInput.value), currentUnit());
+    if (Math.abs(m - getSettings().deepDepth) > EPS) applyDeepMeters(m);
   });
 
   // Re-sync when any relevant setting changes (unit or thresholds)
