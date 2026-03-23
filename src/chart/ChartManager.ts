@@ -35,7 +35,6 @@ export class ChartManager {
   private prevSymbology: SymbologyScheme;
   private prevShowOSMUnderlay: boolean;
   private prevShallowDepth: number;
-  private prevSafetyDepth: number;
   private prevDeepDepth: number;
   private prevTextScale: number;
   private prevIconScale: number;
@@ -78,7 +77,6 @@ export class ChartManager {
     this.prevSymbology = initial.symbologyScheme;
     this.prevShowOSMUnderlay = initial.showOSMUnderlay;
     this.prevShallowDepth = initial.shallowDepth;
-    this.prevSafetyDepth = initial.safetyDepth;
     this.prevDeepDepth = initial.deepDepth;
     this.prevTextScale = initial.textScale;
     this.prevIconScale = initial.iconScale;
@@ -95,7 +93,6 @@ export class ChartManager {
         s.symbologyScheme !== this.prevSymbology ||
         s.showOSMUnderlay !== this.prevShowOSMUnderlay ||
         s.shallowDepth !== this.prevShallowDepth ||
-        s.safetyDepth !== this.prevSafetyDepth ||
         s.deepDepth !== this.prevDeepDepth ||
         s.textScale !== this.prevTextScale ||
         s.iconScale !== this.prevIconScale ||
@@ -108,7 +105,6 @@ export class ChartManager {
         this.prevSymbology = s.symbologyScheme;
         this.prevShowOSMUnderlay = s.showOSMUnderlay;
         this.prevShallowDepth = s.shallowDepth;
-        this.prevSafetyDepth = s.safetyDepth;
         this.prevDeepDepth = s.deepDepth;
         this.prevTextScale = s.textScale;
         this.prevIconScale = s.iconScale;

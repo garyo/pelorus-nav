@@ -133,6 +133,11 @@ const chartManager = new ChartManager({
   initialProviderId: "s57-vector",
 });
 
+// Safety contour — bolds the shallowest depth contour >= safetyDepth
+import { SafetyContour } from "./chart/SafetyContour";
+
+new SafetyContour(chartManager.map);
+
 // Persist map position on every move so refresh restores it
 chartManager.map.on("moveend", () => {
   const c = chartManager.map.getCenter();

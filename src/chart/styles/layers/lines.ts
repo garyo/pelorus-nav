@@ -43,6 +43,18 @@ export function getLineLayers(ctx: StyleContext): LayerSpecification[] {
       },
     },
     {
+      id: "s57-depcnt-safety",
+      type: "line",
+      source: ctx.sourceId,
+      "source-layer": "DEPCNT",
+      filter: ["==", ["get", "VALDCO"], -1], // placeholder — updated at runtime by SafetyContour
+      layout: { "line-sort-key": SCALE_SORT_KEY },
+      paint: {
+        "line-color": ctx.colour("DEPSC"),
+        "line-width": 1.5,
+      },
+    },
+    {
       id: "s57-depcnt-label",
       type: "symbol",
       source: ctx.sourceId,
