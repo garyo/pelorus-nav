@@ -44,6 +44,8 @@ export interface Settings {
   showOSMUnderlay: boolean;
   /** Shallow water threshold in meters (areas < this get DEPVS color). */
   shallowDepth: number;
+  /** Safety depth in meters — soundings ≤ this are shown in high-contrast (SNDG2). */
+  safetyDepth: number;
   /** Deep water threshold in meters (areas >= this get DEPDW color). */
   deepDepth: number;
   /** Screen wake lock: off, when GPS active, or always. */
@@ -97,6 +99,7 @@ const DEFAULTS: Settings = {
   bearingMode: "magnetic",
   showOSMUnderlay: false,
   shallowDepth: 5,
+  safetyDepth: 5,
   deepDepth: 20,
   wakeLock: "when-nav",
   textScale: 1,

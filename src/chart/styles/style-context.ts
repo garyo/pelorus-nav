@@ -47,6 +47,8 @@ export interface StyleContext {
   };
   /** Shallow water threshold in meters. */
   shallowDepth: number;
+  /** Safety depth in meters — soundings ≤ this shown in SNDG2 (high-contrast). */
+  safetyDepth: number;
   /** Deep water threshold in meters. */
   deepDepth: number;
   /** Text size scale factor (1 = default). */
@@ -153,6 +155,7 @@ export function createStyleContext(
   coverageSourceId?: string,
   symbology: SymbologyScheme = "pelorus-standard",
   shallowDepth = 5,
+  safetyDepth = 5,
   deepDepth = 20,
   textScale = 1,
   iconScale = 1,
@@ -187,6 +190,7 @@ export function createStyleContext(
     layerExprs: (layerName: string) =>
       buildLayerExpressions(layerName, scheme.icons, scheme.fallback),
     shallowDepth,
+    safetyDepth,
     deepDepth,
     textSizeScale: textScale,
   };

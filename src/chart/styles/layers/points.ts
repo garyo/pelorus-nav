@@ -52,7 +52,12 @@ export function getNavAidLayers(ctx: StyleContext): LayerSpecification[] {
         "text-allow-overlap": false,
       },
       paint: {
-        "text-color": ctx.colour("SNDG1"),
+        "text-color": [
+          "case",
+          ["<=", ["get", "DEPTH"], ctx.safetyDepth],
+          ctx.colour("SNDG2"), // high-contrast — at or below safety depth
+          ctx.colour("SNDG1"), // gray — deeper than safety depth
+        ] as unknown as string,
         "text-halo-color": ctx.colour("CHWHT"),
         "text-halo-width": 1,
       },

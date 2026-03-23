@@ -639,6 +639,22 @@ function buildDepthThresholdSliders(): HTMLElement {
   const shallowInput = document.createElement("input");
   shallowInput.type = "number";
 
+  // Safety depth slider
+  const safetyRow = document.createElement("div");
+  safetyRow.className = "settings-row";
+  const safetyLabel = document.createElement("label");
+  safetyLabel.htmlFor = "settings-safety-depth";
+  safetyLabel.textContent = "Safety";
+  safetyRow.appendChild(safetyLabel);
+
+  const safetyGroup = document.createElement("div");
+  safetyGroup.className = "settings-slider-group";
+  const safetySlider = document.createElement("input");
+  safetySlider.type = "range";
+  safetySlider.id = "settings-safety-depth";
+  const safetyInput = document.createElement("input");
+  safetyInput.type = "number";
+
   // Deep slider
   const deepRow = document.createElement("div");
   deepRow.className = "settings-row";
@@ -657,6 +673,8 @@ function buildDepthThresholdSliders(): HTMLElement {
   /** Suffix element showing the unit abbreviation next to each input. */
   const shallowSuffix = document.createElement("span");
   shallowSuffix.className = "unit-suffix";
+  const safetySuffix = document.createElement("span");
+  safetySuffix.className = "unit-suffix";
   const deepSuffix = document.createElement("span");
   deepSuffix.className = "unit-suffix";
 
@@ -680,6 +698,17 @@ function buildDepthThresholdSliders(): HTMLElement {
     shallowInput.step = String(step);
     shallowInput.value = String(shallowDisplay);
     shallowSuffix.textContent = unitStr;
+
+    safetySlider.min = "0";
+    safetySlider.max = String(max);
+    safetySlider.step = String(step);
+    const safetyDisplay = metersToDisplay(s.safetyDepth, unit);
+    safetySlider.value = String(safetyDisplay);
+    safetyInput.min = "0";
+    safetyInput.max = String(max);
+    safetyInput.step = String(step);
+    safetyInput.value = String(safetyDisplay);
+    safetySuffix.textContent = unitStr;
 
     deepSlider.min = "0";
     deepSlider.max = String(max);
@@ -718,12 +747,26 @@ function buildDepthThresholdSliders(): HTMLElement {
     }
   }
 
+  function applySafety(displayVal: number) {
+    const unit = currentUnit();
+    const meters = displayToMeters(displayVal, unit);
+    updateSettings({ safetyDepth: meters });
+  }
+
   shallowSlider.addEventListener("input", () => {
     applyShallow(Number(shallowSlider.value));
   });
 
   shallowInput.addEventListener("change", () => {
     applyShallow(Number(shallowInput.value));
+  });
+
+  safetySlider.addEventListener("input", () => {
+    applySafety(Number(safetySlider.value));
+  });
+
+  safetyInput.addEventListener("change", () => {
+    applySafety(Number(safetyInput.value));
   });
 
   deepSlider.addEventListener("input", () => {
@@ -741,10 +784,12 @@ function buildDepthThresholdSliders(): HTMLElement {
 
   shallowGroup.append(shallowSlider, shallowInput, shallowSuffix);
   shallowRow.appendChild(shallowGroup);
+  safetyGroup.append(safetySlider, safetyInput, safetySuffix);
+  safetyRow.appendChild(safetyGroup);
   deepGroup.append(deepSlider, deepInput, deepSuffix);
   deepRow.appendChild(deepGroup);
 
-  container.append(shallowRow, deepRow);
+  container.append(shallowRow, safetyRow, deepRow);
   return container;
 }
 
