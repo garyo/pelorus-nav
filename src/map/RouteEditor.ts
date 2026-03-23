@@ -412,6 +412,7 @@ export class RouteEditor {
 
   private updateSources(): void {
     if (!this.route) return;
+    this.notify();
     const wps = this.route.waypoints;
 
     const ptSrc = this.map.getSource(SOURCE_ID) as

@@ -117,6 +117,13 @@ export class RouteDetailPanel {
     this.activeNav = activeNav;
   }
 
+  /** Re-render the table if the panel is currently visible. */
+  refreshIfOpen(): void {
+    if (this.currentRoute && this.el.classList.contains("open")) {
+      this.render();
+    }
+  }
+
   show(route: Route): void {
     this.currentRoute = route;
     this.header.textContent = route.name;

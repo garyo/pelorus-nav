@@ -56,7 +56,10 @@ export class RouteManagerPanel {
       this.editor.startEditing();
     });
 
-    editor.onEditorChange(() => this.refresh());
+    editor.onEditorChange(() => {
+      this.refresh();
+      this.detailPanel.refreshIfOpen();
+    });
   }
 
   setActiveNav(activeNav: ActiveNavigationManager): void {
