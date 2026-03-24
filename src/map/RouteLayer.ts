@@ -206,16 +206,13 @@ export class RouteLayer {
     }
   }
 
-  /** Remove leg highlight. */
+  /** Remove leg highlight by clearing data (cheaper than remove/re-add). */
   clearHighlight(): void {
-    for (const lid of [
-      RouteLayer.HIGHLIGHT_POINTS,
-      RouteLayer.HIGHLIGHT_LINE,
-    ]) {
-      if (this.map.getLayer(lid)) this.map.removeLayer(lid);
-    }
-    if (this.map.getSource(RouteLayer.HIGHLIGHT_SOURCE)) {
-      this.map.removeSource(RouteLayer.HIGHLIGHT_SOURCE);
+    const src = this.map.getSource(RouteLayer.HIGHLIGHT_SOURCE) as
+      | maplibregl.GeoJSONSource
+      | undefined;
+    if (src) {
+      src.setData({ type: "FeatureCollection", features: [] });
     }
   }
 

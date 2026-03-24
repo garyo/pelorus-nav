@@ -29,7 +29,10 @@ export class VesselLayer {
       this.updateAccuracyVisibility();
     });
 
-    this.map.on("style.load", () => this.setup());
+    this.map.on("style.load", () => {
+      this.isOnTop = false;
+      this.setup();
+    });
     if (this.map.isStyleLoaded()) {
       this.setup();
     }
@@ -151,21 +154,20 @@ export class VesselLayer {
     this.updateAccuracyVisibility();
   }
 
+  private isOnTop = false;
+
   /** Move vessel layers to the top so nothing draws over the boat. */
   private ensureOnTop(): void {
-    const layers = this.map.getStyle()?.layers;
-    if (!layers?.length) return;
-    const topId = layers[layers.length - 1].id;
-    // Already on top — skip to avoid unnecessary symbol re-placement
-    if (topId === "_vessel-icon") return;
-    if (this.map.getLayer("_vessel-accuracy-fill")) {
-      this.map.moveLayer("_vessel-accuracy-fill");
-    }
-    if (this.map.getLayer("_vessel-accuracy-outline")) {
-      this.map.moveLayer("_vessel-accuracy-outline");
-    }
-    if (this.map.getLayer("_vessel-icon")) {
-      this.map.moveLayer("_vessel-icon");
+    if (this.isOnTop) return;
+    try {
+      if (this.map.getLayer("_vessel-accuracy-fill"))
+        this.map.moveLayer("_vessel-accuracy-fill");
+      if (this.map.getLayer("_vessel-accuracy-outline"))
+        this.map.moveLayer("_vessel-accuracy-outline");
+      if (this.map.getLayer("_vessel-icon")) this.map.moveLayer("_vessel-icon");
+      this.isOnTop = true;
+    } catch {
+      // Layers may not exist during style transitions
     }
   }
 

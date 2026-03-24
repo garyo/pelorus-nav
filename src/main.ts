@@ -10,6 +10,8 @@ import {
   OSMChartProvider,
   VectorChartProvider,
 } from "./chart";
+import { LightSectorLayer } from "./chart/LightSectorLayer";
+import { SafetyContour } from "./chart/SafetyContour";
 import { OPFSSource } from "./data/opfs-source";
 import { chartAssetBase } from "./data/remote-url";
 import { loadAllSearchIndices } from "./data/search-index";
@@ -38,6 +40,7 @@ import { getSettings, onSettingsChange, updateSettings } from "./settings";
 import { AboutDialog } from "./ui/AboutDialog";
 import { CancelNavButton } from "./ui/CancelNavButton";
 import { ChartCachePanel } from "./ui/ChartCachePanel";
+import { createContextMenu } from "./ui/ContextMenu";
 import { createInstrumentHUD, INSTRUMENTS } from "./ui/InstrumentHUD";
 import {
   iconGauge,
@@ -131,8 +134,6 @@ const chartManager = new ChartManager({
 });
 
 // Safety contour — bolds the shallowest depth contour >= safetyDepth
-import { SafetyContour } from "./chart/SafetyContour";
-
 new SafetyContour(chartManager.map);
 
 // Persist map position on every move so refresh restores it
@@ -196,8 +197,6 @@ chartSelect.addEventListener("change", () => {
 new FeatureQueryHandler(chartManager);
 
 // Light sector arcs and range circles (client-side generated from LIGHTS data)
-import { LightSectorLayer } from "./chart/LightSectorLayer";
-
 new LightSectorLayer(chartManager.map);
 
 // Settings gear in top bar menu
@@ -403,8 +402,6 @@ const waypointPanel = new WaypointManagerPanel(waypointLayer, activeNav);
 routePanel.setActiveNav(activeNav);
 
 // --- Context menu (right-click on map) ---
-import { createContextMenu } from "./ui/ContextMenu";
-
 const plottingLayer = new PlottingLayer(chartManager.map);
 const measurementLayer = new MeasurementLayer(chartManager.map);
 createContextMenu({
