@@ -8,8 +8,22 @@ JSON parse/serialize cycles.
 from __future__ import annotations
 
 import json
+import os
 import re
+import tempfile
 from pathlib import Path
+
+
+def _atomic_json_write(path: Path, data: object) -> None:
+    """Write JSON atomically — write to temp file then rename."""
+    fd, tmp = tempfile.mkstemp(dir=path.parent, suffix=".tmp")
+    try:
+        with os.fdopen(fd, "w") as f:
+            json.dump(data, f)
+        os.replace(tmp, path)
+    except BaseException:
+        os.unlink(tmp)
+        raise
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -134,8 +148,7 @@ def enrich_geojson(
             if isinstance(val, list):
                 props[key] = ",".join(str(v) for v in val)
 
-    with open(geojson_path, "w") as f:
-        json.dump(geojson, f)
+    _atomic_json_write(geojson_path, geojson)
 
 
 # Layers whose features may have co-located TOPMAR features.
@@ -200,8 +213,7 @@ def correlate_topmarks(output_dir: Path) -> None:
                     modified = True
 
         if modified:
-            with open(path, "w") as f:
-                json.dump(geojson, f)
+            _atomic_json_write(path, geojson)
 
 
 # Layers that may be isolated dangers (S-52 UDWHAZ05).
@@ -264,8 +276,7 @@ def annotate_enclosing_depth(output_dir: Path) -> None:
                 modified = True
 
         if modified:
-            with open(path, "w") as f:
-                json.dump(geojson, f)
+            _atomic_json_write(path, geojson)
 
 
 def _load_depare_index(

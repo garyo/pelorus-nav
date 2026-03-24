@@ -145,20 +145,27 @@ export class FeatureQueryHandler {
       this.handleMouseMove(e),
     );
 
-    // Set up highlight layers after each style load
-    this.map.on("style.load", () => this.setupHighlightLayers());
+    // Set up highlight layers after each style load and invalidate layer cache
+    this.map.on("style.load", () => {
+      this.cachedInteractiveLayers = null;
+      this.setupHighlightLayers();
+    });
   }
 
+  private cachedInteractiveLayers: string[] | null = null;
+
   private getVisibleInteractiveLayers(): string[] {
+    if (this.cachedInteractiveLayers) return this.cachedInteractiveLayers;
     const style = this.map.getStyle();
     if (!style?.layers) return [];
-    return style.layers
+    this.cachedInteractiveLayers = style.layers
       .map((l) => l.id)
       .filter(
         (id) =>
           id.startsWith("s57-") &&
           INTERACTIVE_SUFFIXES.some((s) => id.endsWith(s)),
       );
+    return this.cachedInteractiveLayers;
   }
 
   private handleClick(e: maplibregl.MapMouseEvent): void {
