@@ -84,41 +84,70 @@ export function createInstrumentHUD(
   let navActive = false;
   let navCellClickCallback: (() => void) | null = null;
 
-  /** Rebuild all cells from scratch. */
-  const rebuild = () => {
+  // Persistent cell references — update text instead of rebuilding DOM
+  type CellRef = {
+    valuEl: HTMLSpanElement;
+    unitEl: HTMLSpanElement;
+    def: InstrumentDef;
+  };
+  let baseCells: CellRef[] = [];
+  let navCells: CellRef[] = [];
+  let navGroup: HTMLDivElement | null = null;
+
+  /** Rebuild DOM structure (only when cell config or nav active state changes). */
+  const rebuildStructure = () => {
     container.innerHTML = "";
+    baseCells = [];
+    navCells = [];
+    navGroup = null;
     const s = getSettings();
     const baseIds = s.instrumentCells;
 
-    // Base cells
     for (let i = 0; i < baseIds.length; i++) {
       const def = INSTRUMENTS.get(baseIds[i]);
       if (!def) continue;
-      container.appendChild(buildCell(def, i > 0, lastData, s));
+      const { cell, valuEl, unitEl } = buildCell(def, i > 0, lastData, s);
+      baseCells.push({ valuEl, unitEl, def });
+      container.appendChild(cell);
     }
 
-    // Nav cells (grouped so they wrap together)
     if (navActive) {
-      const group = document.createElement("div");
-      group.className = "instrument-nav-group";
-      group.style.cursor = "pointer";
-      group.addEventListener("click", () => {
+      navGroup = document.createElement("div");
+      navGroup.className = "instrument-nav-group";
+      navGroup.style.cursor = "pointer";
+      navGroup.addEventListener("click", () => {
         if (navCellClickCallback) navCellClickCallback();
       });
       for (let i = 0; i < NAV_INSTRUMENT_IDS.length; i++) {
         const def = INSTRUMENTS.get(NAV_INSTRUMENT_IDS[i]);
         if (!def) continue;
-        const cell = buildCell(def, i > 0, lastData, s);
+        const { cell, valuEl, unitEl } = buildCell(def, i > 0, lastData, s);
         cell.classList.add("instrument-cell--nav");
-        group.appendChild(cell);
+        navCells.push({ valuEl, unitEl, def });
+        navGroup.appendChild(cell);
       }
-      container.appendChild(group);
+      container.appendChild(navGroup);
+    }
+  };
+
+  /** Update just the text content of existing cells (cheap, no DOM rebuild). */
+  const updateValues = () => {
+    const s = getSettings();
+    for (const c of baseCells) {
+      const f = c.def.format(lastData, s);
+      c.valuEl.textContent = f.value;
+      c.unitEl.textContent = f.unit;
+    }
+    for (const c of navCells) {
+      const f = c.def.format(lastData, s);
+      c.valuEl.textContent = f.value;
+      c.unitEl.textContent = f.unit;
     }
   };
 
   navManager.subscribe((data) => {
     lastData = data;
-    rebuild();
+    updateValues();
   });
 
   const applyVisibility = (s: Settings) => {
@@ -127,10 +156,10 @@ export function createInstrumentHUD(
   applyVisibility(getSettings());
   onSettingsChange((s) => {
     applyVisibility(s);
-    rebuild();
+    rebuildStructure();
   });
 
-  rebuild();
+  rebuildStructure();
 
   return {
     element: container,
@@ -142,13 +171,13 @@ export function createInstrumentHUD(
         const active = state.type !== "idle";
         if (active !== navActive) {
           navActive = active;
-          rebuild();
+          rebuildStructure();
         }
       };
       activeNav.subscribe(onNavChange);
       if (activeNav.getState().type !== "idle") {
         navActive = true;
-        rebuild();
+        rebuildStructure();
       }
     },
   };
@@ -159,10 +188,10 @@ function buildCell(
   bordered: boolean,
   data: NavigationData | null,
   settings: Settings,
-): HTMLDivElement {
-  const div = document.createElement("div");
-  div.className = "instrument-cell";
-  if (bordered) div.classList.add("instrument-cell--bordered");
+): { cell: HTMLDivElement; valuEl: HTMLSpanElement; unitEl: HTMLSpanElement } {
+  const cell = document.createElement("div");
+  cell.className = "instrument-cell";
+  if (bordered) cell.classList.add("instrument-cell--bordered");
 
   const label = document.createElement("span");
   label.className = "instrument-label";
@@ -173,15 +202,15 @@ function buildCell(
 
   const formatted = def.format(data, settings);
 
-  const value = document.createElement("span");
-  value.className = "instrument-value";
-  value.textContent = formatted.value;
+  const valuEl = document.createElement("span");
+  valuEl.className = "instrument-value";
+  valuEl.textContent = formatted.value;
 
-  const unit = document.createElement("span");
-  unit.className = "instrument-unit";
-  unit.textContent = formatted.unit;
+  const unitEl = document.createElement("span");
+  unitEl.className = "instrument-unit";
+  unitEl.textContent = formatted.unit;
 
-  valueRow.append(value, unit);
-  div.append(label, valueRow);
-  return div;
+  valueRow.append(valuEl, unitEl);
+  cell.append(label, valueRow);
+  return { cell, valuEl, unitEl };
 }
