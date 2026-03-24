@@ -14,8 +14,26 @@ describe("VectorChartProvider", () => {
     expect(provider.type).toBe("vector");
   });
 
-  it("returns vector source with pmtiles tiles URL for first region", () => {
-    const source = provider.getSource();
+  it("getSources includes all region vector sources and unified coverage", () => {
+    const sources = provider.getSources();
+    // All regions + unified coverage
+    expect(Object.keys(sources)).toHaveLength(CHART_REGIONS.length + 1);
+
+    // Each region has a consistently named source
+    for (const region of CHART_REGIONS) {
+      const sourceId = `s57-vector-${region.id}`;
+      expect(sources[sourceId]).toBeDefined();
+      expect(sources[sourceId].type).toBe("vector");
+    }
+
+    // Unified coverage source
+    expect(sources["s57-coverage-unified"]).toBeDefined();
+  });
+
+  it("first region source contains correct pmtiles URL", () => {
+    const sources = provider.getSources();
+    const firstId = `s57-vector-${CHART_REGIONS[0].id}`;
+    const source = sources[firstId];
     expect(source.type).toBe("vector");
     if (source.type === "vector") {
       expect(source.tiles?.[0]).toContain("pmtiles://");
@@ -24,17 +42,6 @@ describe("VectorChartProvider", () => {
         "nautical-northern-new-england.pmtiles",
       );
     }
-  });
-
-  it("extra sources include all other region vector sources and unified coverage", () => {
-    const extra = provider.getExtraSources();
-    // Should have (N-1) extra vector sources + 1 unified coverage source
-    const regionCount = CHART_REGIONS.length;
-    const expectedKeys = regionCount - 1 + 1;
-    expect(Object.keys(extra)).toHaveLength(expectedKeys);
-
-    // Unified coverage source
-    expect(extra["s57-coverage-unified"]).toBeDefined();
   });
 
   it("setActiveRegion changes the active region", () => {
@@ -88,15 +95,8 @@ describe("VectorChartProvider", () => {
 
   it("all layers reference a valid source", () => {
     const layers = provider.getLayers();
-    const validSources = new Set<string>();
-    // First region uses provider.id
-    validSources.add("s57-vector");
-    // Other regions use s57-vector-{regionId}
-    for (let i = 1; i < CHART_REGIONS.length; i++) {
-      validSources.add(`s57-vector-${CHART_REGIONS[i].id}`);
-    }
-    // Unified coverage source
-    validSources.add("s57-coverage-unified");
+    const sources = provider.getSources();
+    const validSources = new Set(Object.keys(sources));
 
     for (const layer of layers) {
       if ("source" in layer && layer.source) {

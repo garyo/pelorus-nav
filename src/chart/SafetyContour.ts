@@ -13,37 +13,29 @@
 
 import type maplibregl from "maplibre-gl";
 import type { FilterSpecification } from "maplibre-gl";
-import { CHART_REGIONS } from "../data/chart-catalog";
+import { getRegionLayerIds, getVectorSourceIds } from "../data/chart-catalog";
 import { getSettings, onSettingsChange } from "../settings";
 import { s52Colour } from "./s52-colours";
 
-/** All region-prefixed safety contour layer IDs. */
-function getSafetyContourLayerIds(): string[] {
-  return CHART_REGIONS.map((r) => `s57-${r.id}-depcnt-safety`);
-}
+const ISOLATED_DANGER_SUFFIXES = [
+  "wrecks-isodgr",
+  "obstrn-isodgr",
+  "uwtroc-isodgr",
+];
 
-/** All region-prefixed sounding layer IDs. */
-function getSoundingLayerIds(): string[] {
-  return CHART_REGIONS.map((r) => `s57-${r.id}-soundg`);
-}
-
-/** All region-prefixed DEPARE medium layer IDs. */
-function getDepareMediumLayerIds(): string[] {
-  return CHART_REGIONS.map((r) => `s57-${r.id}-depare-medium`);
-}
-
-/** All region-prefixed isolated danger overlay layer IDs. */
-function getIsolatedDangerLayerIds(): string[] {
-  const hazards = ["wrecks", "obstrn", "uwtroc"];
-  return CHART_REGIONS.flatMap((r) =>
-    hazards.map((h) => `s57-${r.id}-${h}-isodgr`),
-  );
-}
-
-function getVectorSourceIds(): string[] {
-  return CHART_REGIONS.map((r, i) =>
-    i === 0 ? "s57-vector" : `s57-vector-${r.id}`,
-  );
+/** Apply a callback to each existing MapLibre layer matching the given IDs. */
+function forEachLayer(
+  map: maplibregl.Map,
+  layerIds: string[],
+  fn: (layerId: string) => void,
+): void {
+  for (const id of layerIds) {
+    try {
+      if (map.getLayer(id)) fn(id);
+    } catch {
+      // Layer may not exist yet during style transitions
+    }
+  }
 }
 
 export class SafetyContour {
@@ -175,7 +167,6 @@ export class SafetyContour {
     this.applyContourFilter();
   }
 
-  /** Update DEPARE medium layer fill-color expression for the safety boundary. */
   private updateDepareColors(safetyDepth: number): void {
     const colorExpr = [
       "case",
@@ -183,18 +174,11 @@ export class SafetyContour {
       s52Colour("DEPMS"),
       s52Colour("DEPMD"),
     ];
-    for (const layerId of getDepareMediumLayerIds()) {
-      try {
-        if (this.map.getLayer(layerId)) {
-          this.map.setPaintProperty(layerId, "fill-color", colorExpr);
-        }
-      } catch {
-        // Layer may not exist yet
-      }
-    }
+    forEachLayer(this.map, getRegionLayerIds("depare-medium"), (id) =>
+      this.map.setPaintProperty(id, "fill-color", colorExpr),
+    );
   }
 
-  /** Update sounding text color based on safetyDepth (avoids full style rebuild). */
   private updateSoundingColors(safetyDepth: number): void {
     const colorExpr = [
       "case",
@@ -202,18 +186,11 @@ export class SafetyContour {
       s52Colour("SNDG2"),
       s52Colour("SNDG1"),
     ];
-    for (const layerId of getSoundingLayerIds()) {
-      try {
-        if (this.map.getLayer(layerId)) {
-          this.map.setPaintProperty(layerId, "text-color", colorExpr);
-        }
-      } catch {
-        // Layer may not exist yet
-      }
-    }
+    forEachLayer(this.map, getRegionLayerIds("soundg"), (id) =>
+      this.map.setPaintProperty(id, "text-color", colorExpr),
+    );
   }
 
-  /** Update isolated danger overlay filters based on safetyDepth. */
   private updateIsolatedDangerFilters(safetyDepth: number): void {
     const filter = [
       "all",
@@ -221,19 +198,11 @@ export class SafetyContour {
       ["has", "VALSOU"],
       ["<=", ["get", "VALSOU"], safetyDepth],
       [">=", ["get", "_enclosing_depth"], safetyDepth],
-    ];
-    for (const layerId of getIsolatedDangerLayerIds()) {
-      try {
-        if (this.map.getLayer(layerId)) {
-          this.map.setFilter(layerId, filter as unknown as FilterSpecification);
-        }
-      } catch {
-        // Layer may not exist yet
-      }
-    }
+    ] as unknown as FilterSpecification;
+    const layerIds = ISOLATED_DANGER_SUFFIXES.flatMap(getRegionLayerIds);
+    forEachLayer(this.map, layerIds, (id) => this.map.setFilter(id, filter));
   }
 
-  /** Apply all targeted updates for a safetyDepth change. */
   private applyAll(safetyDepth: number): void {
     this.applyContourFilter();
     this.updateSoundingColors(safetyDepth);
@@ -241,26 +210,20 @@ export class SafetyContour {
     this.updateIsolatedDangerFilters(safetyDepth);
   }
 
-  /** Re-apply everything after a full style rebuild resets layers to placeholder. */
+  /** Re-apply after a full style rebuild resets layers to placeholder. */
   private reapplyAll(): void {
     if (this.resolvedByCell.size > 0) {
+      this.updating = true;
       this.applyAll(getSettings().safetyDepth);
+      this.updating = false;
     }
   }
 
-  /** Apply the per-cell safety contour filter to all region layers. */
   private applyContourFilter(): void {
     const filter = buildPerCellFilter(this.resolvedByCell);
-
-    for (const layerId of getSafetyContourLayerIds()) {
-      try {
-        if (this.map.getLayer(layerId)) {
-          this.map.setFilter(layerId, filter);
-        }
-      } catch {
-        // Layer may not exist yet during style transitions
-      }
-    }
+    forEachLayer(this.map, getRegionLayerIds("depcnt-safety"), (id) =>
+      this.map.setFilter(id, filter),
+    );
   }
 }
 

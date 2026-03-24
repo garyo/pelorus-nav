@@ -117,11 +117,16 @@ export class RouteDetailPanel {
     this.activeNav = activeNav;
   }
 
-  /** Re-render the table if the panel is currently visible. */
+  private refreshRafId: number | null = null;
+
+  /** Re-render the table if visible, throttled to one frame. */
   refreshIfOpen(): void {
-    if (this.currentRoute && this.el.classList.contains("open")) {
+    if (!this.currentRoute || !this.el.classList.contains("open")) return;
+    if (this.refreshRafId !== null) return;
+    this.refreshRafId = requestAnimationFrame(() => {
+      this.refreshRafId = null;
       this.render();
-    }
+    });
   }
 
   show(route: Route): void {

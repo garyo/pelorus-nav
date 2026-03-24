@@ -16,6 +16,23 @@ import { getMode, setMode } from "./InteractionMode";
 import { ensurePointIcons, pointRole, ROLE_ICON_EXPR } from "./point-icons";
 import type { RouteLayer } from "./RouteLayer";
 
+/** Max fraction of first leg length for the prepend handle offset. */
+const PREPEND_MAX_FRACTION = 0.8;
+/** Min offset in degrees (~440m at mid-latitudes). */
+const PREPEND_MIN_OFFSET_DEG = 0.004;
+
+/** Compute the prepend handle position — offset from start, opposite the first leg. */
+function prependHandlePos(wps: Waypoint[]): [number, number] | null {
+  if (wps.length < 2) return null;
+  const dLat = wps[0].lat - wps[1].lat;
+  const dLon = wps[0].lon - wps[1].lon;
+  const len = Math.sqrt(dLat * dLat + dLon * dLon);
+  if (len === 0) return null;
+  const scale =
+    Math.min(PREPEND_MAX_FRACTION, PREPEND_MIN_OFFSET_DEG / len) * len;
+  return [wps[0].lon + (dLon / len) * scale, wps[0].lat + (dLat / len) * scale];
+}
+
 const SOURCE_ID = "_route-edit-points";
 const LAYER_POINTS = "_route-edit-points";
 const SOURCE_MIDPOINTS = "_route-edit-midpoints";
@@ -444,26 +461,13 @@ export class RouteEditor {
     if (midSrc) {
       const midpoints: GeoJSON.Feature[] = [];
 
-      // Prepend handle: offset from start in the opposite direction of the route
-      if (wps.length >= 2) {
-        const dLat = wps[0].lat - wps[1].lat;
-        const dLon = wps[0].lon - wps[1].lon;
-        const len = Math.sqrt(dLat * dLat + dLon * dLon);
-        if (len > 0) {
-          // Place handle at ~40% of the first leg length, opposite direction
-          const scale = Math.min(0.8, 0.004 / len) * len;
-          midpoints.push({
-            type: "Feature",
-            properties: { role: "midpoint", insertBefore: 0 },
-            geometry: {
-              type: "Point",
-              coordinates: [
-                wps[0].lon + (dLon / len) * scale,
-                wps[0].lat + (dLat / len) * scale,
-              ],
-            },
-          });
-        }
+      const prependPos = prependHandlePos(wps);
+      if (prependPos) {
+        midpoints.push({
+          type: "Feature",
+          properties: { role: "midpoint", insertBefore: 0 },
+          geometry: { type: "Point", coordinates: prependPos },
+        });
       }
 
       for (let i = 0; i < wps.length - 1; i++) {
@@ -544,28 +548,16 @@ export class RouteEditor {
       },
     });
 
-    // Prepend connector: short dashed line from start to prepend handle
-    if (wps.length >= 2) {
-      const dLat = wps[0].lat - wps[1].lat;
-      const dLon = wps[0].lon - wps[1].lon;
-      const len = Math.sqrt(dLat * dLat + dLon * dLon);
-      if (len > 0) {
-        const scale = Math.min(0.8, 0.004 / len) * len;
-        features.push({
-          type: "Feature",
-          properties: {},
-          geometry: {
-            type: "LineString",
-            coordinates: [
-              [wps[0].lon, wps[0].lat],
-              [
-                wps[0].lon + (dLon / len) * scale,
-                wps[0].lat + (dLat / len) * scale,
-              ],
-            ],
-          },
-        });
-      }
+    const prependPos = prependHandlePos(wps);
+    if (prependPos) {
+      features.push({
+        type: "Feature",
+        properties: {},
+        geometry: {
+          type: "LineString",
+          coordinates: [[wps[0].lon, wps[0].lat], prependPos],
+        },
+      });
     }
 
     src.setData({ type: "FeatureCollection", features });

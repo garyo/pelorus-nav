@@ -822,24 +822,27 @@ function buildDepthThresholdSliders(): HTMLElement {
   // Slider handlers: convert slider position → meters, snap, skip if unchanged.
   // Guard with `syncing` (syncSliders setting .value re-fires input events)
   // and use tolerance to avoid floating-point churn.
-  const EPS = 1e-1;
+  const DEPTH_CHANGE_THRESHOLD_M = 1e-1;
 
   shallowSlider.addEventListener("input", () => {
     if (syncing) return;
     const m = snapMeters(sliderToMeters(Number(shallowSlider.value)));
-    if (Math.abs(m - getSettings().shallowDepth) > EPS) applyShallowMeters(m);
+    if (Math.abs(m - getSettings().shallowDepth) > DEPTH_CHANGE_THRESHOLD_M)
+      applyShallowMeters(m);
   });
 
   safetySlider.addEventListener("input", () => {
     if (syncing) return;
     const m = snapMeters(sliderToMeters(Number(safetySlider.value)));
-    if (Math.abs(m - getSettings().safetyDepth) > EPS) applySafetyMeters(m);
+    if (Math.abs(m - getSettings().safetyDepth) > DEPTH_CHANGE_THRESHOLD_M)
+      applySafetyMeters(m);
   });
 
   deepSlider.addEventListener("input", () => {
     if (syncing) return;
     const m = snapMeters(sliderToMeters(Number(deepSlider.value)));
-    if (Math.abs(m - getSettings().deepDepth) > EPS) applyDeepMeters(m);
+    if (Math.abs(m - getSettings().deepDepth) > DEPTH_CHANGE_THRESHOLD_M)
+      applyDeepMeters(m);
   });
 
   // Number input handlers: convert display units → meters
@@ -848,19 +851,22 @@ function buildDepthThresholdSliders(): HTMLElement {
   shallowInput.addEventListener("change", () => {
     if (syncing) return;
     const m = displayToMeters(Number(shallowInput.value), currentUnit());
-    if (Math.abs(m - getSettings().shallowDepth) > EPS) applyShallowMeters(m);
+    if (Math.abs(m - getSettings().shallowDepth) > DEPTH_CHANGE_THRESHOLD_M)
+      applyShallowMeters(m);
   });
 
   safetyInput.addEventListener("change", () => {
     if (syncing) return;
     const m = displayToMeters(Number(safetyInput.value), currentUnit());
-    if (Math.abs(m - getSettings().safetyDepth) > EPS) applySafetyMeters(m);
+    if (Math.abs(m - getSettings().safetyDepth) > DEPTH_CHANGE_THRESHOLD_M)
+      applySafetyMeters(m);
   });
 
   deepInput.addEventListener("change", () => {
     if (syncing) return;
     const m = displayToMeters(Number(deepInput.value), currentUnit());
-    if (Math.abs(m - getSettings().deepDepth) > EPS) applyDeepMeters(m);
+    if (Math.abs(m - getSettings().deepDepth) > DEPTH_CHANGE_THRESHOLD_M)
+      applyDeepMeters(m);
   });
 
   // Re-sync when any relevant setting changes (unit or thresholds)

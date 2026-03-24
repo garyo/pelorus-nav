@@ -91,6 +91,16 @@ export const CHART_REGIONS: ChartRegion[] = [
   },
 ];
 
+/** MapLibre vector source IDs for all regions. */
+export function getVectorSourceIds(): string[] {
+  return CHART_REGIONS.map((r) => `s57-vector-${r.id}`);
+}
+
+/** Build region-prefixed layer IDs for a given base suffix. */
+export function getRegionLayerIds(suffix: string): string[] {
+  return CHART_REGIONS.map((r) => `s57-${r.id}-${suffix}`);
+}
+
 /** Look up a region by ID. */
 export function getRegion(id: string): ChartRegion | undefined {
   return CHART_REGIONS.find((r) => r.id === id);

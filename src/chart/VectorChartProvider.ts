@@ -67,31 +67,21 @@ export class VectorChartProvider implements ChartProvider {
     }
   }
 
-  /** Source for the first region, mapped to provider.id for ChartProvider compat. */
-  getSource(): SourceSpecification {
-    const region = CHART_REGIONS[0];
-    return this.makeVectorSource(region);
-  }
+  getSources(): Record<string, SourceSpecification> {
+    const sources: Record<string, SourceSpecification> = {};
 
-  /** All other region sources + unified coverage source. */
-  getExtraSources(): Record<string, SourceSpecification> {
-    const extra: Record<string, SourceSpecification> = {};
-
-    // Additional region vector sources (skip first — it's the main source)
-    for (let i = 1; i < CHART_REGIONS.length; i++) {
-      const region = CHART_REGIONS[i];
-      extra[this.sourceIdFor(region.id)] = this.makeVectorSource(region);
+    for (const region of CHART_REGIONS) {
+      sources[this.sourceIdFor(region.id)] = this.makeVectorSource(region);
     }
 
-    // Single unified coverage source (used by the one coverage mask layer)
-    extra[UNIFIED_COVERAGE_SOURCE] = {
+    sources[UNIFIED_COVERAGE_SOURCE] = {
       type: "geojson",
       data:
         this.unifiedCoverageBlobURL ??
         `${chartAssetBase()}/${UNIFIED_COVERAGE_FILENAME}`,
     };
 
-    return extra;
+    return sources;
   }
 
   getLayers(): LayerSpecification[] {
@@ -156,12 +146,8 @@ export class VectorChartProvider implements ChartProvider {
     return '&copy; <a href="https://nauticalcharts.noaa.gov">NOAA</a> ENC';
   }
 
-  /** Get the vector source ID for a given region. */
   private sourceIdFor(regionId: string): string {
-    // First region uses provider.id for ChartProvider compat
-    return regionId === CHART_REGIONS[0].id
-      ? this.id
-      : `s57-vector-${regionId}`;
+    return `s57-vector-${regionId}`;
   }
 
   private makeVectorSource(region: ChartRegion): SourceSpecification {

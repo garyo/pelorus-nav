@@ -10,14 +10,16 @@ export class OSMChartProvider implements ChartProvider {
   readonly minZoom = 0;
   readonly maxZoom = 19;
 
-  getSource(): SourceSpecification {
+  getSources(): Record<string, SourceSpecification> {
     return {
-      type: "raster",
-      tiles: ["https://tile.openstreetmap.org/{z}/{x}/{y}.png"],
-      tileSize: 256,
-      attribution: this.getAttribution(),
-      minzoom: this.minZoom,
-      maxzoom: this.maxZoom,
+      [SOURCE_ID]: {
+        type: "raster",
+        tiles: ["https://tile.openstreetmap.org/{z}/{x}/{y}.png"],
+        tileSize: 256,
+        attribution: this.getAttribution(),
+        minzoom: this.minZoom,
+        maxzoom: this.maxZoom,
+      },
     };
   }
 

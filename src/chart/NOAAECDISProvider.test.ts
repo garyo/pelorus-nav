@@ -11,7 +11,7 @@ describe("NOAAECDISProvider", () => {
   });
 
   it("returns a raster source using NOAA ENCOnline WMS endpoint", () => {
-    const source = provider.getSource();
+    const source = provider.getSources()[Object.keys(provider.getSources())[0]];
     expect(source.type).toBe("raster");
     if (source.type === "raster") {
       const url = source.tiles?.[0] ?? "";

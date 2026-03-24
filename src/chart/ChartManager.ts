@@ -176,7 +176,6 @@ export class ChartManager {
   }
 
   private buildStyle(provider: ChartProvider): maplibregl.StyleSpecification {
-    const extraSources = provider.getExtraSources?.() ?? {};
     const settings = getSettings();
     const { sprite } = getIconScheme(
       settings.symbologyScheme,
@@ -184,8 +183,7 @@ export class ChartManager {
     );
 
     let sources: Record<string, maplibregl.SourceSpecification> = {
-      [provider.id]: provider.getSource(),
-      ...extraSources,
+      ...provider.getSources(),
     };
     let layers = provider.getLayers();
 

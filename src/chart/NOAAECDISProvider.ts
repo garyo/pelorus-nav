@@ -27,14 +27,16 @@ export class NOAAECDISProvider implements ChartProvider {
   readonly minZoom = 3;
   readonly maxZoom = 18;
 
-  getSource(): SourceSpecification {
+  getSources(): Record<string, SourceSpecification> {
     return {
-      type: "raster",
-      tiles: [ECDIS_WMS_TILE_URL],
-      tileSize: 256,
-      attribution: this.getAttribution(),
-      minzoom: this.minZoom,
-      maxzoom: this.maxZoom,
+      [SOURCE_ID]: {
+        type: "raster",
+        tiles: [ECDIS_WMS_TILE_URL],
+        tileSize: 256,
+        attribution: this.getAttribution(),
+        minzoom: this.minZoom,
+        maxzoom: this.maxZoom,
+      },
     };
   }
 

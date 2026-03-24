@@ -9,7 +9,7 @@
 
 import type { Feature, FeatureCollection, LineString, Position } from "geojson";
 import type maplibregl from "maplibre-gl";
-import { CHART_REGIONS } from "../data/chart-catalog";
+import { getVectorSourceIds } from "../data/chart-catalog";
 import { getSettings, onSettingsChange } from "../settings";
 import { s52Colour } from "./s52-colours";
 
@@ -257,14 +257,6 @@ function buildFeatures(
   }
 
   return { type: "FeatureCollection", features };
-}
-
-// ── Source IDs for all vector tile regions ────────────────────────────
-
-function getVectorSourceIds(): string[] {
-  return CHART_REGIONS.map((r, i) =>
-    i === 0 ? "s57-vector" : `s57-vector-${r.id}`,
-  );
 }
 
 // ── Layer class ──────────────────────────────────────────────────────

@@ -11,7 +11,7 @@ describe("OSMChartProvider", () => {
   });
 
   it("returns a raster source with OSM URL", () => {
-    const source = provider.getSource();
+    const source = provider.getSources()[Object.keys(provider.getSources())[0]];
     expect(source.type).toBe("raster");
     if (source.type === "raster") {
       expect(source.tiles?.[0]).toContain("openstreetmap.org");

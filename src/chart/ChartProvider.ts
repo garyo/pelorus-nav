@@ -13,10 +13,8 @@ export interface ChartProvider {
   /** Max zoom level supported. */
   readonly maxZoom: number;
 
-  /** MapLibre source specification for this provider. */
-  getSource(): SourceSpecification;
-  /** Additional sources (e.g. coverage GeoJSON). Optional. */
-  getExtraSources?(): Record<string, SourceSpecification>;
+  /** All MapLibre sources for this provider, keyed by source ID. */
+  getSources(): Record<string, SourceSpecification>;
   /** MapLibre layer specifications to render this source. */
   getLayers(): LayerSpecification[];
   /** Attribution HTML string. */
