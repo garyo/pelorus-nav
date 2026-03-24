@@ -85,10 +85,11 @@ describe("SimulatorProvider", () => {
     const first = received[0];
     expect(first.latitude).toBeCloseTo(42.0, 2);
     expect(first.longitude).toBeCloseTo(-71.0, 2);
-    expect(first.sog).toBe(6);
-    // COG should be roughly north (0 degrees)
+    expect(first.sog).toBeCloseTo(6, 0);
+    // COG should be roughly north (0°), within jitter tolerance (wraps around 360)
     expect(first.cog).not.toBeNull();
-    expect(first.cog ?? 0).toBeCloseTo(0, 0);
+    const cogDelta = Math.abs((((first.cog ?? 0) + 180) % 360) - 180);
+    expect(cogDelta).toBeLessThan(10);
 
     sim.disconnect();
   });
@@ -125,7 +126,7 @@ describe("SimulatorProvider", () => {
 
     sim.connect();
     expect(received[0].latitude).toBeCloseTo(42.35, 1);
-    expect(received[0].sog).toBe(6);
+    expect(received[0].sog).toBeCloseTo(6, 0);
     expect(received[0].cog).not.toBeNull();
 
     sim.disconnect();

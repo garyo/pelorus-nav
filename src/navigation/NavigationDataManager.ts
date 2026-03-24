@@ -74,9 +74,10 @@ export class NavigationDataManager {
 
     this.deferredTimer = setTimeout(() => {
       this.deferredTimer = null;
-      if (this.pendingData) {
-        this.broadcast(this.pendingData);
-        this.adaptiveCtrl.markBroadcast(this.pendingData.timestamp);
+      const data = this.pendingData;
+      if (data) {
+        this.broadcast(data);
+        this.adaptiveCtrl.markBroadcast(data.timestamp);
         this.hintProviderInterval(
           this.rateMode === "adaptive"
             ? this.adaptiveCtrl.getState().intervalMs

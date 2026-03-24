@@ -50,14 +50,22 @@ const BOSTON_HARBOR_ROUTE: [number, number][] = [
 const DEFAULT_SPEED_KN = 6;
 const DEFAULT_INTERVAL_MS = 1000;
 
-/** Add realistic GPS position jitter (~5m RMS). */
+/** Add realistic GPS jitter to position, speed, and heading. */
 function addJitter(data: NavigationData): NavigationData {
-  const jitter = 0.00005; // ~5m in degrees
-  return {
-    ...data,
-    latitude: data.latitude + (Math.random() - 0.5) * 2 * jitter,
-    longitude: data.longitude + (Math.random() - 0.5) * 2 * jitter,
-  };
+  const posJitter = 0.00005; // ~5m in degrees
+  const sogJitter = 0.3; // ±0.3 kn
+  const cogJitter = 3; // ±3°
+  const lat = data.latitude + (Math.random() - 0.5) * 2 * posJitter;
+  const lng = data.longitude + (Math.random() - 0.5) * 2 * posJitter;
+  const sog =
+    data.sog !== null
+      ? Math.max(0, data.sog + (Math.random() - 0.5) * 2 * sogJitter)
+      : null;
+  const cog =
+    data.cog !== null
+      ? (((data.cog + (Math.random() - 0.5) * 2 * cogJitter) % 360) + 360) % 360
+      : null;
+  return { ...data, latitude: lat, longitude: lng, sog, cog, heading: cog };
 }
 
 export class SimulatorProvider implements NavigationDataProvider {
