@@ -15,7 +15,6 @@ import { chartAssetBase } from "./data/remote-url";
 import { loadAllSearchIndices } from "./data/search-index";
 import { getChartFile, listStoredCharts } from "./data/tile-store";
 import { BearingLine } from "./map/BearingLine";
-import { getMode, setMode } from "./map/InteractionMode";
 import { MeasurementLayer } from "./map/MeasurementLayer";
 import { PlottingLayer } from "./map/plotting/PlottingLayer";
 import { RouteEditor } from "./map/RouteEditor";
@@ -63,9 +62,7 @@ import { createSettingsPanel } from "./ui/SettingsPanel";
 import { TrackManagerPanel } from "./ui/TrackManagerPanel";
 import { WakeLockController } from "./ui/WakeLock";
 import { WaypointManagerPanel } from "./ui/WaypointManagerPanel";
-import { formatLatLon, parseLatLon } from "./utils/coordinates";
 import { applyDeclination, bearingModeLabel } from "./utils/magnetic";
-import { generateUUID } from "./utils/uuid";
 import { ChartModeController } from "./vessel/ChartMode";
 import { CourseLine } from "./vessel/CourseLine";
 import { VesselLayer } from "./vessel/VesselLayer";
@@ -370,288 +367,8 @@ navManager.setActiveProvider(initGpsSettings.gpsSource);
 // Auto-switch active region based on GPS position
 new RegionAutoSwitch(navManager);
 
-// --- Context menu (right-click on map) ---
-const ctxMenu = document.createElement("div");
-ctxMenu.className = "map-context-menu";
-document.body.appendChild(ctxMenu);
-
-let ctxLat = 0;
-let ctxLng = 0;
-
-const hideContextMenu = () => {
-  ctxMenu.style.display = "none";
-};
-
-// Build menu items
-const ctxCopy = document.createElement("div");
-ctxCopy.className = "map-context-item";
-const ctxCopyLabel = document.createElement("span");
-ctxCopy.appendChild(ctxCopyLabel);
-
-const ctxGoto = document.createElement("div");
-ctxGoto.className = "map-context-item";
-ctxGoto.textContent = "Go to\u2026";
-
-const ctxGotoInput = document.createElement("input");
-ctxGotoInput.type = "text";
-ctxGotoInput.placeholder = "lat,lon or 42\u00b018.3'N 70\u00b056.8'W";
-ctxGotoInput.className = "map-context-input";
-ctxGotoInput.style.display = "none";
-
-const ctxMeasure = document.createElement("div");
-ctxMeasure.className = "map-context-item";
-ctxMeasure.textContent = "Measure from here";
-
-const ctxRoute = document.createElement("div");
-ctxRoute.className = "map-context-item";
-ctxRoute.textContent = "Route from here";
-
-const ctxWaypoint = document.createElement("div");
-ctxWaypoint.className = "map-context-item";
-ctxWaypoint.textContent = "Mark waypoint here";
-
-// Plot submenu
-const ctxPlot = document.createElement("div");
-ctxPlot.className = "map-context-item map-context-submenu-parent";
-ctxPlot.textContent = "Plot \u25B8";
-
-const ctxPlotSub = document.createElement("div");
-ctxPlotSub.className = "map-context-submenu";
-
-const ctxPlotBearing = document.createElement("div");
-ctxPlotBearing.className = "map-context-item";
-ctxPlotBearing.textContent = "Bearing line";
-
-const ctxPlotLine = document.createElement("div");
-ctxPlotLine.className = "map-context-item";
-ctxPlotLine.textContent = "Segment line";
-
-const ctxPlotSymbol = document.createElement("div");
-ctxPlotSymbol.className = "map-context-item";
-ctxPlotSymbol.textContent = "Symbol";
-
-ctxPlotSub.append(ctxPlotBearing, ctxPlotLine, ctxPlotSymbol);
-ctxPlot.appendChild(ctxPlotSub);
-
-ctxMenu.append(
-  ctxCopy,
-  ctxWaypoint,
-  ctxMeasure,
-  ctxRoute,
-  ctxPlot,
-  ctxGoto,
-  ctxGotoInput,
-);
-
-// Track right-mouse drag vs click
-let rightDownX = 0;
-let rightDownY = 0;
-chartManager.map.getCanvas().addEventListener("mousedown", (e) => {
-  if (e.button === 2) {
-    rightDownX = e.clientX;
-    rightDownY = e.clientY;
-  }
-});
-
-/** Show the context menu at the given map lat/lng and screen position. */
-const showContextMenu = (
-  lat: number,
-  lng: number,
-  clientX: number,
-  clientY: number,
-) => {
-  ctxLat = lat;
-  ctxLng = lng;
-  ctxCopyLabel.textContent = `Copy ${formatLatLon(ctxLat, "lat")} ${formatLatLon(ctxLng, "lon")}`;
-  ctxGotoInput.style.display = "none";
-
-  ctxMenu.style.display = "block";
-  const menuW = ctxMenu.offsetWidth;
-  const menuH = ctxMenu.offsetHeight;
-  const left = Math.min(clientX, window.innerWidth - menuW - 4);
-  const top = Math.min(clientY, window.innerHeight - menuH - 4);
-  ctxMenu.style.left = `${left}px`;
-  ctxMenu.style.top = `${top}px`;
-};
-
-// Show context menu on right-click (not drag)
-chartManager.map.getCanvas().addEventListener("contextmenu", (e) => {
-  e.preventDefault();
-  const dx = e.clientX - rightDownX;
-  const dy = e.clientY - rightDownY;
-  if (dx * dx + dy * dy > 25) return; // dragged — don't show menu
-
-  const canvas = chartManager.map.getCanvas();
-  const rect = canvas.getBoundingClientRect();
-  const lngLat = chartManager.map.unproject([
-    e.clientX - rect.left,
-    e.clientY - rect.top,
-  ]);
-  showContextMenu(lngLat.lat, lngLat.lng, e.clientX, e.clientY);
-});
-
-// Long-press on mobile → show context menu (touch equivalent of right-click)
-{
-  let longPressTimer: ReturnType<typeof setTimeout> | null = null;
-  let touchStartX = 0;
-  let touchStartY = 0;
-  const LONG_PRESS_MS = 500;
-  const MOVE_THRESHOLD = 10;
-
-  const canvas = chartManager.map.getCanvas();
-
-  canvas.addEventListener(
-    "touchstart",
-    (e) => {
-      if (e.touches.length !== 1) {
-        if (longPressTimer) clearTimeout(longPressTimer);
-        longPressTimer = null;
-        return;
-      }
-      const touch = e.touches[0];
-      touchStartX = touch.clientX;
-      touchStartY = touch.clientY;
-
-      longPressTimer = setTimeout(() => {
-        longPressTimer = null;
-        const rect = canvas.getBoundingClientRect();
-        const lngLat = chartManager.map.unproject([
-          touchStartX - rect.left,
-          touchStartY - rect.top,
-        ]);
-        showContextMenu(lngLat.lat, lngLat.lng, touchStartX, touchStartY);
-      }, LONG_PRESS_MS);
-    },
-    { passive: true },
-  );
-
-  canvas.addEventListener(
-    "touchmove",
-    (e) => {
-      if (!longPressTimer) return;
-      const touch = e.touches[0];
-      const dx = touch.clientX - touchStartX;
-      const dy = touch.clientY - touchStartY;
-      if (dx * dx + dy * dy > MOVE_THRESHOLD * MOVE_THRESHOLD) {
-        clearTimeout(longPressTimer);
-        longPressTimer = null;
-      }
-    },
-    { passive: true },
-  );
-
-  canvas.addEventListener("touchend", () => {
-    if (longPressTimer) {
-      clearTimeout(longPressTimer);
-      longPressTimer = null;
-    }
-  });
-
-  canvas.addEventListener("touchcancel", () => {
-    if (longPressTimer) {
-      clearTimeout(longPressTimer);
-      longPressTimer = null;
-    }
-  });
-}
-
-// Copy position
-ctxCopy.addEventListener("click", () => {
-  const text = `${ctxLat.toFixed(6)},${ctxLng.toFixed(6)}`;
-  navigator.clipboard.writeText(text).catch(() => {});
-  hideContextMenu();
-});
-
-// Go to: show input
-ctxGoto.addEventListener("click", () => {
-  ctxGotoInput.style.display = "block";
-  ctxGotoInput.value = "";
-  ctxGotoInput.focus();
-});
-
-const flyToInput = (value: string) => {
-  const result = parseLatLon(value);
-  if (result) {
-    const [lat, lon] = result;
-    chartManager.map.flyTo({
-      center: [lon, lat],
-      zoom: Math.max(chartManager.map.getZoom(), 10),
-    });
-    hideContextMenu();
-  } else {
-    ctxGotoInput.classList.add("error");
-    setTimeout(() => ctxGotoInput.classList.remove("error"), 1000);
-  }
-};
-
-ctxGotoInput.addEventListener("keydown", (e) => {
-  if (e.key === "Enter") flyToInput(ctxGotoInput.value);
-  if (e.key === "Escape") hideContextMenu();
-  e.stopPropagation(); // don't let MapLibre handle these keys
-});
-
-// --- Plotting layer ---
-const plottingLayer = new PlottingLayer(chartManager.map);
-
-ctxPlotBearing.addEventListener("click", () => {
-  hideContextMenu();
-  plottingLayer.promptBearing(ctxLat, ctxLng);
-});
-
-ctxPlotLine.addEventListener("click", () => {
-  hideContextMenu();
-  plottingLayer.startSegmentFrom(ctxLat, ctxLng);
-});
-
-ctxPlotSymbol.addEventListener("click", () => {
-  hideContextMenu();
-  plottingLayer.placeSymbolAt(ctxLat, ctxLng);
-});
-
-// --- Measurement tool ---
-const measurementLayer = new MeasurementLayer(chartManager.map);
-ctxMeasure.addEventListener("click", () => {
-  hideContextMenu();
-  measurementLayer.startFrom(ctxLng, ctxLat);
-});
-
-ctxRoute.addEventListener("click", () => {
-  hideContextMenu();
-  routeEditor.startFromPoint(ctxLat, ctxLng);
-});
-
-ctxWaypoint.addEventListener("click", () => {
-  hideContextMenu();
-  const wp: import("./data/Waypoint").StandaloneWaypoint = {
-    id: generateUUID(),
-    lat: ctxLat,
-    lon: ctxLng,
-    name: `WP ${formatLatLon(ctxLat, "lat")}`,
-    notes: "",
-    icon: "default",
-    createdAt: Date.now(),
-    updatedAt: Date.now(),
-  };
-  waypointLayer
-    .addWaypoint(wp)
-    .then(() => {
-      waypointPanel.show();
-    })
-    .catch(console.error);
-});
-
-// ESC key: cancel active navigation, exit plot mode, or clear measurement
+// Ctrl+F / Cmd+F: open search dialog
 document.addEventListener("keydown", (e) => {
-  if (e.key === "Escape") {
-    if (activeNav.getState().type !== "idle") {
-      activeNav.stop();
-    } else if (getMode() === "plot") {
-      setMode("query");
-    } else {
-      measurementLayer.clear();
-    }
-  }
-  // Ctrl+F / Cmd+F: open search dialog
   if ((e.ctrlKey || e.metaKey) && e.key === "f") {
     e.preventDefault();
     searchDialog.toggle();
@@ -684,6 +401,21 @@ const waypointLayer = new WaypointLayer(chartManager.map);
 new BearingLine(chartManager.map, activeNav, navManager);
 const waypointPanel = new WaypointManagerPanel(waypointLayer, activeNav);
 routePanel.setActiveNav(activeNav);
+
+// --- Context menu (right-click on map) ---
+import { createContextMenu } from "./ui/ContextMenu";
+
+const plottingLayer = new PlottingLayer(chartManager.map);
+const measurementLayer = new MeasurementLayer(chartManager.map);
+createContextMenu({
+  map: chartManager.map,
+  routeEditor,
+  waypointLayer,
+  plottingLayer,
+  measurementLayer,
+  activeNav,
+  onWaypointAdded: () => waypointPanel.show(),
+});
 
 // Cancel navigation control
 const cancelNavBtn = new CancelNavButton(activeNav);
@@ -936,12 +668,6 @@ if (topbarMenu) {
   });
   topbarMenu.insertBefore(aboutBtn, settingsWrapper);
 }
-
-// Dismiss on click elsewhere or map interaction
-document.addEventListener("click", (e) => {
-  if (!ctxMenu.contains(e.target as Node)) hideContextMenu();
-});
-chartManager.map.on("movestart", hideContextMenu);
 
 // Dim overlay layers (routes, waypoints, bearing line) in night/dusk themes
 const NIGHT_OPACITY = 0.45;
