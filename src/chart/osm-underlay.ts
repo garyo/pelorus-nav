@@ -50,9 +50,9 @@ function osmBrightness(theme: DisplayTheme): number {
 /**
  * Water-area fill layer suffixes that must become opaque when OSM underlay
  * is active, to prevent OSM from bleeding through on water.
- * Matches any region prefix: s57-{regionId}-fairwy, etc.
+ * Matches any region prefix: s57-{regionId}-drgare, etc.
  */
-const WATER_FILL_SUFFIXES = ["-fairwy", "-drgare", "-lakare", "-rivers"];
+const WATER_FILL_SUFFIXES = ["-drgare", "-lakare", "-rivers"];
 
 /**
  * Merge OSM underlay into S-57 layers.
