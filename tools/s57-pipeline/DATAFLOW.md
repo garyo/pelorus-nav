@@ -17,10 +17,13 @@
 - **Tool**: Python (our code)
 - **Format**: Vector (GeoJSON modified in-place)
 - **What happens**:
-  - `add_minzoom_to_geojson`: Adds `tippecanoe.minzoom` per feature based on SCAMIN attribute + cell's INTU zoom range. Also adds `_scale_band` property
-  - `add_labels_to_geojson`: Adds `_label` text for lights, buoys
-  - `add_symbols_to_geojson`: Adds `_symbol` name for rendering
-  - `add_s52_metadata`: Adds display category/priority
+  - `enrich_geojson`: Single-pass enrichment that adds:
+    - `tippecanoe.minzoom` from SCAMIN attribute + cell's INTU zoom range
+    - `_scale_band` and `_cell_id` properties (source cell identification)
+    - `LABEL` text for lights, buoys, seabed
+    - List-attribute flattening (JSON arrays → comma-separated strings)
+  - `correlate_topmarks`: Marks buoy/beacon features with co-located TOPMAR
+  - `annotate_enclosing_depth`: Adds `_enclosing_depth` to hazard features for isolated danger detection
 - **No clipping**: Features retain their full geometry
 
 ## Step 4: tippecanoe -> PMTiles (per cell, per layer)

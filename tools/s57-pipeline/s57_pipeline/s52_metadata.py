@@ -1,14 +1,11 @@
-"""S-52 display category and priority metadata for S-57 features.
+"""S-52 display category and priority metadata for S-57 layers.
 
-Stamps each GeoJSON feature with:
-  _disp_cat: DISPLAYBASE | STANDARD | OTHER
-  _disp_pri: 0-9 S-52 display priority (lower = drawn first)
+Maps S-57 layer names to:
+  DISPLAY_CATEGORY: DISPLAYBASE | STANDARD | OTHER
+  DISPLAY_PRIORITY: 0-9 (lower = drawn first)
 """
 
 from __future__ import annotations
-
-import json
-from pathlib import Path
 
 # S-52 Display Category by S-57 object class
 DISPLAY_CATEGORY: dict[str, str] = {
@@ -189,39 +186,3 @@ DISPLAY_PRIORITY: dict[str, int] = {
     "RUNWAY": 7,
     "AIRARE": 7,
 }
-
-
-def add_s52_metadata(path: Path) -> int:
-    """Add _disp_cat and _disp_pri properties to each feature in a GeoJSON file.
-
-    Uses the file stem (uppercased) as the layer name for lookup.
-
-    Args:
-        path: Path to the GeoJSON file to enrich.
-
-    Returns:
-        Number of features processed.
-    """
-    layer_name = path.stem.upper()
-    disp_cat = DISPLAY_CATEGORY.get(layer_name)
-    disp_pri = DISPLAY_PRIORITY.get(layer_name)
-
-    if disp_cat is None and disp_pri is None:
-        return 0
-
-    with open(path) as f:
-        geojson = json.load(f)
-
-    count = 0
-    for feature in geojson.get("features", []):
-        props = feature.get("properties", {})
-        if disp_cat is not None:
-            props["_disp_cat"] = disp_cat
-        if disp_pri is not None:
-            props["_disp_pri"] = disp_pri
-        count += 1
-
-    with open(path, "w") as f:
-        json.dump(geojson, f)
-
-    return count

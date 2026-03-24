@@ -6,9 +6,7 @@ Examples: "Fl G 4s", "Q R", "3", "22".
 
 from __future__ import annotations
 
-import json
 import re
-from pathlib import Path
 
 # S-57 LITCHR (light character) code → abbreviation
 LITCHR_ABBREV: dict[int, str] = {
@@ -149,42 +147,3 @@ def _seabed_label(props: dict) -> str | None:
         except (ValueError, TypeError):
             pass
     return ".".join(parts) if parts else None
-
-
-def add_labels_to_geojson(geojson_path: Path) -> int:
-    """Add LABEL property to features in a GeoJSON file.
-
-    Modifies the file in-place.
-
-    Args:
-        geojson_path: Path to the GeoJSON file.
-
-    Returns:
-        Number of features that got labels.
-    """
-    layer_name = geojson_path.stem.upper()
-
-    with open(geojson_path) as f:
-        geojson = json.load(f)
-
-    count = 0
-    for feature in geojson.get("features", []):
-        props = feature.get("properties", {})
-        label: str | None = None
-
-        if layer_name == "LIGHTS":
-            label = _light_label(props)
-        elif layer_name in ("BOYLAT", "BOYSAW", "BOYSPP", "BOYISD", "BOYCAR",
-                            "BCNLAT", "BCNCAR"):
-            label = _buoy_number(props)
-        elif layer_name == "SBDARE":
-            label = _seabed_label(props)
-
-        if label:
-            props["LABEL"] = label
-            count += 1
-
-    with open(geojson_path, "w") as f:
-        json.dump(geojson, f)
-
-    return count

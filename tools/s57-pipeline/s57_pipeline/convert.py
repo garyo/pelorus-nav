@@ -200,8 +200,10 @@ def convert_enc(
     # Read cell metadata for zoom mapping
     cell_cscl = read_compilation_scale(enc_path) if apply_scamin else None
     cell_intu = read_intended_use(enc_path) if apply_scamin else None
-    # Stable 16-bit cell identifier from filename (e.g. "US5MA22M" → int)
-    cell_id = hash(enc_path.stem) & 0xFFFF
+    # Deterministic cell identifier from filename (e.g. "US5MA22M" → int).
+    # Uses zlib.crc32 instead of hash() which is randomized per process.
+    import zlib
+    cell_id = zlib.crc32(enc_path.stem.encode()) & 0xFFFFFFFF
 
     # Find which of our target layers exist in this ENC
     available = set(list_enc_layers(enc_path))
