@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<?xml-stylesheet href="daySvgStyle.css" type="text/css"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 48 48">
+  <title>MARSHES1</title>
+  <desc>marsh/swamp area pattern - reed symbol</desc>
+  <rect width="48" height="48" fill-opacity="0" stroke="none"/>
+  <g transform="translate(24, 28) scale(0.7)">
+    <line x1="0" y1="1" x2="0" y2="-7" class="sl f0 sCHBRN" stroke-width="1.2"/>
+    <line x1="-3" y1="3" x2="3" y2="3" class="sl f0 sCHBRN" stroke-width="1.2"/>
+    <line x1="-5" y1="0" x2="5" y2="0" class="sl f0 sCHBRN" stroke-width="1.2"/>
+    <line x1="-2" y1="0" x2="-4" y2="-5" class="sl f0 sCHBRN" stroke-width="1.2"/>
+    <line x1="2" y1="0" x2="4" y2="-5" class="sl f0 sCHBRN" stroke-width="1.2"/>
+  </g>
+</svg>

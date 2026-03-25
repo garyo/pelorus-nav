@@ -75,6 +75,7 @@ export const PELORUS_STANDARD: Record<string, string> = {
 
   // Area patterns
   "nodata-pattern": "ecdis-nodata03",
+  "marsh-pattern": "ecdis-marshes",
 
   // Other
   fogsig: "ecdis-fogsig",
@@ -194,6 +195,7 @@ export const IHO_S52: Record<string, string> = {
 
   // Area patterns
   "nodata-pattern": "NODATA03",
+  "marsh-pattern": "MARSHES1",
 
   // Other
   fogsig: "FOGSIG01",

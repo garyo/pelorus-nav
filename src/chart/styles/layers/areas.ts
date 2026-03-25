@@ -5,7 +5,7 @@
  * Note: COALNE (coastline) is a line layer but lives here because it
  * is interleaved between land and lake fills in the draw order.
  */
-import type { LayerSpecification } from "maplibre-gl";
+import type { ExpressionSpecification, LayerSpecification } from "maplibre-gl";
 import type { StyleContext } from "../style-context";
 import { SCALE_SORT_KEY } from "../style-context";
 
@@ -213,6 +213,21 @@ export function getAreaLayers(ctx: StyleContext): LayerSpecification[] {
       "source-layer": "UNSARE",
       paint: {
         "fill-pattern": ctx.icon("nodata-pattern"),
+      },
+    },
+    // LNDRGN CATLND=2 (marsh/swamp) — S-52 AP(MARSHES1)
+    {
+      id: "s57-lndrgn-marsh",
+      type: "fill",
+      source: ctx.sourceId,
+      "source-layer": "LNDRGN",
+      filter: [
+        "any",
+        ["==", ["get", "CATLND"], "2"],
+        ["==", ["get", "CATLND"], "12"],
+      ] as unknown as ExpressionSpecification,
+      paint: {
+        "fill-pattern": ctx.icon("marsh-pattern"),
       },
     },
   ];
