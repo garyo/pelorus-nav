@@ -73,6 +73,9 @@ export const PELORUS_STANDARD: Record<string, string> = {
   // Hazard areas
   "water-turbulence": "ecdis-wattur",
 
+  // Area patterns
+  "nodata-pattern": "ecdis-nodata03",
+
   // Other
   fogsig: "ecdis-fogsig",
   mooring: "ecdis-mooring",
@@ -188,6 +191,9 @@ export const IHO_S52: Record<string, string> = {
 
   // Hazard areas
   "water-turbulence": "WATTUR02",
+
+  // Area patterns
+  "nodata-pattern": "NODATA03",
 
   // Other
   fogsig: "FOGSIG01",

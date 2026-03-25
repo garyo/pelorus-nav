@@ -96,6 +96,7 @@ const LAYER_CATEGORIES: Record<string, "DISPLAYBASE" | "STANDARD" | "OTHER"> = {
   "s57-depare-deep": "DISPLAYBASE",
   "s57-depare-drying": "DISPLAYBASE",
   "s57-unsare": "DISPLAYBASE",
+  "s57-unsare-pattern": "DISPLAYBASE",
   "s57-coalne": "DISPLAYBASE",
   "s57-depcnt": "DISPLAYBASE",
   "s57-soundg": "DISPLAYBASE",

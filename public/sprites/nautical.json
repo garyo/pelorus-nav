@@ -293,6 +293,13 @@
     "x": 160,
     "y": 96
   },
+  "ecdis-nodata03": {
+    "height": 16,
+    "pixelRatio": 1,
+    "width": 16,
+    "x": 160,
+    "y": 240
+  },
   "ecdis-obstruction": {
     "height": 32,
     "pixelRatio": 1,

@@ -205,6 +205,16 @@ export function getAreaLayers(ctx: StyleContext): LayerSpecification[] {
         "fill-opacity": 0.3,
       },
     },
+    // UNSARE — S-52 AP(NODATA03) staggered dash pattern overlay
+    {
+      id: "s57-unsare-pattern",
+      type: "fill",
+      source: ctx.sourceId,
+      "source-layer": "UNSARE",
+      paint: {
+        "fill-pattern": ctx.icon("nodata-pattern"),
+      },
+    },
   ];
 }
 

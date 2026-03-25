@@ -87,29 +87,29 @@
     "height": 20,
     "pixelRatio": 1,
     "width": 6,
-    "x": 192,
-    "y": 145
+    "x": 207,
+    "y": 148
   },
   "BCNLAT22": {
     "height": 20,
     "pixelRatio": 1,
     "width": 6,
-    "x": 198,
-    "y": 145
+    "x": 213,
+    "y": 148
   },
   "BCNSPP13": {
     "height": 16,
     "pixelRatio": 1,
     "width": 9,
-    "x": 183,
+    "x": 198,
     "y": 145
   },
   "BCNSPP21": {
     "height": 20,
     "pixelRatio": 1,
     "width": 6,
-    "x": 204,
-    "y": 148
+    "x": 219,
+    "y": 158
   },
   "BOYCAR01": {
     "height": 24,
@@ -297,8 +297,8 @@
     "height": 11,
     "pixelRatio": 1,
     "width": 15,
-    "x": 85,
-    "y": 102
+    "x": 183,
+    "y": 145
   },
   "LIGHTS82": {
     "height": 16,
@@ -335,6 +335,13 @@
     "x": 221,
     "y": 138
   },
+  "NODATA03": {
+    "height": 16,
+    "pixelRatio": 1,
+    "width": 16,
+    "x": 69,
+    "y": 96
+  },
   "OBSTRN01": {
     "height": 17,
     "pixelRatio": 1,
@@ -346,7 +353,7 @@
     "height": 16,
     "pixelRatio": 1,
     "width": 16,
-    "x": 69,
+    "x": 16,
     "y": 96
   },
   "OBSTRN03": {
@@ -591,8 +598,8 @@
     "height": 16,
     "pixelRatio": 1,
     "width": 16,
-    "x": 16,
-    "y": 96
+    "x": 85,
+    "y": 102
   },
   "UWTROC04": {
     "height": 13,
