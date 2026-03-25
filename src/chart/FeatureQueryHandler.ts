@@ -84,6 +84,7 @@ const INTERACTIVE_SUFFIXES = [
   "-pilbop-label",
   "-pilbop-point",
   "-wattur",
+  "-wattur-outline",
   "-gatcon",
   "-damcon",
   "-tunnel",

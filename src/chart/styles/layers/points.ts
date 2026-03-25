@@ -855,19 +855,37 @@ export function getAdditionalPointLayers(
         "text-halo-width": 1,
       },
     },
-    // Water Turbulence
+    // Water Turbulence — polygon outline (S-52: LS(DASH,1,CHGRD))
     {
-      id: "s57-wattur",
-      type: "circle" as const,
+      id: "s57-wattur-outline",
+      type: "line" as const,
       source: ctx.sourceId,
       "source-layer": "WATTUR",
       minzoom: 6,
+      filter: [
+        "==",
+        ["geometry-type"],
+        "Polygon",
+      ] as unknown as ExpressionSpecification,
       paint: {
-        "circle-radius": 6,
-        "circle-color": ctx.colour("DEPVS"),
-        "circle-stroke-color": ctx.colour("CHBLK"),
-        "circle-stroke-width": 1,
+        "line-color": ctx.colour("CHGRD"),
+        "line-width": 1,
+        "line-dasharray": [4, 2] as number[],
       },
+    },
+    // Water Turbulence — centered symbol on polygon + point (S-52: SY(WATTUR02))
+    {
+      id: "s57-wattur",
+      type: "symbol" as const,
+      source: ctx.sourceId,
+      "source-layer": "WATTUR",
+      minzoom: 6,
+      layout: {
+        "icon-image": ctx.icon("water-turbulence"),
+        "icon-size": scaledSize(0.7, ctx) as number,
+        "icon-allow-overlap": true,
+      },
+      paint: {},
     },
     // Fishing Facility
     {

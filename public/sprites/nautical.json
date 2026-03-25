@@ -391,6 +391,13 @@
     "x": 160,
     "y": 160
   },
+  "ecdis-wattur": {
+    "height": 16,
+    "pixelRatio": 1,
+    "width": 48,
+    "x": 160,
+    "y": 224
+  },
   "ecdis-wreck-dangerous": {
     "height": 32,
     "pixelRatio": 1,

@@ -70,6 +70,9 @@ export const PELORUS_STANDARD: Record<string, string> = {
   "rock-awash": "ecdis-rock-awash",
   "rock-above": "ecdis-rock-above",
 
+  // Hazard areas
+  "water-turbulence": "ecdis-wattur",
+
   // Other
   fogsig: "ecdis-fogsig",
   mooring: "ecdis-mooring",
@@ -182,6 +185,9 @@ export const IHO_S52: Record<string, string> = {
   "rock-underwater": "UWTROC03",
   "rock-awash": "UWTROC04",
   "rock-above": "UWTROC04",
+
+  // Hazard areas
+  "water-turbulence": "WATTUR02",
 
   // Other
   fogsig: "FOGSIG01",

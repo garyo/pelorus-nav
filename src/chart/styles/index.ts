@@ -175,6 +175,7 @@ const LAYER_CATEGORIES: Record<string, "DISPLAYBASE" | "STANDARD" | "OTHER"> = {
   "s57-pilbop-outline": "STANDARD",
   "s57-pilbop-label": "STANDARD",
   "s57-pilbop-point": "STANDARD",
+  "s57-wattur-outline": "STANDARD",
   "s57-wattur": "STANDARD",
   "s57-gatcon": "STANDARD",
   "s57-damcon": "STANDARD",
