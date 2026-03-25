@@ -211,6 +211,7 @@ const OTHER_STANDARD_MINZOOM: Record<string, number> = {
   "s57-hrbfac": 14,
   "s57-ofsplf": 14,
   "s57-buisgl": 14,
+  "s57-morfac": 12,
 };
 
 /** Category visibility filter helper. */

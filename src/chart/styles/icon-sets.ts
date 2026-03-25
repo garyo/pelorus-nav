@@ -571,8 +571,22 @@ export function buildLayerExpressions(
       return constant("isolated-danger");
     case "FOGSIG":
       return constant("fogsig");
-    case "MORFAC":
-      return constant("mooring");
+    case "MORFAC": {
+      // CATMOR=7 → mooring buoy (superbuoy shape)
+      const morfacIcon = [
+        "case",
+        ["==", ["get", "CATMOR"], 7],
+        sp("superbuoy"),
+        sp("mooring"),
+      ] as unknown as ExpressionSpecification;
+      const morfacOffset = [
+        "case",
+        ["==", ["get", "CATMOR"], 7],
+        ["literal", off(sp("superbuoy"))],
+        ["literal", off(sp("mooring"))],
+      ] as unknown as ExpressionSpecification;
+      return { iconExpr: morfacIcon, offsetExpr: morfacOffset };
+    }
     case "PILPNT":
       return constant("piling");
     case "BCNSPP":

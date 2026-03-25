@@ -577,7 +577,7 @@ export function getOtherNavAidLayers(ctx: StyleContext): LayerSpecification[] {
       type: "symbol",
       source: ctx.sourceId,
       "source-layer": "MORFAC",
-      minzoom: ctx.detailMinzoom(13),
+      minzoom: ctx.detailMinzoom(12),
       layout: withOffset(
         {
           "icon-image": morfac.iconExpr,
