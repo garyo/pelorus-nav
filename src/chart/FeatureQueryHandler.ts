@@ -51,6 +51,7 @@ const INTERACTIVE_SUFFIXES = [
   "-resare",
   "-achare",
   "-ctnare",
+  "-ctnare-symbol",
   "-fairwy",
   "-tsslpt",
   "-pilpnt",

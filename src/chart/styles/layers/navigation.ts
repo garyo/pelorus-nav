@@ -147,6 +147,20 @@ export function getNavigationOverlayLayers(
         "line-opacity": 0.5,
       },
     },
+    // CTNARE — S-52 SY(CTNARE51) centered caution symbol
+    {
+      id: "s57-ctnare-symbol",
+      type: "symbol",
+      source: ctx.sourceId,
+      "source-layer": "CTNARE",
+      minzoom: 8,
+      layout: {
+        "icon-image": ctx.icon("caution-area"),
+        "icon-size": 0.7,
+        "icon-allow-overlap": true,
+      },
+      paint: {},
+    },
   ];
 }
 

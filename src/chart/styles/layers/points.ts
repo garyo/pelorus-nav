@@ -861,7 +861,7 @@ export function getAdditionalPointLayers(
       type: "line" as const,
       source: ctx.sourceId,
       "source-layer": "WATTUR",
-      minzoom: 6,
+      minzoom: 12,
       filter: [
         "==",
         ["geometry-type"],
@@ -879,7 +879,7 @@ export function getAdditionalPointLayers(
       type: "symbol" as const,
       source: ctx.sourceId,
       "source-layer": "WATTUR",
-      minzoom: 6,
+      minzoom: 12,
       layout: {
         "icon-image": ctx.icon("water-turbulence"),
         "icon-size": scaledSize(0.7, ctx) as number,

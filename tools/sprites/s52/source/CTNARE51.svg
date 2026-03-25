@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<?xml-stylesheet href="daySvgStyle.css" type="text/css"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="12mm" height="12mm" viewBox="-6 -6 12 12">
+  <title>CTNARE51</title>
+  <desc>caution area - exclamation in circle</desc>
+  <circle class="f0 sTRFCF" stroke-width="0.64" cx="0" cy="0" r="4.97"/>
+  <path d="M 0,-3.37 L 0,1.28" class="sl f0 sTRFCF" stroke-width="0.96"/>
+  <path d="M -0.72,3.08 L 0.72,3.08" class="sl f0 sTRFCF" stroke-width="0.64"/>
+  <circle class="pivotPoint layout" fill="none" cx="0" cy="0" r="1"/>
+</svg>

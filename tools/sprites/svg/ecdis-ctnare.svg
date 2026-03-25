@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="-12 -12 24 24">
+  <!-- Caution area: exclamation mark in circle -->
+  <circle cx="0" cy="0" r="10" fill="none" stroke="#CBA9F9" stroke-width="1.3"/>
+  <line x1="0" y1="-6.5" x2="0" y2="2.5" stroke="#CBA9F9" stroke-width="2"/>
+  <line x1="-1.4" y1="6" x2="1.4" y2="6" stroke="#CBA9F9" stroke-width="1.3"/>
+</svg>
