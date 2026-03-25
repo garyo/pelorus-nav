@@ -144,9 +144,9 @@ describe("formatFeatureInfo", () => {
     });
     expect(info.type).toBe("SOMETHINGNEW");
     expect(info.name).toBe("Test");
-    // Should include FOO but filter out internal fields
-    expect(info.details).toContainEqual({ label: "OBJNAM", value: "Test" });
+    // Should include FOO but filter out internal fields and OBJNAM (shown in title)
     expect(info.details).toContainEqual({ label: "FOO", value: "bar" });
+    expect(info.details.find((d) => d.label === "OBJNAM")).toBeUndefined();
     expect(info.details.find((d) => d.label === "RCID")).toBeUndefined();
     expect(info.details.find((d) => d.label === "FIDN")).toBeUndefined();
   });

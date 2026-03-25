@@ -180,6 +180,17 @@ const INTERNAL_FIELDS = new Set([
   "SCAMIN",
   "SCAMAX",
   "_scale_band",
+  "_cell_id",
+  "_disp_cat",
+  "_disp_pri",
+  "_enclosing_depth",
+  // Already shown in title or Category C admin fields
+  "OBJNAM",
+  "NOBJNM",
+  "NTXTDS",
+  "NINFOM",
+  "RECDAT",
+  "RECIND",
 ]);
 
 // Human-readable names for S-57 object classes
@@ -966,6 +977,70 @@ function formatPrecautionaryArea(
   return details;
 }
 
+const CATSEA: Record<number, string> = {
+  2: "Gat",
+  3: "Bank",
+  4: "Deep",
+  5: "Bay",
+  6: "Trench",
+  7: "Basin",
+  8: "Mud flats",
+  9: "Reef",
+  10: "Ledge",
+  11: "Canyon",
+  12: "Narrows",
+  13: "Shoal",
+  14: "Knoll",
+  15: "Ridge",
+  16: "Seamount",
+  17: "Pinnacle",
+  18: "Abyssal plain",
+  19: "Plateau",
+  20: "Spur",
+  21: "Shelf",
+  22: "Trough",
+  23: "Saddle",
+  24: "Abyssal hills",
+  25: "Apron",
+  26: "Archipelagic apron",
+  27: "Borderland",
+  28: "Continental margin",
+  29: "Continental rise",
+  30: "Escarpment",
+  31: "Fan",
+  32: "Fracture zone",
+  33: "Gap",
+  34: "Hole",
+  35: "Levee",
+  36: "Median valley",
+  37: "Moat",
+  38: "Mountains",
+  39: "Peak",
+  40: "Province",
+  41: "Rise",
+  42: "Sea channel",
+  43: "Shelf edge",
+  44: "Sill",
+  45: "Slope",
+  46: "Terrace",
+  47: "Valley",
+  48: "Canal",
+  49: "Lake",
+  50: "River",
+  51: "Reach",
+};
+
+function formatSeaArea(
+  props: Record<string, unknown>,
+): { label: string; value: string }[] {
+  const details: { label: string; value: string }[] = [];
+  const cat = lookupCode(CATSEA, props.CATSEA);
+  addIfPresent(details, "Type", cat);
+  addIfPresent(details, "Name", props.OBJNAM);
+  addIfPresent(details, "Information", props.INFORM);
+  return details;
+}
+
 function formatWaterTurbulence(
   props: Record<string, unknown>,
 ): { label: string; value: string }[] {
@@ -1042,6 +1117,7 @@ const FORMATTERS: Record<
   FAIRWY: formatFairway,
   PRCARE: formatPrecautionaryArea,
   WATTUR: formatWaterTurbulence,
+  SEAARE: formatSeaArea,
   GATCON: formatGate,
   PILBOP: formatPilotBoarding,
   BCNSPP: formatBeacon,
