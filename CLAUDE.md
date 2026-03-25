@@ -62,7 +62,7 @@ strings or plain integers. The MapLibre style expressions use comma-padding (`",
 for reliable substring matching.
 
 ### Tile build scripts
-All tile workflows go through `tools/build-tiles.sh` (run `--help` for full usage):
+All tile workflows go through `tools/build-tiles.sh` (run `--help` for full usage). Always use that to rebuild tiles, not manual commands. Note that multiple regions can serve overlapping tiles. Client-side rendering is preferred over server-side tile pipeline changes unless explicitly told otherwise, since a full tile rebuild takes 2 hours for the US Eastern seabord.
 - `bun run tiles` — build boston-test region (quick dev iteration)
 - `bun run tiles:build` — build all production regions
 - `bun run tiles:build:fresh` — download ENCs then build all regions
@@ -108,6 +108,10 @@ layer's `icon-image` but only exists in the wrong sprite sheet, MapLibre will lo
 "Image could not be loaded" and show nothing.
 
 ## References
+- IHO S-52/S-101 symbol SVGs (primary reference): https://github.com/iho-ohi/S-101_Portrayal-Catalogue/tree/main/PortrayalCatalog/Symbols
+  - Raw SVG URL pattern: `https://raw.githubusercontent.com/iho-ohi/S-101_Portrayal-Catalogue/main/PortrayalCatalog/Symbols/{SYMBOL_NAME}.svg`
+  - Note: these SVGs sometimes simplify shapes (e.g. circles instead of ovals). Cross-reference with
+    OpenCPN's chartsymbols.xml HPGL definitions for exact geometry when needed.
 - S-52 compliant chart sprites: https://github.com/openwatersio/enc-tiles
 
 ## Git

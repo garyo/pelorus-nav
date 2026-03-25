@@ -104,9 +104,11 @@ const LAYER_CATEGORIES: Record<string, "DISPLAYBASE" | "STANDARD" | "OTHER"> = {
   "s57-soundg": "DISPLAYBASE",
   "s57-wrecks": "DISPLAYBASE",
   "s57-obstrn": "DISPLAYBASE",
+  "s57-obstrn-sounding": "DISPLAYBASE",
   "s57-obstrn-area": "DISPLAYBASE",
   "s57-obstrn-line": "DISPLAYBASE",
   "s57-uwtroc": "DISPLAYBASE",
+  "s57-uwtroc-sounding": "DISPLAYBASE",
   "s57-background": "DISPLAYBASE",
   "s57-depcnt-label": "STANDARD",
   // STANDARD

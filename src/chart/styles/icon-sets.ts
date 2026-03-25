@@ -432,9 +432,7 @@ const CATLAM_PREF_PORT = 4; // preferred channel to port (red/green/red in IALA-
 // const CATCAM_E = 3;
 // const CATCAM_W = 4;
 // WATLEV
-const WATLEV_DRY = 2;
 const WATLEV_SUBMERGED = 3;
-const WATLEV_AWASH = 5;
 // CATWRK
 const CATWRK_NONDANGEROUS = 1;
 const CATWRK_DANGEROUS = 2;
@@ -623,15 +621,29 @@ export function buildLayerExpressions(
         ],
         "beacon-default",
       );
-    case "UWTROC":
-      return matchOnAttr(
-        ["get", "WATLEV"],
-        [
-          [WATLEV_DRY, "rock-above"],
-          [WATLEV_AWASH, "rock-awash"],
-        ],
-        "rock-underwater",
-      );
+    case "UWTROC": {
+      // S-52 OBSTRN04:
+      // WATLEV=3 (submerged) + VALSOU known → OBSTRN01 (dotted oval, no cross, with sounding)
+      // WATLEV=3 (submerged) + no VALSOU → UWTROC03 (dotted oval + cross, uncertain depth)
+      // Everything else → UWTROC04 (asterisk)
+      const uwtrocIcon = [
+        "case",
+        ["all", ["==", ["get", "WATLEV"], WATLEV_SUBMERGED], ["has", "VALSOU"]],
+        sp("obstruction"),
+        ["==", ["get", "WATLEV"], WATLEV_SUBMERGED],
+        sp("rock-underwater"),
+        sp("rock-awash"),
+      ] as unknown as ExpressionSpecification;
+      const uwtrocOffset = [
+        "case",
+        ["all", ["==", ["get", "WATLEV"], WATLEV_SUBMERGED], ["has", "VALSOU"]],
+        ["literal", off(sp("obstruction"))],
+        ["==", ["get", "WATLEV"], WATLEV_SUBMERGED],
+        ["literal", off(sp("rock-underwater"))],
+        ["literal", off(sp("rock-awash"))],
+      ] as unknown as ExpressionSpecification;
+      return { iconExpr: uwtrocIcon, offsetExpr: uwtrocOffset };
+    }
     case "OBSTRN":
       return matchOnAttr(
         ["get", "CATOBS"],

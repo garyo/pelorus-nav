@@ -14,6 +14,7 @@ import {
   LABEL_EXPR,
   scaledTextSize,
   scaleSize,
+  valsouTextField,
 } from "../style-context";
 
 /**
@@ -440,9 +441,9 @@ export function getHazardLayers(ctx: StyleContext): LayerSpecification[] {
               ["linear"],
               ["zoom"],
               10,
-              0.25,
+              0.45,
               13,
-              0.35,
+              0.65,
             ] as unknown as ExpressionSpecification,
             ctx,
           ),
@@ -450,7 +451,7 @@ export function getHazardLayers(ctx: StyleContext): LayerSpecification[] {
             "step",
             ["zoom"],
             false,
-            13,
+            12,
             true,
           ] as unknown as ExpressionSpecification,
           "icon-padding": 2,
@@ -458,6 +459,29 @@ export function getHazardLayers(ctx: StyleContext): LayerSpecification[] {
         obstrn.offsetExpr,
       ),
       paint: {},
+    },
+    // Obstructions — VALSOU depth sounding (shown inside dotted oval)
+    {
+      id: "s57-obstrn-sounding",
+      type: "symbol" as const,
+      source: ctx.sourceId,
+      "source-layer": "OBSTRN",
+      minzoom: 12,
+      filter: [
+        "all",
+        ["==", ["geometry-type"], "Point"],
+        ["has", "VALSOU"],
+      ] as unknown as ExpressionSpecification,
+      layout: {
+        "text-field": valsouTextField(ctx.depthUnit),
+        "text-size": scaledTextSize(11, ctx),
+        "text-allow-overlap": true,
+      },
+      paint: {
+        "text-color": ctx.colour("SNDG2"),
+        "text-halo-color": ctx.colour("CHWHT"),
+        "text-halo-width": 1,
+      },
     },
     // Underwater rocks
     {
@@ -475,9 +499,9 @@ export function getHazardLayers(ctx: StyleContext): LayerSpecification[] {
               ["linear"],
               ["zoom"],
               10,
-              0.25,
+              0.45,
               13,
-              0.35,
+              0.65,
             ] as unknown as ExpressionSpecification,
             ctx,
           ),
@@ -485,7 +509,7 @@ export function getHazardLayers(ctx: StyleContext): LayerSpecification[] {
             "step",
             ["zoom"],
             false,
-            13,
+            12,
             true,
           ] as unknown as ExpressionSpecification,
           "icon-padding": 2,
@@ -493,6 +517,29 @@ export function getHazardLayers(ctx: StyleContext): LayerSpecification[] {
         uwtroc.offsetExpr,
       ),
       paint: {},
+    },
+    // Underwater rocks — VALSOU depth sounding
+    {
+      id: "s57-uwtroc-sounding",
+      type: "symbol" as const,
+      source: ctx.sourceId,
+      "source-layer": "UWTROC",
+      minzoom: 12,
+      filter: [
+        "all",
+        ["==", ["geometry-type"], "Point"],
+        ["has", "VALSOU"],
+      ] as unknown as ExpressionSpecification,
+      layout: {
+        "text-field": valsouTextField(ctx.depthUnit),
+        "text-size": scaledTextSize(11, ctx),
+        "text-allow-overlap": true,
+      },
+      paint: {
+        "text-color": ctx.colour("SNDG2"),
+        "text-halo-color": ctx.colour("CHWHT"),
+        "text-halo-width": 1,
+      },
     },
 
     // Isolated danger overlays (S-52 UDWHAZ05): magenta diamond symbol

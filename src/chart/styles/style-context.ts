@@ -92,18 +92,27 @@ export const LABEL_EXPR = [
 
 /** Build a MapLibre expression that converts DEPTH to the given unit (no suffix). */
 export function depthTextField(unit: DepthUnit): ExpressionSpecification {
+  return depthFieldExpr("DEPTH", unit);
+}
+
+/** Build a MapLibre expression that converts VALSOU to the given unit. */
+export function valsouTextField(unit: DepthUnit): ExpressionSpecification {
+  return depthFieldExpr("VALSOU", unit);
+}
+
+function depthFieldExpr(
+  prop: string,
+  unit: DepthUnit,
+): ExpressionSpecification {
   if (unit === "meters") {
-    return [
-      "to-string",
-      ["get", "DEPTH"],
-    ] as unknown as ExpressionSpecification;
+    return ["to-string", ["get", prop]] as unknown as ExpressionSpecification;
   }
   const factor = depthConversionFactor(unit);
   const decimals = unit === "fathoms" ? 1 : 0;
   const pow = 10 ** decimals;
   return [
     "to-string",
-    ["/", ["round", ["*", ["*", ["get", "DEPTH"], factor], pow]], pow],
+    ["/", ["round", ["*", ["*", ["get", prop], factor], pow]], pow],
   ] as unknown as ExpressionSpecification;
 }
 
