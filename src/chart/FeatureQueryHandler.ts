@@ -112,6 +112,94 @@ const INTERACTIVE_SUFFIXES = [
 /** Map suffix → priority rank for deduplication ordering. */
 const SUFFIX_PRIORITY = new Map(INTERACTIVE_SUFFIXES.map((s, i) => [s, i]));
 
+/**
+ * S-52 display category priority for sort ordering.
+ * DISPLAYBASE (0) = safety-critical, STANDARD (1) = normal, OTHER (2) = detail.
+ * Derived from S-52 Presentation Library display categories.
+ */
+const DISPLAY_CATEGORY_PRIORITY: Record<string, number> = {
+  // DISPLAYBASE — safety-critical, always shown
+  COALNE: 0,
+  DEPARE: 0,
+  DEPCNT: 0,
+  LNDARE: 0,
+  UNSARE: 0,
+  SOUNDG: 0,
+  UWTROC: 0,
+  WRECKS: 0,
+  OBSTRN: 0,
+  ROCKAL: 0,
+  // STANDARD — normal detail
+  BOYLAT: 1,
+  BOYCAR: 1,
+  BOYSAW: 1,
+  BOYSPP: 1,
+  BOYISD: 1,
+  BCNLAT: 1,
+  BCNCAR: 1,
+  BCNSPP: 1,
+  LIGHTS: 1,
+  FOGSIG: 1,
+  LNDMRK: 1,
+  RESARE: 1,
+  ACHARE: 1,
+  TSSLPT: 1,
+  FAIRWY: 1,
+  CTNARE: 1,
+  SEAARE: 1,
+  DRGARE: 1,
+  LAKARE: 1,
+  RIVERS: 1,
+  SLCONS: 1,
+  BRIDGE: 1,
+  CBLOHD: 1,
+  CBLSUB: 1,
+  NAVLNE: 1,
+  RECTRC: 1,
+  DWRTCL: 1,
+  TSSBND: 1,
+  TSEZNE: 1,
+  TWRTPT: 1,
+  ACHBRT: 1,
+  LNDRGN: 1,
+  LNDELV: 1,
+  BUAARE: 1,
+  PRCARE: 1,
+  PILBOP: 1,
+  WATTUR: 1,
+  GATCON: 1,
+  DAMCON: 1,
+  TUNNEL: 1,
+  FSHFAC: 1,
+  DYKCON: 1,
+  SLOTOP: 1,
+  PYLONS: 1,
+  HULKES: 1,
+  // OTHER — full detail
+  SMCFAC: 2,
+  BUISGL: 2,
+  BERTHS: 2,
+  PILPNT: 2,
+  MORFAC: 2,
+  PONTON: 2,
+  DAYMAR: 2,
+  TOPMAR: 2,
+  SBDARE: 2,
+  HRBFAC: 2,
+  CBLARE: 2,
+  PIPARE: 2,
+  PIPSOL: 2,
+  DMPGRD: 2,
+  OFSPLF: 2,
+  MAGVAR: 2,
+  CRANES: 2,
+  FORSTC: 2,
+  CGUSTA: 2,
+  DRYDOC: 2,
+  RUNWAY: 2,
+  AIRARE: 2,
+};
+
 interface QueriedFeature {
   source: string;
   sourceLayer: string;
@@ -522,6 +610,11 @@ function pickRank(f: maplibregl.MapGeoJSONFeature): number {
   return 2; // all area features (fills + area outlines)
 }
 
+/** Get display category priority (0=DISPLAYBASE, 1=STANDARD, 2=OTHER) for a source layer. */
+function displayCategoryRank(sourceLayer: string): number {
+  return DISPLAY_CATEGORY_PRIORITY[sourceLayer] ?? 2;
+}
+
 /** Get priority rank for a layer ID based on its suffix. */
 function layerPriority(layerId: string): number {
   for (const [suffix, rank] of SUFFIX_PRIORITY) {
@@ -568,13 +661,12 @@ function bboxArea(f: maplibregl.MapGeoJSONFeature): number {
 /**
  * Deduplicate features and sort by pick relevance.
  *
- * Sort order: geometry type (point > line > polygon), then scale
- * (smaller/local features first via SCAMIN), then by layer
- * priority index as a tiebreaker. This ensures specific features
- * (buoys, bridges) appear before large area features (fairways,
- * anchorages) that happen to contain the click point, while
- * co-located same-type features (e.g. lighthouse vs fog signal)
- * retain their intended layer priority order.
+ * Sort order: display category (DISPLAYBASE > STANDARD > OTHER),
+ * then geometry type (point > line > polygon), then bbox area
+ * (smaller first), then by layer priority index as a tiebreaker.
+ * This ensures safety-critical features appear first, specific
+ * features (buoys, bridges) appear before large area features,
+ * and co-located same-type features retain their intended order.
  */
 function deduplicateFeatures(
   raw: maplibregl.MapGeoJSONFeature[],
@@ -583,6 +675,11 @@ function deduplicateFeatures(
   const result: QueriedFeature[] = [];
 
   const sorted = [...raw].sort((a, b) => {
+    // Display category: DISPLAYBASE (0) before STANDARD (1) before OTHER (2)
+    const da = displayCategoryRank(a.sourceLayer ?? a.layer.id);
+    const db = displayCategoryRank(b.sourceLayer ?? b.layer.id);
+    if (da !== db) return da - db;
+    // Geometry type: points before lines before areas
     const ra = pickRank(a);
     const rb = pickRank(b);
     if (ra !== rb) return ra - rb;

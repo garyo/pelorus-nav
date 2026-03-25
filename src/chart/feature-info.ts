@@ -1061,11 +1061,64 @@ export function formatFeatureInfo(
   lngLat?: { lng: number; lat: number },
   geometryType?: string,
 ): FeatureInfo {
+  const unit = getSettings().depthUnit;
   let type = LAYER_NAMES[sourceLayer] ?? sourceLayer;
+
   // LNDARE points are islets/rocks too small for a polygon — not generic "Land Area"
   if (sourceLayer === "LNDARE" && geometryType === "Point") {
     type = "Islet / Rock";
   }
+
+  // LNDMRK: use decoded CATLMK as feature type when available (e.g. "Tower" instead of "Landmark")
+  if (sourceLayer === "LNDMRK" && properties.CATLMK != null) {
+    const catName = lookupCode(CATLMK, properties.CATLMK);
+    if (catName) {
+      type = catName;
+    }
+  }
+
+  // Qualifying annotations per IHO cursor enquiry spec
+  const annotations: string[] = [];
+
+  // DEPARE: show depth range
+  if (
+    sourceLayer === "DEPARE" &&
+    properties.DRVAL1 != null &&
+    properties.DRVAL2 != null
+  ) {
+    annotations.push(
+      `${formatDepth(Number(properties.DRVAL1), unit)} - ${formatDepth(Number(properties.DRVAL2), unit)}`,
+    );
+  }
+
+  // Hazards with VALSOU: show sounding depth
+  if (
+    (sourceLayer === "UWTROC" ||
+      sourceLayer === "OBSTRN" ||
+      sourceLayer === "WRECKS") &&
+    properties.VALSOU != null
+  ) {
+    annotations.push(`Depth: ${formatDepth(Number(properties.VALSOU), unit)}`);
+  }
+
+  // Isolated danger: VALSOU within enclosing depth area
+  if (
+    properties._enclosing_depth != null &&
+    properties.VALSOU != null &&
+    Number(properties.VALSOU) <= Number(properties._enclosing_depth)
+  ) {
+    annotations.push("Isolated Danger");
+  }
+
+  // Conspicuous feature (CONVIS=1)
+  if (Number(properties.CONVIS) === 1) {
+    annotations.push("Conspic");
+  }
+
+  if (annotations.length > 0) {
+    type += ` [${annotations.join(", ")}]`;
+  }
+
   const name =
     properties.OBJNAM != null ? String(properties.OBJNAM) : undefined;
 

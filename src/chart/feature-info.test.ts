@@ -55,7 +55,7 @@ describe("formatFeatureInfo", () => {
       VALSOU: 3.5,
       WATLEV: 3,
     });
-    expect(info.type).toBe("Wreck");
+    expect(info.type).toBe("Wreck [Depth: 3.5m]");
     expect(info.details).toContainEqual({
       label: "Category",
       value: "Dangerous",
@@ -72,7 +72,7 @@ describe("formatFeatureInfo", () => {
       CATOBS: 6,
       VALSOU: 1.2,
     });
-    expect(info.type).toBe("Obstruction");
+    expect(info.type).toBe("Obstruction [Depth: 1.2m]");
     expect(info.details).toContainEqual({
       label: "Category",
       value: "Foul ground",
@@ -85,7 +85,7 @@ describe("formatFeatureInfo", () => {
       VALSOU: 0.5,
       WATLEV: 4,
     });
-    expect(info.type).toBe("Underwater Rock");
+    expect(info.type).toBe("Underwater Rock [Depth: 0.5m]");
     expect(info.details).toContainEqual({ label: "Depth", value: "0.5m" });
     expect(info.details).toContainEqual({
       label: "Water Level",
@@ -98,7 +98,7 @@ describe("formatFeatureInfo", () => {
       DRVAL1: 5.0,
       DRVAL2: 10.0,
     });
-    expect(info.type).toBe("Depth Area");
+    expect(info.type).toBe("Depth Area [5.0m - 10.0m]");
     expect(info.details).toContainEqual({
       label: "Depth Range",
       value: "5.0m - 10.0m",
