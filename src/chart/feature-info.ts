@@ -10,6 +10,8 @@ export interface FeatureInfo {
   type: string;
   name?: string;
   details: { label: string; value: string }[];
+  /** Slave features grouped under this master (e.g. lights on a buoy). */
+  children?: FeatureInfo[];
 }
 
 // S-57 attribute code lookup tables

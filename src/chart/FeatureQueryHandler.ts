@@ -206,6 +206,8 @@ interface QueriedFeature {
   properties: Record<string, unknown>;
   geometry: GeoJSON.Geometry;
   lngLat?: { lng: number; lat: number };
+  /** Slave features grouped under this master by LNAM relationships. */
+  children?: QueriedFeature[];
 }
 
 /**
@@ -307,7 +309,10 @@ export class FeatureQueryHandler {
     // Transfer LNDMRK names to co-located LIGHTS that lack OBJNAM
     correlateLandmarkNames(features);
 
-    this.currentFeatures = features;
+    // Group slave features (lights, fog signals, topmarks) under their masters
+    const grouped = groupSlaveFeatures(features);
+
+    this.currentFeatures = grouped;
     this.currentIndex = 0;
     this.showCurrent();
   }
@@ -332,6 +337,18 @@ export class FeatureQueryHandler {
       feature.lngLat,
       feature.geometry.type,
     );
+    // Attach formatted children from grouped slave features
+    const children = feature.children;
+    if (children && children.length > 0) {
+      info.children = children.map((child) =>
+        formatFeatureInfo(
+          child.sourceLayer,
+          child.properties,
+          child.lngLat,
+          child.geometry.type,
+        ),
+      );
+    }
     this.panel.show(info, this.currentIndex, this.currentFeatures.length);
     this.highlightFeature(feature);
   }
@@ -517,6 +534,124 @@ export class FeatureQueryHandler {
       this.map.removeSource(srcId);
     }
   }
+}
+
+/** Source layers that are typically slaves (equipment on an aid to navigation). */
+const SLAVE_LAYERS = new Set(["LIGHTS", "FOGSIG", "TOPMAR", "DAYMAR"]);
+
+/** Source layers that can act as masters (physical aids to navigation). */
+const MASTER_LAYERS = new Set([
+  "BOYLAT",
+  "BOYCAR",
+  "BOYSAW",
+  "BOYSPP",
+  "BOYISD",
+  "BCNLAT",
+  "BCNCAR",
+  "BCNSPP",
+  "LNDMRK",
+  "OFSPLF",
+  "PILPNT",
+  "MORFAC",
+]);
+
+/**
+ * Get the centroid coordinates of a feature for spatial co-location matching.
+ * Returns [lng, lat] for Point geometries, undefined otherwise.
+ */
+function pointCoords(f: QueriedFeature): [number, number] | undefined {
+  if (f.geometry.type === "Point") {
+    const coords = (f.geometry as GeoJSON.Point).coordinates;
+    return [coords[0], coords[1]];
+  }
+  return undefined;
+}
+
+/**
+ * Group slave features under their master using LNAM relationships.
+ *
+ * 1. Build a map of LNAM → feature index for all picked features.
+ * 2. For each feature with LNAM_REFS, find referenced features in the picked set.
+ *    If FFPT_RIND indicates slave (2), attach them as children.
+ * 3. Spatial fallback: if LNAM_REFS is absent, group LIGHTS/FOGSIG/TOPMAR/DAYMAR
+ *    that share exact coordinates with a buoy/beacon/landmark.
+ * 4. Remove grouped slaves from the top-level list.
+ */
+function groupSlaveFeatures(features: QueriedFeature[]): QueriedFeature[] {
+  // Build LNAM index: LNAM value → index in features array
+  const lnamIndex = new Map<string, number>();
+  for (let i = 0; i < features.length; i++) {
+    const lnam = features[i].properties.LNAM;
+    if (typeof lnam === "string" && lnam.length > 0) {
+      lnamIndex.set(lnam, i);
+    }
+  }
+
+  // Track which feature indices have been claimed as children
+  const claimed = new Set<number>();
+
+  // Phase 1: LNAM_REFS-based grouping
+  for (let i = 0; i < features.length; i++) {
+    const master = features[i];
+    const lnamRefs = master.properties.LNAM_REFS;
+    if (typeof lnamRefs !== "string" || lnamRefs.length === 0) continue;
+
+    const ffptRind = master.properties.FFPT_RIND;
+    const rindValues = typeof ffptRind === "string" ? ffptRind.split(",") : [];
+
+    const refs = lnamRefs.split(",");
+    for (let r = 0; r < refs.length; r++) {
+      const refLnam = refs[r].trim();
+      if (!refLnam) continue;
+
+      // Only group if relationship is slave (FFPT_RIND=2) or if RIND is absent
+      const rind = rindValues[r]?.trim();
+      if (rind && rind !== "2") continue;
+
+      const slaveIdx = lnamIndex.get(refLnam);
+      if (slaveIdx == null || slaveIdx === i || claimed.has(slaveIdx)) continue;
+
+      // Only group slave-type layers under master-type layers
+      const slave = features[slaveIdx];
+      if (!SLAVE_LAYERS.has(slave.sourceLayer)) continue;
+
+      if (!master.children) master.children = [];
+      master.children.push(slave);
+      claimed.add(slaveIdx);
+    }
+  }
+
+  // Phase 2: Spatial co-location fallback for ungrouped slave-type features
+  for (let i = 0; i < features.length; i++) {
+    if (claimed.has(i)) continue;
+    const f = features[i];
+    if (!SLAVE_LAYERS.has(f.sourceLayer)) continue;
+
+    const slaveCoords = pointCoords(f);
+    if (!slaveCoords) continue;
+
+    // Find a co-located master
+    for (let j = 0; j < features.length; j++) {
+      if (j === i || claimed.has(j)) continue;
+      const candidate = features[j];
+      if (!MASTER_LAYERS.has(candidate.sourceLayer)) continue;
+
+      const masterCoords = pointCoords(candidate);
+      if (!masterCoords) continue;
+      if (
+        masterCoords[0] === slaveCoords[0] &&
+        masterCoords[1] === slaveCoords[1]
+      ) {
+        if (!candidate.children) candidate.children = [];
+        candidate.children.push(f);
+        claimed.add(i);
+        break;
+      }
+    }
+  }
+
+  // Remove claimed slaves from top-level list
+  return features.filter((_, i) => !claimed.has(i));
 }
 
 /**

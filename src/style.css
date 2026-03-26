@@ -348,6 +348,23 @@ body {
   text-align: right;
 }
 
+.feature-info-child {
+  margin-top: 8px;
+  padding-top: 6px;
+  border-top: 1px solid #d0d0d0;
+}
+
+.feature-info-child-header {
+  font-weight: 600;
+  font-size: 12px;
+  color: #444;
+  padding: 2px 0 4px;
+}
+
+.feature-info-child-row {
+  padding-left: 12px;
+}
+
 .feature-info-footer {
   display: flex;
   align-items: center;

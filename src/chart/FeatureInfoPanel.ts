@@ -89,6 +89,31 @@ export class FeatureInfoPanel {
       this.body.appendChild(row);
     }
 
+    // Children: grouped slave features (lights, fog signals, topmarks)
+    if (info.children && info.children.length > 0) {
+      for (const child of info.children) {
+        const childSection = document.createElement("div");
+        childSection.className = "feature-info-child";
+
+        const childHeader = document.createElement("div");
+        childHeader.className = "feature-info-child-header";
+        const childTitle = child.name
+          ? `${child.type}: ${child.name}`
+          : child.type;
+        childHeader.textContent = childTitle;
+        childSection.appendChild(childHeader);
+
+        for (const { label, value } of child.details) {
+          const row = document.createElement("div");
+          row.className = "feature-info-row feature-info-child-row";
+          row.innerHTML = `<span class="feature-info-label">${escapeHtml(label)}</span><span class="feature-info-value">${escapeHtml(value)}</span>`;
+          childSection.appendChild(row);
+        }
+
+        this.body.appendChild(childSection);
+      }
+    }
+
     // Footer: navigation between stacked features
     if (totalCount > 1) {
       this.footerLabel.textContent = `${currentIndex + 1} of ${totalCount}`;
