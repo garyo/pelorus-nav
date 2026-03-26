@@ -69,6 +69,9 @@ export class ChartManager {
       "bottom-left",
     );
 
+    // Detect sprite loading failures and warn the user
+    this.setupSpriteWarning();
+
     const initial = getSettings();
     this.prevDepthUnit = initial.depthUnit;
     this.prevDetailLevel = initial.detailLevel;
@@ -173,6 +176,62 @@ export class ChartManager {
     this.map.setStyle(style, { diff: false });
     this.map.jumpTo({ center, zoom, bearing, pitch });
     this.activeProviderId = providerId;
+  }
+
+  /**
+   * Show a warning banner when MapLibre can't find sprite images.
+   * A burst of missing images right after style load usually means the
+   * sprite sheet failed to load (e.g. offline / stale cache).
+   */
+  private setupSpriteWarning(): void {
+    let missingCount = 0;
+    let warningShown = false;
+    let resetTimer: ReturnType<typeof setTimeout> | null = null;
+
+    this.map.on("styleimagemissing", () => {
+      missingCount++;
+      // A few missing images can be normal; a burst means the sheet failed
+      if (missingCount >= 5 && !warningShown) {
+        warningShown = true;
+        this.showWarningBanner(
+          "Chart symbols could not be loaded — icons may appear incorrect. Check your network connection.",
+        );
+      }
+    });
+
+    // Reset counter after each style load so a fresh load gets a fresh check
+    this.map.on("style.load", () => {
+      missingCount = 0;
+      warningShown = false;
+      if (resetTimer) clearTimeout(resetTimer);
+      // Allow a short window after style load for missing-image events
+      resetTimer = setTimeout(() => {
+        missingCount = 0;
+      }, 5000);
+    });
+  }
+
+  private showWarningBanner(message: string): void {
+    const banner = document.createElement("div");
+    banner.textContent = message;
+    Object.assign(banner.style, {
+      position: "fixed",
+      top: "0",
+      left: "0",
+      right: "0",
+      padding: "10px 16px",
+      background: "#c44",
+      color: "#fff",
+      fontSize: "14px",
+      textAlign: "center",
+      zIndex: "9999",
+      cursor: "pointer",
+    });
+    banner.title = "Click to dismiss";
+    banner.addEventListener("click", () => banner.remove());
+    document.body.appendChild(banner);
+    // Auto-dismiss after 15 seconds
+    setTimeout(() => banner.remove(), 15000);
   }
 
   private buildStyle(provider: ChartProvider): maplibregl.StyleSpecification {
