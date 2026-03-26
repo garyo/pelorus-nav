@@ -3,6 +3,7 @@
  */
 
 declare const __APP_VERSION__: string;
+declare const __BUILD_ID__: string;
 
 const REPO_URL = "https://github.com/garyo/pelorus-nav";
 
@@ -106,7 +107,20 @@ export class AboutDialog {
       creditsList.appendChild(li);
     }
 
-    card.append(title, tagline, author, links, creditsHeading, creditsList);
+    // Build ID
+    const buildId = document.createElement("div");
+    buildId.className = "about-build-id";
+    buildId.textContent = `Build: ${__BUILD_ID__}`;
+
+    card.append(
+      title,
+      tagline,
+      author,
+      links,
+      creditsHeading,
+      creditsList,
+      buildId,
+    );
     this.overlay.appendChild(card);
     document.body.appendChild(this.overlay);
 

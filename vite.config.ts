@@ -1,10 +1,15 @@
+import { execSync } from "node:child_process";
 import { defineConfig } from "vite";
 import { VitePWA } from "vite-plugin-pwa";
 import pkg from "./package.json" with { type: "json" };
 
+const gitSha = execSync("git rev-parse --short HEAD").toString().trim();
+const buildTime = new Date().toISOString().replace(/:\d{2}\.\d+Z$/, "Z"); // drop seconds
+
 export default defineConfig({
   define: {
     __APP_VERSION__: JSON.stringify(pkg.version),
+    __BUILD_ID__: JSON.stringify(`${buildTime} ${gitSha}`),
   },
   build: {
     target: "es2022",
