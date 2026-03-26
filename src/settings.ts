@@ -77,7 +77,7 @@ const DEFAULT_LAYER_GROUPS: Record<string, boolean> = {
 };
 
 const DEFAULTS: Settings = {
-  depthUnit: "meters",
+  depthUnit: "feet",
   speedUnit: "knots",
   chartMode: "north-up",
   gpsSource: Capacitor.isNativePlatform() ? "capacitor-gps" : "none",
@@ -98,9 +98,9 @@ const DEFAULTS: Settings = {
   symbologyScheme: "iho-s52",
   bearingMode: "magnetic",
   showOSMUnderlay: false,
-  shallowDepth: 5,
-  safetyDepth: 5,
-  deepDepth: 20,
+  shallowDepth: 1.83,
+  safetyDepth: 6.1,
+  deepDepth: 15.24,
   wakeLock: "when-nav",
   textScale: 1,
   iconScale: 1,

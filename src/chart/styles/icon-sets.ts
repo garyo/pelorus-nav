@@ -351,7 +351,7 @@ const SCHEME_MAP: Record<SymbologyScheme, SchemeConfig> = {
     icons: PELORUS_STANDARD,
     sprite: "nautical",
     fallback: "ecdis-buoy-default",
-    iconSizeScale: { eink: 2.0 },
+    iconSizeScale: { eink: 1.5 },
     hasOffsets: false,
   },
   "iho-s52": {
@@ -363,14 +363,14 @@ const SCHEME_MAP: Record<SymbologyScheme, SchemeConfig> = {
       eink: "s52-eink",
     },
     fallback: "BCNGEN01",
-    iconSizeScale: { eink: 2.0 },
+    iconSizeScale: { eink: 1.5 },
     hasOffsets: true,
   },
   "simplified-minimal": {
     icons: SIMPLIFIED_MINIMAL,
     sprite: "nautical",
     fallback: "ecdis-buoy-default",
-    iconSizeScale: { eink: 2.0 },
+    iconSizeScale: { eink: 1.5 },
     hasOffsets: false,
   },
 };

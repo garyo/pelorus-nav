@@ -1,7 +1,29 @@
-import { describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { getSettings, updateSettings } from "../settings";
 import { formatFeatureInfo } from "./feature-info";
 
+// Stub localStorage for updateSettings in test environment
+if (typeof globalThis.localStorage === "undefined") {
+  Object.defineProperty(globalThis, "localStorage", {
+    value: {
+      store: {} as Record<string, string>,
+      getItem(key: string) {
+        return this.store[key] ?? null;
+      },
+      setItem(key: string, val: string) {
+        this.store[key] = val;
+      },
+      removeItem(key: string) {
+        delete this.store[key];
+      },
+    },
+  });
+}
+
 describe("formatFeatureInfo", () => {
+  const savedUnit = getSettings().depthUnit;
+  beforeAll(() => updateSettings({ depthUnit: "meters" }));
+  afterAll(() => updateSettings({ depthUnit: savedUnit }));
   it("formats a lateral buoy with all attributes", () => {
     const info = formatFeatureInfo("BOYLAT", {
       OBJNAM: "Boston Approach #3",

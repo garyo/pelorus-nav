@@ -1592,6 +1592,31 @@ body {
   box-shadow: none;
 }
 
+[data-theme="eink"] .settings-slider-group span {
+  color: #000000;
+}
+
+[data-theme="eink"] .settings-slider-group input[type="number"] {
+  color: #000000;
+  background: #ffffff;
+  border: 1px solid #000000;
+  border-radius: 0;
+}
+
+[data-theme="eink"] .settings-slider-group input[type="number"]:focus {
+  color: #000000;
+  border-color: #000000;
+  outline: 2px solid #000000;
+}
+
+[data-theme="eink"] .settings-slider-group input[type="range"] {
+  accent-color: #000000;
+}
+
+[data-theme="eink"] .settings-toggle input[type="checkbox"] {
+  accent-color: #000000;
+}
+
 [data-theme="eink"] .feature-info-panel {
   border-radius: 0;
   box-shadow: none;
