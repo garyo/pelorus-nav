@@ -140,7 +140,7 @@ const DISPLAY_CATEGORY_PRIORITY: Record<string, number> = {
   BCNSPP: 1,
   LIGHTS: 1,
   FOGSIG: 1,
-  LNDMRK: 1,
+  LNDMRK: 0, // Promote: lighthouses/towers are nav-critical
   RESARE: 1,
   ACHARE: 1,
   TSSLPT: 1,
@@ -337,17 +337,23 @@ export class FeatureQueryHandler {
       feature.lngLat,
       feature.geometry.type,
     );
-    // Attach formatted children from grouped slave features
+    // Attach formatted children from grouped slave features, deduped by display text
     const children = feature.children;
     if (children && children.length > 0) {
-      info.children = children.map((child) =>
-        formatFeatureInfo(
+      const seen = new Set<string>();
+      info.children = [];
+      for (const child of children) {
+        const childInfo = formatFeatureInfo(
           child.sourceLayer,
           child.properties,
           child.lngLat,
           child.geometry.type,
-        ),
-      );
+        );
+        const key = `${childInfo.type}:${childInfo.name ?? ""}:${childInfo.details.map((d) => `${d.label}=${d.value}`).join(",")}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        info.children.push(childInfo);
+      }
     }
     this.panel.show(info, this.currentIndex, this.currentFeatures.length);
     this.highlightFeature(feature);
@@ -650,8 +656,54 @@ function groupSlaveFeatures(features: QueriedFeature[]): QueriedFeature[] {
     }
   }
 
+  // Deduplicate children (overlapping scale-4/5 cells produce duplicates)
+  for (const f of features) {
+    if (f.children && f.children.length > 1) {
+      const seen = new Set<string>();
+      f.children = f.children.filter((child) => {
+        const key = childDedupKey(child);
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      });
+    }
+  }
+
+  // Sort children: lights first, then fog signals last
+  for (const f of features) {
+    if (f.children && f.children.length > 1) {
+      f.children.sort((a, b) => childSortRank(a) - childSortRank(b));
+    }
+  }
+
   // Remove claimed slaves from top-level list
   return features.filter((_, i) => !claimed.has(i));
+}
+
+/** Dedup key for child features — ignores cell-specific fields. */
+function childDedupKey(f: QueriedFeature): string {
+  const p = f.properties;
+  if (f.sourceLayer === "LIGHTS") {
+    return `LIGHTS:${p.LITCHR ?? ""}:${p.COLOUR ?? ""}:${p.SIGPER ?? ""}:${p.SIGGRP ?? ""}:${p.SECTR1 ?? ""}:${p.SECTR2 ?? ""}`;
+  }
+  if (f.sourceLayer === "FOGSIG") {
+    return `FOGSIG:${p.CATFOG ?? ""}:${p.SIGGRP ?? ""}:${p.SIGPER ?? ""}`;
+  }
+  // Generic: use source layer + OBJNAM or formatted key properties
+  return `${f.sourceLayer}:${p.OBJNAM ?? ""}:${p.FIDN ?? Math.random()}`;
+}
+
+/** Sort rank for child features: lights by sector, then fog signals last. */
+function childSortRank(f: QueriedFeature): number {
+  if (f.sourceLayer === "LIGHTS") {
+    // Unsectored lights first (no SECTR1), then sectored by sector start
+    const sectr1 = f.properties.SECTR1;
+    if (sectr1 == null) return 0;
+    return 1 + Number(sectr1);
+  }
+  if (f.sourceLayer === "TOPMAR" || f.sourceLayer === "DAYMAR") return 500;
+  if (f.sourceLayer === "FOGSIG") return 1000;
+  return 100;
 }
 
 /**
@@ -708,23 +760,38 @@ const DEDUP_IGNORE = new Set([
   "SORIND",
   "SCAMIN",
   "SCAMAX",
+  // Pipeline-added internal fields
+  "_cell_id",
+  "_scale_band",
+  "_disp_cat",
+  "_disp_pri",
+  "_enclosing_depth",
+  "LABEL",
 ]);
 
-/** Build a stable key from user-visible properties for deduplication.
- *  Uses FIDN (S-57 feature ID) when available — same FIDN from different
- *  ENC cells is the same real-world feature. Falls back to visible props. */
-function dedupKey(sourceLayer: string, props: Record<string, unknown>): string {
-  // FIDN uniquely identifies an S-57 feature across overlapping cells
+/**
+ * Build dedup keys from both FIDN and visible properties.
+ * Returns multiple keys — a feature is duplicate if ANY key was already seen.
+ * This catches both same-FIDN duplicates (same cell, different render layers)
+ * and cross-cell duplicates (different FIDNs for the same real-world feature).
+ */
+function dedupKeys(
+  sourceLayer: string,
+  props: Record<string, unknown>,
+): string[] {
+  const keys: string[] = [];
   if (props.FIDN != null) {
-    return `${sourceLayer}:FIDN=${props.FIDN}`;
+    keys.push(`${sourceLayer}:FIDN=${props.FIDN}`);
   }
+  // Content-based key from user-visible properties (catches cross-cell dups)
   const visible: Record<string, unknown> = {};
   for (const [k, v] of Object.entries(props)) {
     if (!DEDUP_IGNORE.has(k) && v != null && v !== "") {
       visible[k] = v;
     }
   }
-  return `${sourceLayer}:${JSON.stringify(visible)}`;
+  keys.push(`${sourceLayer}:${JSON.stringify(visible)}`);
+  return keys;
 }
 
 /**
@@ -818,6 +885,10 @@ function deduplicateFeatures(
     const ra = pickRank(a);
     const rb = pickRank(b);
     if (ra !== rb) return ra - rb;
+    // Named features (OBJNAM) before anonymous ones
+    const na = a.properties.OBJNAM ? 0 : 1;
+    const nb = b.properties.OBJNAM ? 0 : 1;
+    if (na !== nb) return na - nb;
     // Within the same geometry rank, sort smaller features first
     const sa = bboxArea(a);
     const sb = bboxArea(b);
@@ -830,9 +901,9 @@ function deduplicateFeatures(
   for (const f of sorted) {
     const sourceLayer = f.sourceLayer ?? f.layer.id;
     const props = f.properties as Record<string, unknown>;
-    const key = dedupKey(sourceLayer, props);
-    if (seen.has(key)) continue;
-    seen.add(key);
+    const keys = dedupKeys(sourceLayer, props);
+    if (keys.some((k) => seen.has(k))) continue;
+    for (const k of keys) seen.add(k);
 
     result.push({
       source: f.source,
