@@ -233,9 +233,6 @@ export class FeatureQueryHandler {
     this.panel.onClose = () => this.dismiss();
 
     this.map.on("click", (e: maplibregl.MapMouseEvent) => this.handleClick(e));
-    this.map.on("mousemove", (e: maplibregl.MapMouseEvent) =>
-      this.handleMouseMove(e),
-    );
 
     // Set up highlight layers after each style load and invalidate layer cache
     this.map.on("style.load", () => {
@@ -269,30 +266,13 @@ export class FeatureQueryHandler {
       return;
     }
 
-    // Query at click point for most layers, plus a wider bbox for thin
-    // lines (bridges, cables, etc.) and text labels that are hard to tap.
-    const raw = this.map.queryRenderedFeatures(e.point, { layers });
-
+    // Query with a bbox to catch small icons, thin lines, and labels
+    // that are hard to tap precisely.
     const bbox: [maplibregl.PointLike, maplibregl.PointLike] = [
       [e.point.x - 10, e.point.y - 10],
       [e.point.x + 10, e.point.y + 10],
     ];
-    // Use bbox for labels, outlines, small circles, and line-type layers (thin/small targets)
-    const looseLayers = layers.filter((id) => {
-      if (id.endsWith("-label") || id.endsWith("-outline")) return true;
-      const layer = this.map.getLayer(id);
-      return layer?.type === "line" || layer?.type === "circle";
-    });
-    if (looseLayers.length > 0) {
-      const extra = this.map.queryRenderedFeatures(bbox, {
-        layers: looseLayers,
-      });
-      for (const f of extra) {
-        if (!raw.some((r) => r.id === f.id && r.layer.id === f.layer.id)) {
-          raw.push(f);
-        }
-      }
-    }
+    const raw = this.map.queryRenderedFeatures(bbox, { layers });
 
     const features = deduplicateFeatures(raw);
     if (features.length === 0) {
@@ -317,16 +297,8 @@ export class FeatureQueryHandler {
     this.showCurrent();
   }
 
-  private handleMouseMove(e: maplibregl.MapMouseEvent): void {
-    const layers = this.getVisibleInteractiveLayers();
-    if (layers.length === 0) {
-      this.map.getCanvas().style.cursor = "";
-      return;
-    }
-
-    const features = this.map.queryRenderedFeatures(e.point, { layers });
-    this.map.getCanvas().style.cursor = features.length > 0 ? "pointer" : "";
-  }
+  // No mousemove handler — the CSS crosshair cursor (!important) overrides
+  // any cursor changes, so querying features on every mouse move was wasted work.
 
   private showCurrent(): void {
     const feature = this.currentFeatures[this.currentIndex];
