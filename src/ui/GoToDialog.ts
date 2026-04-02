@@ -4,17 +4,22 @@
  */
 
 import type maplibregl from "maplibre-gl";
+import type { StandaloneWaypoint } from "../data/Waypoint";
+import type { WaypointLayer } from "../map/WaypointLayer";
 import { formatLatLon, parseLatLon } from "../utils/coordinates";
+import { generateUUID } from "../utils/uuid";
 
 export class GoToDialog {
   private readonly overlay: HTMLDivElement;
   private readonly input: HTMLInputElement;
   private readonly errorSpan: HTMLSpanElement;
   private readonly map: maplibregl.Map;
+  private readonly waypointLayer: WaypointLayer;
   private visible = false;
 
-  constructor(map: maplibregl.Map) {
+  constructor(map: maplibregl.Map, waypointLayer: WaypointLayer) {
     this.map = map;
+    this.waypointLayer = waypointLayer;
 
     this.overlay = document.createElement("div");
     this.overlay.className = "goto-overlay";
@@ -48,12 +53,17 @@ export class GoToDialog {
     goBtn.className = "goto-btn goto-btn-go";
     goBtn.addEventListener("click", () => this.submit());
 
+    const markerBtn = document.createElement("button");
+    markerBtn.textContent = "Place Waypoint";
+    markerBtn.className = "goto-btn goto-btn-go";
+    markerBtn.addEventListener("click", () => this.submitWithMarker());
+
     const cancelBtn = document.createElement("button");
     cancelBtn.textContent = "Cancel";
     cancelBtn.className = "goto-btn";
     cancelBtn.addEventListener("click", () => this.hide());
 
-    btnRow.append(goBtn, cancelBtn);
+    btnRow.append(goBtn, markerBtn, cancelBtn);
     card.append(label, this.input, this.errorSpan, hint, btnRow);
     this.overlay.append(card);
     document.body.appendChild(this.overlay);
@@ -122,6 +132,34 @@ export class GoToDialog {
       center: [lon, lat],
       zoom: Math.max(this.map.getZoom(), 12),
     });
+    this.hide();
+  }
+
+  private submitWithMarker(): void {
+    const result = parseLatLon(this.input.value);
+    if (!result) {
+      this.errorSpan.textContent = "Could not parse coordinates";
+      this.input.focus();
+      return;
+    }
+
+    const [lat, lon] = result;
+    this.map.flyTo({
+      center: [lon, lat],
+      zoom: Math.max(this.map.getZoom(), 12),
+    });
+
+    const wp: StandaloneWaypoint = {
+      id: generateUUID(),
+      lat,
+      lon,
+      name: `WP ${new Date().toLocaleTimeString()}`,
+      notes: "",
+      icon: "default",
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+    };
+    this.waypointLayer.addWaypoint(wp).catch(console.error);
     this.hide();
   }
 }

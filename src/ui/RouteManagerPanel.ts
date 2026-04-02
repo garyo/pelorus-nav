@@ -60,6 +60,47 @@ export class RouteManagerPanel {
       this.refresh();
       this.detailPanel.refreshIfOpen();
     });
+
+    editor.onFinish((route) => {
+      this.detailPanel.show(route);
+    });
+
+    editor.onCancel((existingId) => {
+      if (existingId && this.detailPanel.isOpen()) {
+        // Reload the original route from DB and re-show it
+        getAllRoutes()
+          .then((routes) => {
+            const original = routes.find((r) => r.id === existingId);
+            if (original) {
+              this.detailPanel.show(original);
+            }
+          })
+          .catch(console.error);
+      }
+    });
+
+    this.detailPanel.onEdit = (route) => {
+      this.hide();
+      this.editor.startEditing(route);
+      // Re-show detail panel with editor's live route reference
+      const liveRoute = this.editor.getRoute();
+      if (liveRoute) this.detailPanel.show(liveRoute);
+    };
+
+    this.detailPanel.onRename = () => {
+      this.refresh().catch(console.error);
+    };
+
+    this.detailPanel.onDelete = (route) => {
+      if (!confirm(`Delete route "${route.name}"?`)) return;
+      deleteRoute(route.id)
+        .then(async () => {
+          this.detailPanel.hide();
+          await this.routeLayer.reloadAll();
+          await this.refresh();
+        })
+        .catch(console.error);
+    };
   }
 
   setActiveNav(activeNav: ActiveNavigationManager): void {
@@ -187,6 +228,9 @@ export class RouteManagerPanel {
     editBtn.addEventListener("click", () => {
       this.hide();
       this.editor.startEditing(route);
+      // Auto-open detail panel with live route reference
+      const liveRoute = this.editor.getRoute();
+      if (liveRoute) this.detailPanel.show(liveRoute);
     });
 
     const toggleBtn = document.createElement("button");

@@ -4,6 +4,7 @@
  */
 
 import type maplibregl from "maplibre-gl";
+import type { WaypointLayer } from "../map/WaypointLayer";
 import type { AdaptiveTier } from "../navigation/AdaptiveRate";
 import type { NavigationDataManager } from "../navigation/NavigationDataManager";
 import type { SpeedUnit } from "../settings";
@@ -59,7 +60,11 @@ export class NavigationHUD {
   private readonly cogSogLine: HTMLDivElement;
   private readonly gpsLine: HTMLDivElement;
 
-  constructor(map: maplibregl.Map, navManager: NavigationDataManager) {
+  constructor(
+    map: maplibregl.Map,
+    navManager: NavigationDataManager,
+    waypointLayer: WaypointLayer,
+  ) {
     this.container = document.createElement("div");
     this.container.className = "nav-hud";
 
@@ -97,7 +102,7 @@ export class NavigationHUD {
     document.body.appendChild(this.container);
 
     // Click on HUD (not the toggle button) opens Go-To dialog
-    const goToDialog = new GoToDialog(map);
+    const goToDialog = new GoToDialog(map, waypointLayer);
     this.container.addEventListener("click", (e) => {
       if (e.target === toggleBtn) return;
       goToDialog.toggle();

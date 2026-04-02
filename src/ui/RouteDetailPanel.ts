@@ -4,6 +4,7 @@
  * on the map.
  */
 
+import { saveRoute } from "../data/db";
 import type { Route } from "../data/Route";
 import type { RouteLayer } from "../map/RouteLayer";
 import type {
@@ -13,7 +14,7 @@ import type {
 import { getSettings } from "../settings";
 import { haversineDistanceNM, initialBearingDeg } from "../utils/coordinates";
 import { formatBearing } from "../utils/magnetic";
-import { iconNavigation, iconX, setIcon } from "./icons";
+import { iconEdit, iconNavigation, iconTrash, iconX, setIcon } from "./icons";
 import { getPanelStack } from "./PanelStack";
 
 interface Leg {
@@ -70,6 +71,9 @@ export class RouteDetailPanel {
   private currentRoute: Route | null = null;
   private navCallback: ActiveNavCallback | null = null;
   private readonly navBtn: HTMLButtonElement;
+  onEdit: ((route: Route) => void) | null = null;
+  onDelete: ((route: Route) => void) | null = null;
+  onRename: ((route: Route) => void) | null = null;
 
   constructor(routeLayer: RouteLayer) {
     this.routeLayer = routeLayer;
@@ -81,6 +85,8 @@ export class RouteDetailPanel {
       '<span class="route-detail-title"></span>' +
       '<div style="display:flex;gap:6px;align-items:center">' +
       '<button class="route-nav-btn manager-item-btn" title="Navigate route"></button>' +
+      '<button class="route-detail-edit manager-item-btn" title="Edit"></button>' +
+      '<button class="route-detail-delete manager-item-btn" title="Delete"></button>' +
       '<button class="manager-close"></button>' +
       "</div>" +
       "</div>" +
@@ -91,6 +97,9 @@ export class RouteDetailPanel {
     this.header = this.el.querySelector(
       ".route-detail-title",
     ) as HTMLSpanElement;
+    this.header.title = "Double-click to rename";
+    this.header.style.cursor = "pointer";
+    this.header.addEventListener("dblclick", () => this.renameRoute());
     this.body = this.el.querySelector(".manager-body") as HTMLDivElement;
     this.footer = this.el.querySelector(
       ".route-detail-footer",
@@ -108,6 +117,22 @@ export class RouteDetailPanel {
       }
     });
 
+    const editBtn = this.el.querySelector(
+      ".route-detail-edit",
+    ) as HTMLButtonElement;
+    setIcon(editBtn, iconEdit);
+    editBtn.addEventListener("click", () => {
+      if (this.currentRoute && this.onEdit) this.onEdit(this.currentRoute);
+    });
+
+    const deleteBtn = this.el.querySelector(
+      ".route-detail-delete",
+    ) as HTMLButtonElement;
+    setIcon(deleteBtn, iconTrash);
+    deleteBtn.addEventListener("click", () => {
+      if (this.currentRoute && this.onDelete) this.onDelete(this.currentRoute);
+    });
+
     const closeBtn = this.el.querySelector(".manager-close") as HTMLElement;
     setIcon(closeBtn, iconX);
     closeBtn.addEventListener("click", () => this.hide());
@@ -115,6 +140,10 @@ export class RouteDetailPanel {
 
   setActiveNav(activeNav: ActiveNavigationManager): void {
     this.activeNav = activeNav;
+  }
+
+  isOpen(): boolean {
+    return this.el.classList.contains("open");
   }
 
   private refreshRafId: number | null = null;
@@ -143,6 +172,40 @@ export class RouteDetailPanel {
       };
       this.activeNav.subscribe(this.navCallback);
     }
+  }
+
+  private renameRoute(): void {
+    if (!this.currentRoute) return;
+    const route = this.currentRoute;
+    const input = document.createElement("input");
+    input.type = "text";
+    input.value = route.name;
+    input.className = "map-context-input";
+    input.style.margin = "0";
+    input.style.width = "100%";
+    this.header.replaceWith(input);
+    input.focus();
+    input.select();
+
+    const finish = async () => {
+      const newName = input.value.trim() || route.name;
+      route.name = newName;
+      await saveRoute(route);
+      input.replaceWith(this.header);
+      this.header.textContent = newName;
+      if (this.onRename) this.onRename(route);
+    };
+
+    input.addEventListener("blur", () => {
+      finish().catch(console.error);
+    });
+    input.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") input.blur();
+      if (e.key === "Escape") {
+        input.value = route.name;
+        input.blur();
+      }
+    });
   }
 
   hide(): void {

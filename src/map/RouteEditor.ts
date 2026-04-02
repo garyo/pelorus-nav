@@ -9,7 +9,9 @@
 import type maplibregl from "maplibre-gl";
 import { saveRoute } from "../data/db";
 import type { Route, Waypoint } from "../data/Route";
+import { getSettings } from "../settings";
 import { haversineDistanceNM, initialBearingDeg } from "../utils/coordinates";
+import { formatBearing } from "../utils/magnetic";
 import { generateUUID } from "../utils/uuid";
 import { DraggablePoints } from "./DraggablePoints";
 import { getMode, setMode } from "./InteractionMode";
@@ -45,6 +47,7 @@ const SOURCE_HIGHLIGHT = "_route-edit-highlight";
 const LAYER_HIGHLIGHT = "_route-edit-highlight";
 
 type EditorListener = () => void;
+type FinishListener = (route: Route) => void;
 
 export class RouteEditor {
   private readonly map: maplibregl.Map;
@@ -59,6 +62,8 @@ export class RouteEditor {
   private barText: HTMLDivElement;
   private barActions: HTMLDivElement;
   private listeners: EditorListener[] = [];
+  private finishListeners: FinishListener[] = [];
+  private cancelListeners: ((existingId: string | null) => void)[] = [];
 
   constructor(map: maplibregl.Map, routeLayer: RouteLayer) {
     this.map = map;
@@ -97,6 +102,18 @@ export class RouteEditor {
 
   onEditorChange(fn: EditorListener): void {
     this.listeners.push(fn);
+  }
+
+  onFinish(fn: FinishListener): void {
+    this.finishListeners.push(fn);
+  }
+
+  onCancel(fn: (existingId: string | null) => void): void {
+    this.cancelListeners.push(fn);
+  }
+
+  getRoute(): Route | null {
+    return this.route;
   }
 
   /** Start a new route with the first waypoint at the given position. */
@@ -196,17 +213,21 @@ export class RouteEditor {
   /** Save and exit editor. */
   async finish(): Promise<void> {
     if (!this.route) return;
+    const finishedRoute = this.route;
     await saveRoute(this.route);
     this.routeLayer.updateRoute(this.route);
     this.cleanup();
     await this.routeLayer.reloadAll();
     this.notify();
+    for (const fn of this.finishListeners) fn(finishedRoute);
   }
 
   /** Cancel without saving. */
   cancel(): void {
+    const existingId = this.editingExistingId;
     this.cleanup();
     this.notify();
+    for (const fn of this.cancelListeners) fn(existingId);
   }
 
   private select(index: number): void {
@@ -421,6 +442,7 @@ export class RouteEditor {
         if (!wp) return;
         wp.lat = lngLat.lat;
         wp.lon = lngLat.lng;
+        this.selectedIndex = index;
         this.updateSources();
         this.updateBar();
       },
@@ -582,14 +604,27 @@ export class RouteEditor {
     if (!this.route) return;
     const wps = this.route.waypoints;
 
-    // Selection mode: show selected WP info with actions
+    // Selection mode: show selected WP info with leg course/distance
     if (this.selectedIndex !== null && wps[this.selectedIndex]) {
       const wp = wps[this.selectedIndex];
       const label = wp.name || `WP${this.selectedIndex + 1}`;
-      this.barText.textContent = "";
+      const { bearingMode } = getSettings();
+      let legInfo = "";
+      if (this.selectedIndex > 0) {
+        const prev = wps[this.selectedIndex - 1];
+        const d = haversineDistanceNM(prev.lat, prev.lon, wp.lat, wp.lon);
+        const b = initialBearingDeg(prev.lat, prev.lon, wp.lat, wp.lon);
+        legInfo = ` \u2014 ${d.toFixed(1)} NM / ${formatBearing(b, bearingMode, prev.lat, prev.lon)}`;
+      }
+      this.barText.innerHTML = "";
       const strong = document.createElement("strong");
       strong.textContent = label;
       this.barText.appendChild(strong);
+      if (legInfo) {
+        const span = document.createElement("span");
+        span.textContent = legInfo;
+        this.barText.appendChild(span);
+      }
 
       this.barActions.innerHTML = "";
       const delBtn = document.createElement("button");
@@ -616,6 +651,7 @@ export class RouteEditor {
 
     let totalDist = 0;
     const legs: string[] = [];
+    const { bearingMode } = getSettings();
     for (let i = 1; i < wps.length; i++) {
       const d = haversineDistanceNM(
         wps[i - 1].lat,
@@ -630,7 +666,9 @@ export class RouteEditor {
         wps[i].lon,
       );
       totalDist += d;
-      legs.push(`${d.toFixed(1)} NM / ${b.toFixed(0)}\u00b0`);
+      legs.push(
+        `${d.toFixed(1)} NM / ${formatBearing(b, bearingMode, wps[i - 1].lat, wps[i - 1].lon)}`,
+      );
     }
 
     const lastLeg = legs.length > 0 ? legs[legs.length - 1] : "";

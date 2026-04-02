@@ -329,9 +329,6 @@ onSettingsChange((s) => {
   }
 });
 
-// Navigation HUD (replaces ad-hoc zoom/cursor display)
-new NavigationHUD(chartManager.map, navManager);
-
 // Search dialog for chart features
 const searchDialog = new SearchDialog(chartManager.map);
 loadAllSearchIndices().then((entries) => searchDialog.setEntries(entries));
@@ -397,6 +394,7 @@ const routePanel = new RouteManagerPanel(routeLayer, routeEditor);
 // --- Waypoints + Active Navigation ---
 const activeNav = new ActiveNavigationManager(navManager);
 const waypointLayer = new WaypointLayer(chartManager.map);
+new NavigationHUD(chartManager.map, navManager, waypointLayer);
 new BearingLine(chartManager.map, activeNav, navManager);
 const waypointPanel = new WaypointManagerPanel(waypointLayer, activeNav);
 routePanel.setActiveNav(activeNav);

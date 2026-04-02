@@ -354,6 +354,15 @@ export class FeatureQueryHandler {
         seen.add(key);
         info.children.push(childInfo);
       }
+      // Suppress child Position rows that are identical to the parent's
+      const parentPos = info.details.find((d) => d.label === "Position");
+      if (parentPos) {
+        for (const child of info.children) {
+          child.details = child.details.filter(
+            (d) => d.label !== "Position" || d.value !== parentPos.value,
+          );
+        }
+      }
     }
     this.panel.show(info, this.currentIndex, this.currentFeatures.length);
     this.highlightFeature(feature);
