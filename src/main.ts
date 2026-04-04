@@ -254,8 +254,10 @@ const navManager = new NavigationDataManager();
 const simulator = new SimulatorProvider();
 simulator.setSpeedMultiplier(getSettings().simulatorSpeed);
 navManager.registerProvider(simulator);
+let capacitorGPS: CapacitorGPSProvider | null = null;
 if (CapacitorGPSProvider.isAvailable()) {
-  navManager.registerProvider(new CapacitorGPSProvider());
+  capacitorGPS = new CapacitorGPSProvider();
+  navManager.registerProvider(capacitorGPS);
 }
 // Browser geolocation works in both WebView and browser
 navManager.registerProvider(new BrowserGeolocationProvider());
@@ -434,6 +436,26 @@ onSettingsChange((s) => {
   }
 });
 if (getSettings().trackRecordingEnabled) trackRecorder.start();
+
+// Capacitor screen-off power management: reduce GPS polling when screen is off
+if (capacitorGPS) {
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "hidden") {
+      if (trackRecorder.isRecording()) {
+        // Recording: keep foreground service alive but enable native adaptive rate
+        capacitorGPS?.enableBackgroundAdaptive(5000);
+      } else {
+        // Not recording: stop native GPS entirely to save power
+        capacitorGPS?.pauseTracking();
+      }
+    } else {
+      // Screen on: restart native GPS and let JS control the rate
+      capacitorGPS?.resumeTracking();
+      const interval = navManager.getAdaptiveState().intervalMs;
+      capacitorGPS?.disableBackgroundAdaptive(interval);
+    }
+  });
+}
 
 // --- Routes ---
 const routeLayer = new RouteLayer(chartManager.map);

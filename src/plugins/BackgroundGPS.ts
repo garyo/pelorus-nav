@@ -29,6 +29,12 @@ export interface BackgroundGPSPlugin {
   /** Clear the native SQLite buffer after points have been transferred. */
   clearRecordedPoints(): Promise<void>;
 
+  /** Set GPS polling interval and enable/disable native adaptive rate. */
+  setGpsInterval(options: {
+    intervalMs: number;
+    adaptive: boolean;
+  }): Promise<void>;
+
   /** Check whether the foreground service is currently running. */
   isTracking(): Promise<{ tracking: boolean }>;
 

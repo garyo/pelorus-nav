@@ -55,6 +55,40 @@ export class CapacitorGPSProvider implements NavigationDataProvider {
     if (idx >= 0) this.listeners.splice(idx, 1);
   }
 
+  setDesiredIntervalMs(ms: number): void {
+    BackgroundGPS.setGpsInterval({ intervalMs: ms, adaptive: false }).catch(
+      console.error,
+    );
+  }
+
+  /** Enable native-side adaptive rate (for screen-off recording). */
+  enableBackgroundAdaptive(hintIntervalMs: number): void {
+    BackgroundGPS.setGpsInterval({
+      intervalMs: hintIntervalMs,
+      adaptive: true,
+    }).catch(console.error);
+  }
+
+  /** Disable native adaptive, let JS control the rate. */
+  disableBackgroundAdaptive(intervalMs: number): void {
+    BackgroundGPS.setGpsInterval({
+      intervalMs: intervalMs,
+      adaptive: false,
+    }).catch(console.error);
+  }
+
+  /** Stop native GPS without disconnecting the provider (screen-off, not recording). */
+  pauseTracking(): void {
+    BackgroundGPS.stopTracking().catch(console.error);
+  }
+
+  /** Restart native GPS after a pause (screen back on). */
+  resumeTracking(): void {
+    if (this.connected) {
+      BackgroundGPS.startTracking().catch(console.error);
+    }
+  }
+
   private async startNative(): Promise<void> {
     this.listenerHandle = await BackgroundGPS.addListener(
       "locationUpdate",
