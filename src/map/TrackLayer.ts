@@ -211,6 +211,20 @@ export class TrackLayer {
 
     // Throttle display buffer to 5-second intervals
     if (now - this.lastDisplayTime < DISPLAY_INTERVAL_MS) return;
+
+    // Skip if barely moved (matches recorder's 5m threshold to avoid
+    // drawing jittery lines when stationary)
+    if (this.activePoints.length > 0) {
+      const last = this.activePoints[this.activePoints.length - 1];
+      const dLat = data.latitude - last.lat;
+      const dLon = data.longitude - last.lon;
+      const cosLat = Math.cos((data.latitude * Math.PI) / 180);
+      const distM = Math.sqrt(
+        (dLat * 111_111) ** 2 + (dLon * 111_111 * cosLat) ** 2,
+      );
+      if (distM < 5) return;
+    }
+
     this.lastDisplayTime = now;
 
     this.activePoints.push({
