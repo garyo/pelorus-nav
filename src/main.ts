@@ -547,10 +547,14 @@ if (topbarMenu) {
   recordBtn.title = "Record track";
   setIcon(recordBtn, iconRecord);
   addMenuLabel(recordBtn, "Record");
+  const recordLabel = recordBtn.querySelector(
+    ".topbar-menu-label",
+  ) as HTMLElement;
   const updateRecordBtn = () => {
     const on = trackRecorder.isRecording();
     recordBtn.classList.toggle("active", on);
     recordBtn.title = on ? "Stop recording" : "Record track";
+    if (recordLabel) recordLabel.textContent = on ? "Recording" : "Record";
   };
   recordBtn.addEventListener("click", () => {
     updateSettings({ trackRecordingEnabled: !trackRecorder.isRecording() });
