@@ -132,6 +132,8 @@ export class AdaptiveRateController {
   private prevFix: NavigationData | null = null;
   private lastBroadcastTime = 0;
   private config: AdaptiveRateConfig;
+  /** When true, tier is locked to "fast" (never downgrades). */
+  private _forceFast = false;
 
   constructor(config?: Partial<AdaptiveRateConfig>) {
     this.config = { ...DEFAULT_ADAPTIVE_CONFIG, ...config };
@@ -184,9 +186,10 @@ export class AdaptiveRateController {
       this.config,
     );
 
+    const tier = this._forceFast ? "fast" : result.tier;
     this.state = {
-      tier: result.tier,
-      intervalMs: tierIntervalMs(result.tier, this.config),
+      tier,
+      intervalMs: tierIntervalMs(tier, this.config),
       steadyCount: result.steadyCount,
     };
 
@@ -214,6 +217,22 @@ export class AdaptiveRateController {
 
   getConfig(): Readonly<AdaptiveRateConfig> {
     return this.config;
+  }
+
+  /** Lock tier to "fast" (e.g. screen on, non-e-ink). */
+  set forceFast(value: boolean) {
+    this._forceFast = value;
+    if (value && this.state.tier !== "fast") {
+      this.state = {
+        tier: "fast",
+        intervalMs: this.config.fastIntervalMs,
+        steadyCount: 0,
+      };
+    }
+  }
+
+  get forceFast(): boolean {
+    return this._forceFast;
   }
 
   reset(): void {

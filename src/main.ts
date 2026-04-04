@@ -294,6 +294,12 @@ navManager.subscribe((data) => {
     data.longitude,
     data.timestamp,
   );
+  // On e-ink, scale smoothing window with the adaptive interval
+  if (getSettings().displayTheme === "eink") {
+    courseSmoother.setBufferWindow(
+      navManager.getAdaptiveState().intervalMs * 5,
+    );
+  }
   chartManager.map.triggerRepaint();
 
   // Show/hide re-center button
@@ -339,6 +345,7 @@ onSettingsChange((s) => {
   }
   simulator.setSpeedMultiplier(s.simulatorSpeed);
   navManager.setRateMode(s.gpsRateMode, s.manualUpdateIntervalMs);
+  applyGpsRateForTheme(s.displayTheme);
   wakeLockCtrl.setMode(s.wakeLock);
   wakeLockCtrl.setGpsActive(s.gpsSource !== "none");
   // Switch active region (UI only — all regions are always rendered).
@@ -376,6 +383,23 @@ navManager.setRateMode(
   initGpsSettings.gpsRateMode,
   initGpsSettings.manualUpdateIntervalMs,
 );
+
+/**
+ * Non-e-ink: lock GPS to fast (2s) updates — screen power dwarfs GPS.
+ * E-ink: use adaptive rate but widen the smoothing window to hold ~5
+ * samples at whatever interval the adaptive controller selects.
+ */
+function applyGpsRateForTheme(theme: string): void {
+  const isEink = theme === "eink";
+  navManager.forceFastRate = !isEink;
+  if (isEink) {
+    const intervalMs = navManager.getAdaptiveState().intervalMs;
+    courseSmoother.setBufferWindow(intervalMs * 5);
+  } else {
+    courseSmoother.setBufferWindow(5_000);
+  }
+}
+applyGpsRateForTheme(initGpsSettings.displayTheme);
 
 // Screen wake lock
 const wakeLockCtrl = new WakeLockController();

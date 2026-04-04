@@ -9,8 +9,8 @@
 
 import { toRadians } from "../utils/coordinates";
 
-/** Circular buffer window in milliseconds. */
-const BUFFER_WINDOW_MS = 5_000;
+/** Default circular buffer window in milliseconds. */
+const DEFAULT_BUFFER_WINDOW_MS = 5_000;
 
 /** Minimum samples to keep regardless of age. */
 const MIN_SAMPLES = 2;
@@ -67,6 +67,7 @@ export interface SmoothedCourse {
 }
 
 export class CourseSmoothing {
+  private bufferWindowMs = DEFAULT_BUFFER_WINDOW_MS;
   private buffer: Sample[] = [];
   private targetCog = 0;
   private targetSog = 0;
@@ -79,6 +80,14 @@ export class CourseSmoothing {
   private lastSmoothTime = 0;
   private initialized = false;
   private posInitialized = false;
+
+  /**
+   * Set the smoothing buffer window. Use to scale with GPS update interval
+   * (e.g. 5 * intervalMs to always hold ~5 samples).
+   */
+  setBufferWindow(ms: number): void {
+    this.bufferWindowMs = ms;
+  }
 
   /**
    * Feed a new GPS sample into the circular buffer.
@@ -100,7 +109,7 @@ export class CourseSmoothing {
     }
 
     // Prune old samples, but keep at least MIN_SAMPLES
-    const cutoff = timestamp - BUFFER_WINDOW_MS;
+    const cutoff = timestamp - this.bufferWindowMs;
     while (
       this.buffer.length > MIN_SAMPLES &&
       this.buffer[0].timestamp < cutoff

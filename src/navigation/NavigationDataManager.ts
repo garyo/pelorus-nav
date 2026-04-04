@@ -162,6 +162,14 @@ export class NavigationDataManager {
     return this.rateMode;
   }
 
+  /** Lock adaptive tier to "fast" (non-e-ink screen on). */
+  set forceFastRate(value: boolean) {
+    this.adaptiveCtrl.forceFast = value;
+    if (value) {
+      this.hintProviderInterval(this.adaptiveCtrl.getConfig().fastIntervalMs);
+    }
+  }
+
   subscribe(callback: NavigationDataCallback): void {
     this.listeners.push(callback);
   }
