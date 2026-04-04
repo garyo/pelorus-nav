@@ -70,6 +70,30 @@ import { ChartModeController } from "./vessel/ChartMode";
 import { CourseLine } from "./vessel/CourseLine";
 import { VesselLayer } from "./vessel/VesselLayer";
 
+// Cache-bust stale service workers after sideloaded APK updates.
+// The SW precache should update automatically, but Android WebView doesn't
+// always re-evaluate sw.js after an APK install. Compare the build ID baked
+// into the JS bundle against what was stored on last run; if different,
+// unregister the SW, clear caches, and reload so the new assets take effect.
+declare const __BUILD_ID__: string;
+const SW_BUILD_KEY = "pelorus-sw-build";
+if ("serviceWorker" in navigator) {
+  const prev = localStorage.getItem(SW_BUILD_KEY);
+  if (prev && prev !== __BUILD_ID__) {
+    // New build detected — nuke SW + caches and reload once
+    navigator.serviceWorker.getRegistrations().then(async (regs) => {
+      for (const r of regs) await r.unregister();
+      const keys = await caches.keys();
+      for (const k of keys) await caches.delete(k);
+      localStorage.setItem(SW_BUILD_KEY, __BUILD_ID__);
+      location.reload();
+    });
+    // Stop executing the rest of main.ts — reload will re-run it
+    throw new Error("SW cache bust — reloading");
+  }
+  localStorage.setItem(SW_BUILD_KEY, __BUILD_ID__);
+}
+
 // Register PMTiles protocol for vector tile sources
 const protocol = new Protocol({ metadata: true });
 addProtocol("pmtiles", protocol.tilev4);
