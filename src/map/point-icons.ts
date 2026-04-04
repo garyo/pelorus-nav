@@ -23,8 +23,6 @@ export const POINT_ICON_POI = "_pt-poi";
 
 /** Register all point icons on the map. Safe to call multiple times. */
 export function ensurePointIcons(map: maplibregl.Map): void {
-  if (map.hasImage(POINT_ICON_START)) return;
-
   addIcon(map, POINT_ICON_START, drawStart);
   addIcon(map, POINT_ICON_WAYPOINT, drawWaypoint);
   addIcon(map, POINT_ICON_FINISH, drawFinish);
@@ -89,7 +87,6 @@ export const MEASURE_ICON_EXPR: maplibregl.ExpressionSpecification = [
 
 /** Register measurement pin icons. Safe to call multiple times. */
 export function ensureMeasureIcons(map: maplibregl.Map): void {
-  if (map.hasImage(POINT_ICON_MEASURE_START)) return;
   addPinIcon(map, POINT_ICON_MEASURE_START, drawStartPin);
   addPinIcon(map, POINT_ICON_MEASURE_END, drawFinishPin);
 }
@@ -103,20 +100,25 @@ function addPinIcon(
   draw: (ctx: CanvasRenderingContext2D) => void,
 ): void {
   const ratio = window.devicePixelRatio || 1;
-  const pw = PIN_W * ratio;
-  const ph = PIN_H * ratio;
+  const pw = Math.round(PIN_W * ratio);
+  const ph = Math.round(PIN_H * ratio);
   const canvas = document.createElement("canvas");
   canvas.width = pw;
   canvas.height = ph;
   const ctx = canvas.getContext("2d");
-  if (!ctx) return;
+  if (!ctx) {
+    console.warn(`point-icons: canvas 2D context unavailable for "${name}"`);
+    return;
+  }
   ctx.scale(ratio, ratio);
   draw(ctx);
-  map.addImage(
-    name,
-    { width: pw, height: ph, data: ctx.getImageData(0, 0, pw, ph).data },
-    { pixelRatio: ratio },
-  );
+  const imageData = {
+    width: pw,
+    height: ph,
+    data: ctx.getImageData(0, 0, pw, ph).data,
+  };
+  if (map.hasImage(name)) map.removeImage(name);
+  map.addImage(name, imageData, { pixelRatio: ratio });
 }
 
 /** Clip to pin outline and return key geometry for decoration. */
@@ -228,19 +230,24 @@ function addIcon(
   draw: (ctx: CanvasRenderingContext2D) => void,
 ): void {
   const ratio = window.devicePixelRatio || 1;
-  const px = SIZE * ratio;
+  const px = Math.round(SIZE * ratio);
   const canvas = document.createElement("canvas");
   canvas.width = px;
   canvas.height = px;
   const ctx = canvas.getContext("2d");
-  if (!ctx) return;
+  if (!ctx) {
+    console.warn(`point-icons: canvas 2D context unavailable for "${name}"`);
+    return;
+  }
   ctx.scale(ratio, ratio);
   draw(ctx);
-  map.addImage(
-    name,
-    { width: px, height: px, data: ctx.getImageData(0, 0, px, px).data },
-    { pixelRatio: ratio },
-  );
+  const imageData = {
+    width: px,
+    height: px,
+    data: ctx.getImageData(0, 0, px, px).data,
+  };
+  if (map.hasImage(name)) map.removeImage(name);
+  map.addImage(name, imageData, { pixelRatio: ratio });
 }
 
 /** Green circle with white arrow pointing right/forward. */

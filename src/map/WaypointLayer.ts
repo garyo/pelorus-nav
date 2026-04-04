@@ -7,6 +7,7 @@ import type maplibregl from "maplibre-gl";
 import { getAllWaypoints, saveWaypoint } from "../data/db";
 import type { StandaloneWaypoint } from "../data/Waypoint";
 import { DraggablePoints } from "./DraggablePoints";
+import { onModeChange } from "./InteractionMode";
 import { ensurePointIcons, WAYPOINT_ICON_EXPR } from "./point-icons";
 
 const SOURCE_ID = "_waypoints";
@@ -22,6 +23,16 @@ export class WaypointLayer {
     this.map = map;
     map.on("style.load", () => this.setup());
     if (map.isStyleLoaded()) this.setup();
+
+    // Disable waypoint dragging during route-edit (and other non-query modes)
+    onModeChange((mode) => {
+      if (mode !== "query") {
+        this.draggable?.destroy();
+        this.draggable = null;
+      } else {
+        this.setupDrag();
+      }
+    });
   }
 
   async reloadAll(): Promise<void> {
@@ -56,14 +67,19 @@ export class WaypointLayer {
   private async setup(): Promise<void> {
     this.waypoints = await getAllWaypoints();
 
-    if (this.map.getSource(SOURCE_ID)) return;
+    // Always re-register canvas-drawn icons — they can be lost after
+    // setStyle({ diff: true }) even when the source/layers persist.
+    ensurePointIcons(this.map);
+
+    if (this.map.getSource(SOURCE_ID)) {
+      this.updateSource();
+      return;
+    }
 
     this.map.addSource(SOURCE_ID, {
       type: "geojson",
       data: this.buildGeoJSON(),
     });
-
-    ensurePointIcons(this.map);
 
     this.map.addLayer({
       id: POINTS_LAYER,
@@ -93,7 +109,11 @@ export class WaypointLayer {
       },
     });
 
-    // Enable drag-to-move
+    this.setupDrag();
+  }
+
+  private setupDrag(): void {
+    if (this.draggable) return;
     this.draggable = new DraggablePoints(
       this.map,
       POINTS_LAYER,
@@ -104,7 +124,6 @@ export class WaypointLayer {
         wp.lon = lngLat.lng;
         wp.updatedAt = Date.now();
         this.updateSource();
-        // Save to DB on drag end (debounced by DraggablePoints mouseup/touchend)
         saveWaypoint(wp).catch(console.error);
       },
     );

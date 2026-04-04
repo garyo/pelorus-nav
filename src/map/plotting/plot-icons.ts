@@ -60,7 +60,7 @@ function addPlotIcon(
   draw: (ctx: CanvasRenderingContext2D) => void,
 ): void {
   const ratio = window.devicePixelRatio || 1;
-  const px = SIZE * ratio;
+  const px = Math.round(SIZE * ratio);
   const canvas = document.createElement("canvas");
   canvas.width = px;
   canvas.height = px;
@@ -68,6 +68,7 @@ function addPlotIcon(
   if (!ctx) return;
   ctx.scale(ratio, ratio);
   draw(ctx);
+  if (map.hasImage(plotIconName(shape))) map.removeImage(plotIconName(shape));
   map.addImage(
     plotIconName(shape),
     { width: px, height: px, data: ctx.getImageData(0, 0, px, px).data },
