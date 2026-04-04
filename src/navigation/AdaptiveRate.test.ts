@@ -127,11 +127,13 @@ describe("AdaptiveRateController", () => {
 
   it("transitions fast → medium after steady samples", () => {
     const ctrl = new AdaptiveRateController();
+    const config = ctrl.getConfig();
+    const n = config.steadySamplesRequired + 1;
     const t = 1000000;
     // First fix
     ctrl.onFix(makeFix({ timestamp: t }));
     // Steady fixes at 2s intervals — same position, COG, SOG
-    for (let i = 1; i <= 6; i++) {
+    for (let i = 1; i <= n; i++) {
       ctrl.onFix(makeFix({ timestamp: t + i * 2000 }));
     }
     expect(ctrl.getState().tier).toBe("medium");
@@ -139,15 +141,18 @@ describe("AdaptiveRateController", () => {
 
   it("goes back to fast on course change", () => {
     const ctrl = new AdaptiveRateController();
+    const config = ctrl.getConfig();
+    const n = config.steadySamplesRequired + 1;
     const t = 1000000;
     ctrl.onFix(makeFix({ timestamp: t }));
     // Build up steady count
-    for (let i = 1; i <= 6; i++) {
+    for (let i = 1; i <= n; i++) {
       ctrl.onFix(makeFix({ timestamp: t + i * 2000 }));
     }
     expect(ctrl.getState().tier).toBe("medium");
     // Sudden position change (maneuver)
-    ctrl.onFix(makeFix({ latitude: 42.36, timestamp: t + 14000 }));
+    const maneuverT = t + (n + 1) * 2000;
+    ctrl.onFix(makeFix({ latitude: 42.36, timestamp: maneuverT }));
     expect(ctrl.getState().tier).toBe("fast");
   });
 

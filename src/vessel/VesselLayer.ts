@@ -4,6 +4,7 @@
  */
 
 import type maplibregl from "maplibre-gl";
+import type { SmoothedCourse } from "../navigation/CourseSmoothing";
 import type { NavigationData } from "../navigation/NavigationData";
 import { getSettings, onSettingsChange } from "../settings";
 import { accuracyCircleGeoJSON } from "./accuracy-circle";
@@ -18,6 +19,7 @@ const CANVAS_SIZE = ICON_SIZE + SHADOW_PAD * 2;
 export class VesselLayer {
   private readonly map: maplibregl.Map;
   private lastData: NavigationData | null = null;
+  private lastSmoothed: SmoothedCourse | null = null;
   private showAccuracy: boolean;
 
   constructor(map: maplibregl.Map) {
@@ -38,8 +40,9 @@ export class VesselLayer {
     }
   }
 
-  update(data: NavigationData): void {
+  update(data: NavigationData, smoothed?: SmoothedCourse | null): void {
     this.lastData = data;
+    this.lastSmoothed = smoothed ?? null;
     this.updatePosition();
   }
 
@@ -55,8 +58,9 @@ export class VesselLayer {
   private createVesselIcon(): void {
     const canvas = document.createElement("canvas");
     const ratio = window.devicePixelRatio || 1;
-    canvas.width = CANVAS_SIZE * ratio;
-    canvas.height = CANVAS_SIZE * ratio;
+    const px = Math.round(CANVAS_SIZE * ratio);
+    canvas.width = px;
+    canvas.height = px;
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
@@ -91,10 +95,9 @@ export class VesselLayer {
     this.map.addImage(
       VESSEL_ICON,
       {
-        width: CANVAS_SIZE * ratio,
-        height: CANVAS_SIZE * ratio,
-        data: ctx.getImageData(0, 0, CANVAS_SIZE * ratio, CANVAS_SIZE * ratio)
-          .data,
+        width: px,
+        height: px,
+        data: ctx.getImageData(0, 0, px, px).data,
       },
       { pixelRatio: ratio },
     );
@@ -181,7 +184,7 @@ export class VesselLayer {
       | maplibregl.GeoJSONSource
       | undefined;
     if (vesselSource) {
-      const rotation = data.heading ?? data.cog ?? 0;
+      const rotation = data.heading ?? this.lastSmoothed?.cog ?? data.cog ?? 0;
       vesselSource.setData({
         type: "FeatureCollection",
         features: [

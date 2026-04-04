@@ -286,7 +286,7 @@ const courseLine = new CourseLine(chartManager.map);
 let lastNavData: NavigationData | null = null;
 navManager.subscribe((data) => {
   lastNavData = data;
-  vesselLayer.update(data);
+  vesselLayer.update(data); // initial position update; smoothed rotation applied per-frame
   courseSmoother.addSample(
     data.cog,
     data.sog,
@@ -314,6 +314,7 @@ chartManager.map.on("render", () => {
   const smoothed = courseSmoother.smooth(performance.now());
   if (!smoothed) return;
   // Always update position/bearing (needed for recentering on straight courses)
+  vesselLayer.update(lastNavData, smoothed);
   chartMode.update(lastNavData, smoothed);
   courseLine.update(lastNavData, smoothed);
   // Keep animating while values are still converging (not on e-ink)

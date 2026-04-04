@@ -42,7 +42,7 @@ export class CourseLine {
     }
   }
 
-  update(_data: NavigationData, smoothed: SmoothedCourse | null): void {
+  update(data: NavigationData, smoothed: SmoothedCourse | null): void {
     if (!smoothed || this.duration === 0 || smoothed.sog < MIN_SOG_KT) {
       this.clearLine();
       return;
@@ -58,8 +58,10 @@ export class CourseLine {
       distanceNM = minNM;
     }
 
-    const startLat = smoothed.lat;
-    const startLon = smoothed.lon;
+    // Start from the vessel's actual position (matches the boat icon),
+    // but use the smoothed COG for the projected direction.
+    const startLat = data.latitude;
+    const startLon = data.longitude;
     const [endLon, endLat] = projectPoint(
       startLat,
       startLon,

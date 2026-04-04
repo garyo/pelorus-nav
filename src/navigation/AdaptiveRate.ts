@@ -27,7 +27,7 @@ export interface AdaptiveRateConfig {
 export const DEFAULT_ADAPTIVE_CONFIG: AdaptiveRateConfig = {
   stationaryThresholdKn: 0.5,
   drErrorThresholdNM: 0.02,
-  steadySamplesRequired: 5,
+  steadySamplesRequired: 15,
   fastIntervalMs: 2000,
   mediumIntervalMs: 5000,
   slowIntervalMs: 10000,
