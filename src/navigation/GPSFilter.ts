@@ -17,7 +17,7 @@ const M_PER_DEG = 111_111;
 const KN_PER_DEG_S = (M_PER_DEG * 3600) / 1852;
 
 /** Threshold (knots) below which we null out COG — velocity too noisy. */
-const COG_MIN_SOG = 0.3;
+const COG_MIN_SOG = 0.1;
 
 export interface GPSFilterConfig {
   /** Process noise acceleration in deg/s^2. Higher = trusts GPS more. ~3e-7 for marine. */

@@ -188,7 +188,7 @@ describe("GPSFilter", () => {
 
     // COG should be null when nearly stationary
     expect(lastOut?.cog).toBeNull();
-    expect(lastOut?.sog).toBeLessThan(0.5);
+    expect(lastOut?.sog).toBeLessThan(0.1);
   });
 
   it("weights high-accuracy fixes more", () => {

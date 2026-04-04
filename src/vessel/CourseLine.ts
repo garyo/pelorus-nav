@@ -18,7 +18,7 @@ const LAYER_ID = "_course-line-layer";
 const VESSEL_ICON_LAYER = "_vessel-icon";
 
 /** Minimum SOG (knots) below which the line is hidden. */
-const MIN_SOG_KT = 0.5;
+const MIN_SOG_KT = 0.1;
 
 /** Minimum line length in meters (visible even at low speed). */
 const MIN_LENGTH_M = 200;
