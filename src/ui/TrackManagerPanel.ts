@@ -53,7 +53,7 @@ export class TrackManagerPanel {
 
     recorder.onRecordingChange(() => {
       this.updateRecordBtn();
-      this.refresh();
+      this.updateActiveCount();
     });
   }
 
@@ -78,6 +78,26 @@ export class TrackManagerPanel {
 
   hide(): void {
     this.el.classList.remove("open");
+  }
+
+  /** Update just the point count for the active track (no DB hit). */
+  private updateActiveCount(): void {
+    const track = this.recorder.getCurrentTrack();
+    if (!track) {
+      // Recording stopped — do a full refresh to update the final state
+      this.refresh();
+      return;
+    }
+    const el = this.body.querySelector<HTMLElement>(
+      "[data-active-track-detail]",
+    );
+    if (!el) {
+      // Panel hasn't rendered this track yet — full refresh
+      this.refresh();
+      return;
+    }
+    const date = new Date(track.createdAt).toLocaleDateString();
+    el.textContent = `${date} \u00b7 ${track.pointCount} pts`;
   }
 
   private async refresh(): Promise<void> {
@@ -118,6 +138,10 @@ export class TrackManagerPanel {
 
     const detail = document.createElement("div");
     detail.className = "manager-item-detail";
+    const activeTrack = this.recorder.getCurrentTrack();
+    if (activeTrack && meta.id === activeTrack.id) {
+      detail.dataset.activeTrackDetail = "1";
+    }
     const date = new Date(meta.createdAt).toLocaleDateString();
     detail.textContent = `${date} \u00b7 ${meta.pointCount} pts`;
 

@@ -249,6 +249,7 @@ export class TrackRecorder {
     this.lastRecordedTime = now;
     this.lastLat = data.latitude;
     this.lastLon = data.longitude;
+    this.notify();
 
     // Persist active track ID for resume-after-refresh
     localStorage.setItem(ACTIVE_TRACK_KEY, JSON.stringify(this.currentTrack));
