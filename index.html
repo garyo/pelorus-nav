@@ -40,6 +40,29 @@
         }
       })();
     </script>
+    <script>
+      // Cache-bust stale service workers on APK updates.
+      // Runs inline (before SW can intercept the module bundle) so it can
+      // detect when the bundle hash has changed and nuke the old SW cache.
+      // Uses the module script's src (Vite hashes it) as the build fingerprint.
+      (() => {
+        const KEY = "pelorus-bundle-hash";
+        const moduleScript = document.querySelector('script[type="module"][src]');
+        const currentHash = moduleScript ? moduleScript.getAttribute("src") : "";
+        const prev = localStorage.getItem(KEY);
+        if (prev && prev !== currentHash && "serviceWorker" in navigator) {
+          localStorage.setItem(KEY, currentHash);
+          navigator.serviceWorker.getRegistrations().then(async (regs) => {
+            for (const r of regs) await r.unregister();
+            const keys = await caches.keys();
+            for (const k of keys) await caches.delete(k);
+            location.reload();
+          });
+          return; // Stop — reload will re-run everything
+        }
+        localStorage.setItem(KEY, currentHash);
+      })();
+    </script>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>
