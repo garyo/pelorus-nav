@@ -23,6 +23,12 @@ const MIN_MOVE_NM = 5 / 1852; // 5 meters in NM
 const GAP_THRESHOLD_MS = 30 * 60 * 1000; // 30 minutes
 const ACTIVE_TRACK_KEY = "pelorus-nav-active-track";
 
+/** Format a Date as "YYYY-MM-DD HH:MM" in local time. */
+function localDateTime(d: Date): string {
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
 type RecorderListener = () => void;
 
 export class TrackRecorder {
@@ -139,7 +145,7 @@ export class TrackRecorder {
     if (!this.currentTrack) {
       const now = points[0].timestamp;
       const date = new Date(now);
-      const name = `Track ${date.toISOString().slice(0, 16).replace("T", " ")}`;
+      const name = `Track ${localDateTime(date)}`;
       this.currentTrack = {
         id: generateUUID(),
         name,
@@ -217,7 +223,7 @@ export class TrackRecorder {
     // Create new track if needed (but don't persist meta yet)
     if (!this.currentTrack) {
       const date = new Date(now);
-      const name = `Track ${date.toISOString().slice(0, 16).replace("T", " ")}`;
+      const name = `Track ${localDateTime(date)}`;
       this.currentTrack = {
         id: generateUUID(),
         name,

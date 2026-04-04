@@ -18,6 +18,12 @@ import { getMode, setMode } from "./InteractionMode";
 import { ensurePointIcons, pointRole, ROLE_ICON_EXPR } from "./point-icons";
 import type { RouteLayer } from "./RouteLayer";
 
+/** Format a Date as "YYYY-MM-DD HH:MM" in local time. */
+function localDateTime(d: Date): string {
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
 /** Max fraction of first leg length for the prepend handle offset. */
 const PREPEND_MAX_FRACTION = 0.8;
 /** Min offset in degrees (~440m at mid-latitudes). */
@@ -120,7 +126,7 @@ export class RouteEditor {
   startFromPoint(lat: number, lon: number): void {
     this.startEditing({
       id: generateUUID(),
-      name: `Route ${new Date().toISOString().slice(0, 16).replace("T", " ")}`,
+      name: `Route ${localDateTime(new Date())}`,
       createdAt: Date.now(),
       color: "#4488cc",
       visible: true,
@@ -138,7 +144,7 @@ export class RouteEditor {
 
     this.route = route ?? {
       id: generateUUID(),
-      name: `Route ${new Date().toISOString().slice(0, 16).replace("T", " ")}`,
+      name: `Route ${localDateTime(new Date())}`,
       createdAt: Date.now(),
       color: "#4488cc",
       visible: true,
