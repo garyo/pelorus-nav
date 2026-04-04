@@ -83,7 +83,8 @@ All tile workflows go through `tools/build-tiles.sh` (run `--help` for full usag
 ## Android / Capacitor
 - `bun run cap:sync` — build web + sync to Android project
 - `bun run cap:run` — build, sync, and run on connected device/emulator
-- `bun run cap:build` — build, sync, and assemble debug APK
+- `bun run cap:build` — build, sync, and assemble **release** APK (signed with local keystore)
+- `bun run cap:build:debug` — build, sync, and assemble debug APK
 - PMTiles and coverage GeoJSON are excluded from the Android bundle (stripped from `dist/`)
 - Vite copies all of `public/` into `dist/` during build (no way to exclude files). The cap scripts
   then `rm -f dist/*.pmtiles dist/*.coverage.geojson` before syncing to Android to keep the APK small.
@@ -91,7 +92,13 @@ All tile workflows go through `tools/build-tiles.sh` (run `--help` for full usag
   so running `cap:build` while the dev server is active is safe.
 - After deploying a new APK, the WebView's service worker cache can serve stale JS.
   Run `adb shell pm clear nav.pelorus.app` to wipe all app data (including SW cache).
-  The user will need to redo settings afterward.
+  The user will need to redo settings afterward. There's also a "Clear Cache & Reload"
+  button in the About dialog that clears the SW cache without losing settings.
+- **Release signing**: keystore at `android/pelorus-release.keystore`, config in
+  `android/signing.properties` (both gitignored). To set up on a new machine, generate a
+  keystore with `keytool -genkeypair` and create `signing.properties` with storeFile,
+  storePassword, keyAlias, keyPassword.
+- `tools/upload-apk.sh [--build]` — upload APK to Dropbox (`garyo-dropbox:software/pelorus-nav/`)
 
 ## Sprites
 The app uses **two separate sprite systems** — both must be updated when adding a new symbol:

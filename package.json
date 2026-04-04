@@ -28,7 +28,8 @@
     "deploy": "bun run build && wrangler deploy",
     "cap:sync": "bun run build && rm -f dist/*.pmtiles dist/*.coverage.geojson && bunx cap sync android",
     "cap:run": "bun run build && rm -f dist/*.pmtiles dist/*.coverage.geojson && bunx cap sync android && bunx cap run android",
-    "cap:build": "bun run build && rm -f dist/*.pmtiles dist/*.coverage.geojson && bunx cap sync android && cd android && ./gradlew clean assembleDebug"
+    "cap:build": "bun run build && rm -f dist/*.pmtiles dist/*.coverage.geojson && bunx cap sync android && cd android && ./gradlew clean assembleRelease",
+    "cap:build:debug": "bun run build && rm -f dist/*.pmtiles dist/*.coverage.geojson && bunx cap sync android && cd android && ./gradlew clean assembleDebug"
   },
   "license": "MIT",
   "dependencies": {

@@ -4,7 +4,11 @@
 #   --build   Run cap:build first (default: upload existing APK)
 set -euo pipefail
 
-APK="android/app/build/outputs/apk/debug/app-debug.apk"
+# Prefer release APK, fall back to debug
+APK="android/app/build/outputs/apk/release/app-release.apk"
+if [[ ! -f "$APK" ]]; then
+  APK="android/app/build/outputs/apk/debug/app-debug.apk"
+fi
 REMOTE="garyo-dropbox:software/pelorus-nav"
 
 if [[ "${1:-}" == "--build" ]]; then
