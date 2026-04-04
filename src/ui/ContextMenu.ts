@@ -98,7 +98,11 @@ export function createContextMenu(deps: ContextMenuDeps): ContextMenuHandle {
   plotSymbol.className = "map-context-item";
   plotSymbol.textContent = "Symbol";
 
-  plotSub.append(plotBearing, plotLine, plotSymbol);
+  const plotArc = document.createElement("div");
+  plotArc.className = "map-context-item";
+  plotArc.textContent = "Distance arc";
+
+  plotSub.append(plotBearing, plotLine, plotArc, plotSymbol);
   plotItem.appendChild(plotSub);
 
   menu.append(
@@ -259,6 +263,11 @@ export function createContextMenu(deps: ContextMenuDeps): ContextMenuHandle {
   plotLine.addEventListener("click", () => {
     hide();
     plottingLayer.startSegmentFrom(ctxLat, ctxLng);
+  });
+
+  plotArc.addEventListener("click", () => {
+    hide();
+    plottingLayer.startArcFrom(ctxLat, ctxLng);
   });
 
   plotSymbol.addEventListener("click", () => {

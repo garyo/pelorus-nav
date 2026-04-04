@@ -9,7 +9,13 @@
 import type { PlotElement } from "./PlottingTypes";
 import { PLOT_SHAPES, type PlotSymbolShape, SHAPE_LABELS } from "./plot-icons";
 
-export type PlotTool = "bearing" | "segment" | "symbol" | "text" | "none";
+export type PlotTool =
+  | "bearing"
+  | "segment"
+  | "arc"
+  | "symbol"
+  | "text"
+  | "none";
 
 /** Full names for symbol shape tooltips. */
 const SHAPE_FULL_NAMES: Record<PlotSymbolShape, string> = {
@@ -34,6 +40,7 @@ export class PlotToolbar {
   private activeShape: PlotSymbolShape = "circle";
   private bearingBtn: HTMLButtonElement;
   private segmentBtn: HTMLButtonElement;
+  private arcBtn!: HTMLButtonElement;
   private textBtn: HTMLButtonElement;
   private symbolBtns: Map<PlotSymbolShape, HTMLButtonElement> = new Map();
   private deleteBtn: HTMLButtonElement;
@@ -80,7 +87,9 @@ export class PlotToolbar {
     this.bearingBtn.title = "Place bearing line";
     this.segmentBtn = this.makeBtn("Line", () => this.activateTool("segment"));
     this.segmentBtn.title = "Draw segment line";
-    toolRow.append(this.textBtn, this.bearingBtn, this.segmentBtn);
+    this.arcBtn = this.makeBtn("Arc", () => this.activateTool("arc"));
+    this.arcBtn.title = "Draw distance arc";
+    toolRow.append(this.textBtn, this.bearingBtn, this.segmentBtn, this.arcBtn);
 
     // --- Row 2: status/edit + action buttons (fixed layout) ---
     const actionRow = document.createElement("div");
@@ -202,6 +211,7 @@ export class PlotToolbar {
   private updateBtnStates(): void {
     this.bearingBtn.classList.toggle("active", this.activeTool === "bearing");
     this.segmentBtn.classList.toggle("active", this.activeTool === "segment");
+    this.arcBtn.classList.toggle("active", this.activeTool === "arc");
     this.textBtn.classList.toggle("active", this.activeTool === "text");
     for (const [shape, btn] of this.symbolBtns) {
       btn.classList.toggle(

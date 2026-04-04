@@ -50,11 +50,29 @@ export interface PlotText {
   createdAt: number;
 }
 
+/** An arc (partial circle) at a fixed radius from a center point,
+ *  with a radial line from center to a point on the arc. */
+export interface PlotDistanceArc {
+  id: string;
+  type: "distance-arc";
+  lat: number;
+  lon: number;
+  radiusNM: number;
+  /** Start angle in degrees TRUE (0 = north, clockwise). */
+  startAngle: number;
+  /** End angle in degrees TRUE (0 = north, clockwise). */
+  endAngle: number;
+  /** Bearing of the radial line (TRUE), set at mouseup. */
+  lineAngle: number;
+  createdAt: number;
+}
+
 export type PlotElement =
   | PlotBearingLine
   | PlotSegmentLine
   | PlotSymbol
-  | PlotText;
+  | PlotText
+  | PlotDistanceArc;
 
 export interface PlottingSheet {
   id: string;

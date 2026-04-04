@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseBearingInput } from "./bearingInput";
+import { parseDistanceInput, parseBearingInput } from "./bearingInput";
 
 // Mock declination: ~14.5°W (negative) for Boston area
 // getDeclination returns east-positive, so Boston is about -14.5
@@ -74,5 +74,41 @@ describe("parseBearingInput", () => {
     const result = parseBearingInput("121m", "true", lat, lon);
     expect(result).not.toBeNull();
     expect(result!.label).toBe("121°M");
+  });
+});
+
+describe("parseDistanceInput", () => {
+  it("parses plain number as NM", () => {
+    expect(parseDistanceInput("1.5")).toBe(1.5);
+  });
+
+  it("parses nm suffix", () => {
+    expect(parseDistanceInput("2.0nm")).toBe(2.0);
+    expect(parseDistanceInput("2.0NM")).toBe(2.0);
+  });
+
+  it("parses feet", () => {
+    const result = parseDistanceInput("6076ft");
+    expect(result).not.toBeNull();
+    expect(result!).toBeCloseTo(1.0, 1); // ~1 NM
+  });
+
+  it("parses feet with apostrophe", () => {
+    const result = parseDistanceInput("6076'");
+    expect(result).not.toBeNull();
+    expect(result!).toBeCloseTo(1.0, 1);
+  });
+
+  it("parses metres", () => {
+    const result = parseDistanceInput("1852m");
+    expect(result).not.toBeNull();
+    expect(result!).toBeCloseTo(1.0, 2); // 1 NM
+  });
+
+  it("returns null for invalid input", () => {
+    expect(parseDistanceInput("")).toBeNull();
+    expect(parseDistanceInput("abc")).toBeNull();
+    expect(parseDistanceInput("0")).toBeNull();
+    expect(parseDistanceInput("-5")).toBeNull();
   });
 });

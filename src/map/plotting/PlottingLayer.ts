@@ -15,10 +15,15 @@ import { formatBearing } from "../../utils/magnetic";
 import { generateUUID } from "../../utils/uuid";
 import { DraggablePoints } from "../DraggablePoints";
 import { getMode, onModeChange, setMode } from "../InteractionMode";
-import { createBearingInput, parseBearingInput } from "./bearingInput";
+import {
+  createBearingInput,
+  createDistanceInput,
+  parseBearingInput,
+} from "./bearingInput";
 import { type PlotTool, PlotToolbar } from "./PlotToolbar";
 import type {
   PlotBearingLine,
+  PlotDistanceArc,
   PlotSegmentLine,
   PlotSymbol,
   PlotText,
@@ -36,6 +41,7 @@ const SOURCE_LABELS = "_plot-labels";
 const SOURCE_SYMBOLS = "_plot-symbols";
 const SOURCE_LINE_LABELS = "_plot-line-labels";
 const LAYER_LINES = "_plot-lines";
+const LAYER_GHOST_LINES = "_plot-ghost-lines";
 const LAYER_POINTS = "_plot-points";
 const LAYER_LABELS = "_plot-labels";
 const LAYER_SYMBOLS = "_plot-symbols";
@@ -71,6 +77,21 @@ export class PlottingLayer {
   private segmentPreviewEnd: { lat: number; lon: number } | null = null;
   private segmentDrawing = false;
 
+  /** Arc drawing state. */
+  private arcCenter: { lat: number; lon: number } | null = null;
+  private arcRadiusNM = 0;
+  private arcDrawing = false;
+  /** The angle where the user first clicked to begin the sweep. */
+  private arcClickAngle = 0;
+  private arcMinAngle = 0;
+  private arcMaxAngle = 0;
+  private arcLastAngle = 0;
+  /** Accumulated signed rotation so we can handle >180° sweeps. */
+  private arcAccum = 0;
+  /** High-water marks: furthest CW and CCW the user has swept. */
+  private arcAccumMin = 0;
+  private arcAccumMax = 0;
+
   private clickHandler: ((e: maplibregl.MapMouseEvent) => void) | null = null;
   private segmentMouseDownHandler:
     | ((e: maplibregl.MapMouseEvent) => void)
@@ -84,6 +105,19 @@ export class PlottingLayer {
   private segmentTouchStart: ((e: TouchEvent) => void) | null = null;
   private segmentTouchMove: ((e: TouchEvent) => void) | null = null;
   private segmentTouchEnd: ((e: TouchEvent) => void) | null = null;
+
+  private arcMouseDownHandler:
+    | ((e: maplibregl.MapMouseEvent) => void)
+    | null = null;
+  private arcMouseMoveHandler:
+    | ((e: maplibregl.MapMouseEvent) => void)
+    | null = null;
+  private arcMouseUpHandler:
+    | ((e: maplibregl.MapMouseEvent) => void)
+    | null = null;
+  private arcTouchStart: ((e: TouchEvent) => void) | null = null;
+  private arcTouchMove: ((e: TouchEvent) => void) | null = null;
+  private arcTouchEnd: ((e: TouchEvent) => void) | null = null;
 
   /** Touch tap detector for selection (works around DraggablePoints eating touch events). */
   private tapTouchStart: ((e: TouchEvent) => void) | null = null;
@@ -189,6 +223,14 @@ export class PlottingLayer {
     this.placeSymbol(lat, lon);
   }
 
+  /** Start a distance arc from a specific center point (e.g. context menu).
+   *  Shows distance input first, then enters arc drawing mode. */
+  startArcFrom(lat: number, lon: number): void {
+    setMode("plot");
+    this.toolbar.setTool("arc");
+    this.showDistanceInput(lat, lon);
+  }
+
   /** Start a segment line from a specific point (e.g. context menu).
    *  Sets the start point; the next mousedown-drag sets the endpoint. */
   startSegmentFrom(lat: number, lon: number): void {
@@ -241,10 +283,24 @@ export class PlottingLayer {
     this.map.addSource(SOURCE_SYMBOLS, { type: "geojson", data: empty });
     this.map.addSource(SOURCE_LINE_LABELS, { type: "geojson", data: empty });
 
+    // Ghost lines (dashed, lighter) — rendered below solid lines
+    this.map.addLayer({
+      id: LAYER_GHOST_LINES,
+      type: "line",
+      source: SOURCE_LINES,
+      filter: ["==", ["get", "ghost"], "1"],
+      paint: {
+        "line-color": "#999",
+        "line-width": 1,
+        "line-dasharray": [4, 4],
+      },
+    });
+
     this.map.addLayer({
       id: LAYER_LINES,
       type: "line",
       source: SOURCE_LINES,
+      filter: ["!=", ["get", "ghost"], "1"],
       paint: {
         "line-color": "#222",
         "line-width": 1.5,
@@ -533,6 +589,79 @@ export class PlottingLayer {
           },
           geometry: { type: "Point", coordinates: [el.lon, el.lat] },
         });
+      } else if (el.type === "distance-arc") {
+        // Arc curve
+        const arcCoords = this.arcCoordinates(
+          el.lat,
+          el.lon,
+          el.radiusNM,
+          el.startAngle,
+          el.endAngle,
+        );
+        lines.push({
+          type: "Feature",
+          properties: { id: el.id },
+          geometry: { type: "LineString", coordinates: arcCoords },
+        });
+
+        // Radial line from center to point on arc
+        const lineEnd = projectPoint(el.lat, el.lon, el.lineAngle, el.radiusNM);
+        lines.push({
+          type: "Feature",
+          properties: { id: el.id },
+          geometry: {
+            type: "LineString",
+            coordinates: [[el.lon, el.lat], lineEnd],
+          },
+        });
+
+        // Distance & bearing label on the radial line
+        const { bearingMode, depthUnit } = getSettings();
+        const fmtBrg = formatBearing(el.lineAngle, bearingMode, el.lat, el.lon);
+        let distStr: string;
+        if (el.radiusNM < 0.1) {
+          if (depthUnit === "feet" || depthUnit === "fathoms") {
+            distStr = `${Math.round(el.radiusNM * 6076.12)} ft`;
+          } else {
+            distStr = `${Math.round(el.radiusNM * 1852)} m`;
+          }
+        } else {
+          distStr = `${el.radiusNM.toFixed(2)} NM`;
+        }
+        lineLabels.push({
+          type: "Feature",
+          properties: { id: el.id, label: `${distStr} ${fmtBrg}` },
+          geometry: {
+            type: "LineString",
+            coordinates: [[el.lon, el.lat], lineEnd],
+          },
+        });
+
+        // Center point (pointIndex 0)
+        lookup.push({ elementId: el.id, pointIndex: 0 });
+        points.push({
+          type: "Feature",
+          properties: {
+            id: el.id,
+            index: ptIdx++,
+            mode: inPlotMode ? "plot" : "view",
+            selected: isSelected ? "1" : "0",
+          },
+          geometry: { type: "Point", coordinates: [el.lon, el.lat] },
+        });
+
+        // Line endpoint on arc (pointIndex 1) — draggable along the arc
+        lookup.push({ elementId: el.id, pointIndex: 1 });
+        points.push({
+          type: "Feature",
+          properties: {
+            id: el.id,
+            index: ptIdx++,
+            mode: inPlotMode ? "plot" : "view",
+            selected: isSelected ? "1" : "0",
+          },
+          geometry: { type: "Point", coordinates: lineEnd },
+        });
       }
     }
 
@@ -565,6 +694,78 @@ export class PlottingLayer {
             ],
           },
         });
+      }
+    }
+
+    // In-progress arc preview
+    if (this.arcCenter && inPlotMode) {
+      // Always show center point once placed
+      lookup.push({ elementId: "__pending", pointIndex: 0 });
+      points.push({
+        type: "Feature",
+        properties: {
+          id: "__pending",
+          index: ptIdx++,
+          mode: "plot",
+          selected: "0",
+        },
+        geometry: {
+          type: "Point",
+          coordinates: [this.arcCenter.lon, this.arcCenter.lat],
+        },
+      });
+
+      if (this.arcRadiusNM > 0) {
+        // Ghost full circle (always visible once radius is set)
+        const ghostCoords = this.arcCoordinates(
+          this.arcCenter.lat,
+          this.arcCenter.lon,
+          this.arcRadiusNM,
+          0,
+          360,
+        );
+        lines.push({
+          type: "Feature",
+          properties: { id: "__pending", ghost: "1" },
+          geometry: { type: "LineString", coordinates: ghostCoords },
+        });
+
+        // Solid swept arc + radial line during drag
+        if (this.arcDrawing && Math.abs(this.arcAccum) > 0.5) {
+          const coords = this.arcCoordinates(
+            this.arcCenter.lat,
+            this.arcCenter.lon,
+            this.arcRadiusNM,
+            this.arcMinAngle,
+            this.arcMaxAngle,
+          );
+          if (coords.length >= 2) {
+            lines.push({
+              type: "Feature",
+              properties: { id: "__pending", ghost: "0" },
+              geometry: { type: "LineString", coordinates: coords },
+            });
+          }
+
+          // Radial line from center to current mouse position on the arc
+          const lineEnd = projectPoint(
+            this.arcCenter.lat,
+            this.arcCenter.lon,
+            this.arcLastAngle,
+            this.arcRadiusNM,
+          );
+          lines.push({
+            type: "Feature",
+            properties: { id: "__pending", ghost: "0" },
+            geometry: {
+              type: "LineString",
+              coordinates: [
+                [this.arcCenter.lon, this.arcCenter.lat],
+                lineEnd,
+              ],
+            },
+          });
+        }
       }
     }
 
@@ -695,6 +896,8 @@ export class PlottingLayer {
 
       if (tool === "bearing") {
         this.showBearingInput(lat, lon);
+      } else if (tool === "arc") {
+        this.showDistanceInput(lat, lon);
       } else if (tool === "symbol") {
         this.placeSymbol(lat, lon);
       } else if (tool === "text") {
@@ -927,12 +1130,280 @@ export class PlottingLayer {
     this.segmentPreviewEnd = null;
   }
 
+  // --- Arc drawing ---
+
+  /** Show distance input popup, then enter arc-sweep mode on submit. */
+  private showDistanceInput(lat: number, lon: number): void {
+    this.removePopupInput();
+
+    // Show center point immediately
+    this.arcCenter = { lat, lon };
+    this.arcRadiusNM = 0;
+    this.updateSources();
+
+    this.popupInputEl = createDistanceInput(
+      (distanceNM) => {
+        this.removePopupInput();
+        this.arcRadiusNM = distanceNM;
+        this.toolbar.setStatus("Click and drag to sweep arc");
+        this.installArcDraw();
+        this.updateSources();
+      },
+      () => {
+        this.removePopupInput();
+        this.arcCenter = null;
+        this.resetToSelectMode();
+        this.updateSources();
+      },
+    );
+
+    this.toolbar.element.after(this.popupInputEl);
+  }
+
+  /**
+   * Compute the bearing (degrees, 0=north, clockwise) from the arc center
+   * to a screen point, using map projection for accuracy.
+   */
+  private arcAngleFromPoint(lngLat: { lat: number; lng: number }): number {
+    if (!this.arcCenter) return 0;
+    return initialBearingDeg(
+      this.arcCenter.lat,
+      this.arcCenter.lon,
+      lngLat.lat,
+      lngLat.lng,
+    );
+  }
+
+  /**
+   * Compute the signed shortest angular difference from `from` to `to` (degrees).
+   * Result in [-180, 180].
+   */
+  private angleDelta(from: number, to: number): number {
+    let d = to - from;
+    while (d > 180) d -= 360;
+    while (d < -180) d += 360;
+    return d;
+  }
+
+  /** Generate arc GeoJSON coordinates from center, radius, start/end angles. */
+  private arcCoordinates(
+    lat: number,
+    lon: number,
+    radiusNM: number,
+    startAngle: number,
+    endAngle: number,
+  ): [number, number][] {
+    // Normalize: sweep from startAngle to endAngle going clockwise.
+    // We always store startAngle < endAngle in the CW sense.
+    const sweep = ((endAngle - startAngle) % 360 + 360) % 360 || 360;
+    const steps = Math.max(Math.ceil(sweep / 2), 8); // ~2° per step
+    const coords: [number, number][] = [];
+    for (let i = 0; i <= steps; i++) {
+      const angle = startAngle + (sweep * i) / steps;
+      coords.push(projectPoint(lat, lon, angle, radiusNM));
+    }
+    return coords;
+  }
+
+  private installArcDraw(): void {
+    this.removeArcDraw();
+
+    this.arcMouseDownHandler = (e: maplibregl.MapMouseEvent) => {
+      if (getMode() !== "plot") return;
+      if (this.toolbar.getTool() !== "arc") return;
+      if (!this.arcCenter) return;
+
+      // Don't start if clicking on an existing drag handle
+      const hits = this.map.queryRenderedFeatures(e.point, {
+        layers: [LAYER_POINTS],
+      });
+      if (hits.length > 0 && hits[0].properties?.id !== "__pending") return;
+
+      e.preventDefault();
+      const angle = this.arcAngleFromPoint(e.lngLat);
+      this.arcClickAngle = angle;
+      this.arcMinAngle = angle;
+      this.arcMaxAngle = angle;
+      this.arcLastAngle = angle;
+      this.arcAccum = 0;
+      this.arcAccumMin = 0;
+      this.arcAccumMax = 0;
+      this.arcDrawing = true;
+      this.map.dragPan.disable();
+      this.toolbar.setStatus("Release to finish arc");
+      this.updateSources();
+    };
+
+    this.arcMouseMoveHandler = (e: maplibregl.MapMouseEvent) => {
+      if (!this.arcDrawing) return;
+      this.updateArcSweep(e.lngLat);
+    };
+
+    this.arcMouseUpHandler = (_e: maplibregl.MapMouseEvent) => {
+      if (!this.arcDrawing) return;
+      this.commitArc();
+    };
+
+    this.map.on("mousedown", this.arcMouseDownHandler);
+    this.map.on("mousemove", this.arcMouseMoveHandler);
+    this.map.on("mouseup", this.arcMouseUpHandler);
+
+    // Touch support
+    const canvas = this.map.getCanvas();
+
+    this.arcTouchStart = (e: TouchEvent) => {
+      if (getMode() !== "plot") return;
+      if (this.toolbar.getTool() !== "arc") return;
+      if (!this.arcCenter) return;
+      if (e.touches.length !== 1) return;
+
+      const touch = e.touches[0];
+      const rect = canvas.getBoundingClientRect();
+      const point: [number, number] = [
+        touch.clientX - rect.left,
+        touch.clientY - rect.top,
+      ];
+      const hits = this.map.queryRenderedFeatures(point, {
+        layers: [LAYER_POINTS],
+      });
+      if (hits.length > 0 && hits[0].properties?.id !== "__pending") return;
+
+      e.preventDefault();
+      const lngLat = this.map.unproject(point);
+      const angle = this.arcAngleFromPoint(lngLat);
+      this.arcClickAngle = angle;
+      this.arcAccumMin = 0;
+      this.arcAccumMax = 0;
+      this.arcMinAngle = angle;
+      this.arcMaxAngle = angle;
+      this.arcLastAngle = angle;
+      this.arcAccum = 0;
+      this.arcDrawing = true;
+      this.map.dragPan.disable();
+      this.toolbar.setStatus("Release to finish arc");
+      this.updateSources();
+    };
+
+    this.arcTouchMove = (e: TouchEvent) => {
+      if (!this.arcDrawing || e.touches.length !== 1) return;
+      e.preventDefault();
+      const touch = e.touches[0];
+      const rect = canvas.getBoundingClientRect();
+      const lngLat = this.map.unproject([
+        touch.clientX - rect.left,
+        touch.clientY - rect.top,
+      ]);
+      this.updateArcSweep(lngLat);
+    };
+
+    this.arcTouchEnd = (_e: TouchEvent) => {
+      if (!this.arcDrawing) return;
+      this.commitArc();
+    };
+
+    canvas.addEventListener("touchstart", this.arcTouchStart, {
+      passive: false,
+    });
+    canvas.addEventListener("touchmove", this.arcTouchMove, { passive: false });
+    canvas.addEventListener("touchend", this.arcTouchEnd);
+  }
+
+  /**
+   * Track the sweep as the user drags. Uses high-water marks so the arc
+   * remembers the furthest extent in each direction — sweeping right then
+   * left keeps the full range, not just the net rotation.
+   */
+  private updateArcSweep(lngLat: { lat: number; lng: number }): void {
+    const angle = this.arcAngleFromPoint(lngLat);
+    const delta = this.angleDelta(this.arcLastAngle, angle);
+    this.arcAccum += delta;
+    this.arcLastAngle = angle;
+
+    // Update high-water marks
+    this.arcAccumMin = Math.min(this.arcAccumMin, this.arcAccum);
+    this.arcAccumMax = Math.max(this.arcAccumMax, this.arcAccum);
+
+    // Arc spans from the furthest CCW to the furthest CW extent
+    this.arcMinAngle = this.arcClickAngle + this.arcAccumMin;
+    this.arcMaxAngle = this.arcClickAngle + this.arcAccumMax;
+
+    this.updateSources();
+  }
+
+  /** Finalize the arc and add it as a plot element. */
+  private commitArc(): void {
+    this.arcDrawing = false;
+    this.map.dragPan.enable();
+
+    if (!this.arcCenter) return;
+
+    // Require a minimum sweep (> ~5°) to avoid accidental taps
+    const sweep = this.arcAccumMax - this.arcAccumMin;
+    if (sweep < 5) {
+      this.arcCenter = null;
+      this.resetToSelectMode();
+      this.updateSources();
+      return;
+    }
+
+    // Normalize angles to 0-360
+    const normalize = (a: number) => ((a % 360) + 360) % 360;
+
+    const arc: PlotDistanceArc = {
+      id: generateUUID(),
+      type: "distance-arc",
+      lat: this.arcCenter.lat,
+      lon: this.arcCenter.lon,
+      radiusNM: this.arcRadiusNM,
+      startAngle: normalize(this.arcMinAngle),
+      endAngle: normalize(this.arcMaxAngle),
+      lineAngle: normalize(this.arcLastAngle),
+      createdAt: Date.now(),
+    };
+    this.sheet.elements.push(arc);
+    this.arcCenter = null;
+    this.save();
+    this.resetToSelectMode(arc.id);
+    this.updateSources();
+    this.setupDrag();
+  }
+
+  private removeArcDraw(): void {
+    if (this.arcMouseDownHandler) {
+      this.map.off("mousedown", this.arcMouseDownHandler);
+      this.arcMouseDownHandler = null;
+    }
+    if (this.arcMouseMoveHandler) {
+      this.map.off("mousemove", this.arcMouseMoveHandler);
+      this.arcMouseMoveHandler = null;
+    }
+    if (this.arcMouseUpHandler) {
+      this.map.off("mouseup", this.arcMouseUpHandler);
+      this.arcMouseUpHandler = null;
+    }
+    const canvas = this.map.getCanvas();
+    if (this.arcTouchStart) {
+      canvas.removeEventListener("touchstart", this.arcTouchStart);
+      this.arcTouchStart = null;
+    }
+    if (this.arcTouchMove) {
+      canvas.removeEventListener("touchmove", this.arcTouchMove);
+      this.arcTouchMove = null;
+    }
+    if (this.arcTouchEnd) {
+      canvas.removeEventListener("touchend", this.arcTouchEnd);
+      this.arcTouchEnd = null;
+    }
+    this.arcDrawing = false;
+  }
+
   /** Reset to select/edit mode after a one-shot tool placement.
    *  Optionally auto-selects the just-placed element. */
   private resetToSelectMode(selectId?: string): void {
     this.toolbar.setTool("none");
     this.toolbar.setStatus("");
     this.removeSegmentDraw();
+    this.removeArcDraw();
     this.removePopupInput();
     if (selectId) {
       this.selectedId = selectId;
@@ -1123,11 +1594,13 @@ export class PlottingLayer {
 
   private clearAll(): void {
     if (this.sheet.elements.length === 0) return;
+    if (!confirm("Clear all plot elements?")) return;
     this.sheet.elements = [];
     this.selectedId = null;
     this.toolbar.setDeleteVisible(false);
     this.toolbar.hideEditArea();
     this.segmentStart = null;
+    this.arcCenter = null;
     this.toolbar.setStatus("");
     this.save();
     this.updateSources();
@@ -1137,12 +1610,16 @@ export class PlottingLayer {
   private onToolSelect(tool: PlotTool): void {
     this.segmentStart = null;
     this.segmentPreviewEnd = null;
+    this.arcCenter = null;
     this.removePopupInput();
     this.removeSegmentDraw();
+    this.removeArcDraw();
     this.selectElement(null);
     if (tool === "segment") {
       this.toolbar.setStatus("Drag to draw a line");
       this.installSegmentDraw();
+    } else if (tool === "arc") {
+      this.toolbar.setStatus("Click to place arc center");
     } else if (tool === "bearing") {
       this.toolbar.setStatus("Click to place bearing line");
     } else if (tool === "symbol") {
@@ -1160,8 +1637,10 @@ export class PlottingLayer {
     this.toolbar.setTool("none");
     this.segmentStart = null;
     this.segmentPreviewEnd = null;
+    this.arcCenter = null;
     this.removePopupInput();
     this.removeSegmentDraw();
+    this.removeArcDraw();
     this.selectElement(null);
     this.cleanupInteraction();
     setMode("query");
@@ -1201,6 +1680,20 @@ export class PlottingLayer {
         } else if (el.type === "symbol" || el.type === "text") {
           el.lat = lngLat.lat;
           el.lon = lngLat.lng;
+        } else if (el.type === "distance-arc") {
+          if (entry.pointIndex === 0) {
+            // Drag center — moves the whole arc
+            el.lat = lngLat.lat;
+            el.lon = lngLat.lng;
+          } else {
+            // Drag line endpoint — slide along the arc
+            el.lineAngle = initialBearingDeg(
+              el.lat,
+              el.lon,
+              lngLat.lat,
+              lngLat.lng,
+            );
+          }
         }
 
         this.updateSources();
@@ -1213,6 +1706,7 @@ export class PlottingLayer {
     this.removeClickHandler();
     this.removePopupInput();
     this.removeSegmentDraw();
+    this.removeArcDraw();
     if (this.draggable) {
       this.draggable.destroy();
       this.draggable = null;
