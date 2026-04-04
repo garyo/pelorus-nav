@@ -5,6 +5,11 @@
  * Constant-velocity model with white-noise acceleration process noise.
  * Measurement noise derived from GPS accuracy field.
  *
+ * Automatically detects weak/flaky GPS hardware (common on e-ink devices)
+ * by monitoring fix intervals, and adapts: extends the stale gap threshold
+ * so the velocity model bridges dropouts, and seeds velocity from hardware
+ * speed/course after gaps.
+ *
  * All matrix math is inlined (4x4 state, 2x2 innovation) — no library needed.
  */
 
@@ -19,13 +24,21 @@ const KN_PER_DEG_S = (M_PER_DEG * 3600) / 1852;
 /** Threshold (knots) below which we null out COG — velocity too noisy. */
 const COG_MIN_SOG = 0.1;
 
+/** Number of recent fix intervals to track for GPS quality detection. */
+const QUALITY_WINDOW = 20;
+
+/** If average fix interval exceeds this (ms), GPS is considered weak. */
+const WEAK_GPS_INTERVAL_MS = 3000;
+
 export interface GPSFilterConfig {
   /** Process noise acceleration in deg/s^2. Higher = trusts GPS more. ~3e-7 for marine. */
   processNoiseAccel: number;
   /** Default measurement noise (meters) when GPS accuracy is unavailable. */
   defaultAccuracyM: number;
-  /** Time gap (ms) after which the filter resets. */
+  /** Time gap (ms) after which the filter resets (good GPS). */
   staleGapMs: number;
+  /** Stale gap for weak GPS — longer so the filter bridges dropouts. */
+  weakGpsStaleGapMs: number;
   /** Distance jump (meters) that triggers an immediate reset. */
   jumpThresholdM: number;
   /** Floor for measurement noise (meters) to prevent over-trust. */
@@ -36,6 +49,7 @@ export const DEFAULT_GPS_FILTER_CONFIG: Readonly<GPSFilterConfig> = {
   processNoiseAccel: 3e-7,
   defaultAccuracyM: 10,
   staleGapMs: 30_000,
+  weakGpsStaleGapMs: 120_000,
   jumpThresholdM: 500,
   minAccuracyM: 3,
 };
@@ -54,6 +68,10 @@ export class GPSFilter {
   private readonly cfg: GPSFilterConfig;
   private state: FilterState | null = null;
 
+  /** Rolling window of recent fix intervals (ms) for GPS quality detection. */
+  private fixIntervals: number[] = [];
+  private weakGps = false;
+
   constructor(config?: Partial<GPSFilterConfig>) {
     this.cfg = { ...DEFAULT_GPS_FILTER_CONFIG, ...config };
   }
@@ -68,21 +86,46 @@ export class GPSFilter {
     return this.state !== null;
   }
 
+  /** Returns true when the GPS stream has been detected as weak/flaky. */
+  isWeakGps(): boolean {
+    return this.weakGps;
+  }
+
+  /** Current effective stale gap threshold (ms). */
+  private get staleGapMs(): number {
+    return this.weakGps ? this.cfg.weakGpsStaleGapMs : this.cfg.staleGapMs;
+  }
+
   /**
    * Filter a GPS fix. Returns a new NavigationData with smoothed lat/lon
    * and derived COG/SOG. The first fix after reset is returned unchanged.
    */
   filter(raw: NavigationData): NavigationData {
-    // First fix — initialize state
+    // First fix — initialize state (seed velocity from hardware if available)
     if (!this.state) {
       this.initState(raw);
       return raw;
     }
 
-    const dt = (raw.timestamp - this.state.lastTimestamp) / 1000; // seconds
+    const dtMs = raw.timestamp - this.state.lastTimestamp;
+    const dt = dtMs / 1000; // seconds
+
+    // Track fix intervals for GPS quality detection
+    if (dt > 0) {
+      this.fixIntervals.push(dtMs);
+      if (this.fixIntervals.length > QUALITY_WINDOW) {
+        this.fixIntervals.shift();
+      }
+      if (this.fixIntervals.length >= 5) {
+        const avg =
+          this.fixIntervals.reduce((a, b) => a + b, 0) /
+          this.fixIntervals.length;
+        this.weakGps = avg > WEAK_GPS_INTERVAL_MS;
+      }
+    }
 
     // Stale gap or negative dt — reset
-    if (dt <= 0 || dt * 1000 > this.cfg.staleGapMs) {
+    if (dt <= 0 || dtMs > this.staleGapMs) {
       this.initState(raw);
       return raw;
     }
@@ -97,6 +140,12 @@ export class GPSFilter {
     if (jumpM > this.cfg.jumpThresholdM) {
       this.initState(raw);
       return raw;
+    }
+
+    // For gaps >5s, seed velocity from hardware speed/course if available.
+    // This helps the filter recover quickly after GPS dropouts.
+    if (dt > 5 && raw.sog !== null && raw.sog > 0.5 && raw.cog !== null) {
+      this.seedVelocityFromHardware(raw.sog, raw.cog, raw.latitude);
     }
 
     // — Predict step —
@@ -145,11 +194,52 @@ export class GPSFilter {
     P[10] = velVar; // P[2,2] vLat variance
     P[15] = velVar; // P[3,3] vLon variance
 
+    // Seed velocity from hardware speed/course if available
+    let vLat = 0;
+    let vLon = 0;
+    if (fix.sog !== null && fix.sog > 0.5 && fix.cog !== null) {
+      const cosLat = Math.cos((fix.latitude * Math.PI) / 180);
+      const sogDegS = fix.sog / KN_PER_DEG_S;
+      const cogRad = (fix.cog * Math.PI) / 180;
+      vLat = sogDegS * Math.cos(cogRad);
+      vLon = cosLat > 1e-6 ? (sogDegS * Math.sin(cogRad)) / cosLat : 0;
+      // Tighter velocity uncertainty when seeded from hardware
+      P[10] = (1 / KN_PER_DEG_S) ** 2; // ~1 kn uncertainty
+      P[15] = (1 / KN_PER_DEG_S) ** 2;
+    }
+
     this.state = {
-      x: [fix.latitude, fix.longitude, 0, 0],
+      x: [fix.latitude, fix.longitude, vLat, vLon],
       P,
       lastTimestamp: fix.timestamp,
     };
+  }
+
+  /**
+   * Seed the Kalman velocity state from hardware-reported speed/course.
+   * Used after GPS gaps to help the filter converge quickly.
+   */
+  private seedVelocityFromHardware(
+    sogKn: number,
+    cogDeg: number,
+    lat: number,
+  ): void {
+    const s = this.state as FilterState;
+    const cosLat = Math.cos((lat * Math.PI) / 180);
+    const sogDegS = sogKn / KN_PER_DEG_S;
+    const cogRad = (cogDeg * Math.PI) / 180;
+    s.x[2] = sogDegS * Math.cos(cogRad);
+    s.x[3] = cosLat > 1e-6 ? (sogDegS * Math.sin(cogRad)) / cosLat : 0;
+    // Increase velocity covariance to reflect uncertainty in the seed
+    const velVar = (2 / KN_PER_DEG_S) ** 2; // ~2 kn uncertainty
+    s.P[10] = velVar;
+    s.P[15] = velVar;
+    // Clear cross-covariances between position and velocity
+    s.P[2] = 0;
+    s.P[3] = 0;
+    s.P[8] = 0;
+    s.P[7] = 0;
+    s.P[13] = 0;
   }
 
   /** Propagate state and covariance forward by dt seconds. */

@@ -237,6 +237,117 @@ describe("GPSFilter", () => {
     filter.reset();
     expect(filter.isInitialized()).toBe(false);
   });
+
+  it("detects weak GPS from inconsistent fix intervals", () => {
+    const filter = new GPSFilter();
+    filter.filter(makeFix({ timestamp: 0 }));
+
+    // Simulate flaky GPS: fixes at irregular 4-8s intervals
+    let t = 0;
+    for (let i = 0; i < 20; i++) {
+      t += 4000 + Math.random() * 4000; // 4-8s gaps
+      filter.filter(makeFix({ timestamp: t }));
+    }
+    expect(filter.isWeakGps()).toBe(true);
+  });
+
+  it("does not flag good GPS as weak", () => {
+    const filter = new GPSFilter();
+    filter.filter(makeFix({ timestamp: 0 }));
+
+    for (let i = 1; i <= 20; i++) {
+      filter.filter(makeFix({ timestamp: i * 1000 })); // steady 1s fixes
+    }
+    expect(filter.isWeakGps()).toBe(false);
+  });
+
+  it("bridges gaps with velocity model on weak GPS instead of resetting", () => {
+    const filter = new GPSFilter();
+    const startLat = 42.35;
+    const startLon = -71.04;
+
+    // Establish weak GPS detection
+    let t = 0;
+    filter.filter(
+      makeFix({
+        latitude: startLat,
+        longitude: startLon,
+        sog: 3,
+        cog: 90,
+        timestamp: t,
+      }),
+    );
+    for (let i = 0; i < 20; i++) {
+      t += 5000; // 5s intervals → weak GPS
+      filter.filter(
+        makeFix({
+          latitude: startLat,
+          longitude: startLon + 0.00001 * i,
+          sog: 3,
+          cog: 90,
+          timestamp: t,
+        }),
+      );
+    }
+    expect(filter.isWeakGps()).toBe(true);
+
+    // Now simulate a 60s gap (would reset on good GPS, should survive on weak).
+    // Position moved ~200m (within jump threshold of 500m).
+    t += 60_000;
+    const gapLat = startLat + 0.002; // ~220m north
+    const gapLon = startLon + 0.002;
+    const afterGap = filter.filter(
+      makeFix({
+        latitude: gapLat,
+        longitude: gapLon,
+        sog: 3,
+        cog: 90,
+        timestamp: t,
+      }),
+    );
+
+    // On weak GPS the filter bridges the gap (predict+update), so the
+    // filtered position should NOT exactly equal the raw measurement —
+    // the Kalman gain blends prediction with measurement.
+    // If it had reset, it would return the raw fix unchanged.
+    const filteredDist = Math.abs(afterGap.latitude - gapLat);
+    // The filter should pull the estimate away from the raw measurement
+    // (toward the predicted position based on prior velocity)
+    expect(filteredDist).toBeGreaterThan(1e-7);
+  });
+
+  it("seeds velocity from hardware speed/course on init", () => {
+    const filter = new GPSFilter();
+
+    // First fix with hardware speed/course
+    filter.filter(
+      makeFix({
+        latitude: 42.35,
+        longitude: -71.04,
+        sog: 5,
+        cog: 90,
+        timestamp: 0,
+      }),
+    );
+
+    // Second fix 1s later, slightly east — should already have
+    // a reasonable eastward velocity from the hardware seed
+    const out = filter.filter(
+      makeFix({
+        latitude: 42.35,
+        longitude: -71.0399,
+        sog: 5,
+        cog: 90,
+        timestamp: 1000,
+      }),
+    );
+
+    // SOG should be close to 5 kn already (not starting from zero)
+    expect(out.sog).toBeGreaterThan(2);
+    // COG should be roughly east
+    expect(out.cog).toBeGreaterThan(45);
+    expect(out.cog).toBeLessThan(135);
+  });
 });
 
 function rms(values: number[]): number {
