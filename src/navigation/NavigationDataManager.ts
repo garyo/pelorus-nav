@@ -5,6 +5,7 @@
  */
 
 import { AdaptiveRateController, type AdaptiveRateState } from "./AdaptiveRate";
+import { GPSFilter } from "./GPSFilter";
 import type {
   NavigationData,
   NavigationDataCallback,
@@ -19,6 +20,8 @@ export class NavigationDataManager {
   private listeners: NavigationDataCallback[] = [];
   private lastData: NavigationData | null = null;
 
+  // GPS position filter (Kalman)
+  private gpsFilter = new GPSFilter();
   // Adaptive rate control
   private adaptiveCtrl = new AdaptiveRateController();
   private rateMode: RateMode = "adaptive";
@@ -26,7 +29,8 @@ export class NavigationDataManager {
   private deferredTimer: ReturnType<typeof setTimeout> | null = null;
   private pendingData: NavigationData | null = null;
 
-  private readonly onData: NavigationDataCallback = (data) => {
+  private readonly onData: NavigationDataCallback = (raw) => {
+    const data = this.gpsFilter.filter(raw);
     this.lastData = data;
 
     if (this.rateMode === "adaptive") {
@@ -124,6 +128,7 @@ export class NavigationDataManager {
 
     this.lastData = null;
     this.clearDeferredTimer();
+    this.gpsFilter.reset();
     this.adaptiveCtrl.reset();
     const provider = this.providers.find((p) => p.id === id) ?? null;
     this.activeProvider = provider;
