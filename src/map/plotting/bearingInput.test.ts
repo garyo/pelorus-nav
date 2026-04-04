@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseDistanceInput, parseBearingInput } from "./bearingInput";
+import { parseBearingInput, parseDistanceInput } from "./bearingInput";
 
 // Mock declination: ~14.5°W (negative) for Boston area
 // getDeclination returns east-positive, so Boston is about -14.5
