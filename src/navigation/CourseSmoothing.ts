@@ -93,6 +93,10 @@ export class CourseSmoothing {
   ): void {
     if (cog !== null && sog !== null) {
       this.buffer.push({ cog, sog, timestamp });
+    } else {
+      // No valid COG/SOG (stationary or no fix) — clear the buffer so
+      // stale course/speed values don't persist in the smoothed output.
+      this.buffer.length = 0;
     }
 
     // Prune old samples, but keep at least MIN_SAMPLES
