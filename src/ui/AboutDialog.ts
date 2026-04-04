@@ -112,6 +112,28 @@ export class AboutDialog {
     buildId.className = "about-build-id";
     buildId.textContent = `Build: ${__BUILD_ID__}`;
 
+    // Clear cache button
+    const clearBtn = document.createElement("button");
+    clearBtn.className = "about-clear-cache";
+    clearBtn.textContent = "Clear Cache & Reload";
+    clearBtn.addEventListener("click", async () => {
+      clearBtn.textContent = "Clearing...";
+      clearBtn.disabled = true;
+      try {
+        // Unregister service workers
+        const regs = await navigator.serviceWorker?.getRegistrations();
+        if (regs) {
+          for (const r of regs) await r.unregister();
+        }
+        // Delete all Cache Storage entries
+        const keys = await caches.keys();
+        for (const k of keys) await caches.delete(k);
+      } catch {
+        // Cache API may not be available in all contexts
+      }
+      location.reload();
+    });
+
     card.append(
       title,
       tagline,
@@ -120,6 +142,7 @@ export class AboutDialog {
       creditsHeading,
       creditsList,
       buildId,
+      clearBtn,
     );
     this.overlay.appendChild(card);
     document.body.appendChild(this.overlay);
