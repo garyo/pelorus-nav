@@ -106,15 +106,12 @@ export class PlottingLayer {
   private segmentTouchMove: ((e: TouchEvent) => void) | null = null;
   private segmentTouchEnd: ((e: TouchEvent) => void) | null = null;
 
-  private arcMouseDownHandler:
-    | ((e: maplibregl.MapMouseEvent) => void)
-    | null = null;
-  private arcMouseMoveHandler:
-    | ((e: maplibregl.MapMouseEvent) => void)
-    | null = null;
-  private arcMouseUpHandler:
-    | ((e: maplibregl.MapMouseEvent) => void)
-    | null = null;
+  private arcMouseDownHandler: ((e: maplibregl.MapMouseEvent) => void) | null =
+    null;
+  private arcMouseMoveHandler: ((e: maplibregl.MapMouseEvent) => void) | null =
+    null;
+  private arcMouseUpHandler: ((e: maplibregl.MapMouseEvent) => void) | null =
+    null;
   private arcTouchStart: ((e: TouchEvent) => void) | null = null;
   private arcTouchMove: ((e: TouchEvent) => void) | null = null;
   private arcTouchEnd: ((e: TouchEvent) => void) | null = null;
@@ -759,10 +756,7 @@ export class PlottingLayer {
             properties: { id: "__pending", ghost: "0" },
             geometry: {
               type: "LineString",
-              coordinates: [
-                [this.arcCenter.lon, this.arcCenter.lat],
-                lineEnd,
-              ],
+              coordinates: [[this.arcCenter.lon, this.arcCenter.lat], lineEnd],
             },
           });
         }
@@ -1195,7 +1189,7 @@ export class PlottingLayer {
   ): [number, number][] {
     // Normalize: sweep from startAngle to endAngle going clockwise.
     // We always store startAngle < endAngle in the CW sense.
-    const sweep = ((endAngle - startAngle) % 360 + 360) % 360 || 360;
+    const sweep = (((endAngle - startAngle) % 360) + 360) % 360 || 360;
     const steps = Math.max(Math.ceil(sweep / 2), 8); // ~2° per step
     const coords: [number, number][] = [];
     for (let i = 0; i <= steps; i++) {

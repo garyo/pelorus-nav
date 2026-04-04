@@ -88,21 +88,15 @@ describe("parseDistanceInput", () => {
   });
 
   it("parses feet", () => {
-    const result = parseDistanceInput("6076ft");
-    expect(result).not.toBeNull();
-    expect(result!).toBeCloseTo(1.0, 1); // ~1 NM
+    expect(parseDistanceInput("6076ft")).toBeCloseTo(1.0, 1); // ~1 NM
   });
 
   it("parses feet with apostrophe", () => {
-    const result = parseDistanceInput("6076'");
-    expect(result).not.toBeNull();
-    expect(result!).toBeCloseTo(1.0, 1);
+    expect(parseDistanceInput("6076'")).toBeCloseTo(1.0, 1);
   });
 
   it("parses metres", () => {
-    const result = parseDistanceInput("1852m");
-    expect(result).not.toBeNull();
-    expect(result!).toBeCloseTo(1.0, 2); // 1 NM
+    expect(parseDistanceInput("1852m")).toBeCloseTo(1.0, 2); // 1 NM
   });
 
   it("returns null for invalid input", () => {

@@ -21,6 +21,9 @@
       "recommended": true,
       "suspicious": {
         "noExplicitAny": "error"
+      },
+      "complexity": {
+        "noImportantStyles": "warn"
       }
     }
   },
