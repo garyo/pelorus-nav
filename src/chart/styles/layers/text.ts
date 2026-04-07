@@ -100,7 +100,7 @@ export function getTextLayers(ctx: StyleContext): LayerSpecification[] {
       },
       paint: {
         "text-color": ctx.colour("NINFO"),
-        "text-halo-color": ctx.colour("CHWHT"),
+        "text-halo-color": ctx.colour("NAIDH"),
         "text-halo-width": 1.5,
       },
     },
@@ -132,7 +132,7 @@ export function getTextLayers(ctx: StyleContext): LayerSpecification[] {
       },
       paint: {
         "text-color": ctx.colour("NINFO"),
-        "text-halo-color": ctx.colour("CHWHT"),
+        "text-halo-color": ctx.colour("NAIDH"),
         "text-halo-width": 1.5,
       },
     },
@@ -158,7 +158,7 @@ export function getTextLayers(ctx: StyleContext): LayerSpecification[] {
       },
       paint: {
         "text-color": ctx.colour("CHBLK"),
-        "text-halo-color": ctx.colour("CHWHT"),
+        "text-halo-color": ctx.colour("NAIDH"),
         "text-halo-width": 1.5,
       },
     },
@@ -185,7 +185,7 @@ export function getTextLayers(ctx: StyleContext): LayerSpecification[] {
         },
         paint: {
           "text-color": ctx.colour("CHBLK"),
-          "text-halo-color": ctx.colour("CHWHT"),
+          "text-halo-color": ctx.colour("NAIDH"),
           "text-halo-width": 1.5,
         },
       };
@@ -205,7 +205,7 @@ export function getTextLayers(ctx: StyleContext): LayerSpecification[] {
       },
       paint: {
         "text-color": ctx.colour("CHGRF"),
-        "text-halo-color": ctx.colour("CHWHT"),
+        "text-halo-color": ctx.colour("NAIDH"),
         "text-halo-width": 1,
       },
     },
@@ -226,7 +226,7 @@ export function getTextLayers(ctx: StyleContext): LayerSpecification[] {
       },
       paint: {
         "text-color": ctx.colour("CHGRF"),
-        "text-halo-color": ctx.colour("CHWHT"),
+        "text-halo-color": ctx.colour("NAIDH"),
         "text-halo-width": 1,
       },
     },
@@ -266,7 +266,7 @@ export function getTextLayers(ctx: StyleContext): LayerSpecification[] {
       },
       paint: {
         "text-color": ctx.colour("CHBLK"),
-        "text-halo-color": ctx.colour("CHWHT"),
+        "text-halo-color": ctx.colour("NAIDH"),
         "text-halo-width": 1,
       },
     },
@@ -297,7 +297,7 @@ export function getTextLayers(ctx: StyleContext): LayerSpecification[] {
       },
       paint: {
         "text-color": ctx.colour("BKAJ1"),
-        "text-halo-color": ctx.colour("CHWHT"),
+        "text-halo-color": ctx.colour("NAIDH"),
         "text-halo-width": 1.5,
       },
     },

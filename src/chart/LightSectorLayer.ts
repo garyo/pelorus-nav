@@ -273,6 +273,7 @@ export class LightSectorLayer {
     map.on("style.load", () => this.setup());
     if (map.isStyleLoaded()) this.setup();
 
+    let currentTheme = getSettings().displayTheme;
     onSettingsChange((s) => {
       const nowEnabled = s.layerGroups.lightSectors ?? false;
       if (nowEnabled !== this.enabled) {
@@ -281,6 +282,14 @@ export class LightSectorLayer {
           this.rebuild();
         } else {
           this.clear();
+        }
+      }
+      // Theme changed — rebuild layers with fresh colours
+      if (s.displayTheme !== currentTheme) {
+        currentTheme = s.displayTheme;
+        if (this.map.isStyleLoaded()) {
+          this.addSourceAndLayers();
+          if (this.enabled) this.rebuild();
         }
       }
     });
@@ -308,8 +317,21 @@ export class LightSectorLayer {
     if (this.enabled) this.rebuild();
   }
 
+  private removeLayers(): void {
+    for (const id of [
+      LAYER_ARC,
+      LAYER_ARC_BORDER,
+      LAYER_BEARING,
+      LAYER_RANGE_FILL,
+      LAYER_RANGE_BORDER,
+    ]) {
+      if (this.map.getLayer(id)) this.map.removeLayer(id);
+    }
+    if (this.map.getSource(SOURCE_ID)) this.map.removeSource(SOURCE_ID);
+  }
+
   private addSourceAndLayers(): void {
-    if (this.map.getSource(SOURCE_ID)) return;
+    this.removeLayers();
 
     this.map.addSource(SOURCE_ID, {
       type: "geojson",
@@ -326,8 +348,8 @@ export class LightSectorLayer {
       s52Colour("LITGN"),
       "orange",
       s52Colour("LITRD"),
-      // white and yellow lights → bright clean yellow
-      "#FFE800",
+      // white and yellow lights → theme-aware yellow
+      s52Colour("LITYW"),
     ] as unknown as maplibregl.ExpressionSpecification;
 
     // Range circles: black casing (wider, drawn first = underneath)

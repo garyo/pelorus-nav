@@ -59,7 +59,7 @@ export function getNavAidLayers(ctx: StyleContext): LayerSpecification[] {
           ctx.colour("SNDG2"), // high-contrast — at or below safety depth
           ctx.colour("SNDG1"), // gray — deeper than safety depth
         ] as unknown as string,
-        "text-halo-color": ctx.colour("CHWHT"),
+        "text-halo-color": ctx.colour("SNDGH"),
         "text-halo-width": 1,
       },
     },
@@ -125,7 +125,7 @@ export function getBuoyBeaconLayers(ctx: StyleContext): LayerSpecification[] {
       ),
       paint: {
         "text-color": ctx.colour("CHBLK"),
-        "text-halo-color": ctx.colour("CHWHT"),
+        "text-halo-color": ctx.colour("NAIDH"),
         "text-halo-width": 1.5,
       },
     },
@@ -153,7 +153,7 @@ export function getBuoyBeaconLayers(ctx: StyleContext): LayerSpecification[] {
       ),
       paint: {
         "text-color": ctx.colour("CHBLK"),
-        "text-halo-color": ctx.colour("CHWHT"),
+        "text-halo-color": ctx.colour("NAIDH"),
         "text-halo-width": 1.5,
       },
     },
@@ -181,7 +181,7 @@ export function getBuoyBeaconLayers(ctx: StyleContext): LayerSpecification[] {
       ),
       paint: {
         "text-color": ctx.colour("CHBLK"),
-        "text-halo-color": ctx.colour("CHWHT"),
+        "text-halo-color": ctx.colour("NAIDH"),
         "text-halo-width": 1.5,
       },
     },
@@ -209,7 +209,7 @@ export function getBuoyBeaconLayers(ctx: StyleContext): LayerSpecification[] {
       ),
       paint: {
         "text-color": ctx.colour("CHBLK"),
-        "text-halo-color": ctx.colour("CHWHT"),
+        "text-halo-color": ctx.colour("NAIDH"),
         "text-halo-width": 1.5,
       },
     },
@@ -237,7 +237,7 @@ export function getBuoyBeaconLayers(ctx: StyleContext): LayerSpecification[] {
       ),
       paint: {
         "text-color": ctx.colour("CHBLK"),
-        "text-halo-color": ctx.colour("CHWHT"),
+        "text-halo-color": ctx.colour("NAIDH"),
         "text-halo-width": 1.5,
       },
     },
@@ -265,7 +265,7 @@ export function getBuoyBeaconLayers(ctx: StyleContext): LayerSpecification[] {
       ),
       paint: {
         "text-color": ctx.colour("CHBLK"),
-        "text-halo-color": ctx.colour("CHWHT"),
+        "text-halo-color": ctx.colour("NAIDH"),
         "text-halo-width": 1.5,
       },
     },
@@ -293,7 +293,7 @@ export function getBuoyBeaconLayers(ctx: StyleContext): LayerSpecification[] {
       ),
       paint: {
         "text-color": ctx.colour("CHBLK"),
-        "text-halo-color": ctx.colour("CHWHT"),
+        "text-halo-color": ctx.colour("NAIDH"),
         "text-halo-width": 1.5,
       },
     },
@@ -330,7 +330,7 @@ export function getBuoyBeaconLayers(ctx: StyleContext): LayerSpecification[] {
       ),
       paint: {
         "text-color": ctx.colour("SNDG2"),
-        "text-halo-color": ctx.colour("CHWHT"),
+        "text-halo-color": ctx.colour("NAIDH"),
         "text-halo-width": 1.5,
       },
     },
@@ -451,7 +451,7 @@ export function getHazardLayers(ctx: StyleContext): LayerSpecification[] {
             "step",
             ["zoom"],
             false,
-            12,
+            13,
             true,
           ] as unknown as ExpressionSpecification,
           "icon-padding": 2,
@@ -479,7 +479,7 @@ export function getHazardLayers(ctx: StyleContext): LayerSpecification[] {
       },
       paint: {
         "text-color": ctx.colour("SNDG2"),
-        "text-halo-color": ctx.colour("CHWHT"),
+        "text-halo-color": ctx.colour("NAIDH"),
         "text-halo-width": 1,
       },
     },
@@ -509,7 +509,7 @@ export function getHazardLayers(ctx: StyleContext): LayerSpecification[] {
             "step",
             ["zoom"],
             false,
-            12,
+            13,
             true,
           ] as unknown as ExpressionSpecification,
           "icon-padding": 2,
@@ -537,7 +537,7 @@ export function getHazardLayers(ctx: StyleContext): LayerSpecification[] {
       },
       paint: {
         "text-color": ctx.colour("SNDG2"),
-        "text-halo-color": ctx.colour("CHWHT"),
+        "text-halo-color": ctx.colour("NAIDH"),
         "text-halo-width": 1,
       },
     },
@@ -659,7 +659,7 @@ export function getOtherNavAidLayers(ctx: StyleContext): LayerSpecification[] {
       ),
       paint: {
         "text-color": ctx.colour("CHBLK"),
-        "text-halo-color": ctx.colour("CHWHT"),
+        "text-halo-color": ctx.colour("NAIDH"),
         "text-halo-width": 1.5,
       },
     },
@@ -680,7 +680,7 @@ export function getOtherNavAidLayers(ctx: StyleContext): LayerSpecification[] {
       },
       paint: {
         "text-color": ctx.colour("CHGRD"),
-        "text-halo-color": ctx.colour("CHWHT"),
+        "text-halo-color": ctx.colour("NAIDH"),
         "text-halo-width": 1,
       },
     },
@@ -774,7 +774,7 @@ export function getOtherPointLayers(ctx: StyleContext): LayerSpecification[] {
       ),
       paint: {
         "text-color": ctx.colour("CHBLK"),
-        "text-halo-color": ctx.colour("CHWHT"),
+        "text-halo-color": ctx.colour("NAIDH"),
         "text-halo-width": 1,
       },
     },
@@ -863,7 +863,7 @@ export function getAdditionalPointLayers(
       },
       paint: {
         "text-color": ctx.colour("CHBLK"),
-        "text-halo-color": ctx.colour("CHWHT"),
+        "text-halo-color": ctx.colour("NAIDH"),
         "text-halo-width": 1,
       },
     },
@@ -898,7 +898,7 @@ export function getAdditionalPointLayers(
       ),
       paint: {
         "text-color": ctx.colour("CHBLK"),
-        "text-halo-color": ctx.colour("CHWHT"),
+        "text-halo-color": ctx.colour("NAIDH"),
         "text-halo-width": 1,
       },
     },
@@ -993,7 +993,7 @@ export function getAdditionalPointLayers(
       },
       paint: {
         "text-color": ctx.colour("CHBLK"),
-        "text-halo-color": ctx.colour("CHWHT"),
+        "text-halo-color": ctx.colour("NAIDH"),
         "text-halo-width": 1,
       },
     },

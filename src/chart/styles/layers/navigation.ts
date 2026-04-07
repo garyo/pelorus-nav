@@ -89,7 +89,7 @@ export function getNavigationOverlayLayers(
       paint: {
         "icon-opacity": 0.15,
         "text-color": ctx.colour("CHMGD"),
-        "text-halo-color": ctx.colour("CHWHT"),
+        "text-halo-color": ctx.colour("NAIDH"),
         "text-halo-width": 1,
         "text-opacity": 0.6,
       },
@@ -278,7 +278,7 @@ export function getNavigationRoutingLayers(
       paint: {
         "icon-opacity": 0.5,
         "text-color": ctx.colour("CHMGD"),
-        "text-halo-color": ctx.colour("CHWHT"),
+        "text-halo-color": ctx.colour("NAIDH"),
         "text-halo-width": 1,
       },
     },
