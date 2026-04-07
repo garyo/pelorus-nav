@@ -130,14 +130,14 @@ const DISPLAY_CATEGORY_PRIORITY: Record<string, number> = {
   OBSTRN: 0,
   ROCKAL: 0,
   // STANDARD — normal detail
-  BOYLAT: 1,
-  BOYCAR: 1,
-  BOYSAW: 1,
-  BOYSPP: 1,
-  BOYISD: 1,
-  BCNLAT: 1,
-  BCNCAR: 1,
-  BCNSPP: 1,
+  BOYLAT: 0, // Promote: buoys/beacons are nav-critical aids
+  BOYCAR: 0,
+  BOYSAW: 0,
+  BOYSPP: 0,
+  BOYISD: 0,
+  BCNLAT: 0,
+  BCNCAR: 0,
+  BCNSPP: 0,
   LIGHTS: 1,
   FOGSIG: 1,
   LNDMRK: 0, // Promote: lighthouses/towers are nav-critical
