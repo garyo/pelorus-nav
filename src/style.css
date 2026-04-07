@@ -811,6 +811,19 @@ body {
   line-height: 1.2;
 }
 
+.instrument-label-short {
+  display: none;
+}
+
+@media (max-width: 600px) {
+  .instrument-label-full {
+    display: none;
+  }
+  .instrument-label-short {
+    display: inline;
+  }
+}
+
 .instrument-value-row {
   display: flex;
   align-items: baseline;

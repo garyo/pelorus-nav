@@ -18,6 +18,7 @@ import { convertSpeed, speedUnitLabel } from "../utils/units";
 export interface InstrumentDef {
   id: string;
   label: string;
+  shortLabel?: string;
   format(
     data: NavigationData | null,
     settings: Settings,
@@ -29,7 +30,8 @@ export const INSTRUMENTS: Map<string, InstrumentDef> = new Map([
     "sog",
     {
       id: "sog",
-      label: "Speed",
+      label: "Speed over Ground",
+      shortLabel: "SOG",
       format(data, settings) {
         if (!data || data.sog === null) {
           return { value: "--", unit: speedUnitLabel(settings.speedUnit) };
@@ -45,7 +47,8 @@ export const INSTRUMENTS: Map<string, InstrumentDef> = new Map([
     "cog",
     {
       id: "cog",
-      label: "Heading",
+      label: "Course over Ground",
+      shortLabel: "COG",
       format(data, settings) {
         const mode = settings.bearingMode;
         const label = bearingModeLabel(mode);
@@ -195,7 +198,17 @@ function buildCell(
 
   const label = document.createElement("span");
   label.className = "instrument-label";
-  label.textContent = def.label;
+  if (def.shortLabel) {
+    const full = document.createElement("span");
+    full.className = "instrument-label-full";
+    full.textContent = def.label;
+    const short = document.createElement("span");
+    short.className = "instrument-label-short";
+    short.textContent = def.shortLabel;
+    label.append(full, short);
+  } else {
+    label.textContent = def.label;
+  }
 
   const valueRow = document.createElement("div");
   valueRow.className = "instrument-value-row";
