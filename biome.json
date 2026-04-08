@@ -23,7 +23,7 @@
         "noExplicitAny": "error"
       },
       "complexity": {
-        "noImportantStyles": "warn"
+        "noImportantStyles": "off"
       }
     }
   },
