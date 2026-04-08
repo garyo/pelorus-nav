@@ -7,6 +7,30 @@ import type maplibregl from "maplibre-gl";
 import type { SearchEntry } from "../data/search-index";
 import { type SearchResult, searchFeatures } from "../search/feature-search";
 import { getSettings } from "../settings";
+import { formatLatLon, parseLatLon } from "../utils/coordinates";
+
+/**
+ * Heuristic: does the input look like it might be coordinates?
+ * Must be conservative — false positives show a harmless extra result,
+ * but we still don't want "Green 5" to trigger coordinate parsing.
+ *
+ * Positive signals (any one is enough):
+ * - Contains ° or "deg"
+ * - Contains a hemisphere letter (N/S/E/W) adjacent to a digit
+ * - Contains two numbers separated by comma (e.g. "42.3, -70.9")
+ * - Starts with a negative number followed by more digits
+ */
+function looksLikeCoordinates(input: string): boolean {
+  const s = input.trim();
+  // Degree symbol or "deg" keyword
+  if (/°|deg/i.test(s)) return true;
+  // Hemisphere letter touching a digit: "42N" or "N42" or "42.3'N"
+  if (/\d\s*[NSEWnsew](?:\s|$|,)/.test(s) || /[NSEWnsew]\s*\d/.test(s))
+    return true;
+  // Two numbers separated by comma (with optional whitespace)
+  if (/^-?\d+\.?\d*\s*,\s*-?\d+\.?\d*$/.test(s)) return true;
+  return false;
+}
 
 export class SearchDialog {
   private readonly overlay: HTMLDivElement;
@@ -17,6 +41,7 @@ export class SearchDialog {
   private visible = false;
   private entries: SearchEntry[] = [];
   private results: SearchResult[] = [];
+  private coordResult: [number, number] | null = null;
   private activeIndex = -1;
   private debounceTimer: ReturnType<typeof setTimeout> | null = null;
   private loading = true;
@@ -33,7 +58,7 @@ export class SearchDialog {
     this.input = document.createElement("input");
     this.input.type = "text";
     this.input.className = "search-input";
-    this.input.placeholder = "Harbor, island, buoy\u2026";
+    this.input.placeholder = "Harbor, island, buoy, or coordinates\u2026";
     this.input.spellcheck = false;
     this.input.autocomplete = "off";
 
@@ -64,8 +89,13 @@ export class SearchDialog {
         this.moveSelection(-1);
       } else if (e.key === "Enter") {
         e.preventDefault();
-        if (this.activeIndex >= 0 && this.activeIndex < this.results.length) {
-          this.selectResult(this.results[this.activeIndex]);
+        if (this.activeIndex >= 0 && this.activeIndex < this.totalCount) {
+          const offset = this.coordResult ? 1 : 0;
+          if (this.coordResult && this.activeIndex === 0) {
+            this.goToCoord(this.coordResult[0], this.coordResult[1]);
+          } else {
+            this.selectResult(this.results[this.activeIndex - offset]);
+          }
         }
       } else if (e.key === "Escape") {
         e.preventDefault();
@@ -96,6 +126,7 @@ export class SearchDialog {
     this.overlay.style.display = "flex";
     this.input.value = "";
     this.results = [];
+    this.coordResult = null;
     this.activeIndex = -1;
     this.resultsList.innerHTML = "";
     this.updateStatus();
@@ -113,12 +144,17 @@ export class SearchDialog {
     else this.show();
   }
 
+  /** Total number of items (coordinate result + feature results). */
+  private get totalCount(): number {
+    return this.results.length + (this.coordResult ? 1 : 0);
+  }
+
   private updateStatus(): void {
     if (this.loading) {
       this.statusEl.textContent = "Loading search index\u2026";
     } else if (this.input.value.trim().length < 2) {
       this.statusEl.textContent = "Type 2+ characters to search";
-    } else if (this.results.length === 0) {
+    } else if (this.totalCount === 0) {
       this.statusEl.textContent = "No results found";
     } else {
       this.statusEl.textContent = "";
@@ -130,11 +166,15 @@ export class SearchDialog {
 
     if (query.trim().length < 2) {
       this.results = [];
+      this.coordResult = null;
       this.activeIndex = -1;
       this.resultsList.innerHTML = "";
       this.updateStatus();
       return;
     }
+
+    // Try parsing as coordinates (only when input has coordinate-like signals)
+    this.coordResult = looksLikeCoordinates(query) ? parseLatLon(query) : null;
 
     // Get current viewport for proximity boost
     const bounds = this.map.getBounds();
@@ -150,7 +190,9 @@ export class SearchDialog {
       ],
     });
 
-    this.activeIndex = this.results.length > 0 ? 0 : -1;
+    const totalCount =
+      this.results.length + (this.coordResult ? 1 : 0);
+    this.activeIndex = totalCount > 0 ? 0 : -1;
     this.renderResults(query);
     this.updateStatus();
   }
@@ -159,11 +201,46 @@ export class SearchDialog {
     this.resultsList.innerHTML = "";
     const queryLower = query.trim().toLowerCase();
 
-    for (let i = 0; i < this.results.length; i++) {
-      const result = this.results[i];
+    // Coordinate result at the top
+    if (this.coordResult) {
+      const [lat, lon] = this.coordResult;
       const item = document.createElement("div");
       item.className = "search-result-item";
-      if (i === this.activeIndex) item.classList.add("active");
+      if (this.activeIndex === 0) item.classList.add("active");
+
+      const nameSpan = document.createElement("span");
+      nameSpan.className = "search-result-name";
+      nameSpan.textContent = `${formatLatLon(lat, "lat")}, ${formatLatLon(lon, "lon")}`;
+
+      const metaSpan = document.createElement("span");
+      metaSpan.className = "search-result-meta";
+      const typeSpan = document.createElement("span");
+      typeSpan.className = "search-result-type";
+      typeSpan.textContent = "Go to coordinates";
+      metaSpan.appendChild(typeSpan);
+
+      item.append(nameSpan, metaSpan);
+
+      item.addEventListener("mousedown", (e) => {
+        e.preventDefault();
+        this.goToCoord(lat, lon);
+      });
+      item.addEventListener("mouseenter", () => {
+        this.activeIndex = 0;
+        this.updateActiveHighlight();
+      });
+
+      this.resultsList.appendChild(item);
+    }
+
+    const offset = this.coordResult ? 1 : 0;
+
+    for (let i = 0; i < this.results.length; i++) {
+      const result = this.results[i];
+      const itemIndex = i + offset;
+      const item = document.createElement("div");
+      item.className = "search-result-item";
+      if (itemIndex === this.activeIndex) item.classList.add("active");
 
       const nameSpan = document.createElement("span");
       nameSpan.className = "search-result-name";
@@ -187,12 +264,12 @@ export class SearchDialog {
       item.append(nameSpan, metaSpan);
 
       item.addEventListener("mousedown", (e) => {
-        e.preventDefault(); // prevent blur
+        e.preventDefault();
         this.selectResult(result);
       });
 
       item.addEventListener("mouseenter", () => {
-        this.activeIndex = i;
+        this.activeIndex = itemIndex;
         this.updateActiveHighlight();
       });
 
@@ -240,10 +317,10 @@ export class SearchDialog {
   }
 
   private moveSelection(delta: number): void {
-    if (this.results.length === 0) return;
+    if (this.totalCount === 0) return;
     this.activeIndex = Math.max(
       0,
-      Math.min(this.results.length - 1, this.activeIndex + delta),
+      Math.min(this.totalCount - 1, this.activeIndex + delta),
     );
     this.updateActiveHighlight();
     // Scroll into view
@@ -260,6 +337,14 @@ export class SearchDialog {
     for (let i = 0; i < items.length; i++) {
       items[i].classList.toggle("active", i === this.activeIndex);
     }
+  }
+
+  private goToCoord(lat: number, lon: number): void {
+    this.map.flyTo({
+      center: [lon, lat],
+      zoom: Math.max(this.map.getZoom(), 12),
+    });
+    this.hide();
   }
 
   private selectResult(result: SearchResult): void {

@@ -238,10 +238,33 @@ export function parseLatLon(input: string): [number, number] | null {
   return null;
 }
 
+const HEMI_RE = /[NSEWnsew]\s*$/;
+const LAT_HEMI_RE = /[NSns]\s*$/;
+const LON_HEMI_RE = /[EWew]\s*$/;
+
 function tryParsePair(first: string, second: string): [number, number] | null {
   const a = parseDDMComponent(first);
   const b = parseDDMComponent(second);
   if (Number.isNaN(a) || Number.isNaN(b)) return null;
+
+  const firstHasHemi = HEMI_RE.test(first.trim());
+  const secondHasHemi = HEMI_RE.test(second.trim());
+
+  // If one component has a hemisphere letter but the other doesn't,
+  // reject — likely an incomplete input (e.g. "42 22N")
+  if (firstHasHemi !== secondHasHemi) return null;
+
+  // If both have hemisphere letters, allow lat/lon in either order:
+  // swap if first is E/W and second is N/S
+  if (firstHasHemi && secondHasHemi) {
+    const firstIsLon = LON_HEMI_RE.test(first.trim());
+    const secondIsLat = LAT_HEMI_RE.test(second.trim());
+    if (firstIsLon && secondIsLat) {
+      // Swapped order: lon first, lat second
+      if (Math.abs(b) <= 90 && Math.abs(a) <= 180) return [b, a];
+      return null;
+    }
+  }
 
   // Validate ranges: lat [-90,90], lon [-180,180]
   if (Math.abs(a) <= 90 && Math.abs(b) <= 180) {

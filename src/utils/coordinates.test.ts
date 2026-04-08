@@ -183,6 +183,19 @@ describe("parseLatLon", () => {
     expect(result[0]).toBeCloseTo(42.30492, 3);
     expect(result[1]).toBeCloseTo(-70.94645, 3);
   });
+
+  it("rejects incomplete input with one hemisphere letter", () => {
+    expect(parseLatLon("42 22N")).toBeNull();
+    expect(parseLatLon("42.3 70W")).toBeNull();
+  });
+
+  it("parses lon/lat order when hemispheres indicate swap", () => {
+    const result = parseLatLon("70°56.787'W, 42°18.295'N");
+    expect(result).not.toBeNull();
+    if (!result) return;
+    expect(result[0]).toBeCloseTo(42.30492, 3);
+    expect(result[1]).toBeCloseTo(-70.94645, 3);
+  });
 });
 
 describe("alongTrackDistanceNM", () => {
