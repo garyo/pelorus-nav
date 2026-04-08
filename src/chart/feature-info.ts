@@ -125,6 +125,11 @@ const TRAFIC: Record<number, string> = {
   4: "Two-way",
 };
 
+const CATTSS: Record<number, string> = {
+  1: "IMO-adopted",
+  2: "Not IMO-adopted",
+};
+
 const CATWAT: Record<number, string> = {
   1: "Breakers",
   2: "Eddies",
@@ -968,6 +973,25 @@ function formatFairway(
   return details;
 }
 
+function formatTSSLane(
+  props: Record<string, unknown>,
+): { label: string; value: string }[] {
+  const details: { label: string; value: string }[] = [];
+  addIfPresent(details, "Name", props.OBJNAM);
+  const cat = lookupCode(CATTSS, props.CATTSS);
+  addIfPresent(details, "Category", cat);
+  const trafic = lookupCode(TRAFIC, props.TRAFIC);
+  addIfPresent(details, "Traffic", trafic);
+  if (props.ORIENT != null) {
+    details.push({
+      label: "Orientation",
+      value: `${props.ORIENT}\u00b0`,
+    });
+  }
+  addIfPresent(details, "Information", props.INFORM);
+  return details;
+}
+
 function formatPrecautionaryArea(
   props: Record<string, unknown>,
 ): { label: string; value: string }[] {
@@ -1117,6 +1141,10 @@ const FORMATTERS: Record<
   SMCFAC: formatSmallCraftFacility,
   MORFAC: formatMooringFacility,
   FAIRWY: formatFairway,
+  TSSLPT: formatTSSLane,
+  TSSBND: formatTSSLane,
+  TSEZNE: formatTSSLane,
+  TWRTPT: formatTSSLane,
   PRCARE: formatPrecautionaryArea,
   WATTUR: formatWaterTurbulence,
   SEAARE: formatSeaArea,
