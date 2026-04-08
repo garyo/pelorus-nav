@@ -190,8 +190,7 @@ export class SearchDialog {
       ],
     });
 
-    const totalCount =
-      this.results.length + (this.coordResult ? 1 : 0);
+    const totalCount = this.results.length + (this.coordResult ? 1 : 0);
     this.activeIndex = totalCount > 0 ? 0 : -1;
     this.renderResults(query);
     this.updateStatus();

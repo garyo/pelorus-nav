@@ -81,15 +81,27 @@ export class CenterCrosshair {
     const canvas = this.map.getCanvasContainer();
     let touching = false;
 
-    canvas.addEventListener("touchstart", () => {
-      touching = true;
-    }, { passive: true });
-    canvas.addEventListener("touchend", () => {
-      touching = false;
-    }, { passive: true });
-    canvas.addEventListener("touchcancel", () => {
-      touching = false;
-    }, { passive: true });
+    canvas.addEventListener(
+      "touchstart",
+      () => {
+        touching = true;
+      },
+      { passive: true },
+    );
+    canvas.addEventListener(
+      "touchend",
+      () => {
+        touching = false;
+      },
+      { passive: true },
+    );
+    canvas.addEventListener(
+      "touchcancel",
+      () => {
+        touching = false;
+      },
+      { passive: true },
+    );
 
     this.map.on("movestart", () => {
       if (!touching) return;
