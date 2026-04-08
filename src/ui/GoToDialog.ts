@@ -132,6 +132,7 @@ export class GoToDialog {
       center: [lon, lat],
       zoom: Math.max(this.map.getZoom(), 12),
     });
+    this.map.fire("pelorus:navigate" as never);
     this.hide();
   }
 
@@ -148,6 +149,7 @@ export class GoToDialog {
       center: [lon, lat],
       zoom: Math.max(this.map.getZoom(), 12),
     });
+    this.map.fire("pelorus:navigate" as never);
 
     const wp: StandaloneWaypoint = {
       id: generateUUID(),

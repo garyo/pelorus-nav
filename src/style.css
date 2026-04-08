@@ -462,6 +462,61 @@ body {
 }
 
 /* Navigation HUD */
+/* Center crosshair — shown briefly after go-to, and during touch-drag */
+.center-crosshair {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 24px;
+  height: 24px;
+  z-index: 5;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.center-crosshair::before,
+.center-crosshair::after {
+  content: "";
+  position: absolute;
+  background: #000;
+  border-radius: 1px;
+}
+
+/* Vertical bar */
+.center-crosshair::before {
+  left: 50%;
+  top: 0;
+  width: 2px;
+  height: 100%;
+  transform: translateX(-50%);
+}
+
+/* Horizontal bar */
+.center-crosshair::after {
+  top: 50%;
+  left: 0;
+  width: 100%;
+  height: 2px;
+  transform: translateY(-50%);
+}
+
+/* Lighter crosshair for dark themes */
+[data-theme="night"] .center-crosshair::before,
+[data-theme="night"] .center-crosshair::after {
+  background: rgba(200, 60, 60, 0.8);
+}
+
+[data-theme="dusk"] .center-crosshair::before,
+[data-theme="dusk"] .center-crosshair::after {
+  background: rgba(200, 200, 200, 0.7);
+}
+
+[data-theme="eink"] .center-crosshair::before,
+[data-theme="eink"] .center-crosshair::after {
+  background: #000;
+}
+
 .nav-hud {
   position: fixed;
   bottom: 40px;
@@ -1729,10 +1784,13 @@ body {
   display: none;
 }
 
-/* Hide cursor coords on touch-only (no hover) devices */
+/* Hide cursor coords on touch-only (no hover) devices, unless dragging */
 @media (hover: none) {
   .nav-hud-cursor-coords {
     display: none;
+  }
+  .nav-hud-cursor-coords.dragging {
+    display: inline;
   }
 }
 

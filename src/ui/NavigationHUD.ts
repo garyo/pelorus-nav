@@ -145,4 +145,11 @@ export class NavigationHUD {
   getElement(): HTMLDivElement {
     return this.container;
   }
+
+  /** The cursor/center coordinate span, for external updates (e.g. touch-drag). */
+  getCursorCoordsEl(): HTMLSpanElement {
+    return this.container.querySelector(
+      ".nav-hud-cursor-coords",
+    ) as HTMLSpanElement;
+  }
 }

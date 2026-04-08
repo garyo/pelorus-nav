@@ -39,6 +39,7 @@ import { RegionAutoSwitch } from "./navigation/RegionAutoSwitch";
 import { getSettings, onSettingsChange, updateSettings } from "./settings";
 import { AboutDialog } from "./ui/AboutDialog";
 import { CancelNavButton } from "./ui/CancelNavButton";
+import { CenterCrosshair } from "./ui/CenterCrosshair";
 import { ChartCachePanel } from "./ui/ChartCachePanel";
 import { createContextMenu } from "./ui/ContextMenu";
 import { createInstrumentHUD, INSTRUMENTS } from "./ui/InstrumentHUD";
@@ -441,7 +442,8 @@ const routePanel = new RouteManagerPanel(routeLayer, routeEditor);
 // --- Waypoints + Active Navigation ---
 const activeNav = new ActiveNavigationManager(navManager);
 const waypointLayer = new WaypointLayer(chartManager.map);
-new NavigationHUD(chartManager.map, navManager, waypointLayer);
+const navHud = new NavigationHUD(chartManager.map, navManager, waypointLayer);
+new CenterCrosshair(chartManager.map, navHud.getCursorCoordsEl());
 new BearingLine(chartManager.map, activeNav, navManager);
 const waypointPanel = new WaypointManagerPanel(waypointLayer, activeNav);
 routePanel.setActiveNav(activeNav);

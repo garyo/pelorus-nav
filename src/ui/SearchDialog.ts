@@ -344,6 +344,7 @@ export class SearchDialog {
       center: [lon, lat],
       zoom: Math.max(this.map.getZoom(), 12),
     });
+    this.map.fire("pelorus:navigate" as never);
     this.hide();
   }
 
@@ -363,6 +364,7 @@ export class SearchDialog {
         zoom: Math.max(this.map.getZoom(), 14),
       });
     }
+    this.map.fire("pelorus:navigate" as never);
     this.hide();
   }
 }
