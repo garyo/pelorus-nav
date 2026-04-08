@@ -67,12 +67,26 @@ export interface PlotDistanceArc {
   createdAt: number;
 }
 
+/** A current/tide arrow: line with arrowhead at defined set (direction) and drift (speed). */
+export interface PlotCurrentArrow {
+  id: string;
+  type: "current-arrow";
+  lat: number;
+  lon: number;
+  /** Direction current flows TOWARD, in degrees TRUE. */
+  setTrue: number;
+  /** Drift in knots (displayed as line length). */
+  driftKnots: number;
+  createdAt: number;
+}
+
 export type PlotElement =
   | PlotBearingLine
   | PlotSegmentLine
   | PlotSymbol
   | PlotText
-  | PlotDistanceArc;
+  | PlotDistanceArc
+  | PlotCurrentArrow;
 
 export interface PlottingSheet {
   id: string;

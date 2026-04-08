@@ -2082,6 +2082,38 @@ body {
   align-items: center;
 }
 
+/* Line tool dropdown */
+.plot-line-dropdown {
+  position: relative;
+  display: inline-block;
+}
+
+.plot-line-menu {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  background: rgba(255, 255, 255, 0.95);
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+  overflow: hidden;
+}
+
+.plot-line-menu .plot-toolbar-btn {
+  border-radius: 0;
+  border: none;
+  border-bottom: 1px solid #eee;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.plot-line-menu .plot-toolbar-btn:last-child {
+  border-bottom: none;
+}
+
 /* Theme overrides for plot toolbar */
 
 [data-theme="night"] .plot-toolbar,

@@ -44,6 +44,8 @@ export const PLOT_SHAPE_ICON_EXPR: maplibregl.ExpressionSpecification = [
   ["get", "shape"],
 ];
 
+const ARROW_ICON = "_plot-arrowhead";
+
 /** Register all plot symbol icons. Safe to call multiple times. */
 export function ensurePlotIcons(map: maplibregl.Map): void {
   if (map.hasImage(plotIconName("circle"))) return;
@@ -52,6 +54,7 @@ export function ensurePlotIcons(map: maplibregl.Map): void {
   addPlotIcon(map, "circle", drawCircle);
   addPlotIcon(map, "square", drawSquare);
   addPlotIcon(map, "triangle", drawTriangle);
+  addArrowheadIcon(map);
 }
 
 function addPlotIcon(
@@ -74,6 +77,54 @@ function addPlotIcon(
     { width: px, height: px, data: ctx.getImageData(0, 0, px, px).data },
     { pixelRatio: ratio },
   );
+}
+
+/** Icon name for the current arrowhead. */
+export function arrowheadIconName(): string {
+  return ARROW_ICON;
+}
+
+const ARROW_SIZE = 40; // larger canvas to fit trailing chevrons
+
+function addArrowheadIcon(map: maplibregl.Map): void {
+  const ratio = window.devicePixelRatio || 1;
+  const px = Math.round(ARROW_SIZE * ratio);
+  const canvas = document.createElement("canvas");
+  canvas.width = px;
+  canvas.height = px;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return;
+  ctx.scale(ratio, ratio);
+  drawArrowhead(ctx);
+  if (map.hasImage(ARROW_ICON)) map.removeImage(ARROW_ICON);
+  map.addImage(
+    ARROW_ICON,
+    { width: px, height: px, data: ctx.getImageData(0, 0, px, px).data },
+    { pixelRatio: ratio },
+  );
+}
+
+/** Triple chevron arrowhead pointing UP (north) — standard current symbol.
+ *  Rotated by MapLibre icon-rotate. */
+function drawArrowhead(ctx: CanvasRenderingContext2D): void {
+  const ac = ARROW_SIZE / 2; // center of arrow canvas
+  const w = ARROW_SIZE * 0.24; // half-width of chevron
+  const h = ARROW_SIZE * 0.17; // height of each chevron
+  const gap = ARROW_SIZE * 0.13; // spacing between chevrons
+  ctx.strokeStyle = "#222";
+  ctx.lineWidth = 2;
+  ctx.lineCap = "round";
+  ctx.lineJoin = "round";
+
+  // Three chevrons: first tip at icon center, rest trail behind (downward)
+  for (let i = 0; i < 3; i++) {
+    const tipY = ac + i * gap;
+    ctx.beginPath();
+    ctx.moveTo(ac - w, tipY + h);
+    ctx.lineTo(ac, tipY);
+    ctx.lineTo(ac + w, tipY + h);
+    ctx.stroke();
+  }
 }
 
 // --- Drawing functions ---

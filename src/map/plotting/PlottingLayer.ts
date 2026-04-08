@@ -19,10 +19,12 @@ import {
   createBearingInput,
   createDistanceInput,
   parseBearingInput,
+  parseDistanceInput,
 } from "./bearingInput";
 import { type PlotTool, PlotToolbar } from "./PlotToolbar";
 import type {
   PlotBearingLine,
+  PlotCurrentArrow,
   PlotDistanceArc,
   PlotSegmentLine,
   PlotSymbol,
@@ -30,6 +32,7 @@ import type {
   PlottingSheet,
 } from "./PlottingTypes";
 import {
+  arrowheadIconName,
   ensurePlotIcons,
   PLOT_SHAPE_ICON_EXPR,
   type PlotSymbolShape,
@@ -47,6 +50,8 @@ const LAYER_LABELS = "_plot-labels";
 const LAYER_SYMBOLS = "_plot-symbols";
 const LAYER_SYM_LABELS = "_plot-sym-labels";
 const LAYER_LINE_LABELS = "_plot-line-labels";
+const SOURCE_ARROWS = "_plot-arrows";
+const LAYER_ARROWS = "_plot-arrows";
 
 /** How far (NM) bearing lines extend each direction from anchor. */
 const BEARING_LINE_EXTENT = 30;
@@ -274,11 +279,16 @@ export class PlottingLayer {
       features: [],
     };
 
-    this.map.addSource(SOURCE_LINES, { type: "geojson", data: empty });
+    this.map.addSource(SOURCE_LINES, {
+      type: "geojson",
+      data: empty,
+      tolerance: 0,
+    });
     this.map.addSource(SOURCE_POINTS, { type: "geojson", data: empty });
     this.map.addSource(SOURCE_LABELS, { type: "geojson", data: empty });
     this.map.addSource(SOURCE_SYMBOLS, { type: "geojson", data: empty });
     this.map.addSource(SOURCE_LINE_LABELS, { type: "geojson", data: empty });
+    this.map.addSource(SOURCE_ARROWS, { type: "geojson", data: empty });
 
     // Ghost lines (dashed, lighter) — rendered below solid lines
     this.map.addLayer({
@@ -288,7 +298,8 @@ export class PlottingLayer {
       filter: ["==", ["get", "ghost"], "1"],
       paint: {
         "line-color": "#999",
-        "line-width": 1,
+        "line-width": 0.75,
+        "line-opacity": 0.95,
         "line-dasharray": [4, 4],
       },
     });
@@ -300,7 +311,8 @@ export class PlottingLayer {
       filter: ["!=", ["get", "ghost"], "1"],
       paint: {
         "line-color": "#222",
-        "line-width": 1.5,
+        "line-width": 1,
+        "line-opacity": 0.95,
       },
     });
 
@@ -402,6 +414,20 @@ export class PlottingLayer {
         "text-halo-width": 1.5,
       },
     });
+
+    // Current arrow arrowheads
+    this.map.addLayer({
+      id: LAYER_ARROWS,
+      type: "symbol",
+      source: SOURCE_ARROWS,
+      layout: {
+        "icon-image": arrowheadIconName(),
+        "icon-size": 0.8,
+        "icon-rotate": ["get", "rotation"],
+        "icon-rotation-alignment": "map",
+        "icon-allow-overlap": true,
+      },
+    });
   }
 
   // --- Source updates ---
@@ -422,7 +448,11 @@ export class PlottingLayer {
     const lineLblSrc = this.map.getSource(SOURCE_LINE_LABELS) as
       | maplibregl.GeoJSONSource
       | undefined;
-    if (!lineSrc || !ptSrc || !lblSrc || !symSrc || !lineLblSrc) return;
+    const arrowSrc = this.map.getSource(SOURCE_ARROWS) as
+      | maplibregl.GeoJSONSource
+      | undefined;
+    if (!lineSrc || !ptSrc || !lblSrc || !symSrc || !lineLblSrc || !arrowSrc)
+      return;
 
     const inPlotMode = getMode() === "plot";
     const lines: GeoJSON.Feature[] = [];
@@ -430,6 +460,7 @@ export class PlottingLayer {
     const labels: GeoJSON.Feature[] = []; // text annotations (point-placed)
     const lineLabels: GeoJSON.Feature[] = []; // bearing/segment labels (line-placed)
     const symbols: GeoJSON.Feature[] = [];
+    const arrowheads: GeoJSON.Feature[] = [];
     const lookup: PointLookup[] = [];
     let ptIdx = 0;
 
@@ -472,10 +503,27 @@ export class PlottingLayer {
         });
 
         if (el.label) {
-          // Place bearing label along the line
+          // Show forward and back bearing (e.g. "121°M / 301°M")
+          const { bearingMode } = getSettings();
+          const backTrue = (el.bearingTrue + 180) % 360;
+          const fwdLabel = formatBearing(
+            el.bearingTrue,
+            bearingMode,
+            el.lat,
+            el.lon,
+          );
+          const backLabel = formatBearing(
+            backTrue,
+            bearingMode,
+            el.lat,
+            el.lon,
+          );
           lineLabels.push({
             type: "Feature",
-            properties: { id: el.id, label: el.label },
+            properties: {
+              id: el.id,
+              label: `${fwdLabel} / ${backLabel}`,
+            },
             geometry: {
               type: "LineString",
               coordinates: [rev, [el.lon, el.lat], fwd],
@@ -659,6 +707,53 @@ export class PlottingLayer {
           },
           geometry: { type: "Point", coordinates: lineEnd },
         });
+      } else if (el.type === "current-arrow") {
+        // Current arrow: line from origin in direction of set, length = drift
+        // Length scale: 1 knot ≈ 1 NM/hr, use drift directly as NM
+        const tip = projectPoint(el.lat, el.lon, el.setTrue, el.driftKnots);
+        lines.push({
+          type: "Feature",
+          properties: { id: el.id },
+          geometry: {
+            type: "LineString",
+            coordinates: [[el.lon, el.lat], tip],
+          },
+        });
+
+        // Arrowhead at tip, rotated to match set direction
+        arrowheads.push({
+          type: "Feature",
+          properties: { id: el.id, rotation: el.setTrue },
+          geometry: { type: "Point", coordinates: tip },
+        });
+
+        // Label: set & drift
+        const { bearingMode } = getSettings();
+        const fmtSet = formatBearing(el.setTrue, bearingMode, el.lat, el.lon);
+        lineLabels.push({
+          type: "Feature",
+          properties: {
+            id: el.id,
+            label: `${fmtSet} @ ${el.driftKnots.toFixed(1)}kt`,
+          },
+          geometry: {
+            type: "LineString",
+            coordinates: [[el.lon, el.lat], tip],
+          },
+        });
+
+        // Origin point (draggable)
+        lookup.push({ elementId: el.id, pointIndex: 0 });
+        points.push({
+          type: "Feature",
+          properties: {
+            id: el.id,
+            index: ptIdx++,
+            mode: inPlotMode ? "plot" : "view",
+            selected: isSelected ? "1" : "0",
+          },
+          geometry: { type: "Point", coordinates: [el.lon, el.lat] },
+        });
       }
     }
 
@@ -770,6 +865,7 @@ export class PlottingLayer {
     lblSrc.setData({ type: "FeatureCollection", features: labels });
     symSrc.setData({ type: "FeatureCollection", features: symbols });
     lineLblSrc.setData({ type: "FeatureCollection", features: lineLabels });
+    arrowSrc.setData({ type: "FeatureCollection", features: arrowheads });
   }
 
   // --- Interaction ---
@@ -890,6 +986,8 @@ export class PlottingLayer {
 
       if (tool === "bearing") {
         this.showBearingInput(lat, lon);
+      } else if (tool === "current") {
+        this.showCurrentInput(lat, lon);
       } else if (tool === "arc") {
         this.showDistanceInput(lat, lon);
       } else if (tool === "symbol") {
@@ -1453,6 +1551,74 @@ export class PlottingLayer {
     this.toolbar.element.after(this.popupInputEl);
   }
 
+  private showCurrentInput(lat: number, lon: number): void {
+    this.removePopupInput();
+
+    const container = document.createElement("div");
+    container.className = "plot-bearing-input";
+
+    const setInput = document.createElement("input");
+    setInput.type = "text";
+    setInput.placeholder = "Set (e.g. 275M)";
+    setInput.className = "plot-bearing-field";
+    setInput.style.width = "100px";
+
+    const driftInput = document.createElement("input");
+    driftInput.type = "text";
+    driftInput.placeholder = "Drift (kn)";
+    driftInput.className = "plot-bearing-field";
+    driftInput.style.width = "80px";
+
+    const okBtn = document.createElement("button");
+    okBtn.className = "plot-toolbar-btn";
+    okBtn.textContent = "OK";
+
+    container.append(setInput, driftInput, okBtn);
+
+    const submit = () => {
+      const { bearingMode } = getSettings();
+      const parsed = parseBearingInput(setInput.value, bearingMode, lat, lon);
+      const drift = parseFloat(driftInput.value);
+      if (!parsed || Number.isNaN(drift) || drift <= 0) return;
+
+      const el: PlotCurrentArrow = {
+        id: generateUUID(),
+        type: "current-arrow",
+        lat,
+        lon,
+        setTrue: parsed.trueBearing,
+        driftKnots: drift,
+        createdAt: Date.now(),
+      };
+      this.sheet.elements.push(el);
+      this.save();
+      this.resetToSelectMode(el.id);
+      this.updateSources();
+      this.setupDrag();
+    };
+
+    const cancel = () => this.removePopupInput();
+
+    for (const input of [setInput, driftInput]) {
+      input.addEventListener("keydown", (e) => {
+        if (e.key === "Enter") {
+          e.preventDefault();
+          submit();
+        }
+        if (e.key === "Escape") {
+          e.preventDefault();
+          cancel();
+        }
+        e.stopPropagation();
+      });
+    }
+    okBtn.addEventListener("click", submit);
+
+    this.popupInputEl = container;
+    this.toolbar.element.after(container);
+    requestAnimationFrame(() => setInput.focus());
+  }
+
   private showTextInput(lat: number, lon: number): void {
     this.removePopupInput();
 
@@ -1565,6 +1731,26 @@ export class PlottingLayer {
       el.label = changes.label;
     } else if (el.type === "symbol" && changes.label !== undefined) {
       el.label = changes.label;
+    } else if (el.type === "current-arrow") {
+      if (changes.set !== undefined) {
+        const { bearingMode } = getSettings();
+        const parsed = parseBearingInput(
+          changes.set,
+          bearingMode,
+          el.lat,
+          el.lon,
+        );
+        if (parsed) el.setTrue = parsed.trueBearing;
+      }
+      if (changes.drift !== undefined) {
+        const drift = parseFloat(changes.drift);
+        if (!Number.isNaN(drift) && drift > 0) el.driftKnots = drift;
+      }
+    } else if (el.type === "distance-arc" && changes.radius !== undefined) {
+      const nm = parseDistanceInput(changes.radius);
+      if (nm !== null) {
+        el.radiusNM = nm;
+      }
     } else if (el.type === "text" && changes.text !== undefined) {
       el.text = changes.text;
     }
@@ -1616,6 +1802,8 @@ export class PlottingLayer {
       this.toolbar.setStatus("Click to place arc center");
     } else if (tool === "bearing") {
       this.toolbar.setStatus("Click to place bearing line");
+    } else if (tool === "current") {
+      this.toolbar.setStatus("Click to place current arrow");
     } else if (tool === "symbol") {
       this.toolbar.setStatus("Click to place symbol");
     } else if (tool === "text") {
@@ -1672,6 +1860,9 @@ export class PlottingLayer {
             el.lon2 = lngLat.lng;
           }
         } else if (el.type === "symbol" || el.type === "text") {
+          el.lat = lngLat.lat;
+          el.lon = lngLat.lng;
+        } else if (el.type === "current-arrow") {
           el.lat = lngLat.lat;
           el.lon = lngLat.lng;
         } else if (el.type === "distance-arc") {
