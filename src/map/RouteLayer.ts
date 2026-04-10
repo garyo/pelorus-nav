@@ -73,6 +73,10 @@ export class RouteLayer {
     const sid = sourceId(route.id);
     const data = this.routeGeoJSON(route);
 
+    // Always re-register canvas-drawn icons — they can be lost after
+    // setStyle({ diff: true }) even when the source/layers persist.
+    ensurePointIcons(this.map);
+
     if (this.map.getSource(sid)) {
       (this.map.getSource(sid) as maplibregl.GeoJSONSource).setData(data);
       return;
@@ -92,7 +96,6 @@ export class RouteLayer {
       },
     });
 
-    ensurePointIcons(this.map);
     this.map.addLayer({
       id: pointLayerId(route.id),
       type: "symbol",

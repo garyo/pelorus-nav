@@ -48,6 +48,33 @@ class TestBuoyNumber:
     def test_no_objnam(self) -> None:
         assert _buoy_number({}) is None
 
-    def test_no_trailing_number(self) -> None:
+    def test_no_match_returns_none(self) -> None:
         props = {"OBJNAM": "Boston Harbor Entrance"}
         assert _buoy_number(props) is None
+
+    def test_danger_buoy_fallback(self) -> None:
+        props = {"OBJNAM": "Whale Rock Danger Buoy"}
+        assert _buoy_number(props) == "Whale Rock"
+
+    def test_hazard_buoy_fallback(self) -> None:
+        props = {"OBJNAM": "Spectacle Island Lighted Hazard Buoy"}
+        assert _buoy_number(props) == "Spectacle Island"
+
+    def test_plain_buoy_no_abbreviation_when_short(self) -> None:
+        """Short names are not abbreviated."""
+        props = {"OBJNAM": "Cedar Point Buoy"}
+        assert _buoy_number(props) == "Cedar Point"
+
+    def test_long_name_abbreviated_to_fit(self) -> None:
+        """Long names get progressively abbreviated to fit 20 chars."""
+        props = {"OBJNAM": "Long Island Channel Entrance Buoy"}
+        result = _buoy_number(props)
+        assert result is not None
+        assert len(result) <= 20
+        # "Chan" used only because full name doesn't fit
+        assert result == "Long Is Chan"
+
+    def test_nantucket_shoal_no_abbreviation(self) -> None:
+        """15-char result needs no abbreviation."""
+        props = {"OBJNAM": "Nantucket Shoal Lighted Whistle Buoy"}
+        assert _buoy_number(props) == "Nantucket Shoal"

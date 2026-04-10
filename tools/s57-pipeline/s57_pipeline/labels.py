@@ -95,11 +95,43 @@ def _light_label(props: dict) -> str | None:
     return " ".join(parts) if parts else None
 
 
+# Nautical abbreviations ordered by savings (chars saved descending),
+# so we abbreviate the most impactful words first and stop early.
+_NAUTICAL_ABBREVS: list[tuple[str, str]] = [
+    ("Anchorage", "Anch"),   # 5
+    ("Channel", "Chan"),     # 3
+    ("Harbour", "Hbr"),      # 4
+    ("Harbor", "Hbr"),       # 3
+    ("Island", "Is"),        # 4
+    ("Shoal", "Sh"),         # 3
+    ("Point", "Pt"),         # 3
+    ("Rock", "Rk"),          # 2
+]
+
+
+def _abbreviate_to_fit(name: str, max_len: int) -> str:
+    """Progressively abbreviate nautical words until name fits max_len.
+
+    Only abbreviates words that are needed to fit. If already short
+    enough, returns the name unchanged.
+    """
+    for word, abbrev in _NAUTICAL_ABBREVS:
+        if len(name) <= max_len:
+            break
+        name = name.replace(word, abbrev)
+    # If still too long after all abbreviations, truncate at word boundary
+    if len(name) > max_len:
+        truncated = name[:max_len + 1].rsplit(" ", 1)[0]
+        name = truncated if truncated else name[:max_len]
+    return name
+
+
 def _buoy_number(props: dict) -> str | None:
     """Extract short buoy number/name from OBJNAM.
 
     'Boston Main Channel Lighted Buoy 6' → '6'
     'Spectacle Island Channel Daybeacon A' → 'A'
+    'Whale Rock Danger Buoy' → 'Whale Rock'
     """
     objnam = props.get("OBJNAM")
     if not objnam:
@@ -110,6 +142,20 @@ def _buoy_number(props: dict) -> str | None:
     match = re.search(r'\b(\d+[A-Z]*|[A-Z]{1,3})$', objnam.strip())
     if match:
         return match.group(1)
+
+    # Fallback: strip buoy/beacon type suffixes to get the place name.
+    # "Whale Rock Danger Buoy" → "Whale Rock"
+    name = re.sub(
+        r'\s+(?:Lighted\s+)?(?:Danger\s+|Hazard\s+|Research\s+|Security\s+Zone\s+)?'
+        r'(?:Buoy|Bell Buoy|Gong Buoy|Whistle Buoy|Can Buoy|Nun Buoy|'
+        r'Daybeacon|Beacon)\s*$',
+        '', objnam.strip(), flags=re.IGNORECASE,
+    )
+    if name and name != objnam.strip():
+        # Progressively abbreviate to fit within the cap.
+        # Apply shortest abbreviations first; stop as soon as it fits.
+        name = _abbreviate_to_fit(name, 20)
+        return name
     return None
 
 
