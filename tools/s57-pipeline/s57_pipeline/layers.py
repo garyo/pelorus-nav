@@ -121,10 +121,21 @@ LAYER_CONFIGS: list[LayerConfig] = [
     LayerConfig("CRANES", "infrastructure", DEFAULT_ARGS),
     LayerConfig("FORSTC", "infrastructure", DEFAULT_ARGS),
     LayerConfig("CGUSTA", "infrastructure", DEFAULT_ARGS),
+    LayerConfig("MARCUL", "regulatory", REGULATORY_ARGS),
     LayerConfig("HULKES", "hazards", HAZARD_ARGS),
     LayerConfig("DRYDOC", "infrastructure", DEFAULT_ARGS),
     LayerConfig("RUNWAY", "infrastructure", DEFAULT_ARGS),
     LayerConfig("AIRARE", "infrastructure", DEFAULT_ARGS),
+    # Navigation info & boundaries
+    LayerConfig("WEDKLP", "hazards", HAZARD_ARGS),
+    LayerConfig("RDOSTA", "navaids", NAVAID_ARGS),
+    LayerConfig("RTPBCN", "navaids", NAVAID_ARGS),
+    LayerConfig("TESARE", "regulatory", REGULATORY_ARGS),
+    LayerConfig("EXEZNE", "regulatory", REGULATORY_ARGS),
+    LayerConfig("OSPARE", "regulatory", REGULATORY_ARGS),
+    LayerConfig("NEWOBJ", "navaids", NAVAID_ARGS),
+    LayerConfig("MIPARE", "regulatory", REGULATORY_ARGS),
+    LayerConfig("CANALS", "infrastructure", DEFAULT_ARGS),
 ]
 
 # Quick lookup by layer name

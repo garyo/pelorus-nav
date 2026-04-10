@@ -139,6 +139,17 @@ export function getAreaLayers(ctx: StyleContext): LayerSpecification[] {
       },
     },
     {
+      id: "s57-canals",
+      type: "fill",
+      source: ctx.sourceId,
+      "source-layer": "CANALS",
+      layout: { "fill-sort-key": SCALE_SORT_KEY },
+      paint: {
+        "fill-color": ctx.colour("DEPMD"),
+        "fill-opacity": 0.8,
+      },
+    },
+    {
       id: "s57-drgare",
       type: "fill",
       source: ctx.sourceId,

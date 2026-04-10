@@ -749,19 +749,35 @@ export function buildLayerExpressions(
         // [CATLMK, non-conspic symbol, conspic symbol]
         [CATLMK_CAIRN, "landmark-cairn", "landmark-cairn-conspic"],
         [CATLMK_CHIMNEY, "landmark-chimney", "landmark-chimney-conspic"],
-        [CATLMK_DISH_AERIAL, "landmark-dish-aerial", "landmark-dish-aerial-conspic"],
+        [
+          CATLMK_DISH_AERIAL,
+          "landmark-dish-aerial",
+          "landmark-dish-aerial-conspic",
+        ],
         [CATLMK_FLAGSTAFF, "landmark-flagstaff", "landmark-flagstaff-conspic"],
-        [CATLMK_FLARE_STACK, "landmark-flare-stack", "landmark-flare-stack-conspic"],
+        [
+          CATLMK_FLARE_STACK,
+          "landmark-flare-stack",
+          "landmark-flare-stack-conspic",
+        ],
         [CATLMK_MAST, "landmark-tower", "landmark-tower-conspic"],
         [CATLMK_MONUMENT, "landmark-monument", "landmark-monument-conspic"],
         [CATLMK_DOME, "landmark-dome", "landmark-dome-conspic"],
-        [CATLMK_RADAR_SCANNER, "landmark-radar-scanner", "landmark-radar-scanner-conspic"],
+        [
+          CATLMK_RADAR_SCANNER,
+          "landmark-radar-scanner",
+          "landmark-radar-scanner-conspic",
+        ],
         [CATLMK_TOWER, "landmark-tower", "landmark-tower-conspic"],
         [CATLMK_WINDMILL, "landmark-windmill", "landmark-windmill-conspic"],
         [CATLMK_WINDMOTOR, "landmark-windmotor", "landmark-windmotor-conspic"],
         [CATLMK_SPIRE, "landmark-church", "landmark-church-conspic"],
       ];
-      const isConspic = ["==", ["to-number", ["coalesce", ["get", "CONVIS"], 0], 0], 1];
+      const isConspic = [
+        "==",
+        ["to-number", ["coalesce", ["get", "CONVIS"], 0], 0],
+        1,
+      ];
       const catlmkExpr = ["to-number", ["coalesce", ["get", "CATLMK"], 0], 0];
 
       // Build: ["match", CATLMK, val1, ["case", conspic?, conspic-sprite, non-conspic-sprite], ..., default]
@@ -776,7 +792,12 @@ export function buildLayerExpressions(
         const cOff = off(cSprite);
         const hasDiff = ncOff[0] !== cOff[0] || ncOff[1] !== cOff[1];
         if (hasDiff) {
-          offArr.push(val, ["case", isConspic, ["literal", cOff], ["literal", ncOff]]);
+          offArr.push(val, [
+            "case",
+            isConspic,
+            ["literal", cOff],
+            ["literal", ncOff],
+          ]);
         } else {
           offArr.push(val, ["literal", ncOff]);
         }

@@ -592,6 +592,45 @@ export function getHazardLayers(ctx: StyleContext): LayerSpecification[] {
       },
     },
 
+    // Weed/kelp — WEDKLP point symbol
+    {
+      id: "s57-wedklp",
+      type: "symbol",
+      source: ctx.sourceId,
+      "source-layer": "WEDKLP",
+      minzoom: 11,
+      filter: [
+        "==",
+        ["geometry-type"],
+        "Point",
+      ] as unknown as ExpressionSpecification,
+      layout: {
+        "icon-image": "WEDKLP01",
+        "icon-size": 0.7,
+        "icon-allow-overlap": true,
+      },
+      paint: {},
+    },
+    // Weed/kelp — area outline
+    {
+      id: "s57-wedklp-outline",
+      type: "line",
+      source: ctx.sourceId,
+      "source-layer": "WEDKLP",
+      minzoom: 11,
+      filter: [
+        "==",
+        ["geometry-type"],
+        "Polygon",
+      ] as unknown as ExpressionSpecification,
+      paint: {
+        "line-color": ctx.colour("CHGRD"),
+        "line-width": 1,
+        "line-dasharray": [4, 2],
+        "line-opacity": 0.5,
+      },
+    },
+
     // Isolated danger overlays (S-52 UDWHAZ05): magenta diamond symbol
     // for hazards with depth ≤ safetyDepth that lie in safe water
     // (_enclosing_depth ≥ safetyDepth). Added by pipeline enrichment.

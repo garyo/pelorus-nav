@@ -159,6 +159,40 @@ export function getNavigationOverlayLayers(
         "line-opacity": 0.5,
       },
     },
+    // Marine farm / aquaculture — MARCUL polygon outline + point symbol
+    {
+      id: "s57-marcul",
+      type: "line",
+      source: ctx.sourceId,
+      "source-layer": "MARCUL",
+      minzoom: 10,
+      filter: [
+        "==",
+        ["geometry-type"],
+        "Polygon",
+      ] as unknown as ExpressionSpecification,
+      paint: {
+        "line-color": ctx.colour("CHGRD"),
+        "line-width": 1,
+        "line-dasharray": [4, 2],
+        "line-opacity": 0.6,
+      },
+    },
+    {
+      id: "s57-marcul-symbol",
+      type: "symbol",
+      source: ctx.sourceId,
+      "source-layer": "MARCUL",
+      minzoom: ctx.detailMinzoom(11),
+      layout: {
+        "icon-image": "MRFARM01",
+        "icon-size": 0.7,
+        "icon-allow-overlap": true,
+      },
+      paint: {
+        "icon-opacity": 0.7,
+      },
+    },
     {
       id: "s57-ctnare",
       type: "line",
@@ -184,6 +218,58 @@ export function getNavigationOverlayLayers(
         "icon-allow-overlap": true,
       },
       paint: {},
+    },
+    // Military practice area — MIPARE
+    {
+      id: "s57-mipare",
+      type: "line",
+      source: ctx.sourceId,
+      "source-layer": "MIPARE",
+      paint: {
+        "line-color": ctx.colour("CHMGD"),
+        "line-width": 1,
+        "line-dasharray": [4, 2],
+        "line-opacity": 0.5,
+      },
+    },
+    // Offshore production area (wind farms, etc.) — OSPARE
+    {
+      id: "s57-ospare",
+      type: "line",
+      source: ctx.sourceId,
+      "source-layer": "OSPARE",
+      paint: {
+        "line-color": ctx.colour("CHMGD"),
+        "line-width": 1,
+        "line-dasharray": [4, 2],
+        "line-opacity": 0.5,
+      },
+    },
+    // Territorial sea area boundary — TESARE
+    {
+      id: "s57-tesare",
+      type: "line",
+      source: ctx.sourceId,
+      "source-layer": "TESARE",
+      paint: {
+        "line-color": ctx.colour("CHGRD"),
+        "line-width": 1,
+        "line-dasharray": [6, 3],
+        "line-opacity": 0.4,
+      },
+    },
+    // Exclusive economic zone boundary — EXEZNE
+    {
+      id: "s57-exezne",
+      type: "line",
+      source: ctx.sourceId,
+      "source-layer": "EXEZNE",
+      paint: {
+        "line-color": ctx.colour("CHGRD"),
+        "line-width": 1,
+        "line-dasharray": [6, 3],
+        "line-opacity": 0.4,
+      },
     },
   ];
 }

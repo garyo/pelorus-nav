@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" version="1.2" baseProfile="tiny" xml:space="preserve" shape-rendering="geometricPrecision" fill-rule="evenodd" width="4.23mm" height="5.29mm" viewBox="-2.12 -4.63 4.23 5.29">
+  <title>WEDKLP01</title>
+  <desc>weed or kelp</desc>
+  <rect class="symbolBox layout" fill="none" x="-2" y="-4.5" height="5" width="4"/>
+  <rect class="svgBox layout" fill="none" x="-2" y="-4.5" height="5" width="4"/>
+  <!-- Three wavy vertical strands rising from base -->
+  <path d="M -1,0 C -1,-1 -0.5,-1.5 -1,-2.5 C -1.5,-3.5 -0.5,-4 -1,-4.5" class="sl f0 sCHGRD" stroke-width="0.32"/>
+  <path d="M 0,0 C 0,-1 0.5,-1.5 0,-2.5 C -0.5,-3.5 0.5,-4 0,-4.5" class="sl f0 sCHGRD" stroke-width="0.32"/>
+  <path d="M 1,0 C 1,-1 1.5,-1.5 1,-2.5 C 0.5,-3.5 1.5,-4 1,-4.5" class="sl f0 sCHGRD" stroke-width="0.32"/>
+  <!-- Base line -->
+  <line x1="-1.5" y1="0" x2="1.5" y2="0" class="sl sCHGRD" stroke-width="0.32"/>
+  <circle class="pivotPoint layout" fill="none" cx="0" cy="0" r="0.5"/>
+</svg>

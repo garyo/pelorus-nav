@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" version="1.2" baseProfile="tiny" xml:space="preserve" shape-rendering="geometricPrecision" fill-rule="evenodd" width="7.05mm" height="4.03mm" viewBox="-3.53 -2.02 7.05 4.03">
+  <title>MRFARM01</title>
+  <desc>fish farm / marine culture</desc>
+  <rect class="symbolBox layout" fill="none" x="-3.5" y="-2" height="4" width="7"/>
+  <rect class="svgBox layout" fill="none" x="-3.5" y="-2" height="4" width="7"/>
+  <!-- Outer rectangle -->
+  <rect x="-3.13" y="-1.75" width="6.25" height="3.5" rx="0" class="sl f0 sCHGRD" stroke-width="0.3"/>
+  <!-- Fish body (eye shape) -->
+  <path d="M -1.8,0 C -0.8,-1.2 0.8,-1.2 1.8,0 C 0.8,1.2 -0.8,1.2 -1.8,0 Z" class="sl f0 sCHGRD" stroke-width="0.3"/>
+  <!-- Fish tail -->
+  <path d="M 1.8,0 L 2.7,-0.8 L 2.7,0.8 Z" class="sl f0 sCHGRD" stroke-width="0.3"/>
+  <!-- Fish eye -->
+  <circle cx="-0.7" cy="0" r="0.35" class="sl f0 sCHGRD" stroke-width="0.3"/>
+  <circle cx="-0.7" cy="0" r="0.15" class="fCHGRD"/>
+  <circle class="pivotPoint layout" fill="none" cx="0" cy="0" r="0.5"/>
+</svg>

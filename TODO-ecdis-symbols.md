@@ -45,13 +45,17 @@ S-52: CS(SOUNDG03), CS(DEPARE02), CS(DEPCNT03)
 - [x] Depth contours and safety contour — CS(DEPCNT03)
 - [x] Depth area shading — CS(DEPARE02): 4 zones DEPVS/DEPMS/DEPMD/DEPDW
       plus drying DEPIT, with 3 user thresholds (shallow/safety/deep)
-- [ ] **Drying height display** (I15) — S-52: underlined sounding for SOUNDG
-      where depth < 0 (DRVAL1 < 0). SY(DRGARE01) for drying area annotation.
-      S-57: SOUNDG features with negative depth values.
+- [~] **Drying height display** (I15) — DEPARE foreshore polygons with
+      DRVAL1 < 0 already render with DEPIT colour. UWTROC WATLEV=4 (covers
+      and uncovers) rocks render with existing rock symbols.
+      Missing: underlined sounding display for individual negative SOUNDG
+      points (S-52 underline convention). No negative SOUNDG points exist
+      in current NOAA ENC data (drying heights are in DEPARE/UWTROC instead).
+      Also missing: SY(DRGARE01) annotation on drying area polygons.
 - [ ] **Low-accuracy sounding** (I1–I4) — S-52: SY(QUAPOS01) dotted circle
       around sounding. S-57: SOUNDG.QUAPOS (quality of position) values
-      3–9 indicate approximate/doubtful position. Also SOUNDG.TECSOU
-      (technique of sounding) affects display.
+      3–9 indicate approximate/doubtful position. No QUAPOS 3-9 found in
+      current NOAA ENC data.
 - [ ] **Swept area symbol** (I24) — S-52: LS(DASH,2,DEPSC) boundary with
       SY(SWPARE01) swept depth label. S-57: SWPARE (swept area) object,
       attributes DRVAL1 (swept depth), TECSOU, QUAPOS.
