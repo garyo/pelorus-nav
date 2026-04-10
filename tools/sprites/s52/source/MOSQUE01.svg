@@ -1,12 +1,12 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" version="1.2" baseProfile="tiny" xml:space="preserve" shape-rendering="geometricPrecision" fill-rule="evenodd" width="5.29mm" height="8.47mm" viewBox="-2.65 -8.47 5.29 8.47">
   <title>MOSQUE01</title>
-  <desc>mosque or minaret (conspicuous)</desc>
+  <desc>mosque or minaret (non-conspicuous)</desc>
   <rect class="symbolBox layout" fill="none" x="-2.5" y="-8" height="8" width="5"/>
   <rect class="svgBox layout" fill="none" x="-2.5" y="-8" height="8" width="5"/>
   <!-- Dome -->
-  <path d="M -2,0 L -2,-3 Q -2,-6 0,-6 Q 2,-6 2,-3 L 2,0 Z" class="sl f0 sCHBLK" stroke-width="0.32"/>
+  <path d="M -2,0 L -2,-3 Q -2,-6 0,-6 Q 2,-6 2,-3 L 2,0 Z" class="sl f0 sLANDF" stroke-width="0.32"/>
   <!-- Crescent on top -->
-  <path d="M -0.5,-6.5 A 1,1 0 1,1 0.5,-7.5" class="sl f0 sCHBLK" stroke-width="0.32"/>
+  <path d="M -0.5,-6.5 A 1,1 0 1,1 0.5,-7.5" class="sl f0 sLANDF" stroke-width="0.32"/>
   <circle class="pivotPoint layout" fill="none" cx="0" cy="0" r="0.5"/>
 </svg>

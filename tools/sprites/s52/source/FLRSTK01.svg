@@ -1,12 +1,12 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" version="1.2" baseProfile="tiny" xml:space="preserve" shape-rendering="geometricPrecision" fill-rule="evenodd" width="4.23mm" height="7.94mm" viewBox="-2.12 -7.94 4.23 7.94">
   <title>FLRSTK01</title>
-  <desc>flare stack (conspicuous)</desc>
+  <desc>flare stack (non-conspicuous)</desc>
   <rect class="symbolBox layout" fill="none" x="-2" y="-7.5" height="7.5" width="4"/>
   <rect class="svgBox layout" fill="none" x="-2" y="-7.5" height="7.5" width="4"/>
   <!-- Vertical stack -->
-  <line x1="0" y1="0" x2="0" y2="-5" class="sl sCHBLK" stroke-width="0.64"/>
+  <line x1="0" y1="0" x2="0" y2="-5" class="sl sLANDF" stroke-width="0.64"/>
   <!-- Flame at top -->
-  <path d="M -1,-5 L 0,-7.5 L 1,-5" class="sl fCHBLK" stroke-width="0.32"/>
+  <path d="M -1,-5 L 0,-7.5 L 1,-5" class="sl fLANDF" stroke-width="0.32"/>
   <circle class="pivotPoint layout" fill="none" cx="0" cy="0" r="0.5"/>
 </svg>
