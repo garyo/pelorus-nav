@@ -49,6 +49,10 @@ export const PELORUS_STANDARD: Record<string, string> = {
   "beacon-port": "ecdis-beacon-green",
   "beacon-stbd": "ecdis-beacon-red",
   "beacon-cardinal": "ecdis-beacon-cardinal",
+  "beacon-cardinal-n": "ecdis-beacon-cardinal",
+  "beacon-cardinal-s": "ecdis-beacon-cardinal",
+  "beacon-cardinal-e": "ecdis-beacon-cardinal",
+  "beacon-cardinal-w": "ecdis-beacon-cardinal",
   "beacon-default": "ecdis-beacon-default",
 
   // Lights (color-specific; Pelorus Standard uses same icon for all colors)
@@ -185,6 +189,10 @@ export const IHO_S52: Record<string, string> = {
   "beacon-port": "BCNLAT16",
   "beacon-stbd": "BCNLAT15",
   "beacon-cardinal": "BCNCAR01",
+  "beacon-cardinal-n": "BCNCAR01",
+  "beacon-cardinal-s": "BCNCAR02",
+  "beacon-cardinal-e": "BCNCAR03",
+  "beacon-cardinal-w": "BCNCAR04",
   "beacon-default": "BCNGEN01",
 
   // Lights (LIGHTS11=red, LIGHTS12=green, LIGHTS13=white/yellow)
@@ -671,7 +679,16 @@ export function buildLayerExpressions(
     case "SILTNK":
       return constant("tank");
     case "BCNCAR":
-      return constant("beacon-cardinal");
+      return matchOnAttr(
+        ["get", "CATCAM"],
+        [
+          [1, "beacon-cardinal-n"],
+          [2, "beacon-cardinal-s"],
+          [3, "beacon-cardinal-e"],
+          [4, "beacon-cardinal-w"],
+        ],
+        "beacon-cardinal",
+      );
     case "BCNISD":
       return constant("beacon-default");
     case "BCNSAW":
