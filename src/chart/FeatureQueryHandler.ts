@@ -93,6 +93,7 @@ const INTERACTIVE_SUFFIXES = [
   "-damcon",
   "-tunnel",
   "-fshfac",
+  "-fshfac-line",
   "-dykcon",
   "-slotop",
   "-pylons",
