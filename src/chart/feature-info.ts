@@ -1077,6 +1077,17 @@ function formatSeaArea(
   return details;
 }
 
+function formatMarineFarm(
+  props: Record<string, unknown>,
+): { label: string; value: string }[] {
+  const details: { label: string; value: string }[] = [];
+  addIfPresent(details, "Name", props.OBJNAM);
+  const wl = lookupCode(WATLEV, props.WATLEV);
+  if (wl) details.push({ label: "Water Level", value: wl });
+  addIfPresent(details, "Information", props.INFORM);
+  return details;
+}
+
 function formatWaterTurbulence(
   props: Record<string, unknown>,
 ): { label: string; value: string }[] {
@@ -1166,6 +1177,7 @@ const FORMATTERS: Record<
   OFSPLF: formatOffshorePlatform,
   MAGVAR: formatMagVar,
   SILTNK: formatSiloTank,
+  MARCUL: formatMarineFarm,
   LNDARE: formatLandArea,
   LNDELV: formatLandElevation,
   BUISGL: formatBuilding,
