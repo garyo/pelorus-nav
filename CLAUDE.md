@@ -131,4 +131,6 @@ layer's `icon-image` but only exists in the wrong sprite sheet, MapLibre will lo
 
 ## Git
 - Conventional commits: `feat:`, `fix:`, `test:`, `chore:`, `docs:`
-- Run `bun run check` before committing
+- **Always** run `bun run check` before committing — this runs typecheck + lint + test.
+  Do not substitute individual commands (`typecheck`, `test`) — the full `check` catches
+  formatting issues that `typecheck` alone misses.
