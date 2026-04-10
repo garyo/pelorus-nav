@@ -253,7 +253,7 @@ export const IHO_S52: Record<string, string> = {
   platform: "OFSPLF01",
   tank: "SILBUI11",
 
-  // Landmarks
+  // Landmarks — non-conspicuous (CONVIS absent or ≠1, brown/LANDF)
   "landmark-tower": "TOWERS01",
   "landmark-chimney": "CHIMNY01",
   "landmark-windmotor": "WNDMIL02",
@@ -268,6 +268,21 @@ export const IHO_S52: Record<string, string> = {
   "landmark-cairn": "CAIRNS01",
   "landmark-radar-scanner": "RASCAN01",
   "landmark-default": "TOWERS02",
+  // Landmarks — conspicuous (CONVIS=1, black/CHBLK)
+  "landmark-tower-conspic": "TOWERS03",
+  "landmark-chimney-conspic": "CHIMNY11",
+  "landmark-windmotor-conspic": "WNDMIL12",
+  "landmark-windmill-conspic": "WNDMIL12",
+  "landmark-monument-conspic": "MONUMT12",
+  "landmark-flagstaff-conspic": "FLGSTF02",
+  "landmark-dome-conspic": "DOMES011",
+  "landmark-dish-aerial-conspic": "DSHAER11",
+  "landmark-flare-stack-conspic": "FLRSTK11",
+  "landmark-mosque-conspic": "MOSQUE11",
+  "landmark-church-conspic": "CHURCH11",
+  "landmark-cairn-conspic": "CAIRNS11",
+  "landmark-radar-scanner-conspic": "RASCAN11",
+  "landmark-default-conspic": "TOWERS03",
 };
 
 /**
@@ -355,12 +370,20 @@ const S52_OFFSETS: Record<string, [number, number]> = {
   BCNSPP21: [0, 0],
   TSSLPT51: [0, -3],
   DOMES001: [0, -6.5],
+  DOMES011: [0, -6.5],
   DSHAER01: [0, -8.5],
+  DSHAER11: [0, -8.5],
   CAIRNS01: [-0.5, -7.5],
+  CAIRNS11: [0, -8],
   RASCAN01: [0, -8],
+  RASCAN11: [0, -8],
   FLRSTK01: [0, -8],
+  FLRSTK11: [0, -8],
   MOSQUE01: [0, -8],
+  MOSQUE11: [0, -8],
   CHURCH01: [0, -8],
+  CHURCH11: [0, -8],
+  TOWERS03: [0, -9.5],
 };
 
 /** Sprite sheet configuration per scheme. */
@@ -712,26 +735,61 @@ export function buildLayerExpressions(
         ],
         "topmark-sphere",
       );
-    case "LNDMRK":
-      return matchOnAttr(
-        ["to-number", ["coalesce", ["get", "CATLMK"], 0], 0],
-        [
-          [CATLMK_CAIRN, "landmark-cairn"],
-          [CATLMK_CHIMNEY, "landmark-chimney"],
-          [CATLMK_DISH_AERIAL, "landmark-dish-aerial"],
-          [CATLMK_FLAGSTAFF, "landmark-flagstaff"],
-          [CATLMK_FLARE_STACK, "landmark-flare-stack"],
-          [CATLMK_MAST, "landmark-tower"],
-          [CATLMK_MONUMENT, "landmark-monument"],
-          [CATLMK_DOME, "landmark-dome"],
-          [CATLMK_RADAR_SCANNER, "landmark-radar-scanner"],
-          [CATLMK_TOWER, "landmark-tower"],
-          [CATLMK_WINDMILL, "landmark-windmill"],
-          [CATLMK_WINDMOTOR, "landmark-windmotor"],
-          [CATLMK_SPIRE, "landmark-church"],
-        ],
-        "landmark-default",
-      );
+    case "LNDMRK": {
+      // S-52 CS(LNDMRK04): select symbol by CATLMK, then branch on
+      // CONVIS=1 (conspicuous → black) vs other (non-conspicuous → brown).
+      const conspic: [number, string, string][] = [
+        // [CATLMK, non-conspic symbol, conspic symbol]
+        [CATLMK_CAIRN, "landmark-cairn", "landmark-cairn-conspic"],
+        [CATLMK_CHIMNEY, "landmark-chimney", "landmark-chimney-conspic"],
+        [CATLMK_DISH_AERIAL, "landmark-dish-aerial", "landmark-dish-aerial-conspic"],
+        [CATLMK_FLAGSTAFF, "landmark-flagstaff", "landmark-flagstaff-conspic"],
+        [CATLMK_FLARE_STACK, "landmark-flare-stack", "landmark-flare-stack-conspic"],
+        [CATLMK_MAST, "landmark-tower", "landmark-tower-conspic"],
+        [CATLMK_MONUMENT, "landmark-monument", "landmark-monument-conspic"],
+        [CATLMK_DOME, "landmark-dome", "landmark-dome-conspic"],
+        [CATLMK_RADAR_SCANNER, "landmark-radar-scanner", "landmark-radar-scanner-conspic"],
+        [CATLMK_TOWER, "landmark-tower", "landmark-tower-conspic"],
+        [CATLMK_WINDMILL, "landmark-windmill", "landmark-windmill-conspic"],
+        [CATLMK_WINDMOTOR, "landmark-windmotor", "landmark-windmotor-conspic"],
+        [CATLMK_SPIRE, "landmark-church", "landmark-church-conspic"],
+      ];
+      const isConspic = ["==", ["to-number", ["coalesce", ["get", "CONVIS"], 0], 0], 1];
+      const catlmkExpr = ["to-number", ["coalesce", ["get", "CATLMK"], 0], 0];
+
+      // Build: ["match", CATLMK, val1, ["case", conspic?, conspic-sprite, non-conspic-sprite], ..., default]
+      const iconArr: unknown[] = ["match", catlmkExpr];
+      const offArr: unknown[] = ["match", catlmkExpr];
+      let hasOffsets = false;
+      for (const [val, nonConSym, conSym] of conspic) {
+        const ncSprite = sp(nonConSym);
+        const cSprite = sp(conSym);
+        iconArr.push(val, ["case", isConspic, cSprite, ncSprite]);
+        const ncOff = off(ncSprite);
+        const cOff = off(cSprite);
+        const hasDiff = ncOff[0] !== cOff[0] || ncOff[1] !== cOff[1];
+        if (hasDiff) {
+          offArr.push(val, ["case", isConspic, ["literal", cOff], ["literal", ncOff]]);
+        } else {
+          offArr.push(val, ["literal", ncOff]);
+        }
+        if (ncOff[0] !== 0 || ncOff[1] !== 0 || cOff[0] !== 0 || cOff[1] !== 0)
+          hasOffsets = true;
+      }
+      const defNc = sp("landmark-default");
+      const defC = sp("landmark-default-conspic");
+      iconArr.push(["case", isConspic, defC, defNc]);
+      const defOff = off(defNc);
+      offArr.push(["literal", defOff]);
+      if (defOff[0] !== 0 || defOff[1] !== 0) hasOffsets = true;
+
+      return {
+        iconExpr: iconArr as unknown as ExpressionSpecification,
+        offsetExpr: hasOffsets
+          ? (offArr as unknown as ExpressionSpecification)
+          : null,
+      };
+    }
 
     // ── WRECKS ────────────────────────────────────────────────────────────
     case "WRECKS": {
