@@ -1155,6 +1155,309 @@ function formatAnchorageArea(
   return details;
 }
 
+// ── Category lookups for newly-formatted layers ──────────────────────
+
+const CATPRA: Record<number, string> = {
+  1: "Quarantine station",
+  5: "Wind farm",
+  6: "Wave energy device",
+  9: "Wind turbine",
+};
+
+const CATMPA: Record<number, string> = {
+  1: "Practice area (general)",
+  2: "Torpedo exercise area",
+  3: "Submarine exercise area",
+  4: "Firing danger area",
+  5: "Mine-laying area",
+  6: "Small arms firing range",
+};
+
+const CATSLC: Record<number, string> = {
+  1: "Breakwater",
+  2: "Mole",
+  3: "Pier/jetty",
+  4: "Wharf/quay",
+  5: "Groin",
+  6: "Embankment",
+  7: "Ramp",
+  8: "Landing steps",
+  9: "Training wall",
+  10: "Slipway",
+  11: "Fender",
+  13: "Log ramp",
+};
+
+const CATPIP: Record<number, string> = {
+  2: "Outfall pipe",
+  3: "Intake pipe",
+  4: "Sewer",
+  5: "Bubbler system",
+  6: "Supply pipe",
+};
+
+const PRODCT: Record<number, string> = {
+  1: "Oil",
+  2: "Gas",
+  3: "Water",
+  4: "Stone",
+  5: "Coal",
+};
+
+const CATFIF: Record<number, string> = {
+  1: "Fish stakes",
+  2: "Fish trap",
+  3: "Fish weir",
+  4: "Tunny net",
+};
+
+const CATFOR: Record<number, string> = {
+  1: "Castle",
+  2: "Fort",
+  3: "Battery",
+  4: "Blockhouse",
+  5: "Martello tower",
+  6: "Redoubt",
+};
+
+const CATBUA: Record<number, string> = {
+  1: "Urban area",
+  2: "Settlement",
+  3: "Village",
+  4: "Town",
+  5: "City",
+};
+
+const CATPYL: Record<number, string> = {
+  1: "Power line pylon",
+  2: "Telephone/telegraph pylon",
+  3: "Aerial cableway pylon",
+  4: "Bridge pylon",
+};
+
+const CATSLO: Record<number, string> = {
+  1: "Cutting",
+  2: "Embankment",
+  3: "Dune",
+  4: "Hill",
+  5: "Pingo",
+  6: "Cliff",
+  7: "Scree",
+};
+
+const CATPLE: Record<number, string> = {
+  1: "Stake",
+  2: "Snag",
+  3: "Post",
+  4: "Tripodal",
+};
+
+const CATLND: Record<number, string> = {
+  1: "Fen",
+  2: "Marsh",
+  3: "Moor/bog",
+  4: "Heathland",
+  5: "Mountain range",
+  6: "Lowlands",
+  7: "Canyon",
+  8: "Paddy field",
+  9: "Agricultural land",
+  10: "Savanna/grassland",
+  11: "Parkland",
+  12: "Swamp",
+  13: "Landslide",
+  14: "Lava flow",
+  15: "Salt pan",
+  16: "Moraine",
+  17: "Crater",
+  18: "Cave",
+  19: "Rock column",
+  20: "Cay",
+};
+
+const CONDTN: Record<number, string> = {
+  1: "Under construction",
+  2: "Ruined",
+  3: "Under reclamation",
+  5: "Planned construction",
+};
+
+function formatOffshoreProduction(
+  props: Record<string, unknown>,
+): { label: string; value: string }[] {
+  const details: { label: string; value: string }[] = [];
+  addIfPresent(details, "Name", props.OBJNAM);
+  const cat = lookupCode(CATPRA, props.CATPRA);
+  addIfPresent(details, "Type", cat);
+  const cond = lookupCode(CONDTN, props.CONDTN);
+  addIfPresent(details, "Condition", cond);
+  if (props.DATSTA) details.push({ label: "Start Date", value: String(props.DATSTA) });
+  if (props.DATEND) details.push({ label: "End Date", value: String(props.DATEND) });
+  addIfPresent(details, "Information", props.INFORM);
+  return details;
+}
+
+function formatMilitaryArea(
+  props: Record<string, unknown>,
+): { label: string; value: string }[] {
+  const details: { label: string; value: string }[] = [];
+  addIfPresent(details, "Name", props.OBJNAM);
+  const cat = lookupAllCodes(CATMPA, props.CATMPA);
+  addIfPresent(details, "Type", cat);
+  addIfPresent(details, "Information", props.INFORM);
+  return details;
+}
+
+function formatTerritorialSea(
+  props: Record<string, unknown>,
+): { label: string; value: string }[] {
+  const details: { label: string; value: string }[] = [];
+  addIfPresent(details, "Nation", props.NATION);
+  addIfPresent(details, "Information", props.INFORM);
+  return details;
+}
+
+function formatShorelineConstruction(
+  props: Record<string, unknown>,
+): { label: string; value: string }[] {
+  const details: { label: string; value: string }[] = [];
+  addIfPresent(details, "Name", props.OBJNAM);
+  const cat = lookupCode(CATSLC, props.CATSLC);
+  addIfPresent(details, "Type", cat);
+  const cond = lookupCode(CONDTN, props.CONDTN);
+  addIfPresent(details, "Condition", cond);
+  const wl = lookupCode(WATLEV, props.WATLEV);
+  if (wl) details.push({ label: "Water Level", value: wl });
+  addIfPresent(details, "Information", props.INFORM);
+  return details;
+}
+
+function formatCableArea(
+  props: Record<string, unknown>,
+): { label: string; value: string }[] {
+  const details: { label: string; value: string }[] = [];
+  addIfPresent(details, "Name", props.OBJNAM);
+  const cat = lookupCode(CATCBL, props.CATCBL);
+  addIfPresent(details, "Type", cat);
+  const restrn = lookupAllCodes(RESTRN, props.RESTRN);
+  addIfPresent(details, "Restriction", restrn);
+  addIfPresent(details, "Information", props.INFORM);
+  return details;
+}
+
+function formatPipeline(
+  props: Record<string, unknown>,
+): { label: string; value: string }[] {
+  const details: { label: string; value: string }[] = [];
+  addIfPresent(details, "Name", props.OBJNAM);
+  const cat = lookupAllCodes(CATPIP, props.CATPIP);
+  addIfPresent(details, "Type", cat);
+  const prod = lookupAllCodes(PRODCT, props.PRODCT);
+  addIfPresent(details, "Product", prod);
+  addIfPresent(details, "Information", props.INFORM);
+  return details;
+}
+
+function formatFishingFacility(
+  props: Record<string, unknown>,
+): { label: string; value: string }[] {
+  const details: { label: string; value: string }[] = [];
+  addIfPresent(details, "Name", props.OBJNAM);
+  const cat = lookupCode(CATFIF, props.CATFIF);
+  addIfPresent(details, "Type", cat);
+  addIfPresent(details, "Information", props.INFORM);
+  return details;
+}
+
+function formatFort(
+  props: Record<string, unknown>,
+): { label: string; value: string }[] {
+  const details: { label: string; value: string }[] = [];
+  addIfPresent(details, "Name", props.OBJNAM);
+  const cat = lookupCode(CATFOR, props.CATFOR);
+  addIfPresent(details, "Type", cat);
+  addIfPresent(details, "Information", props.INFORM);
+  return details;
+}
+
+function formatBuiltUpArea(
+  props: Record<string, unknown>,
+): { label: string; value: string }[] {
+  const details: { label: string; value: string }[] = [];
+  addIfPresent(details, "Name", props.OBJNAM);
+  const cat = lookupCode(CATBUA, props.CATBUA);
+  addIfPresent(details, "Type", cat);
+  addIfPresent(details, "Information", props.INFORM);
+  return details;
+}
+
+function formatPylon(
+  props: Record<string, unknown>,
+): { label: string; value: string }[] {
+  const details: { label: string; value: string }[] = [];
+  addIfPresent(details, "Name", props.OBJNAM);
+  const cat = lookupCode(CATPYL, props.CATPYL);
+  addIfPresent(details, "Type", cat);
+  const wl = lookupCode(WATLEV, props.WATLEV);
+  if (wl) details.push({ label: "Water Level", value: wl });
+  addIfPresent(details, "Information", props.INFORM);
+  return details;
+}
+
+function formatSlopeTopography(
+  props: Record<string, unknown>,
+): { label: string; value: string }[] {
+  const details: { label: string; value: string }[] = [];
+  addIfPresent(details, "Name", props.OBJNAM);
+  const cat = lookupCode(CATSLO, props.CATSLO);
+  addIfPresent(details, "Type", cat);
+  addIfPresent(details, "Information", props.INFORM);
+  return details;
+}
+
+function formatPiling(
+  props: Record<string, unknown>,
+): { label: string; value: string }[] {
+  const details: { label: string; value: string }[] = [];
+  addIfPresent(details, "Name", props.OBJNAM);
+  const cat = lookupCode(CATPLE, props.CATPLE);
+  addIfPresent(details, "Type", cat);
+  addIfPresent(details, "Information", props.INFORM);
+  return details;
+}
+
+function formatLandRegion(
+  props: Record<string, unknown>,
+): { label: string; value: string }[] {
+  const details: { label: string; value: string }[] = [];
+  addIfPresent(details, "Name", props.OBJNAM);
+  const cat = lookupAllCodes(CATLND, props.CATLND);
+  addIfPresent(details, "Type", cat);
+  addIfPresent(details, "Information", props.INFORM);
+  return details;
+}
+
+function formatDyke(
+  props: Record<string, unknown>,
+): { label: string; value: string }[] {
+  const details: { label: string; value: string }[] = [];
+  addIfPresent(details, "Name", props.OBJNAM);
+  const cond = lookupCode(CONDTN, props.CONDTN);
+  addIfPresent(details, "Condition", cond);
+  addIfPresent(details, "Information", props.INFORM);
+  return details;
+}
+
+/** Simple formatter: name + info only (for layers with no category attrs). */
+function formatSimple(
+  props: Record<string, unknown>,
+): { label: string; value: string }[] {
+  const details: { label: string; value: string }[] = [];
+  addIfPresent(details, "Name", props.OBJNAM);
+  addIfPresent(details, "Information", props.INFORM);
+  return details;
+}
+
 const FORMATTERS: Record<
   string,
   (props: Record<string, unknown>) => { label: string; value: string }[]
@@ -1202,6 +1505,34 @@ const FORMATTERS: Record<
   LNDARE: formatLandArea,
   LNDELV: formatLandElevation,
   BUISGL: formatBuilding,
+  // Newly formatted layers
+  OSPARE: formatOffshoreProduction,
+  MIPARE: formatMilitaryArea,
+  TESARE: formatTerritorialSea,
+  EXEZNE: formatTerritorialSea,
+  SLCONS: formatShorelineConstruction,
+  CBLARE: formatCableArea,
+  CBLSUB: formatCableArea,
+  PIPARE: formatPipeline,
+  PIPSOL: formatPipeline,
+  FSHFAC: formatFishingFacility,
+  FORSTC: formatFort,
+  BUAARE: formatBuiltUpArea,
+  PYLONS: formatPylon,
+  SLOTOP: formatSlopeTopography,
+  PILPNT: formatPiling,
+  LNDRGN: formatLandRegion,
+  DYKCON: formatDyke,
+  CGUSTA: formatSimple,
+  AIRARE: formatSimple,
+  BERTHS: formatSimple,
+  CRANES: formatSimple,
+  DAMCON: formatSimple,
+  DRYDOC: formatSimple,
+  HULKES: formatSimple,
+  RUNWAY: formatSimple,
+  TUNNEL: formatSimple,
+  CANALS: formatSimple,
 };
 
 export function formatFeatureInfo(
