@@ -272,6 +272,19 @@ export const LAYER_NAMES: Record<string, string> = {
   RTPBCN: "Radar Transponder Beacon",
   NEWOBJ: "New Object",
   CANALS: "Canal",
+  FERYRT: "Ferry Route",
+  CURENT: "Current",
+  SWPARE: "Swept Area",
+  ISTZNE: "Inshore Traffic Zone",
+  TSSRON: "TSS Roundabout",
+  RDOCAL: "Radio Calling-In Point",
+  LITFLT: "Light Float",
+  LITVES: "Light Vessel",
+  OVFALL: "Overfalls",
+  RSCSTA: "Rescue Station",
+  SISTAT: "Signal Station",
+  SNDWAV: "Sand Waves",
+  SPRING: "Spring",
   DYKCON: "Dyke",
   SLOTOP: "Slope/Cliff",
   PYLONS: "Pylon",
@@ -1460,6 +1473,106 @@ function formatSimple(
   return details;
 }
 
+const CATRSC: Record<number, string> = {
+  1: "Lifeboat station",
+  2: "Rocket station",
+  4: "Refuge (shipwrecked)",
+  5: "Refuge (intertidal)",
+  6: "Lifeboat mooring",
+  8: "Lifeboat",
+  9: "Rescue craft",
+  10: "First aid",
+};
+
+const CATSIT: Record<number, string> = {
+  1: "Port control",
+  2: "Intl port traffic",
+  6: "Traffic surveillance",
+  8: "Bridge control",
+  9: "Lock control",
+  11: "Firing warning",
+  13: "Storm signal",
+  22: "Tide gauge",
+  27: "DGPS",
+};
+
+function formatCurrent(
+  props: Record<string, unknown>,
+): { label: string; value: string }[] {
+  const details: { label: string; value: string }[] = [];
+  if (props.ORIENT != null) {
+    details.push({ label: "Direction", value: `${props.ORIENT}\u00b0` });
+  }
+  if (props.CURVEL != null) {
+    details.push({ label: "Rate", value: `${props.CURVEL} kn` });
+  }
+  addIfPresent(details, "Information", props.INFORM);
+  return details;
+}
+
+function formatSweptArea(
+  props: Record<string, unknown>,
+): { label: string; value: string }[] {
+  const details: { label: string; value: string }[] = [];
+  const unit = getSettings().depthUnit;
+  if (props.DRVAL1 != null) {
+    details.push({
+      label: "Swept Depth",
+      value: formatDepth(Number(props.DRVAL1), unit),
+    });
+  }
+  addIfPresent(details, "Information", props.INFORM);
+  return details;
+}
+
+function formatLightFloat(
+  props: Record<string, unknown>,
+): { label: string; value: string }[] {
+  const details: { label: string; value: string }[] = [];
+  addIfPresent(details, "Characteristic", props.LABEL);
+  addIfPresent(details, "Name", props.OBJNAM);
+  addIfPresent(details, "Color", lookupAllCodes(COLOUR, props.COLOUR));
+  addIfPresent(details, "Information", props.INFORM);
+  return details;
+}
+
+function formatRadioCalling(
+  props: Record<string, unknown>,
+): { label: string; value: string }[] {
+  const details: { label: string; value: string }[] = [];
+  addIfPresent(details, "Name", props.OBJNAM);
+  if (props.ORIENT != null) {
+    details.push({ label: "Orientation", value: `${props.ORIENT}\u00b0` });
+  }
+  if (props.COMCHA != null) {
+    details.push({ label: "VHF Channel", value: String(props.COMCHA) });
+  }
+  addIfPresent(details, "Information", props.INFORM);
+  return details;
+}
+
+function formatRescueStation(
+  props: Record<string, unknown>,
+): { label: string; value: string }[] {
+  const details: { label: string; value: string }[] = [];
+  addIfPresent(details, "Name", props.OBJNAM);
+  const cat = lookupCode(CATRSC, props.CATRSC);
+  addIfPresent(details, "Type", cat);
+  addIfPresent(details, "Information", props.INFORM);
+  return details;
+}
+
+function formatSignalStation(
+  props: Record<string, unknown>,
+): { label: string; value: string }[] {
+  const details: { label: string; value: string }[] = [];
+  addIfPresent(details, "Name", props.OBJNAM);
+  const cat = lookupAllCodes(CATSIT, props.CATSIT);
+  addIfPresent(details, "Type", cat);
+  addIfPresent(details, "Information", props.INFORM);
+  return details;
+}
+
 const FORMATTERS: Record<
   string,
   (props: Record<string, unknown>) => { label: string; value: string }[]
@@ -1535,6 +1648,19 @@ const FORMATTERS: Record<
   RUNWAY: formatSimple,
   TUNNEL: formatSimple,
   CANALS: formatSimple,
+  CURENT: formatCurrent,
+  SWPARE: formatSweptArea,
+  LITFLT: formatLightFloat,
+  LITVES: formatLightFloat,
+  RDOCAL: formatRadioCalling,
+  RSCSTA: formatRescueStation,
+  SISTAT: formatSignalStation,
+  ISTZNE: formatSimple,
+  TSSRON: formatSimple,
+  FERYRT: formatSimple,
+  OVFALL: formatSimple,
+  SNDWAV: formatSimple,
+  SPRING: formatSimple,
 };
 
 export function formatFeatureInfo(

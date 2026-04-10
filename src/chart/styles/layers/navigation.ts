@@ -271,6 +271,87 @@ export function getNavigationOverlayLayers(
         "line-opacity": 0.4,
       },
     },
+    // Inshore traffic zone — ISTZNE
+    {
+      id: "s57-istzne",
+      type: "fill",
+      source: ctx.sourceId,
+      "source-layer": "ISTZNE",
+      paint: {
+        "fill-color": ctx.colour("TRFCD"),
+        "fill-opacity": 0.08,
+      },
+    },
+    {
+      id: "s57-istzne-outline",
+      type: "line",
+      source: ctx.sourceId,
+      "source-layer": "ISTZNE",
+      paint: {
+        "line-color": ctx.colour("TRFCD"),
+        "line-width": 1,
+        "line-dasharray": [4, 2],
+      },
+    },
+    // TSS roundabout — TSSRON
+    {
+      id: "s57-tssron",
+      type: "fill",
+      source: ctx.sourceId,
+      "source-layer": "TSSRON",
+      paint: {
+        "fill-color": ctx.colour("TRFCD"),
+        "fill-opacity": 0.08,
+      },
+    },
+    {
+      id: "s57-tssron-outline",
+      type: "line",
+      source: ctx.sourceId,
+      "source-layer": "TSSRON",
+      paint: {
+        "line-color": ctx.colour("TRFCD"),
+        "line-width": 1.5,
+      },
+    },
+    // Ferry route — FERYRT
+    {
+      id: "s57-feryrt",
+      type: "line",
+      source: ctx.sourceId,
+      "source-layer": "FERYRT",
+      paint: {
+        "line-color": ctx.colour("CHGRD"),
+        "line-width": 1,
+        "line-dasharray": [6, 3],
+      },
+    },
+    // Swept area — SWPARE
+    {
+      id: "s57-swpare",
+      type: "line",
+      source: ctx.sourceId,
+      "source-layer": "SWPARE",
+      paint: {
+        "line-color": ctx.colour("DEPSC"),
+        "line-width": 1.5,
+        "line-dasharray": [6, 2],
+      },
+    },
+    // Overfalls / tide rips — OVFALL
+    {
+      id: "s57-ovfall",
+      type: "symbol",
+      source: ctx.sourceId,
+      "source-layer": "OVFALL",
+      minzoom: 10,
+      layout: {
+        "icon-image": "WATTUR02",
+        "icon-size": 0.7,
+        "icon-allow-overlap": true,
+      },
+      paint: {},
+    },
   ];
 }
 

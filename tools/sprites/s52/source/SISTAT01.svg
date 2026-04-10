@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" version="1.2" baseProfile="tiny" xml:space="preserve" shape-rendering="geometricPrecision" fill-rule="evenodd" width="5.29mm" height="3.70mm" viewBox="-2.65 -1.85 5.29 3.70">
+  <title>SISTAT01</title>
+  <desc>signal station</desc>
+  <!-- "SS" box -->
+  <rect x="-2" y="-1.5" width="4" height="3" rx="0.3" class="sl f0 sCHBLK" stroke-width="0.32"/>
+  <text x="0" y="0.6" text-anchor="middle" font-size="2.2" font-family="sans-serif" class="fCHBLK">SS</text>
+  <circle class="pivotPoint layout" fill="none" cx="0" cy="0" r="0.5"/>
+</svg>

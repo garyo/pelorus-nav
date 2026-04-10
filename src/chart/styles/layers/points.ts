@@ -631,6 +631,125 @@ export function getHazardLayers(ctx: StyleContext): LayerSpecification[] {
       },
     },
 
+    // Sand waves — SNDWAV point symbol
+    {
+      id: "s57-sndwav",
+      type: "symbol",
+      source: ctx.sourceId,
+      "source-layer": "SNDWAV",
+      minzoom: 11,
+      layout: {
+        "icon-image": "SNDWAV01",
+        "icon-size": 0.7,
+        "icon-allow-overlap": true,
+      },
+      paint: {},
+    },
+    // Spring in seabed — SPRING point symbol
+    {
+      id: "s57-spring",
+      type: "symbol",
+      source: ctx.sourceId,
+      "source-layer": "SPRING",
+      minzoom: 11,
+      layout: {
+        "icon-image": "SPRING01",
+        "icon-size": 0.7,
+        "icon-allow-overlap": true,
+      },
+      paint: {},
+    },
+    // Current arrows — CURENT point symbol with rotation
+    {
+      id: "s57-curent",
+      type: "symbol",
+      source: ctx.sourceId,
+      "source-layer": "CURENT",
+      minzoom: 10,
+      layout: {
+        "icon-image": "CURENT01",
+        "icon-size": 0.7,
+        "icon-rotate": [
+          "to-number",
+          ["coalesce", ["get", "ORIENT"], 0],
+          0,
+        ] as unknown as ExpressionSpecification,
+        "icon-rotation-alignment": "map",
+        "icon-allow-overlap": true,
+      },
+      paint: {},
+    },
+    // Light float — LITFLT point symbol
+    {
+      id: "s57-litflt",
+      type: "symbol",
+      source: ctx.sourceId,
+      "source-layer": "LITFLT",
+      minzoom: 10,
+      layout: {
+        "icon-image": "LITFLT01",
+        "icon-size": 0.8,
+        "icon-allow-overlap": true,
+      },
+      paint: {},
+    },
+    // Light vessel — LITVES point symbol
+    {
+      id: "s57-litves",
+      type: "symbol",
+      source: ctx.sourceId,
+      "source-layer": "LITVES",
+      minzoom: 10,
+      layout: {
+        "icon-image": "LITVES01",
+        "icon-size": 0.8,
+        "icon-allow-overlap": true,
+      },
+      paint: {},
+    },
+    // Radio calling-in point — RDOCAL
+    {
+      id: "s57-rdocal",
+      type: "symbol",
+      source: ctx.sourceId,
+      "source-layer": "RDOCAL",
+      minzoom: 10,
+      layout: {
+        "icon-image": "RDOCAL02",
+        "icon-size": 0.7,
+        "icon-allow-overlap": true,
+      },
+      paint: {},
+    },
+    // Rescue station — RSCSTA
+    {
+      id: "s57-rscsta",
+      type: "symbol",
+      source: ctx.sourceId,
+      "source-layer": "RSCSTA",
+      minzoom: 10,
+      layout: {
+        "icon-image": "RSCSTA01",
+        "icon-size": 0.7,
+        "icon-allow-overlap": true,
+      },
+      paint: {},
+    },
+    // Signal station — SISTAT
+    {
+      id: "s57-sistat",
+      type: "symbol",
+      source: ctx.sourceId,
+      "source-layer": "SISTAT",
+      minzoom: 10,
+      layout: {
+        "icon-image": "SISTAT01",
+        "icon-size": 0.7,
+        "icon-allow-overlap": true,
+      },
+      paint: {},
+    },
+
     // Isolated danger overlays (S-52 UDWHAZ05): magenta diamond symbol
     // for hazards with depth ≤ safetyDepth that lie in safe water
     // (_enclosing_depth ≥ safetyDepth). Added by pipeline enrichment.
