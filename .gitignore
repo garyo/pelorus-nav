@@ -38,6 +38,8 @@ public/.uploaded-*
 tools/sprites/s52/day/
 tools/sprites/s52/dusk/
 tools/sprites/s52/night/
+tools/sprites/s52/eink/
+tools/sprites/s52-sprite-catalog.pdf
 
 # Wrangler local state
 .wrangler/
