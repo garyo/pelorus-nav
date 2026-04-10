@@ -103,20 +103,20 @@ S-52: CS(RESTRN01) for restricted routing areas
       centroid, rotated by ORIENT. Filtered to directed lanes (TRAFIC 1–3).
       **Verify at:** Boston TSS (42.3283°N, 70.7867°W, z11) — inbound/outbound
       lanes in Boston harbor approach; Narragansett Bay TSS (41.38°N, 71.38°W, z11).
-- [ ] **Inshore traffic zone** (M25) — S-52: SY(ITZARE01) "IT" text symbol.
+- [x] **Inshore traffic zone** (M25) — S-52: SY(ITZARE01) "IT" text symbol.
       S-57: ISTZNE (inshore traffic zone) object.
 - [ ] **Area to be avoided** (M29) — S-52: AP(TSSJCT02) T-hatched pattern,
       LS(DASH,2,TRFCD) boundary. S-57: RESARE with CATREA=14 (ATBA) or
       RESTRN=13 (area to be avoided).
-- [ ] **TSS roundabout** (M21) — S-52: SY(TSSRON01) circular arrows.
+- [x] **TSS roundabout** (M21) — S-52: SY(TSSRON01) circular arrows.
       S-57: TSSRON (TSS roundabout) object.
 - [ ] **Archipelagic sea lane** (M17) — S-52: LS(DASH,2,TRFCD) axis +
       LS(SOLD,2,TRFCD) boundary. S-57: ARCSLN object.
-- [ ] **Ferry routes** (M50–M51) — S-52: LS(DASH,1,CHGRD) + SY(FRYARE01)
+- [x] **Ferry routes** (M50–M51) — S-52: LS(DASH,1,CHGRD) + SY(FRYARE01)
       box symbol. S-57: FERYRT (ferry route) object.
 - [ ] **Deep water route "DW" labels** (M5, M27) — S-52: TE("DW") text in
       route. S-57: DWRTPT.TRAFIC + DRVAL1 for depth.
-- [ ] **Radio calling-in points** (M40) — S-52: SY(RDOCAL02) triangle with
+- [x] **Radio calling-in points** (M40) — S-52: SY(RDOCAL02) triangle with
       designation text. S-57: RDOCAL object, attrs ORIENT, COMCHA (VHF channel),
       TRAFIC (direction).
 
@@ -193,9 +193,9 @@ S-52: CS(CURRNT01) for current arrows
 - [ ] **Tidal stream arrows** (H40–H42) — S-52: SY(TIDSTR01) flood arrow,
       SY(TIDSTR02) ebb arrow, with TE for rate (kn). S-57: TS_TRF
       (tidal stream flood/ebb), attrs ORIENT (direction), CURVEL (rate).
-- [ ] **Current arrows** (H42–H43) — S-52: SY(CURENT01) arrow +
+- [x] **Current arrows** (H42–H43) — S-52: SY(CURENT01) arrow +
       TE("%.1f kn",CURVEL). S-57: CURENT object, attrs ORIENT, CURVEL.
-- [ ] **Overfalls/tide rips** (H44) — S-52: SY(OVFALL01) point,
+- [x] **Overfalls/tide rips** (H44) — S-52: SY(OVFALL01) point,
       LS(SOLD,2,CHGRD) line, AP(OVERFL01) area. S-57: OVFALL object.
 - [ ] **Tidal diamond** (H46) — S-52: SY(TIDSTR03) diamond with letter.
       S-57: TS_PAD (tidal stream panel data), linked to T_TIDS table.
@@ -307,9 +307,9 @@ S-57: BUISGL, ROADWY, RAILWY, AIRARE, TUNNEL, CBLOHD, PIPOHD
 S-57: SBDARE, WEDKLP, SNDWAV, SPRING
 S-52: CS(SBDARE02) for seabed display
 - [x] Seabed type abbreviations — SBDARE via cursor pick, NATSUR attr
-- [ ] **Sandwaves** (J14) — S-52: SY(SNDWAV01) point, LS(SOLD,1,CHGRD) line,
+- [x] **Sandwaves** (J14) — S-52: SY(SNDWAV01) point, LS(SOLD,1,CHGRD) line,
       AP(SNDWAV01) area. S-57: SNDWAV (sand waves) object.
-- [ ] **Spring in seabed** (J15) — S-52: SY(SPRING01).
+- [x] **Spring in seabed** (J15) — S-52: SY(SPRING01).
       S-57: SPRING object at seabed location.
 - [ ] **Rocky ledges/coral reef area** (J21–J22) — S-52: SY(UWTROC04) +
       AP(RCKLDG01). S-57: SBDARE with NATSUR=9 (rock) as area, or
@@ -326,15 +326,15 @@ S-52: CS(BOYLAT04), CS(BOYCAR04), CS(BCNLAT04)
 - [x] Beacons — SY(BCNLAT15/16/21/22), SY(BCNCAR01-04), SY(BCNSPP13/21)
 - [x] Topmarks — SY(TOPMAR02-65). TOPMAR.TOPSHP attribute
 - [x] Daymarks — SY(PRICKE03/04). DAYMAR.TOPSHP + COLOUR
-- [ ] **Spar buoy** (Q24) — S-52: SY(BOYSPR01) spar-specific symbol.
+- [x] **Spar buoy** (Q24) — S-52: SY(BOYSPR01) spar-specific symbol.
       S-57: BOYLAT/BOYSPP with BOYSHP=5 (spar). Currently falls through
       to pillar symbol — needs distinct spar shape.
 - [ ] **Barrel/tun buoy** (Q25) — S-52: SY(BOYBAR01).
       S-57: BOYLAT/BOYSPP with BOYSHP=6 (barrel/tun).
 - [x] Superbuoy/LANBY (Q26) — SY(BOYSUP02) with ODAS/LANBY detection
-- [ ] **Light float** (Q30) — S-52: SY(LITFLT01) ship-shaped.
+- [x] **Light float** (Q30) — S-52: SY(LITFLT01) ship-shaped.
       S-57: LITFLT (light float) object class. Distinct from buoys.
-- [ ] **Light vessel** (Q32) — S-52: SY(LITVES01) ship-shaped.
+- [x] **Light vessel** (Q32) — S-52: SY(LITVES01) ship-shaped.
       S-57: LITVES (light vessel) object class.
 - [ ] **Mooring buoys** (Q40–Q44) — S-52: SY(MORFAC03/04) + various shapes.
       S-57: MORFAC with CATMOR=1–7 (dolphin, bollard, pile, chain, buoy, etc.).
@@ -379,10 +379,10 @@ S-52: SY(PILBOP01), SY(CGUSTA01), SY(SISTAT01), SY(RSCSTA01)
       SY(PLNPOS02) for helicopter transfer. S-57: PILBOP.CATPIL
       (1=boarding by pilot vessel, 2=helicopter). We have PILBOP layers
       but may not distinguish helicopter variant.
-- [ ] **Signal station** (T20–T36) — S-52: SY(SISTAT01) "SS" box.
+- [x] **Signal station** (T20–T36) — S-52: SY(SISTAT01) "SS" box.
       S-57: SISTAT with CATSIT (1=port control, 2=IPT, 6=traffic,
       8=bridge, 13=lock, 22=tide, etc.).
-- [ ] **Rescue station** (T12–T13) — S-52: SY(RSCSTA01) cross symbol.
+- [x] **Rescue station** (T12–T13) — S-52: SY(RSCSTA01) cross symbol.
       S-57: RSCSTA (rescue station) with CATRSC.
 - [ ] **Customs** (F61) — S-52: SY(CSTOMS01) circle-minus.
       S-57: BUISGL.FUNCTN=3 (customs office).
