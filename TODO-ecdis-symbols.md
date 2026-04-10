@@ -79,13 +79,13 @@ S-52: CS(OBSTRN07), CS(WRECKS05), CS(UWTROC05)
       S-57: OBSTRN with CATOBS=1 (fishing stakes).
 - [ ] **Fish trap/weir** (K44.2, K45) — S-52: SY(FSHTMP01) point,
       AP(FSHTMP01) area. S-57: OBSTRN with CATOBS=2 (fish trap).
-- [ ] **Marine farm** (K48) — S-52: SY(MRFARM01) point, AP(MRFARM01) area
-      with fish pattern. S-57: MARCUL (marine farm/culture) object,
-      attributes CATMFA (type), EXPSOU, RESTRN.
-- [ ] **Shellfish beds** (K47) — S-52: SY(MRFARM01).
-      S-57: MARCUL with CATMFA (shellfish).
-- [ ] **Kelp/weed** (J13) — S-52: SY(WEDKLP01) point, AP(WEDKLP01) area.
-      S-57: WEDKLP (weed/kelp) object.
+- [x] **Marine farm** (K48) — SY(MARCUL02) fish-with-fence symbol + dashed
+      outline for polygons. S-57: MARCUL added to pipeline + rendering.
+      **Verify at:** Duxbury Bay (42.03°N, 70.66°W, z14).
+- [x] **Shellfish beds** (K47) — rendered as MARCUL (same layer).
+- [x] **Kelp/weed** (J13) — SY(WEDKLP01) point + dashed area outline.
+      S-57: WEDKLP added to pipeline + rendering.
+      **Verify at:** Marblehead/Cape Ann rocky coast, z14.
 
 ### M: Tracks, Routes — Routing Measures
 S-57: TSSLPT, TSSRON, TSSBND, TSEZNE, ISTZNE, RCTLPT, DWRTPT, DWRTCL
@@ -141,19 +141,18 @@ S-52: CS(RESARE04), CS(RESTRN01)
       (fishing restricted).
 - [ ] **Mining/extraction area** (N63) — S-52: SY(DREDGE01) dredging symbol.
       S-57: EXEZNE or RESARE with appropriate CATREA.
-- [ ] **Military practice areas** (N30–N34) — S-52: SY(ENTRES61) restricted
-      entry. S-57: MIPARE (military practice area), RESARE with
-      CATREA=1 (offshore safety zone) or =9 (firing practice area).
-      RESARE.RESTRN=7 for entry prohibited.
+- [~] **Military practice areas** (N30–N34) — MIPARE added to pipeline +
+      dashed magenta boundary rendering. Missing: SY(ENTRES61) symbol.
+      S-57: MIPARE, RESARE with CATREA=1/9, RESTRN=7.
 - [ ] **ESSA** (N22) — S-52: TE("ESSA") text label, boundary with
       LS(DASH,1,TRFCD). S-57: RESARE with CATREA=22 (ESSA) or =24 (PSSA).
 - [ ] **PSSA** (N22) — S-52: TE("PSSA") text label. S-57: RESARE.CATREA=24.
 - [ ] **International boundaries** (N40–N41) — S-52: LS with T-pattern
       SY(BNDRY01). S-57: ADMARE (administration area), MIPARE, or M_NSYS.
-- [ ] **Territorial sea limit** (N43) — S-52: LS(DASH,2,CHGRD).
-      S-57: TESARE (territorial sea area) boundary.
-- [ ] **EEZ limit** (N47) — S-52: LS(DASH,2,CHGRD).
-      S-57: EXEZNE (exclusive economic zone) boundary.
+- [x] **Territorial sea limit** (N43) — TESARE added to pipeline + dashed
+      gray boundary rendering. **Verify at:** z8-10, offshore.
+- [x] **EEZ limit** (N47) — EXEZNE added to pipeline + dashed gray boundary
+      rendering. **Verify at:** z8-10, offshore.
 - [ ] **Spoil ground** (N62) — S-52: SY(INFARE51) info note.
       S-57: SPLARE (spoil area) or DMPGRD with CATDMP.
 - [ ] **Degaussing area** (N25) — S-52: SY(ENTRES51) restricted.
@@ -168,9 +167,9 @@ S-52: CS(OWNSHP01) for safety zones
 - [ ] **Safety zone** (L3) — S-52: SY(ENTRES61) entry prohibited +
       LS(DASH,2,TRFCD) boundary. S-57: RESARE.CATREA=1 (offshore safety zone)
       around OFSPLF. 500m radius typically.
-- [ ] **Wind farm (offshore)** (L5.2) — S-52: SY(ENTRES61) caution +
-      SY(WNDFRM61) wind turbine. S-57: OSPARE (offshore production area)
-      with CATPRA=5 (wind farm). Boundary LS(DASH,2,CHMGD).
+- [~] **Wind farm (offshore)** (L5.2) — OSPARE added to pipeline + dashed
+      magenta boundary. Missing: SY(WNDFRM61) wind turbine symbol.
+      **Verify at:** Vineyard Wind (41°07'N, 70°29'W, z10).
 - [ ] **Wave farm** (L6) — S-52: SY(ENTRES61) caution.
       S-57: OSPARE with CATPRA=6 (wave energy device).
 - [ ] **Installation buoy** (L12, L16) — S-52: SY(BOYSPP11) simplified,
@@ -402,10 +401,9 @@ S-52: SY(SMCFAC01) + cursor pick for details
 
 S-52 CS(LNDMRK04): checks LNDMRK.CONVIS (conspicuousness).
 CONVIS=1 → black conspicuous symbol (11 suffix, sCHBLK), CONVIS absent/other → brown
-non-conspicuous (01 suffix, sLANDF). **TODO:** CONVIS switching is not yet implemented
-in the icon expression — all landmarks currently show the non-conspicuous (brown, 01)
-variant regardless of CONVIS. Needs a nested expression: match CATLMK first, then
-branch on CONVIS=1 for conspic vs non-conspic sprite within each type.
+non-conspicuous (01 suffix, sLANDF). **DONE:** CONVIS switching implemented — LNDMRK
+expression branches on CONVIS=1 for each CATLMK type. Note: all NOAA landmarks in our
+coverage have CONVIS=1, so the non-conspicuous path is untested with real data.
 25 feature types. Currently we render some but not all:
 
 - [x] Chimney — SY(CHIMNY01/11). CATLMK=3
@@ -448,11 +446,11 @@ branch on CONVIS=1 for conspic vs non-conspic sprite within each type.
 | Priority | Category | Missing Items |
 |----------|----------|--------------|
 | P1 | Directional/leading/obscured lights | ~3 (was ~5) |
-| P1 | Enhanced depth display | ~3 |
-| P1 | Foul areas & aquaculture | ~6 (was ~7) |
+| P1 | Enhanced depth display | ~2 (was ~3) |
+| P1 | Foul areas & aquaculture | ~3 (was ~7) |
 | P1 | Routing measure details | ~7 (was ~8) |
-| P2 | Restricted/regulated areas | ~12 |
-| P2 | Offshore installations | ~8 |
+| P2 | Restricted/regulated areas | ~9 (was ~12) |
+| P2 | Offshore installations | ~6 (was ~8) |
 | P2 | Tides & currents | ~5 |
 | P2 | Additional landmarks | ~5 (was ~12) |
 | P2 | Harbor structures | ~12 |
@@ -461,8 +459,8 @@ branch on CONVIS=1 for conspic vs non-conspic sprite within each type.
 | P3 | Seabed features | ~3 |
 | P3 | Additional buoy/beacon types | ~8 |
 | P3 | Fog/radar/radio/services | ~10 |
-| — | Conspicuous/non-conspicuous | ~11 (was ~17) |
-| | **Total** | **~102** (was ~120) |
+| — | Conspicuous/non-conspicuous | ✅ done (was ~17) |
+| | **Total** | **~82** (was ~120) |
 
 ## Recommended Implementation Order
 
