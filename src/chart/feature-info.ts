@@ -1291,8 +1291,10 @@ function formatOffshoreProduction(
   addIfPresent(details, "Type", cat);
   const cond = lookupCode(CONDTN, props.CONDTN);
   addIfPresent(details, "Condition", cond);
-  if (props.DATSTA) details.push({ label: "Start Date", value: String(props.DATSTA) });
-  if (props.DATEND) details.push({ label: "End Date", value: String(props.DATEND) });
+  if (props.DATSTA)
+    details.push({ label: "Start Date", value: String(props.DATSTA) });
+  if (props.DATEND)
+    details.push({ label: "End Date", value: String(props.DATEND) });
   addIfPresent(details, "Information", props.INFORM);
   return details;
 }
