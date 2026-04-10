@@ -136,6 +136,20 @@ LAYER_CONFIGS: list[LayerConfig] = [
     LayerConfig("NEWOBJ", "navaids", NAVAID_ARGS),
     LayerConfig("MIPARE", "regulatory", REGULATORY_ARGS),
     LayerConfig("CANALS", "infrastructure", DEFAULT_ARGS),
+    # S-64 test data layers (also present in some production ENCs)
+    LayerConfig("FERYRT", "regulatory", REGULATORY_ARGS),
+    LayerConfig("CURENT", "navaids", NAVAID_ARGS),
+    LayerConfig("SWPARE", "hazards", HAZARD_ARGS),
+    LayerConfig("ISTZNE", "regulatory", REGULATORY_ARGS),
+    LayerConfig("TSSRON", "regulatory", REGULATORY_ARGS),
+    LayerConfig("RDOCAL", "navaids", NAVAID_ARGS),
+    LayerConfig("LITFLT", "navaids", NAVAID_ARGS),
+    LayerConfig("LITVES", "navaids", NAVAID_ARGS),
+    LayerConfig("OVFALL", "hazards", HAZARD_ARGS),
+    LayerConfig("RSCSTA", "navaids", NAVAID_ARGS),
+    LayerConfig("SISTAT", "navaids", NAVAID_ARGS),
+    LayerConfig("SNDWAV", "hazards", HAZARD_ARGS),
+    LayerConfig("SPRING", "hazards", HAZARD_ARGS),
 ]
 
 # Quick lookup by layer name

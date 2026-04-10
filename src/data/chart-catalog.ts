@@ -91,6 +91,23 @@ export const CHART_REGIONS: ChartRegion[] = [
   },
 ];
 
+// S-64 ECDIS test dataset — dev only, not shipped to production.
+// Two test areas: GB cells (~61°E, 32.5°S) and AA cells (~105°W, 40°N).
+if (import.meta.env.DEV) {
+  CHART_REGIONS.push({
+    id: "s64-test",
+    name: "S-64 ECDIS Test Data",
+    filename: "nautical-s64-test.pmtiles",
+    coverageFilename: "nautical-s64-test.coverage.geojson",
+    sizeEstimate: 5 * 1024 * 1024,
+    center: [61.05, -32.48],
+    defaultZoom: 12,
+    // Only covers the GB test cells (south Indian Ocean). AA cells at -105°W/40°N
+    // are outside this bbox but still accessible via manual navigation.
+    bbox: [60.5, -33.0, 61.5, -32.0],
+  });
+}
+
 /** MapLibre vector source IDs for all regions. */
 export function getVectorSourceIds(): string[] {
   return CHART_REGIONS.map((r) => `s57-vector-${r.id}`);
