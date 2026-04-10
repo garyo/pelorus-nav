@@ -1,9 +1,0 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" version="1.2" baseProfile="tiny" xml:space="preserve" shape-rendering="geometricPrecision" fill-rule="evenodd" width="5.29mm" height="5.29mm" viewBox="-2.65 -2.65 5.29 5.29">
-  <title>RSCSTA01</title>
-  <desc>rescue station</desc>
-  <!-- Red cross -->
-  <rect x="-0.5" y="-2" width="1" height="4" class="fCHRED"/>
-  <rect x="-2" y="-0.5" width="4" height="1" class="fCHRED"/>
-  <circle class="pivotPoint layout" fill="none" cx="0" cy="0" r="0.5"/>
-</svg>

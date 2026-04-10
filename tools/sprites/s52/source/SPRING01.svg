@@ -1,9 +1,0 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" version="1.2" baseProfile="tiny" xml:space="preserve" shape-rendering="geometricPrecision" fill-rule="evenodd" width="3.17mm" height="3.17mm" viewBox="-1.59 -1.59 3.17 3.17">
-  <title>SPRING01</title>
-  <desc>spring in seabed</desc>
-  <!-- Circle with dot -->
-  <circle cx="0" cy="0" r="1.2" class="sl f0 sCHGRD" stroke-width="0.32"/>
-  <circle cx="0" cy="0" r="0.3" class="fCHGRD"/>
-  <circle class="pivotPoint layout" fill="none" cx="0" cy="0" r="0.5"/>
-</svg>

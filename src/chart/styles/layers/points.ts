@@ -639,7 +639,7 @@ export function getHazardLayers(ctx: StyleContext): LayerSpecification[] {
       "source-layer": "SNDWAV",
       minzoom: 11,
       layout: {
-        "icon-image": "SNDWAV01",
+        "icon-image": "SNDWAV02",
         "icon-size": 0.7,
         "icon-allow-overlap": true,
       },
@@ -653,7 +653,7 @@ export function getHazardLayers(ctx: StyleContext): LayerSpecification[] {
       "source-layer": "SPRING",
       minzoom: 11,
       layout: {
-        "icon-image": "SPRING01",
+        "icon-image": "SPRING02",
         "icon-size": 0.7,
         "icon-allow-overlap": true,
       },
@@ -729,7 +729,7 @@ export function getHazardLayers(ctx: StyleContext): LayerSpecification[] {
       "source-layer": "RSCSTA",
       minzoom: 10,
       layout: {
-        "icon-image": "RSCSTA01",
+        "icon-image": "RSCSTA02",
         "icon-size": 0.7,
         "icon-allow-overlap": true,
       },
@@ -743,7 +743,7 @@ export function getHazardLayers(ctx: StyleContext): LayerSpecification[] {
       "source-layer": "SISTAT",
       minzoom: 10,
       layout: {
-        "icon-image": "SISTAT01",
+        "icon-image": "SISTAT03",
         "icon-size": 0.7,
         "icon-allow-overlap": true,
       },
