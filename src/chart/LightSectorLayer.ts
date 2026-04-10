@@ -19,6 +19,7 @@ const LAYER_RANGE_BORDER = "_light-range-border";
 const LAYER_BEARING = "_light-bearing";
 const LAYER_ARC_BORDER = "_light-arc-border";
 const LAYER_ARC = "_light-arc";
+const LAYER_ARC_OBSCURED = "_light-arc-obscured";
 
 /**
  * Arc radius in degrees at zoom 14. Halves for each zoom level down
@@ -129,6 +130,8 @@ interface LightsProps {
   COLOUR?: unknown;
   VALNMR?: number;
   LITVIS?: number;
+  CATLIT?: number;
+  ORIENT?: number;
 }
 
 /** Ratio of inner sector arc radius to main range circle radius. */
@@ -138,6 +141,8 @@ interface SectorInfo {
   s1: number;
   s2: number;
   colour: string;
+  /** LITVIS=7 (obscured) or 8 (partially obscured) → dashed arc. */
+  obscured: boolean;
 }
 
 interface PositionGroup {
@@ -148,6 +153,8 @@ interface PositionGroup {
   rangeColour: string;
   /** Highest VALNMR across all features at this position. */
   maxValnmr: number;
+  /** CATLIT=1 directional bearings (FROM the light, flipped from ORIENT). */
+  directionalBearings?: number[];
 }
 
 function buildFeatures(
@@ -182,6 +189,10 @@ function buildFeatures(
     const sectr2 = props.SECTR2;
     const valnmr = props.VALNMR;
     const colour = rangeCircleColour(props.COLOUR);
+    const catlit = props.CATLIT != null ? Number(props.CATLIT) : undefined;
+    const orient = props.ORIENT != null ? Number(props.ORIENT) : undefined;
+    const litvis = props.LITVIS != null ? Number(props.LITVIS) : undefined;
+    const obscured = litvis === 7 || litvis === 8;
 
     // Track highest VALNMR across all features at this position
     if (valnmr != null) {
@@ -198,8 +209,15 @@ function buildFeatures(
           s1: (s1 + 180) % 360,
           s2: (s2 + 180) % 360,
           colour,
+          obscured,
         });
       }
+    } else if (catlit === 1 && orient != null && !Number.isNaN(orient)) {
+      // CATLIT=1 (Directional): S-52 CS(LIGHTS06) renders a bearing line
+      // along ORIENT even without sector boundaries (P30.1–P30.2).
+      // ORIENT is true bearing FROM seaward; flip to FROM the light.
+      group.directionalBearings ??= [];
+      group.directionalBearings.push((orient + 180) % 360);
     } else if (valnmr != null && Number(valnmr) >= 10) {
       group.hasRangeCircle = true;
       if (group.rangeColour === "white" && colour !== "white") {
@@ -210,7 +228,15 @@ function buildFeatures(
 
   // Generate geometry for each position
   for (const g of groups.values()) {
-    const { lon, lat, sectors, hasRangeCircle, rangeColour, maxValnmr } = g;
+    const {
+      lon,
+      lat,
+      sectors,
+      hasRangeCircle,
+      rangeColour,
+      maxValnmr,
+      directionalBearings,
+    } = g;
 
     // Subtle VALNMR scaling: blend halfway between fixed and sqrt(VALNMR/20)
     const rawScale = maxValnmr > 0 ? Math.sqrt(maxValnmr / 20) : 1;
@@ -245,12 +271,32 @@ function buildFeatures(
     // Sector arcs — inner if range circle exists, full radius otherwise
     if (sectors.length > 0) {
       const arcRadius = hasRangeCircle ? r * SECTOR_INNER_RATIO : r;
-      for (const { s1, s2, colour } of sectors) {
+      for (const { s1, s2, colour, obscured } of sectors) {
         const arcPts = generateArc(lon, lat, s1, s2, arcRadius);
         features.push({
           type: "Feature",
           geometry: { type: "LineString", coordinates: arcPts },
-          properties: { _type: "arc", _colour: colour },
+          properties: {
+            _type: obscured ? "arc-obscured" : "arc",
+            _colour: obscured ? "obscured" : colour,
+          },
+        });
+      }
+    }
+
+    // CATLIT=1 directional light bearing lines — dashed line along ORIENT
+    // when no sector arcs exist (S-52 P30.1–P30.2)
+    if (directionalBearings && sectors.length === 0) {
+      const bearingRadius = r * 1.1;
+      for (const bearing of directionalBearings) {
+        const tip = arcPoint(lon, lat, bearing, bearingRadius);
+        features.push({
+          type: "Feature",
+          geometry: {
+            type: "LineString",
+            coordinates: [[lon, lat], tip],
+          },
+          properties: { _type: "bearing" },
         });
       }
     }
@@ -319,6 +365,7 @@ export class LightSectorLayer {
 
   private removeLayers(): void {
     for (const id of [
+      LAYER_ARC_OBSCURED,
       LAYER_ARC,
       LAYER_ARC_BORDER,
       LAYER_BEARING,
@@ -420,6 +467,21 @@ export class LightSectorLayer {
         "line-color": rangeColorExpr as never,
         "line-width": 3,
         "line-opacity": 0.9,
+      },
+    });
+
+    // Obscured sector arcs (LITVIS=7/8): dashed magenta per S-52
+    this.map.addLayer({
+      id: LAYER_ARC_OBSCURED,
+      type: "line",
+      source: SOURCE_ID,
+      minzoom: MIN_ZOOM,
+      filter: ["==", ["get", "_type"], "arc-obscured"],
+      paint: {
+        "line-color": s52Colour("CHMGD"),
+        "line-width": 2,
+        "line-dasharray": [4, 2],
+        "line-opacity": 0.8,
       },
     });
   }

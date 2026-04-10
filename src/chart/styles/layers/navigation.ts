@@ -123,6 +123,30 @@ export function getNavigationOverlayLayers(
         "line-opacity": 0.6,
       },
     },
+    // TSS traffic direction arrow — SY(TSSLPT51) at lane centroid,
+    // rotated by ORIENT attribute. Only for directed lanes (TRAFIC 1–3).
+    {
+      id: "s57-tsslpt-arrow",
+      type: "symbol",
+      source: ctx.sourceId,
+      "source-layer": "TSSLPT",
+      minzoom: ctx.detailMinzoom(8),
+      filter: ["has", "ORIENT"] as unknown as ExpressionSpecification,
+      layout: {
+        "icon-image": ctx.icon("tss-arrow"),
+        "icon-size": 0.7,
+        "icon-rotate": [
+          "to-number",
+          ["coalesce", ["get", "ORIENT"], 0],
+          0,
+        ] as unknown as ExpressionSpecification,
+        "icon-rotation-alignment": "map",
+        "icon-allow-overlap": true,
+      },
+      paint: {
+        "icon-opacity": 0.6,
+      },
+    },
     {
       id: "s57-resare",
       type: "line",

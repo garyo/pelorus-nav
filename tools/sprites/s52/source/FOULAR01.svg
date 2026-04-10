@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" version="1.2" baseProfile="tiny" xml:space="preserve" shape-rendering="geometricPrecision" width="6.35mm" height="6.35mm" viewBox="0 0 6.35 6.35">
+  <title>FOULAR01</title>
+  <desc>foul area, safe to navigate but not to anchor</desc>
+  <g class="sl sCHGRD" stroke-width="0.32">
+    <line x1="2.12" y1="2.12" x2="4.23" y2="4.23"/>
+    <line x1="4.23" y1="2.12" x2="2.12" y2="4.23"/>
+  </g>
+</svg>

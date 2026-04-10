@@ -73,12 +73,16 @@ export const PELORUS_STANDARD: Record<string, string> = {
   // Hazard areas
   "water-turbulence": "ecdis-wattur",
 
+  // Traffic separation
+  "tss-arrow": "ecdis-tss-arrow",
+
   // Caution
   "caution-area": "ecdis-ctnare",
 
   // Area patterns
   "nodata-pattern": "ecdis-nodata03",
   "marsh-pattern": "ecdis-marshes",
+  "foul-pattern": "ecdis-foular",
 
   // Other
   fogsig: "ecdis-fogsig",
@@ -122,6 +126,13 @@ export const PELORUS_STANDARD: Record<string, string> = {
   "landmark-windmill": "ecdis-landmark-windmill",
   "landmark-monument": "ecdis-landmark-monument",
   "landmark-flagstaff": "ecdis-landmark-flagstaff",
+  "landmark-dome": "ecdis-landmark-default",
+  "landmark-dish-aerial": "ecdis-landmark-default",
+  "landmark-flare-stack": "ecdis-landmark-default",
+  "landmark-mosque": "ecdis-landmark-default",
+  "landmark-church": "ecdis-landmark-default",
+  "landmark-cairn": "ecdis-landmark-default",
+  "landmark-radar-scanner": "ecdis-landmark-default",
   "landmark-default": "ecdis-landmark-default",
 };
 
@@ -196,12 +207,16 @@ export const IHO_S52: Record<string, string> = {
   // Hazard areas
   "water-turbulence": "WATTUR02",
 
+  // Traffic separation
+  "tss-arrow": "TSSLPT51",
+
   // Caution
   "caution-area": "CTNARE51",
 
   // Area patterns
   "nodata-pattern": "NODATA03",
   "marsh-pattern": "MARSHES1",
+  "foul-pattern": "FOULAR01",
 
   // Other
   fogsig: "FOGSIG01",
@@ -245,6 +260,13 @@ export const IHO_S52: Record<string, string> = {
   "landmark-windmill": "WNDMIL12",
   "landmark-monument": "MONUMT02",
   "landmark-flagstaff": "FLGSTF01",
+  "landmark-dome": "DOMES001",
+  "landmark-dish-aerial": "DSHAER01",
+  "landmark-flare-stack": "FLRSTK01",
+  "landmark-mosque": "MOSQUE01",
+  "landmark-church": "CHURCH01",
+  "landmark-cairn": "CAIRNS01",
+  "landmark-radar-scanner": "RASCAN01",
   "landmark-default": "TOWERS02",
 };
 
@@ -331,6 +353,14 @@ const S52_OFFSETS: Record<string, [number, number]> = {
   FLGSTF01: [0, -12.5],
   FLGSTF02: [0, -12.5],
   BCNSPP21: [0, 0],
+  TSSLPT51: [0, -3],
+  DOMES001: [0, -6.5],
+  DSHAER01: [0, -8.5],
+  CAIRNS01: [-0.5, -7.5],
+  RASCAN01: [0, -8],
+  FLRSTK01: [0, -8],
+  MOSQUE01: [0, -8],
+  CHURCH01: [0, -8],
 };
 
 /** Sprite sheet configuration per scheme. */
@@ -454,14 +484,23 @@ const TOPSHP_2CONES_UP = 13;
 const TOPSHP_2CONES_DOWN = 14;
 const TOPSHP_FLAG = 17;
 const TOPSHP_T_SHAPE = 28;
-// CATLMK
+// CATLMK — codes per S-57 attribute registry (matches feature-info.ts)
+const CATLMK_CAIRN = 1;
+// 2 = cemetery (not rendered as landmark icon)
 const CATLMK_CHIMNEY = 3;
+const CATLMK_DISH_AERIAL = 4;
 const CATLMK_FLAGSTAFF = 5;
+const CATLMK_FLARE_STACK = 6;
 const CATLMK_MAST = 7;
+// 8 = windsock
 const CATLMK_MONUMENT = 9;
+// 10 = column, 11 = memorial plaque, 12 = obelisk, 13 = statue, 14 = cross
+const CATLMK_DOME = 15;
+const CATLMK_RADAR_SCANNER = 16;
 const CATLMK_TOWER = 17;
 const CATLMK_WINDMILL = 18;
 const CATLMK_WINDMOTOR = 19;
+const CATLMK_SPIRE = 20;
 
 /**
  * Build per-layer MapLibre icon and offset expressions from raw S-57 attributes.
@@ -677,13 +716,19 @@ export function buildLayerExpressions(
       return matchOnAttr(
         ["to-number", ["coalesce", ["get", "CATLMK"], 0], 0],
         [
+          [CATLMK_CAIRN, "landmark-cairn"],
           [CATLMK_CHIMNEY, "landmark-chimney"],
+          [CATLMK_DISH_AERIAL, "landmark-dish-aerial"],
           [CATLMK_FLAGSTAFF, "landmark-flagstaff"],
+          [CATLMK_FLARE_STACK, "landmark-flare-stack"],
           [CATLMK_MAST, "landmark-tower"],
           [CATLMK_MONUMENT, "landmark-monument"],
+          [CATLMK_DOME, "landmark-dome"],
+          [CATLMK_RADAR_SCANNER, "landmark-radar-scanner"],
           [CATLMK_TOWER, "landmark-tower"],
           [CATLMK_WINDMILL, "landmark-windmill"],
           [CATLMK_WINDMOTOR, "landmark-windmotor"],
+          [CATLMK_SPIRE, "landmark-church"],
         ],
         "landmark-default",
       );

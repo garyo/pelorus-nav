@@ -385,7 +385,7 @@ export function getHazardLayers(ctx: StyleContext): LayerSpecification[] {
       ),
       paint: {},
     },
-    // Obstructions — polygon fill (foul areas)
+    // Obstructions — polygon fill (general)
     {
       id: "s57-obstrn-area",
       type: "fill",
@@ -393,13 +393,63 @@ export function getHazardLayers(ctx: StyleContext): LayerSpecification[] {
       "source-layer": "OBSTRN",
       minzoom: 11,
       filter: [
-        "==",
-        ["geometry-type"],
-        "Polygon",
+        "all",
+        ["==", ["geometry-type"], "Polygon"],
+        [
+          "!",
+          [
+            "in",
+            ["to-number", ["coalesce", ["get", "CATOBS"], 0], 0],
+            ["literal", [6, 7]],
+          ],
+        ],
       ] as unknown as ExpressionSpecification,
       paint: {
         "fill-color": ctx.colour("DEPVS"),
         "fill-opacity": 0.2,
+      },
+    },
+    // Foul area pattern — OBSTRN.CATOBS=6 (foul area) / 7 (foul ground)
+    // S-52: AP(FOULAR01) X-pattern fill + dashed boundary
+    {
+      id: "s57-obstrn-foul",
+      type: "fill",
+      source: ctx.sourceId,
+      "source-layer": "OBSTRN",
+      minzoom: 10,
+      filter: [
+        "all",
+        ["==", ["geometry-type"], "Polygon"],
+        [
+          "in",
+          ["to-number", ["coalesce", ["get", "CATOBS"], 0], 0],
+          ["literal", [6, 7]],
+        ],
+      ] as unknown as ExpressionSpecification,
+      paint: {
+        "fill-pattern": ctx.icon("foul-pattern"),
+      },
+    },
+    {
+      id: "s57-obstrn-foul-outline",
+      type: "line",
+      source: ctx.sourceId,
+      "source-layer": "OBSTRN",
+      minzoom: 10,
+      filter: [
+        "all",
+        ["==", ["geometry-type"], "Polygon"],
+        [
+          "in",
+          ["to-number", ["coalesce", ["get", "CATOBS"], 0], 0],
+          ["literal", [6, 7]],
+        ],
+      ] as unknown as ExpressionSpecification,
+      paint: {
+        "line-color": ctx.colour("CHGRD"),
+        "line-width": 1,
+        "line-dasharray": [4, 2],
+        "line-opacity": 0.6,
       },
     },
     // Obstructions — line (piling rows, submerged walls, etc.)

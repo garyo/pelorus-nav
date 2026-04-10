@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" version="1.2" baseProfile="tiny" xml:space="preserve" shape-rendering="geometricPrecision" fill-rule="evenodd" width="5.29mm" height="9.53mm" viewBox="-2.65 -9.53 5.29 9.53">
+  <title>CHURCH11</title>
+  <desc>church (non-conspicuous)</desc>
+  <rect class="symbolBox layout" fill="none" x="-2.5" y="-9" height="9" width="5"/>
+  <rect class="svgBox layout" fill="none" x="-2.5" y="-9" height="9" width="5"/>
+  <rect x="-2" y="-4" width="4" height="4" class="sl f0 sCHBRN" stroke-width="0.32"/>
+  <line x1="0" y1="-4" x2="0" y2="-7" class="sl sCHBRN" stroke-width="0.64"/>
+  <line x1="0" y1="-7" x2="0" y2="-9" class="sl sCHBRN" stroke-width="0.32"/>
+  <line x1="-0.8" y1="-8" x2="0.8" y2="-8" class="sl sCHBRN" stroke-width="0.32"/>
+  <circle class="pivotPoint layout" fill="none" cx="0" cy="0" r="0.5"/>
+</svg>
