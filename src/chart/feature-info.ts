@@ -22,6 +22,13 @@ const CATLAM: Record<number, string> = {
   4: "Preferred channel to port",
 };
 
+const CATCAM: Record<number, string> = {
+  1: "North cardinal",
+  2: "South cardinal",
+  3: "East cardinal",
+  4: "West cardinal",
+};
+
 const CATWRK: Record<number, string> = {
   1: "Non-dangerous",
   2: "Dangerous",
@@ -414,6 +421,8 @@ function formatBuoy(
   addIfPresent(details, "Number", quoteNumber(props.LABEL ?? props.OBJNAM));
   const cat = lookupCode(CATLAM, props.CATLAM);
   if (cat) details.push({ label: "Category", value: cat });
+  const cam = lookupCode(CATCAM, props.CATCAM);
+  if (cam) details.push({ label: "Category", value: cam });
   const shape = lookupCode(BOYSHP, props.BOYSHP);
   if (shape) details.push({ label: "Shape", value: shape });
   addIfPresent(details, "Color", lookupAllCodes(COLOUR, props.COLOUR));
@@ -430,6 +439,8 @@ function formatBeacon(
   addIfPresent(details, "Number", quoteNumber(props.LABEL ?? props.OBJNAM));
   const cat = lookupCode(CATLAM, props.CATLAM);
   if (cat) details.push({ label: "Category", value: cat });
+  const cam = lookupCode(CATCAM, props.CATCAM);
+  if (cam) details.push({ label: "Category", value: cam });
   addIfPresent(details, "Color", lookupAllCodes(COLOUR, props.COLOUR));
   const status = lookupAllCodes(STATUS, props.STATUS);
   addIfPresent(details, "Status", status);
