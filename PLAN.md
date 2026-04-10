@@ -583,7 +583,7 @@ These are documented for planning purposes but not part of the current roadmap:
 ### Project Structure (Proposed)
 
 ```
-sailing-nav/
+pelorus-nav/
 ├── PLAN.md
 ├── CLAUDE.md                    # Project conventions for AI assistance
 ├── README.md

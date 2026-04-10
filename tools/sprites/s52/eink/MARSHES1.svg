@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 48 48">
+  <title>MARSHES1</title>
+  <desc>marsh/swamp area pattern - reed symbol</desc>
+  <rect width="48" height="48" stroke="none"/>
+  <g transform="translate(24, 28) scale(0.7)">
+    <line x1="0" y1="1" x2="0" y2="-7" stroke-width="1.2" fill="none" stroke="#604020" stroke-linecap="round" stroke-linejoin="round"/>
+    <line x1="-3" y1="3" x2="3" y2="3" stroke-width="1.2" fill="none" stroke="#604020" stroke-linecap="round" stroke-linejoin="round"/>
+    <line x1="-5" y1="0" x2="5" y2="0" stroke-width="1.2" fill="none" stroke="#604020" stroke-linecap="round" stroke-linejoin="round"/>
+    <line x1="-2" y1="0" x2="-4" y2="-5" stroke-width="1.2" fill="none" stroke="#604020" stroke-linecap="round" stroke-linejoin="round"/>
+    <line x1="2" y1="0" x2="4" y2="-5" stroke-width="1.2" fill="none" stroke="#604020" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+</svg>

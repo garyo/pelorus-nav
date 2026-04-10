@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" version="1.2" baseProfile="tiny" xml:space="preserve" shape-rendering="geometricPrecision" fill-rule="evenodd" width="23" height="23" viewBox="-3 -3 6 6">
+  <title>ISODGR01</title>
+  <desc>isolated danger symbol — magenta octagon with white cross</desc>
+  <!-- Octagon: magenta fill, black outline -->
+  <!-- Octagon with points at top/bottom/left/right -->
+  <polygon points="0,-2.5 1.8,-1.8 2.5,0 1.8,1.8 0,2.5 -1.8,1.8 -2.5,0 -1.8,-1.8" fill="#aa0000"/>
+  <polygon fill="none" points="0,-2.5 1.8,-1.8 2.5,0 1.8,1.8 0,2.5 -1.8,1.8 -2.5,0 -1.8,-1.8" stroke-width="0.3" stroke="#000000"/>
+  <!-- White X (45° cross) -->
+  <line x1="-1.3" y1="-1.3" x2="1.3" y2="1.3" stroke-width="0.55" stroke="#f0f0f0"/>
+  <line x1="1.3" y1="-1.3" x2="-1.3" y2="1.3" stroke-width="0.55" stroke="#f0f0f0"/>
+  
+</svg>

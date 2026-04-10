@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="45" height="45" viewBox="-6 -6 12 12">
+  <title>CTNARE51</title>
+  <desc>caution area - exclamation in circle</desc>
+  <circle stroke-width="0.64" cx="0" cy="0" r="4.97" fill="none" stroke="#a0a0a0"/>
+  <path d="M 0,-3.37 L 0,1.28" stroke-width="0.96" fill="none" stroke="#a0a0a0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M -0.72,3.08 L 0.72,3.08" stroke-width="0.64" fill="none" stroke="#a0a0a0" stroke-linecap="round" stroke-linejoin="round"/>
+  
+</svg>
