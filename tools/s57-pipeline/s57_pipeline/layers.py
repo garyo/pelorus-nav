@@ -136,6 +136,7 @@ LAYER_CONFIGS: list[LayerConfig] = [
     LayerConfig("NEWOBJ", "navaids", NAVAID_ARGS),
     LayerConfig("MIPARE", "regulatory", REGULATORY_ARGS),
     LayerConfig("CANALS", "infrastructure", DEFAULT_ARGS),
+    LayerConfig("BOYINB", "navaids", NAVAID_ARGS),
     # S-64 test data layers (also present in some production ENCs)
     LayerConfig("FERYRT", "regulatory", REGULATORY_ARGS),
     LayerConfig("CURENT", "navaids", NAVAID_ARGS),

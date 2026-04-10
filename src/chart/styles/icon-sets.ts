@@ -34,6 +34,8 @@ export const PELORUS_STANDARD: Record<string, string> = {
   "special-can": "ecdis-buoy-pillar-yellow",
   "special-pillar": "ecdis-buoy-pillar-yellow",
   "special-wo": "ecdis-buoy-pillar-wo",
+  "special-spar": "ecdis-buoy-pillar-yellow",
+  "lateral-spar": "ecdis-buoy-default",
   superbuoy: "ecdis-buoy-pillar-yellow",
   "isolated-danger": "ecdis-buoy-isolated-danger",
 
@@ -149,8 +151,8 @@ export const IHO_S52: Record<string, string> = {
   "lateral-stbd-can": "BOYLAT24",
   "lateral-port-pillar": "BOYLAT23",
   "lateral-stbd-pillar": "BOYLAT24",
-  "lateral-port-spar": "BOYLAT23",
-  "lateral-stbd-spar": "BOYLAT24",
+  "lateral-port-spar": "BOYSPR03",
+  "lateral-stbd-spar": "BOYSPR11",
   "lateral-port-spherical": "BOYSAW12",
   "lateral-stbd-spherical": "BOYSAW12",
 
@@ -168,6 +170,8 @@ export const IHO_S52: Record<string, string> = {
   "special-can": "BOYSPP25",
   "special-pillar": "BOYSPP35",
   "special-wo": "BOYSPP35",
+  "special-spar": "BOYSPR12",
+  "lateral-spar": "BOYSPR01",
   superbuoy: "BOYSUP02",
   "isolated-danger": "BOYISD12",
 
@@ -930,7 +934,7 @@ export function buildLayerExpressions(
         PILLAR,
         sp("special-pillar"),
         SPAR,
-        sp("special-pillar"),
+        sp("special-spar"),
         BARREL,
         sp("special-pillar"),
         sp("special"), // default (spherical, unknown)

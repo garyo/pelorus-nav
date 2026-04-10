@@ -285,6 +285,7 @@ export const LAYER_NAMES: Record<string, string> = {
   SISTAT: "Signal Station",
   SNDWAV: "Sand Waves",
   SPRING: "Spring",
+  BOYINB: "Installation Buoy",
   DYKCON: "Dyke",
   SLOTOP: "Slope/Cliff",
   PYLONS: "Pylon",

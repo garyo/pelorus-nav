@@ -135,8 +135,8 @@ describe("BOYLAT icon resolution", () => {
     expect(resolveIcon("BOYLAT", { CATLAM: 1, BOYSHP: 4 })).toBe("BOYLAT23");
   });
 
-  it("port spar buoy → BOYLAT23 (rectangular green)", () => {
-    expect(resolveIcon("BOYLAT", { CATLAM: 1, BOYSHP: 5 })).toBe("BOYLAT23");
+  it("port spar buoy → BOYSPR03 (red spar)", () => {
+    expect(resolveIcon("BOYLAT", { CATLAM: 1, BOYSHP: 5 })).toBe("BOYSPR03");
   });
 
   it("starboard can buoy → BOYLAT24 (rectangular red)", () => {
@@ -210,8 +210,8 @@ describe("BOYSPP icon resolution", () => {
     expect(resolveIcon("BOYSPP", { COLOUR: "6", BOYSHP: 1 })).toBe("BOYSPP15");
   });
 
-  it("yellow spar → BOYSPP35 (pillar-type shape)", () => {
-    expect(resolveIcon("BOYSPP", { COLOUR: "6", BOYSHP: 5 })).toBe("BOYSPP35");
+  it("yellow spar → BOYSPR12 (yellow spar shape)", () => {
+    expect(resolveIcon("BOYSPP", { COLOUR: "6", BOYSHP: 5 })).toBe("BOYSPR12");
   });
 
   it("no BOYSHP → BOYSPP11 (default spherical)", () => {
