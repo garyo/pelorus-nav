@@ -672,6 +672,10 @@ export function buildLayerExpressions(
       return constant("tank");
     case "BCNCAR":
       return constant("beacon-cardinal");
+    case "BCNISD":
+      return constant("beacon-default");
+    case "BCNSAW":
+      return constant("beacon-default");
     case "PILBOP":
       return constant("beacon-default");
 

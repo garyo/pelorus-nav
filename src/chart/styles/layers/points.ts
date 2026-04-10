@@ -99,6 +99,8 @@ export function getBuoyBeaconLayers(ctx: StyleContext): LayerSpecification[] {
   const boyisd = ctx.layerExprs("BOYISD");
   const bcnlat = ctx.layerExprs("BCNLAT");
   const bcncar = ctx.layerExprs("BCNCAR");
+  const bcnisd = ctx.layerExprs("BCNISD");
+  const bcnsaw = ctx.layerExprs("BCNSAW");
   const lights = ctx.layerExprs("LIGHTS");
 
   return [
@@ -290,6 +292,61 @@ export function getBuoyBeaconLayers(ctx: StyleContext): LayerSpecification[] {
           "text-optional": true,
         },
         bcncar.offsetExpr,
+      ),
+      paint: {
+        "text-color": ctx.colour("CHBLK"),
+        "text-halo-color": ctx.colour("NAIDH"),
+        "text-halo-width": 1.5,
+      },
+    },
+
+    // Isolated danger beacons
+    {
+      id: "s57-bcnisd",
+      type: "symbol",
+      source: ctx.sourceId,
+      "source-layer": "BCNISD",
+      minzoom: 8,
+      layout: withOffset(
+        {
+          "icon-image": bcnisd.iconExpr,
+          "icon-size": scaledSize(0.7, ctx),
+          "icon-allow-overlap": true,
+          "icon-ignore-placement": true,
+          "text-field": LABEL_EXPR,
+          "text-size": scaledTextSize(11, ctx),
+          "text-offset": [0, 1.5],
+          "text-allow-overlap": false,
+          "text-optional": true,
+        },
+        bcnisd.offsetExpr,
+      ),
+      paint: {
+        "text-color": ctx.colour("CHBLK"),
+        "text-halo-color": ctx.colour("NAIDH"),
+        "text-halo-width": 1.5,
+      },
+    },
+    // Safe water beacons
+    {
+      id: "s57-bcnsaw",
+      type: "symbol",
+      source: ctx.sourceId,
+      "source-layer": "BCNSAW",
+      minzoom: 8,
+      layout: withOffset(
+        {
+          "icon-image": bcnsaw.iconExpr,
+          "icon-size": scaledSize(0.7, ctx),
+          "icon-allow-overlap": true,
+          "icon-ignore-placement": true,
+          "text-field": LABEL_EXPR,
+          "text-size": scaledTextSize(11, ctx),
+          "text-offset": [0, 1.5],
+          "text-allow-overlap": false,
+          "text-optional": true,
+        },
+        bcnsaw.offsetExpr,
       ),
       paint: {
         "text-color": ctx.colour("CHBLK"),
