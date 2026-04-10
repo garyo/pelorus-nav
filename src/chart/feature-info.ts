@@ -1077,6 +1077,26 @@ function formatSeaArea(
   return details;
 }
 
+const CATWED: Record<number, string> = {
+  1: "Kelp",
+  2: "Weed (unknown)",
+  3: "Sea weed",
+  4: "Sea grass",
+};
+
+function formatWeedKelp(
+  props: Record<string, unknown>,
+): { label: string; value: string }[] {
+  const details: { label: string; value: string }[] = [];
+  addIfPresent(details, "Name", props.OBJNAM);
+  const cat = lookupCode(CATWED, props.CATWED);
+  if (cat) details.push({ label: "Type", value: cat });
+  const wl = lookupCode(WATLEV, props.WATLEV);
+  if (wl) details.push({ label: "Water Level", value: wl });
+  addIfPresent(details, "Information", props.INFORM);
+  return details;
+}
+
 function formatMarineFarm(
   props: Record<string, unknown>,
 ): { label: string; value: string }[] {
@@ -1178,6 +1198,7 @@ const FORMATTERS: Record<
   MAGVAR: formatMagVar,
   SILTNK: formatSiloTank,
   MARCUL: formatMarineFarm,
+  WEDKLP: formatWeedKelp,
   LNDARE: formatLandArea,
   LNDELV: formatLandElevation,
   BUISGL: formatBuilding,
