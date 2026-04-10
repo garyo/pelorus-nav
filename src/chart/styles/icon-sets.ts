@@ -195,9 +195,9 @@ export const IHO_S52: Record<string, string> = {
   "isolated-danger-symbol": "ISODGR01",
 
   // Hazards
-  "wreck-dangerous": "WRECKS01",
-  "wreck-nondangerous": "WRECKS05",
-  "wreck-mast": "WRECKS04",
+  "wreck-mast": "WRECKS01",
+  "wreck-nondangerous": "WRECKS04",
+  "wreck-dangerous": "WRECKS05",
   obstruction: "OBSTRN01",
   "obstruction-foul": "OBSTRN11",
   "rock-underwater": "UWTROC03",
@@ -496,7 +496,9 @@ const WATLEV_SUBMERGED = 3;
 // CATWRK
 const CATWRK_NONDANGEROUS = 1;
 const CATWRK_DANGEROUS = 2;
-const CATWRK_MAST = 4;
+// 3 = distributed remains
+const CATWRK_HULL = 4;
+const CATWRK_MAST = 5;
 // CATOBS
 const CATOBS_FOUL_AREA = 6;
 const CATOBS_FOUL_GROUND = 7;
@@ -823,14 +825,21 @@ export function buildLayerExpressions(
     case "WRECKS": {
       const iconExpr = [
         "case",
+        // Visible wreck: mast or hull showing
         ["==", ["get", "CATWRK"], CATWRK_MAST],
         sp("wreck-mast"),
-        ["==", ["get", "CATWRK"], CATWRK_NONDANGEROUS],
-        sp("wreck-nondangerous"),
-        ["==", ["get", "WATLEV"], WATLEV_SUBMERGED],
-        sp("wreck-dangerous"),
+        ["==", ["get", "CATWRK"], CATWRK_HULL],
+        sp("wreck-mast"),
+        // Dangerous wreck (check before WATLEV so CATWRK takes priority)
         ["==", ["get", "CATWRK"], CATWRK_DANGEROUS],
         sp("wreck-dangerous"),
+        // Non-dangerous wreck
+        ["==", ["get", "CATWRK"], CATWRK_NONDANGEROUS],
+        sp("wreck-nondangerous"),
+        // Submerged (no CATWRK but WATLEV=3)
+        ["==", ["get", "WATLEV"], WATLEV_SUBMERGED],
+        sp("wreck-dangerous"),
+        // Default
         sp("wreck-nondangerous"),
       ] as unknown as ExpressionSpecification;
       // Compute offsets for wreck sprites
@@ -849,11 +858,13 @@ export function buildLayerExpressions(
             "case",
             ["==", ["get", "CATWRK"], CATWRK_MAST],
             ["literal", mastOff],
+            ["==", ["get", "CATWRK"], CATWRK_HULL],
+            ["literal", mastOff],
+            ["==", ["get", "CATWRK"], CATWRK_DANGEROUS],
+            ["literal", dangOff],
             ["==", ["get", "CATWRK"], CATWRK_NONDANGEROUS],
             ["literal", nonDangOff],
             ["==", ["get", "WATLEV"], WATLEV_SUBMERGED],
-            ["literal", dangOff],
-            ["==", ["get", "CATWRK"], CATWRK_DANGEROUS],
             ["literal", dangOff],
             ["literal", nonDangOff],
           ] as unknown as ExpressionSpecification)
