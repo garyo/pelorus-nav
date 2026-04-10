@@ -185,7 +185,7 @@ export function getNavigationOverlayLayers(
       "source-layer": "MARCUL",
       minzoom: ctx.detailMinzoom(11),
       layout: {
-        "icon-image": "MRFARM01",
+        "icon-image": "MARCUL02",
         "icon-size": 0.7,
         "icon-allow-overlap": true,
       },
