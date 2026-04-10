@@ -44,8 +44,9 @@ mkdir -p "$TILE_DATA_DIR"
 if [[ ! -e "$PIPELINE_DIR/data" ]]; then
   ln -s "$TILE_DATA_DIR" "$PIPELINE_DIR/data"
 elif [[ ! -L "$PIPELINE_DIR/data" ]]; then
-  echo "Warning: $PIPELINE_DIR/data exists but is not a symlink." >&2
-  echo "Move its contents to $TILE_DATA_DIR and replace with a symlink." >&2
+  echo "Error: $PIPELINE_DIR/data exists but is not a symlink." >&2
+  echo "Fix with: mv $PIPELINE_DIR/data/* $TILE_DATA_DIR/ && rmdir $PIPELINE_DIR/data && ln -s $TILE_DATA_DIR $PIPELINE_DIR/data" >&2
+  exit 1
 fi
 
 # All production regions (order matters for display)

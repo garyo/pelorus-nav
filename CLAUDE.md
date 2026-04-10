@@ -53,6 +53,11 @@ Pelorus Nav — open-source web-based marine chartplotter (PWA). See PLAN.md for
 Python CLI for converting NOAA S-57 ENC data → PMTiles vector tiles.
 Requires `gdal` and `tippecanoe` installed via brew.
 
+**Important:** `tools/s57-pipeline/data` must be a **symlink** to `tile-data/` at the
+project root (created by `build-tiles.sh`). Never create it as a real directory. Always
+use `tools/build-tiles.sh` to run tile builds — don't invoke the pipeline CLI directly
+for downloads or builds, as it bypasses the symlink setup.
+
 ### List attribute encoding
 S-57 has list-typed attributes (COLOUR, CATSPM, STATUS, etc.) that ogr2ogr outputs
 as JSON arrays (e.g. `["1","11"]`). Since MVT only supports flat values, the pipeline's
