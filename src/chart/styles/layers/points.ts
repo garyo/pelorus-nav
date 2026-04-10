@@ -1142,18 +1142,35 @@ export function getAdditionalPointLayers(
       },
       paint: {},
     },
-    // Fishing Facility
+    // Fishing Facility — SY(FSHFAC02) + line/area outline
     {
       id: "s57-fshfac",
-      type: "circle" as const,
+      type: "symbol" as const,
       source: ctx.sourceId,
       "source-layer": "FSHFAC",
-      minzoom: ctx.detailMinzoom(12),
+      minzoom: ctx.detailMinzoom(11),
+      layout: {
+        "icon-image": "FSHFAC02",
+        "icon-size": 0.7,
+        "icon-allow-overlap": true,
+      },
+      paint: {},
+    },
+    {
+      id: "s57-fshfac-line",
+      type: "line" as const,
+      source: ctx.sourceId,
+      "source-layer": "FSHFAC",
+      minzoom: ctx.detailMinzoom(11),
+      filter: [
+        "in",
+        ["geometry-type"],
+        ["literal", ["LineString", "Polygon"]],
+      ] as unknown as ExpressionSpecification,
       paint: {
-        "circle-radius": 5,
-        "circle-color": ctx.colour("CHMGD"),
-        "circle-stroke-color": ctx.colour("CHBLK"),
-        "circle-stroke-width": 1,
+        "line-color": ctx.colour("CHGRD"),
+        "line-width": 1,
+        "line-dasharray": [4, 2],
       },
     },
     // Pylons (bridge supports — small subtle dots, subordinate to bridge line)
