@@ -105,49 +105,80 @@ export function getLineLayers(ctx: StyleContext): LayerSpecification[] {
         "line-width": 2,
       },
     },
-    // Opening bridge clearance label (D23)
-    {
-      id: "s57-bridge-label",
-      type: "symbol",
-      source: ctx.sourceId,
-      "source-layer": "BRIDGE",
-      minzoom: ctx.detailMinzoom(13),
-      filter: [
+    // Bridge clearance labels (D23) — separate layers for line vs polygon geometry
+    ...((): LayerSpecification[] => {
+      const hasClr = [
         "any",
         ["has", "VERCLR"],
         ["has", "VERCCL"],
         ["has", "VERCOP"],
-      ] as unknown as ExpressionSpecification,
-      layout: {
-        "text-field": [
-          "case",
-          ["has", "VERCOP"],
-          [
-            "concat",
-            "clr ",
-            ["to-string", ["get", "VERCCL"]],
-            "/",
-            ["to-string", ["get", "VERCOP"]],
-            "m",
-          ],
-          ["has", "VERCLR"],
-          ["concat", "clr ", ["to-string", ["get", "VERCLR"]], "m"],
-          ["has", "VERCCL"],
-          ["concat", "clr ", ["to-string", ["get", "VERCCL"]], "m"],
-          "",
-        ] as unknown as ExpressionSpecification,
-        "text-size": scaledTextSize(10, ctx),
-        "text-font": ["Noto Sans Regular"],
-        "text-allow-overlap": false,
-        "text-anchor": "top",
-        "text-offset": [0, 0.5],
-      },
-      paint: {
+      ] as unknown as ExpressionSpecification;
+      const clrText = [
+        "case",
+        ["has", "VERCOP"],
+        [
+          "concat",
+          "clr ",
+          ["to-string", ["get", "VERCCL"]],
+          "/",
+          ["to-string", ["get", "VERCOP"]],
+          "m",
+        ],
+        ["has", "VERCLR"],
+        ["concat", "clr ", ["to-string", ["get", "VERCLR"]], "m"],
+        ["has", "VERCCL"],
+        ["concat", "clr ", ["to-string", ["get", "VERCCL"]], "m"],
+        "",
+      ] as unknown as ExpressionSpecification;
+      const paint = {
         "text-color": ctx.colour("CHBRN"),
         "text-halo-color": ctx.colour("CHWHT"),
         "text-halo-width": 1,
-      },
-    },
+      };
+      return [
+        {
+          id: "s57-bridge-label",
+          type: "symbol",
+          source: ctx.sourceId,
+          "source-layer": "BRIDGE",
+          minzoom: ctx.detailMinzoom(13),
+          filter: [
+            "all",
+            hasClr,
+            ["!=", ["geometry-type"], "LineString"],
+          ] as unknown as ExpressionSpecification,
+          layout: {
+            "text-field": clrText,
+            "text-size": scaledTextSize(10, ctx),
+            "text-font": ["Noto Sans Regular"],
+            "text-allow-overlap": false,
+            "text-anchor": "top",
+            "text-offset": [0, 0.5],
+          },
+          paint,
+        },
+        {
+          id: "s57-bridge-label-line",
+          type: "symbol",
+          source: ctx.sourceId,
+          "source-layer": "BRIDGE",
+          minzoom: ctx.detailMinzoom(13),
+          filter: [
+            "all",
+            hasClr,
+            ["==", ["geometry-type"], "LineString"],
+          ] as unknown as ExpressionSpecification,
+          layout: {
+            "symbol-placement": "line-center",
+            "text-field": clrText,
+            "text-size": scaledTextSize(10, ctx),
+            "text-font": ["Noto Sans Regular"],
+            "text-allow-overlap": false,
+          },
+          paint,
+        },
+      ];
+    })(),
     {
       id: "s57-cblsub",
       type: "line",
