@@ -13,6 +13,17 @@
   <body>
     <header id="top-bar">
       <span class="app-name">Pelorus Nav</span>
+      <script>
+        // Detect runtime: Capacitor (Ⓐ), PWA (Ⓟ), or web (Ⓦ)
+        (function() {
+          var C = window.Capacitor;
+          var isNative = C && C.isNativePlatform && C.isNativePlatform();
+          var isPWA = !isNative && (window.matchMedia('(display-mode: standalone)').matches ||
+            navigator.standalone === true);
+          var badge = isNative ? '\u24B6' : isPWA ? '\u24C5' : '\u24CC';
+          document.querySelector('.app-name').textContent = 'Pelorus Nav ' + badge;
+        })();
+      </script>
       <select id="chart-select" aria-label="Chart source"></select>
       <button id="hamburger-btn" type="button" class="hamburger-btn" aria-label="Menu">☰</button>
       <div id="topbar-menu" class="topbar-menu"></div>
