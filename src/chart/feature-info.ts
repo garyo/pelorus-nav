@@ -152,11 +152,10 @@ const CATWAT: Record<number, string> = {
 };
 
 const CATGAT: Record<number, string> = {
-  1: "General",
-  2: "Flood Barrage",
-  3: "Caisson",
-  4: "Lock",
-  5: "Dyke Gate",
+  1: "Flood Barrage",
+  2: "Caisson",
+  3: "Lock Gate",
+  4: "Dyke Gate",
 };
 
 const CATPIL: Record<number, string> = {
@@ -1556,6 +1555,54 @@ function formatLightFloat(
   return details;
 }
 
+const CATROS: Record<number, string> = {
+  1: "Radio Direction Finding",
+  2: "Rotating Pattern Radiobeacon",
+  3: "Consol Beacon",
+  4: "Aeronautical Radiobeacon",
+  5: "Decca",
+  6: "Loran C",
+  7: "DGPS",
+  8: "Radio Telephone",
+  9: "AIS",
+  10: "IRTC",
+};
+
+const CATRTB: Record<number, string> = {
+  1: "RACON",
+  2: "Radar Transponder",
+  3: "Leading Radar Transponder",
+};
+
+function formatRadioStation(
+  props: Record<string, unknown>,
+): { label: string; value: string }[] {
+  const details: { label: string; value: string }[] = [];
+  addIfPresent(details, "Name", props.OBJNAM);
+  const cat = lookupCode(CATROS, props.CATROS);
+  addIfPresent(details, "Type", cat);
+  if (props.COMCHA != null) {
+    details.push({ label: "Channel", value: `Ch ${props.COMCHA}` });
+  }
+  addIfPresent(details, "Information", props.INFORM);
+  return details;
+}
+
+function formatRadarTransponder(
+  props: Record<string, unknown>,
+): { label: string; value: string }[] {
+  const details: { label: string; value: string }[] = [];
+  addIfPresent(details, "Name", props.OBJNAM);
+  const cat = lookupCode(CATRTB, props.CATRTB);
+  addIfPresent(details, "Type", cat);
+  addIfPresent(details, "Signal Group", props.SIGGRP);
+  if (props.VALMXR != null) {
+    details.push({ label: "Range", value: `${props.VALMXR} NM` });
+  }
+  addIfPresent(details, "Information", props.INFORM);
+  return details;
+}
+
 function formatRadioCalling(
   props: Record<string, unknown>,
 ): { label: string; value: string }[] {
@@ -1683,6 +1730,8 @@ const FORMATTERS: Record<
   OVFALL: formatSimple,
   SNDWAV: formatSimple,
   SPRING: formatSimple,
+  RDOSTA: formatRadioStation,
+  RTPBCN: formatRadarTransponder,
 };
 
 export function formatFeatureInfo(

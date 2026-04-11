@@ -834,7 +834,7 @@ export function getHazardLayers(ctx: StyleContext): LayerSpecification[] {
         "icon-allow-overlap": true,
         "text-field": [
           "case",
-          ["==", ["get", "CATROS"], 7],
+          ["any", ["==", ["get", "CATROS"], 7], ["==", ["get", "CATROS"], "7"]],
           "DGPS",
           "",
         ] as unknown as ExpressionSpecification,

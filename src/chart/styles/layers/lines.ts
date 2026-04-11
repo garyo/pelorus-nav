@@ -133,6 +133,8 @@ export function getLineLayers(ctx: StyleContext): LayerSpecification[] {
           ],
           ["has", "VERCLR"],
           ["concat", "clr ", ["to-string", ["get", "VERCLR"]], "m"],
+          ["has", "VERCCL"],
+          ["concat", "clr ", ["to-string", ["get", "VERCCL"]], "m"],
           "",
         ] as unknown as ExpressionSpecification,
         "text-size": scaledTextSize(10, ctx),
