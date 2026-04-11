@@ -140,6 +140,10 @@ const INTERACTIVE_SUFFIXES = [
   "-rdocal",
   "-rscsta",
   "-sistat",
+  "-rtpbcn",
+  "-rdosta",
+  "-gatcon-symbol",
+  "-ospare-symbol",
 ];
 
 /** Map suffix → priority rank for deduplication ordering. */

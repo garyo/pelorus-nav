@@ -231,6 +231,25 @@ export const IHO_S52: Record<string, string> = {
   // Caution
   "caution-area": "CTNARE51",
 
+  // Infrastructure
+  "gate-navigable": "GATCON03",
+  "gate-non-navigable": "GATCON04",
+  "wind-farm": "WNDFRM61",
+  "radar-transponder": "RTPBCN02",
+  racon: "RACNSP01",
+  "radio-station": "RDOSTA02",
+  "pilot-boarding": "PILBOP02",
+
+  // Landmarks — additional types
+  "landmark-quarry": "QUARRY01",
+  "landmark-refinery": "RFNERY01",
+  "landmark-refinery-conspic": "RFNERY11",
+  "landmark-tank-farm": "TNKFRM01",
+  "landmark-tank-farm-conspic": "TNKFRM11",
+  "landmark-temple": "TMBYRD01",
+  "landmark-fortified": "FORSTC01",
+  "landmark-fortified-conspic": "FORSTC11",
+
   // Restricted areas
   "anchoring-prohibited": "ACHRES51",
   "fishing-prohibited": "FSHRES51",
@@ -375,6 +394,23 @@ const S52_OFFSETS: Record<string, [number, number]> = {
   SILBUI11: [0, 0],
   PRICKE03: [0, 0],
   PRICKE04: [0, 0],
+  // Infrastructure
+  GATCON03: [0, 0],
+  GATCON04: [0, 0],
+  WNDFRM61: [0, 0],
+  RTPBCN02: [0, 0],
+  RACNSP01: [0, 0],
+  RDOSTA02: [0, 0],
+  PILBOP02: [0, 0],
+  // Landmarks — additional
+  QUARRY01: [0, 0],
+  RFNERY01: [0, 0],
+  RFNERY11: [0, 0],
+  TNKFRM01: [0, 0],
+  TNKFRM11: [0, 0],
+  TMBYRD01: [0, 0],
+  FORSTC01: [0, 0],
+  FORSTC11: [0, 0],
   // Restricted areas (offsets from symbols.json)
   ACHRES51: [35, 34],
   FSHRES51: [39.5, -19.5],

@@ -1,0 +1,7 @@
+- IDEA: sync phone & tablet, use phone's GPS to drive both displays!
+- Go To location (click in bottom right HUD) centers at that location, but doesn't place a marker. Probably should place a Fix symbol or just waypoint. Maybe separate button: Place Marker. Maybe also something in Plot?
+- Don't show position of sub-elements like Lights if they're identical to parent (save space)
+- Light at 41°23.85'N 071°02.10'W (Buzzards Bay) has no name/number, no icon? Just ht/range. Maybe show that on the chart if no name? (Also: should coalesce horn there)
+- After creating a route & clicking Done, should display the table for that route, which should have Edit, Delete (w/ confirm)
+- While creating route, it shows last leg as °true always; should respect True/Mag settings.
+- While editing route, table should update dynamically, as should the display at top (Last: xxNM/YY°). In fact leaving the current-route table open and highlighting an edited leg highlights the *old* location! Handle Cancel properly in all cases too.

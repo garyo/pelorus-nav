@@ -807,6 +807,68 @@ export function getHazardLayers(ctx: StyleContext): LayerSpecification[] {
       paint: {},
     },
 
+    // Radar transponder beacon — RTPBCN
+    {
+      id: "s57-rtpbcn",
+      type: "symbol",
+      source: ctx.sourceId,
+      "source-layer": "RTPBCN",
+      minzoom: 10,
+      layout: {
+        "icon-image": ctx.icon("radar-transponder"),
+        "icon-size": 0.7,
+        "icon-allow-overlap": true,
+      },
+      paint: {},
+    },
+    // Radio station — RDOSTA
+    {
+      id: "s57-rdosta",
+      type: "symbol",
+      source: ctx.sourceId,
+      "source-layer": "RDOSTA",
+      minzoom: 10,
+      layout: {
+        "icon-image": ctx.icon("radio-station"),
+        "icon-size": 0.7,
+        "icon-allow-overlap": true,
+        "text-field": [
+          "case",
+          ["==", ["get", "CATROS"], 7],
+          "DGPS",
+          "",
+        ] as unknown as ExpressionSpecification,
+        "text-size": scaledTextSize(10, ctx),
+        "text-offset": [0, 1.5],
+        "text-font": ["Noto Sans Regular"],
+        "text-optional": true,
+      },
+      paint: {
+        "text-color": ctx.colour("CHBLK"),
+        "text-halo-color": ctx.colour("CHWHT"),
+        "text-halo-width": 1,
+      },
+    },
+    // Gate/lock — GATCON
+    {
+      id: "s57-gatcon-symbol",
+      type: "symbol",
+      source: ctx.sourceId,
+      "source-layer": "GATCON",
+      minzoom: ctx.detailMinzoom(12),
+      layout: {
+        "icon-image": [
+          "case",
+          ["==", ["get", "CATGAT"], 3],
+          ctx.icon("gate-navigable"),
+          ctx.icon("gate-non-navigable"),
+        ] as unknown as ExpressionSpecification,
+        "icon-size": 0.7,
+        "icon-allow-overlap": true,
+      },
+      paint: {},
+    },
+
     // Isolated danger overlays (S-52 UDWHAZ05): magenta diamond symbol
     // for hazards with depth ≤ safetyDepth that lie in safe water
     // (_enclosing_depth ≥ safetyDepth). Added by pipeline enrichment.

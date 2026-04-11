@@ -163,9 +163,8 @@ S-52: CS(OWNSHP01) for safety zones
 - [ ] **Safety zone** (L3) — S-52: SY(ENTRES61) entry prohibited +
       LS(DASH,2,TRFCD) boundary. S-57: RESARE.CATREA=1 (offshore safety zone)
       around OFSPLF. 500m radius typically.
-- [~] **Wind farm (offshore)** (L5.2) — OSPARE added to pipeline + dashed
-      magenta boundary. Missing: SY(WNDFRM61) wind turbine symbol.
-      **Verify at:** Vineyard Wind (41°07'N, 70°29'W, z10).
+- [x] **Wind farm (offshore)** (L5.2) — OSPARE + SY(WNDFRM61) wind turbine
+      symbol from IHO S-101 catalogue.
 - [ ] **Wave farm** (L6) — S-52: SY(ENTRES61) caution.
       S-57: OSPARE with CATPRA=6 (wave energy device).
 - [ ] **Installation buoy** (L12, L16) — S-52: SY(BOYSPP11) simplified,
@@ -241,9 +240,8 @@ S-57: BRIDGE, SLCONS, GATCON, FLODOC, HULKES, CAUSWY, MORFAC
       opening bridges (needs sprite).
 - [x] **Seawall** (F2) — CATSLC=3 rendered with thicker line (2.5px).
 - [x] **Breakwater** (F4) — CATSLC=1 rendered with thicker line (2.5px).
-- [ ] **Lock gate** (F41) — S-52: SY(GATCON01) navigable, SY(GATCON02)
-      non-navigable. S-57: GATCON with CATGAT=1 (flood barrage gate),
-      =2 (caisson), =3 (lock gate), =4 (dyke gate).
+- [x] **Lock gate** (F41) — SY(GATCON03) navigable / SY(GATCON04)
+      non-navigable, from IHO S-101 catalogue.
 - [ ] **Floating dock** (F26) — S-52: LS(SOLD,2,LANDF) line,
       fill for area. S-57: FLODOC (floating dock) object.
 - [ ] **Groin** (F6) — S-52: LS(SOLD,2,LANDF).
@@ -346,19 +344,16 @@ S-52: CS(FOGSIG02)
 ### S: Radar, Radio, Satellite
 S-57: RADRFL, RTPBCN, RDOSTA, RADSTA, CRANES, SISTAT
 S-52: SY(RADRFL01), SY(RTPBCN01), SY(RDOSTA01)
-- [ ] **RACON** (S3) — S-52: SY(RTPBCN01) circle symbol + TE for morse ID.
-      S-57: RTPBCN (radar transponder beacon) with CATRTB=1 (RACON),
-      attrs SIGGRP (morse letter), VALMXR (range).
+- [x] **RACON/radar transponder** (S3) — SY(RTPBCN02) from IHO S-101.
+      S-57: RTPBCN with CATRTB.
 - [ ] **AIS transmitter** (S17) — S-52: SY(SISTAW01) on associated aid.
       S-57: SISTAT (signal station) with CATSIT attrs, or associated with
       BOYLAT/BCNLAT via relationship.
 - [ ] **Virtual AIS aids** (S18) — S-52: SY(VARONE01-07) for cardinal/lateral/
       special purpose/etc. S-57: NEWOBJ (new object) with CATVAI attrs for
       V-AIS type (lateral, cardinal, isolated danger, safe water, special purpose).
-- [ ] **Radio station** (S10) — S-52: SY(RDOSTA01) circle.
-      S-57: RDOSTA (radio station), attrs CATROS (type).
-- [ ] **DGPS station** (S51) — S-52: SY(RDOSTA01) + TE("DGPS").
-      S-57: RDOSTA with CATROS=7 (DGPS).
+- [x] **Radio station** (S10) — SY(RDOSTA02) from IHO S-101.
+- [x] **DGPS station** (S51) — SY(RDOSTA02) + "DGPS" label for CATROS=7.
 
 ### T: Services
 S-57: PILBOP, CGUSTA, SISTAT, RSCSTA

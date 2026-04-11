@@ -310,6 +310,22 @@ export function getNavigationOverlayLayers(
         "line-opacity": 0.5,
       },
     },
+    // Wind farm symbol on OSPARE
+    {
+      id: "s57-ospare-symbol",
+      type: "symbol" as const,
+      source: ctx.sourceId,
+      "source-layer": "OSPARE",
+      minzoom: ctx.detailMinzoom(10),
+      layout: {
+        "icon-image": ctx.icon("wind-farm"),
+        "icon-size": 0.6,
+        "icon-allow-overlap": true,
+      },
+      paint: {
+        "icon-opacity": 0.75,
+      },
+    },
     // Territorial sea area boundary — TESARE
     {
       id: "s57-tesare",
