@@ -91,13 +91,18 @@ const RESTRN: Record<number, string> = {
 };
 
 const CATBRG: Record<number, string> = {
-  2: "Fixed",
-  3: "Opening",
-  4: "Swing",
-  5: "Lifting/Bascule",
-  6: "Bascule",
-  7: "Pontoon",
-  8: "Draw",
+  1: "Fixed",
+  2: "Opening",
+  3: "Swing",
+  4: "Lifting",
+  5: "Bascule",
+  6: "Pontoon",
+  7: "Drawbridge",
+  8: "Transporter",
+  9: "Footbridge",
+  10: "Viaduct",
+  11: "Aqueduct",
+  12: "Suspension",
 };
 
 const CATCBL: Record<number, string> = {
