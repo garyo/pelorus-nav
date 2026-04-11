@@ -94,21 +94,70 @@ export function getNavigationOverlayLayers(
         "text-opacity": 0.6,
       },
     },
-    // Restricted area symbol (anchoring prohibited)
+    // Restricted area symbols — S-52 CS(RESARE04)
+    // Anchoring prohibited (RESTRN contains 7 or 14)
     {
-      id: "s57-resare-symbol",
+      id: "s57-resare-anchor-prohib",
       type: "symbol",
       source: ctx.sourceId,
       "source-layer": "RESARE",
       minzoom: ctx.detailMinzoom(10),
-      filter: ["in", "1", ["get", "RESTRN"]],
+      filter: [
+        "any",
+        ["in", "7", ["concat", ",", ["get", "RESTRN"], ","]],
+        ["in", "14", ["concat", ",", ["get", "RESTRN"], ","]],
+      ] as unknown as ExpressionSpecification,
       layout: {
-        "icon-image": "ACHRES51",
+        "icon-image": ctx.icon("anchoring-prohibited"),
         "icon-size": 0.5,
         "icon-allow-overlap": true,
       },
       paint: {
-        "icon-opacity": 0.4,
+        "icon-opacity": 0.75,
+      },
+    },
+    // Fishing prohibited (RESTRN contains 2 or 6)
+    {
+      id: "s57-resare-fish-prohib",
+      type: "symbol",
+      source: ctx.sourceId,
+      "source-layer": "RESARE",
+      minzoom: ctx.detailMinzoom(10),
+      filter: [
+        "any",
+        ["in", ",2,", ["concat", ",", ["get", "RESTRN"], ","]],
+        ["in", ",6,", ["concat", ",", ["get", "RESTRN"], ","]],
+      ] as unknown as ExpressionSpecification,
+      layout: {
+        "icon-image": ctx.icon("fishing-prohibited"),
+        "icon-size": 0.5,
+        "icon-allow-overlap": true,
+      },
+      paint: {
+        "icon-opacity": 0.75,
+      },
+    },
+    // Entry prohibited/restricted (RESTRN contains 1)
+    {
+      id: "s57-resare-entry-prohib",
+      type: "symbol",
+      source: ctx.sourceId,
+      "source-layer": "RESARE",
+      minzoom: ctx.detailMinzoom(10),
+      filter: [
+        "all",
+        ["in", ",1,", ["concat", ",", ["get", "RESTRN"], ","]],
+        // Don't show entry symbol when anchoring or fishing symbol already shown
+        ["!", ["in", ",7,", ["concat", ",", ["get", "RESTRN"], ","]]],
+        ["!", ["in", ",2,", ["concat", ",", ["get", "RESTRN"], ","]]],
+      ] as unknown as ExpressionSpecification,
+      layout: {
+        "icon-image": ctx.icon("entry-prohibited"),
+        "icon-size": 0.5,
+        "icon-allow-overlap": true,
+      },
+      paint: {
+        "icon-opacity": 0.75,
       },
     },
     {
@@ -230,6 +279,22 @@ export function getNavigationOverlayLayers(
         "line-width": 1,
         "line-dasharray": [4, 2],
         "line-opacity": 0.5,
+      },
+    },
+    // Military practice area symbol
+    {
+      id: "s57-mipare-symbol",
+      type: "symbol" as const,
+      source: ctx.sourceId,
+      "source-layer": "MIPARE",
+      minzoom: ctx.detailMinzoom(10),
+      layout: {
+        "icon-image": ctx.icon("entry-prohibited-caution"),
+        "icon-size": 0.5,
+        "icon-allow-overlap": true,
+      },
+      paint: {
+        "icon-opacity": 0.75,
       },
     },
     // Offshore production area (wind farms, etc.) — OSPARE

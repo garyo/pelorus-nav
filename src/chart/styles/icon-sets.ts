@@ -231,6 +231,12 @@ export const IHO_S52: Record<string, string> = {
   // Caution
   "caution-area": "CTNARE51",
 
+  // Restricted areas
+  "anchoring-prohibited": "ACHRES51",
+  "fishing-prohibited": "FSHRES51",
+  "entry-prohibited": "ENTRES51",
+  "entry-prohibited-caution": "ENTRES61",
+
   // Area patterns
   "nodata-pattern": "NODATA03",
   "marsh-pattern": "MARSHES1",
@@ -369,6 +375,11 @@ const S52_OFFSETS: Record<string, [number, number]> = {
   SILBUI11: [0, 0],
   PRICKE03: [0, 0],
   PRICKE04: [0, 0],
+  // Restricted areas (offsets from symbols.json)
+  ACHRES51: [35, 34],
+  FSHRES51: [39.5, -19.5],
+  ENTRES51: [-37.5, -14.5],
+  ENTRES61: [-37.5, -14],
   // Topmarks — SVG pivots already at base; zero offset
   TOPMAR02: [0, 0],
   TOPMAR04: [0, 0],
