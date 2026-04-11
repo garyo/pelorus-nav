@@ -105,6 +105,42 @@ export function getLineLayers(ctx: StyleContext): LayerSpecification[] {
         "line-width": 2,
       },
     },
+    // Opening bridge symbol — SY(BRIDGE01) concentric circles
+    // S-57 CATBRG codes for opening bridges:
+    //   2=opening, 3=swing, 4=lifting, 5=bascule, 7=drawbridge, 9=draw
+    {
+      id: "s57-bridge-opening",
+      type: "symbol",
+      source: ctx.sourceId,
+      "source-layer": "BRIDGE",
+      minzoom: ctx.detailMinzoom(12),
+      filter: [
+        "any",
+        ...[
+          "2", // opening
+          "3", // swing
+          "4", // lifting
+          "5", // bascule
+          "7", // drawbridge
+          "9", // draw
+        ].map((v) => [
+          "in",
+          `,${v},`,
+          [
+            "concat",
+            ",",
+            ["to-string", ["coalesce", ["get", "CATBRG"], ""]],
+            ",",
+          ],
+        ]),
+      ] as unknown as ExpressionSpecification,
+      layout: {
+        "icon-image": ctx.icon("bridge-symbol"),
+        "icon-size": 0.7,
+        "icon-allow-overlap": true,
+      },
+      paint: {},
+    },
     // Bridge clearance labels (D23) — separate layers for line vs polygon geometry
     ...((): LayerSpecification[] => {
       const hasClr = [

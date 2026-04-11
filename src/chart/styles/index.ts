@@ -153,6 +153,7 @@ const LAYER_CATEGORIES: Record<string, "DISPLAYBASE" | "STANDARD" | "OTHER"> = {
   "s57-drgare-outline": "STANDARD",
   "s57-slcons": "STANDARD",
   "s57-bridge": "STANDARD",
+  "s57-bridge-opening": "STANDARD",
   "s57-bridge-label": "STANDARD",
   "s57-bridge-label-line": "STANDARD",
   "s57-cblsub": "STANDARD",
