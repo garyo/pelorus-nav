@@ -239,6 +239,7 @@ export const IHO_S52: Record<string, string> = {
   racon: "RACNSP01",
   "radio-station": "RDOSTA02",
   "pilot-boarding": "PILBOP02",
+  "info-area": "INFARE51",
 
   // Landmarks — additional types
   "landmark-quarry": "QUARRY01",
@@ -402,6 +403,7 @@ const S52_OFFSETS: Record<string, [number, number]> = {
   RACNSP01: [0, 0],
   RDOSTA02: [0, 0],
   PILBOP02: [0, 0],
+  INFARE51: [0, 0],
   // Landmarks — additional
   QUARRY01: [0, 0],
   RFNERY01: [0, 0],

@@ -116,6 +116,13 @@ DISPLAY_CATEGORY: dict[str, str] = {
     "DRYDOC": "OTHER",
     "RUNWAY": "OTHER",
     "AIRARE": "OTHER",
+    # Phase 5
+    "VEGATN": "STANDARD",
+    "PIPOHD": "STANDARD",
+    "FLODOC": "STANDARD",
+    "SPLARE": "STANDARD",
+    "DGRARE": "STANDARD",
+    "SLOGRD": "STANDARD",
 }
 
 # S-52 Display Priority by S-57 object class (0-9, lower = drawn first)
@@ -237,4 +244,11 @@ DISPLAY_PRIORITY: dict[str, int] = {
     "SISTAT": 7,
     "SNDWAV": 5,
     "SPRING": 5,
+    # Phase 5
+    "VEGATN": 1,   # terrain fill
+    "PIPOHD": 4,   # line feature
+    "FLODOC": 2,   # area feature
+    "SPLARE": 2,   # area feature
+    "DGRARE": 2,   # area feature
+    "SLOGRD": 3,   # line feature
 }

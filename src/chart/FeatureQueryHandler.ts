@@ -144,6 +144,14 @@ const INTERACTIVE_SUFFIXES = [
   "-rdosta",
   "-gatcon-symbol",
   "-ospare-symbol",
+  "-splare",
+  "-splare-outline",
+  "-vegatn",
+  "-vegatn-point",
+  "-flodoc",
+  "-flodoc-outline",
+  "-pipohd",
+  "-slogrd",
 ];
 
 /** Map suffix → priority rank for deduplication ordering. */

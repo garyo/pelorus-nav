@@ -241,6 +241,53 @@ export function getAreaLayers(ctx: StyleContext): LayerSpecification[] {
         "fill-pattern": ctx.icon("marsh-pattern"),
       },
     },
+    // Vegetation — VEGATN: fill for polygons, symbol for points
+    {
+      id: "s57-vegatn",
+      type: "fill",
+      source: ctx.sourceId,
+      "source-layer": "VEGATN",
+      filter: ["!=", ["geometry-type"], "Point"],
+      paint: {
+        "fill-color": ctx.colour("LANDF"),
+        "fill-opacity": 0.3,
+      },
+    },
+    {
+      id: "s57-vegatn-point",
+      type: "circle",
+      source: ctx.sourceId,
+      "source-layer": "VEGATN",
+      minzoom: 12,
+      filter: ["==", ["geometry-type"], "Point"],
+      paint: {
+        "circle-radius": 3,
+        "circle-color": ctx.colour("LANDF"),
+        "circle-stroke-color": ctx.colour("CHGRF"),
+        "circle-stroke-width": 1,
+      },
+    },
+    // Floating dock — FLODOC fill + outline
+    {
+      id: "s57-flodoc",
+      type: "fill",
+      source: ctx.sourceId,
+      "source-layer": "FLODOC",
+      paint: {
+        "fill-color": ctx.colour("CHBRN"),
+        "fill-opacity": 0.2,
+      },
+    },
+    {
+      id: "s57-flodoc-outline",
+      type: "line",
+      source: ctx.sourceId,
+      "source-layer": "FLODOC",
+      paint: {
+        "line-color": ctx.colour("CHBRN"),
+        "line-width": 1.5,
+      },
+    },
   ];
 }
 

@@ -302,6 +302,11 @@ export const LAYER_NAMES: Record<string, string> = {
   SISTAT: "Signal Station",
   SNDWAV: "Sand Waves",
   SPRING: "Spring",
+  VEGATN: "Vegetation",
+  PIPOHD: "Overhead Pipeline",
+  FLODOC: "Floating Dock",
+  SPLARE: "Spoil Ground",
+  SLOGRD: "Slope/Cliff",
   BOYINB: "Installation Buoy",
   BCNISD: "Isolated Danger Beacon",
   BCNSAW: "Safe Water Beacon",
@@ -1737,6 +1742,11 @@ const FORMATTERS: Record<
   SPRING: formatSimple,
   RDOSTA: formatRadioStation,
   RTPBCN: formatRadarTransponder,
+  VEGATN: formatSimple,
+  PIPOHD: formatOverheadCable,
+  FLODOC: formatSimple,
+  SPLARE: formatSimple,
+  SLOGRD: formatSimple,
 };
 
 export function formatFeatureInfo(

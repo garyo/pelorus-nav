@@ -264,6 +264,55 @@ export function getLineLayers(ctx: StyleContext): LayerSpecification[] {
         "text-halo-width": 1,
       },
     },
+    // Overhead pipeline — PIPOHD (same style as CBLOHD)
+    {
+      id: "s57-pipohd",
+      type: "line",
+      source: ctx.sourceId,
+      "source-layer": "PIPOHD",
+      paint: {
+        "line-color": ctx.colour("OUTLW"),
+        "line-width": 1.2,
+        "line-dasharray": [5, 3],
+      },
+    },
+    // Overhead pipeline clearance label
+    {
+      id: "s57-pipohd-label",
+      type: "symbol",
+      source: ctx.sourceId,
+      "source-layer": "PIPOHD",
+      minzoom: ctx.detailMinzoom(14),
+      filter: ["any", ["has", "VERCLR"], ["has", "VERCSA"]],
+      layout: {
+        "symbol-placement": "line-center",
+        "text-field": [
+          "case",
+          ["has", "VERCSA"],
+          ["concat", "sf clr ", ["to-string", ["get", "VERCSA"]], "m"],
+          ["concat", "clr ", ["to-string", ["get", "VERCLR"]], "m"],
+        ] as unknown as ExpressionSpecification,
+        "text-size": scaledTextSize(10, ctx),
+        "text-font": ["Noto Sans Regular"],
+        "text-allow-overlap": false,
+      },
+      paint: {
+        "text-color": ctx.colour("CHBLK"),
+        "text-halo-color": ctx.colour("CHWHT"),
+        "text-halo-width": 1,
+      },
+    },
+    // Sloping ground / cliff — SLOGRD
+    {
+      id: "s57-slogrd",
+      type: "line",
+      source: ctx.sourceId,
+      "source-layer": "SLOGRD",
+      paint: {
+        "line-color": ctx.colour("CHBRN"),
+        "line-width": 1.5,
+      },
+    },
   ];
 
   return layers;

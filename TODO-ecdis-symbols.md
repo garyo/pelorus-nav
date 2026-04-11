@@ -235,9 +235,8 @@ S-57: BRIDGE, SLCONS, GATCON, FLODOC, HULKES, CAUSWY, MORFAC
 - [x] Dry docks — DRYDOC fill
 - [x] Hulks — HULKES fill + outline
 - [x] Pontoons — PONTON fill
-- [~] **Opening bridge** (D23) — Bridge clearance labels added (VERCLR,
-      VERCCL/VERCOP). Missing: SY(BRGSOP01) open-circle symbol for
-      opening bridges (needs sprite).
+- [x] **Opening bridge** (D23) — SY(BRIDGE01) concentric circles for
+      CATBRG=2/3/4/5/7/9 + clearance labels (VERCLR/VERCCL/VERCOP).
 - [x] **Seawall** (F2) — CATSLC=3 rendered with thicker line (2.5px).
 - [x] **Breakwater** (F4) — CATSLC=1 rendered with thicker line (2.5px).
 - [x] **Lock gate** (F41) — SY(GATCON03) navigable / SY(GATCON04)

@@ -1042,6 +1042,43 @@ export function getOtherPointLayers(ctx: StyleContext): LayerSpecification[] {
         "line-dasharray": [4, 3] as number[],
       },
     },
+    // Spoil ground — SPLARE
+    {
+      id: "s57-splare",
+      type: "fill" as const,
+      source: ctx.sourceId,
+      "source-layer": "SPLARE",
+      paint: {
+        "fill-color": ctx.colour("CHMGD"),
+        "fill-opacity": 0.12,
+      },
+    },
+    {
+      id: "s57-splare-symbol",
+      type: "symbol" as const,
+      source: ctx.sourceId,
+      "source-layer": "SPLARE",
+      minzoom: ctx.detailMinzoom(10),
+      layout: {
+        "icon-image": ctx.icon("info-area"),
+        "icon-size": 0.5,
+        "icon-allow-overlap": true,
+      },
+      paint: {
+        "icon-opacity": 0.75,
+      },
+    },
+    {
+      id: "s57-splare-outline",
+      type: "line" as const,
+      source: ctx.sourceId,
+      "source-layer": "SPLARE",
+      paint: {
+        "line-color": ctx.colour("CHMGD"),
+        "line-width": 1,
+        "line-dasharray": [4, 2] as number[],
+      },
+    },
     {
       id: "s57-siltnk",
       type: "fill" as const,

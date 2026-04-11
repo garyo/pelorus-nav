@@ -153,6 +153,13 @@ LAYER_CONFIGS: list[LayerConfig] = [
     LayerConfig("SISTAT", "navaids", NAVAID_ARGS),
     LayerConfig("SNDWAV", "hazards", HAZARD_ARGS),
     LayerConfig("SPRING", "hazards", HAZARD_ARGS),
+    # Phase 5: additional layers
+    LayerConfig("VEGATN", "terrain", TERRAIN_ARGS),
+    LayerConfig("PIPOHD", "infrastructure", DEFAULT_ARGS),
+    LayerConfig("FLODOC", "infrastructure", DEFAULT_ARGS),
+    LayerConfig("SPLARE", "regulatory", REGULATORY_ARGS),
+    LayerConfig("DGRARE", "regulatory", REGULATORY_ARGS),
+    LayerConfig("SLOGRD", "lines", LINE_ARGS),
 ]
 
 # Quick lookup by layer name
