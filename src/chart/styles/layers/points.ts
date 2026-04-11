@@ -1411,7 +1411,7 @@ export function getDaymarkTopmarkLayers(
       layout: withOffset(
         {
           "icon-image": daymar.iconExpr,
-          "icon-size": scaledSize(0.6, ctx),
+          "icon-size": scaledSize(0.75, ctx),
           "icon-allow-overlap": true,
         },
         daymar.offsetExpr,
