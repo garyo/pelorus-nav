@@ -119,7 +119,6 @@ export function getLineLayers(ctx: StyleContext): LayerSpecification[] {
         ["has", "VERCOP"],
       ] as unknown as ExpressionSpecification,
       layout: {
-        "symbol-placement": "line-center",
         "text-field": [
           "case",
           ["has", "VERCOP"],
@@ -140,6 +139,8 @@ export function getLineLayers(ctx: StyleContext): LayerSpecification[] {
         "text-size": scaledTextSize(10, ctx),
         "text-font": ["Noto Sans Regular"],
         "text-allow-overlap": false,
+        "text-anchor": "top",
+        "text-offset": [0, 0.5],
       },
       paint: {
         "text-color": ctx.colour("CHBRN"),
