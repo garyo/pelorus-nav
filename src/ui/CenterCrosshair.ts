@@ -9,7 +9,7 @@
 import type maplibregl from "maplibre-gl";
 import { formatLatLon } from "../utils/coordinates";
 
-const FLASH_DURATION_MS = 3000;
+const FLASH_DURATION_MS = 15000;
 const FADE_DURATION_MS = 600;
 
 export class CenterCrosshair {
