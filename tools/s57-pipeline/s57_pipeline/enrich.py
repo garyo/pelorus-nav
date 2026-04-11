@@ -30,7 +30,7 @@ if TYPE_CHECKING:
     from shapely import STRtree
     from shapely.geometry import Polygon
 
-from .labels import _buoy_number, _light_label, _seabed_label
+from .labels import _buoy_number, _fogsig_label, _light_label, _seabed_label
 from .scamin import (
     INTU_BASE_ZOOMS,
     cscl_to_scale_band,
@@ -88,6 +88,7 @@ def enrich_geojson(
             scale_band = cscl_to_scale_band(cell_cscl)
 
     is_lights = layer_name == "LIGHTS"
+    is_fogsig = layer_name == "FOGSIG"
     is_buoy_beacon = layer_name in (
         "BOYLAT", "BOYSAW", "BOYSPP", "BOYISD", "BOYCAR", "BCNLAT", "BCNCAR",
     )
@@ -119,6 +120,10 @@ def enrich_geojson(
         # --- Labels ---
         if is_lights:
             label = _light_label(props)
+            if label:
+                props["LABEL"] = label
+        elif is_fogsig:
+            label = _fogsig_label(props)
             if label:
                 props["LABEL"] = label
         elif is_buoy_beacon:

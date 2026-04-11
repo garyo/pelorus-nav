@@ -27,10 +27,9 @@ S-57 object classes in CAPS, attributes in CAPS after dot (e.g., LIGHTS.CATLIT)
         Boston Light (42.3278°N, 70.8903°W, z13).
       - [ ] **CATLIT=4 (Leading)**: paired lights sharing same ORIENT get a
         connecting LS(SOLD,1,CHBLK) track line with bearing label (P20.3)
-      - [ ] **CATLIT=5 (Aero)**: SY(LIGHTS11/12/13) with "Aero" prefix in
-        label; could filter at lower zooms
-      - [ ] **CATLIT=8 (Flood)**: SY(FLODLT01) floodlight symbol (P63)
-      - [ ] **CATLIT=9 (Strip)**: SY(STRPLT01) strip light symbol (P64)
+      - [x] **CATLIT=5 (Aero)**: "Aero" prefix added to light label in pipeline
+      - [x] **CATLIT=8 (Flood)**: SY(FLODLT01) floodlight symbol (P63)
+      - [x] **CATLIT=9 (Strip)**: SY(STRPLT01) strip light symbol (P64)
 - [x] **Obscured light sectors** (P43) — LIGHTS.LITVIS=7 (obscured) or 8
       (partially obscured): dashed magenta arc instead of solid coloured arc.
       **Verify at:** Marblehead Light (42.5053°N, 70.8340°W, z14) — check for
@@ -114,7 +113,7 @@ S-52: CS(RESTRN01) for restricted routing areas
       LS(SOLD,2,TRFCD) boundary. S-57: ARCSLN object.
 - [x] **Ferry routes** (M50–M51) — S-52: LS(DASH,1,CHGRD) + SY(FRYARE01)
       box symbol. S-57: FERYRT (ferry route) object.
-- [ ] **Deep water route "DW" labels** (M5, M27) — S-52: TE("DW") text in
+- [x] **Deep water route "DW" labels** (M5, M27) — S-52: TE("DW") text in
       route. S-57: DWRTPT.TRAFIC + DRVAL1 for depth.
 - [x] **Radio calling-in points** (M40) — S-52: SY(RDOCAL02) triangle with
       designation text. S-57: RDOCAL object, attrs ORIENT, COMCHA (VHF channel),
@@ -292,10 +291,8 @@ S-57: BUISGL, ROADWY, RAILWY, AIRARE, TUNNEL, CBLOHD, PIPOHD
 - [x] Railways — RAILWY LS
 - [x] Airports/runways — AIRARE fill + outline
 - [x] Tunnels — TUNNEL LS(DASH,2,CHGRD)
-- [ ] **Overhead cable with clearance** (D26–D27) — S-52: LS(DASH,1,CHBLK) +
-      TE("clr %.1f",VERCLR) or TE("sf clr %.1f",VERCSA).
-      S-57: CBLOHD.VERCLR (vertical clearance), VERCSA (safe clearance).
-      We render CBLOHD line but not the clearance label.
+- [x] **Overhead cable with clearance** (D26–D27) — S-52: LS(DASH,1,CHBLK) +
+      TE("clr %.1f",VERCLR). Clearance label shown along cable line at z14+.
 - [ ] **Overhead pipeline** (D28) — S-52: same pattern as cable.
       S-57: PIPOHD (pipeline overhead), VERCLR/VERCSA attrs.
 - [ ] **Embankment** (D15) — S-52: LS(SOLD,2,CHGRD), wider if conspicuous.
@@ -349,10 +346,8 @@ S-52: CS(BOYLAT04), CS(BOYCAR04), CS(BCNLAT04)
 S-57: FOGSIG, attrs: CATFOG, SIGGRP, SIGPER, VALMXR
 S-52: CS(FOGSIG02)
 - [x] Fog signal symbol — SY(FOGSIG01)
-- [ ] **Fog signal type label** — S-52: TE with CATFOG abbreviation
-      (Horn, Bell, Whistle, Siren, etc.) next to symbol.
-      S-57: FOGSIG.CATFOG (1=explosive, 2=diaphone, 3=siren, 4=nautophone,
-      5=reed, 6=tyfon, 7=bell, 8=whistle, 9=gong, 10=horn).
+- [x] **Fog signal type label** — CATFOG abbreviation (Horn, Bell, Whis, etc.)
+      generated in pipeline LABEL + displayed below fog signal icon.
 
 ### S: Radar, Radio, Satellite
 S-57: RADRFL, RTPBCN, RDOSTA, RADSTA, CRANES, SISTAT
@@ -445,22 +440,22 @@ coverage have CONVIS=1, so the non-conspicuous path is untested with real data.
 
 | Priority | Category | Missing Items |
 |----------|----------|--------------|
-| P1 | Directional/leading/obscured lights | ~3 (was ~5) |
+| P1 | Directional/leading/obscured lights | ~1 (was ~5) |
 | P1 | Enhanced depth display | ~2 (was ~3) |
 | P1 | Foul areas & aquaculture | ~3 (was ~7) |
-| P1 | Routing measure details | ~7 (was ~8) |
+| P1 | Routing measure details | ~6 (was ~8) |
 | P2 | Restricted/regulated areas | ~9 (was ~12) |
 | P2 | Offshore installations | ~6 (was ~8) |
 | P2 | Tides & currents | ~5 |
 | P2 | Additional landmarks | ~5 (was ~12) |
 | P2 | Harbor structures | ~12 |
 | P3 | Natural features | ~5 |
-| P3 | Cultural features | ~4 |
+| P3 | Cultural features | ~3 (was ~4) |
 | P3 | Seabed features | ~3 |
 | P3 | Additional buoy/beacon types | ~8 |
-| P3 | Fog/radar/radio/services | ~10 |
+| P3 | Fog/radar/radio/services | ~9 (was ~10) |
 | — | Conspicuous/non-conspicuous | ✅ done (was ~17) |
-| | **Total** | **~82** (was ~120) |
+| | **Total** | **~76** (was ~120) |
 
 ## Recommended Implementation Order
 

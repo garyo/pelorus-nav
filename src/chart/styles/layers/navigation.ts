@@ -393,6 +393,26 @@ export function getNavigationRoutingLayers(
         "line-dasharray": [6, 3],
       },
     },
+    // Deep water route "DW" label (M5, M27)
+    {
+      id: "s57-dwrtcl-label",
+      type: "symbol" as const,
+      source: ctx.sourceId,
+      "source-layer": "DWRTCL",
+      minzoom: 10,
+      layout: {
+        "symbol-placement": "line-center",
+        "text-field": "DW",
+        "text-size": scaledTextSize(11, ctx),
+        "text-font": ["Noto Sans Bold"],
+        "text-allow-overlap": false,
+      },
+      paint: {
+        "text-color": ctx.colour("TRFCD"),
+        "text-halo-color": ctx.colour("CHWHT"),
+        "text-halo-width": 1,
+      },
+    },
     {
       id: "s57-tssbnd",
       type: "line" as const,

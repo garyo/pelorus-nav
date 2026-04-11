@@ -971,6 +971,12 @@
     "height": 26,
     "offset": [0, 0]
   },
+  "FLODLT01": {
+    "description": "floodlight",
+    "width": 19,
+    "height": 19,
+    "offset": [0, 0]
+  },
   "FOGSIG01": {
     "description": "fog signal",
     "width": 21,
@@ -2740,6 +2746,12 @@
     "width": 15,
     "height": 17,
     "offset": [0.5, -6.5]
+  },
+  "STRPLT01": {
+    "description": "strip light",
+    "width": 19,
+    "height": 11,
+    "offset": [0, 0]
   },
   "SWPARE51": {
     "description": "swept area",

@@ -49,12 +49,26 @@ COLOUR_ABBREV: dict[int, str] = {
 
 
 def _light_label(props: dict) -> str | None:
-    """Build a short light label like 'Fl G 4s' from LIGHTS properties."""
+    """Build a short light label like 'Fl G 4s' from LIGHTS properties.
+
+    Prepends "Aero" for CATLIT=5 (aeronautical light).
+    """
     litchr = props.get("LITCHR")
     if litchr is None:
         return None
 
     parts: list[str] = []
+
+    # CATLIT=5 (Aero) prefix
+    # CATLIT may be a list (from ogr2ogr), int, or comma-separated string
+    catlit = props.get("CATLIT")
+    if catlit is not None:
+        if isinstance(catlit, list):
+            catlit_codes = {str(v) for v in catlit}
+        else:
+            catlit_codes = set(str(catlit).split(","))
+        if "5" in catlit_codes:
+            parts.append("Aero")
 
     # Light character
     char_abbrev = LITCHR_ABBREV.get(litchr)
@@ -65,7 +79,7 @@ def _light_label(props: dict) -> str | None:
     # Group notation for group flashing: e.g. "(2)" → "Fl(2)"
     siggrp = props.get("SIGGRP")
     if siggrp and siggrp != "(1)":
-        parts[0] = f"{char_abbrev}{siggrp}"
+        parts[-1] = f"{char_abbrev}{siggrp}"
 
     # Color
     colour = props.get("COLOUR")
@@ -93,6 +107,52 @@ def _light_label(props: dict) -> str | None:
             parts.append(f"{sigper}s")
 
     return " ".join(parts) if parts else None
+
+
+# S-57 CATFOG (fog signal category) code → chart abbreviation
+CATFOG_ABBREV: dict[int, str] = {
+    1: "Explos",   # Explosive
+    2: "Dia",      # Diaphone
+    3: "Siren",    # Siren
+    4: "Nauto",    # Nautophone
+    5: "Reed",     # Reed
+    6: "Tyfon",    # Tyfon
+    7: "Bell",     # Bell
+    8: "Whis",     # Whistle
+    9: "Gong",     # Gong
+    10: "Horn",    # Horn
+}
+
+
+def _fogsig_label(props: dict) -> str | None:
+    """Build a fog signal label like 'Horn 30s' from FOGSIG properties."""
+    catfog = props.get("CATFOG")
+    if catfog is None:
+        return None
+    # CATFOG may be a list (from ogr2ogr before flatten) or a scalar
+    if isinstance(catfog, list):
+        catfog = catfog[0] if catfog else None
+    if catfog is None:
+        return None
+    try:
+        code = int(catfog)
+    except (ValueError, TypeError):
+        return None
+    abbrev = CATFOG_ABBREV.get(code)
+    if not abbrev:
+        return None
+
+    parts: list[str] = [abbrev]
+
+    # Period
+    sigper = props.get("SIGPER")
+    if sigper is not None and sigper > 0:
+        if sigper == int(sigper):
+            parts.append(f"{int(sigper)}s")
+        else:
+            parts.append(f"{sigper}s")
+
+    return " ".join(parts)
 
 
 # Nautical abbreviations ordered by savings (chars saved descending),
@@ -151,11 +211,8 @@ def _buoy_number(props: dict) -> str | None:
         r'Daybeacon|Beacon)\s*$',
         '', objnam.strip(), flags=re.IGNORECASE,
     )
-    if name and name != objnam.strip():
-        # Progressively abbreviate to fit within the cap.
-        # Apply shortest abbreviations first; stop as soon as it fits.
-        name = _abbreviate_to_fit(name, 20)
-        return name
+    if name:
+        return _abbreviate_to_fit(name, 20)
     return None
 
 

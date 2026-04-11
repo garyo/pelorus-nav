@@ -848,7 +848,7 @@ export function getOtherNavAidLayers(ctx: StyleContext): LayerSpecification[] {
   const bcnspp = ctx.layerExprs("BCNSPP");
 
   return [
-    // Fog signals
+    // Fog signals — S-52 CS(FOGSIG02): icon only, details via cursor pick
     {
       id: "s57-fogsig",
       type: "symbol",

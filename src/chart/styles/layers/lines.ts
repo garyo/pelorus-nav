@@ -118,6 +118,33 @@ export function getLineLayers(ctx: StyleContext): LayerSpecification[] {
         "line-dasharray": [5, 3],
       },
     },
+    // Overhead cable clearance label (D26–D27)
+    // VERCLR = vertical clearance, VERCSA = safe vertical clearance
+    {
+      id: "s57-cblohd-label",
+      type: "symbol",
+      source: ctx.sourceId,
+      "source-layer": "CBLOHD",
+      minzoom: ctx.detailMinzoom(14),
+      filter: ["any", ["has", "VERCLR"], ["has", "VERCSA"]],
+      layout: {
+        "symbol-placement": "line-center",
+        "text-field": [
+          "case",
+          ["has", "VERCSA"],
+          ["concat", "sf clr ", ["to-string", ["get", "VERCSA"]], "m"],
+          ["concat", "clr ", ["to-string", ["get", "VERCLR"]], "m"],
+        ] as unknown as ExpressionSpecification,
+        "text-size": scaledTextSize(10, ctx),
+        "text-font": ["Noto Sans Regular"],
+        "text-allow-overlap": false,
+      },
+      paint: {
+        "text-color": ctx.colour("CHBLK"),
+        "text-halo-color": ctx.colour("CHWHT"),
+        "text-halo-width": 1,
+      },
+    },
   ];
 
   return layers;

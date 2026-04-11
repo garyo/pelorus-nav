@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<?xml-stylesheet href="daySvgStyle.css" type="text/css"?>
+<svg xmlns="http://www.w3.org/2000/svg" version="1.2" baseProfile="tiny" xml:space="preserve" shape-rendering="geometricPrecision" fill-rule="evenodd" width="5mm" height="3mm" viewBox="-2.5 -1.5 5 3">
+  <title>STRPLT01</title>
+  <desc>strip light</desc>
+  <rect class="symbolBox layout" fill="none" x="-2.5" y="-1.5" width="5" height="3"/>
+  <!-- Horizontal dashed line representing strip light -->
+  <line x1="-2.2" y1="0" x2="-1.2" y2="0" class="sl sCHBLK" stroke-width="0.35"/>
+  <line x1="-0.5" y1="0" x2="0.5" y2="0" class="sl sCHBLK" stroke-width="0.35"/>
+  <line x1="1.2" y1="0" x2="2.2" y2="0" class="sl sCHBLK" stroke-width="0.35"/>
+  <!-- Small circles at segment ends to indicate light points -->
+  <circle cx="-1.7" cy="0" r="0.3" class="fCHBLK sCHBLK" stroke-width="0.15"/>
+  <circle cx="0" cy="0" r="0.3" class="fCHBLK sCHBLK" stroke-width="0.15"/>
+  <circle cx="1.7" cy="0" r="0.3" class="fCHBLK sCHBLK" stroke-width="0.15"/>
+  <circle class="pivotPoint layout" fill="none" cx="0" cy="0" r="1"/>
+</svg>

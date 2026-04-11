@@ -202,6 +202,9 @@ export const IHO_S52: Record<string, string> = {
   "light-minor-red": "LIGHTS11",
   "light-minor-green": "LIGHTS12",
   "light-minor-white": "LIGHTS13",
+  // Special light types (CATLIT-based)
+  "light-flood": "FLODLT01",
+  "light-strip": "STRPLT01",
 
   // Isolated danger overlay (S-52 UDWHAZ05)
   "isolated-danger-symbol": "ISODGR01",
@@ -340,6 +343,8 @@ const S52_OFFSETS: Record<string, [number, number]> = {
   LIGHTS11: [12, 12],
   LIGHTS12: [12, 12],
   LIGHTS13: [12, 12],
+  FLODLT01: [0, 0],
+  STRPLT01: [0, 0],
   // Hazards
   WRECKS01: [-1, -4.5],
   WRECKS04: [0, 0],
@@ -349,7 +354,7 @@ const S52_OFFSETS: Record<string, [number, number]> = {
   OBSTRN01: [0.5, 0.5],
   OBSTRN11: [0, 0],
   // Other navaids
-  FOGSIG01: [0, 0],
+  FOGSIG01: [-9.5, 8],
   MORFAC03: [-1, 0],
   PILPNT02: [0.5, 0.5],
   BRIDGE01: [0, 0],
@@ -905,14 +910,33 @@ export function buildLayerExpressions(
       const minorRed = sp("light-minor-red");
       const majorWhite = sp("light-major-white");
       const minorWhite = sp("light-minor-white");
+      const floodLight = sp("light-flood");
+      const stripLight = sp("light-strip");
       const isMajor = [">=", ["coalesce", ["get", "VALNMR"], 0], 10];
-      const iconExpr = [
+      // CATLIT is a list attribute (comma-separated in tiles)
+      const catlitPadded = [
+        "concat",
+        ",",
+        ["to-string", ["coalesce", ["get", "CATLIT"], ""]],
+        ",",
+      ];
+      const isFloodLight = ["in", ",8,", catlitPadded];
+      const isStripLight = ["in", ",9,", catlitPadded];
+      const colorExpr = [
         "case",
         colContains(GREEN),
         ["case", isMajor, majorGreen, minorGreen],
         colContains(RED),
         ["case", isMajor, majorRed, minorRed],
         ["case", isMajor, majorWhite, minorWhite],
+      ];
+      const iconExpr = [
+        "case",
+        isFloodLight,
+        floodLight,
+        isStripLight,
+        stripLight,
+        colorExpr,
       ] as unknown as ExpressionSpecification;
       // Offsets — all light sprites typically share the same offset
       const oMajorG = off(majorGreen);
@@ -921,6 +945,8 @@ export function buildLayerExpressions(
       const oMinorR = off(minorRed);
       const oMajorW = off(majorWhite);
       const oMinorW = off(minorWhite);
+      const oFlood = off(floodLight);
+      const oStrip = off(stripLight);
       const hasLightOff = [
         oMajorG,
         oMinorG,
@@ -928,10 +954,16 @@ export function buildLayerExpressions(
         oMinorR,
         oMajorW,
         oMinorW,
+        oFlood,
+        oStrip,
       ].some((o) => o[0] !== 0 || o[1] !== 0);
       const offsetExpr = hasLightOff
         ? ([
             "case",
+            isFloodLight,
+            ["literal", oFlood],
+            isStripLight,
+            ["literal", oStrip],
             colContains(GREEN),
             ["case", isMajor, ["literal", oMajorG], ["literal", oMinorG]],
             colContains(RED),
