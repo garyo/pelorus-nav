@@ -236,14 +236,11 @@ S-57: BRIDGE, SLCONS, GATCON, FLODOC, HULKES, CAUSWY, MORFAC
 - [x] Dry docks — DRYDOC fill
 - [x] Hulks — HULKES fill + outline
 - [x] Pontoons — PONTON fill
-- [ ] **Opening bridge** (D23) — S-52: SY(BRIDGE01) + SY(BRGSOP01) open circle.
-      S-57: BRIDGE.CATBRG=2 (opening) or =3 (swing) or =4 (lifting) or
-      =5 (bascule) or =9 (draw). BRIDGE.VERCLR (closed clearance),
-      BRIDGE.VERCCL (clearance closed), BRIDGE.VERCOP (clearance open).
-- [ ] **Seawall** (F2) — S-52: LS(SOLD,4,LANDF) thick line.
-      S-57: SLCONS with CATSLC=1 (breakwater) or =3 (seawall).
-- [ ] **Breakwater** (F4) — S-52: LS(SOLD,4,LANDF) line, fill for area.
-      S-57: SLCONS.CATSLC=1 (breakwater). WATLEV determines if covers.
+- [~] **Opening bridge** (D23) — Bridge clearance labels added (VERCLR,
+      VERCCL/VERCOP). Missing: SY(BRGSOP01) open-circle symbol for
+      opening bridges (needs sprite).
+- [x] **Seawall** (F2) — CATSLC=3 rendered with thicker line (2.5px).
+- [x] **Breakwater** (F4) — CATSLC=1 rendered with thicker line (2.5px).
 - [ ] **Lock gate** (F41) — S-52: SY(GATCON01) navigable, SY(GATCON02)
       non-navigable. S-57: GATCON with CATGAT=1 (flood barrage gate),
       =2 (caisson), =3 (lock gate), =4 (dyke gate).

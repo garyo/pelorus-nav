@@ -83,7 +83,16 @@ export function getLineLayers(ctx: StyleContext): LayerSpecification[] {
       layout: { "line-sort-key": SCALE_SORT_KEY },
       paint: {
         "line-color": ctx.colour("CHGRF"),
-        "line-width": 1,
+        // Breakwater/seawall (CATSLC=1,3) thicker; wharf (4) normal
+        "line-width": [
+          "match",
+          ["coalesce", ["get", "CATSLC"], 0],
+          1,
+          2.5, // breakwater
+          3,
+          2.5, // seawall
+          1,
+        ] as unknown as ExpressionSpecification,
       },
     },
     {
@@ -94,6 +103,46 @@ export function getLineLayers(ctx: StyleContext): LayerSpecification[] {
       paint: {
         "line-color": ctx.colour("CHBRN"),
         "line-width": 2,
+      },
+    },
+    // Opening bridge clearance label (D23)
+    {
+      id: "s57-bridge-label",
+      type: "symbol",
+      source: ctx.sourceId,
+      "source-layer": "BRIDGE",
+      minzoom: ctx.detailMinzoom(13),
+      filter: [
+        "any",
+        ["has", "VERCLR"],
+        ["has", "VERCCL"],
+        ["has", "VERCOP"],
+      ] as unknown as ExpressionSpecification,
+      layout: {
+        "symbol-placement": "line-center",
+        "text-field": [
+          "case",
+          ["has", "VERCOP"],
+          [
+            "concat",
+            "clr ",
+            ["to-string", ["get", "VERCCL"]],
+            "/",
+            ["to-string", ["get", "VERCOP"]],
+            "m",
+          ],
+          ["has", "VERCLR"],
+          ["concat", "clr ", ["to-string", ["get", "VERCLR"]], "m"],
+          "",
+        ] as unknown as ExpressionSpecification,
+        "text-size": scaledTextSize(10, ctx),
+        "text-font": ["Noto Sans Regular"],
+        "text-allow-overlap": false,
+      },
+      paint: {
+        "text-color": ctx.colour("CHBRN"),
+        "text-halo-color": ctx.colour("CHWHT"),
+        "text-halo-width": 1,
       },
     },
     {
