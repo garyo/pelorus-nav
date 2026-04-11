@@ -599,7 +599,11 @@ const CATLMK_FLARE_STACK = 6;
 const CATLMK_MAST = 7;
 // 8 = windsock
 const CATLMK_MONUMENT = 9;
-// 10 = column, 11 = memorial plaque, 12 = obelisk, 13 = statue, 14 = cross
+const CATLMK_COLUMN = 10;
+const CATLMK_MEMORIAL = 11;
+const CATLMK_OBELISK = 12;
+const CATLMK_STATUE = 13;
+const CATLMK_CROSS = 14;
 const CATLMK_DOME = 15;
 const CATLMK_RADAR_SCANNER = 16;
 const CATLMK_TOWER = 17;
@@ -853,6 +857,12 @@ export function buildLayerExpressions(
         ],
         [CATLMK_MAST, "landmark-tower", "landmark-tower-conspic"],
         [CATLMK_MONUMENT, "landmark-monument", "landmark-monument-conspic"],
+        [CATLMK_COLUMN, "landmark-monument", "landmark-monument-conspic"],
+        [CATLMK_MEMORIAL, "landmark-monument", "landmark-monument-conspic"],
+        // TODO: distinct sprites for obelisk, statue, cross (using monument as placeholder)
+        [CATLMK_OBELISK, "landmark-monument", "landmark-monument-conspic"],
+        [CATLMK_STATUE, "landmark-monument", "landmark-monument-conspic"],
+        [CATLMK_CROSS, "landmark-monument", "landmark-monument-conspic"],
         [CATLMK_DOME, "landmark-dome", "landmark-dome-conspic"],
         [
           CATLMK_RADAR_SCANNER,
