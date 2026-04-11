@@ -287,6 +287,7 @@ export const LAYER_NAMES: Record<string, string> = {
   EXEZNE: "Exclusive Economic Zone",
   RDOSTA: "Radio Station",
   RTPBCN: "Radar Transponder Beacon",
+  RETRFL: "Radar Reflector",
   NEWOBJ: "New Object",
   CANALS: "Canal",
   FERYRT: "Ferry Route",
@@ -1613,6 +1614,42 @@ function formatRadarTransponder(
   return details;
 }
 
+const TOPSHP: Record<number, string> = {
+  1: "Cone, point up",
+  2: "Cone, point down",
+  3: "Sphere",
+  4: "2 spheres",
+  5: "Cylinder",
+  6: "Board",
+  7: "X-shape",
+  8: "Upright cross",
+  9: "Cube, point up",
+  10: "2 cones, point to point",
+  11: "2 cones, base to base",
+  12: "Rhombus",
+  13: "2 cones, up",
+  14: "2 cones, down",
+  15: "Besom, point up",
+  16: "Besom, point down",
+  17: "Flag",
+  18: "Sphere over rhombus",
+  19: "Square",
+  33: "T-shape",
+};
+
+function formatDaymark(
+  props: Record<string, unknown>,
+): { label: string; value: string }[] {
+  const details: { label: string; value: string }[] = [];
+  addIfPresent(details, "Name", props.OBJNAM);
+  const shape = lookupCode(TOPSHP, props.TOPSHP);
+  addIfPresent(details, "Shape", shape);
+  const col = lookupAllCodes(COLOUR, props.COLOUR);
+  addIfPresent(details, "Color", col);
+  addIfPresent(details, "Information", props.INFORM);
+  return details;
+}
+
 function formatRadioCalling(
   props: Record<string, unknown>,
 ): { label: string; value: string }[] {
@@ -1742,6 +1779,9 @@ const FORMATTERS: Record<
   SPRING: formatSimple,
   RDOSTA: formatRadioStation,
   RTPBCN: formatRadarTransponder,
+  RETRFL: formatSimple,
+  DAYMAR: formatDaymark,
+  TOPMAR: formatDaymark,
   VEGATN: formatSimple,
   PIPOHD: formatOverheadCable,
   FLODOC: formatSimple,

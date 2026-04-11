@@ -272,11 +272,10 @@ export const IHO_S52: Record<string, string> = {
   // Special beacons
   "beacon-special": "BCNSPP13",
 
-  // Daymarks (using pricke/beacon symbols)
-  "daymark-square-red": "PRICKE03",
-  "daymark-square-green": "PRICKE04",
-  "daymark-triangle-red": "PRICKE03",
-  "daymark-triangle-green": "PRICKE04",
+  // Daymarks (simplified)
+  "daymark-square": "DAYSQR01",
+  "daymark-triangle-up": "DAYTRI01",
+  "daymark-triangle-down": "DAYTRI05",
 
   // Topmarks (buoy variants: TOPMAR02–17)
   "topmark-cone-up": "TOPMAR02",
@@ -396,11 +395,16 @@ const S52_OFFSETS: Record<string, [number, number]> = {
   SILBUI11: [0, 0],
   PRICKE03: [0, 0],
   PRICKE04: [0, 0],
+  // Daymarks
+  DAYTRI01: [0, -4],
+  DAYTRI05: [0, -4],
+  DAYSQR01: [0, -4.5],
   // Infrastructure
   GATCON03: [0, 0],
   GATCON04: [0, 0],
   WNDFRM61: [0, 0],
   RTPBCN02: [0, 0],
+  RETRFL02: [8.5, 0],
   RACNSP01: [0, 0],
   RDOSTA02: [0, 0],
   PILBOP02: [0, 0],
@@ -1288,36 +1292,39 @@ export function buildLayerExpressions(
     }
 
     // ── DAYMAR ────────────────────────────────────────────────────────────
+    // S-52 simplified daymark TOPSHP codes differ from topmark codes:
+    //   TOPSHP=24 → triangle up, TOPSHP=25 → triangle down,
+    //   everything else → square (default)
     case "DAYMAR": {
-      const topIsTriangle = ["==", ["get", "TOPSHP"], TOPSHP_CONE_UP];
-      const colHasGreen = colContains(GREEN);
+      const DAYMAR_TRI_UP = 24;
+      const DAYMAR_TRI_DOWN = 25;
+      const triUp = sp("daymark-triangle-up");
+      const triDown = sp("daymark-triangle-down");
+      const square = sp("daymark-square");
       const iconExpr = [
-        "case",
-        ["all", topIsTriangle, colHasGreen],
-        sp("daymark-triangle-green"),
-        topIsTriangle,
-        sp("daymark-triangle-red"),
-        colHasGreen,
-        sp("daymark-square-green"),
-        sp("daymark-square-red"),
+        "match",
+        ["coalesce", ["get", "TOPSHP"], 0],
+        DAYMAR_TRI_UP,
+        triUp,
+        DAYMAR_TRI_DOWN,
+        triDown,
+        square,
       ] as unknown as ExpressionSpecification;
-      const oTG = off(sp("daymark-triangle-green"));
-      const oTR = off(sp("daymark-triangle-red"));
-      const oSG = off(sp("daymark-square-green"));
-      const oSR = off(sp("daymark-square-red"));
-      const hasDaymarOff = [oTG, oTR, oSG, oSR].some(
+      const oUp = off(triUp);
+      const oDown = off(triDown);
+      const oSq = off(square);
+      const hasDaymarOff = [oUp, oDown, oSq].some(
         (o) => o[0] !== 0 || o[1] !== 0,
       );
       const offsetExpr = hasDaymarOff
         ? ([
-            "case",
-            ["all", topIsTriangle, colHasGreen],
-            ["literal", oTG],
-            topIsTriangle,
-            ["literal", oTR],
-            colHasGreen,
-            ["literal", oSG],
-            ["literal", oSR],
+            "match",
+            ["coalesce", ["get", "TOPSHP"], 0],
+            DAYMAR_TRI_UP,
+            ["literal", oUp],
+            DAYMAR_TRI_DOWN,
+            ["literal", oDown],
+            ["literal", oSq],
           ] as unknown as ExpressionSpecification)
         : null;
       return { iconExpr, offsetExpr };

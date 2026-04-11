@@ -744,7 +744,7 @@ export function getHazardLayers(ctx: StyleContext): LayerSpecification[] {
       "source-layer": "LITFLT",
       minzoom: 10,
       layout: {
-        "icon-image": "LITFLT01",
+        "icon-image": "LITFLT02",
         "icon-size": 0.8,
         "icon-allow-overlap": true,
       },
@@ -758,7 +758,7 @@ export function getHazardLayers(ctx: StyleContext): LayerSpecification[] {
       "source-layer": "LITVES",
       minzoom: 10,
       layout: {
-        "icon-image": "LITVES01",
+        "icon-image": "LITVES02",
         "icon-size": 0.8,
         "icon-allow-overlap": true,
       },
@@ -807,6 +807,20 @@ export function getHazardLayers(ctx: StyleContext): LayerSpecification[] {
       paint: {},
     },
 
+    // Radar reflector — RETRFL
+    {
+      id: "s57-retrfl",
+      type: "symbol",
+      source: ctx.sourceId,
+      "source-layer": "RETRFL",
+      minzoom: 10,
+      layout: {
+        "icon-image": "RETRFL02",
+        "icon-size": 0.7,
+        "icon-allow-overlap": true,
+      },
+      paint: {},
+    },
     // Radar transponder beacon — RTPBCN
     {
       id: "s57-rtpbcn",

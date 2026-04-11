@@ -140,6 +140,8 @@ const INTERACTIVE_SUFFIXES = [
   "-rdocal",
   "-rscsta",
   "-sistat",
+  "-retrfl",
+  "-daymar",
   "-rtpbcn",
   "-rdosta",
   "-gatcon-symbol",

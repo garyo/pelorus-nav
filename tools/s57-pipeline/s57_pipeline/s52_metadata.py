@@ -123,6 +123,7 @@ DISPLAY_CATEGORY: dict[str, str] = {
     "SPLARE": "STANDARD",
     "DGRARE": "STANDARD",
     "SLOGRD": "STANDARD",
+    "RETRFL": "OTHER",
 }
 
 # S-52 Display Priority by S-57 object class (0-9, lower = drawn first)
@@ -251,4 +252,5 @@ DISPLAY_PRIORITY: dict[str, int] = {
     "SPLARE": 2,   # area feature
     "DGRARE": 2,   # area feature
     "SLOGRD": 3,   # line feature
+    "RETRFL": 6,   # nav aid
 }

@@ -160,6 +160,7 @@ LAYER_CONFIGS: list[LayerConfig] = [
     LayerConfig("SPLARE", "regulatory", REGULATORY_ARGS),
     LayerConfig("DGRARE", "regulatory", REGULATORY_ARGS),
     LayerConfig("SLOGRD", "lines", LINE_ARGS),
+    LayerConfig("RETRFL", "navaids", NAVAID_ARGS),
 ]
 
 # Quick lookup by layer name
