@@ -97,7 +97,7 @@ describe("formatFeatureInfo", () => {
     expect(info.type).toBe("Obstruction [Depth: 1.2m]");
     expect(info.details).toContainEqual({
       label: "Category",
-      value: "Foul ground",
+      value: "Foul area",
     });
     expect(info.details).toContainEqual({ label: "Depth", value: "1.2m" });
   });

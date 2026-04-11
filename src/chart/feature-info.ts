@@ -37,10 +37,16 @@ const CATWRK: Record<number, string> = {
 };
 
 const CATOBS: Record<number, string> = {
-  1: "Snag/stump",
-  2: "Wellhead",
-  5: "Foul area",
-  6: "Foul ground",
+  1: "Fishing stakes",
+  2: "Fish trap/weir",
+  3: "Snag/stump",
+  4: "Wellhead",
+  5: "Floating barrier",
+  6: "Foul area",
+  7: "Foul ground",
+  8: "ODAS",
+  9: "Coral reef",
+  10: "Underwater turbine",
 };
 
 const WATLEV: Record<number, string> = {

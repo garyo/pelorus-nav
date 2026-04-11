@@ -326,7 +326,7 @@ export function getNavigationOverlayLayers(
         "line-dasharray": [6, 3],
       },
     },
-    // Swept area — SWPARE
+    // Swept area — SWPARE (I24)
     {
       id: "s57-swpare",
       type: "line",
@@ -336,6 +336,30 @@ export function getNavigationOverlayLayers(
         "line-color": ctx.colour("DEPSC"),
         "line-width": 1.5,
         "line-dasharray": [6, 2],
+      },
+    },
+    // Swept area depth label
+    {
+      id: "s57-swpare-label",
+      type: "symbol" as const,
+      source: ctx.sourceId,
+      "source-layer": "SWPARE",
+      filter: ["has", "DRVAL1"],
+      layout: {
+        "text-field": [
+          "concat",
+          "Sw ",
+          ["to-string", ["get", "DRVAL1"]],
+          "m",
+        ] as unknown as ExpressionSpecification,
+        "text-size": scaledTextSize(10, ctx),
+        "text-font": ["Noto Sans Regular"],
+        "text-allow-overlap": false,
+      },
+      paint: {
+        "text-color": ctx.colour("DEPSC"),
+        "text-halo-color": ctx.colour("CHWHT"),
+        "text-halo-width": 1,
       },
     },
     // Overfalls / tide rips — OVFALL

@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<?xml-stylesheet href="daySvgStyle.css" type="text/css"?>
+<svg xmlns="http://www.w3.org/2000/svg" version="1.2" baseProfile="tiny" xml:space="preserve" shape-rendering="geometricPrecision" fill-rule="evenodd" width="6mm" height="8mm" viewBox="-3 -4 6 8">
+  <title>FSHSTK01</title>
+  <desc>fishing stakes</desc>
+  <rect class="symbolBox layout" fill="none" x="-3" y="-4" width="6" height="8"/>
+  <!-- Two vertical stakes with horizontal connecting line -->
+  <line x1="-1.5" y1="-3.5" x2="-1.5" y2="3.5" class="sl sCHBLK" stroke-width="0.3"/>
+  <line x1="1.5" y1="-3.5" x2="1.5" y2="3.5" class="sl sCHBLK" stroke-width="0.3"/>
+  <line x1="-1.5" y1="0" x2="1.5" y2="0" class="sl sCHBLK" stroke-width="0.3"/>
+  <!-- Small circles at tops -->
+  <circle cx="-1.5" cy="-3.5" r="0.4" class="fCHBLK"/>
+  <circle cx="1.5" cy="-3.5" r="0.4" class="fCHBLK"/>
+  <circle class="pivotPoint layout" fill="none" cx="0" cy="0" r="1"/>
+</svg>

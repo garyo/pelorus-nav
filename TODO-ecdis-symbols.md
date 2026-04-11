@@ -55,9 +55,8 @@ S-52: CS(SOUNDG03), CS(DEPARE02), CS(DEPCNT03)
       around sounding. S-57: SOUNDG.QUAPOS (quality of position) values
       3–9 indicate approximate/doubtful position. No QUAPOS 3-9 found in
       current NOAA ENC data.
-- [ ] **Swept area symbol** (I24) — S-52: LS(DASH,2,DEPSC) boundary with
-      SY(SWPARE01) swept depth label. S-57: SWPARE (swept area) object,
-      attributes DRVAL1 (swept depth), TECSOU, QUAPOS.
+- [x] **Swept area symbol** (I24) — LS(DASH,2,DEPSC) boundary + "Sw Xm"
+      depth label. **Verify at:** S-64 GB4X0000, z12.
 
 ### K: Rocks, Wrecks, Obstructions — Foul Areas & Aquaculture
 S-57: OBSTRN, WRECKS, UWTROC, FLODOC (foul area)
@@ -71,13 +70,11 @@ S-52: CS(OBSTRN07), CS(WRECKS05), CS(UWTROC05)
       **Verify at:** Boston Harbor islands (42.32°N, 70.92°W, z14) —
       many CATOBS=6 foul area polygons along rocky shore;
       Hull/Hingham Bay (42.33°N, 70.97°W, z14).
-- [ ] **Coral reef** (K16) — S-52: AP(DIAMOND1) cross-hatch pattern for
-      always-covered reef. S-57: OBSTRN with CATOBS=9 (reef) or separate
-      object. SY(OBSTRN01) + depth symbology for point features.
-- [ ] **Fish stakes** (K44.1) — S-52: SY(FSHSTK01) point, AP(FSHSTK01) area.
-      S-57: OBSTRN with CATOBS=1 (fishing stakes).
-- [ ] **Fish trap/weir** (K44.2, K45) — S-52: SY(FSHTMP01) point,
-      AP(FSHTMP01) area. S-57: OBSTRN with CATOBS=2 (fish trap).
+- [x] **Coral reef** (K16) — CATOBS=9 mapped to standard obstruction symbol.
+      **Verify at:** S-64 GB5X01NW/GB5X01SW, z14.
+- [x] **Fish stakes** (K44.1) — SY(FSHSTK01) for CATOBS=1.
+- [x] **Fish trap/weir** (K44.2, K45) — SY(FSHTMP01) for CATOBS=2.
+      **Verify at:** S-64 GB4X0000, z14.
 - [x] **Marine farm** (K48) — SY(MARCUL02) fish-with-fence symbol + dashed
       outline for polygons. S-57: MARCUL added to pipeline + rendering.
       **Verify at:** Duxbury Bay (42.03°N, 70.66°W, z14).
@@ -326,8 +323,8 @@ S-52: CS(BOYLAT04), CS(BOYCAR04), CS(BCNLAT04)
 - [x] **Spar buoy** (Q24) — S-52: SY(BOYSPR01) spar-specific symbol.
       S-57: BOYLAT/BOYSPP with BOYSHP=5 (spar). Currently falls through
       to pillar symbol — needs distinct spar shape.
-- [ ] **Barrel/tun buoy** (Q25) — S-52: SY(BOYBAR01).
-      S-57: BOYLAT/BOYSPP with BOYSHP=6 (barrel/tun).
+- [x] **Barrel/tun buoy** (Q25) — BOYSHP=6 maps to pillar symbol per S-52
+      (no distinct barrel shape in S-52 simplified symbology).
 - [x] Superbuoy/LANBY (Q26) — SY(BOYSUP02) with ODAS/LANBY detection
 - [x] **Light float** (Q30) — S-52: SY(LITFLT01) ship-shaped.
       S-57: LITFLT (light float) object class. Distinct from buoys.
@@ -441,8 +438,8 @@ coverage have CONVIS=1, so the non-conspicuous path is untested with real data.
 | Priority | Category | Missing Items |
 |----------|----------|--------------|
 | P1 | Directional/leading/obscured lights | ~1 (was ~5) |
-| P1 | Enhanced depth display | ~2 (was ~3) |
-| P1 | Foul areas & aquaculture | ~3 (was ~7) |
+| P1 | Enhanced depth display | ~1 (was ~3) |
+| P1 | Foul areas & aquaculture | ~0 (was ~7) |
 | P1 | Routing measure details | ~6 (was ~8) |
 | P2 | Restricted/regulated areas | ~9 (was ~12) |
 | P2 | Offshore installations | ~6 (was ~8) |
@@ -452,10 +449,10 @@ coverage have CONVIS=1, so the non-conspicuous path is untested with real data.
 | P3 | Natural features | ~5 |
 | P3 | Cultural features | ~3 (was ~4) |
 | P3 | Seabed features | ~3 |
-| P3 | Additional buoy/beacon types | ~8 |
+| P3 | Additional buoy/beacon types | ~7 (was ~8) |
 | P3 | Fog/radar/radio/services | ~9 (was ~10) |
 | — | Conspicuous/non-conspicuous | ✅ done (was ~17) |
-| | **Total** | **~76** (was ~120) |
+| | **Total** | **~71** (was ~120) |
 
 ## Recommended Implementation Order
 

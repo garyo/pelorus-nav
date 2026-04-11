@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<?xml-stylesheet href="daySvgStyle.css" type="text/css"?>
+<svg xmlns="http://www.w3.org/2000/svg" version="1.2" baseProfile="tiny" xml:space="preserve" shape-rendering="geometricPrecision" fill-rule="evenodd" width="10mm" height="6mm" viewBox="-5 -3 10 6">
+  <title>SWPARE01</title>
+  <desc>swept area, depth label</desc>
+  <rect class="symbolBox layout" fill="none" x="-5" y="-3" width="10" height="6"/>
+  <!-- Dashed horizontal line representing swept depth -->
+  <line x1="-4" y1="0" x2="4" y2="0" class="sl sDEPSC" stroke-width="0.5" stroke-dasharray="1.5 1"/>
+  <!-- Downward arrow at center indicating swept depth -->
+  <line x1="0" y1="-2.5" x2="0" y2="2" class="sl sDEPSC" stroke-width="0.4"/>
+  <line x1="-1" y1="1" x2="0" y2="2.5" class="sl sDEPSC" stroke-width="0.4"/>
+  <line x1="1" y1="1" x2="0" y2="2.5" class="sl sDEPSC" stroke-width="0.4"/>
+  <circle class="pivotPoint layout" fill="none" cx="0" cy="0" r="1"/>
+</svg>

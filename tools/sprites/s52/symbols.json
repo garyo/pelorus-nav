@@ -1001,6 +1001,18 @@
     "height": 13,
     "offset": [0, 0.5]
   },
+  "FSHSTK01": {
+    "description": "fishing stakes",
+    "width": 23,
+    "height": 30,
+    "offset": [0, 0]
+  },
+  "FSHTMP01": {
+    "description": "fish trap, fish weir",
+    "width": 30,
+    "height": 30,
+    "offset": [0, 0]
+  },
   "FRYARE51": {
     "description": "ferry area",
     "width": 98,
@@ -2751,6 +2763,12 @@
     "description": "strip light",
     "width": 19,
     "height": 11,
+    "offset": [0, 0]
+  },
+  "SWPARE01": {
+    "description": "swept area depth symbol",
+    "width": 38,
+    "height": 23,
     "offset": [0, 0]
   },
   "SWPARE51": {

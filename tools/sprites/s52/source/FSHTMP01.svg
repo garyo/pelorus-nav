@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<?xml-stylesheet href="daySvgStyle.css" type="text/css"?>
+<svg xmlns="http://www.w3.org/2000/svg" version="1.2" baseProfile="tiny" xml:space="preserve" shape-rendering="geometricPrecision" fill-rule="evenodd" width="8mm" height="8mm" viewBox="-4 -4 8 8">
+  <title>FSHTMP01</title>
+  <desc>fish trap, fish weir</desc>
+  <rect class="symbolBox layout" fill="none" x="-4" y="-4" width="8" height="8"/>
+  <!-- Arrow-shaped fish trap pointing right -->
+  <line x1="-3" y1="-3" x2="1" y2="0" class="sl sCHBLK" stroke-width="0.3"/>
+  <line x1="-3" y1="3" x2="1" y2="0" class="sl sCHBLK" stroke-width="0.3"/>
+  <line x1="1" y1="-2" x2="1" y2="2" class="sl sCHBLK" stroke-width="0.3"/>
+  <!-- Inner pocket -->
+  <line x1="1" y1="-1" x2="3" y2="0" class="sl sCHBLK" stroke-width="0.3"/>
+  <line x1="1" y1="1" x2="3" y2="0" class="sl sCHBLK" stroke-width="0.3"/>
+  <circle class="pivotPoint layout" fill="none" cx="0" cy="0" r="1"/>
+</svg>

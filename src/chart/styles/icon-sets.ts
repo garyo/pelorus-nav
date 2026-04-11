@@ -215,6 +215,9 @@ export const IHO_S52: Record<string, string> = {
   "wreck-dangerous": "WRECKS05",
   obstruction: "OBSTRN01",
   "obstruction-foul": "OBSTRN11",
+  "obstruction-fish-stakes": "FSHSTK01",
+  "obstruction-fish-trap": "FSHTMP01",
+  "swept-area": "SWPARE01",
   "rock-underwater": "UWTROC03",
   "rock-awash": "UWTROC04",
   "rock-above": "UWTROC04",
@@ -353,6 +356,9 @@ const S52_OFFSETS: Record<string, [number, number]> = {
   UWTROC04: [0, 0],
   OBSTRN01: [0.5, 0.5],
   OBSTRN11: [0, 0],
+  FSHSTK01: [0, -20],
+  FSHTMP01: [0, -20],
+  SWPARE01: [0, 0],
   // Other navaids
   FOGSIG01: [-9.5, 8],
   MORFAC03: [-1, 0],
@@ -517,8 +523,11 @@ const CATWRK_DANGEROUS = 2;
 const CATWRK_HULL = 4;
 const CATWRK_MAST = 5;
 // CATOBS
+const CATOBS_FISH_STAKES = 1;
+const CATOBS_FISH_TRAP = 2;
 const CATOBS_FOUL_AREA = 6;
 const CATOBS_FOUL_GROUND = 7;
+const CATOBS_REEF = 9;
 // TOPSHP codes
 const TOPSHP_CONE_UP = 1;
 const TOPSHP_CONE_DOWN = 2;
@@ -749,8 +758,11 @@ export function buildLayerExpressions(
       return matchOnAttr(
         ["get", "CATOBS"],
         [
+          [CATOBS_FISH_STAKES, "obstruction-fish-stakes"],
+          [CATOBS_FISH_TRAP, "obstruction-fish-trap"],
           [CATOBS_FOUL_AREA, "obstruction-foul"],
           [CATOBS_FOUL_GROUND, "obstruction-foul"],
+          [CATOBS_REEF, "obstruction"], // coral reef uses standard obstruction symbol
         ],
         "obstruction",
       );
