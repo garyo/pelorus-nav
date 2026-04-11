@@ -390,6 +390,25 @@ export function getAdditionalAreaLayers(
         "line-width": 1,
       },
     },
+    // Fortified structure — symbol with CONVIS switching (all geometry types)
+    {
+      id: "s57-forstc-symbol",
+      type: "symbol",
+      source: ctx.sourceId,
+      "source-layer": "FORSTC",
+      minzoom: 12,
+      layout: {
+        "icon-image": [
+          "case",
+          ["==", ["get", "CONVIS"], 1],
+          ctx.icon("landmark-fortified-conspic"),
+          ctx.icon("landmark-fortified"),
+        ] as unknown as ExpressionSpecification,
+        "icon-size": 0.7,
+        "icon-allow-overlap": true,
+      },
+      paint: {},
+    },
     // Hulks (permanently moored derelict vessel)
     {
       id: "s57-hulkes",

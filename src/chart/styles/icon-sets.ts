@@ -247,7 +247,8 @@ export const IHO_S52: Record<string, string> = {
   "landmark-refinery-conspic": "RFNERY11",
   "landmark-tank-farm": "TNKFRM01",
   "landmark-tank-farm-conspic": "TNKFRM11",
-  "landmark-temple": "TMBYRD01",
+  "landmark-temple": "BUIREL14",
+  "landmark-temple-nonconspic": "BUIREL04",
   "landmark-fortified": "FORSTC01",
   "landmark-fortified-conspic": "FORSTC11",
 
@@ -410,7 +411,8 @@ const S52_OFFSETS: Record<string, [number, number]> = {
   RFNERY11: [0, 0],
   TNKFRM01: [0, 0],
   TNKFRM11: [0, 0],
-  TMBYRD01: [0, 0],
+  BUIREL14: [0, 0],
+  BUIREL04: [0, 0],
   FORSTC01: [0, 0],
   FORSTC11: [0, 0],
   // Restricted areas (offsets from symbols.json)
@@ -761,7 +763,7 @@ export function buildLayerExpressions(
     case "BCNSAW":
       return constant("beacon-default");
     case "PILBOP":
-      return constant("beacon-default");
+      return constant("pilot-boarding");
 
     // ── Simple attribute matches ─────────────────────────────────────────
     case "BOYCAR":
@@ -874,7 +876,7 @@ export function buildLayerExpressions(
         [CATLMK_TOWER, "landmark-tower", "landmark-tower-conspic"],
         [CATLMK_WINDMILL, "landmark-windmill", "landmark-windmill-conspic"],
         [CATLMK_WINDMOTOR, "landmark-windmotor", "landmark-windmotor-conspic"],
-        [CATLMK_SPIRE, "landmark-church", "landmark-church-conspic"],
+        // CATLMK_SPIRE (20) handled separately below — needs FUNCTN branching
       ];
       const isConspic = [
         "==",
@@ -882,6 +884,7 @@ export function buildLayerExpressions(
         1,
       ];
       const catlmkExpr = ["to-number", ["coalesce", ["get", "CATLMK"], 0], 0];
+      const functnExpr = ["to-number", ["coalesce", ["get", "FUNCTN"], 0], 0];
 
       // Build: ["match", CATLMK, val1, ["case", conspic?, conspic-sprite, non-conspic-sprite], ..., default]
       const iconArr: unknown[] = ["match", catlmkExpr];
@@ -907,6 +910,20 @@ export function buildLayerExpressions(
         if (ncOff[0] !== 0 || ncOff[1] !== 0 || cOff[0] !== 0 || cOff[1] !== 0)
           hasOffsets = true;
       }
+      // CATLMK=20 (spire): FUNCTN=26 (mosque) → mosque icon, else church
+      const isMosque = ["==", functnExpr, 26];
+      iconArr.push(CATLMK_SPIRE, [
+        "case",
+        ["all", isMosque, isConspic],
+        sp("landmark-mosque-conspic"),
+        isMosque,
+        sp("landmark-mosque"),
+        isConspic,
+        sp("landmark-church-conspic"),
+        sp("landmark-church"),
+      ]);
+      offArr.push(CATLMK_SPIRE, ["literal", [0, 0] as [number, number]]);
+
       const defNc = sp("landmark-default");
       const defC = sp("landmark-default-conspic");
       iconArr.push(["case", isConspic, defC, defNc]);

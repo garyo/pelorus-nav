@@ -250,6 +250,50 @@ export function getTextLayers(ctx: StyleContext): LayerSpecification[] {
         "text-halo-width": 1,
       },
     },
+    // Building FUNCTN-based icons (church, temple, mosque)
+    {
+      id: "s57-buisgl-functn",
+      type: "symbol",
+      source: ctx.sourceId,
+      "source-layer": "BUISGL",
+      minzoom: ctx.detailMinzoom(13),
+      filter: [
+        "match",
+        ["to-number", ["coalesce", ["get", "FUNCTN"], "0"]],
+        [
+          20, // church
+          21, // chapel
+          22, // temple
+          23, // pagoda
+          24, // Shinto shrine
+          25, // Buddhist temple
+          26, // mosque
+        ],
+        true,
+        false,
+      ] as unknown as ExpressionSpecification,
+      layout: {
+        "icon-image": [
+          "match",
+          ["to-number", ["get", "FUNCTN"]],
+          26,
+          ctx.icon("landmark-mosque-conspic"),
+          22,
+          ctx.icon("landmark-temple"),
+          23,
+          ctx.icon("landmark-temple"),
+          24,
+          ctx.icon("landmark-temple"),
+          25,
+          ctx.icon("landmark-temple"),
+          // 20 (church), 21 (chapel) → church symbol
+          ctx.icon("landmark-church-conspic"),
+        ] as unknown as ExpressionSpecification,
+        "icon-size": 0.6,
+        "icon-allow-overlap": true,
+      },
+      paint: {},
+    },
     // Small craft facilities (marinas, yacht clubs)
     {
       id: "s57-smcfac-label",

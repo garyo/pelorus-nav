@@ -41,6 +41,18 @@
     "height": 31,
     "offset": [-0.5, -0.5]
   },
+  "BUIREL04": {
+    "description": "non-conspicuous religious building, non-Christian",
+    "width": 16,
+    "height": 16,
+    "offset": [0, 0]
+  },
+  "BUIREL14": {
+    "description": "conspicuous religious building, non-Christian",
+    "width": 16,
+    "height": 16,
+    "offset": [0, 0]
+  },
   "BCNCAR01": {
     "description": "cardinal beacon, north, simplified",
     "width": 16,
