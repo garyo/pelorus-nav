@@ -134,7 +134,7 @@ export class SafetyContour {
           const v = f.properties?.VALDCO;
           if (typeof v === "number" && v > 0) {
             if (!byCell.has(cellId)) byCell.set(cellId, new Set());
-            byCell.get(cellId)!.add(v);
+            byCell.get(cellId)?.add(v);
           }
         }
       } catch {

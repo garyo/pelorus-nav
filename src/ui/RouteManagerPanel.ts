@@ -4,8 +4,8 @@
 
 import { deleteRoute, getAllRoutes, saveRoute, saveWaypoint } from "../data/db";
 import {
-  GPX_MIME,
   downloadFile,
+  GPX_MIME,
   pickFile,
   sanitizeFilename,
 } from "../data/file-io";

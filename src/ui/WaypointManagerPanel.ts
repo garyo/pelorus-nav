@@ -4,7 +4,7 @@
  */
 
 import { deleteWaypoint, getAllWaypoints, saveWaypoint } from "../data/db";
-import { GPX_MIME, downloadFile, pickFile } from "../data/file-io";
+import { downloadFile, GPX_MIME, pickFile } from "../data/file-io";
 import { parseGpx, waypointsToGpx } from "../data/gpx";
 import type { StandaloneWaypoint, WaypointIcon } from "../data/Waypoint";
 import type { WaypointLayer } from "../map/WaypointLayer";

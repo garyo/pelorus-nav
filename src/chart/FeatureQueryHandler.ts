@@ -465,8 +465,8 @@ export class FeatureQueryHandler {
 
     // Only create the highlight layer type matching the feature's geometry
     if (geomType === "Polygon" || geomType === "MultiPolygon") {
-      this.addHighlightLayer(layerId + "-fill", fidnFilter, {
-        id: layerId + "-fill",
+      this.addHighlightLayer(`${layerId}-fill`, fidnFilter, {
+        id: `${layerId}-fill`,
         type: "fill",
         source,
         "source-layer": sourceLayer,
@@ -480,8 +480,8 @@ export class FeatureQueryHandler {
       // trace tile-clipped edges as visible straight lines. Only add the
       // outline for smaller polygon features (forts, buildings, etc.).
       if (!TILE_SPANNING_LAYERS.has(sourceLayer)) {
-        this.addHighlightLayer(layerId + "-line", fidnFilter, {
-          id: layerId + "-line",
+        this.addHighlightLayer(`${layerId}-line`, fidnFilter, {
+          id: `${layerId}-line`,
           type: "line",
           source,
           "source-layer": sourceLayer,
@@ -494,8 +494,8 @@ export class FeatureQueryHandler {
         });
       }
     } else if (geomType === "LineString" || geomType === "MultiLineString") {
-      this.addHighlightLayer(layerId + "-line", fidnFilter, {
-        id: layerId + "-line",
+      this.addHighlightLayer(`${layerId}-line`, fidnFilter, {
+        id: `${layerId}-line`,
         type: "line",
         source,
         "source-layer": sourceLayer,
@@ -508,8 +508,8 @@ export class FeatureQueryHandler {
       });
     } else {
       // Point / MultiPoint
-      this.addHighlightLayer(layerId + "-circle", fidnFilter, {
-        id: layerId + "-circle",
+      this.addHighlightLayer(`${layerId}-circle`, fidnFilter, {
+        id: `${layerId}-circle`,
         type: "circle",
         source,
         "source-layer": sourceLayer,

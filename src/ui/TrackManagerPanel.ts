@@ -8,7 +8,7 @@ import {
   getTrackPoints,
   saveTrackMeta,
 } from "../data/db";
-import { GPX_MIME, downloadFile, sanitizeFilename } from "../data/file-io";
+import { downloadFile, GPX_MIME, sanitizeFilename } from "../data/file-io";
 import { exportAllToGpx, trackToGpx } from "../data/gpx";
 import type { TrackMeta } from "../data/Track";
 import type { TrackLayer } from "../map/TrackLayer";
@@ -181,11 +181,7 @@ export class TrackManagerPanel {
       (async () => {
         const points = await getTrackPoints(meta.id);
         const gpx = trackToGpx(meta, points);
-        downloadFile(
-          gpx,
-          `${sanitizeFilename(meta.name)}.gpx`,
-          GPX_MIME,
-        );
+        downloadFile(gpx, `${sanitizeFilename(meta.name)}.gpx`, GPX_MIME);
       })().catch(console.error);
     });
 
