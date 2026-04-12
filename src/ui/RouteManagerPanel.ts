@@ -2,19 +2,29 @@
  * Floating panel for listing, toggling, editing, and deleting routes.
  */
 
-import { deleteRoute, getAllRoutes, saveRoute } from "../data/db";
+import { deleteRoute, getAllRoutes, saveRoute, saveWaypoint } from "../data/db";
+import {
+  GPX_MIME,
+  downloadFile,
+  pickFile,
+  sanitizeFilename,
+} from "../data/file-io";
+import { exportAllToGpx, parseGpx, routeToGpx } from "../data/gpx";
 import type { Route } from "../data/Route";
 import type { RouteEditor } from "../map/RouteEditor";
 import type { RouteLayer } from "../map/RouteLayer";
+import type { WaypointLayer } from "../map/WaypointLayer";
 import type { ActiveNavigationManager } from "../navigation/ActiveNavigation";
 import { getSettings } from "../settings";
 import { haversineDistanceNM } from "../utils/coordinates";
 import {
+  iconDownload,
   iconEdit,
   iconEye,
   iconEyeOff,
   iconNavigation,
   iconTrash,
+  iconUpload,
   iconX,
   setIcon,
 } from "./icons";
@@ -27,6 +37,7 @@ export class RouteManagerPanel {
   private readonly routeLayer: RouteLayer;
   private readonly editor: RouteEditor;
   private readonly detailPanel: RouteDetailPanel;
+  private waypointLayer: WaypointLayer | null = null;
   private activeNav: ActiveNavigationManager | null = null;
 
   constructor(routeLayer: RouteLayer, editor: RouteEditor) {
@@ -40,6 +51,8 @@ export class RouteManagerPanel {
       '<div class="manager-header">' +
       "<span>Routes</span>" +
       '<div style="display:flex;gap:6px;align-items:center">' +
+      '<button class="manager-item-btn" id="route-import-btn" title="Import GPX"></button>' +
+      '<button class="manager-item-btn" id="route-export-all-btn" title="Export All GPX"></button>' +
       '<button class="route-editor-btn" id="route-new-btn">New</button>' +
       '<button class="manager-close"></button>' +
       "</div>" +
@@ -53,6 +66,16 @@ export class RouteManagerPanel {
       setIcon(closeBtn, iconX);
       closeBtn.addEventListener("click", () => this.hide());
     }
+    const importBtn = this.el.querySelector("#route-import-btn") as HTMLElement;
+    setIcon(importBtn, iconUpload);
+    importBtn.addEventListener("click", () => this.importGpx());
+
+    const exportAllBtn = this.el.querySelector(
+      "#route-export-all-btn",
+    ) as HTMLElement;
+    setIcon(exportAllBtn, iconDownload);
+    exportAllBtn.addEventListener("click", () => this.exportAll());
+
     this.el.querySelector("#route-new-btn")?.addEventListener("click", () => {
       this.hide();
       this.editor.startEditing();
@@ -103,6 +126,10 @@ export class RouteManagerPanel {
         })
         .catch(console.error);
     };
+  }
+
+  setWaypointLayer(waypointLayer: WaypointLayer): void {
+    this.waypointLayer = waypointLayer;
   }
 
   setActiveNav(activeNav: ActiveNavigationManager): void {
@@ -230,6 +257,15 @@ export class RouteManagerPanel {
       }
     });
 
+    const exportBtn = document.createElement("button");
+    exportBtn.className = "manager-item-btn";
+    setIcon(exportBtn, iconDownload);
+    exportBtn.title = "Export GPX";
+    exportBtn.addEventListener("click", () => {
+      const gpx = routeToGpx(route);
+      downloadFile(gpx, `${sanitizeFilename(route.name)}.gpx`, GPX_MIME);
+    });
+
     const editBtn = document.createElement("button");
     editBtn.className = "manager-item-btn";
     setIcon(editBtn, iconEdit);
@@ -275,7 +311,7 @@ export class RouteManagerPanel {
       })().catch(console.error);
     });
 
-    actions.append(navBtn, editBtn, toggleBtn, deleteBtn);
+    actions.append(navBtn, exportBtn, editBtn, toggleBtn, deleteBtn);
     item.append(color, info, actions);
     return item;
   }
@@ -331,6 +367,63 @@ export class RouteManagerPanel {
       await this.routeLayer.reloadAll();
       input.remove();
     });
+  }
+  private async exportAll(): Promise<void> {
+    const routes = await getAllRoutes();
+    if (routes.length === 0) {
+      alert("No routes to export.");
+      return;
+    }
+    const gpx = exportAllToGpx(routes, [], []);
+    downloadFile(gpx, "pelorus-routes.gpx", GPX_MIME);
+  }
+
+  private async importGpx(): Promise<void> {
+    let xml: string;
+    try {
+      xml = await pickFile(".gpx");
+    } catch {
+      return; // cancelled
+    }
+
+    const result = parseGpx(xml);
+    if (result.routes.length === 0 && result.waypoints.length === 0) {
+      alert("No routes or waypoints found in this GPX file.");
+      return;
+    }
+
+    // Check for name conflicts
+    const existing = await getAllRoutes();
+    const existingNames = new Set(existing.map((r) => r.name));
+    for (const route of result.routes) {
+      if (existingNames.has(route.name)) {
+        route.name += " (imported)";
+      }
+    }
+
+    await Promise.all([
+      ...result.routes.map((route) => saveRoute(route)),
+      ...result.waypoints.map((wp) => saveWaypoint(wp)),
+    ]);
+
+    await this.routeLayer.reloadAll();
+    if (result.waypoints.length > 0) {
+      await this.waypointLayer?.reloadAll();
+    }
+    await this.refresh();
+
+    const parts: string[] = [];
+    if (result.routes.length > 0) {
+      parts.push(
+        `${result.routes.length} route${result.routes.length !== 1 ? "s" : ""}`,
+      );
+    }
+    if (result.waypoints.length > 0) {
+      parts.push(
+        `${result.waypoints.length} waypoint${result.waypoints.length !== 1 ? "s" : ""}`,
+      );
+    }
+    alert(`Imported ${parts.join(" and ")}.`);
   }
 }
 

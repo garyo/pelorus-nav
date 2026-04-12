@@ -3,11 +3,21 @@
  * Follows the RouteManagerPanel pattern.
  */
 
-import { deleteWaypoint, saveWaypoint } from "../data/db";
+import { deleteWaypoint, getAllWaypoints, saveWaypoint } from "../data/db";
+import { GPX_MIME, downloadFile, pickFile } from "../data/file-io";
+import { parseGpx, waypointsToGpx } from "../data/gpx";
 import type { StandaloneWaypoint, WaypointIcon } from "../data/Waypoint";
 import type { WaypointLayer } from "../map/WaypointLayer";
 import type { ActiveNavigationManager } from "../navigation/ActiveNavigation";
-import { iconEdit, iconNavigation, iconTrash, iconX, setIcon } from "./icons";
+import {
+  iconDownload,
+  iconEdit,
+  iconNavigation,
+  iconTrash,
+  iconUpload,
+  iconX,
+  setIcon,
+} from "./icons";
 import { getPanelStack } from "./PanelStack";
 
 const ICON_LABELS: Record<WaypointIcon, string> = {
@@ -37,6 +47,8 @@ export class WaypointManagerPanel {
       '<div class="manager-header">' +
       "<span>Waypoints</span>" +
       '<div style="display:flex;gap:6px;align-items:center">' +
+      '<button class="manager-item-btn" id="wp-import-btn" title="Import GPX"></button>' +
+      '<button class="manager-item-btn" id="wp-export-all-btn" title="Export All GPX"></button>' +
       '<button class="manager-close"></button>' +
       "</div>" +
       "</div>" +
@@ -44,6 +56,17 @@ export class WaypointManagerPanel {
     getPanelStack().appendChild(this.el);
 
     this.body = this.el.querySelector(".manager-body") as HTMLDivElement;
+
+    const importBtn = this.el.querySelector("#wp-import-btn") as HTMLElement;
+    setIcon(importBtn, iconUpload);
+    importBtn.addEventListener("click", () => this.importGpx());
+
+    const exportAllBtn = this.el.querySelector(
+      "#wp-export-all-btn",
+    ) as HTMLElement;
+    setIcon(exportAllBtn, iconDownload);
+    exportAllBtn.addEventListener("click", () => this.exportAll());
+
     const closeBtn = this.el.querySelector(".manager-close") as HTMLElement;
     if (closeBtn) {
       setIcon(closeBtn, iconX);
@@ -201,6 +224,40 @@ export class WaypointManagerPanel {
         input.blur();
       }
     });
+  }
+
+  private async exportAll(): Promise<void> {
+    const waypoints = await getAllWaypoints();
+    if (waypoints.length === 0) {
+      alert("No waypoints to export.");
+      return;
+    }
+    const gpx = waypointsToGpx(waypoints);
+    downloadFile(gpx, "pelorus-waypoints.gpx", GPX_MIME);
+  }
+
+  private async importGpx(): Promise<void> {
+    let xml: string;
+    try {
+      xml = await pickFile(".gpx");
+    } catch {
+      return; // cancelled
+    }
+
+    const result = parseGpx(xml);
+    if (result.waypoints.length === 0) {
+      alert("No waypoints found in this GPX file.");
+      return;
+    }
+
+    await Promise.all(result.waypoints.map((wp) => saveWaypoint(wp)));
+    for (const wp of result.waypoints) {
+      this.waypointLayer.addWaypoint(wp);
+    }
+    this.refresh();
+    alert(
+      `Imported ${result.waypoints.length} waypoint${result.waypoints.length !== 1 ? "s" : ""}.`,
+    );
   }
 
   private showEditDialog(wp: StandaloneWaypoint): void {

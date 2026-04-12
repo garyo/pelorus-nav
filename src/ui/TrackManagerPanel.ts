@@ -2,11 +2,25 @@
  * Floating panel for listing, toggling, renaming, and deleting recorded tracks.
  */
 
-import { deleteTrack, getAllTrackMetas, saveTrackMeta } from "../data/db";
+import {
+  deleteTrack,
+  getAllTrackMetas,
+  getTrackPoints,
+  saveTrackMeta,
+} from "../data/db";
+import { GPX_MIME, downloadFile, sanitizeFilename } from "../data/file-io";
+import { exportAllToGpx, trackToGpx } from "../data/gpx";
 import type { TrackMeta } from "../data/Track";
 import type { TrackLayer } from "../map/TrackLayer";
 import type { TrackRecorder } from "../map/TrackRecorder";
-import { iconEye, iconEyeOff, iconTrash, iconX, setIcon } from "./icons";
+import {
+  iconDownload,
+  iconEye,
+  iconEyeOff,
+  iconTrash,
+  iconX,
+  setIcon,
+} from "./icons";
 import { getPanelStack } from "./PanelStack";
 
 export class TrackManagerPanel {
@@ -25,8 +39,11 @@ export class TrackManagerPanel {
     this.el.innerHTML =
       '<div class="manager-header">' +
       "<span>Tracks</span>" +
+      '<div style="display:flex;gap:6px;align-items:center">' +
+      '<button class="manager-item-btn" id="track-export-all-btn" title="Export All GPX"></button>' +
       '<button class="track-record-btn"></button>' +
       '<button class="manager-close"></button>' +
+      "</div>" +
       "</div>" +
       '<div class="manager-body"></div>';
     getPanelStack().appendChild(this.el);
@@ -44,6 +61,12 @@ export class TrackManagerPanel {
         this.recorder.start();
       }
     });
+
+    const exportAllBtn = this.el.querySelector(
+      "#track-export-all-btn",
+    ) as HTMLElement;
+    setIcon(exportAllBtn, iconDownload);
+    exportAllBtn.addEventListener("click", () => this.exportAll());
 
     const closeBtn = this.el.querySelector(".manager-close") as HTMLElement;
     if (closeBtn) {
@@ -150,6 +173,22 @@ export class TrackManagerPanel {
     const actions = document.createElement("div");
     actions.className = "manager-item-actions";
 
+    const exportBtn = document.createElement("button");
+    exportBtn.className = "manager-item-btn";
+    setIcon(exportBtn, iconDownload);
+    exportBtn.title = "Export GPX";
+    exportBtn.addEventListener("click", () => {
+      (async () => {
+        const points = await getTrackPoints(meta.id);
+        const gpx = trackToGpx(meta, points);
+        downloadFile(
+          gpx,
+          `${sanitizeFilename(meta.name)}.gpx`,
+          GPX_MIME,
+        );
+      })().catch(console.error);
+    });
+
     const toggleBtn = document.createElement("button");
     toggleBtn.className = "manager-item-btn";
     setIcon(toggleBtn, meta.visible ? iconEye : iconEyeOff);
@@ -176,7 +215,7 @@ export class TrackManagerPanel {
       })().catch(console.error);
     });
 
-    actions.append(toggleBtn, deleteBtn);
+    actions.append(exportBtn, toggleBtn, deleteBtn);
     item.append(color, info, actions);
     return item;
   }
@@ -207,6 +246,22 @@ export class TrackManagerPanel {
         input.blur();
       }
     });
+  }
+
+  private async exportAll(): Promise<void> {
+    const metas = await getAllTrackMetas();
+    if (metas.length === 0) {
+      alert("No tracks to export.");
+      return;
+    }
+    const tracks = await Promise.all(
+      metas.map(async (meta) => ({
+        meta,
+        points: await getTrackPoints(meta.id),
+      })),
+    );
+    const gpx = exportAllToGpx([], tracks, []);
+    downloadFile(gpx, "pelorus-tracks.gpx", GPX_MIME);
   }
 
   private async pickColor(

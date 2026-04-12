@@ -15,7 +15,7 @@
       <span class="app-name">Pelorus Nav</span>
       <script>
         // Detect runtime: Capacitor (Ⓐ), PWA (Ⓟ), or web (Ⓦ)
-        (function() {
+        (() => {
           var C = window.Capacitor;
           var isNative = C && C.isNativePlatform && C.isNativePlatform();
           var isPWA = !isNative && (window.matchMedia('(display-mode: standalone)').matches ||

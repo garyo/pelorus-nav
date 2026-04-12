@@ -447,6 +447,7 @@ new CenterCrosshair(chartManager.map, navHud.getCursorCoordsEl());
 new BearingLine(chartManager.map, activeNav, navManager);
 const waypointPanel = new WaypointManagerPanel(waypointLayer, activeNav);
 routePanel.setActiveNav(activeNav);
+routePanel.setWaypointLayer(waypointLayer);
 
 // --- Context menu (right-click on map) ---
 const plottingLayer = new PlottingLayer(chartManager.map);
