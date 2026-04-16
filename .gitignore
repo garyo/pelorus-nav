@@ -44,8 +44,9 @@ tools/sprites/s52-sprite-catalog.pdf
 # Wrangler local state
 .wrangler/
 
-# Android / Capacitor
-android/
+# Android / Capacitor (android/.gitignore handles build artifacts, assets, etc.)
+android/pelorus-release.keystore
+android/signing.properties
 platforms/
 platform-tools/
 build-tools/

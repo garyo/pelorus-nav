@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Pelorus Nav</string>
+    <string name="title_activity_main">Pelorus Nav</string>
+    <string name="package_name">nav.pelorus.app</string>
+    <string name="custom_url_scheme">nav.pelorus.app</string>
+</resources>
