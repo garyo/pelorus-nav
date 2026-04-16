@@ -316,33 +316,49 @@ describe("GPSFilter", () => {
     expect(filteredDist).toBeGreaterThan(1e-7);
   });
 
-  it("seeds velocity from hardware speed/course on init", () => {
+  it("seeds velocity from hardware speed/course after reset", () => {
     const filter = new GPSFilter();
+    const startLat = 42.35;
+    const startLon = -71.04;
+    const cosLat = Math.cos((startLat * Math.PI) / 180);
+    const degPerSecLon = (5 * 1852) / (3600 * 111_111 * cosLat);
 
-    // First fix with hardware speed/course
+    // First fix — cold start, velocity not seeded from hardware
     filter.filter(
       makeFix({
-        latitude: 42.35,
-        longitude: -71.04,
+        latitude: startLat,
+        longitude: startLon,
         sog: 5,
         cog: 90,
         timestamp: 0,
       }),
     );
 
-    // Second fix 1s later, slightly east — should already have
-    // a reasonable eastward velocity from the hardware seed
+    // A few consistent fixes to establish velocity
+    for (let i = 1; i <= 3; i++) {
+      filter.filter(
+        makeFix({
+          latitude: startLat,
+          longitude: startLon + degPerSecLon * i,
+          sog: 5,
+          cog: 90,
+          timestamp: i * 1000,
+        }),
+      );
+    }
+
+    // Stale gap → reset → initState seeds from hardware (now plausible)
     const out = filter.filter(
       makeFix({
-        latitude: 42.35,
-        longitude: -71.0399,
+        latitude: startLat,
+        longitude: startLon + degPerSecLon * 34,
         sog: 5,
         cog: 90,
-        timestamp: 1000,
+        timestamp: 34_000,
       }),
     );
 
-    // SOG should be close to 5 kn already (not starting from zero)
+    // After reset with plausible hardware seed, SOG should be close to 5 kn
     expect(out.sog).toBeGreaterThan(2);
     // COG should be roughly east
     expect(out.cog).toBeGreaterThan(45);

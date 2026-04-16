@@ -5,6 +5,7 @@
  */
 
 import { AdaptiveRateController, type AdaptiveRateState } from "./AdaptiveRate";
+import { gpsDiagLog } from "./GPSDiagnosticLog";
 import { GPSFilter } from "./GPSFilter";
 import type {
   NavigationData,
@@ -30,8 +31,21 @@ export class NavigationDataManager {
   private pendingData: NavigationData | null = null;
 
   private readonly onData: NavigationDataCallback = (raw) => {
+    // Diagnostic: log raw GPS fix
+    gpsDiagLog.logRaw(
+      raw.timestamp,
+      raw.latitude,
+      raw.longitude,
+      raw.sog,
+      raw.cog,
+      raw.accuracy ?? null,
+    );
+
     const data = this.gpsFilter.filter(raw);
     this.lastData = data;
+
+    // Diagnostic: log Kalman-filtered output
+    gpsDiagLog.logFiltered(data.latitude, data.longitude, data.sog, data.cog);
 
     if (this.rateMode === "adaptive") {
       const prevTier = this.adaptiveCtrl.getState().tier;
@@ -41,7 +55,17 @@ export class NavigationDataManager {
       // Immediate broadcast on tier upgrade to fast
       const tierUpgraded = prevTier !== "fast" && newTier === "fast";
 
-      if (tierUpgraded || this.adaptiveCtrl.shouldBroadcast(data.timestamp)) {
+      const willBroadcast =
+        tierUpgraded || this.adaptiveCtrl.shouldBroadcast(data.timestamp);
+
+      // Diagnostic: log adaptive state (commit deferred to main.ts after smoothed log)
+      gpsDiagLog.logAdaptive(
+        newTier,
+        this.adaptiveCtrl.getState().intervalMs,
+        willBroadcast,
+      );
+
+      if (willBroadcast) {
         this.broadcast(data);
         this.adaptiveCtrl.markBroadcast(data.timestamp);
         this.hintProviderInterval(this.adaptiveCtrl.getState().intervalMs);
@@ -51,13 +75,18 @@ export class NavigationDataManager {
       }
     } else {
       // Manual mode: simple throttle
-      if (this.adaptiveCtrl.shouldBroadcast(data.timestamp)) {
+      const willBroadcast = this.adaptiveCtrl.shouldBroadcast(data.timestamp);
+      gpsDiagLog.logAdaptive("manual", this.manualIntervalMs, willBroadcast);
+
+      if (willBroadcast) {
         this.broadcast(data);
         this.adaptiveCtrl.markBroadcast(data.timestamp);
       } else {
         this.scheduleDeferredBroadcast(data);
       }
     }
+    // Commit diagnostic entry (idempotent — skips if already committed by subscriber)
+    gpsDiagLog.commit();
   };
 
   private broadcast(data: NavigationData): void {

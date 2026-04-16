@@ -49,6 +49,20 @@ Pelorus Nav — open-source web-based marine chartplotter (PWA). See PLAN.md for
 - Playwright needs WebGL flags for headless Chromium (configured in playwright.config.ts)
 - Use SimulatorProvider for GPS data in tests (no real hardware needed)
 
+## GPS Diagnostic Logging
+The app has a built-in GPS diagnostic logger (`src/navigation/GPSDiagnosticLog.ts`)
+that records raw, Kalman-filtered, and course-smoothed data at each stage of the
+GPS pipeline. It's wired into `NavigationDataManager` and `main.ts`, exposed on
+`window.gpsDiag` for console access:
+- `gpsDiag.start()` / `gpsDiag.stop()` — toggle recording
+- `gpsDiag.entryCount` — number of entries
+- `gpsDiag.download()` — export CSV via share/file save
+- `gpsDiag.csv()` — return CSV string
+
+Useful for tuning filter constants across different GPS hardware. The logger is
+off by default; enable it from the browser console or Chrome DevTools (via
+`chrome://inspect` for Android WebView).
+
 ## S-57 Pipeline (tools/s57-pipeline/)
 Python CLI for converting NOAA S-57 ENC data → PMTiles vector tiles.
 Requires `gdal` and `tippecanoe` installed via brew.

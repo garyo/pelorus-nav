@@ -1,3 +1,4 @@
+import { Capacitor } from "@capacitor/core";
 import { addProtocol } from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import { PMTiles, Protocol } from "pmtiles";
@@ -12,6 +13,7 @@ import {
 } from "./chart";
 import { LightSectorLayer } from "./chart/LightSectorLayer";
 import { SafetyContour } from "./chart/SafetyContour";
+import { downloadFile } from "./data/file-io";
 import { OPFSSource } from "./data/opfs-source";
 import { chartAssetBase } from "./data/remote-url";
 import { loadAllSearchIndices } from "./data/search-index";
@@ -35,6 +37,7 @@ import {
 } from "./navigation";
 import { ActiveNavigationManager } from "./navigation/ActiveNavigation";
 import { CourseSmoothing } from "./navigation/CourseSmoothing";
+import { gpsDiagLog } from "./navigation/GPSDiagnosticLog";
 import { RegionAutoSwitch } from "./navigation/RegionAutoSwitch";
 import { getSettings, onSettingsChange, updateSettings } from "./settings";
 import { AboutDialog } from "./ui/AboutDialog";
@@ -70,6 +73,22 @@ import { applyDeclination, bearingModeLabel } from "./utils/magnetic";
 import { ChartModeController } from "./vessel/ChartMode";
 import { CourseLine } from "./vessel/CourseLine";
 import { VesselLayer } from "./vessel/VesselLayer";
+
+// On Capacitor, unregister any stale service workers left from previous installs.
+// The SW is disabled for Capacitor builds (assets are bundled locally) but devices
+// that ran older builds may still have a cached SW serving stale JS.
+if (Capacitor.isNativePlatform() && "serviceWorker" in navigator) {
+  navigator.serviceWorker.getRegistrations().then((registrations) => {
+    for (const reg of registrations) {
+      reg.unregister();
+    }
+    if (registrations.length > 0) {
+      console.log(
+        `Unregistered ${registrations.length} stale service worker(s)`,
+      );
+    }
+  });
+}
 
 // Register PMTiles protocol for vector tile sources
 const protocol = new Protocol({ metadata: true });
@@ -273,6 +292,12 @@ navManager.subscribe((data) => {
     data.longitude,
     data.timestamp,
   );
+  // Diagnostic: log the smoothed values then commit the entry
+  const smoothedSnap = courseSmoother.smooth(performance.now());
+  if (smoothedSnap) {
+    gpsDiagLog.logSmoothed(smoothedSnap.sog, smoothedSnap.cog);
+  }
+  gpsDiagLog.commit();
   // On e-ink, scale smoothing window with the adaptive interval
   if (getSettings().displayTheme === "eink") {
     courseSmoother.setBufferWindow(
@@ -327,6 +352,7 @@ onSettingsChange((s) => {
   applyGpsRateForTheme(s.displayTheme);
   wakeLockCtrl.setMode(s.wakeLock);
   wakeLockCtrl.setGpsActive(s.gpsSource !== "none");
+  wakeLockCtrl.setEinkMode(s.displayTheme === "eink");
   // Switch active region (UI only — all regions are always rendered).
   // Always flyTo the region center on manual region switch.
   vectorProvider.setActiveRegion(s.activeRegion);
@@ -384,6 +410,7 @@ applyGpsRateForTheme(initGpsSettings.displayTheme);
 const wakeLockCtrl = new WakeLockController();
 wakeLockCtrl.setMode(initGpsSettings.wakeLock);
 wakeLockCtrl.setGpsActive(initGpsSettings.gpsSource !== "none");
+wakeLockCtrl.setEinkMode(initGpsSettings.displayTheme === "eink");
 
 // Activate initial GPS source from settings
 navManager.setActiveProvider(initGpsSettings.gpsSource);
@@ -772,3 +799,27 @@ chartManager.map.on("style.load", () => {
     applyOverlayDimming(getSettings().displayTheme),
   );
 });
+
+// ── GPS diagnostic logging ─────────────────────────────────────────
+// Expose on window for console/adb access:
+//   gpsDiag.start()          — begin recording
+//   gpsDiag.stop()           — stop recording
+//   gpsDiag.entryCount       — number of entries
+//   gpsDiag.download()       — download CSV via share/file save
+//   gpsDiag.csv()            — return CSV string (for console copy)
+const gpsDiag = {
+  start: () => gpsDiagLog.start(),
+  stop: () => gpsDiagLog.stop(),
+  get entryCount() {
+    return gpsDiagLog.entryCount;
+  },
+  csv: () => gpsDiagLog.toCSV(),
+  download: () => {
+    const csv = gpsDiagLog.toCSV();
+    const ts = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
+    downloadFile(csv, `gps-diag-${ts}.csv`, "text/csv");
+  },
+  clear: () => gpsDiagLog.clear(),
+};
+Object.assign(window, { gpsDiag });
+// To enable: run gpsDiag.start() in the browser console or Chrome DevTools.

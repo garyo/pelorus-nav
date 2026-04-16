@@ -24,6 +24,19 @@ const KN_PER_DEG_S = (M_PER_DEG * 3600) / 1852;
 /** Threshold (knots) below which we null out COG — velocity too noisy. */
 const COG_MIN_SOG = 0.1;
 
+/**
+ * Maximum plausible acceleration in knots/second.
+ * ~2.6 m/s² — well beyond what any displacement vessel can achieve,
+ * but easily exceeded by bogus GPS speed reports.
+ */
+const MAX_ACCEL_KN_S = 5;
+
+/**
+ * Maximum ratio between hardware-reported speed and position-derived speed.
+ * If the GPS chip says 60kt but positions imply 3kt, the speed is garbage.
+ */
+const MAX_SPEED_RATIO = 4;
+
 /** Number of recent fix intervals to track for GPS quality detection. */
 const QUALITY_WINDOW = 20;
 
@@ -31,7 +44,7 @@ const QUALITY_WINDOW = 20;
 const WEAK_GPS_INTERVAL_MS = 3000;
 
 export interface GPSFilterConfig {
-  /** Process noise acceleration in deg/s^2. Higher = trusts GPS more. ~3e-7 for marine. */
+  /** Process noise acceleration in deg/s^2. Higher = trusts GPS more, responds faster to speed changes. */
   processNoiseAccel: number;
   /** Default measurement noise (meters) when GPS accuracy is unavailable. */
   defaultAccuracyM: number;
@@ -46,7 +59,7 @@ export interface GPSFilterConfig {
 }
 
 export const DEFAULT_GPS_FILTER_CONFIG: Readonly<GPSFilterConfig> = {
-  processNoiseAccel: 3e-7,
+  processNoiseAccel: 5e-6,
   defaultAccuracyM: 10,
   staleGapMs: 30_000,
   weakGpsStaleGapMs: 120_000,
@@ -142,10 +155,18 @@ export class GPSFilter {
       return raw;
     }
 
-    // For gaps >5s, seed velocity from hardware speed/course if available.
-    // This helps the filter recover quickly after GPS dropouts.
+    // For gaps >5s, seed velocity from hardware speed/course if plausible.
+    // This helps the filter recover quickly after GPS dropouts, but we
+    // validate first — some GPS chips report wildly wrong speeds after gaps.
     if (dt > 5 && raw.sog !== null && raw.sog > 0.5 && raw.cog !== null) {
-      this.seedVelocityFromHardware(raw.sog, raw.cog, raw.latitude);
+      const posSpeed = this.positionDerivedSpeedKn(
+        raw.latitude,
+        raw.longitude,
+        dt,
+      );
+      if (this.isHardwareSpeedPlausible(raw.sog, posSpeed, dt)) {
+        this.seedVelocityFromHardware(raw.sog, raw.cog, raw.latitude);
+      }
     }
 
     // — Predict step —
@@ -183,6 +204,54 @@ export class GPSFilter {
 
   // ── Internal ──────────────────────────────────────────────────────
 
+  /**
+   * Compute speed (knots) implied by the position change between the
+   * current filter state and a new fix. Returns null if no prior state.
+   */
+  private positionDerivedSpeedKn(
+    lat: number,
+    lon: number,
+    dt: number,
+  ): number | null {
+    if (!this.state || dt <= 0) return null;
+    const dLat = lat - this.state.x[0];
+    const dLon = lon - this.state.x[1];
+    const cosLat = Math.cos((lat * Math.PI) / 180);
+    const distM = Math.sqrt(
+      (dLat * M_PER_DEG) ** 2 + (dLon * M_PER_DEG * cosLat) ** 2,
+    );
+    return (distM / dt) * 1.94384; // m/s → knots
+  }
+
+  /**
+   * Check whether hardware-reported SOG is plausible given position-derived
+   * speed and the previous filtered speed. Catches GPS chips that report
+   * wildly wrong speeds (common on low-quality hardware after gaps).
+   */
+  private isHardwareSpeedPlausible(
+    hwSogKn: number,
+    posSpeedKn: number | null,
+    dt: number,
+  ): boolean {
+    // Check 1: acceleration from previous filtered speed
+    if (this.state) {
+      const [, , vLat, vLon] = this.state.x;
+      const cosLat = Math.cos((this.state.x[0] * Math.PI) / 180);
+      const prevSogKn =
+        Math.sqrt(vLat ** 2 + (vLon * cosLat) ** 2) * KN_PER_DEG_S;
+      const accel = Math.abs(hwSogKn - prevSogKn) / dt;
+      if (accel > MAX_ACCEL_KN_S) return false;
+    }
+
+    // Check 2: ratio to position-derived speed
+    if (posSpeedKn !== null && posSpeedKn > 0.3) {
+      const ratio = hwSogKn / posSpeedKn;
+      if (ratio > MAX_SPEED_RATIO) return false;
+    }
+
+    return true;
+  }
+
   private initState(fix: NavigationData): void {
     const P = new Float64Array(16);
     // Large initial position uncertainty (~100m in degrees)
@@ -194,10 +263,30 @@ export class GPSFilter {
     P[10] = velVar; // P[2,2] vLat variance
     P[15] = velVar; // P[3,3] vLon variance
 
-    // Seed velocity from hardware speed/course if available
+    // Seed velocity from hardware speed/course if available and plausible.
+    // Some GPS chips report wildly wrong speeds after gaps; validate against
+    // position-derived speed when we have a prior state to compare against.
+    // On cold start (no prior state), don't seed — let the Kalman filter
+    // derive velocity from subsequent position measurements instead of
+    // trusting a potentially garbage first speed report.
     let vLat = 0;
     let vLon = 0;
-    if (fix.sog !== null && fix.sog > 0.5 && fix.cog !== null) {
+    const hasPriorState = this.state !== null;
+    const dt =
+      this.state !== null
+        ? (fix.timestamp - this.state.lastTimestamp) / 1000
+        : 0;
+    const posSpeed =
+      this.state !== null
+        ? this.positionDerivedSpeedKn(fix.latitude, fix.longitude, dt)
+        : null;
+    if (
+      hasPriorState &&
+      fix.sog !== null &&
+      fix.sog > 0.5 &&
+      fix.cog !== null &&
+      this.isHardwareSpeedPlausible(fix.sog, posSpeed, dt)
+    ) {
       const cosLat = Math.cos((fix.latitude * Math.PI) / 180);
       const sogDegS = fix.sog / KN_PER_DEG_S;
       const cogRad = (fix.cog * Math.PI) / 180;
