@@ -39,6 +39,10 @@ export class CourseLine {
   private duration: CourseLineDuration;
   private lastData: NavigationData | null = null;
   private lastSmoothed: SmoothedCourse | null = null;
+  // Tracks whether the GeoJSON source currently holds zero features. Lets
+  // redraw() short-circuit the frequent move-event path when the line is off
+  // or speed is below threshold.
+  private isEmpty = true;
 
   constructor(map: maplibregl.Map) {
     this.map = map;
@@ -74,7 +78,7 @@ export class CourseLine {
       this.duration === 0 ||
       smoothed.sog < MIN_SOG_KT
     ) {
-      this.clearLine();
+      if (!this.isEmpty) this.clearLine();
       return;
     }
 
@@ -102,6 +106,7 @@ export class CourseLine {
       type: "geojson",
       data: { type: "FeatureCollection", features: [] },
     });
+    this.isEmpty = true;
 
     // Insert before vessel icon so vessel draws on top
     const beforeLayer = this.map.getLayer(VESSEL_ICON_LAYER)
@@ -205,6 +210,7 @@ export class CourseLine {
     }
 
     source.setData({ type: "FeatureCollection", features });
+    this.isEmpty = false;
   }
 
   private clearLine(): void {
@@ -213,5 +219,6 @@ export class CourseLine {
       | undefined;
     if (!source) return;
     source.setData({ type: "FeatureCollection", features: [] });
+    this.isEmpty = true;
   }
 }
