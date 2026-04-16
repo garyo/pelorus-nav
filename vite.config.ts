@@ -6,6 +6,8 @@ import pkg from "./package.json" with { type: "json" };
 const gitSha = execSync("git rev-parse --short HEAD").toString().trim();
 const buildTime = new Date().toISOString().replace(/:\d{2}\.\d+Z$/, "Z"); // drop seconds
 
+const isCapacitor = !!process.env.CAPACITOR;
+
 export default defineConfig({
   define: {
     __APP_VERSION__: JSON.stringify(pkg.version),
@@ -27,27 +29,33 @@ export default defineConfig({
     entries: ["src/main.ts", "src/worker.ts"],
   },
   plugins: [
-    VitePWA({
-      registerType: "autoUpdate",
-      workbox: {
-        globPatterns: ["**/*.{js,css,html,svg,png,woff2,json}"],
-        globIgnores: ["**/*.pmtiles", "**/*.geojson", "**/*.search.json"],
-        navigateFallback: "/index.html",
-        runtimeCaching: [
-          {
-            // MapLibre glyphs CDN
-            urlPattern: /^https:\/\/fonts\.openmaptiles\.org\//,
-            handler: "CacheFirst",
-            options: {
-              cacheName: "maplibre-glyphs",
-              expiration: {
-                maxEntries: 500,
-                maxAgeSeconds: 30 * 24 * 60 * 60, // 30 days
-              },
+    // Disable PWA/service worker for Capacitor builds — assets are bundled
+    // locally and the SW only causes stale-cache problems in Android WebView.
+    ...(!isCapacitor
+      ? [
+          VitePWA({
+            registerType: "autoUpdate",
+            workbox: {
+              globPatterns: ["**/*.{js,css,html,svg,png,woff2,json}"],
+              globIgnores: ["**/*.pmtiles", "**/*.geojson", "**/*.search.json"],
+              navigateFallback: "/index.html",
+              runtimeCaching: [
+                {
+                  // MapLibre glyphs CDN
+                  urlPattern: /^https:\/\/fonts\.openmaptiles\.org\//,
+                  handler: "CacheFirst",
+                  options: {
+                    cacheName: "maplibre-glyphs",
+                    expiration: {
+                      maxEntries: 500,
+                      maxAgeSeconds: 30 * 24 * 60 * 60, // 30 days
+                    },
+                  },
+                },
+              ],
             },
-          },
-        ],
-      },
-    }),
+          }),
+        ]
+      : []),
   ],
 });
