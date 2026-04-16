@@ -11,7 +11,7 @@ import type { StandaloneWaypoint } from "./Waypoint";
 const DB_NAME = "pelorus-nav";
 // Bump DB_VERSION when adding/removing stores or indexes. In onupgradeneeded,
 // check oldVersion and apply incremental migrations (e.g. if (oldVersion < 2) ...).
-const DB_VERSION = 3;
+const DB_VERSION = 4;
 
 let dbPromise: Promise<IDBDatabase> | null = null;
 
@@ -21,6 +21,7 @@ function openDB(): Promise<IDBDatabase> {
     const req = indexedDB.open(DB_NAME, DB_VERSION);
     req.onupgradeneeded = (event) => {
       const db = req.result;
+      const tx = req.transaction as IDBTransaction;
       const oldVersion = (event as IDBVersionChangeEvent).oldVersion;
       if (oldVersion < 1) {
         db.createObjectStore("tracks", { keyPath: "id" });
@@ -35,6 +36,11 @@ function openDB(): Promise<IDBDatabase> {
       }
       if (oldVersion < 3) {
         db.createObjectStore("plottingSheets", { keyPath: "id" });
+      }
+      if (oldVersion < 4) {
+        // Add compound index so track points are returned sorted by timestamp
+        const ptStore = tx.objectStore("trackPoints");
+        ptStore.createIndex("byTrackTime", ["trackId", "timestamp"]);
       }
     };
     req.onsuccess = () => resolve(req.result);
@@ -103,8 +109,10 @@ export async function getTrackPoints(trackId: string): Promise<TrackPoint[]> {
   const db = await openDB();
   return new Promise((resolve, reject) => {
     const tx = db.transaction("trackPoints", "readonly");
-    const idx = tx.objectStore("trackPoints").index("byTrack");
-    const req = idx.getAll(trackId);
+    // Use compound index [trackId, timestamp] so points come back sorted by time
+    const idx = tx.objectStore("trackPoints").index("byTrackTime");
+    const range = IDBKeyRange.bound([trackId], [trackId, Infinity]);
+    const req = idx.getAll(range);
     req.onsuccess = () => resolve(req.result as TrackPoint[]);
     req.onerror = () => reject(req.error);
   });
