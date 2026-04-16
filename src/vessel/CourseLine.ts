@@ -23,9 +23,22 @@ const MIN_SOG_KT = 0.1;
 /** Minimum line length in meters (visible even at low speed). */
 const MIN_LENGTH_M = 200;
 
+/** Tick half-length in screen pixels (each side of the main line). */
+const TICK_HALF_PX = 4;
+
+/** Tick spacing in minutes, keyed by course-line duration in minutes. */
+const TICK_SPACING_MIN: Record<number, number> = {
+  5: 1,
+  15: 5,
+  30: 5,
+  60: 10,
+};
+
 export class CourseLine {
   private readonly map: maplibregl.Map;
   private duration: CourseLineDuration;
+  private lastData: NavigationData | null = null;
+  private lastSmoothed: SmoothedCourse | null = null;
 
   constructor(map: maplibregl.Map) {
     this.map = map;
@@ -34,42 +47,52 @@ export class CourseLine {
     onSettingsChange((s) => {
       this.duration = s.courseLineDuration;
       this.updateVisibility();
+      this.redraw();
     });
 
     this.map.on("style.load", () => this.setup());
     if (this.map.isStyleLoaded()) {
       this.setup();
     }
+
+    // Ticks are sized in screen pixels, so redraw on zoom/rotate/pan.
+    this.map.on("move", () => this.redraw());
   }
 
   update(data: NavigationData, smoothed: SmoothedCourse | null): void {
-    if (!smoothed || this.duration === 0 || smoothed.sog < MIN_SOG_KT) {
+    this.lastData = data;
+    this.lastSmoothed = smoothed;
+    this.redraw();
+  }
+
+  private redraw(): void {
+    const data = this.lastData;
+    const smoothed = this.lastSmoothed;
+    if (
+      !data ||
+      !smoothed ||
+      this.duration === 0 ||
+      smoothed.sog < MIN_SOG_KT
+    ) {
       this.clearLine();
       return;
     }
 
-    // Compute endpoint
     const durationHours = this.duration / 60;
-    let distanceNM = smoothed.sog * durationHours;
+    const actualDistanceNM = smoothed.sog * durationHours;
 
-    // Enforce minimum length: convert MIN_LENGTH_M to NM
     const minNM = MIN_LENGTH_M / 1852;
-    if (distanceNM < minNM) {
-      distanceNM = minNM;
-    }
+    const stretched = actualDistanceNM < minNM;
+    const distanceNM = stretched ? minNM : actualDistanceNM;
 
     // Start from the vessel's actual position (matches the boat icon),
     // but use the smoothed COG for the projected direction.
     const startLat = data.latitude;
     const startLon = data.longitude;
-    const [endLon, endLat] = projectPoint(
-      startLat,
-      startLon,
-      smoothed.cog,
-      distanceNM,
-    );
 
-    this.setLine(startLon, startLat, endLon, endLat);
+    // Ticks only make sense when the line represents real time progression.
+    const tickMinutes = stretched ? 0 : (TICK_SPACING_MIN[this.duration] ?? 0);
+    this.setLine(startLat, startLon, smoothed.cog, distanceNM, tickMinutes);
   }
 
   private setup(): void {
@@ -116,32 +139,72 @@ export class CourseLine {
   }
 
   private setLine(
-    startLon: number,
     startLat: number,
-    endLon: number,
-    endLat: number,
+    startLon: number,
+    cog: number,
+    distanceNM: number,
+    tickMinutes: number,
   ): void {
     const source = this.map.getSource(SOURCE_ID) as
       | maplibregl.GeoJSONSource
       | undefined;
     if (!source) return;
 
-    source.setData({
-      type: "FeatureCollection",
-      features: [
-        {
-          type: "Feature",
-          properties: {},
-          geometry: {
-            type: "LineString",
-            coordinates: [
-              [startLon, startLat],
-              [endLon, endLat],
-            ],
-          },
+    const [endLon, endLat] = projectPoint(startLat, startLon, cog, distanceNM);
+    const features: GeoJSON.Feature[] = [
+      {
+        type: "Feature",
+        properties: {},
+        geometry: {
+          type: "LineString",
+          coordinates: [
+            [startLon, startLat],
+            [endLon, endLat],
+          ],
         },
-      ],
-    });
+      },
+    ];
+
+    if (tickMinutes > 0) {
+      // Perpendicular unit vector in screen space (y-down), so ticks remain
+      // a constant pixel length regardless of zoom/rotation.
+      const startPx = this.map.project([startLon, startLat]);
+      const endPx = this.map.project([endLon, endLat]);
+      const dx = endPx.x - startPx.x;
+      const dy = endPx.y - startPx.y;
+      const lenPx = Math.hypot(dx, dy);
+      if (lenPx > 0) {
+        const perpX = -dy / lenPx;
+        const perpY = dx / lenPx;
+        const totalMin = this.duration;
+        for (let t = tickMinutes; t < totalMin; t += tickMinutes) {
+          const tickDist = distanceNM * (t / totalMin);
+          const [cLon, cLat] = projectPoint(startLat, startLon, cog, tickDist);
+          const cPx = this.map.project([cLon, cLat]);
+          const lPt = this.map.unproject([
+            cPx.x - perpX * TICK_HALF_PX,
+            cPx.y - perpY * TICK_HALF_PX,
+          ]);
+          const rPt = this.map.unproject([
+            cPx.x + perpX * TICK_HALF_PX,
+            cPx.y + perpY * TICK_HALF_PX,
+          ]);
+          features.push({
+            type: "Feature",
+            properties: {},
+            geometry: {
+              type: "LineString",
+              coordinates: [
+                [lPt.lng, lPt.lat],
+                [rPt.lng, rPt.lat],
+              ],
+            },
+          });
+        }
+      }
+    }
+
+    source.setData({ type: "FeatureCollection", features });
   }
 
   private clearLine(): void {

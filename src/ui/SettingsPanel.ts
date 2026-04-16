@@ -480,6 +480,7 @@ function buildNavigationTab(
   // Course line duration
   const COURSE_LINE_OPTIONS = [
     { value: "0", label: "Off" },
+    { value: "5", label: "5 min" },
     { value: "15", label: "15 min" },
     { value: "30", label: "30 min" },
     { value: "60", label: "1 hour" },
