@@ -38,6 +38,12 @@ export interface BackgroundGPSPlugin {
   /** Check whether the foreground service is currently running. */
   isTracking(): Promise<{ tracking: boolean }>;
 
+  /** Keep the device screen on (Android FLAG_KEEP_SCREEN_ON). */
+  keepScreenOn(): Promise<void>;
+
+  /** Allow the device screen to turn off normally. */
+  allowScreenOff(): Promise<void>;
+
   /** Listen for live GPS updates delivered via the Capacitor bridge. */
   addListener(
     eventName: "locationUpdate",

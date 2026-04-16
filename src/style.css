@@ -2149,3 +2149,8 @@ body {
   border: 1px solid #000000;
   border-radius: 0;
 }
+
+/* E-ink refresh tick: toggled every 30s to provoke e-ink display refresh */
+body.eink-refresh-tick {
+  transform: translateZ(0);
+}
