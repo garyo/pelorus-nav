@@ -36,6 +36,8 @@
   "dependencies": {
     "@capacitor/app": "^8.0.1",
     "@capacitor/core": "^8.2.0",
+    "@capacitor/filesystem": "^8.1.2",
+    "@capacitor/share": "^8.0.1",
     "magvar": "^2.0.1",
     "maplibre-gl": "^5.19.0",
     "pmtiles": "^4.4.0"

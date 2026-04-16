@@ -2,6 +2,10 @@
  * Browser file download and upload utilities.
  */
 
+import { Capacitor } from "@capacitor/core";
+import { Directory, Encoding, Filesystem } from "@capacitor/filesystem";
+import { Share } from "@capacitor/share";
+
 export const GPX_MIME = "application/gpx+xml";
 
 /** Trigger a browser file download with the given content. */
@@ -10,6 +14,30 @@ export function downloadFile(
   filename: string,
   mimeType: string,
 ): void {
+  if (Capacitor.isNativePlatform()) {
+    // Android WebView doesn't support <a download>. Write a temp file and
+    // share it so the receiving app gets a real file with the correct name.
+    Filesystem.writeFile({
+      path: filename,
+      data: content,
+      directory: Directory.Cache,
+      encoding: Encoding.UTF8,
+    })
+      .then((result) =>
+        Share.share({
+          title: filename,
+          url: result.uri,
+          dialogTitle: `Save ${filename}`,
+        }),
+      )
+      .catch((e) => {
+        // User cancelled share — not an error
+        console.log("downloadFile: share dismissed", String(e));
+      });
+    return;
+  }
+
+  // Standard browser download via <a download>
   const blob = new Blob([content], { type: mimeType });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
