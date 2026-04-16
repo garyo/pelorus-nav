@@ -3,13 +3,19 @@
  */
 
 import {
+  appendTrackPoints,
   deleteTrack,
   getAllTrackMetas,
   getTrackPoints,
   saveTrackMeta,
 } from "../data/db";
-import { downloadFile, GPX_MIME, sanitizeFilename } from "../data/file-io";
-import { exportAllToGpx, trackToGpx } from "../data/gpx";
+import {
+  downloadFile,
+  GPX_MIME,
+  pickFile,
+  sanitizeFilename,
+} from "../data/file-io";
+import { exportAllToGpx, parseGpx, trackToGpx } from "../data/gpx";
 import type { TrackMeta } from "../data/Track";
 import type { TrackLayer } from "../map/TrackLayer";
 import type { TrackRecorder } from "../map/TrackRecorder";
@@ -18,6 +24,7 @@ import {
   iconEye,
   iconEyeOff,
   iconTrash,
+  iconUpload,
   iconX,
   setIcon,
 } from "./icons";
@@ -40,6 +47,7 @@ export class TrackManagerPanel {
       '<div class="manager-header">' +
       "<span>Tracks</span>" +
       '<div style="display:flex;gap:6px;align-items:center">' +
+      '<button class="manager-item-btn" id="track-import-btn" title="Import GPX"></button>' +
       '<button class="manager-item-btn" id="track-export-all-btn" title="Export All GPX"></button>' +
       '<button class="track-record-btn"></button>' +
       '<button class="manager-close"></button>' +
@@ -61,6 +69,10 @@ export class TrackManagerPanel {
         this.recorder.start();
       }
     });
+
+    const importBtn = this.el.querySelector("#track-import-btn") as HTMLElement;
+    setIcon(importBtn, iconUpload);
+    importBtn.addEventListener("click", () => this.importGpx());
 
     const exportAllBtn = this.el.querySelector(
       "#track-export-all-btn",
@@ -283,5 +295,40 @@ export class TrackManagerPanel {
       await this.trackLayer.reloadAll();
       input.remove();
     });
+  }
+
+  private async importGpx(): Promise<void> {
+    let xml: string;
+    try {
+      xml = await pickFile(".gpx");
+    } catch {
+      return; // cancelled
+    }
+
+    const result = parseGpx(xml);
+    if (result.tracks.length === 0) {
+      alert("No tracks found in this GPX file.");
+      return;
+    }
+
+    // Avoid name conflicts
+    const existing = await getAllTrackMetas();
+    const existingNames = new Set(existing.map((t) => t.name));
+
+    for (const { meta, points } of result.tracks) {
+      if (existingNames.has(meta.name)) {
+        meta.name += " (imported)";
+      }
+      // Sort points by timestamp before saving
+      points.sort((a, b) => a.timestamp - b.timestamp);
+      await saveTrackMeta(meta);
+      await appendTrackPoints(meta.id, points);
+    }
+
+    await this.trackLayer.reloadAll();
+    await this.refresh();
+
+    const n = result.tracks.length;
+    alert(`Imported ${n} track${n !== 1 ? "s" : ""}.`);
   }
 }

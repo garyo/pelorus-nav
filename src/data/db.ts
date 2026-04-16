@@ -92,6 +92,22 @@ export async function deleteTrack(id: string): Promise<void> {
   });
 }
 
+export async function appendTrackPoints(
+  trackId: string,
+  points: TrackPoint[],
+): Promise<void> {
+  const db = await openDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction("trackPoints", "readwrite");
+    const store = tx.objectStore("trackPoints");
+    for (const point of points) {
+      store.add({ trackId, ...point });
+    }
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+}
+
 export async function appendTrackPoint(
   trackId: string,
   point: TrackPoint,
@@ -109,11 +125,15 @@ export async function getTrackPoints(trackId: string): Promise<TrackPoint[]> {
   const db = await openDB();
   return new Promise((resolve, reject) => {
     const tx = db.transaction("trackPoints", "readonly");
-    // Use compound index [trackId, timestamp] so points come back sorted by time
-    const idx = tx.objectStore("trackPoints").index("byTrackTime");
-    const range = IDBKeyRange.bound([trackId], [trackId, Infinity]);
-    const req = idx.getAll(range);
-    req.onsuccess = () => resolve(req.result as TrackPoint[]);
+    const idx = tx.objectStore("trackPoints").index("byTrack");
+    const req = idx.getAll(trackId);
+    req.onsuccess = () => {
+      const points = req.result as TrackPoint[];
+      // Sort by timestamp — points may be stored out of order when
+      // background GPS recovery inserts older points after newer ones.
+      points.sort((a, b) => a.timestamp - b.timestamp);
+      resolve(points);
+    };
     req.onerror = () => reject(req.error);
   });
 }
