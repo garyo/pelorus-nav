@@ -98,14 +98,22 @@ class BackgroundTrackService : Service() {
             return START_NOT_STICKY
         }
 
-        createNotificationChannel()
-        val notification = buildNotification()
-        startForeground(NOTIFICATION_ID, notification)
+        try {
+            createNotificationChannel()
+            val notification = buildNotification()
+            startForeground(NOTIFICATION_ID, notification)
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to start foreground service, stopping", e)
+            stopSelf()
+            return START_NOT_STICKY
+        }
 
         startLocationUpdates()
         Log.i(TAG, "Background track service started")
 
-        return START_STICKY
+        // Use START_NOT_STICKY so Android doesn't auto-restart us after a kill.
+        // The JS side will re-start tracking when the app returns to foreground.
+        return START_NOT_STICKY
     }
 
     override fun onBind(intent: Intent?): IBinder? = null
@@ -113,7 +121,9 @@ class BackgroundTrackService : Service() {
     override fun onDestroy() {
         super.onDestroy()
         instance = null
-        fusedClient.removeLocationUpdates(locationCallback)
+        if (::fusedClient.isInitialized && ::locationCallback.isInitialized) {
+            fusedClient.removeLocationUpdates(locationCallback)
+        }
         locationListener = null
         cpuWakeLock?.let { if (it.isHeld) it.release() }
         cpuWakeLock = null
