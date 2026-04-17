@@ -47,64 +47,115 @@ COLOUR_ABBREV: dict[int, str] = {
     12: "Am",  # Amber
 }
 
+# LITCHR codes that alternate between colours (e.g. Al WR). For these we
+# must show every colour, not just the first, and must not drop White as
+# "default" — the mariner needs to know both phases of the rhythm.
+ALTERNATING_LITCHR: frozenset[int] = frozenset({17, 18, 19, 20, 28, 29})
+
+
+def _parse_colour_codes(colour: object) -> list[int]:
+    """Normalise COLOUR (list / int / comma-str) to a list of int codes."""
+    if colour is None:
+        return []
+    if isinstance(colour, list):
+        raw: list[object] = list(colour)
+    elif isinstance(colour, (int, float)):
+        return [int(colour)]
+    else:
+        raw = [s.strip() for s in str(colour).split(",") if s.strip()]
+    codes: list[int] = []
+    for v in raw:
+        if isinstance(v, (int, float, str)):
+            try:
+                codes.append(int(v))
+            except (ValueError, TypeError):
+                continue
+    return codes
+
+
+def _format_number(x: float) -> str:
+    """Format as integer when whole, else one decimal place minimum."""
+    if x == int(x):
+        return str(int(x))
+    return f"{x:g}"
+
 
 def _light_label(props: dict) -> str | None:
-    """Build a short light label like 'Fl G 4s' from LIGHTS properties.
+    """Build a short light label like 'Fl(1)G 4s 8m5M' from LIGHTS properties.
 
-    Prepends "Aero" for CATLIT=5 (aeronautical light).
+    Format follows the NOAA ENC viewer: character + group + colour (no spaces)
+    then space-separated period (e.g. "4s") and height/range (e.g. "8m5M").
+    Prepends "Aero" for CATLIT=5.
     """
     litchr = props.get("LITCHR")
     if litchr is None:
         return None
 
-    parts: list[str] = []
-
-    # CATLIT=5 (Aero) prefix
-    # CATLIT may be a list (from ogr2ogr), int, or comma-separated string
+    # CATLIT=5 (Aero) prefix — CATLIT may be list, int, or comma-string
+    aero = False
     catlit = props.get("CATLIT")
     if catlit is not None:
         if isinstance(catlit, list):
             catlit_codes = {str(v) for v in catlit}
         else:
             catlit_codes = set(str(catlit).split(","))
-        if "5" in catlit_codes:
-            parts.append("Aero")
+        aero = "5" in catlit_codes
 
     # Light character
     char_abbrev = LITCHR_ABBREV.get(litchr)
     if char_abbrev is None:
         return None
-    parts.append(char_abbrev)
+    head = char_abbrev
 
-    # Group notation for group flashing: e.g. "(2)" → "Fl(2)"
+    # Group notation: "(2)" → "Fl(2)". Skip empty "()" and absent. Keep "(1)"
+    # per NOAA viewer convention (e.g. "Fl(1)G 8.2m3M").
     siggrp = props.get("SIGGRP")
-    if siggrp and siggrp != "(1)":
-        parts[-1] = f"{char_abbrev}{siggrp}"
+    has_group = bool(siggrp) and siggrp != "()"
+    if has_group:
+        head = f"{head}{siggrp}"
 
-    # Color
-    colour = props.get("COLOUR")
-    if colour:
-        if isinstance(colour, list) and len(colour) > 0:
-            try:
-                code = int(colour[0])
-            except (ValueError, TypeError):
-                code = 0
-        elif isinstance(colour, (int, float)):
-            code = int(colour)
+    # Colour. Alternating rhythms: every colour, space-separated (e.g. "Al WR").
+    # Non-alternating: one colour, omit plain White. When a group is present
+    # the colour attaches directly (NOAA: "Fl(1)G"); without a group, keep a
+    # space for readability ("F R", "Fl G").
+    codes = _parse_colour_codes(props.get("COLOUR"))
+    if codes:
+        if litchr in ALTERNATING_LITCHR:
+            colour_str = "".join(
+                a for c in codes if (a := COLOUR_ABBREV.get(c)) is not None
+            )
+            if colour_str:
+                head = f"{head} {colour_str}"
         else:
-            code = 0
-        abbrev = COLOUR_ABBREV.get(code)
-        if abbrev and abbrev != "W":  # White is default, omit
-            parts.append(abbrev)
+            abbrev = COLOUR_ABBREV.get(codes[0])
+            if abbrev and abbrev != "W":
+                sep = "" if has_group else " "
+                head = f"{head}{sep}{abbrev}"
 
-    # Period
-    sigper = props.get("SIGPER")
+    parts: list[str] = []
+    if aero:
+        parts.append("Aero")
+    parts.append(head)
+
+    # Period (seconds)
+    sigper_raw = props.get("SIGPER")
+    sigper = float(sigper_raw) if isinstance(sigper_raw, (int, float)) else None
     if sigper is not None and sigper > 0:
-        # Format as integer if whole number
-        if sigper == int(sigper):
-            parts.append(f"{int(sigper)}s")
-        else:
-            parts.append(f"{sigper}s")
+        parts.append(f"{_format_number(sigper)}s")
+
+    # Height and range: "8.2m3M" if both, else whichever is present.
+    height_raw = props.get("HEIGHT")
+    valnmr_raw = props.get("VALNMR")
+    height = float(height_raw) if isinstance(height_raw, (int, float)) else None
+    valnmr = float(valnmr_raw) if isinstance(valnmr_raw, (int, float)) else None
+    have_h = height is not None and height > 0
+    have_v = valnmr is not None and valnmr > 0
+    if have_h and have_v:
+        parts.append(f"{_format_number(height)}m{_format_number(valnmr)}M")  # type: ignore[arg-type]
+    elif have_h:
+        parts.append(f"{_format_number(height)}m")  # type: ignore[arg-type]
+    elif have_v:
+        parts.append(f"{_format_number(valnmr)}M")  # type: ignore[arg-type]
 
     return " ".join(parts) if parts else None
 
