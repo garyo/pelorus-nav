@@ -16,7 +16,7 @@ from pathlib import Path
 
 # Bump when enrichment logic (enrich.py, s52_metadata.py, labels.py, symbols.py)
 # changes in a way not captured by LAYER_CONFIGS or tippecanoe version.
-PIPELINE_VERSION = 3
+PIPELINE_VERSION = 4
 
 SCHEMA_VERSION = 1
 

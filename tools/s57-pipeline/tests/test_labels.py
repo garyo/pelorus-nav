@@ -66,9 +66,10 @@ class TestLightLabel:
         props = {"LITCHR": 2, "COLOUR": ["1"], "SIGPER": 4}
         assert _light_label(props) == "Fl 4s"
 
-    def test_height_and_range_suffix(self) -> None:
-        # NOAA viewer format: "Fl(1)G 8.2m3M" — period omitted here since
-        # Cleveland Ledge sectors carry no SIGPER.
+    def test_height_and_range_not_baked(self) -> None:
+        # HEIGHT and VALNMR are composed at render time so the frontend
+        # can format height in metres or feet per the user's depthUnit.
+        # The stem never includes them.
         props = {
             "LITCHR": 2,
             "COLOUR": ["4"],
@@ -76,9 +77,10 @@ class TestLightLabel:
             "HEIGHT": 8.2,
             "VALNMR": 3.0,
         }
-        assert _light_label(props) == "Fl(1)G 8.2m3M"
+        assert _light_label(props) == "Fl(1)G"
 
     def test_height_range_with_period(self) -> None:
+        # Period stays in the stem — it's unit-agnostic.
         props = {
             "LITCHR": 2,
             "COLOUR": ["4"],
@@ -87,20 +89,15 @@ class TestLightLabel:
             "HEIGHT": 9.8,
             "VALNMR": 5,
         }
-        assert _light_label(props) == "Fl(1)G 6s 9.8m5M"
+        assert _light_label(props) == "Fl(1)G 6s"
 
-    def test_height_only(self) -> None:
+    def test_height_only_not_baked(self) -> None:
         props = {"LITCHR": 1, "COLOUR": ["3"], "HEIGHT": 10}
-        assert _light_label(props) == "F R 10m"
+        assert _light_label(props) == "F R"
 
-    def test_range_only(self) -> None:
+    def test_range_only_not_baked(self) -> None:
         props = {"LITCHR": 1, "COLOUR": ["3"], "VALNMR": 5}
-        assert _light_label(props) == "F R 5M"
-
-    def test_zero_or_missing_height_range_omitted(self) -> None:
-        # Zero or missing values must not emit "0m" / "0M".
-        props = {"LITCHR": 2, "COLOUR": ["4"], "SIGPER": 4, "HEIGHT": 0}
-        assert _light_label(props) == "Fl G 4s"
+        assert _light_label(props) == "F R"
 
     def test_aero_prefix(self) -> None:
         props = {"LITCHR": 2, "CATLIT": ["5"], "COLOUR": ["1"], "SIGPER": 5}
@@ -108,6 +105,7 @@ class TestLightLabel:
 
     def test_cleveland_ledge_al_wr(self) -> None:
         # The master case the user asked about: Cleveland Ledge RCID 31.
+        # HEIGHT/VALNMR are composed at render time.
         props = {
             "LITCHR": 28,
             "COLOUR": ["1", "3"],
@@ -115,7 +113,7 @@ class TestLightLabel:
             "HEIGHT": 8.2,
             "VALNMR": 3,
         }
-        assert _light_label(props) == "Al WR 8.2m3M"
+        assert _light_label(props) == "Al WR"
 
 
 class TestBuoyNumber:

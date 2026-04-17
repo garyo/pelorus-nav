@@ -120,8 +120,9 @@ export const LABEL_EXPR = [
  * Leave soundings and raw numeric labels alone — their collision story
  * is governed by ``text-padding`` and they don't compete with place names.
  */
-export const SORT_KEY_NAVAID = 10; // buoys, beacons, lights, fog signals
-export const SORT_KEY_LANDMARK = 20; // LNDMRK (+ PEL master names)
+export const SORT_KEY_NAVAID = 10; // buoys, beacons, fog signals, pilings, mooring
+export const SORT_KEY_LANDMARK = 20; // LNDMRK (+ PEL master names like "Boston Light")
+export const SORT_KEY_LIGHT_CHAR = 25; // LIGHTS characteristic labels (Fl(1)G 4s…)
 export const SORT_KEY_HAZARD = 30; // wrecks, obstructions, UWTROC
 export const SORT_KEY_FACILITY = 40; // hrbfac, berths, smcfac, buildings
 export const SORT_KEY_NAMED_LAND = 50; // LNDRGN, LNDARE, LNDELV
@@ -158,6 +159,55 @@ export const VARIABLE_ANCHOR_LAYOUT: {
 /** Build a MapLibre expression that converts DEPTH to the given unit (no suffix). */
 export function depthTextField(unit: DepthUnit): ExpressionSpecification {
   return depthFieldExpr("DEPTH", unit);
+}
+
+/**
+ * Build a MapLibre expression for a LIGHTS feature's full label:
+ * ``<stem> <height><h-unit><range>M``
+ *
+ * ``stem`` is the pre-baked LABEL ("Fl(1)G 4s") from the S-57 pipeline.
+ * HEIGHT is the S-57 attribute in metres; we convert to the user's depth
+ * unit at render time and append "m" or "ft". VALNMR is always nautical
+ * miles ("M"). Either may be missing; the expression elides gracefully.
+ *
+ * Height never uses fathoms — too awkward for vertical clearances — so
+ * a fathoms depth setting shows heights in feet.
+ */
+export function lightLabelTextField(unit: DepthUnit): ExpressionSpecification {
+  // Height in metres: one decimal place. Otherwise whole feet.
+  const heightUnit = unit === "meters" ? "m" : "ft";
+  const heightExpr: unknown =
+    unit === "meters"
+      ? ["to-string", ["/", ["round", ["*", ["get", "HEIGHT"], 10]], 10]]
+      : [
+          "to-string",
+          ["round", ["*", ["get", "HEIGHT"], depthConversionFactor("feet")]],
+        ];
+
+  const hasStem: unknown = [
+    "all",
+    ["has", "LABEL"],
+    ["!=", ["get", "LABEL"], ""],
+  ];
+  const hasHeight: unknown = [
+    "all",
+    ["has", "HEIGHT"],
+    [">", ["to-number", ["get", "HEIGHT"]], 0],
+  ];
+  const hasRange: unknown = [
+    "all",
+    ["has", "VALNMR"],
+    [">", ["to-number", ["get", "VALNMR"]], 0],
+  ];
+
+  return [
+    "concat",
+    ["case", hasStem, ["get", "LABEL"], ""],
+    // Space separator before any numeric tail.
+    ["case", ["all", hasStem, ["any", hasHeight, hasRange]], " ", ""],
+    ["case", hasHeight, ["concat", heightExpr, heightUnit], ""],
+    ["case", hasRange, ["concat", ["to-string", ["get", "VALNMR"]], "M"], ""],
+  ] as unknown as ExpressionSpecification;
 }
 
 /** Build a MapLibre expression that converts VALSOU to the given unit. */

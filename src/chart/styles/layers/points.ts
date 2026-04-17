@@ -12,8 +12,10 @@ import type { StyleContext } from "../style-context";
 import {
   depthTextField,
   LABEL_EXPR,
+  lightLabelTextField,
   SORT_KEY_FACILITY,
   SORT_KEY_HAZARD,
+  SORT_KEY_LIGHT_CHAR,
   SORT_KEY_NAVAID,
   scaledTextSize,
   scaleSize,
@@ -369,9 +371,11 @@ export function getBuoyBeaconLayers(ctx: StyleContext): LayerSpecification[] {
     },
 
     // Light icons + characteristics — drawn last so teardrops render
-    // on top of buoy/beacon icons. All navaids share SORT_KEY_NAVAID,
-    // and lights use ``text-optional`` so their characteristics hide
-    // before a buoy's number does.
+    // on top of buoy/beacon icons. ``LIGHT_CHAR`` sort-key sits below
+    // LANDMARK so a lighthouse's name ("Boston Light") wins over its
+    // own characteristic label ("Fl(1) 10s 31.1m27M") when they'd
+    // otherwise collide. Light text is ``text-optional`` so the flare
+    // still shows even when the characteristic is suppressed.
     {
       id: "s57-lights",
       type: "symbol",
@@ -380,13 +384,13 @@ export function getBuoyBeaconLayers(ctx: StyleContext): LayerSpecification[] {
       minzoom: 6,
       layout: withOffset(
         {
-          "symbol-sort-key": SORT_KEY_NAVAID,
+          "symbol-sort-key": SORT_KEY_LIGHT_CHAR,
           "icon-image": lights.iconExpr,
           "icon-size": scaledSize(0.7, ctx),
           "icon-allow-overlap": true,
           "icon-ignore-placement": true,
           "icon-optional": true,
-          "text-field": ["get", "LABEL"],
+          "text-field": lightLabelTextField(ctx.depthUnit),
           "text-size": scaledTextSize(10, ctx),
           // Traditional chart convention: light characteristic sits above
           // the teardrop (anchor "bottom" = label extends UP from the

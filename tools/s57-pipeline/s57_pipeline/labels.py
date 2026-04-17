@@ -81,11 +81,17 @@ def _format_number(x: float) -> str:
 
 
 def _light_label(props: dict) -> str | None:
-    """Build a short light label like 'Fl(1)G 4s 8m5M' from LIGHTS properties.
+    """Build the static portion of a light label, e.g. 'Fl(1)G 4s'.
 
-    Format follows the NOAA ENC viewer: character + group + colour (no spaces)
-    then space-separated period (e.g. "4s") and height/range (e.g. "8m5M").
-    Prepends "Aero" for CATLIT=5.
+    Format follows the NOAA ENC viewer for the stem: character + group +
+    colour (no spaces) then space-separated period (e.g. "4s"). Prepends
+    "Aero" for CATLIT=5.
+
+    Height (HEIGHT attribute, metres) and nominal range (VALNMR, nautical
+    miles) are *not* baked into the label — they're kept as raw numeric
+    tile properties and composed at render time by the frontend so the
+    height unit can follow the user's depthUnit setting (metres / feet)
+    without a tile rebuild. Range is always nautical miles.
     """
     litchr = props.get("LITCHR")
     if litchr is None:
@@ -108,7 +114,7 @@ def _light_label(props: dict) -> str | None:
     head = char_abbrev
 
     # Group notation: "(2)" → "Fl(2)". Skip empty "()" and absent. Keep "(1)"
-    # per NOAA viewer convention (e.g. "Fl(1)G 8.2m3M").
+    # per NOAA viewer convention (e.g. "Fl(1)G").
     siggrp = props.get("SIGGRP")
     has_group = bool(siggrp) and siggrp != "()"
     if has_group:
@@ -142,20 +148,6 @@ def _light_label(props: dict) -> str | None:
     sigper = float(sigper_raw) if isinstance(sigper_raw, (int, float)) else None
     if sigper is not None and sigper > 0:
         parts.append(f"{_format_number(sigper)}s")
-
-    # Height and range: "8.2m3M" if both, else whichever is present.
-    height_raw = props.get("HEIGHT")
-    valnmr_raw = props.get("VALNMR")
-    height = float(height_raw) if isinstance(height_raw, (int, float)) else None
-    valnmr = float(valnmr_raw) if isinstance(valnmr_raw, (int, float)) else None
-    have_h = height is not None and height > 0
-    have_v = valnmr is not None and valnmr > 0
-    if have_h and have_v:
-        parts.append(f"{_format_number(height)}m{_format_number(valnmr)}M")  # type: ignore[arg-type]
-    elif have_h:
-        parts.append(f"{_format_number(height)}m")  # type: ignore[arg-type]
-    elif have_v:
-        parts.append(f"{_format_number(valnmr)}M")  # type: ignore[arg-type]
 
     return " ".join(parts) if parts else None
 
