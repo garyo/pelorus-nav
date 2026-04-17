@@ -1056,6 +1056,10 @@ body {
   border-bottom: none;
 }
 
+.manager-item.selected {
+  background: rgba(100, 130, 200, 0.25);
+}
+
 .manager-item-color {
   width: 12px;
   height: 12px;
@@ -1659,6 +1663,14 @@ body {
 [data-theme="eink"] .manager-item {
   border-bottom-color: #cccccc;
   color: #000000;
+}
+
+[data-theme="eink"] .manager-item.selected {
+  background: #e8e8e8;
+}
+
+[data-theme="night"] .manager-item.selected {
+  background: rgba(180, 50, 50, 0.25);
 }
 
 [data-theme="eink"] .map-context-menu,

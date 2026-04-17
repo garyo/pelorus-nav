@@ -36,6 +36,7 @@ export class TrackManagerPanel {
   private readonly trackLayer: TrackLayer;
   private readonly recorder: TrackRecorder;
   private readonly recordBtn: HTMLButtonElement;
+  private selectedTrackId: string | null = null;
 
   constructor(trackLayer: TrackLayer, recorder: TrackRecorder) {
     this.trackLayer = trackLayer;
@@ -113,6 +114,33 @@ export class TrackManagerPanel {
 
   hide(): void {
     this.el.classList.remove("open");
+    this.clearSelection();
+  }
+
+  private clearSelection(): void {
+    if (this.selectedTrackId === null) return;
+    this.selectedTrackId = null;
+    for (const row of this.body.querySelectorAll(".manager-item.selected")) {
+      row.classList.remove("selected");
+    }
+    this.trackLayer.clearSelectedTrack();
+  }
+
+  private selectTrack(meta: TrackMeta): void {
+    if (this.selectedTrackId === meta.id) {
+      this.clearSelection();
+      return;
+    }
+    this.selectedTrackId = meta.id;
+    for (const row of this.body.querySelectorAll(".manager-item.selected")) {
+      row.classList.remove("selected");
+    }
+    const row = this.body.querySelector<HTMLElement>(
+      `.manager-item[data-track-id="${meta.id}"]`,
+    );
+    if (row) row.classList.add("selected");
+    this.trackLayer.selectTrack(meta).catch(console.error);
+    this.trackLayer.fitTrack(meta).catch(console.error);
   }
 
   /** Update just the point count for the active track (no DB hit). */
@@ -155,6 +183,8 @@ export class TrackManagerPanel {
   private createTrackItem(meta: TrackMeta): HTMLDivElement {
     const item = document.createElement("div");
     item.className = "manager-item";
+    item.dataset.trackId = meta.id;
+    if (this.selectedTrackId === meta.id) item.classList.add("selected");
 
     const color = document.createElement("div");
     color.className = "manager-item-color";
@@ -168,8 +198,23 @@ export class TrackManagerPanel {
     const name = document.createElement("div");
     name.className = "manager-item-name";
     name.textContent = meta.name;
-    name.title = "Click to rename";
-    name.addEventListener("click", () => this.rename(meta, name));
+    name.title = "Click to select, double-click to rename";
+    name.style.cursor = "pointer";
+    let clickTimer: ReturnType<typeof setTimeout> | null = null;
+    name.addEventListener("click", () => {
+      if (clickTimer) return; // second click of a dblclick — ignore
+      clickTimer = setTimeout(() => {
+        clickTimer = null;
+        this.selectTrack(meta);
+      }, 250);
+    });
+    name.addEventListener("dblclick", () => {
+      if (clickTimer) {
+        clearTimeout(clickTimer);
+        clickTimer = null;
+      }
+      this.rename(meta, name);
+    });
 
     const detail = document.createElement("div");
     detail.className = "manager-item-detail";
@@ -217,6 +262,7 @@ export class TrackManagerPanel {
     deleteBtn.addEventListener("click", () => {
       if (!confirm(`Delete track "${meta.name}"?`)) return;
       (async () => {
+        if (this.selectedTrackId === meta.id) this.clearSelection();
         await deleteTrack(meta.id);
         await this.trackLayer.reloadAll();
         await this.refresh();

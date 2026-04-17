@@ -39,6 +39,7 @@ export class RouteManagerPanel {
   private readonly detailPanel: RouteDetailPanel;
   private waypointLayer: WaypointLayer | null = null;
   private activeNav: ActiveNavigationManager | null = null;
+  private selectedRouteId: string | null = null;
 
   constructor(routeLayer: RouteLayer, editor: RouteEditor) {
     this.routeLayer = routeLayer;
@@ -120,6 +121,7 @@ export class RouteManagerPanel {
       if (!confirm(`Delete route "${route.name}"?`)) return;
       deleteRoute(route.id)
         .then(async () => {
+          if (this.selectedRouteId === route.id) this.clearSelection();
           this.detailPanel.hide();
           await this.routeLayer.reloadAll();
           await this.refresh();
@@ -161,6 +163,33 @@ export class RouteManagerPanel {
 
   hide(): void {
     this.el.classList.remove("open");
+    this.clearSelection();
+  }
+
+  private clearSelection(): void {
+    if (this.selectedRouteId === null) return;
+    this.selectedRouteId = null;
+    for (const row of this.body.querySelectorAll(".manager-item.selected")) {
+      row.classList.remove("selected");
+    }
+    this.routeLayer.clearSelectedRoute();
+  }
+
+  private selectRoute(route: Route): void {
+    if (this.selectedRouteId === route.id) {
+      this.clearSelection();
+      return;
+    }
+    this.selectedRouteId = route.id;
+    for (const row of this.body.querySelectorAll(".manager-item.selected")) {
+      row.classList.remove("selected");
+    }
+    const row = this.body.querySelector<HTMLElement>(
+      `.manager-item[data-route-id="${route.id}"]`,
+    );
+    if (row) row.classList.add("selected");
+    this.routeLayer.selectRoute(route);
+    this.routeLayer.fitRoute(route);
   }
 
   private async refresh(): Promise<void> {
@@ -181,6 +210,8 @@ export class RouteManagerPanel {
   private createRouteItem(route: Route): HTMLDivElement {
     const item = document.createElement("div");
     item.className = "manager-item";
+    item.dataset.routeId = route.id;
+    if (this.selectedRouteId === route.id) item.classList.add("selected");
 
     const color = document.createElement("div");
     color.className = "manager-item-color";
@@ -194,13 +225,14 @@ export class RouteManagerPanel {
     const name = document.createElement("div");
     name.className = "manager-item-name";
     name.textContent = route.name;
-    name.title = "Click for details, double-click to rename";
+    name.title = "Click to select, double-click to rename";
     name.style.cursor = "pointer";
     let clickTimer: ReturnType<typeof setTimeout> | null = null;
     name.addEventListener("click", () => {
       if (clickTimer) return; // second click of a dblclick — ignore
       clickTimer = setTimeout(() => {
         clickTimer = null;
+        this.selectRoute(route);
         this.detailPanel.show(route);
       }, 250);
     });
@@ -305,6 +337,7 @@ export class RouteManagerPanel {
     deleteBtn.addEventListener("click", () => {
       if (!confirm(`Delete route "${route.name}"?`)) return;
       (async () => {
+        if (this.selectedRouteId === route.id) this.clearSelection();
         await deleteRoute(route.id);
         await this.routeLayer.reloadAll();
         await this.refresh();

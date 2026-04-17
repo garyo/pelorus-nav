@@ -8,6 +8,13 @@ import { getAllTrackMetas, getTrackPoints } from "../data/db";
 import type { TrackMeta, TrackPoint } from "../data/Track";
 import type { NavigationData } from "../navigation/NavigationData";
 import type { NavigationDataManager } from "../navigation/NavigationDataManager";
+import { lightenHex } from "../utils/color";
+import {
+  GLOW_BLUR,
+  GLOW_LIGHTEN,
+  GLOW_OPACITY,
+  GLOW_WIDTH,
+} from "./selection-glow";
 import type { TrackRecorder } from "./TrackRecorder";
 
 /** Display point with timestamp for the active track buffer. */
@@ -143,6 +150,13 @@ export class TrackLayer {
       }
       this.loadedTracks.set(meta.id, meta);
     }
+
+    // Restore selection halo after style reload
+    if (this.selectedTrackId) {
+      const sel = this.loadedTracks.get(this.selectedTrackId);
+      if (sel) await this.selectTrack(sel);
+      else this.selectedTrackId = null;
+    }
   }
 
   async toggleTrackVisibility(id: string, visible: boolean): Promise<void> {
@@ -200,6 +214,122 @@ export class TrackLayer {
     const sid = sourceId(id);
     if (this.map.getLayer(lid)) this.map.removeLayer(lid);
     if (this.map.getSource(sid)) this.map.removeSource(sid);
+  }
+
+  // ── Track selection halo ────────────────────────────────────────────
+
+  private static readonly SELECTED_SOURCE = "_track-selected-src";
+  private static readonly SELECTED_LAYER = "_track-selected-glow";
+  private selectedTrackId: string | null = null;
+
+  /** Draw a soft blur halo around the given track's stored points. */
+  async selectTrack(meta: TrackMeta): Promise<void> {
+    this.selectedTrackId = meta.id;
+    const points = await getTrackPoints(meta.id);
+    if (this.selectedTrackId !== meta.id) return; // raced against another select
+    const coords = points.map(
+      (p: TrackPoint) => [p.lon, p.lat] as [number, number],
+    );
+    if (coords.length < 2) {
+      this.clearSelectedTrack();
+      return;
+    }
+    const data: GeoJSON.FeatureCollection = {
+      type: "FeatureCollection",
+      features: [
+        {
+          type: "Feature",
+          properties: {},
+          geometry: { type: "LineString", coordinates: coords },
+        },
+      ],
+    };
+
+    const glowColor = lightenHex(meta.color, GLOW_LIGHTEN);
+    const src = this.map.getSource(TrackLayer.SELECTED_SOURCE) as
+      | maplibregl.GeoJSONSource
+      | undefined;
+    if (src) {
+      src.setData(data);
+      if (this.map.getLayer(TrackLayer.SELECTED_LAYER)) {
+        this.map.setPaintProperty(
+          TrackLayer.SELECTED_LAYER,
+          "line-color",
+          glowColor,
+        );
+      }
+      return;
+    }
+
+    this.map.addSource(TrackLayer.SELECTED_SOURCE, {
+      type: "geojson",
+      data,
+    });
+
+    const beforeId = this.firstTrackLineLayer();
+    this.map.addLayer(
+      {
+        id: TrackLayer.SELECTED_LAYER,
+        type: "line",
+        source: TrackLayer.SELECTED_SOURCE,
+        layout: { "line-cap": "round", "line-join": "round" },
+        paint: {
+          "line-color": glowColor,
+          "line-width": GLOW_WIDTH,
+          "line-blur": GLOW_BLUR,
+          "line-opacity": GLOW_OPACITY,
+        },
+      },
+      beforeId,
+    );
+  }
+
+  clearSelectedTrack(): void {
+    this.selectedTrackId = null;
+    const src = this.map.getSource(TrackLayer.SELECTED_SOURCE) as
+      | maplibregl.GeoJSONSource
+      | undefined;
+    if (src) {
+      src.setData({ type: "FeatureCollection", features: [] });
+    }
+  }
+
+  /** Zoom to fit the track, but only if it's not already fully visible. */
+  async fitTrack(meta: TrackMeta): Promise<void> {
+    const points = await getTrackPoints(meta.id);
+    if (points.length === 0) return;
+    let minLon = points[0].lon;
+    let minLat = points[0].lat;
+    let maxLon = points[0].lon;
+    let maxLat = points[0].lat;
+    for (let i = 1; i < points.length; i++) {
+      const p = points[i];
+      if (p.lon < minLon) minLon = p.lon;
+      else if (p.lon > maxLon) maxLon = p.lon;
+      if (p.lat < minLat) minLat = p.lat;
+      else if (p.lat > maxLat) maxLat = p.lat;
+    }
+    const b = this.map.getBounds();
+    const fullyVisible =
+      minLon >= b.getWest() &&
+      maxLon <= b.getEast() &&
+      minLat >= b.getSouth() &&
+      maxLat <= b.getNorth();
+    if (fullyVisible) return;
+    this.map.fitBounds(
+      [
+        [minLon, minLat],
+        [maxLon, maxLat],
+      ],
+      { padding: 80, maxZoom: 14, duration: 500 },
+    );
+  }
+
+  private firstTrackLineLayer(): string | undefined {
+    for (const layer of this.map.getStyle().layers) {
+      if (layer.id.startsWith("_track-line-")) return layer.id;
+    }
+    return undefined;
   }
 
   private onNavData(data: NavigationData): void {
