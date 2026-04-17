@@ -1,4 +1,5 @@
 import type maplibregl from "maplibre-gl";
+import { getVectorSourceIds } from "../data/chart-catalog";
 import { getMode } from "../map/InteractionMode";
 import type { ChartManager } from "./ChartManager";
 import { FeatureInfoPanel } from "./FeatureInfoPanel";
@@ -346,6 +347,11 @@ export class FeatureQueryHandler {
       return;
     }
 
+    // Pull in any LNAM-referenced features that queryRenderedFeatures missed
+    // because a style filter hid them (e.g. PEL light slaves suppressed by
+    // PelLightLayer). querySourceFeatures ignores style filters.
+    this.augmentFromLnamRefs(features);
+
     // Attach click coordinates to each feature
     const lngLat = { lng: e.lngLat.lng, lat: e.lngLat.lat };
     for (const f of features) {
@@ -361,6 +367,63 @@ export class FeatureQueryHandler {
     this.currentFeatures = grouped;
     this.currentIndex = 0;
     this.showCurrent();
+  }
+
+  /**
+   * Pull in features that queryRenderedFeatures missed because of style
+   * filters. For every picked feature carrying LNAM_REFS (a master pointing
+   * at its slaves) or MASTER_LNAM (a slave pointing at its master), query
+   * the tile source directly — which ignores style filters — and append any
+   * matches not already present. Mutates ``picked``.
+   */
+  private augmentFromLnamRefs(picked: QueriedFeature[]): void {
+    const pickedLnams = new Set<string>();
+    for (const f of picked) {
+      const lnam = f.properties.LNAM;
+      if (typeof lnam === "string" && lnam.length > 0) pickedLnams.add(lnam);
+    }
+
+    const wanted = new Set<string>();
+    for (const f of picked) {
+      const refs = f.properties.LNAM_REFS;
+      if (typeof refs === "string" && refs.length > 0) {
+        for (const ref of refs.split(",")) {
+          const r = ref.trim();
+          if (r && !pickedLnams.has(r)) wanted.add(r);
+        }
+      }
+      const masterLnam = f.properties.MASTER_LNAM;
+      if (typeof masterLnam === "string" && !pickedLnams.has(masterLnam)) {
+        wanted.add(masterLnam);
+      }
+    }
+
+    if (wanted.size === 0) return;
+
+    for (const srcId of getVectorSourceIds()) {
+      for (const sourceLayer of AUGMENTABLE_LAYERS) {
+        let feats: GeoJSON.Feature[];
+        try {
+          feats = this.map.querySourceFeatures(srcId, {
+            sourceLayer,
+          }) as unknown as GeoJSON.Feature[];
+        } catch {
+          continue;
+        }
+        for (const f of feats) {
+          const lnam = f.properties?.LNAM;
+          if (typeof lnam !== "string" || !wanted.has(lnam)) continue;
+          if (pickedLnams.has(lnam)) continue;
+          pickedLnams.add(lnam);
+          picked.push({
+            source: srcId,
+            sourceLayer,
+            properties: (f.properties ?? {}) as Record<string, unknown>,
+            geometry: f.geometry,
+          });
+        }
+      }
+    }
   }
 
   // No mousemove handler — the CSS crosshair cursor (!important) overrides
@@ -609,6 +672,17 @@ const MASTER_LAYERS = new Set([
 ]);
 
 /**
+ * Layers we'll scan with querySourceFeatures to fill in LNAM-referenced
+ * features that rendered-feature queries missed (e.g. PEL light slaves
+ * hidden by the PelLightLayer suppression filter). Any master or slave
+ * layer is fair game.
+ */
+const AUGMENTABLE_LAYERS: readonly string[] = [
+  ...SLAVE_LAYERS,
+  ...MASTER_LAYERS,
+];
+
+/**
  * Get the centroid coordinates of a feature for spatial co-location matching.
  * Returns [lng, lat] for Point geometries, undefined otherwise.
  */
@@ -624,11 +698,16 @@ function pointCoords(f: QueriedFeature): [number, number] | undefined {
  * Group slave features under their master using LNAM relationships.
  *
  * 1. Build a map of LNAM → feature index for all picked features.
- * 2. For each feature with LNAM_REFS, find referenced features in the picked set.
- *    If FFPT_RIND indicates slave (2), attach them as children.
- * 3. Spatial fallback: if LNAM_REFS is absent, group LIGHTS/FOGSIG/TOPMAR/DAYMAR
- *    that share exact coordinates with a buoy/beacon/landmark.
- * 4. Remove grouped slaves from the top-level list.
+ * 2. Reverse pass: for each slave with MASTER_LNAM (stamped by the pipeline's
+ *    annotate_masters pass), attach it to its master if the master is in the
+ *    picked set. Per S-57, slaves don't carry LNAM_REFS themselves, so this
+ *    reverse lookup complements the forward pass below.
+ * 3. Forward pass: for each feature with LNAM_REFS, find referenced features
+ *    in the picked set. If FFPT_RIND indicates slave (2), attach them as children.
+ * 4. Spatial fallback: if neither MASTER_LNAM nor LNAM_REFS applies, group
+ *    LIGHTS/FOGSIG/TOPMAR/DAYMAR that share exact coordinates with a
+ *    buoy/beacon/landmark.
+ * 5. Remove grouped slaves from the top-level list.
  */
 function groupSlaveFeatures(features: QueriedFeature[]): QueriedFeature[] {
   // Build LNAM index: LNAM value → index in features array
@@ -642,6 +721,27 @@ function groupSlaveFeatures(features: QueriedFeature[]): QueriedFeature[] {
 
   // Track which feature indices have been claimed as children
   const claimed = new Set<number>();
+
+  // Reverse pass: MASTER_LNAM-based. A PEL slave stamped with MASTER_LNAM
+  // by annotate_masters knows its master directly. Attach it to the master
+  // if present; the forward pass below still handles siblings the master's
+  // LNAM_REFS points at.
+  for (let i = 0; i < features.length; i++) {
+    const slave = features[i];
+    if (claimed.has(i)) continue;
+    const masterLnam = slave.properties.MASTER_LNAM;
+    if (typeof masterLnam !== "string" || masterLnam.length === 0) continue;
+    if (!SLAVE_LAYERS.has(slave.sourceLayer)) continue;
+
+    const masterIdx = lnamIndex.get(masterLnam);
+    if (masterIdx == null || masterIdx === i) continue;
+    const master = features[masterIdx];
+    if (!MASTER_LAYERS.has(master.sourceLayer)) continue;
+
+    if (!master.children) master.children = [];
+    master.children.push(slave);
+    claimed.add(i);
+  }
 
   // Phase 1: LNAM_REFS-based grouping
   for (let i = 0; i < features.length; i++) {

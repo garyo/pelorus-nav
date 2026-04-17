@@ -12,6 +12,7 @@ import {
   VectorChartProvider,
 } from "./chart";
 import { LightSectorLayer } from "./chart/LightSectorLayer";
+import { PelLightLayer } from "./chart/PelLightLayer";
 import { SafetyContour } from "./chart/SafetyContour";
 import { downloadFile } from "./data/file-io";
 import { OPFSSource } from "./data/opfs-source";
@@ -219,6 +220,10 @@ new FeatureQueryHandler(chartManager);
 // Light sector arcs and range circles (client-side generated from LIGHTS data)
 new LightSectorLayer(chartManager.map);
 
+// PEL / directional light cluster rendering (fans stacked teardrops,
+// filters duplicate labels, shows master OBJNAM at high zoom).
+new PelLightLayer(chartManager.map);
+
 // Settings gear in top bar menu
 const topbarMenu = document.getElementById("topbar-menu");
 const settingsHandle = topbarMenu ? createSettingsPanel(topbarMenu) : null;
@@ -349,6 +354,7 @@ onSettingsChange((s) => {
   }
   simulator.setSpeedMultiplier(s.simulatorSpeed);
   navManager.setRateMode(s.gpsRateMode, s.manualUpdateIntervalMs);
+  navManager.setFilterMode(s.gpsFilterMode);
   applyGpsRateForTheme(s.displayTheme);
   wakeLockCtrl.setMode(s.wakeLock);
   wakeLockCtrl.setGpsActive(s.gpsSource !== "none");
@@ -388,6 +394,11 @@ navManager.setRateMode(
   initGpsSettings.gpsRateMode,
   initGpsSettings.manualUpdateIntervalMs,
 );
+navManager.setFilterMode(initGpsSettings.gpsFilterMode);
+
+// Feed the detector's quality score into the course smoother so its tau
+// and (non-e-ink) buffer window scale with detected GPS quality.
+navManager.onQualityChange((q) => courseSmoother.setQuality(q));
 
 /**
  * Non-e-ink: lock GPS to fast (2s) updates — screen power dwarfs GPS.
@@ -401,7 +412,9 @@ function applyGpsRateForTheme(theme: string): void {
     const intervalMs = navManager.getAdaptiveState().intervalMs;
     courseSmoother.setBufferWindow(intervalMs * 5);
   } else {
-    courseSmoother.setBufferWindow(5_000);
+    // Non-e-ink: clear any explicit override so the quality-driven default
+    // (5s at q=0 → 25s at q=1) applies.
+    courseSmoother.setBufferWindow(0);
   }
 }
 applyGpsRateForTheme(initGpsSettings.displayTheme);
