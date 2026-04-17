@@ -8,7 +8,12 @@ import subprocess
 from collections.abc import Callable
 from pathlib import Path
 
-from .enrich import annotate_enclosing_depth, correlate_topmarks, enrich_geojson
+from .enrich import (
+    annotate_enclosing_depth,
+    annotate_masters,
+    correlate_topmarks,
+    enrich_geojson,
+)
 from .layers import LAYER_NAMES
 
 
@@ -230,6 +235,10 @@ def convert_enc(
     # Cross-reference TOPMAR features with buoys/beacons so the frontend
     # can adjust label offsets when a topmark is present.
     correlate_topmarks(output_dir)
+
+    # Stamp slave features with their master's LNAM/OBJNAM/LAYER from S-57
+    # FFPT pointers. Needed for PEL / directional light cluster rendering.
+    annotate_masters(output_dir)
 
     # Annotate hazard features with enclosing DEPARE depth for isolated
     # danger detection (S-52 UDWHAZ05).

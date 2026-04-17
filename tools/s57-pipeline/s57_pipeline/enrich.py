@@ -221,6 +221,85 @@ def correlate_topmarks(output_dir: Path) -> None:
             _atomic_json_write(path, geojson)
 
 
+def _split_list_attr(value: object) -> list[str]:
+    """Split a list-typed S-57 attribute (pre-flatten list or comma-string)."""
+    if value is None:
+        return []
+    if isinstance(value, list):
+        return [str(v).strip() for v in value if str(v).strip()]
+    if isinstance(value, (int, float)):
+        return [str(value)]
+    return [s.strip() for s in str(value).split(",") if s.strip()]
+
+
+def annotate_masters(output_dir: Path) -> None:
+    """Stamp each slave feature with MASTER_LNAM / MASTER_OBJNAM / MASTER_LAYER.
+
+    S-57 FFPT (feature-to-feature pointer) relationships are encoded on the
+    master feature, not on slaves — the master carries ``LNAM_REFS``
+    (a list of slave LNAMs) and ``FFPT_RIND`` (a parallel list of relation
+    indicators; ``2`` = slave). Per the NOAA NCM §5.30.19, a multi-sector
+    or directional light is one master (e.g. BCNSPP) plus N co-located
+    LIGHTS slaves.
+
+    This pass runs after ``enrich_geojson`` for every per-layer geojson in
+    a cell, so ``LNAM_REFS`` / ``FFPT_RIND`` may arrive either as lists
+    (if flattening was deferred) or as comma-separated strings. We handle
+    both. The result is written back in place; files untouched by this
+    pass are not rewritten.
+    """
+    loaded: dict[Path, dict] = {}
+    for path in sorted(output_dir.glob("*.geojson")):
+        try:
+            with open(path) as f:
+                loaded[path] = json.load(f)
+        except json.JSONDecodeError:
+            continue
+
+    if not loaded:
+        return
+
+    lnam_index: dict[str, tuple[Path, dict]] = {}
+    for path, geojson in loaded.items():
+        for feat in geojson.get("features", []):
+            lnam = (feat.get("properties") or {}).get("LNAM")
+            if lnam:
+                lnam_index[str(lnam)] = (path, feat)
+
+    modified: set[Path] = set()
+    for master_path, geojson in loaded.items():
+        master_layer = master_path.stem.upper()
+        for master in geojson.get("features", []):
+            mprops = master.get("properties") or {}
+            refs = _split_list_attr(mprops.get("LNAM_REFS"))
+            if not refs:
+                continue
+            rinds = _split_list_attr(mprops.get("FFPT_RIND"))
+            master_lnam = mprops.get("LNAM")
+            master_objnam = mprops.get("OBJNAM")
+            if not master_lnam:
+                continue
+            for i, ref in enumerate(refs):
+                # RIND=2 means "slave"; treat missing/empty as slave too
+                # (NOAA sometimes omits the RIND array when only slaves exist).
+                rind = rinds[i] if i < len(rinds) else ""
+                if rind not in ("2", ""):
+                    continue
+                entry = lnam_index.get(ref)
+                if entry is None:
+                    continue  # cross-cell reference — skip silently
+                slave_path, slave = entry
+                sprops = slave.setdefault("properties", {})
+                sprops["MASTER_LNAM"] = str(master_lnam)
+                sprops["MASTER_LAYER"] = master_layer
+                if master_objnam:
+                    sprops["MASTER_OBJNAM"] = master_objnam
+                modified.add(slave_path)
+
+    for path in modified:
+        _atomic_json_write(path, loaded[path])
+
+
 # Layers that may be isolated dangers (S-52 UDWHAZ05).
 _HAZARD_LAYERS = {"OBSTRN", "WRECKS", "UWTROC"}
 
