@@ -444,6 +444,8 @@ export function getHazardLayers(ctx: StyleContext): LayerSpecification[] {
             13,
             true,
           ] as unknown as ExpressionSpecification,
+          // Don't push labels away from wrecks — see UWTROC comment below.
+          "icon-ignore-placement": true,
           "icon-padding": 2,
           // Dangerous wrecks (CATWRK=2) get slightly higher priority than
           // non-dangerous within the HAZARD band so they win collisions.
@@ -578,6 +580,8 @@ export function getHazardLayers(ctx: StyleContext): LayerSpecification[] {
             13,
             true,
           ] as unknown as ExpressionSpecification,
+          // Don't push labels away from obstructions — see UWTROC comment.
+          "icon-ignore-placement": true,
           "icon-padding": 2,
         },
         obstrn.offsetExpr,
@@ -637,6 +641,12 @@ export function getHazardLayers(ctx: StyleContext): LayerSpecification[] {
             13,
             true,
           ] as unknown as ExpressionSpecification,
+          // Hazard icons are safety-critical (allow-overlap at z13+) but
+          // shouldn't block *other* labels from placing nearby — a ring of
+          // UWTROCs around an island would otherwise force the LNDMRK name
+          // off the screen. ``ignore-placement: true`` lets the asterisks
+          // always show and still leaves room for neighbours.
+          "icon-ignore-placement": true,
           "icon-padding": 2,
         },
         uwtroc.offsetExpr,
