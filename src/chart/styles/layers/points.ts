@@ -388,12 +388,30 @@ export function getBuoyBeaconLayers(ctx: StyleContext): LayerSpecification[] {
           "icon-optional": true,
           "text-field": ["get", "LABEL"],
           "text-size": scaledTextSize(10, ctx),
-          "text-offset": [
+          // Traditional chart convention: light characteristic sits above
+          // the teardrop (anchor "bottom" = label extends UP from the
+          // point). Fall back to the shoulders, then sides, then below
+          // only as a last resort — the teardrop body already occupies
+          // "down-right" so placing the label there would overlap it.
+          "text-variable-anchor": [
+            "bottom",
+            "bottom-left",
+            "bottom-right",
+            "left",
+            "right",
+            "top-left",
+            "top-right",
+            "top",
+          ],
+          // Need a bit more room when the light sits on a topmark — the
+          // topmark icon extends above the aid's position.
+          "text-radial-offset": [
             "case",
             ["==", ["get", "HAS_TOPMAR"], 1],
-            ["literal", [0, -2.4]],
-            ["literal", [0, -1.5]],
-          ] as unknown as [number, number],
+            2.4,
+            1.0,
+          ] as unknown as number,
+          "text-justify": "auto",
           "text-allow-overlap": false,
           "text-optional": true,
         },
