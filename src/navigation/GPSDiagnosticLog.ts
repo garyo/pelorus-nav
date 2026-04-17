@@ -26,6 +26,8 @@ interface GPSLogEntry {
   adaptiveIntervalMs: number;
   // Was this fix broadcast to UI?
   broadcast: boolean;
+  // GPS quality score in [0, 1] (0=good, 1=jittery). Drives filter strength.
+  qualityScore: number;
 }
 
 const MAX_ENTRIES = 10_000; // ~5.5 hours at 2s intervals
@@ -96,6 +98,12 @@ class GPSDiagnosticLog {
     this.currentEntry.broadcast = broadcast;
   }
 
+  /** Record the GPS quality score used for this fix. */
+  logQuality(q: number): void {
+    if (!this._enabled || !this.currentEntry) return;
+    this.currentEntry.qualityScore = q;
+  }
+
   /** Stage 4: Record course-smoothed output (called on broadcast only). */
   logSmoothed(sog: number | null, cog: number | null): void {
     if (!this._enabled || !this.currentEntry) return;
@@ -131,6 +139,7 @@ class GPSDiagnosticLog {
       "adaptive_tier",
       "adaptive_interval_ms",
       "broadcast",
+      "quality_q",
     ];
     const lines = [headers.join(",")];
     for (const e of this.entries) {
@@ -151,6 +160,7 @@ class GPSDiagnosticLog {
           e.adaptiveTier,
           e.adaptiveIntervalMs,
           e.broadcast,
+          e.qualityScore ?? "",
         ].join(","),
       );
     }

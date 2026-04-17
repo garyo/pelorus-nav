@@ -2,6 +2,8 @@ export { BrowserGeolocationProvider } from "./BrowserGeolocationProvider";
 export { CapacitorGPSProvider } from "./CapacitorGPSProvider";
 export type { GPSFilterConfig } from "./GPSFilter";
 export { GPSFilter } from "./GPSFilter";
+export type { QualitySignals } from "./GPSQualityDetector";
+export { GPSQualityDetector } from "./GPSQualityDetector";
 export type {
   NavigationData,
   NavigationDataCallback,

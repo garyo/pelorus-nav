@@ -15,6 +15,12 @@ export type SymbologyScheme =
   | "iho-s52"
   | "simplified-minimal";
 export type GpsRateMode = "adaptive" | "manual";
+/**
+ * "auto" detects jittery hardware and smooths harder only when needed.
+ * "strong" forces heavy smoothing always (good for known-bad GPS).
+ * "normal" disables adaptive smoothing (good for known-clean hardware).
+ */
+export type GpsFilterMode = "auto" | "strong" | "normal";
 export type WakeLockMode = "off" | "when-nav" | "always";
 
 export interface Settings {
@@ -24,6 +30,8 @@ export interface Settings {
   gpsSource: string;
   gpsRateMode: GpsRateMode;
   manualUpdateIntervalMs: number;
+  /** Adaptive filter strength — auto-detect jittery GPS, or force. */
+  gpsFilterMode: GpsFilterMode;
   showAccuracyCircle: boolean;
   detailLevel: DetailLevel;
   layerGroups: Record<string, boolean>;
@@ -83,6 +91,7 @@ const DEFAULTS: Settings = {
   gpsSource: Capacitor.isNativePlatform() ? "capacitor-gps" : "none",
   gpsRateMode: "adaptive",
   manualUpdateIntervalMs: 2000,
+  gpsFilterMode: "auto",
   showAccuracyCircle: true,
   detailLevel: 0,
   layerGroups: { ...DEFAULT_LAYER_GROUPS },

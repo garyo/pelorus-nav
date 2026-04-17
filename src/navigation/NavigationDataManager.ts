@@ -7,6 +7,7 @@
 import { AdaptiveRateController, type AdaptiveRateState } from "./AdaptiveRate";
 import { gpsDiagLog } from "./GPSDiagnosticLog";
 import { GPSFilter } from "./GPSFilter";
+import { GPSQualityDetector } from "./GPSQualityDetector";
 import type {
   NavigationData,
   NavigationDataCallback,
@@ -14,6 +15,22 @@ import type {
 } from "./NavigationData";
 
 export type RateMode = "adaptive" | "manual";
+export type FilterMode = "auto" | "strong" | "normal";
+
+export type QualityListener = (q: number) => void;
+
+/**
+ * When GPS quality is bad we ask the hardware for fixes at this rate, even
+ * if the broadcast interval (what the UI sees) is slower. More raw samples
+ * into the Kalman → better averaging of the jitter. 1 Hz is universally
+ * supported by Android GPS chips; weaker chips deliver slower regardless
+ * (radio duty cycles on actual fix production, so the ask costs nothing
+ * extra when the chip can't keep up).
+ */
+const FAST_HW_SAMPLING_MS = 1000;
+
+/** Quality score above which we boost hardware polling in "auto" mode. */
+const HW_BOOST_QUALITY_THRESHOLD = 0.3;
 
 export class NavigationDataManager {
   private providers: NavigationDataProvider[] = [];
@@ -23,12 +40,18 @@ export class NavigationDataManager {
 
   // GPS position filter (Kalman)
   private gpsFilter = new GPSFilter();
+  // GPS quality detector (feeds adaptive filter strength)
+  private qualityDetector = new GPSQualityDetector();
+  private filterMode: FilterMode = "auto";
+  private qualityListeners: QualityListener[] = [];
   // Adaptive rate control
   private adaptiveCtrl = new AdaptiveRateController();
   private rateMode: RateMode = "adaptive";
   private manualIntervalMs = 2000;
   private deferredTimer: ReturnType<typeof setTimeout> | null = null;
   private pendingData: NavigationData | null = null;
+  /** Last interval hinted to the provider — avoids redundant native IPC. */
+  private lastHintedIntervalMs = -1;
 
   private readonly onData: NavigationDataCallback = (raw) => {
     // Diagnostic: log raw GPS fix
@@ -41,11 +64,34 @@ export class NavigationDataManager {
       raw.accuracy ?? null,
     );
 
-    const data = this.gpsFilter.filter(raw);
+    // Update quality detector on raw fix, then derive effective q from mode.
+    const sigs = this.qualityDetector.onFix(raw);
+    const q =
+      this.filterMode === "strong"
+        ? 1
+        : this.filterMode === "normal"
+          ? 0
+          : sigs.q;
+
+    const data = this.gpsFilter.filter(raw, q);
     this.lastData = data;
 
-    // Diagnostic: log Kalman-filtered output
+    // Notify quality listeners (main.ts feeds this into CourseSmoothing)
+    for (const fn of this.qualityListeners) fn(q);
+
+    // Diagnostic: log Kalman-filtered output + quality
     gpsDiagLog.logFiltered(data.latitude, data.longitude, data.sog, data.cog);
+    gpsDiagLog.logQuality(q);
+
+    // Reconcile hardware polling rate with current quality. When quality
+    // is bad we ask the hardware for more frequent samples so the Kalman
+    // has more data to smooth — independent of the broadcast throttle.
+    // Idempotent when the effective rate hasn't changed.
+    const broadcastIntv =
+      this.rateMode === "adaptive"
+        ? this.adaptiveCtrl.getState().intervalMs
+        : this.manualIntervalMs;
+    this.hintProviderInterval(broadcastIntv);
 
     if (this.rateMode === "adaptive") {
       const prevTier = this.adaptiveCtrl.getState().tier;
@@ -129,8 +175,26 @@ export class NavigationDataManager {
     this.pendingData = null;
   }
 
-  private hintProviderInterval(ms: number): void {
-    this.activeProvider?.setDesiredIntervalMs?.(ms);
+  /**
+   * The broadcast interval is what the UI sees. The hardware-polling
+   * interval can be faster when the quality detector flags a jittery GPS,
+   * so the Kalman filter gets more raw samples to average over. Hardware
+   * rate never goes *slower* than the broadcast rate.
+   */
+  private effectiveHwIntervalMs(broadcastMs: number): number {
+    const q = this.qualityDetector.getSignals().q;
+    const boost =
+      this.filterMode === "strong" ||
+      (this.filterMode === "auto" && q > HW_BOOST_QUALITY_THRESHOLD);
+    if (boost) return Math.min(broadcastMs, FAST_HW_SAMPLING_MS);
+    return broadcastMs;
+  }
+
+  private hintProviderInterval(broadcastMs: number): void {
+    const hw = this.effectiveHwIntervalMs(broadcastMs);
+    if (hw === this.lastHintedIntervalMs) return;
+    this.lastHintedIntervalMs = hw;
+    this.activeProvider?.setDesiredIntervalMs?.(hw);
   }
 
   registerProvider(provider: NavigationDataProvider): void {
@@ -158,7 +222,9 @@ export class NavigationDataManager {
     this.lastData = null;
     this.clearDeferredTimer();
     this.gpsFilter.reset();
+    this.qualityDetector.reset();
     this.adaptiveCtrl.reset();
+    this.lastHintedIntervalMs = -1;
     const provider = this.providers.find((p) => p.id === id) ?? null;
     this.activeProvider = provider;
 
@@ -189,6 +255,35 @@ export class NavigationDataManager {
 
   getRateMode(): RateMode {
     return this.rateMode;
+  }
+
+  /** Set the GPS filter strength mode (auto-detect, forced strong, forced normal). */
+  setFilterMode(mode: FilterMode): void {
+    this.filterMode = mode;
+    // Re-hint so a flip to "strong" boosts HW rate immediately.
+    const broadcastIntv =
+      this.rateMode === "adaptive"
+        ? this.adaptiveCtrl.getState().intervalMs
+        : this.manualIntervalMs;
+    this.hintProviderInterval(broadcastIntv);
+  }
+
+  getFilterMode(): FilterMode {
+    return this.filterMode;
+  }
+
+  /** Read the latest detector signals (for HUD/debug). */
+  getQualitySignals() {
+    return this.qualityDetector.getSignals();
+  }
+
+  /** Subscribe to quality-score updates (emitted on every raw fix). */
+  onQualityChange(fn: QualityListener): () => void {
+    this.qualityListeners.push(fn);
+    return () => {
+      const idx = this.qualityListeners.indexOf(fn);
+      if (idx >= 0) this.qualityListeners.splice(idx, 1);
+    };
   }
 
   /** Lock adaptive tier to "fast" (non-e-ink screen on). */

@@ -21,8 +21,11 @@ const M_PER_DEG = 111_111;
 /** Knots per degree-per-second of latitude. */
 const KN_PER_DEG_S = (M_PER_DEG * 3600) / 1852;
 
-/** Threshold (knots) below which we null out COG — velocity too noisy. */
-const COG_MIN_SOG = 0.1;
+/** Threshold (knots) below which we null out COG — velocity too noisy.
+ *  Scales up with GPS quality score: good GPS reports COG at walking
+ *  speeds; a weak/jittery GPS gets its garbage COG suppressed entirely. */
+const COG_MIN_SOG_GOOD = 0.1;
+const COG_MIN_SOG_BAD = 1.0;
 
 /**
  * Maximum plausible acceleration in knots/second.
@@ -56,6 +59,8 @@ export interface GPSFilterConfig {
   jumpThresholdM: number;
   /** Floor for measurement noise (meters) to prevent over-trust. */
   minAccuracyM: number;
+  /** Floor when quality score q=1; linearly interpolated between these. */
+  minAccuracyBadM: number;
 }
 
 export const DEFAULT_GPS_FILTER_CONFIG: Readonly<GPSFilterConfig> = {
@@ -65,6 +70,7 @@ export const DEFAULT_GPS_FILTER_CONFIG: Readonly<GPSFilterConfig> = {
   weakGpsStaleGapMs: 120_000,
   jumpThresholdM: 500,
   minAccuracyM: 3,
+  minAccuracyBadM: 20,
 };
 
 /**
@@ -112,8 +118,13 @@ export class GPSFilter {
   /**
    * Filter a GPS fix. Returns a new NavigationData with smoothed lat/lon
    * and derived COG/SOG. The first fix after reset is returned unchanged.
+   *
+   * `quality` in [0, 1] inflates the measurement-noise floor and raises the
+   * COG output threshold when the GPS stream is jittery. Default 0 = trust
+   * the measurement as before.
    */
-  filter(raw: NavigationData): NavigationData {
+  filter(raw: NavigationData, quality = 0): NavigationData {
+    const q = Math.max(0, Math.min(1, quality));
     // First fix — initialize state (seed velocity from hardware if available)
     if (!this.state) {
       this.initState(raw);
@@ -173,8 +184,13 @@ export class GPSFilter {
     this.predict(dt);
 
     // — Update step —
+    // Noise floor is inflated by quality score so a jittery device's
+    // optimistic accuracy can't over-drive the measurement update.
+    const effectiveFloor =
+      this.cfg.minAccuracyM +
+      q * (this.cfg.minAccuracyBadM - this.cfg.minAccuracyM);
     const accuracyM = Math.max(
-      this.cfg.minAccuracyM,
+      effectiveFloor,
       raw.accuracy ?? this.cfg.defaultAccuracyM,
     );
     this.update(raw.latitude, raw.longitude, accuracyM);
@@ -184,8 +200,10 @@ export class GPSFilter {
     // Derive filtered outputs
     const [lat, lon, vLat, vLon] = this.state.x;
     const sogKn = Math.sqrt(vLat ** 2 + (vLon * cosLat) ** 2) * KN_PER_DEG_S;
+    const cogMinSog =
+      COG_MIN_SOG_GOOD + q * (COG_MIN_SOG_BAD - COG_MIN_SOG_GOOD);
     let cog: number | null = null;
-    if (sogKn >= COG_MIN_SOG) {
+    if (sogKn >= cogMinSog) {
       cog = (Math.atan2(vLon * cosLat, vLat) * 180) / Math.PI;
       if (cog < 0) cog += 360;
     }

@@ -14,6 +14,7 @@ import {
   type DisplayTheme,
   depthConversionFactor,
   depthUnitLabel,
+  type GpsFilterMode,
   type GpsRateMode,
   getSettings,
   LAYER_GROUP_LABELS,
@@ -534,6 +535,22 @@ function buildNavigationTab(
   onSettingsChange((s) => {
     manualRow.style.display = s.gpsRateMode === "manual" ? "" : "none";
   });
+
+  // GPS filter strength (adaptive smoothing for jittery hardware)
+  const GPS_FILTER_MODES: { value: GpsFilterMode; label: string }[] = [
+    { value: "auto", label: "Auto (detect jitter)" },
+    { value: "strong", label: "Strong (always smooth)" },
+    { value: "normal", label: "Normal (no extra smoothing)" },
+  ];
+  tab.appendChild(
+    buildSelectRow(
+      "GPS filter",
+      "settings-gps-filter-mode",
+      GPS_FILTER_MODES,
+      settings.gpsFilterMode,
+      (v) => updateSettings({ gpsFilterMode: v as GpsFilterMode }),
+    ),
+  );
 
   // Wake lock (keep screen on)
   const WAKE_LOCK_OPTIONS = [

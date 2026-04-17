@@ -12,14 +12,21 @@ import { toRadians } from "../utils/coordinates";
 /** Default circular buffer window in milliseconds. */
 const DEFAULT_BUFFER_WINDOW_MS = 5_000;
 
+/** Buffer window at quality score q=1 (jittery GPS — wider average). */
+const BAD_BUFFER_WINDOW_MS = 25_000;
+
 /** Minimum samples to keep regardless of age. */
 const MIN_SAMPLES = 2;
 
-/** Exponential smoothing time constant for COG/SOG in seconds. */
+/** Exponential smoothing time constant for COG/SOG in seconds (q=0). */
 const TAU_S = 2;
+/** Tau at q=1 — heavier smoothing when GPS is known-bad. */
+const TAU_BAD_S = 8;
 
-/** Exponential smoothing time constant for position in seconds. */
+/** Exponential smoothing time constant for position in seconds (q=0). */
 const TAU_POS_S = 0.5;
+/** Position tau at q=1. */
+const TAU_POS_BAD_S = 3;
 
 interface Sample {
   cog: number;
@@ -68,6 +75,8 @@ export interface SmoothedCourse {
 
 export class CourseSmoothing {
   private bufferWindowMs = DEFAULT_BUFFER_WINDOW_MS;
+  private bufferWindowOverride: number | null = null;
+  private quality = 0;
   private buffer: Sample[] = [];
   private targetCog = 0;
   private targetSog = 0;
@@ -83,10 +92,32 @@ export class CourseSmoothing {
 
   /**
    * Set the smoothing buffer window. Use to scale with GPS update interval
-   * (e.g. 5 * intervalMs to always hold ~5 samples).
+   * (e.g. 5 * intervalMs to always hold ~5 samples). Overrides the
+   * quality-driven default; pass 0 or null to clear the override.
    */
   setBufferWindow(ms: number): void {
-    this.bufferWindowMs = ms;
+    this.bufferWindowOverride = ms > 0 ? ms : null;
+    this.recomputeBufferWindow();
+  }
+
+  /**
+   * Set the current GPS quality score in [0, 1]. 0 = good, 1 = jittery.
+   * Scales the smoothing time constants and (when no explicit override is
+   * set) the circular-buffer window. Call when the detector updates.
+   */
+  setQuality(q: number): void {
+    this.quality = Math.max(0, Math.min(1, q));
+    this.recomputeBufferWindow();
+  }
+
+  private recomputeBufferWindow(): void {
+    if (this.bufferWindowOverride !== null) {
+      this.bufferWindowMs = this.bufferWindowOverride;
+    } else {
+      this.bufferWindowMs =
+        DEFAULT_BUFFER_WINDOW_MS +
+        this.quality * (BAD_BUFFER_WINDOW_MS - DEFAULT_BUFFER_WINDOW_MS);
+    }
   }
 
   /**
@@ -161,7 +192,9 @@ export class CourseSmoothing {
       this.lastSmoothTime = now;
       if (dt > 0 && dt < 1) {
         // Guard against huge dt (e.g. tab backgrounded)
-        const alpha = 1 - Math.exp(-dt / TAU_S);
+        const tau = TAU_S + this.quality * (TAU_BAD_S - TAU_S);
+        const tauPos = TAU_POS_S + this.quality * (TAU_POS_BAD_S - TAU_POS_S);
+        const alpha = 1 - Math.exp(-dt / tau);
         this.smoothedCog = circularInterpolate(
           this.smoothedCog,
           this.targetCog,
@@ -170,7 +203,7 @@ export class CourseSmoothing {
         this.smoothedSog += alpha * (this.targetSog - this.smoothedSog);
 
         // Position smoothing (shorter time constant)
-        const posAlpha = 1 - Math.exp(-dt / TAU_POS_S);
+        const posAlpha = 1 - Math.exp(-dt / tauPos);
         this.smoothedLat += posAlpha * (this.targetLat - this.smoothedLat);
         this.smoothedLon += posAlpha * (this.targetLon - this.smoothedLon);
       }
