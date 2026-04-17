@@ -85,40 +85,90 @@ function clevelandLedge(): Feature[] {
 }
 
 describe("buildClusters", () => {
-  it("groups all slaves under the shared MASTER_LNAM", () => {
+  it("groups all slaves at a shared position into one cluster", () => {
     const clusters = buildClusters(clevelandLedge());
     expect(clusters.size).toBe(1);
-    const c = clusters.get("M1");
+    const c = clusters.values().next().value;
     expect(c?.slaves).toHaveLength(7);
     expect(c?.masterObjnam).toBe(
       "Cleveland Ledge Channel Precision Directional Light",
     );
   });
 
-  it("keeps separate clusters apart", () => {
+  it("keeps separate positions in separate clusters", () => {
     const feats = [
-      lights({ LNAM: "A1", MASTER_LNAM: "MA", MASTER_OBJNAM: "A", LITCHR: 2 }),
-      lights({ LNAM: "A2", MASTER_LNAM: "MA", MASTER_OBJNAM: "A", LITCHR: 2 }),
-      lights({ LNAM: "B1", MASTER_LNAM: "MB", MASTER_OBJNAM: "B", LITCHR: 2 }),
+      lights(
+        { LNAM: "A1", MASTER_LNAM: "MA", MASTER_OBJNAM: "A", LITCHR: 2 },
+        [-70.0, 41.0],
+      ),
+      lights(
+        { LNAM: "A2", MASTER_LNAM: "MA", MASTER_OBJNAM: "A", LITCHR: 2 },
+        [-70.0, 41.0],
+      ),
+      lights(
+        { LNAM: "B1", MASTER_LNAM: "MB", MASTER_OBJNAM: "B", LITCHR: 2 },
+        [-71.0, 42.0],
+      ),
     ];
     const clusters = buildClusters(feats);
     expect(clusters.size).toBe(2);
-    expect(clusters.get("MA")?.slaves).toHaveLength(2);
-    expect(clusters.get("MB")?.slaves).toHaveLength(1);
+    const sizes = Array.from(clusters.values())
+      .map((c) => c.slaves.length)
+      .sort();
+    expect(sizes).toEqual([1, 2]);
+  });
+
+  it("merges multi-cell duplicates of the same aid (different LNAMs, same position)", () => {
+    // The real-world bug: Graves Light appears in US5BOSCF, US4MA1HC, and
+    // US2EC04M. Each cell has its own MASTER_LNAM on the slaves, but all
+    // slaves share the same position. They must cluster together.
+    const pos: [number, number] = [-70.8696, 42.3649];
+    const feats = [
+      lights(
+        {
+          LNAM: "a1",
+          MASTER_LNAM: "cellA",
+          MASTER_OBJNAM: "Graves",
+          LITCHR: 2,
+        },
+        pos,
+      ),
+      lights(
+        {
+          LNAM: "b1",
+          MASTER_LNAM: "cellB",
+          MASTER_OBJNAM: "Graves",
+          LITCHR: 2,
+        },
+        pos,
+      ),
+      lights(
+        {
+          LNAM: "c1",
+          MASTER_LNAM: "cellC",
+          MASTER_OBJNAM: "Graves",
+          LITCHR: 2,
+        },
+        pos,
+      ),
+    ];
+    const clusters = buildClusters(feats);
+    expect(clusters.size).toBe(1);
+    const c = clusters.values().next().value;
+    expect(c?.slaves).toHaveLength(3);
+    expect(c?.masterObjnam).toBe("Graves");
   });
 
   it("ignores LIGHTS without MASTER_LNAM (non-PEL)", () => {
     const feats = [
-      lights({ LNAM: "X", LITCHR: 2 }), // no master
-      lights({ LNAM: "S", MASTER_LNAM: "M", LITCHR: 2 }),
+      lights({ LNAM: "X", LITCHR: 2 }, [-70.0, 41.0]), // no master
+      lights({ LNAM: "S", MASTER_LNAM: "M", LITCHR: 2 }, [-71.0, 42.0]),
     ];
     const clusters = buildClusters(feats);
     expect(clusters.size).toBe(1);
-    expect(clusters.get("M")?.slaves).toHaveLength(1);
   });
 
   it("recovers MASTER_OBJNAM from any slave that carries it", () => {
-    // Annotate_masters may have missing OBJNAM on some slaves if data is odd.
     const feats = [
       lights({ LNAM: "S1", MASTER_LNAM: "M", LITCHR: 2 }), // no OBJNAM
       lights({
@@ -129,7 +179,7 @@ describe("buildClusters", () => {
       }),
     ];
     const clusters = buildClusters(feats);
-    expect(clusters.get("M")?.masterObjnam).toBe("Big Light");
+    expect(clusters.values().next().value?.masterObjnam).toBe("Big Light");
   });
 });
 
@@ -283,6 +333,110 @@ describe("buildGeoJson", () => {
     expect(masters).toHaveLength(0);
   });
 
+  it("dedupes identical labels within a cluster", () => {
+    // Graves Light case: three sectors with identical rhythm/height/range,
+    // differing only in bearing. Only one label should be kept; the
+    // remaining two slaves emit icon-only (blank label).
+    const feats = Array.from({ length: 3 }, (_, i) =>
+      lights({
+        LNAM: `S${i}`,
+        MASTER_LNAM: "M",
+        MASTER_OBJNAM: "Graves Light",
+        MASTER_LAYER: "LNDMRK",
+        LITCHR: 2,
+        SIGGRP: "(2)",
+        SIGPER: 12,
+        COLOUR: "1",
+        HEIGHT: 29.9,
+        VALNMR: 14,
+        LABEL: "Fl(2) 12s",
+        SECTR1: i * 30,
+        SECTR2: i * 30 + 20,
+      }),
+    );
+    const { geojson } = buildGeoJson(feats, "nautical");
+    const slaves = geojson.features.filter(
+      (f) => f.properties?._type === "slave",
+    );
+    const withLabel = slaves.filter((f) => f.properties?.LABEL !== "");
+    const blank = slaves.filter((f) => f.properties?.LABEL === "");
+    expect(slaves).toHaveLength(3);
+    expect(withLabel).toHaveLength(1);
+    expect(blank).toHaveLength(2);
+    expect(withLabel[0].properties?.LABEL).toBe("Fl(2) 12s");
+  });
+
+  it("dedupes slaves contributed by multiple overlapping cells", () => {
+    // Graves Light has 3 sectors and appears in 3 ENC cells (overview +
+    // harbour + coastal). Without cross-cell dedup we'd emit 9 slave
+    // features; with it we emit 3 (one per unique sector). All 9 LNAMs
+    // still go into suppressedLnams so every cell's raw LIGHTS are hidden.
+    const pos: [number, number] = [-70.8696, 42.3649];
+    const feats: Feature[] = [];
+    for (const cell of ["a", "b", "c"]) {
+      for (const [s1, s2] of [
+        [10, 20] as const,
+        [30, 40] as const,
+        [50, 60] as const,
+      ]) {
+        feats.push(
+          lights(
+            {
+              LNAM: `${cell}${s1}`,
+              MASTER_LNAM: `m${cell}`,
+              MASTER_OBJNAM: "Graves",
+              MASTER_LAYER: "LNDMRK",
+              LITCHR: 2,
+              SIGGRP: "(2)",
+              SIGPER: 12,
+              COLOUR: "1",
+              HEIGHT: 29.9,
+              VALNMR: 14,
+              LABEL: "Fl(2) 12s",
+              SECTR1: s1,
+              SECTR2: s2,
+            },
+            pos,
+          ),
+        );
+      }
+    }
+    const { geojson, suppressedLnams } = buildGeoJson(feats, "nautical");
+    const slaves = geojson.features.filter(
+      (f) => f.properties?._type === "slave",
+    );
+    expect(slaves).toHaveLength(3); // one per unique sector, not 9
+    expect(suppressedLnams).toHaveLength(9); // every cell's LNAM suppressed
+  });
+
+  it("keeps distinct labels even within the same cluster", () => {
+    // Cleveland Ledge case: sectors differ (Fl R vs Fl G vs Al WR) →
+    // all non-duplicate labels render.
+    const feats = [
+      lights({
+        LNAM: "A",
+        MASTER_LNAM: "M",
+        MASTER_OBJNAM: "X",
+        LITCHR: 2,
+        COLOUR: "3",
+        LABEL: "Fl(1) R",
+      }),
+      lights({
+        LNAM: "B",
+        MASTER_LNAM: "M",
+        MASTER_OBJNAM: "X",
+        LITCHR: 2,
+        COLOUR: "4",
+        LABEL: "Fl(1) G",
+      }),
+    ];
+    const { geojson } = buildGeoJson(feats, "nautical");
+    const withLabel = geojson.features
+      .filter((f) => f.properties?._type === "slave")
+      .filter((f) => f.properties?.LABEL !== "");
+    expect(withLabel).toHaveLength(2);
+  });
+
   it("skips master-name when MASTER_LAYER is LNDMRK (avoids duplicate)", () => {
     // Boston Light / Graves Light style: the lighthouse LNDMRK is the master.
     // The s57-lndmrk layer already renders its OBJNAM, so we must not also
@@ -294,6 +448,8 @@ describe("buildGeoJson", () => {
         MASTER_OBJNAM: "Boston Light",
         MASTER_LAYER: "LNDMRK",
         LITCHR: 2,
+        SECTR1: 0,
+        SECTR2: 90,
       }),
       lights({
         LNAM: "B",
@@ -301,6 +457,8 @@ describe("buildGeoJson", () => {
         MASTER_OBJNAM: "Boston Light",
         MASTER_LAYER: "LNDMRK",
         LITCHR: 2,
+        SECTR1: 90,
+        SECTR2: 180,
       }),
     ];
     const { geojson } = buildGeoJson(feats, "nautical");

@@ -23,13 +23,14 @@
 
 import type { Feature, FeatureCollection, Point, Position } from "geojson";
 import type maplibregl from "maplibre-gl";
-import { getVectorSourceIds } from "../data/chart-catalog";
+import { getRegionLayerIds, getVectorSourceIds } from "../data/chart-catalog";
 import { getSettings, onSettingsChange } from "../settings";
 import { s52Colour } from "./s52-colours";
 import { buildLayerExpressions, getIconScheme } from "./styles/icon-sets";
 import {
+  lightLabelTextField,
   SORT_KEY_LANDMARK,
-  SORT_KEY_NAVAID,
+  SORT_KEY_LIGHT_CHAR,
   VARIABLE_ANCHOR_LAYOUT,
 } from "./styles/style-context";
 
@@ -37,8 +38,13 @@ const SOURCE_ID = "_pel-lights";
 const LAYER_ICON = "_pel-light-icon";
 const LAYER_MASTER_NAME = "_pel-master-name";
 
-/** Style layers we dynamically filter to hide PEL slaves. */
-const SUPPRESSED_LAYERS = ["s57-lights", "s57-lights-glow"] as const;
+/**
+ * Suffixes of the style layers we dynamically filter to hide PEL slaves.
+ * Actual layer IDs are region-prefixed by the chart catalog
+ * (``s57-{region}-lights`` etc.), so we resolve them with
+ * {@link getRegionLayerIds} at apply time.
+ */
+const SUPPRESSED_LAYER_SUFFIXES = ["lights", "lights-glow"] as const;
 
 /** Minimum zoom to show PEL clusters — matches `s57-lights` minzoom. */
 const MIN_ZOOM = 6;
@@ -75,6 +81,7 @@ interface PelLightsProps {
   LITCHR?: number;
   LABEL?: string;
   COLOUR?: unknown;
+  HEIGHT?: number;
   VALNMR?: number;
   CATLIT?: unknown;
 }
@@ -100,7 +107,16 @@ interface Cluster {
 }
 
 /**
- * Group PEL slaves by `MASTER_LNAM`. Returns one Cluster per master.
+ * Group PEL slaves by **position** (5-decimal precision ≈ 1 m). We key
+ * on location rather than ``MASTER_LNAM`` because S-57 LNAMs are
+ * cell-scoped: the same physical aid appears in multiple overlapping
+ * ENC cells (e.g. Graves Light in US5BOSCF + US4MA1HC + US2EC04M),
+ * and each cell has its own BCNSPP master with its own LNAM. Keying
+ * on position merges all of them into a single cluster so we emit one
+ * set of deduped sector features regardless of tile overlap.
+ *
+ * Only features with a non-empty ``MASTER_LNAM`` (set by the pipeline's
+ * annotate_masters pass) are considered PEL slaves.
  *
  * Exported for unit testing.
  */
@@ -109,12 +125,13 @@ export function buildClusters(lightsFeatures: Feature[]): Map<string, Cluster> {
   for (const f of lightsFeatures) {
     if (f.geometry.type !== "Point") continue;
     const props = (f.properties ?? {}) as PelLightsProps;
-    const key = props.MASTER_LNAM;
-    if (!key) continue;
+    if (!props.MASTER_LNAM) continue;
+    const coords = f.geometry.coordinates;
+    const key = `${coords[0].toFixed(5)},${coords[1].toFixed(5)}`;
     let cluster = clusters.get(key);
     if (!cluster) {
       cluster = {
-        position: f.geometry.coordinates,
+        position: coords,
         masterObjnam: props.MASTER_OBJNAM,
         masterLayer: props.MASTER_LAYER,
         slaves: [],
@@ -163,12 +180,39 @@ export function buildGeoJson(
   for (const cluster of clusters.values()) {
     if (cluster.slaves.length < PEL_MIN_SLAVES) continue;
 
+    // Dedupe slaves by sector identity: multiple cells contribute the same
+    // sector definition (same bearings + rhythm + colour + height/range)
+    // and we want a single emitted icon+label per unique sector. All cells'
+    // LNAMs still go into the suppression list so every copy hides from
+    // ``s57-lights``.
+    const seenSectorKey = new Set<string>();
+    // Dedupe labels within the cluster too: a sector light where several
+    // sectors share the same rhythm (e.g. Graves Light's three Fl(2) 12s
+    // sectors at different bearings) would otherwise render the same
+    // "Fl(2) 12s 98ft14M" text several times at the same point. Keep the
+    // first matching text; blank the rest (icon still renders).
+    const seenLabelKey = new Set<string>();
+
     for (const slave of cluster.slaves) {
       const props = (slave.properties ?? {}) as PelLightsProps;
       if (props.LNAM) suppressedLnams.push(props.LNAM);
 
       const s1 = typeof props.SECTR1 === "number" ? props.SECTR1 : null;
       const s2 = typeof props.SECTR2 === "number" ? props.SECTR2 : null;
+      // Full-identity dedup: skip if we've already emitted an equivalent
+      // sector from another cell.
+      const sectorKey = [
+        s1 ?? "",
+        s2 ?? "",
+        props.LITCHR ?? "",
+        String(props.COLOUR ?? ""),
+        props.LABEL ?? "",
+        props.HEIGHT ?? "",
+        props.VALNMR ?? "",
+      ].join("|");
+      if (seenSectorKey.has(sectorKey)) continue;
+      seenSectorKey.add(sectorKey);
+
       // S-57 sectors are FROM seaward; flip 180° so the teardrop points
       // outward from the light (matches LightSectorLayer's flip). Then
       // subtract the sprite's baked-in rotation so icon-rotate expresses
@@ -180,7 +224,15 @@ export function buildGeoJson(
       // NOAA-style label filtering: suppress fixed sectors (LITCHR=1).
       // The overlay owns the label so we don't depend on LABEL being
       // pre-blanked in the tile.
-      const label = props.LITCHR === 1 ? "" : (props.LABEL ?? "");
+      let label = props.LITCHR === 1 ? "" : (props.LABEL ?? "");
+      if (label) {
+        // Key on the full rendered tail (stem + HEIGHT + VALNMR) so two
+        // sectors that differ only in bearing collapse to one label,
+        // but sectors with different heights/ranges keep their own.
+        const key = `${label}|${props.HEIGHT ?? ""}|${props.VALNMR ?? ""}`;
+        if (seenLabelKey.has(key)) label = "";
+        else seenLabelKey.add(key);
+      }
 
       features.push({
         type: "Feature",
@@ -189,9 +241,12 @@ export function buildGeoJson(
           _type: "slave",
           ROT: rot,
           LABEL: label,
-          // Props the shared LIGHTS iconExpr reads from the feature:
+          // Raw numeric props the shared LIGHTS iconExpr and
+          // lightLabelTextField read — COLOUR and VALNMR drive icon
+          // selection, HEIGHT/VALNMR drive the unit-aware label tail.
           COLOUR: props.COLOUR ?? null,
           VALNMR: props.VALNMR ?? null,
+          HEIGHT: props.HEIGHT ?? null,
           CATLIT: props.CATLIT ?? null,
         },
       });
@@ -233,13 +288,16 @@ export class PelLightLayer {
 
     let currentTheme = getSettings().displayTheme;
     let currentSymbology = getSettings().symbologyScheme;
+    let currentDepthUnit = getSettings().depthUnit;
     onSettingsChange((s) => {
       if (
         s.displayTheme !== currentTheme ||
-        s.symbologyScheme !== currentSymbology
+        s.symbologyScheme !== currentSymbology ||
+        s.depthUnit !== currentDepthUnit
       ) {
         currentTheme = s.displayTheme;
         currentSymbology = s.symbologyScheme;
+        currentDepthUnit = s.depthUnit;
         if (this.map.isStyleLoaded()) {
           this.addSourceAndLayers();
           this.rebuild();
@@ -252,6 +310,12 @@ export class PelLightLayer {
     this.captureOriginalFilters();
     this.addSourceAndLayers();
 
+    // A style rebuild (e.g. toggling a layer group) wipes any filters we
+    // previously set via ``setFilter`` on the base s57-lights layers. Reset
+    // the tracking set so the next rebuild always re-applies our
+    // suppression filter, even if the LNAM set hasn't changed.
+    this.suppressedLnams = new Set();
+
     this.map.on("sourcedata", (e) => {
       if (e.isSourceLoaded && e.sourceId.startsWith("s57-vector")) {
         this.debouncedRebuild();
@@ -262,10 +326,17 @@ export class PelLightLayer {
     this.rebuild();
   }
 
+  /** Concrete region-prefixed style layer IDs we suppress PEL slaves from. */
+  private suppressedLayerIds(): string[] {
+    return SUPPRESSED_LAYER_SUFFIXES.flatMap((suffix) =>
+      getRegionLayerIds(suffix),
+    );
+  }
+
   private captureOriginalFilters(): void {
-    // The s57-lights layer has no explicit filter today; capture whatever
-    // it is at style-load time so we can restore if ever needed.
-    for (const id of SUPPRESSED_LAYERS) {
+    // Base layers have no explicit filter today; capture whatever they have
+    // at style-load time so we can restore if ever needed.
+    for (const id of this.suppressedLayerIds()) {
       if (this.map.getLayer(id)) {
         this.originalFilters.set(id, this.map.getFilter(id));
       }
@@ -302,14 +373,14 @@ export class PelLightLayer {
     );
 
     const layout: Record<string, unknown> = {
-      "symbol-sort-key": SORT_KEY_NAVAID,
+      "symbol-sort-key": SORT_KEY_LIGHT_CHAR,
       "icon-image": iconExpr,
       "icon-size": 0.7,
       "icon-rotate": ["get", "ROT"],
       "icon-rotation-alignment": "map",
       "icon-allow-overlap": true,
       "icon-ignore-placement": true,
-      "text-field": ["get", "LABEL"],
+      "text-field": lightLabelTextField(s.depthUnit),
       "text-size": 10,
       "text-offset": [0, -1.5],
       "text-allow-overlap": false,
@@ -409,7 +480,7 @@ export class PelLightLayer {
             ["in", ["get", "LNAM"], ["literal", lnamList]],
           ] as unknown as maplibregl.FilterSpecification);
 
-    for (const id of SUPPRESSED_LAYERS) {
+    for (const id of this.suppressedLayerIds()) {
       if (!this.map.getLayer(id)) continue;
       this.map.setFilter(id, filterExpr);
     }
