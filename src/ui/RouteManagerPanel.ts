@@ -188,6 +188,21 @@ export class RouteManagerPanel {
       `.manager-item[data-route-id="${route.id}"]`,
     );
     if (row) row.classList.add("selected");
+
+    // Selecting a hidden route makes it visible — the glow on a missing line
+    // is confusing, and the user asked to see this route.
+    if (!route.visible) {
+      route.visible = true;
+      (async () => {
+        await saveRoute(route);
+        await this.routeLayer.toggleVisibility(route.id, true);
+        this.routeLayer.selectRoute(route);
+        this.routeLayer.fitRoute(route);
+        await this.refresh();
+      })().catch(console.error);
+      return;
+    }
+
     this.routeLayer.selectRoute(route);
     this.routeLayer.fitRoute(route);
   }
@@ -323,6 +338,11 @@ export class RouteManagerPanel {
           if (st.type === "route" && st.route.id === route.id) {
             this.activeNav.stop();
           }
+        }
+        // Hiding a selected route clears selection so the glow doesn't
+        // linger without the crisp line under it.
+        if (!route.visible && this.selectedRouteId === route.id) {
+          this.clearSelection();
         }
         await saveRoute(route);
         await this.routeLayer.toggleVisibility(route.id, route.visible);

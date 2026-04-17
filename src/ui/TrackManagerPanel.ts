@@ -139,6 +139,20 @@ export class TrackManagerPanel {
       `.manager-item[data-track-id="${meta.id}"]`,
     );
     if (row) row.classList.add("selected");
+
+    // Selecting a hidden track makes it visible.
+    if (!meta.visible) {
+      meta.visible = true;
+      (async () => {
+        await saveTrackMeta(meta);
+        await this.trackLayer.toggleTrackVisibility(meta.id, true);
+        await this.trackLayer.selectTrack(meta);
+        await this.trackLayer.fitTrack(meta);
+        await this.refresh();
+      })().catch(console.error);
+      return;
+    }
+
     this.trackLayer.selectTrack(meta).catch(console.error);
     this.trackLayer.fitTrack(meta).catch(console.error);
   }
@@ -249,6 +263,11 @@ export class TrackManagerPanel {
     toggleBtn.addEventListener("click", () => {
       (async () => {
         meta.visible = !meta.visible;
+        // Hiding a selected track clears selection so the glow doesn't
+        // linger without the crisp line under it.
+        if (!meta.visible && this.selectedTrackId === meta.id) {
+          this.clearSelection();
+        }
         await saveTrackMeta(meta);
         await this.trackLayer.toggleTrackVisibility(meta.id, meta.visible);
         await this.refresh();
