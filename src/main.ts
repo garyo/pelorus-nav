@@ -221,7 +221,7 @@ new FeatureQueryHandler(chartManager);
 new LightSectorLayer(chartManager.map);
 
 // PEL / directional light cluster rendering (fans stacked teardrops,
-// filters duplicate labels, shows master OBJNAM at high zoom).
+// filters duplicate labels, shows parent OBJNAM at high zoom).
 new PelLightLayer(chartManager.map);
 
 // Settings gear in top bar menu

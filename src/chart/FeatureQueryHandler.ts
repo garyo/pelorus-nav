@@ -273,7 +273,7 @@ interface QueriedFeature {
   properties: Record<string, unknown>;
   geometry: GeoJSON.Geometry;
   lngLat?: { lng: number; lat: number };
-  /** Slave features grouped under this master by LNAM relationships. */
+  /** Child features grouped under this parent by LNAM relationships. */
   children?: QueriedFeature[];
 }
 
@@ -348,7 +348,7 @@ export class FeatureQueryHandler {
     }
 
     // Pull in any LNAM-referenced features that queryRenderedFeatures missed
-    // because a style filter hid them (e.g. PEL light slaves suppressed by
+    // because a style filter hid them (e.g. PEL light children suppressed by
     // PelLightLayer). querySourceFeatures ignores style filters.
     this.augmentFromLnamRefs(features);
 
@@ -361,8 +361,8 @@ export class FeatureQueryHandler {
     // Transfer LNDMRK names to co-located LIGHTS that lack OBJNAM
     correlateLandmarkNames(features);
 
-    // Group slave features (lights, fog signals, topmarks) under their masters
-    const grouped = groupSlaveFeatures(features);
+    // Group child features (lights, fog signals, topmarks) under their parents
+    const grouped = groupChildFeatures(features);
 
     this.currentFeatures = grouped;
     this.currentIndex = 0;
@@ -371,8 +371,8 @@ export class FeatureQueryHandler {
 
   /**
    * Pull in features that queryRenderedFeatures missed because of style
-   * filters. For every picked feature carrying LNAM_REFS (a master pointing
-   * at its slaves) or MASTER_LNAM (a slave pointing at its master), query
+   * filters. For every picked feature carrying LNAM_REFS (a parent pointing
+   * at its children) or PARENT_LNAM (a child pointing at its parent), query
    * the tile source directly — which ignores style filters — and append any
    * matches not already present. Mutates ``picked``.
    */
@@ -392,9 +392,9 @@ export class FeatureQueryHandler {
           if (r && !pickedLnams.has(r)) wanted.add(r);
         }
       }
-      const masterLnam = f.properties.MASTER_LNAM;
-      if (typeof masterLnam === "string" && !pickedLnams.has(masterLnam)) {
-        wanted.add(masterLnam);
+      const parentLnam = f.properties.PARENT_LNAM;
+      if (typeof parentLnam === "string" && !pickedLnams.has(parentLnam)) {
+        wanted.add(parentLnam);
       }
     }
 
@@ -438,7 +438,7 @@ export class FeatureQueryHandler {
       feature.lngLat,
       feature.geometry.type,
     );
-    // Attach formatted children from grouped slave features, deduped by display text
+    // Attach formatted children from grouped child features, deduped by display text
     const children = feature.children;
     if (children && children.length > 0) {
       const seen = new Set<string>();
@@ -652,11 +652,11 @@ export class FeatureQueryHandler {
   }
 }
 
-/** Source layers that are typically slaves (equipment on an aid to navigation). */
-const SLAVE_LAYERS = new Set(["LIGHTS", "FOGSIG", "TOPMAR", "DAYMAR"]);
+/** Source layers whose features are typically children (equipment on an aid to navigation). */
+const CHILD_LAYERS = new Set(["LIGHTS", "FOGSIG", "TOPMAR", "DAYMAR"]);
 
-/** Source layers that can act as masters (physical aids to navigation). */
-const MASTER_LAYERS = new Set([
+/** Source layers whose features can act as parents (physical aids to navigation). */
+const PARENT_LAYERS = new Set([
   "BOYLAT",
   "BOYCAR",
   "BOYSAW",
@@ -673,13 +673,13 @@ const MASTER_LAYERS = new Set([
 
 /**
  * Layers we'll scan with querySourceFeatures to fill in LNAM-referenced
- * features that rendered-feature queries missed (e.g. PEL light slaves
- * hidden by the PelLightLayer suppression filter). Any master or slave
+ * features that rendered-feature queries missed (e.g. PEL light children
+ * hidden by the PelLightLayer suppression filter). Any parent or child
  * layer is fair game.
  */
 const AUGMENTABLE_LAYERS: readonly string[] = [
-  ...SLAVE_LAYERS,
-  ...MASTER_LAYERS,
+  ...CHILD_LAYERS,
+  ...PARENT_LAYERS,
 ];
 
 /**
@@ -695,21 +695,22 @@ function pointCoords(f: QueriedFeature): [number, number] | undefined {
 }
 
 /**
- * Group slave features under their master using LNAM relationships.
+ * Group child features under their parent using LNAM relationships.
  *
  * 1. Build a map of LNAM → feature index for all picked features.
- * 2. Reverse pass: for each slave with MASTER_LNAM (stamped by the pipeline's
- *    annotate_masters pass), attach it to its master if the master is in the
- *    picked set. Per S-57, slaves don't carry LNAM_REFS themselves, so this
+ * 2. Reverse pass: for each child with PARENT_LNAM (stamped by the pipeline's
+ *    annotate_parents pass), attach it to its parent if the parent is in the
+ *    picked set. Per S-57, children don't carry LNAM_REFS themselves, so this
  *    reverse lookup complements the forward pass below.
  * 3. Forward pass: for each feature with LNAM_REFS, find referenced features
- *    in the picked set. If FFPT_RIND indicates slave (2), attach them as children.
- * 4. Spatial fallback: if neither MASTER_LNAM nor LNAM_REFS applies, group
+ *    in the picked set. If FFPT_RIND is ``2`` (S-57's child indicator) or
+ *    absent, attach them as children.
+ * 4. Spatial fallback: if neither PARENT_LNAM nor LNAM_REFS applies, group
  *    LIGHTS/FOGSIG/TOPMAR/DAYMAR that share exact coordinates with a
  *    buoy/beacon/landmark.
- * 5. Remove grouped slaves from the top-level list.
+ * 5. Remove grouped children from the top-level list.
  */
-function groupSlaveFeatures(features: QueriedFeature[]): QueriedFeature[] {
+function groupChildFeatures(features: QueriedFeature[]): QueriedFeature[] {
   // Build LNAM index: LNAM value → index in features array
   const lnamIndex = new Map<string, number>();
   for (let i = 0; i < features.length; i++) {
@@ -722,34 +723,34 @@ function groupSlaveFeatures(features: QueriedFeature[]): QueriedFeature[] {
   // Track which feature indices have been claimed as children
   const claimed = new Set<number>();
 
-  // Reverse pass: MASTER_LNAM-based. A PEL slave stamped with MASTER_LNAM
-  // by annotate_masters knows its master directly. Attach it to the master
-  // if present; the forward pass below still handles siblings the master's
+  // Reverse pass: PARENT_LNAM-based. A PEL child stamped with PARENT_LNAM
+  // by annotate_parents knows its parent directly. Attach it to the parent
+  // if present; the forward pass below still handles siblings the parent's
   // LNAM_REFS points at.
   for (let i = 0; i < features.length; i++) {
-    const slave = features[i];
+    const child = features[i];
     if (claimed.has(i)) continue;
-    const masterLnam = slave.properties.MASTER_LNAM;
-    if (typeof masterLnam !== "string" || masterLnam.length === 0) continue;
-    if (!SLAVE_LAYERS.has(slave.sourceLayer)) continue;
+    const parentLnam = child.properties.PARENT_LNAM;
+    if (typeof parentLnam !== "string" || parentLnam.length === 0) continue;
+    if (!CHILD_LAYERS.has(child.sourceLayer)) continue;
 
-    const masterIdx = lnamIndex.get(masterLnam);
-    if (masterIdx == null || masterIdx === i) continue;
-    const master = features[masterIdx];
-    if (!MASTER_LAYERS.has(master.sourceLayer)) continue;
+    const parentIdx = lnamIndex.get(parentLnam);
+    if (parentIdx == null || parentIdx === i) continue;
+    const parent = features[parentIdx];
+    if (!PARENT_LAYERS.has(parent.sourceLayer)) continue;
 
-    if (!master.children) master.children = [];
-    master.children.push(slave);
+    if (!parent.children) parent.children = [];
+    parent.children.push(child);
     claimed.add(i);
   }
 
   // Phase 1: LNAM_REFS-based grouping
   for (let i = 0; i < features.length; i++) {
-    const master = features[i];
-    const lnamRefs = master.properties.LNAM_REFS;
+    const parent = features[i];
+    const lnamRefs = parent.properties.LNAM_REFS;
     if (typeof lnamRefs !== "string" || lnamRefs.length === 0) continue;
 
-    const ffptRind = master.properties.FFPT_RIND;
+    const ffptRind = parent.properties.FFPT_RIND;
     const rindValues = typeof ffptRind === "string" ? ffptRind.split(",") : [];
 
     const refs = lnamRefs.split(",");
@@ -757,43 +758,44 @@ function groupSlaveFeatures(features: QueriedFeature[]): QueriedFeature[] {
       const refLnam = refs[r].trim();
       if (!refLnam) continue;
 
-      // Only group if relationship is slave (FFPT_RIND=2) or if RIND is absent
+      // Only group if relationship is the S-57 child indicator
+      // (FFPT_RIND=2) or if RIND is absent.
       const rind = rindValues[r]?.trim();
       if (rind && rind !== "2") continue;
 
-      const slaveIdx = lnamIndex.get(refLnam);
-      if (slaveIdx == null || slaveIdx === i || claimed.has(slaveIdx)) continue;
+      const childIdx = lnamIndex.get(refLnam);
+      if (childIdx == null || childIdx === i || claimed.has(childIdx)) continue;
 
-      // Only group slave-type layers under master-type layers
-      const slave = features[slaveIdx];
-      if (!SLAVE_LAYERS.has(slave.sourceLayer)) continue;
+      // Only group child-type layers under parent-type layers
+      const child = features[childIdx];
+      if (!CHILD_LAYERS.has(child.sourceLayer)) continue;
 
-      if (!master.children) master.children = [];
-      master.children.push(slave);
-      claimed.add(slaveIdx);
+      if (!parent.children) parent.children = [];
+      parent.children.push(child);
+      claimed.add(childIdx);
     }
   }
 
-  // Phase 2: Spatial co-location fallback for ungrouped slave-type features
+  // Phase 2: Spatial co-location fallback for ungrouped child-type features
   for (let i = 0; i < features.length; i++) {
     if (claimed.has(i)) continue;
     const f = features[i];
-    if (!SLAVE_LAYERS.has(f.sourceLayer)) continue;
+    if (!CHILD_LAYERS.has(f.sourceLayer)) continue;
 
-    const slaveCoords = pointCoords(f);
-    if (!slaveCoords) continue;
+    const childCoords = pointCoords(f);
+    if (!childCoords) continue;
 
-    // Find a co-located master
+    // Find a co-located parent
     for (let j = 0; j < features.length; j++) {
       if (j === i || claimed.has(j)) continue;
       const candidate = features[j];
-      if (!MASTER_LAYERS.has(candidate.sourceLayer)) continue;
+      if (!PARENT_LAYERS.has(candidate.sourceLayer)) continue;
 
-      const masterCoords = pointCoords(candidate);
-      if (!masterCoords) continue;
+      const parentCoords = pointCoords(candidate);
+      if (!parentCoords) continue;
       if (
-        masterCoords[0] === slaveCoords[0] &&
-        masterCoords[1] === slaveCoords[1]
+        parentCoords[0] === childCoords[0] &&
+        parentCoords[1] === childCoords[1]
       ) {
         if (!candidate.children) candidate.children = [];
         candidate.children.push(f);
@@ -823,7 +825,7 @@ function groupSlaveFeatures(features: QueriedFeature[]): QueriedFeature[] {
     }
   }
 
-  // Remove claimed slaves from top-level list
+  // Remove claimed children from top-level list
   return features.filter((_, i) => !claimed.has(i));
 }
 

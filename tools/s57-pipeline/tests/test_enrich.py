@@ -6,7 +6,7 @@ import json
 import tempfile
 from pathlib import Path
 
-from s57_pipeline.enrich import annotate_masters, enrich_geojson
+from s57_pipeline.enrich import annotate_parents, enrich_geojson
 
 
 def _make_geojson(features: list[dict]) -> str:
@@ -137,41 +137,41 @@ def _read_props(path: Path) -> list[dict]:
     return [f["properties"] for f in json.loads(path.read_text())["features"]]
 
 
-class TestAnnotateMasters:
-    """MASTER_LNAM / MASTER_OBJNAM / MASTER_LAYER propagation from masters."""
+class TestAnnotateParents:
+    """PARENT_LNAM / PARENT_OBJNAM / PARENT_LAYER propagation from parents."""
 
     def test_cleveland_ledge_style_cluster(self, tmp_path: Path) -> None:
-        """A BCNSPP master with 7 LIGHTS slaves — all slaves get annotated."""
-        slaves_lnams = [f"SLAVE{i:02X}" for i in range(7)]
-        master_lnam = "MASTER01"
+        """A BCNSPP parent with 7 LIGHTS children — all children get annotated."""
+        child_lnams = [f"CHILD{i:02X}" for i in range(7)]
+        parent_lnam = "PARENT01"
         _write_geojson(
             tmp_path / "bcnspp.geojson",
             [{
-                "LNAM": master_lnam,
+                "LNAM": parent_lnam,
                 "OBJNAM": "Cleveland Ledge Channel Precision Directional Light",
-                "LNAM_REFS": ",".join(slaves_lnams),
-                "FFPT_RIND": ",".join(["2"] * len(slaves_lnams)),
+                "LNAM_REFS": ",".join(child_lnams),
+                "FFPT_RIND": ",".join(["2"] * len(child_lnams)),
             }],
         )
         _write_geojson(
             tmp_path / "lights.geojson",
-            [{"LNAM": lnam, "LITCHR": 2} for lnam in slaves_lnams],
+            [{"LNAM": lnam, "LITCHR": 2} for lnam in child_lnams],
         )
 
-        annotate_masters(tmp_path)
+        annotate_parents(tmp_path)
 
         for props in _read_props(tmp_path / "lights.geojson"):
-            assert props["MASTER_LNAM"] == master_lnam
-            assert props["MASTER_LAYER"] == "BCNSPP"
-            assert props["MASTER_OBJNAM"] == (
+            assert props["PARENT_LNAM"] == parent_lnam
+            assert props["PARENT_LAYER"] == "BCNSPP"
+            assert props["PARENT_OBJNAM"] == (
                 "Cleveland Ledge Channel Precision Directional Light"
             )
-        # Master file unchanged structurally
-        master_props = _read_props(tmp_path / "bcnspp.geojson")[0]
-        assert "MASTER_LNAM" not in master_props
+        # Parent file unchanged structurally
+        parent_props = _read_props(tmp_path / "bcnspp.geojson")[0]
+        assert "PARENT_LNAM" not in parent_props
 
-    def test_mixed_rind_only_slaves_annotated(self, tmp_path: Path) -> None:
-        """FFPT_RIND="2,3,2" — only the index 0 and 2 slaves get annotated."""
+    def test_mixed_rind_only_children_annotated(self, tmp_path: Path) -> None:
+        """FFPT_RIND="2,3,2" — only the index 0 and 2 children get annotated."""
         _write_geojson(
             tmp_path / "bcnspp.geojson",
             [{
@@ -186,16 +186,16 @@ class TestAnnotateMasters:
             [{"LNAM": "S1"}, {"LNAM": "S2"}, {"LNAM": "S3"}],
         )
 
-        annotate_masters(tmp_path)
+        annotate_parents(tmp_path)
 
         props_list = _read_props(tmp_path / "lights.geojson")
         by_lnam = {p["LNAM"]: p for p in props_list}
-        assert by_lnam["S1"]["MASTER_LNAM"] == "M1"
-        assert "MASTER_LNAM" not in by_lnam["S2"]  # RIND=3 (peer), skipped
-        assert by_lnam["S3"]["MASTER_LNAM"] == "M1"
+        assert by_lnam["S1"]["PARENT_LNAM"] == "M1"
+        assert "PARENT_LNAM" not in by_lnam["S2"]  # RIND=3 (peer), skipped
+        assert by_lnam["S3"]["PARENT_LNAM"] == "M1"
 
-    def test_missing_rind_treated_as_slave(self, tmp_path: Path) -> None:
-        """No FFPT_RIND at all — every ref is treated as a slave."""
+    def test_missing_rind_treated_as_child(self, tmp_path: Path) -> None:
+        """No FFPT_RIND at all — every ref is treated as a child."""
         _write_geojson(
             tmp_path / "bcnspp.geojson",
             [{"LNAM": "M1", "OBJNAM": "X", "LNAM_REFS": "S1,S2"}],
@@ -205,11 +205,11 @@ class TestAnnotateMasters:
             [{"LNAM": "S1"}, {"LNAM": "S2"}],
         )
 
-        annotate_masters(tmp_path)
+        annotate_parents(tmp_path)
 
         by_lnam = {p["LNAM"]: p for p in _read_props(tmp_path / "lights.geojson")}
-        assert by_lnam["S1"]["MASTER_LNAM"] == "M1"
-        assert by_lnam["S2"]["MASTER_LNAM"] == "M1"
+        assert by_lnam["S1"]["PARENT_LNAM"] == "M1"
+        assert by_lnam["S2"]["PARENT_LNAM"] == "M1"
 
     def test_unresolvable_ref_silently_skipped(self, tmp_path: Path) -> None:
         """Cross-cell LNAM ref (not in index) must not crash or add anything."""
@@ -224,28 +224,28 @@ class TestAnnotateMasters:
         )
         _write_geojson(tmp_path / "lights.geojson", [{"LNAM": "S1"}])
 
-        annotate_masters(tmp_path)
+        annotate_parents(tmp_path)
 
         props = _read_props(tmp_path / "lights.geojson")[0]
-        assert props["MASTER_LNAM"] == "M1"
+        assert props["PARENT_LNAM"] == "M1"
 
-    def test_master_without_objnam(self, tmp_path: Path) -> None:
-        """MASTER_LNAM/MASTER_LAYER always, MASTER_OBJNAM only when present."""
+    def test_parent_without_objnam(self, tmp_path: Path) -> None:
+        """PARENT_LNAM/PARENT_LAYER always, PARENT_OBJNAM only when present."""
         _write_geojson(
             tmp_path / "bcnspp.geojson",
             [{"LNAM": "M1", "LNAM_REFS": "S1", "FFPT_RIND": "2"}],
         )
         _write_geojson(tmp_path / "lights.geojson", [{"LNAM": "S1"}])
 
-        annotate_masters(tmp_path)
+        annotate_parents(tmp_path)
 
         props = _read_props(tmp_path / "lights.geojson")[0]
-        assert props["MASTER_LNAM"] == "M1"
-        assert props["MASTER_LAYER"] == "BCNSPP"
-        assert "MASTER_OBJNAM" not in props
+        assert props["PARENT_LNAM"] == "M1"
+        assert props["PARENT_LAYER"] == "BCNSPP"
+        assert "PARENT_OBJNAM" not in props
 
     def test_list_valued_lnam_refs_supported(self, tmp_path: Path) -> None:
-        """If annotate_masters runs before list-flatten, LNAM_REFS is a list."""
+        """If annotate_parents runs before list-flatten, LNAM_REFS is a list."""
         _write_geojson(
             tmp_path / "bcnspp.geojson",
             [{
@@ -260,17 +260,17 @@ class TestAnnotateMasters:
             [{"LNAM": "S1"}, {"LNAM": "S2"}],
         )
 
-        annotate_masters(tmp_path)
+        annotate_parents(tmp_path)
 
         by_lnam = {p["LNAM"]: p for p in _read_props(tmp_path / "lights.geojson")}
-        assert by_lnam["S1"]["MASTER_LNAM"] == "M1"
-        assert by_lnam["S2"]["MASTER_LNAM"] == "M1"
+        assert by_lnam["S1"]["PARENT_LNAM"] == "M1"
+        assert by_lnam["S2"]["PARENT_LNAM"] == "M1"
 
     def test_no_lnam_refs_noop(self, tmp_path: Path) -> None:
         """Features with no LNAM_REFS don't touch anything."""
         _write_geojson(tmp_path / "lights.geojson", [{"LNAM": "L1", "LITCHR": 2}])
         original = _read_props(tmp_path / "lights.geojson")
 
-        annotate_masters(tmp_path)
+        annotate_parents(tmp_path)
 
         assert _read_props(tmp_path / "lights.geojson") == original

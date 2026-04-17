@@ -104,7 +104,7 @@ class TestLightLabel:
         assert _light_label(props) == "Aero Fl 5s"
 
     def test_cleveland_ledge_al_wr(self) -> None:
-        # The master case the user asked about: Cleveland Ledge RCID 31.
+        # The PEL case the user asked about: Cleveland Ledge RCID 31.
         # HEIGHT/VALNMR are composed at render time.
         props = {
             "LITCHR": 28,

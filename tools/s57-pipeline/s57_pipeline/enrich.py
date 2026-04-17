@@ -232,15 +232,16 @@ def _split_list_attr(value: object) -> list[str]:
     return [s.strip() for s in str(value).split(",") if s.strip()]
 
 
-def annotate_masters(output_dir: Path) -> None:
-    """Stamp each slave feature with MASTER_LNAM / MASTER_OBJNAM / MASTER_LAYER.
+def annotate_parents(output_dir: Path) -> None:
+    """Stamp each child feature with PARENT_LNAM / PARENT_OBJNAM / PARENT_LAYER.
 
     S-57 FFPT (feature-to-feature pointer) relationships are encoded on the
-    master feature, not on slaves — the master carries ``LNAM_REFS``
-    (a list of slave LNAMs) and ``FFPT_RIND`` (a parallel list of relation
-    indicators; ``2`` = slave). Per the NOAA NCM §5.30.19, a multi-sector
-    or directional light is one master (e.g. BCNSPP) plus N co-located
-    LIGHTS slaves.
+    parent feature, not on the children — the parent carries ``LNAM_REFS``
+    (a list of child LNAMs) and ``FFPT_RIND`` (a parallel list of relation
+    indicators; the S-57 spec's value ``2`` denotes the child relationship
+    the spec calls "slave"). Per the NOAA NCM §5.30.19, a multi-sector or
+    directional light is one parent structure (e.g. BCNSPP) plus N
+    co-located LIGHTS children.
 
     This pass runs after ``enrich_geojson`` for every per-layer geojson in
     a cell, so ``LNAM_REFS`` / ``FFPT_RIND`` may arrive either as lists
@@ -267,34 +268,35 @@ def annotate_masters(output_dir: Path) -> None:
                 lnam_index[str(lnam)] = (path, feat)
 
     modified: set[Path] = set()
-    for master_path, geojson in loaded.items():
-        master_layer = master_path.stem.upper()
-        for master in geojson.get("features", []):
-            mprops = master.get("properties") or {}
-            refs = _split_list_attr(mprops.get("LNAM_REFS"))
+    for parent_path, geojson in loaded.items():
+        parent_layer = parent_path.stem.upper()
+        for parent in geojson.get("features", []):
+            pprops = parent.get("properties") or {}
+            refs = _split_list_attr(pprops.get("LNAM_REFS"))
             if not refs:
                 continue
-            rinds = _split_list_attr(mprops.get("FFPT_RIND"))
-            master_lnam = mprops.get("LNAM")
-            master_objnam = mprops.get("OBJNAM")
-            if not master_lnam:
+            rinds = _split_list_attr(pprops.get("FFPT_RIND"))
+            parent_lnam = pprops.get("LNAM")
+            parent_objnam = pprops.get("OBJNAM")
+            if not parent_lnam:
                 continue
             for i, ref in enumerate(refs):
-                # RIND=2 means "slave"; treat missing/empty as slave too
-                # (NOAA sometimes omits the RIND array when only slaves exist).
+                # RIND=2 is the S-57 child indicator; treat missing/empty
+                # as child too (NOAA sometimes omits the RIND array when
+                # only children exist).
                 rind = rinds[i] if i < len(rinds) else ""
                 if rind not in ("2", ""):
                     continue
                 entry = lnam_index.get(ref)
                 if entry is None:
                     continue  # cross-cell reference — skip silently
-                slave_path, slave = entry
-                sprops = slave.setdefault("properties", {})
-                sprops["MASTER_LNAM"] = str(master_lnam)
-                sprops["MASTER_LAYER"] = master_layer
-                if master_objnam:
-                    sprops["MASTER_OBJNAM"] = master_objnam
-                modified.add(slave_path)
+                child_path, child = entry
+                cprops = child.setdefault("properties", {})
+                cprops["PARENT_LNAM"] = str(parent_lnam)
+                cprops["PARENT_LAYER"] = parent_layer
+                if parent_objnam:
+                    cprops["PARENT_OBJNAM"] = parent_objnam
+                modified.add(child_path)
 
     for path in modified:
         _atomic_json_write(path, loaded[path])

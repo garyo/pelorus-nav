@@ -10,7 +10,7 @@ from pathlib import Path
 
 from .enrich import (
     annotate_enclosing_depth,
-    annotate_masters,
+    annotate_parents,
     correlate_topmarks,
     enrich_geojson,
 )
@@ -236,9 +236,9 @@ def convert_enc(
     # can adjust label offsets when a topmark is present.
     correlate_topmarks(output_dir)
 
-    # Stamp slave features with their master's LNAM/OBJNAM/LAYER from S-57
+    # Stamp child features with their parent's LNAM/OBJNAM/LAYER from S-57
     # FFPT pointers. Needed for PEL / directional light cluster rendering.
-    annotate_masters(output_dir)
+    annotate_parents(output_dir)
 
     # Annotate hazard features with enclosing DEPARE depth for isolated
     # danger detection (S-52 UDWHAZ05).

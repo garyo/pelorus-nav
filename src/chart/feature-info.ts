@@ -10,7 +10,7 @@ export interface FeatureInfo {
   type: string;
   name?: string;
   details: { label: string; value: string }[];
-  /** Slave features grouped under this master (e.g. lights on a buoy). */
+  /** Child features grouped under this parent (e.g. lights on a buoy). */
   children?: FeatureInfo[];
 }
 

@@ -3,21 +3,23 @@
  *
  * Per NOAA NCM §5.30.19.6 / §5.30.19.19, multi-sector and directional
  * lights are encoded as N co-located LIGHTS features (one per sector),
- * plus one master structure (usually BCNSPP) whose LNAM_REFS points at
- * each slave. Our pipeline's annotate_masters pass (enrich.py) stamps
- * every slave with MASTER_LNAM, MASTER_OBJNAM, MASTER_LAYER.
+ * plus one parent structure (usually BCNSPP) whose LNAM_REFS points at
+ * each child. Our pipeline's annotate_parents pass (enrich.py) stamps
+ * every child with PARENT_LNAM, PARENT_OBJNAM, PARENT_LAYER. (NOAA and
+ * the S-57 spec call these "master/slave" relationships; we use the
+ * inclusive parent/child terminology internally.)
  *
- * This layer reads LIGHTS features from vector tiles, detects PEL slaves
- * (those with MASTER_LNAM), and replaces the stacked-icons-on-one-pixel
+ * This layer reads LIGHTS features from vector tiles, detects PEL children
+ * (those with PARENT_LNAM), and replaces the stacked-icons-on-one-pixel
  * rendering of the raw s57-lights layer with a fanned display:
  *
- *   - Each slave teardrop is rotated toward its sector midpoint bearing
+ *   - Each child teardrop is rotated toward its sector midpoint bearing
  *     (flipped 180° so it points FROM the light, not FROM seaward).
  *   - Labels only appear for non-fixed sectors (LITCHR != 1) to cut
  *     clutter, matching the NOAA ENC viewer.
- *   - One master-name feature per cluster renders the master's OBJNAM
+ *   - One parent-name feature per cluster renders the parent's OBJNAM
  *     in quotes at z14+.
- *   - PEL slaves are hidden from the raw s57-lights layer via a dynamic
+ *   - PEL children are hidden from the raw s57-lights layer via a dynamic
  *     filter; non-PEL lights render there unchanged.
  */
 
@@ -36,10 +38,10 @@ import {
 
 const SOURCE_ID = "_pel-lights";
 const LAYER_ICON = "_pel-light-icon";
-const LAYER_MASTER_NAME = "_pel-master-name";
+const LAYER_PARENT_NAME = "_pel-parent-name";
 
 /**
- * Suffixes of the style layers we dynamically filter to hide PEL slaves.
+ * Suffixes of the style layers we dynamically filter to hide PEL children.
  * Actual layer IDs are region-prefixed by the chart catalog
  * (``s57-{region}-lights`` etc.), so we resolve them with
  * {@link getRegionLayerIds} at apply time.
@@ -49,19 +51,19 @@ const SUPPRESSED_LAYER_SUFFIXES = ["lights", "lights-glow"] as const;
 /** Minimum zoom to show PEL clusters — matches `s57-lights` minzoom. */
 const MIN_ZOOM = 6;
 
-/** Zoom at which the master OBJNAM appears. */
-const MASTER_NAME_MINZOOM = 14;
+/** Zoom at which the parent OBJNAM appears. */
+const PARENT_NAME_MINZOOM = 14;
 
 /**
- * Minimum number of slaves for a cluster to count as a PEL. Every S-57
- * lighted buoy/beacon carries a master/slave relationship (the structure
- * is master, the light is slave), so ``MASTER_LNAM`` alone isn't enough
+ * Minimum number of children for a cluster to count as a PEL. Every S-57
+ * lighted buoy/beacon carries a parent/child relationship (the structure
+ * is parent, the light is child), so ``PARENT_LNAM`` alone isn't enough
  * to identify a precision directional light. NOAA NCM §5.30.19.19 defines
  * a sector light as two or more co-located LIGHTS features; we use that
- * as the PEL threshold so single-slave structures (regular lighted
+ * as the PEL threshold so single-child structures (regular lighted
  * buoys/beacons) keep their normal rendering.
  */
-const PEL_MIN_SLAVES = 2;
+const PEL_MIN_CHILDREN = 2;
 
 /**
  * S-52 light-flare sprites are pre-rotated 135° in the sprite sheet so the
@@ -73,9 +75,9 @@ const S52_FLARE_BAKED_ROTATION = 135;
 
 interface PelLightsProps {
   LNAM?: string;
-  MASTER_LNAM?: string;
-  MASTER_OBJNAM?: string;
-  MASTER_LAYER?: string;
+  PARENT_LNAM?: string;
+  PARENT_OBJNAM?: string;
+  PARENT_LAYER?: string;
   SECTR1?: number;
   SECTR2?: number;
   LITCHR?: number;
@@ -95,28 +97,28 @@ function midBearing(s1: number, s2: number): number {
 
 interface Cluster {
   position: Position;
-  masterObjnam?: string;
+  parentObjnam?: string;
   /**
-   * Source layer of the master feature (e.g. "BCNSPP", "LNDMRK"). When the
-   * master is itself a LNDMRK, its OBJNAM is already rendered by the
-   * ``s57-lndmrk`` layer — we skip the PEL master-name to avoid the same
+   * Source layer of the parent feature (e.g. "BCNSPP", "LNDMRK"). When the
+   * parent is itself a LNDMRK, its OBJNAM is already rendered by the
+   * ``s57-lndmrk`` layer — we skip the PEL parent-name to avoid the same
    * name appearing twice (unquoted from LNDMRK, quoted from this layer).
    */
-  masterLayer?: string;
-  slaves: Feature<Point>[];
+  parentLayer?: string;
+  children: Feature<Point>[];
 }
 
 /**
- * Group PEL slaves by **position** (5-decimal precision ≈ 1 m). We key
- * on location rather than ``MASTER_LNAM`` because S-57 LNAMs are
+ * Group PEL children by **position** (5-decimal precision ≈ 1 m). We key
+ * on location rather than ``PARENT_LNAM`` because S-57 LNAMs are
  * cell-scoped: the same physical aid appears in multiple overlapping
  * ENC cells (e.g. Graves Light in US5BOSCF + US4MA1HC + US2EC04M),
- * and each cell has its own BCNSPP master with its own LNAM. Keying
+ * and each cell has its own BCNSPP parent with its own LNAM. Keying
  * on position merges all of them into a single cluster so we emit one
  * set of deduped sector features regardless of tile overlap.
  *
- * Only features with a non-empty ``MASTER_LNAM`` (set by the pipeline's
- * annotate_masters pass) are considered PEL slaves.
+ * Only features with a non-empty ``PARENT_LNAM`` (set by the pipeline's
+ * annotate_parents pass) are considered PEL children.
  *
  * Exported for unit testing.
  */
@@ -125,37 +127,37 @@ export function buildClusters(lightsFeatures: Feature[]): Map<string, Cluster> {
   for (const f of lightsFeatures) {
     if (f.geometry.type !== "Point") continue;
     const props = (f.properties ?? {}) as PelLightsProps;
-    if (!props.MASTER_LNAM) continue;
+    if (!props.PARENT_LNAM) continue;
     const coords = f.geometry.coordinates;
     const key = `${coords[0].toFixed(5)},${coords[1].toFixed(5)}`;
     let cluster = clusters.get(key);
     if (!cluster) {
       cluster = {
         position: coords,
-        masterObjnam: props.MASTER_OBJNAM,
-        masterLayer: props.MASTER_LAYER,
-        slaves: [],
+        parentObjnam: props.PARENT_OBJNAM,
+        parentLayer: props.PARENT_LAYER,
+        children: [],
       };
       clusters.set(key, cluster);
     } else {
-      // Any slave with the OBJNAM/LAYER will do — NOAA sometimes leaves
+      // Any child with the OBJNAM/LAYER will do — NOAA sometimes leaves
       // these attributes only on one of the siblings.
-      if (!cluster.masterObjnam && props.MASTER_OBJNAM) {
-        cluster.masterObjnam = props.MASTER_OBJNAM;
+      if (!cluster.parentObjnam && props.PARENT_OBJNAM) {
+        cluster.parentObjnam = props.PARENT_OBJNAM;
       }
-      if (!cluster.masterLayer && props.MASTER_LAYER) {
-        cluster.masterLayer = props.MASTER_LAYER;
+      if (!cluster.parentLayer && props.PARENT_LAYER) {
+        cluster.parentLayer = props.PARENT_LAYER;
       }
     }
-    cluster.slaves.push(f as Feature<Point>);
+    cluster.children.push(f as Feature<Point>);
   }
   return clusters;
 }
 
 /**
- * Build the GeoJSON overlay: one slave point per sector (rotated + filtered
- * label) and one master-name point per cluster. Only clusters with
- * ``PEL_MIN_SLAVES`` or more slaves count as PEL; everything else keeps
+ * Build the GeoJSON overlay: one child point per sector (rotated + filtered
+ * label) and one parent-name point per cluster. Only clusters with
+ * ``PEL_MIN_CHILDREN`` or more children count as PEL; everything else keeps
  * its normal ``s57-lights`` rendering.
  *
  * ``spritePrefix`` distinguishes S-52 (pre-rotated flares) from nautical
@@ -178,9 +180,9 @@ export function buildGeoJson(
     : 0;
 
   for (const cluster of clusters.values()) {
-    if (cluster.slaves.length < PEL_MIN_SLAVES) continue;
+    if (cluster.children.length < PEL_MIN_CHILDREN) continue;
 
-    // Dedupe slaves by sector identity: multiple cells contribute the same
+    // Dedupe children by sector identity: multiple cells contribute the same
     // sector definition (same bearings + rhythm + colour + height/range)
     // and we want a single emitted icon+label per unique sector. All cells'
     // LNAMs still go into the suppression list so every copy hides from
@@ -193,8 +195,8 @@ export function buildGeoJson(
     // first matching text; blank the rest (icon still renders).
     const seenLabelKey = new Set<string>();
 
-    for (const slave of cluster.slaves) {
-      const props = (slave.properties ?? {}) as PelLightsProps;
+    for (const child of cluster.children) {
+      const props = (child.properties ?? {}) as PelLightsProps;
       if (props.LNAM) suppressedLnams.push(props.LNAM);
 
       const s1 = typeof props.SECTR1 === "number" ? props.SECTR1 : null;
@@ -236,9 +238,9 @@ export function buildGeoJson(
 
       features.push({
         type: "Feature",
-        geometry: { type: "Point", coordinates: slave.geometry.coordinates },
+        geometry: { type: "Point", coordinates: child.geometry.coordinates },
         properties: {
-          _type: "slave",
+          _type: "child",
           ROT: rot,
           LABEL: label,
           // Raw numeric props the shared LIGHTS iconExpr and
@@ -252,16 +254,16 @@ export function buildGeoJson(
       });
     }
 
-    // Emit master-name only when the master isn't itself a LNDMRK — the
+    // Emit parent-name only when the parent isn't itself a LNDMRK — the
     // landmark layer already renders its OBJNAM, and a duplicate would
     // produce the "unquoted at low zoom, quoted at high zoom" flicker.
-    if (cluster.masterObjnam && cluster.masterLayer !== "LNDMRK") {
+    if (cluster.parentObjnam && cluster.parentLayer !== "LNDMRK") {
       features.push({
         type: "Feature",
         geometry: { type: "Point", coordinates: cluster.position },
         properties: {
-          _type: "master-name",
-          OBJNAM: cluster.masterObjnam,
+          _type: "parent-name",
+          OBJNAM: cluster.parentObjnam,
         },
       });
     }
@@ -344,7 +346,7 @@ export class PelLightLayer {
   }
 
   private removeLayers(): void {
-    for (const id of [LAYER_MASTER_NAME, LAYER_ICON]) {
+    for (const id of [LAYER_PARENT_NAME, LAYER_ICON]) {
       if (this.map.getLayer(id)) this.map.removeLayer(id);
     }
     if (this.map.getSource(SOURCE_ID)) this.map.removeSource(SOURCE_ID);
@@ -393,7 +395,7 @@ export class PelLightLayer {
       type: "symbol",
       source: SOURCE_ID,
       minzoom: MIN_ZOOM,
-      filter: ["==", ["get", "_type"], "slave"],
+      filter: ["==", ["get", "_type"], "child"],
       layout: layout as maplibregl.SymbolLayerSpecification["layout"],
       paint: {
         "text-color": s52Colour("SNDG2"),
@@ -403,11 +405,11 @@ export class PelLightLayer {
     });
 
     this.map.addLayer({
-      id: LAYER_MASTER_NAME,
+      id: LAYER_PARENT_NAME,
       type: "symbol",
       source: SOURCE_ID,
-      minzoom: MASTER_NAME_MINZOOM,
-      filter: ["==", ["get", "_type"], "master-name"],
+      minzoom: PARENT_NAME_MINZOOM,
+      filter: ["==", ["get", "_type"], "parent-name"],
       layout: {
         "text-field": [
           "concat",
@@ -418,7 +420,7 @@ export class PelLightLayer {
         ...VARIABLE_ANCHOR_LAYOUT,
         "symbol-sort-key": SORT_KEY_LANDMARK,
         "text-size": 11,
-        // Master names are often long wrapped blocks; give them a bit
+        // Parent names are often long wrapped blocks; give them a bit
         // more breathing room than the shared default so they don't
         // crowd the sector labels.
         "text-radial-offset": 2,

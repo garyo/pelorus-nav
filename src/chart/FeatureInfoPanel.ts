@@ -89,7 +89,7 @@ export class FeatureInfoPanel {
       this.body.appendChild(row);
     }
 
-    // Children: grouped slave features (lights, fog signals, topmarks)
+    // Children: grouped child features (lights, fog signals, topmarks)
     if (info.children && info.children.length > 0) {
       for (const child of info.children) {
         const childSection = document.createElement("div");

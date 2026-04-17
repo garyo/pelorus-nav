@@ -92,7 +92,7 @@ export const LABEL_EXPR = [
 
 /**
  * Reusable variable-anchor layout fragment for long-ish point labels
- * (landmarks, OBJNAM names, berths, master-light names, etc). Lets
+ * (landmarks, OBJNAM names, berths, parent-light names, etc). Lets
  * MapLibre pick a placement from a priority list so labels that would
  * otherwise collision-hide find a spot around the feature.
  *
@@ -121,7 +121,7 @@ export const LABEL_EXPR = [
  * is governed by ``text-padding`` and they don't compete with place names.
  */
 export const SORT_KEY_NAVAID = 10; // buoys, beacons, fog signals, pilings, mooring
-export const SORT_KEY_LANDMARK = 20; // LNDMRK (+ PEL master names like "Boston Light")
+export const SORT_KEY_LANDMARK = 20; // LNDMRK (+ PEL parent names like "Boston Light")
 export const SORT_KEY_LIGHT_CHAR = 25; // LIGHTS characteristic labels (Fl(1)G 4s…)
 export const SORT_KEY_HAZARD = 30; // wrecks, obstructions, UWTROC
 export const SORT_KEY_FACILITY = 40; // hrbfac, berths, smcfac, buildings
