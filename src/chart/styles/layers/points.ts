@@ -12,8 +12,12 @@ import type { StyleContext } from "../style-context";
 import {
   depthTextField,
   LABEL_EXPR,
+  SORT_KEY_FACILITY,
+  SORT_KEY_HAZARD,
+  SORT_KEY_NAVAID,
   scaledTextSize,
   scaleSize,
+  VARIABLE_ANCHOR_LAYOUT,
   valsouTextField,
 } from "../style-context";
 
@@ -113,6 +117,7 @@ export function getBuoyBeaconLayers(ctx: StyleContext): LayerSpecification[] {
       minzoom: 8,
       layout: withOffset(
         {
+          "symbol-sort-key": SORT_KEY_NAVAID,
           "icon-image": boylat.iconExpr,
           "icon-size": scaledSize(0.75, ctx),
           "icon-allow-overlap": true,
@@ -141,6 +146,7 @@ export function getBuoyBeaconLayers(ctx: StyleContext): LayerSpecification[] {
       minzoom: 8,
       layout: withOffset(
         {
+          "symbol-sort-key": SORT_KEY_NAVAID,
           "icon-image": boycar.iconExpr,
           "icon-size": scaledSize(0.75, ctx),
           "icon-allow-overlap": true,
@@ -169,6 +175,7 @@ export function getBuoyBeaconLayers(ctx: StyleContext): LayerSpecification[] {
       minzoom: 8,
       layout: withOffset(
         {
+          "symbol-sort-key": SORT_KEY_NAVAID,
           "icon-image": boysaw.iconExpr,
           "icon-size": scaledSize(0.75, ctx),
           "icon-allow-overlap": true,
@@ -197,6 +204,7 @@ export function getBuoyBeaconLayers(ctx: StyleContext): LayerSpecification[] {
       minzoom: 8,
       layout: withOffset(
         {
+          "symbol-sort-key": SORT_KEY_NAVAID,
           "icon-image": boyspp.iconExpr,
           "icon-size": scaledSize(0.7, ctx),
           "icon-allow-overlap": true,
@@ -225,6 +233,7 @@ export function getBuoyBeaconLayers(ctx: StyleContext): LayerSpecification[] {
       minzoom: 6,
       layout: withOffset(
         {
+          "symbol-sort-key": SORT_KEY_NAVAID,
           "icon-image": boyisd.iconExpr,
           "icon-size": scaledSize(0.75, ctx),
           "icon-allow-overlap": true,
@@ -253,6 +262,7 @@ export function getBuoyBeaconLayers(ctx: StyleContext): LayerSpecification[] {
       minzoom: 8,
       layout: withOffset(
         {
+          "symbol-sort-key": SORT_KEY_NAVAID,
           "icon-image": bcnlat.iconExpr,
           "icon-size": scaledSize(0.7, ctx),
           "icon-allow-overlap": true,
@@ -281,6 +291,7 @@ export function getBuoyBeaconLayers(ctx: StyleContext): LayerSpecification[] {
       minzoom: 8,
       layout: withOffset(
         {
+          "symbol-sort-key": SORT_KEY_NAVAID,
           "icon-image": bcncar.iconExpr,
           "icon-size": scaledSize(0.7, ctx),
           "icon-allow-overlap": true,
@@ -309,6 +320,7 @@ export function getBuoyBeaconLayers(ctx: StyleContext): LayerSpecification[] {
       minzoom: 8,
       layout: withOffset(
         {
+          "symbol-sort-key": SORT_KEY_NAVAID,
           "icon-image": bcnisd.iconExpr,
           "icon-size": scaledSize(0.7, ctx),
           "icon-allow-overlap": true,
@@ -336,6 +348,7 @@ export function getBuoyBeaconLayers(ctx: StyleContext): LayerSpecification[] {
       minzoom: 8,
       layout: withOffset(
         {
+          "symbol-sort-key": SORT_KEY_NAVAID,
           "icon-image": bcnsaw.iconExpr,
           "icon-size": scaledSize(0.7, ctx),
           "icon-allow-overlap": true,
@@ -356,9 +369,9 @@ export function getBuoyBeaconLayers(ctx: StyleContext): LayerSpecification[] {
     },
 
     // Light icons + characteristics — drawn last so teardrops render
-    // on top of buoy/beacon icons. Buoy labels still win collisions
-    // because MapLibre places symbols in reverse order (buoys placed
-    // first = higher priority), and light text is optional.
+    // on top of buoy/beacon icons. All navaids share SORT_KEY_NAVAID,
+    // and lights use ``text-optional`` so their characteristics hide
+    // before a buoy's number does.
     {
       id: "s57-lights",
       type: "symbol",
@@ -367,6 +380,7 @@ export function getBuoyBeaconLayers(ctx: StyleContext): LayerSpecification[] {
       minzoom: 6,
       layout: withOffset(
         {
+          "symbol-sort-key": SORT_KEY_NAVAID,
           "icon-image": lights.iconExpr,
           "icon-size": scaledSize(0.7, ctx),
           "icon-allow-overlap": true,
@@ -431,11 +445,13 @@ export function getHazardLayers(ctx: StyleContext): LayerSpecification[] {
             true,
           ] as unknown as ExpressionSpecification,
           "icon-padding": 2,
+          // Dangerous wrecks (CATWRK=2) get slightly higher priority than
+          // non-dangerous within the HAZARD band so they win collisions.
           "symbol-sort-key": [
             "case",
             ["==", ["get", "CATWRK"], 2],
-            0,
-            1,
+            SORT_KEY_HAZARD,
+            SORT_KEY_HAZARD + 1,
           ] as unknown as ExpressionSpecification,
         },
         wrecks.offsetExpr,
@@ -541,6 +557,7 @@ export function getHazardLayers(ctx: StyleContext): LayerSpecification[] {
       ] as unknown as ExpressionSpecification,
       layout: withOffset(
         {
+          "symbol-sort-key": SORT_KEY_HAZARD,
           "icon-image": obstrn.iconExpr,
           "icon-size": scaledSize(
             [
@@ -599,6 +616,7 @@ export function getHazardLayers(ctx: StyleContext): LayerSpecification[] {
       minzoom: 10,
       layout: withOffset(
         {
+          "symbol-sort-key": SORT_KEY_HAZARD,
           "icon-image": uwtroc.iconExpr,
           "icon-size": scaledSize(
             [
@@ -933,6 +951,7 @@ export function getOtherNavAidLayers(ctx: StyleContext): LayerSpecification[] {
       minzoom: 6,
       layout: withOffset(
         {
+          "symbol-sort-key": SORT_KEY_NAVAID,
           "icon-image": fogsig.iconExpr,
           "icon-size": scaledSize(0.6, ctx),
           "icon-allow-overlap": true,
@@ -951,6 +970,7 @@ export function getOtherNavAidLayers(ctx: StyleContext): LayerSpecification[] {
       minzoom: ctx.detailMinzoom(13),
       layout: withOffset(
         {
+          "symbol-sort-key": SORT_KEY_NAVAID,
           "icon-image": pilpnt.iconExpr,
           "icon-size": scaledSize(0.6, ctx),
           "icon-allow-overlap": true,
@@ -968,6 +988,7 @@ export function getOtherNavAidLayers(ctx: StyleContext): LayerSpecification[] {
       minzoom: ctx.detailMinzoom(12),
       layout: withOffset(
         {
+          "symbol-sort-key": SORT_KEY_NAVAID,
           "icon-image": morfac.iconExpr,
           "icon-size": scaledSize(0.5, ctx),
           "icon-allow-overlap": true,
@@ -986,6 +1007,7 @@ export function getOtherNavAidLayers(ctx: StyleContext): LayerSpecification[] {
       minzoom: 8,
       layout: withOffset(
         {
+          "symbol-sort-key": SORT_KEY_NAVAID,
           "icon-image": bcnspp.iconExpr,
           "icon-size": scaledSize(0.7, ctx),
           "icon-allow-overlap": true,
@@ -1139,12 +1161,13 @@ export function getOtherPointLayers(ctx: StyleContext): LayerSpecification[] {
       minzoom: ctx.detailMinzoom(13),
       layout: withOffset(
         {
+          ...VARIABLE_ANCHOR_LAYOUT,
+          "symbol-sort-key": SORT_KEY_FACILITY,
           "icon-image": hrbfac.iconExpr,
           "icon-size": scaledSize(0.6, ctx),
           "icon-allow-overlap": true,
           "text-field": ["get", "OBJNAM"] as unknown as ExpressionSpecification,
           "text-size": scaledTextSize(10, ctx),
-          "text-offset": [0, 1.5] as [number, number],
           "text-allow-overlap": false,
           "text-optional": true,
         },
@@ -1229,6 +1252,8 @@ export function getAdditionalPointLayers(
         "Polygon",
       ] as unknown as ExpressionSpecification,
       layout: {
+        ...VARIABLE_ANCHOR_LAYOUT,
+        "symbol-sort-key": SORT_KEY_FACILITY,
         "text-field": [
           "case",
           ["has", "OBJNAM"],
@@ -1258,6 +1283,8 @@ export function getAdditionalPointLayers(
       ] as unknown as ExpressionSpecification,
       layout: withOffset(
         {
+          ...VARIABLE_ANCHOR_LAYOUT,
+          "symbol-sort-key": SORT_KEY_FACILITY,
           "icon-image": pilbop.iconExpr,
           "icon-size": scaledSize(0.6, ctx),
           "icon-allow-overlap": true,
@@ -1268,7 +1295,6 @@ export function getAdditionalPointLayers(
             "Plt",
           ] as unknown as ExpressionSpecification,
           "text-size": scaledTextSize(10, ctx),
-          "text-offset": [0, 1.5] as [number, number],
           "text-allow-overlap": false,
           "text-optional": true,
         },
@@ -1381,6 +1407,8 @@ export function getAdditionalPointLayers(
       "source-layer": "CGUSTA",
       minzoom: ctx.detailMinzoom(12),
       layout: {
+        ...VARIABLE_ANCHOR_LAYOUT,
+        "symbol-sort-key": SORT_KEY_FACILITY,
         "text-field": ["get", "OBJNAM"] as unknown as ExpressionSpecification,
         "text-size": scaledTextSize(10, ctx),
         "text-allow-overlap": false,

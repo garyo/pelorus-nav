@@ -27,6 +27,11 @@ import { getVectorSourceIds } from "../data/chart-catalog";
 import { getSettings, onSettingsChange } from "../settings";
 import { s52Colour } from "./s52-colours";
 import { buildLayerExpressions, getIconScheme } from "./styles/icon-sets";
+import {
+  SORT_KEY_LANDMARK,
+  SORT_KEY_NAVAID,
+  VARIABLE_ANCHOR_LAYOUT,
+} from "./styles/style-context";
 
 const SOURCE_ID = "_pel-lights";
 const LAYER_ICON = "_pel-light-icon";
@@ -64,6 +69,7 @@ interface PelLightsProps {
   LNAM?: string;
   MASTER_LNAM?: string;
   MASTER_OBJNAM?: string;
+  MASTER_LAYER?: string;
   SECTR1?: number;
   SECTR2?: number;
   LITCHR?: number;
@@ -83,6 +89,13 @@ function midBearing(s1: number, s2: number): number {
 interface Cluster {
   position: Position;
   masterObjnam?: string;
+  /**
+   * Source layer of the master feature (e.g. "BCNSPP", "LNDMRK"). When the
+   * master is itself a LNDMRK, its OBJNAM is already rendered by the
+   * ``s57-lndmrk`` layer — we skip the PEL master-name to avoid the same
+   * name appearing twice (unquoted from LNDMRK, quoted from this layer).
+   */
+  masterLayer?: string;
   slaves: Feature<Point>[];
 }
 
@@ -103,12 +116,19 @@ export function buildClusters(lightsFeatures: Feature[]): Map<string, Cluster> {
       cluster = {
         position: f.geometry.coordinates,
         masterObjnam: props.MASTER_OBJNAM,
+        masterLayer: props.MASTER_LAYER,
         slaves: [],
       };
       clusters.set(key, cluster);
-    } else if (!cluster.masterObjnam && props.MASTER_OBJNAM) {
-      // Any slave with the OBJNAM will do — NOAA sometimes leaves it only on one.
-      cluster.masterObjnam = props.MASTER_OBJNAM;
+    } else {
+      // Any slave with the OBJNAM/LAYER will do — NOAA sometimes leaves
+      // these attributes only on one of the siblings.
+      if (!cluster.masterObjnam && props.MASTER_OBJNAM) {
+        cluster.masterObjnam = props.MASTER_OBJNAM;
+      }
+      if (!cluster.masterLayer && props.MASTER_LAYER) {
+        cluster.masterLayer = props.MASTER_LAYER;
+      }
     }
     cluster.slaves.push(f as Feature<Point>);
   }
@@ -177,7 +197,10 @@ export function buildGeoJson(
       });
     }
 
-    if (cluster.masterObjnam) {
+    // Emit master-name only when the master isn't itself a LNDMRK — the
+    // landmark layer already renders its OBJNAM, and a duplicate would
+    // produce the "unquoted at low zoom, quoted at high zoom" flicker.
+    if (cluster.masterObjnam && cluster.masterLayer !== "LNDMRK") {
       features.push({
         type: "Feature",
         geometry: { type: "Point", coordinates: cluster.position },
@@ -279,6 +302,7 @@ export class PelLightLayer {
     );
 
     const layout: Record<string, unknown> = {
+      "symbol-sort-key": SORT_KEY_NAVAID,
       "icon-image": iconExpr,
       "icon-size": 0.7,
       "icon-rotate": ["get", "ROT"],
@@ -320,11 +344,17 @@ export class PelLightLayer {
           ["get", "OBJNAM"],
           '"',
         ] as unknown as maplibregl.ExpressionSpecification,
+        ...VARIABLE_ANCHOR_LAYOUT,
+        "symbol-sort-key": SORT_KEY_LANDMARK,
         "text-size": 11,
-        "text-offset": [0, 2.5],
+        // Master names are often long wrapped blocks; give them a bit
+        // more breathing room than the shared default so they don't
+        // crowd the sector labels.
+        "text-radial-offset": 2,
+        "text-padding": 5,
         "text-allow-overlap": false,
         "text-optional": true,
-        "text-max-width": 10,
+        "text-max-width": 12,
       },
       paint: {
         "text-color": s52Colour("CHBLK"),

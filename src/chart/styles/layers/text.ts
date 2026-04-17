@@ -8,7 +8,14 @@
 import type { ExpressionSpecification, LayerSpecification } from "maplibre-gl";
 import { depthUnitLabel } from "../../../settings";
 import type { StyleContext } from "../style-context";
-import { scaledTextSize } from "../style-context";
+import {
+  SORT_KEY_AREA,
+  SORT_KEY_FACILITY,
+  SORT_KEY_LANDMARK,
+  SORT_KEY_NAMED_LAND,
+  scaledTextSize,
+  VARIABLE_ANCHOR_LAYOUT,
+} from "../style-context";
 
 /** Build a MapLibre expression for elevation text: converts ELEVAT to depth unit with suffix. */
 function elevationTextField(ctx: StyleContext): ExpressionSpecification {
@@ -39,8 +46,46 @@ function elevationTextField(ctx: StyleContext): ExpressionSpecification {
 }
 
 export function getTextLayers(ctx: StyleContext): LayerSpecification[] {
+  // Within this list, LATER entries place first and so win collisions.
+  // Order is low → high priority: sea/urban areas → named land → built
+  // structures → landmarks. symbol-sort-key mirrors this ordering for
+  // cross-module placement (buoys/beacons in getBuoyBeaconLayers still
+  // beat everything here because that array is appended after us).
   return [
-    // ── Geographic labels ─────────────────────────────────────────────
+    // ── Lowest priority: big area labels ─────────────────────────────
+    {
+      id: "s57-seaare-label",
+      type: "symbol",
+      source: ctx.sourceId,
+      "source-layer": "SEAARE",
+      minzoom: ctx.detailMinzoom(10),
+      filter: ["has", "OBJNAM"],
+      layout: {
+        ...VARIABLE_ANCHOR_LAYOUT,
+        "symbol-sort-key": SORT_KEY_AREA,
+        "text-field": ["get", "OBJNAM"],
+        "text-size": scaledTextSize(
+          [
+            "interpolate",
+            ["linear"],
+            ["zoom"],
+            10,
+            10,
+            14,
+            12,
+          ] as unknown as ExpressionSpecification,
+          ctx,
+        ),
+        "text-font": ["Noto Sans Italic"],
+        "text-allow-overlap": false,
+        "text-padding": 10,
+      },
+      paint: {
+        "text-color": ctx.colour("BKAJ1"),
+        "text-halo-color": ctx.colour("NAIDH"),
+        "text-halo-width": 1.5,
+      },
+    },
     // Built-up areas (cities, towns)
     {
       id: "s57-buaare-label",
@@ -50,6 +95,8 @@ export function getTextLayers(ctx: StyleContext): LayerSpecification[] {
       minzoom: ctx.detailMinzoom(9),
       filter: ["has", "OBJNAM"],
       layout: {
+        ...VARIABLE_ANCHOR_LAYOUT,
+        "symbol-sort-key": SORT_KEY_AREA,
         "text-field": ["get", "OBJNAM"],
         "text-size": scaledTextSize(
           [
@@ -81,6 +128,8 @@ export function getTextLayers(ctx: StyleContext): LayerSpecification[] {
       minzoom: ctx.detailMinzoom(11),
       filter: ["has", "OBJNAM"],
       layout: {
+        ...VARIABLE_ANCHOR_LAYOUT,
+        "symbol-sort-key": SORT_KEY_NAMED_LAND,
         "text-field": ["get", "OBJNAM"],
         "text-size": scaledTextSize(
           [
@@ -113,6 +162,8 @@ export function getTextLayers(ctx: StyleContext): LayerSpecification[] {
       minzoom: ctx.detailMinzoom(11),
       filter: ["has", "OBJNAM"],
       layout: {
+        ...VARIABLE_ANCHOR_LAYOUT,
+        "symbol-sort-key": SORT_KEY_NAMED_LAND,
         "text-field": ["get", "OBJNAM"],
         "text-size": scaledTextSize(
           [
@@ -144,6 +195,7 @@ export function getTextLayers(ctx: StyleContext): LayerSpecification[] {
       "source-layer": "LNDELV",
       minzoom: ctx.detailMinzoom(12),
       layout: {
+        "symbol-sort-key": SORT_KEY_NAMED_LAND,
         "icon-image": "POSGEN04",
         "icon-size": 1.0,
         "icon-allow-overlap": true,
@@ -162,34 +214,6 @@ export function getTextLayers(ctx: StyleContext): LayerSpecification[] {
         "text-halo-width": 1.5,
       },
     },
-    // Landmarks (lighthouses, monuments, towers, chimneys, windmills)
-    (() => {
-      const lndmrk = ctx.layerExprs("LNDMRK");
-      return {
-        id: "s57-lndmrk",
-        type: "symbol" as const,
-        source: ctx.sourceId,
-        "source-layer": "LNDMRK",
-        minzoom: ctx.detailMinzoom(12),
-        layout: {
-          "icon-image": lndmrk.iconExpr,
-          "icon-size": 0.6 * ctx.iconSizeScale,
-          "icon-allow-overlap": true,
-          ...(lndmrk.offsetExpr ? { "icon-offset": lndmrk.offsetExpr } : {}),
-          "text-field": ["get", "OBJNAM"] as unknown as ExpressionSpecification,
-          "text-size": scaledTextSize(11, ctx),
-          "text-allow-overlap": false,
-          "text-optional": true,
-          "text-anchor": "top" as const,
-          "text-offset": [0, 1.2] as [number, number],
-        },
-        paint: {
-          "text-color": ctx.colour("CHBLK"),
-          "text-halo-color": ctx.colour("NAIDH"),
-          "text-halo-width": 1.5,
-        },
-      };
-    })(),
     {
       id: "s57-berths-label",
       type: "symbol",
@@ -198,6 +222,8 @@ export function getTextLayers(ctx: StyleContext): LayerSpecification[] {
       minzoom: ctx.detailMinzoom(13),
       filter: ["has", "OBJNAM"],
       layout: {
+        ...VARIABLE_ANCHOR_LAYOUT,
+        "symbol-sort-key": SORT_KEY_FACILITY,
         "text-field": ["get", "OBJNAM"],
         "text-size": scaledTextSize(10, ctx),
         "text-allow-overlap": false,
@@ -239,6 +265,8 @@ export function getTextLayers(ctx: StyleContext): LayerSpecification[] {
       minzoom: ctx.detailMinzoom(14),
       filter: ["has", "OBJNAM"],
       layout: {
+        ...VARIABLE_ANCHOR_LAYOUT,
+        "symbol-sort-key": SORT_KEY_FACILITY,
         "text-field": ["get", "OBJNAM"],
         "text-size": scaledTextSize(10, ctx),
         "text-allow-overlap": false,
@@ -303,6 +331,8 @@ export function getTextLayers(ctx: StyleContext): LayerSpecification[] {
       minzoom: ctx.detailMinzoom(12),
       filter: ["has", "OBJNAM"],
       layout: {
+        ...VARIABLE_ANCHOR_LAYOUT,
+        "symbol-sort-key": SORT_KEY_FACILITY,
         "text-field": ["get", "OBJNAM"],
         "text-size": scaledTextSize(10, ctx),
         "text-allow-overlap": false,
@@ -314,36 +344,37 @@ export function getTextLayers(ctx: StyleContext): LayerSpecification[] {
         "text-halo-width": 1,
       },
     },
-    {
-      id: "s57-seaare-label",
-      type: "symbol",
-      source: ctx.sourceId,
-      "source-layer": "SEAARE",
-      minzoom: ctx.detailMinzoom(10),
-      filter: ["has", "OBJNAM"],
-      layout: {
-        "text-field": ["get", "OBJNAM"],
-        "text-size": scaledTextSize(
-          [
-            "interpolate",
-            ["linear"],
-            ["zoom"],
-            10,
-            10,
-            14,
-            12,
-          ] as unknown as ExpressionSpecification,
-          ctx,
-        ),
-        "text-font": ["Noto Sans Italic"],
-        "text-allow-overlap": false,
-        "text-padding": 10,
-      },
-      paint: {
-        "text-color": ctx.colour("BKAJ1"),
-        "text-halo-color": ctx.colour("NAIDH"),
-        "text-halo-width": 1.5,
-      },
-    },
+    // ── Highest priority within this block: landmarks ──────────────
+    // Placed last so lighthouses, towers, monuments etc win collisions
+    // against the area labels declared earlier.
+    (() => {
+      const lndmrk = ctx.layerExprs("LNDMRK");
+      return {
+        id: "s57-lndmrk",
+        type: "symbol" as const,
+        source: ctx.sourceId,
+        "source-layer": "LNDMRK",
+        minzoom: ctx.detailMinzoom(12),
+        layout: {
+          ...VARIABLE_ANCHOR_LAYOUT,
+          "symbol-sort-key": SORT_KEY_LANDMARK,
+          // LNDMRK has a sizeable icon; push labels a bit further out.
+          "text-radial-offset": 1.8,
+          "icon-image": lndmrk.iconExpr,
+          "icon-size": 0.6 * ctx.iconSizeScale,
+          "icon-allow-overlap": true,
+          ...(lndmrk.offsetExpr ? { "icon-offset": lndmrk.offsetExpr } : {}),
+          "text-field": ["get", "OBJNAM"] as unknown as ExpressionSpecification,
+          "text-size": scaledTextSize(11, ctx),
+          "text-allow-overlap": false,
+          "text-optional": true,
+        },
+        paint: {
+          "text-color": ctx.colour("CHBLK"),
+          "text-halo-color": ctx.colour("NAIDH"),
+          "text-halo-width": 1.5,
+        },
+      };
+    })(),
   ];
 }

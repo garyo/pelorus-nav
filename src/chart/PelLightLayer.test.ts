@@ -283,6 +283,38 @@ describe("buildGeoJson", () => {
     expect(masters).toHaveLength(0);
   });
 
+  it("skips master-name when MASTER_LAYER is LNDMRK (avoids duplicate)", () => {
+    // Boston Light / Graves Light style: the lighthouse LNDMRK is the master.
+    // The s57-lndmrk layer already renders its OBJNAM, so we must not also
+    // emit a quoted master-name copy.
+    const feats = [
+      lights({
+        LNAM: "A",
+        MASTER_LNAM: "M",
+        MASTER_OBJNAM: "Boston Light",
+        MASTER_LAYER: "LNDMRK",
+        LITCHR: 2,
+      }),
+      lights({
+        LNAM: "B",
+        MASTER_LNAM: "M",
+        MASTER_OBJNAM: "Boston Light",
+        MASTER_LAYER: "LNDMRK",
+        LITCHR: 2,
+      }),
+    ];
+    const { geojson } = buildGeoJson(feats, "nautical");
+    const masters = geojson.features.filter(
+      (f) => f.properties?._type === "master-name",
+    );
+    expect(masters).toHaveLength(0);
+    // Slaves are still emitted + suppressed from s57-lights.
+    const slaves = geojson.features.filter(
+      (f) => f.properties?._type === "slave",
+    );
+    expect(slaves).toHaveLength(2);
+  });
+
   it("returns empty suppression when no PEL features are present", () => {
     const feats = [
       lights({ LNAM: "X", LITCHR: 2 }), // non-PEL

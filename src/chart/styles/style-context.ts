@@ -90,6 +90,71 @@ export const LABEL_EXPR = [
   "",
 ] as unknown as ExpressionSpecification;
 
+/**
+ * Reusable variable-anchor layout fragment for long-ish point labels
+ * (landmarks, OBJNAM names, berths, master-light names, etc). Lets
+ * MapLibre pick a placement from a priority list so labels that would
+ * otherwise collision-hide find a spot around the feature.
+ *
+ * Note on anchor semantics: an anchor names the *part of the label
+ * closest to the point*, so "top" places the label *below* the point,
+ * "left" places it *to the right*, and so on.
+ *
+ * Priority order biases toward keeping the label below the feature
+ * (traditional chart placement) and escalates to the sides and
+ * finally above only when below is blocked.
+ *
+ * Spread this into a layer's ``layout`` and optionally override
+ * ``text-radial-offset`` if the icon is unusually large/small.
+ *
+ * Does not apply when ``symbol-placement`` is "line" or "line-center".
+ */
+/**
+ * ``symbol-sort-key`` constants for cross-layer collision priority.
+ *
+ * MapLibre places symbols in ascending sort-key order; lower keys are
+ * placed first and so win collisions when ``text-allow-overlap`` is false.
+ * These rankings let safety-critical navaids beat area labels (e.g. a
+ * lighthouse's name beats "Massachusetts Bay" in the collision lottery).
+ *
+ * Leave soundings and raw numeric labels alone — their collision story
+ * is governed by ``text-padding`` and they don't compete with place names.
+ */
+export const SORT_KEY_NAVAID = 10; // buoys, beacons, lights, fog signals
+export const SORT_KEY_LANDMARK = 20; // LNDMRK (+ PEL master names)
+export const SORT_KEY_HAZARD = 30; // wrecks, obstructions, UWTROC
+export const SORT_KEY_FACILITY = 40; // hrbfac, berths, smcfac, buildings
+export const SORT_KEY_NAMED_LAND = 50; // LNDRGN, LNDARE, LNDELV
+export const SORT_KEY_AREA = 60; // SEAARE, BUAARE — last-resort placement
+
+export const VARIABLE_ANCHOR_LAYOUT: {
+  "text-variable-anchor": (
+    | "top"
+    | "top-right"
+    | "top-left"
+    | "left"
+    | "right"
+    | "bottom"
+    | "bottom-left"
+    | "bottom-right"
+  )[];
+  "text-radial-offset": number;
+  "text-justify": "auto";
+} = {
+  "text-variable-anchor": [
+    "top",
+    "top-left",
+    "top-right",
+    "left",
+    "right",
+    "bottom",
+    "bottom-left",
+    "bottom-right",
+  ],
+  "text-radial-offset": 1.5,
+  "text-justify": "auto",
+};
+
 /** Build a MapLibre expression that converts DEPTH to the given unit (no suffix). */
 export function depthTextField(unit: DepthUnit): ExpressionSpecification {
   return depthFieldExpr("DEPTH", unit);
