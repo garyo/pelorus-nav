@@ -189,6 +189,34 @@ describe("parseLatLon", () => {
     expect(parseLatLon("42.3 70W")).toBeNull();
   });
 
+  it("parses curly right-single-quote apostrophes (U+2019)", () => {
+    const result = parseLatLon("41\u00B0 20.2\u2019 N, 70\u00B0 55.0\u2019W");
+    expect(result).not.toBeNull();
+    if (!result) return;
+    expect(result[0]).toBeCloseTo(41.3367, 3);
+    expect(result[1]).toBeCloseTo(-70.9167, 3);
+  });
+
+  it("parses unicode prime marks (U+2032 / U+2033)", () => {
+    const result = parseLatLon(
+      "42\u00B018\u203217.7\u2033N, 70\u00B056\u203247.2\u2033W",
+    );
+    expect(result).not.toBeNull();
+    if (!result) return;
+    expect(result[0]).toBeCloseTo(42.3049, 3);
+    expect(result[1]).toBeCloseTo(-70.9464, 3);
+  });
+
+  it("parses curly double quotes (U+201D)", () => {
+    const result = parseLatLon(
+      "42\u00B018'17.7\u201DN, 70\u00B056'47.2\u201DW",
+    );
+    expect(result).not.toBeNull();
+    if (!result) return;
+    expect(result[0]).toBeCloseTo(42.3049, 3);
+    expect(result[1]).toBeCloseTo(-70.9464, 3);
+  });
+
   it("parses lon/lat order when hemispheres indicate swap", () => {
     const result = parseLatLon("70°56.787'W, 42°18.295'N");
     expect(result).not.toBeNull();

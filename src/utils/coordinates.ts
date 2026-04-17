@@ -56,8 +56,15 @@ export function formatLatLon(value: number, type: "lat" | "lon"): string {
  * - "deg" as degree symbol: 42deg18.295N
  */
 function parseDDMComponent(s: string): number {
-  // Normalise: replace "deg" with °, strip trailing comma
-  const trimmed = s.trim().replace(/deg/gi, "°").replace(/,\s*$/, "");
+  // Normalise: replace "deg" with °, convert curly quotes/primes to ASCII
+  // equivalents so users can paste formatted text, strip trailing comma
+  const trimmed = s
+    .trim()
+    .replace(/deg/gi, "°")
+    .replace(/\u00BA/g, "°") // ordinal indicator → degree
+    .replace(/[\u2018\u2019\u02B9\u2032\u00B4`]/g, "'") // curly/prime → '
+    .replace(/[\u201C\u201D\u02BA\u2033]/g, '"') // curly/prime → "
+    .replace(/,\s*$/, "");
 
   // Extract leading sign and trailing hemisphere
   let sign = 1;
