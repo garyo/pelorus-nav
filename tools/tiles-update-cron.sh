@@ -4,7 +4,7 @@
 
 set -euo pipefail
 
-LOG="$HOME/sailing-nav-tiles-update.log"
+LOG="$HOME/Library/Logs/sailing-nav-tiles-update.log"
 cd /Users/garyo/src/pelorus-nav
 
 echo "=== tiles:update started at $(date) ===" >> "$LOG"
@@ -23,9 +23,17 @@ fi
 
 if [[ $STATUS -eq 0 ]]; then
   echo "=== tiles:update completed at $(date) ===" >> "$LOG"
+  if [[ -f "$HOME/.config/pelorus-ntfy.env" ]]; then
+    source "$HOME/.config/pelorus-ntfy.env"
+    if [[ -n "${NTFY_USER:-}" && -n "${NTFY_PASS:-}" ]]; then
+      curl --max-time 10 -u "$NTFY_USER:$NTFY_PASS" \
+        -d "Pelorus tile rebuild succeeded. Logs are at $LOG" \
+        https://ntfy.oberbrunner.com/misc >> "$LOG" 2>&1 || true
+    fi
+  fi
 else
   echo "=== tiles:update FAILED at $(date) ===" >> "$LOG"
-  osascript -e 'display notification "tiles:update failed — check ~/sailing-nav-tiles-update.log" with title "Pelorus Nav" sound name "Basso"'
+  osascript -e 'display notification "tiles:update failed — check $LOG" with title "Pelorus Nav" sound name "Basso"'
   # ntfy push notification
   # Expected vars: NTFY_USER, NTFY_PASS
   if [[ -f "$HOME/.config/pelorus-ntfy.env" ]]; then
