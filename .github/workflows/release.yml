@@ -25,7 +25,6 @@ jobs:
       - name: Build web + sync Android
         run: |
           bun run build
-          rm -f dist/*.pmtiles dist/*.coverage.geojson
           bunx cap sync android
 
       - name: Build APK

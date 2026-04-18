@@ -104,11 +104,12 @@ All tile workflows go through `tools/build-tiles.sh` (run `--help` for full usag
 - `bun run cap:run` — build, sync, and run on connected device/emulator
 - `bun run cap:build` — build, sync, and assemble **release** APK (signed with local keystore)
 - `bun run cap:build:debug` — build, sync, and assemble debug APK
-- PMTiles and coverage GeoJSON are excluded from the Android bundle (stripped from `dist/`)
-- Vite copies all of `public/` into `dist/` during build (no way to exclude files). The cap scripts
-  then `rm -f dist/*.pmtiles dist/*.coverage.geojson` before syncing to Android to keep the APK small.
-  The originals in `public/` are untouched — the dev server (`bun run dev`) serves from `public/` directly,
-  so running `cap:build` while the dev server is active is safe.
+- PMTiles, coverage GeoJSON, and search indices are excluded from the Android bundle and Cloudflare
+  static-asset upload (served from R2 instead). Vite copies all of `public/` into `dist/` during build
+  (no way to exclude files), so the `build` script itself runs
+  `rm -f dist/*.pmtiles dist/*.coverage.geojson dist/*.search.json` after `vite build`. Originals in
+  `public/` are untouched — the dev server (`bun run dev`) serves from `public/` directly, so running
+  `cap:build` or `deploy` while the dev server is active is safe.
 - After deploying a new APK, the WebView's service worker cache can serve stale JS.
   Run `adb shell pm clear nav.pelorus.app` to wipe all app data (including SW cache).
   The user will need to redo settings afterward. There's also a "Clear Cache & Reload"

@@ -6,7 +6,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc && vite build",
+    "build": "tsc && vite build && rm -f dist/*.pmtiles dist/*.coverage.geojson dist/*.search.json",
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
@@ -27,10 +27,10 @@
     "tiles:upload": "tools/build-tiles.sh --upload",
     "tiles:update": "tools/build-tiles.sh --update",
     "deploy": "bun run build && wrangler deploy",
-    "cap:sync": "CAPACITOR=1 bun run build && rm -f dist/*.pmtiles dist/*.coverage.geojson && bunx cap sync android",
-    "cap:run": "CAPACITOR=1 bun run build && rm -f dist/*.pmtiles dist/*.coverage.geojson && bunx cap sync android && bunx cap run android",
-    "cap:build": "CAPACITOR=1 bun run build && rm -f dist/*.pmtiles dist/*.coverage.geojson && bunx cap sync android && cd android && ./gradlew clean assembleRelease",
-    "cap:build:debug": "CAPACITOR=1 bun run build && rm -f dist/*.pmtiles dist/*.coverage.geojson && bunx cap sync android && cd android && ./gradlew clean assembleDebug"
+    "cap:sync": "CAPACITOR=1 bun run build && bunx cap sync android",
+    "cap:run": "CAPACITOR=1 bun run build && bunx cap sync android && bunx cap run android",
+    "cap:build": "CAPACITOR=1 bun run build && bunx cap sync android && cd android && ./gradlew clean assembleRelease",
+    "cap:build:debug": "CAPACITOR=1 bun run build && bunx cap sync android && cd android && ./gradlew clean assembleDebug"
   },
   "license": "MIT",
   "dependencies": {
