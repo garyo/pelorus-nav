@@ -291,15 +291,18 @@ export class PelLightLayer {
     let currentTheme = getSettings().displayTheme;
     let currentSymbology = getSettings().symbologyScheme;
     let currentDepthUnit = getSettings().depthUnit;
+    let currentTextScale = getSettings().textScale;
     onSettingsChange((s) => {
       if (
         s.displayTheme !== currentTheme ||
         s.symbologyScheme !== currentSymbology ||
-        s.depthUnit !== currentDepthUnit
+        s.depthUnit !== currentDepthUnit ||
+        s.textScale !== currentTextScale
       ) {
         currentTheme = s.displayTheme;
         currentSymbology = s.symbologyScheme;
         currentDepthUnit = s.depthUnit;
+        currentTextScale = s.textScale;
         if (this.map.isStyleLoaded()) {
           this.addSourceAndLayers();
           this.rebuild();
@@ -374,6 +377,7 @@ export class PelLightLayer {
       scheme.fallback,
     );
 
+    const textScale = s.textScale ?? 1;
     const layout: Record<string, unknown> = {
       "symbol-sort-key": SORT_KEY_LIGHT_CHAR,
       "icon-image": iconExpr,
@@ -383,7 +387,7 @@ export class PelLightLayer {
       "icon-allow-overlap": true,
       "icon-ignore-placement": true,
       "text-field": lightLabelTextField(s.depthUnit),
-      "text-size": 10,
+      "text-size": 10 * textScale,
       "text-offset": [0, -1.5],
       "text-allow-overlap": false,
       "text-optional": true,
@@ -419,7 +423,7 @@ export class PelLightLayer {
         ] as unknown as maplibregl.ExpressionSpecification,
         ...VARIABLE_ANCHOR_LAYOUT,
         "symbol-sort-key": SORT_KEY_LANDMARK,
-        "text-size": 11,
+        "text-size": 11 * textScale,
         // Parent names are often long wrapped blocks; give them a bit
         // more breathing room than the shared default so they don't
         // crowd the sector labels.
