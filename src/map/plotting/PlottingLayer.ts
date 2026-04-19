@@ -24,6 +24,7 @@ import {
 import { type PlotTool, PlotToolbar } from "./PlotToolbar";
 import type {
   PlotBearingLine,
+  PlotBrgDistLine,
   PlotCurrentArrow,
   PlotDistanceArc,
   PlotSegmentLine,
@@ -754,6 +755,57 @@ export class PlottingLayer {
           },
           geometry: { type: "Point", coordinates: [el.lon, el.lat] },
         });
+      } else if (el.type === "brg-dist-line") {
+        // Line from origin in bearing direction, length = distanceNM (no arrowhead)
+        const tip = projectPoint(el.lat, el.lon, el.bearingTrue, el.distanceNM);
+        lines.push({
+          type: "Feature",
+          properties: { id: el.id },
+          geometry: {
+            type: "LineString",
+            coordinates: [[el.lon, el.lat], tip],
+          },
+        });
+
+        // Label: bearing + distance
+        const { bearingMode, depthUnit } = getSettings();
+        const fmtBrg = formatBearing(
+          el.bearingTrue,
+          bearingMode,
+          el.lat,
+          el.lon,
+        );
+        let distStr: string;
+        if (el.distanceNM < 0.1) {
+          if (depthUnit === "feet" || depthUnit === "fathoms") {
+            distStr = `${Math.round(el.distanceNM * 6076.12)} ft`;
+          } else {
+            distStr = `${Math.round(el.distanceNM * 1852)} m`;
+          }
+        } else {
+          distStr = `${el.distanceNM.toFixed(2)} NM`;
+        }
+        lineLabels.push({
+          type: "Feature",
+          properties: { id: el.id, label: `${distStr} ${fmtBrg}` },
+          geometry: {
+            type: "LineString",
+            coordinates: [[el.lon, el.lat], tip],
+          },
+        });
+
+        // Origin point (draggable)
+        lookup.push({ elementId: el.id, pointIndex: 0 });
+        points.push({
+          type: "Feature",
+          properties: {
+            id: el.id,
+            index: ptIdx++,
+            mode: inPlotMode ? "plot" : "view",
+            selected: isSelected ? "1" : "0",
+          },
+          geometry: { type: "Point", coordinates: [el.lon, el.lat] },
+        });
       }
     }
 
@@ -988,6 +1040,8 @@ export class PlottingLayer {
         this.showBearingInput(lat, lon);
       } else if (tool === "current") {
         this.showCurrentInput(lat, lon);
+      } else if (tool === "brg-dist") {
+        this.showBrgDistInput(lat, lon);
       } else if (tool === "arc") {
         this.showDistanceInput(lat, lon);
       } else if (tool === "symbol") {
@@ -1619,6 +1673,75 @@ export class PlottingLayer {
     requestAnimationFrame(() => setInput.focus());
   }
 
+  private showBrgDistInput(lat: number, lon: number): void {
+    this.removePopupInput();
+
+    const container = document.createElement("div");
+    container.className = "plot-bearing-input";
+
+    const brgInput = document.createElement("input");
+    brgInput.type = "text";
+    brgInput.placeholder = "Bearing (e.g. 121M)";
+    brgInput.className = "plot-bearing-field";
+    brgInput.style.width = "120px";
+
+    const distInput = document.createElement("input");
+    distInput.type = "text";
+    distInput.placeholder = "Distance (e.g. 1.5nm)";
+    distInput.className = "plot-bearing-field";
+    distInput.style.width = "140px";
+
+    const okBtn = document.createElement("button");
+    okBtn.className = "plot-toolbar-btn";
+    okBtn.textContent = "OK";
+
+    container.append(brgInput, distInput, okBtn);
+
+    const submit = () => {
+      const { bearingMode } = getSettings();
+      const parsed = parseBearingInput(brgInput.value, bearingMode, lat, lon);
+      const dist = parseDistanceInput(distInput.value);
+      if (!parsed || dist === null) return;
+
+      const el: PlotBrgDistLine = {
+        id: generateUUID(),
+        type: "brg-dist-line",
+        lat,
+        lon,
+        bearingTrue: parsed.trueBearing,
+        bearingLabel: parsed.label,
+        distanceNM: dist,
+        createdAt: Date.now(),
+      };
+      this.sheet.elements.push(el);
+      this.save();
+      this.resetToSelectMode(el.id);
+      this.updateSources();
+      this.setupDrag();
+    };
+
+    const cancel = () => this.removePopupInput();
+
+    for (const input of [brgInput, distInput]) {
+      input.addEventListener("keydown", (e) => {
+        if (e.key === "Enter") {
+          e.preventDefault();
+          submit();
+        }
+        if (e.key === "Escape") {
+          e.preventDefault();
+          cancel();
+        }
+        e.stopPropagation();
+      });
+    }
+    okBtn.addEventListener("click", submit);
+
+    this.popupInputEl = container;
+    this.toolbar.element.after(container);
+    requestAnimationFrame(() => brgInput.focus());
+  }
+
   private showTextInput(lat: number, lon: number): void {
     this.removePopupInput();
 
@@ -1746,6 +1869,24 @@ export class PlottingLayer {
         const drift = parseFloat(changes.drift);
         if (!Number.isNaN(drift) && drift > 0) el.driftKnots = drift;
       }
+    } else if (el.type === "brg-dist-line") {
+      if (changes.bearing !== undefined) {
+        const { bearingMode } = getSettings();
+        const parsed = parseBearingInput(
+          changes.bearing,
+          bearingMode,
+          el.lat,
+          el.lon,
+        );
+        if (parsed) {
+          el.bearingTrue = parsed.trueBearing;
+          el.bearingLabel = parsed.label;
+        }
+      }
+      if (changes.distance !== undefined) {
+        const nm = parseDistanceInput(changes.distance);
+        if (nm !== null) el.distanceNM = nm;
+      }
     } else if (el.type === "distance-arc" && changes.radius !== undefined) {
       const nm = parseDistanceInput(changes.radius);
       if (nm !== null) {
@@ -1804,6 +1945,8 @@ export class PlottingLayer {
       this.toolbar.setStatus("Click to place bearing line");
     } else if (tool === "current") {
       this.toolbar.setStatus("Click to place current arrow");
+    } else if (tool === "brg-dist") {
+      this.toolbar.setStatus("Click to place bearing/distance line");
     } else if (tool === "symbol") {
       this.toolbar.setStatus("Click to place symbol");
     } else if (tool === "text") {
@@ -1863,6 +2006,9 @@ export class PlottingLayer {
           el.lat = lngLat.lat;
           el.lon = lngLat.lng;
         } else if (el.type === "current-arrow") {
+          el.lat = lngLat.lat;
+          el.lon = lngLat.lng;
+        } else if (el.type === "brg-dist-line") {
           el.lat = lngLat.lat;
           el.lon = lngLat.lng;
         } else if (el.type === "distance-arc") {

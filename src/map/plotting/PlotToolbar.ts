@@ -12,6 +12,7 @@ import { PLOT_SHAPES, type PlotSymbolShape, SHAPE_LABELS } from "./plot-icons";
 export type PlotTool =
   | "bearing"
   | "segment"
+  | "brg-dist"
   | "current"
   | "arc"
   | "symbol"
@@ -41,6 +42,7 @@ export class PlotToolbar {
   private activeShape: PlotSymbolShape = "circle";
   private bearingBtn: HTMLButtonElement;
   private segmentBtn: HTMLButtonElement;
+  private brgDistBtn: HTMLButtonElement;
   private currentBtn: HTMLButtonElement;
   private lineMenuEl: HTMLDivElement;
   private lineBtn: HTMLButtonElement;
@@ -102,12 +104,17 @@ export class PlotToolbar {
       this.hideLineMenu();
       this.activateTool("segment");
     });
+    this.brgDistBtn = this.makeBtn("Brg/Dist", () => {
+      this.hideLineMenu();
+      this.activateTool("brg-dist");
+    });
+    this.brgDistBtn.title = "Line at bearing & distance";
     this.currentBtn = this.makeBtn("Current", () => {
       this.hideLineMenu();
       this.activateTool("current");
     });
     this.currentBtn.title = "Set & drift arrow";
-    this.lineMenuEl.append(this.segmentBtn, this.currentBtn);
+    this.lineMenuEl.append(this.segmentBtn, this.brgDistBtn, this.currentBtn);
     lineWrapper.append(this.lineBtn, this.lineMenuEl);
 
     this.arcBtn = this.makeBtn("Arc", () => this.activateTool("arc"));
@@ -217,6 +224,21 @@ export class PlotToolbar {
           this.callbacks.onEditElement(element.id, { drift: val });
         }),
       );
+    } else if (element.type === "brg-dist-line") {
+      this.editArea.appendChild(
+        this.makeEditInput("Bearing", element.bearingLabel, (val) => {
+          this.callbacks.onEditElement(element.id, { bearing: val });
+        }),
+      );
+      this.editArea.appendChild(
+        this.makeEditInput(
+          "Distance",
+          this.formatRadius(element.distanceNM),
+          (val) => {
+            this.callbacks.onEditElement(element.id, { distance: val });
+          },
+        ),
+      );
     } else if (element.type === "distance-arc") {
       this.editArea.appendChild(
         this.makeEditInput(
@@ -264,9 +286,12 @@ export class PlotToolbar {
   private updateBtnStates(): void {
     this.bearingBtn.classList.toggle("active", this.activeTool === "bearing");
     const lineActive =
-      this.activeTool === "segment" || this.activeTool === "current";
+      this.activeTool === "segment" ||
+      this.activeTool === "brg-dist" ||
+      this.activeTool === "current";
     this.lineBtn.classList.toggle("active", lineActive);
     this.segmentBtn.classList.toggle("active", this.activeTool === "segment");
+    this.brgDistBtn.classList.toggle("active", this.activeTool === "brg-dist");
     this.currentBtn.classList.toggle("active", this.activeTool === "current");
     this.arcBtn.classList.toggle("active", this.activeTool === "arc");
     this.textBtn.classList.toggle("active", this.activeTool === "text");

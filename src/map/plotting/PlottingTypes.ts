@@ -80,13 +80,27 @@ export interface PlotCurrentArrow {
   createdAt: number;
 }
 
+/** A line from a point at a given bearing and fixed distance (no arrowhead). */
+export interface PlotBrgDistLine {
+  id: string;
+  type: "brg-dist-line";
+  lat: number;
+  lon: number;
+  bearingTrue: number;
+  /** User's bearing input preserved, e.g. "275°M". */
+  bearingLabel: string;
+  distanceNM: number;
+  createdAt: number;
+}
+
 export type PlotElement =
   | PlotBearingLine
   | PlotSegmentLine
   | PlotSymbol
   | PlotText
   | PlotDistanceArc
-  | PlotCurrentArrow;
+  | PlotCurrentArrow
+  | PlotBrgDistLine;
 
 export interface PlottingSheet {
   id: string;
