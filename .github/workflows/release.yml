@@ -54,7 +54,8 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          mv android/app/build/outputs/apk/release/app-release.apk pelorus-nav.apk
           gh release create "${{ github.ref_name }}" \
-            android/app/build/outputs/apk/release/app-release.apk \
+            pelorus-nav.apk \
             --title "Pelorus Nav ${{ github.ref_name }}" \
             --generate-notes
