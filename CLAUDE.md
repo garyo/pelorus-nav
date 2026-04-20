@@ -120,6 +120,25 @@ All tile workflows go through `tools/build-tiles.sh` (run `--help` for full usag
   storePassword, keyAlias, keyPassword.
 - `tools/upload-apk.sh [--build]` — upload APK to Dropbox (`garyo-dropbox:software/pelorus-nav/`)
 
+### CI release builds
+Pushing a `v*` tag triggers `.github/workflows/release.yml`, which produces a **signed** release
+APK and publishes it as a GitHub Release (attached asset `app-release.apk`). To cut a new release:
+
+```
+git tag -a vX.Y.Z -m "Pelorus Nav vX.Y.Z"
+git push origin vX.Y.Z
+```
+
+The workflow requirements, worth knowing if it ever breaks:
+- **Java 21** (not 17) — `capacitor.build.gradle` uses `sourceCompatibility VERSION_21`.
+- **Node 22+** — the Capacitor CLI rejects the runner's preinstalled Node 20, so an explicit
+  `setup-node@v4` step is required in addition to `setup-bun`.
+- **`contents: write` permission** on the job, or `gh release create` returns HTTP 403.
+- **`environment: release`** — signing secrets (`ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_PASSWORD`,
+  `ANDROID_KEY_ALIAS`, `ANDROID_KEY_PASSWORD`) live in the `release` GitHub Actions environment,
+  restricted to `v*` tag refs so PR workflows can't access them. PKCS12 keystore → store password and
+  key password are the same value.
+
 ## Sprites
 The app uses **two separate sprite systems** — both must be updated when adding a new symbol:
 
