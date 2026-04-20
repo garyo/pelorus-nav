@@ -5,6 +5,8 @@
  * All icons are 24×24 viewBox, rendered at 1em × 1em.
  */
 
+import { Capacitor } from "@capacitor/core";
+
 function svg(paths: string, opts?: { fill?: boolean }): string {
   const stroke = opts?.fill
     ? 'fill="currentColor"'
@@ -136,12 +138,28 @@ export const iconSquare = svg(
   '<rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>',
 );
 
-/** Upload / folder-up / import. */
-export const iconUpload = svg(
-  '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>' +
-    '<polyline points="17 8 12 3 7 8"/>' +
-    '<line x1="12" y1="3" x2="12" y2="15"/>',
+/** Open folder / load from file. */
+export const iconFolderOpen = svg(
+  '<path d="M6 14l1.45-2.9A2 2 0 0 1 9.24 10H20a2 2 0 0 1 1.94 2.5l-1.55 6a2 2 0 0 1-1.94 1.5H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h3.9a2 2 0 0 1 1.69.9l.81 1.2a2 2 0 0 0 1.67.9H18a2 2 0 0 1 2 2v2"/>',
 );
+
+/** Share (three nodes connected in Y) / export on native. */
+export const iconShare = svg(
+  '<circle cx="18" cy="5" r="3"/>' +
+    '<circle cx="6" cy="12" r="3"/>' +
+    '<circle cx="18" cy="19" r="3"/>' +
+    '<line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/>' +
+    '<line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/>',
+);
+
+/**
+ * Export icon — share on Capacitor (triggers native share sheet),
+ * download on web (triggers browser file download). Matches what
+ * `downloadFile()` in data/file-io.ts actually does on each platform.
+ */
+export const iconExport = Capacitor.isNativePlatform()
+  ? iconShare
+  : iconDownload;
 
 /** Maximize / fullscreen (expand corners). */
 export const iconMaximize = svg(

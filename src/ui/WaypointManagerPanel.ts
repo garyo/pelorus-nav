@@ -10,11 +10,11 @@ import type { StandaloneWaypoint, WaypointIcon } from "../data/Waypoint";
 import type { WaypointLayer } from "../map/WaypointLayer";
 import type { ActiveNavigationManager } from "../navigation/ActiveNavigation";
 import {
-  iconDownload,
   iconEdit,
+  iconExport,
+  iconFolderOpen,
   iconNavigation,
   iconTrash,
-  iconUpload,
   iconX,
   setIcon,
 } from "./icons";
@@ -58,13 +58,13 @@ export class WaypointManagerPanel {
     this.body = this.el.querySelector(".manager-body") as HTMLDivElement;
 
     const importBtn = this.el.querySelector("#wp-import-btn") as HTMLElement;
-    setIcon(importBtn, iconUpload);
+    setIcon(importBtn, iconFolderOpen);
     importBtn.addEventListener("click", () => this.importGpx());
 
     const exportAllBtn = this.el.querySelector(
       "#wp-export-all-btn",
     ) as HTMLElement;
-    setIcon(exportAllBtn, iconDownload);
+    setIcon(exportAllBtn, iconExport);
     exportAllBtn.addEventListener("click", () => this.exportAll());
 
     const closeBtn = this.el.querySelector(".manager-close") as HTMLElement;

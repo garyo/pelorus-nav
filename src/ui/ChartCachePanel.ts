@@ -25,8 +25,8 @@ import { getSettings, updateSettings } from "../settings";
 import {
   iconCloudOff,
   iconDownload,
+  iconFolderOpen,
   iconTrash,
-  iconUpload,
   iconX,
   setIcon,
 } from "./icons";
@@ -124,7 +124,7 @@ export class ChartCachePanel {
     // Import button
     const importBtn = document.createElement("button");
     importBtn.className = "chart-cache-btn chart-cache-btn--secondary";
-    importBtn.innerHTML = `${iconUpload} Load from File...`;
+    importBtn.innerHTML = `${iconFolderOpen} Load from File...`;
     importBtn.addEventListener("click", () => this.importFile());
     actions.appendChild(importBtn);
 

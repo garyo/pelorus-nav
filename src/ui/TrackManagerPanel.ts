@@ -20,11 +20,11 @@ import type { TrackMeta } from "../data/Track";
 import type { TrackLayer } from "../map/TrackLayer";
 import type { TrackRecorder } from "../map/TrackRecorder";
 import {
-  iconDownload,
+  iconExport,
   iconEye,
   iconEyeOff,
+  iconFolderOpen,
   iconTrash,
-  iconUpload,
   iconX,
   setIcon,
 } from "./icons";
@@ -72,13 +72,13 @@ export class TrackManagerPanel {
     });
 
     const importBtn = this.el.querySelector("#track-import-btn") as HTMLElement;
-    setIcon(importBtn, iconUpload);
+    setIcon(importBtn, iconFolderOpen);
     importBtn.addEventListener("click", () => this.importGpx());
 
     const exportAllBtn = this.el.querySelector(
       "#track-export-all-btn",
     ) as HTMLElement;
-    setIcon(exportAllBtn, iconDownload);
+    setIcon(exportAllBtn, iconExport);
     exportAllBtn.addEventListener("click", () => this.exportAll());
 
     const closeBtn = this.el.querySelector(".manager-close") as HTMLElement;
@@ -246,7 +246,7 @@ export class TrackManagerPanel {
 
     const exportBtn = document.createElement("button");
     exportBtn.className = "manager-item-btn";
-    setIcon(exportBtn, iconDownload);
+    setIcon(exportBtn, iconExport);
     exportBtn.title = "Export GPX";
     exportBtn.addEventListener("click", () => {
       (async () => {

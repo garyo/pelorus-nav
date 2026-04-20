@@ -18,13 +18,13 @@ import type { ActiveNavigationManager } from "../navigation/ActiveNavigation";
 import { getSettings } from "../settings";
 import { haversineDistanceNM } from "../utils/coordinates";
 import {
-  iconDownload,
   iconEdit,
+  iconExport,
   iconEye,
   iconEyeOff,
+  iconFolderOpen,
   iconNavigation,
   iconTrash,
-  iconUpload,
   iconX,
   setIcon,
 } from "./icons";
@@ -68,13 +68,13 @@ export class RouteManagerPanel {
       closeBtn.addEventListener("click", () => this.hide());
     }
     const importBtn = this.el.querySelector("#route-import-btn") as HTMLElement;
-    setIcon(importBtn, iconUpload);
+    setIcon(importBtn, iconFolderOpen);
     importBtn.addEventListener("click", () => this.importGpx());
 
     const exportAllBtn = this.el.querySelector(
       "#route-export-all-btn",
     ) as HTMLElement;
-    setIcon(exportAllBtn, iconDownload);
+    setIcon(exportAllBtn, iconExport);
     exportAllBtn.addEventListener("click", () => this.exportAll());
 
     this.el.querySelector("#route-new-btn")?.addEventListener("click", () => {
@@ -306,7 +306,7 @@ export class RouteManagerPanel {
 
     const exportBtn = document.createElement("button");
     exportBtn.className = "manager-item-btn";
-    setIcon(exportBtn, iconDownload);
+    setIcon(exportBtn, iconExport);
     exportBtn.title = "Export GPX";
     exportBtn.addEventListener("click", () => {
       const gpx = routeToGpx(route);
