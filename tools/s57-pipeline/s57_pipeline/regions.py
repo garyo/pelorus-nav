@@ -44,43 +44,38 @@ class Region:
     description: str
 
 
-REGIONS: dict[str, Region] = {
-    "boston-test": Region(
-        name="Boston Harbor (test)",
-        bbox=(-71.3, 41.9, -69.9, 42.7),
-        description="Boston area with approach charts -- dev iteration",
-    ),
-    "southern-new-england": Region(
-        name="Southern New England",
-        bbox=(-74.0, 41.0, -65.5, 42.0),
-        description="CT coast, RI, Buzzards Bay, Martha's Vineyard, Nantucket",
-    ),
-    "northern-new-england": Region(
-        name="Northern New England",
-        bbox=(-74.0, 42.0, -65.5, 48.0),
-        description="Cape Cod, Boston, NH coast, Maine through Downeast",
-    ),
-    "new-york": Region(
-        name="New York & NJ",
-        bbox=(-76.0, 39.0, -65.5, 41.0),
-        description="Long Island, NJ coast, Delaware Bay",
-    ),
-    "mid-atlantic": Region(
-        name="Mid-Atlantic",
-        bbox=(-77.5, 35.0, -65.5, 39.0),
-        description="Chesapeake Bay through Cape Hatteras",
-    ),
-    "south-atlantic": Region(
-        name="South Atlantic",
-        bbox=(-82.5, 24.3, -65.5, 35.0),
-        description="Carolinas through Florida Keys",
-    ),
-    "usvi": Region(
-        name="USVI & Puerto Rico",
-        bbox=(-68.0, 17.5, -64.4, 18.7),
-        description="Puerto Rico, US Virgin Islands, and approaches west to Isla de Mona",
-    ),
+# Shared source of truth for region id/name/bbox. See tools/regions.json.
+# Descriptions are Python-only (doc/CLI), so they live here keyed by id.
+REGIONS_JSON = Path(__file__).resolve().parent.parent.parent / "regions.json"
+
+_DESCRIPTIONS: dict[str, str] = {
+    "boston-test": "Boston area with approach charts -- dev iteration",
+    "southern-new-england": "CT coast, RI, Buzzards Bay, Martha's Vineyard, Nantucket",
+    "northern-new-england": "Cape Cod, Boston, NH coast, Maine through Downeast",
+    "new-york": "Long Island, NJ coast, Delaware Bay",
+    "mid-atlantic": "Chesapeake Bay through Cape Hatteras",
+    "south-atlantic": "Carolinas through Florida Keys",
+    "usvi": "Puerto Rico, US Virgin Islands, and approaches west to Isla de Mona",
+    "gulf-coast": "TX/LA/MS/AL/west-FL coast, Gulf ICW, and Dry Tortugas",
+    "great-lakes": "Lakes Superior, Michigan, Huron, Erie, Ontario, St. Clair, Detroit/Niagara rivers",
+    "ny-inland": "Erie Canal, Oswego Canal, Mohawk River, Finger Lakes (Seneca, Cayuga), Oneida Lake",
 }
+
+
+def _load_regions() -> dict[str, Region]:
+    raw = json.loads(REGIONS_JSON.read_text())
+    out: dict[str, Region] = {}
+    for entry in raw:
+        rid = entry["id"]
+        out[rid] = Region(
+            name=entry["name"],
+            bbox=tuple(entry["bbox"]),  # type: ignore[arg-type]
+            description=_DESCRIPTIONS.get(rid, ""),
+        )
+    return out
+
+
+REGIONS: dict[str, Region] = _load_regions()
 
 
 def _download_catalog(cache_path: Path) -> Path:

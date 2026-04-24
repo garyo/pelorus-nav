@@ -49,8 +49,14 @@ elif [[ ! -L "$PIPELINE_DIR/data" ]]; then
   exit 1
 fi
 
-# All production regions (order matters for display)
-ALL_PROD_REGIONS=(southern-new-england northern-new-england new-york mid-atlantic south-atlantic usvi)
+# Shared source of truth for region ids/bboxes: tools/regions.json
+# (also consumed by the Python pipeline and the client catalog).
+# All production regions = every region in the JSON, minus the dev-only boston-test.
+REGIONS_JSON="$SCRIPT_DIR/regions.json"
+ALL_PROD_REGIONS=()
+while IFS= read -r rid; do
+  [[ -n "$rid" ]] && ALL_PROD_REGIONS+=("$rid")
+done < <(jq -r '.[] | select(.id != "boston-test") | .id' "$REGIONS_JSON")
 EAST_COAST_REGIONS=(southern-new-england northern-new-england new-york mid-atlantic south-atlantic)
 
 # --- Parse arguments ---

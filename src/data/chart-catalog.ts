@@ -3,7 +3,13 @@
  *
  * Each region corresponds to a PMTiles file served from R2.
  * Users can stream tiles remotely or download for offline use.
+ *
+ * Id, name, and bbox are the shared source of truth in tools/regions.json
+ * (also consumed by the Python tile pipeline). Display metadata below
+ * (center, defaultZoom, sizeEstimate) is client-only.
  */
+
+import regionsJson from "../../tools/regions.json";
 
 export interface ChartRegion {
   /** Unique slug, e.g. "new-england" */
@@ -24,72 +30,94 @@ export interface ChartRegion {
   bbox: [number, number, number, number];
 }
 
-/**
- * Available chart regions.
- * Order determines display order in the UI.
- */
-export const CHART_REGIONS: ChartRegion[] = [
-  {
-    id: "northern-new-england",
-    name: "Northern New England",
-    filename: "nautical-northern-new-england.pmtiles",
-    coverageFilename: "nautical-northern-new-england.coverage.geojson",
-    sizeEstimate: 150 * 1024 * 1024, // ~150 MB (estimate)
+interface DisplayMeta {
+  sizeEstimate: number;
+  center: [number, number];
+  defaultZoom: number;
+}
+
+/** Client-only display metadata keyed by region id. */
+const DISPLAY: Record<string, DisplayMeta> = {
+  "northern-new-england": {
+    sizeEstimate: 150 * 1024 * 1024,
     center: [-71.01, 42.34],
     defaultZoom: 12,
-    bbox: [-74.0, 42.0, -65.5, 48.0],
   },
-  {
-    id: "southern-new-england",
-    name: "Southern New England",
-    filename: "nautical-southern-new-england.pmtiles",
-    coverageFilename: "nautical-southern-new-england.coverage.geojson",
-    sizeEstimate: 150 * 1024 * 1024, // ~150 MB (estimate)
+  "southern-new-england": {
+    sizeEstimate: 150 * 1024 * 1024,
     center: [-71.5, 41.5],
     defaultZoom: 11,
-    bbox: [-74.0, 41.0, -65.5, 42.0],
   },
-  {
-    id: "new-york",
-    name: "New York & NJ",
-    filename: "nautical-new-york.pmtiles",
-    coverageFilename: "nautical-new-york.coverage.geojson",
-    sizeEstimate: 200 * 1024 * 1024, // ~200 MB (estimate)
+  "new-york": {
+    sizeEstimate: 200 * 1024 * 1024,
     center: [-73.8, 40.4],
     defaultZoom: 10,
-    bbox: [-76.0, 39.0, -65.5, 41.0],
   },
-  {
-    id: "mid-atlantic",
-    name: "Mid-Atlantic",
-    filename: "nautical-mid-atlantic.pmtiles",
-    coverageFilename: "nautical-mid-atlantic.coverage.geojson",
-    sizeEstimate: 250 * 1024 * 1024, // ~250 MB (estimate)
+  "mid-atlantic": {
+    sizeEstimate: 250 * 1024 * 1024,
     center: [-76.0, 37.5],
     defaultZoom: 9,
-    bbox: [-77.5, 35.0, -65.5, 39.0],
   },
-  {
-    id: "south-atlantic",
-    name: "South Atlantic",
-    filename: "nautical-south-atlantic.pmtiles",
-    coverageFilename: "nautical-south-atlantic.coverage.geojson",
-    sizeEstimate: 400 * 1024 * 1024, // ~400 MB (estimate)
+  "south-atlantic": {
+    sizeEstimate: 400 * 1024 * 1024,
     center: [-80.0, 30.0],
     defaultZoom: 8,
-    bbox: [-82.5, 24.3, -65.5, 35.0],
   },
-  {
-    id: "usvi",
-    name: "USVI & Puerto Rico",
-    filename: "nautical-usvi.pmtiles",
-    coverageFilename: "nautical-usvi.coverage.geojson",
-    sizeEstimate: 24 * 1024 * 1024, // ~24 MB
+  usvi: {
+    sizeEstimate: 24 * 1024 * 1024,
     center: [-64.930893, 18.335314],
     defaultZoom: 12,
-    bbox: [-67.5, 17.5, -64.0, 19.0],
   },
-];
+  "gulf-coast": {
+    sizeEstimate: 500 * 1024 * 1024,
+    center: [-88.0, 28.5],
+    defaultZoom: 7,
+  },
+  "great-lakes": {
+    sizeEstimate: 400 * 1024 * 1024,
+    center: [-84.0, 45.0],
+    defaultZoom: 6,
+  },
+  "ny-inland": {
+    sizeEstimate: 75 * 1024 * 1024,
+    center: [-76.5, 43.0],
+    defaultZoom: 8,
+  },
+};
+
+/** Region ids excluded from the production client catalog. */
+const CLIENT_EXCLUDE = new Set<string>(["boston-test"]);
+
+interface RegionJsonEntry {
+  id: string;
+  name: string;
+  bbox: [number, number, number, number];
+}
+
+/**
+ * Available chart regions.
+ * Order determines display order in the UI (follows tools/regions.json).
+ */
+export const CHART_REGIONS: ChartRegion[] = (regionsJson as RegionJsonEntry[])
+  .filter((r) => !CLIENT_EXCLUDE.has(r.id))
+  .map((r) => {
+    const meta = DISPLAY[r.id];
+    if (!meta) {
+      throw new Error(
+        `chart-catalog: missing display metadata for region "${r.id}"`,
+      );
+    }
+    return {
+      id: r.id,
+      name: r.name,
+      filename: `nautical-${r.id}.pmtiles`,
+      coverageFilename: `nautical-${r.id}.coverage.geojson`,
+      sizeEstimate: meta.sizeEstimate,
+      center: meta.center,
+      defaultZoom: meta.defaultZoom,
+      bbox: r.bbox,
+    };
+  });
 
 // S-64 ECDIS test dataset — dev only, not shipped to production.
 // Two test areas: GB cells (~61°E, 32.5°S) and AA cells (~105°W, 40°N).
