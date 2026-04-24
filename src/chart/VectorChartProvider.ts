@@ -8,7 +8,7 @@ import { s52Colour } from "./s52-colours";
 import { getNauticalLayers } from "./styles";
 
 const UNIFIED_COVERAGE_SOURCE = "s57-coverage-unified";
-const UNIFIED_COVERAGE_FILENAME = "nautical-unified.coverage.geojson";
+export const UNIFIED_COVERAGE_FILENAME = "nautical-unified.coverage.geojson";
 
 /**
  * Chart provider for S-57 ENC vector tiles in PMTiles format.

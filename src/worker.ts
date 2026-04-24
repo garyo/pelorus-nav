@@ -49,6 +49,17 @@ function contentTypeForKey(key: string): string {
   return "application/octet-stream";
 }
 
+// PMTiles are huge and stable — cache aggressively.
+// Coverage and search metadata are small and get rebuilt on every tile run;
+// revalidate quickly when online, but fall back to the last-known copy when
+// the client is offline (offshore).
+function cacheControlForKey(key: string): string {
+  if (key.endsWith(".pmtiles")) {
+    return "public, max-age=86400";
+  }
+  return "public, max-age=300, stale-while-revalidate=2592000, stale-if-error=2592000";
+}
+
 async function handleTilesRequest(
   request: Request,
   env: Env,
@@ -91,7 +102,7 @@ async function handleTilesRequest(
         "content-length": String(end - range.offset + 1),
         "accept-ranges": "bytes",
         etag: object.httpEtag,
-        "cache-control": "public, max-age=86400",
+        "cache-control": cacheControlForKey(key),
         ...corsHeaders,
         "access-control-expose-headers":
           "content-range, content-length, accept-ranges",

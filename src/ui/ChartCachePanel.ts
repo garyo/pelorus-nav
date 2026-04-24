@@ -8,6 +8,7 @@
  * The active region is switched via settings.activeRegion.
  */
 
+import { UNIFIED_COVERAGE_FILENAME } from "../chart/VectorChartProvider";
 import { CHART_REGIONS, type ChartRegion } from "../data/chart-catalog";
 import { chartAssetBase } from "../data/remote-url";
 import type { StoredChartInfo } from "../data/tile-store";
@@ -321,6 +322,17 @@ export class ChartCachePanel {
       } catch {
         // Search index may not exist yet for this region — not critical
       }
+      // Always refresh the unified coverage so the no-coverage mask works
+      // offshore. It's tiny and represents all regions, not just this one.
+      try {
+        await downloadAuxFile(
+          `${chartAssetBase()}/${UNIFIED_COVERAGE_FILENAME}`,
+          UNIFIED_COVERAGE_FILENAME,
+          this.downloadController.signal,
+        );
+      } catch {
+        // Non-fatal: region tiles still work, mask falls back to online fetch
+      }
       this.onChartsChanged?.();
     } catch (err) {
       if (err instanceof DOMException && err.name === "AbortError") {
@@ -370,6 +382,7 @@ export class ChartCachePanel {
       await deleteAuxFile(region.coverageFilename);
       await deleteAuxFile(region.filename.replace(".pmtiles", ".search.json"));
     }
+    await deleteAuxFile(UNIFIED_COVERAGE_FILENAME);
     this.onChartsChanged?.();
     await this.refresh();
   }
