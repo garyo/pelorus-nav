@@ -288,9 +288,26 @@ do_upload() {
 
 unify_coverage() {
   echo "=== Unifying coverage masks ==="
+  # Only include production region coverage files. A glob would pick up dev-only
+  # files (boston-test, s64-test) and pollute the mask — e.g. S-64 test ENCs
+  # include "AA" cells positioned near Denver, CO that would otherwise show as
+  # spurious chart coverage when zoomed out.
+  local inputs=()
+  for r in "${ALL_PROD_REGIONS[@]}"; do
+    local f="$OUTPUT_DIR/nautical-$r.coverage.geojson"
+    if [[ -f "$f" ]]; then
+      inputs+=("$f")
+    else
+      echo "Warning: missing coverage file $f" >&2
+    fi
+  done
+  if [[ ${#inputs[@]} -eq 0 ]]; then
+    echo "Error: no production coverage files found" >&2
+    exit 1
+  fi
   cd "$PIPELINE_DIR"
   uv run python "$SCRIPT_DIR/unify-coverage.py" \
-    "$OUTPUT_DIR"/nautical-*.coverage.geojson \
+    "${inputs[@]}" \
     -o "$OUTPUT_DIR/nautical-unified.coverage.geojson"
 }
 
