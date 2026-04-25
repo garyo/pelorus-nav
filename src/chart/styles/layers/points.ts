@@ -1468,6 +1468,7 @@ export function getDaymarkTopmarkLayers(
       type: "symbol" as const,
       source: ctx.sourceId,
       "source-layer": "DAYMAR",
+      minzoom: 8,
       layout: withOffset(
         {
           "icon-image": daymar.iconExpr,
@@ -1483,6 +1484,7 @@ export function getDaymarkTopmarkLayers(
       type: "symbol" as const,
       source: ctx.sourceId,
       "source-layer": "TOPMAR",
+      minzoom: 8,
       layout: withOffset(
         {
           "icon-image": topmar.iconExpr,
