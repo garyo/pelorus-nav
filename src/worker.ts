@@ -121,7 +121,7 @@ async function handleTilesRequest(
       "content-length": String(object.size),
       "accept-ranges": "bytes",
       etag: object.httpEtag,
-      "cache-control": "public, max-age=86400",
+      "cache-control": cacheControlForKey(key),
       ...corsHeaders,
     },
   });
