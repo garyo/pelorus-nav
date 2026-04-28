@@ -5,7 +5,7 @@
 set -euo pipefail
 
 LOG="$HOME/Library/Logs/sailing-nav-tiles-update.log"
-cd /Users/garyo/src/pelorus-nav
+cd "$(cd "$(dirname "$0")/.." && pwd)"
 
 echo "=== tiles:update started at $(date) ===" >> "$LOG"
 
@@ -15,7 +15,7 @@ echo "=== tiles:update started at $(date) ===" >> "$LOG"
 if [[ -f /tmp/pelorus-tiles-force-fail ]]; then
   echo "=== TEST MODE: flag file present, forcing failure ===" >> "$LOG"
   STATUS=1
-elif /Users/garyo/.bun/bin/bun run tiles:update >> "$LOG" 2>&1; then
+elif bun run tiles:update >> "$LOG" 2>&1; then
   STATUS=0
 else
   STATUS=1
