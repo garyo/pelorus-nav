@@ -35,6 +35,9 @@ export interface BackgroundGPSPlugin {
     adaptive: boolean;
   }): Promise<void>;
 
+  /** Update the foreground-service notification text (e.g. "Navigating" vs "Recording track"). */
+  setNotificationText(options: { text: string }): Promise<void>;
+
   /** Check whether the foreground service is currently running. */
   isTracking(): Promise<{ tracking: boolean }>;
 

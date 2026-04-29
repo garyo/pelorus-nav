@@ -39,6 +39,9 @@ class BackgroundTrackService : Service() {
         /** When true, the service manages its own adaptive GPS rate. */
         @Volatile var adaptiveEnabled: Boolean = false
 
+        /** Text shown in the foreground-service notification. JS can update this via the plugin. */
+        @Volatile var notificationText: String = "Navigating"
+
         // Speed threshold: 0.5 knots in m/s
         private const val STATIONARY_SPEED_MS = 0.26f
         private const val FAST_INTERVAL_MS = 2000L
@@ -211,7 +214,7 @@ class BackgroundTrackService : Service() {
 
         return Notification.Builder(this, CHANNEL_ID)
             .setContentTitle("Pelorus Nav")
-            .setContentText("Recording track")
+            .setContentText(notificationText)
             .setSmallIcon(android.R.drawable.ic_menu_mylocation)
             .setOngoing(true)
             .setContentIntent(pendingIntent)
@@ -219,5 +222,11 @@ class BackgroundTrackService : Service() {
                 null, "Stop", stopPending
             ).build())
             .build()
+    }
+
+    /** Re-emit the foreground notification with the current [notificationText]. */
+    fun refreshNotification() {
+        val nm = getSystemService(NotificationManager::class.java) ?: return
+        nm.notify(NOTIFICATION_ID, buildNotification())
     }
 }

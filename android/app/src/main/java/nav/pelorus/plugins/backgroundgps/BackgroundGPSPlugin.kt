@@ -153,6 +153,18 @@ class BackgroundGPSPlugin : Plugin() {
     }
 
     @PluginMethod
+    fun setNotificationText(call: PluginCall) {
+        val text = call.getString("text")
+        if (text.isNullOrEmpty()) {
+            call.reject("text is required")
+            return
+        }
+        BackgroundTrackService.notificationText = text
+        BackgroundTrackService.instance?.refreshNotification()
+        call.resolve()
+    }
+
+    @PluginMethod
     fun keepScreenOn(call: PluginCall) {
         activity.runOnUiThread {
             activity.window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)

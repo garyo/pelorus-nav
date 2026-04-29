@@ -72,6 +72,7 @@ export class TrackRecorder {
       this.onNavData(data).catch(console.error);
     };
     this.navManager.subscribe(this.navCallback);
+    this.updateNativeNotification("Recording track");
     this.notify();
   }
 
@@ -90,7 +91,13 @@ export class TrackRecorder {
     this.trackPersisted = false;
     this.lastRecordedTime = 0;
     localStorage.removeItem(ACTIVE_TRACK_KEY);
+    this.updateNativeNotification("Navigating");
     this.notify();
+  }
+
+  private updateNativeNotification(text: string): void {
+    if (!Capacitor.isNativePlatform()) return;
+    BackgroundGPS.setNotificationText({ text }).catch(console.error);
   }
 
   onRecordingChange(fn: RecorderListener): void {
