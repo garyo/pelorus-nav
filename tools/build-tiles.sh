@@ -212,7 +212,7 @@ do_download() {
     extra_args+=(--force)
   fi
   cd "$PIPELINE_DIR"
-  uv run python -m s57_pipeline download --region "$region" "${extra_args[@]}"
+  uv run python -m s57_pipeline download --region "$region" ${extra_args[@]+"${extra_args[@]}"}
   local elapsed=$((SECONDS - start))
   echo "Download $region: $(format_elapsed $elapsed)"
 }
@@ -246,7 +246,7 @@ do_build() {
     --region "$region" \
     $min_cells_arg \
     -o "$output" \
-    "${extra_args[@]}"
+    ${extra_args[@]+"${extra_args[@]}"}
 
   local elapsed=$((SECONDS - start))
   local size="(not found)"
