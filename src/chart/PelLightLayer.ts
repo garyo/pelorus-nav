@@ -23,6 +23,10 @@
  *     filter; non-PEL lights render there unchanged.
  */
 
+import type {
+  ExpressionSpecification,
+  SymbolLayerSpecification,
+} from "@maplibre/maplibre-gl-style-spec";
 import type { Feature, FeatureCollection, Point, Position } from "geojson";
 import type maplibregl from "maplibre-gl";
 import { getRegionLayerIds, getVectorSourceIds } from "../data/chart-catalog";
@@ -400,7 +404,7 @@ export class PelLightLayer {
       source: SOURCE_ID,
       minzoom: MIN_ZOOM,
       filter: ["==", ["get", "_type"], "child"],
-      layout: layout as maplibregl.SymbolLayerSpecification["layout"],
+      layout: layout as SymbolLayerSpecification["layout"],
       paint: {
         "text-color": s52Colour("SNDG2"),
         "text-halo-color": s52Colour("NAIDH"),
@@ -420,7 +424,7 @@ export class PelLightLayer {
           '"',
           ["get", "OBJNAM"],
           '"',
-        ] as unknown as maplibregl.ExpressionSpecification,
+        ] as unknown as ExpressionSpecification,
         ...VARIABLE_ANCHOR_LAYOUT,
         "symbol-sort-key": SORT_KEY_LANDMARK,
         "text-size": 11 * textScale,

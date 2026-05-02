@@ -6,7 +6,7 @@ import type {
   BackgroundLayerSpecification,
   FillLayerSpecification,
   LayerSpecification,
-} from "maplibre-gl";
+} from "@maplibre/maplibre-gl-style-spec";
 import type { DisplayTheme } from "../settings";
 
 const OSM_SOURCE_ID = "osm-underlay";

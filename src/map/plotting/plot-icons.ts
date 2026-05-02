@@ -9,6 +9,7 @@
  * Call ensurePlotIcons(map) once per style load.
  */
 
+import type { ExpressionSpecification } from "@maplibre/maplibre-gl-style-spec";
 import type maplibregl from "maplibre-gl";
 
 const SIZE = 24;
@@ -38,7 +39,7 @@ export function plotIconName(shape: PlotSymbolShape): string {
 }
 
 /** MapLibre expression mapping shape property to icon name. */
-export const PLOT_SHAPE_ICON_EXPR: maplibregl.ExpressionSpecification = [
+export const PLOT_SHAPE_ICON_EXPR: ExpressionSpecification = [
   "concat",
   ICON_PREFIX,
   ["get", "shape"],

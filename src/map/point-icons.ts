@@ -7,6 +7,7 @@
  * same size so symbol layers align consistently.
  */
 
+import type { ExpressionSpecification } from "@maplibre/maplibre-gl-style-spec";
 import type maplibregl from "maplibre-gl";
 
 const SIZE = 28;
@@ -39,7 +40,7 @@ export function ensurePointIcons(map: maplibregl.Map): void {
  *
  * Falls back to the waypoint icon for unknown roles.
  */
-export const ROLE_ICON_EXPR: maplibregl.ExpressionSpecification = [
+export const ROLE_ICON_EXPR: ExpressionSpecification = [
   "match",
   ["get", "role"],
   "start",
@@ -55,7 +56,7 @@ export const ROLE_ICON_EXPR: maplibregl.ExpressionSpecification = [
  * MapLibre expression that maps a standalone waypoint's "icon" property
  * to the correct icon name. Falls back to the default waypoint icon.
  */
-export const WAYPOINT_ICON_EXPR: maplibregl.ExpressionSpecification = [
+export const WAYPOINT_ICON_EXPR: ExpressionSpecification = [
   "match",
   ["get", "icon"],
   "anchorage",
@@ -75,7 +76,7 @@ export const POINT_ICON_MEASURE_START = "_pt-measure-start";
 export const POINT_ICON_MEASURE_END = "_pt-measure-end";
 
 /** Expression mapping measurement roles to pin icons. */
-export const MEASURE_ICON_EXPR: maplibregl.ExpressionSpecification = [
+export const MEASURE_ICON_EXPR: ExpressionSpecification = [
   "match",
   ["get", "role"],
   "start",

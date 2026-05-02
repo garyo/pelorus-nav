@@ -1,4 +1,4 @@
-import type { ExpressionSpecification } from "maplibre-gl";
+import type { ExpressionSpecification } from "@maplibre/maplibre-gl-style-spec";
 import type { DisplayTheme, SymbologyScheme } from "../../settings";
 
 /**

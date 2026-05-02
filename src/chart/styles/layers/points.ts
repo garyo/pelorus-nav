@@ -7,7 +7,7 @@ import type {
   ExpressionSpecification,
   LayerSpecification,
   SymbolLayerSpecification,
-} from "maplibre-gl";
+} from "@maplibre/maplibre-gl-style-spec";
 import type { StyleContext } from "../style-context";
 import {
   depthTextField,

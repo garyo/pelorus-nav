@@ -7,6 +7,7 @@
  * (SECTR1, SECTR2, COLOUR, VALNMR, LITVIS) drive everything.
  */
 
+import type { ExpressionSpecification } from "@maplibre/maplibre-gl-style-spec";
 import type { Feature, FeatureCollection, LineString, Position } from "geojson";
 import type maplibregl from "maplibre-gl";
 import { getVectorSourceIds } from "../data/chart-catalog";
@@ -397,7 +398,7 @@ export class LightSectorLayer {
       s52Colour("LITRD"),
       // white and yellow lights → theme-aware yellow
       s52Colour("LITYW"),
-    ] as unknown as maplibregl.ExpressionSpecification;
+    ] as unknown as ExpressionSpecification;
 
     // Range circles: black casing (wider, drawn first = underneath)
     this.map.addLayer({

@@ -5,7 +5,10 @@
  * Note: LNDMRK is a symbol layer with both icon and text, but lives
  * here because it is interleaved with text-only labels in the draw order.
  */
-import type { ExpressionSpecification, LayerSpecification } from "maplibre-gl";
+import type {
+  ExpressionSpecification,
+  LayerSpecification,
+} from "@maplibre/maplibre-gl-style-spec";
 import { depthUnitLabel } from "../../../settings";
 import type { StyleContext } from "../style-context";
 import {

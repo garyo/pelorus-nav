@@ -102,7 +102,9 @@ export class BearingLine {
     // Only move if not already near the top to avoid symbol re-placement churn
     const layers = this.map.getStyle().layers;
     const topIdx = layers.length - 1;
-    const lineIdx = layers.findIndex((l) => l.id === LINE_LAYER);
+    const lineIdx = layers.findIndex(
+      (l: { id: string }) => l.id === LINE_LAYER,
+    );
     if (lineIdx >= 0 && lineIdx < topIdx - 3) {
       this.map.moveLayer(LINE_LAYER);
       this.map.moveLayer(TARGET_LAYER);

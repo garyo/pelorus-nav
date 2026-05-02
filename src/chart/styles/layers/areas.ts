@@ -5,7 +5,10 @@
  * Note: COALNE (coastline) is a line layer but lives here because it
  * is interleaved between land and lake fills in the draw order.
  */
-import type { ExpressionSpecification, LayerSpecification } from "maplibre-gl";
+import type {
+  ExpressionSpecification,
+  LayerSpecification,
+} from "@maplibre/maplibre-gl-style-spec";
 import type { StyleContext } from "../style-context";
 import { SCALE_SORT_KEY } from "../style-context";
 

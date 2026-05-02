@@ -2,7 +2,10 @@
  * Line layer definitions: depth contours, coastline, shoreline constructions,
  * bridges, cables, pipelines.
  */
-import type { ExpressionSpecification, LayerSpecification } from "maplibre-gl";
+import type {
+  ExpressionSpecification,
+  LayerSpecification,
+} from "@maplibre/maplibre-gl-style-spec";
 import { depthConversionFactor, depthUnitLabel } from "../../../settings";
 import type { StyleContext } from "../style-context";
 import { SCALE_SORT_KEY, scaledTextSize } from "../style-context";

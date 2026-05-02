@@ -2,7 +2,10 @@
  * Navigation layer definitions: fairways, anchorage, traffic separation,
  * recommended routes, restricted areas, caution areas, routing lines.
  */
-import type { ExpressionSpecification, LayerSpecification } from "maplibre-gl";
+import type {
+  ExpressionSpecification,
+  LayerSpecification,
+} from "@maplibre/maplibre-gl-style-spec";
 import type { StyleContext } from "../style-context";
 import { scaledTextSize } from "../style-context";
 

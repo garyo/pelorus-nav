@@ -1,7 +1,7 @@
 /**
  * StyleContext: shared context passed to all layer-building functions.
  */
-import type { ExpressionSpecification } from "maplibre-gl";
+import type { ExpressionSpecification } from "@maplibre/maplibre-gl-style-spec";
 import type { DepthUnit, DisplayTheme, SymbologyScheme } from "../../settings";
 import { depthConversionFactor } from "../../settings";
 import {

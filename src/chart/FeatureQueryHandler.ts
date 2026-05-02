@@ -314,14 +314,15 @@ export class FeatureQueryHandler {
     if (this.cachedInteractiveLayers) return this.cachedInteractiveLayers;
     const style = this.map.getStyle();
     if (!style?.layers) return [];
-    this.cachedInteractiveLayers = style.layers
-      .map((l) => l.id)
+    const ids: string[] = style.layers
+      .map((l: { id: string }) => l.id)
       .filter(
-        (id) =>
+        (id: string) =>
           id.startsWith("s57-") &&
           INTERACTIVE_SUFFIXES.some((s) => id.endsWith(s)),
       );
-    return this.cachedInteractiveLayers;
+    this.cachedInteractiveLayers = ids;
+    return ids;
   }
 
   private handleClick(e: maplibregl.MapMouseEvent): void {
