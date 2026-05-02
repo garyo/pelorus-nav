@@ -561,19 +561,38 @@ const addMenuLabel = (btn: HTMLElement, label: string) => {
 // Always-visible top-bar action buttons (Record, Instruments, Tracks, Routes).
 // These live in #topbar-actions, outside #topbar-menu, so they stay in the
 // top bar at all viewport widths instead of collapsing into the hamburger.
+const buildActionBtn = (
+  icon: string,
+  label: string,
+  title: string,
+  extraClass = "",
+): HTMLButtonElement => {
+  const btn = document.createElement("button");
+  btn.className = `topbar-action${extraClass ? ` ${extraClass}` : ""}`;
+  btn.title = title;
+  btn.setAttribute("aria-label", title);
+  setIcon(btn, icon);
+  const span = document.createElement("span");
+  span.className = "topbar-action-label";
+  span.textContent = label;
+  btn.appendChild(span);
+  return btn;
+};
+
 if (topbarActions) {
   // Record track toggle
-  const recordBtn = document.createElement("button");
-  recordBtn.className = "topbar-action topbar-record";
-  recordBtn.title = "Record track";
-  recordBtn.setAttribute("aria-label", "Record track");
-  setIcon(recordBtn, iconRecord);
+  const recordBtn = buildActionBtn(
+    iconRecord,
+    "REC",
+    "Record track",
+    "topbar-record",
+  );
   const updateRecordBtn = () => {
     const on = trackRecorder.isRecording();
     recordBtn.classList.toggle("active", on);
-    const label = on ? "Stop recording" : "Record track";
-    recordBtn.title = label;
-    recordBtn.setAttribute("aria-label", label);
+    const t = on ? "Stop recording" : "Record track";
+    recordBtn.title = t;
+    recordBtn.setAttribute("aria-label", t);
   };
   recordBtn.addEventListener("click", () => {
     updateSettings({ trackRecordingEnabled: !trackRecorder.isRecording() });
@@ -583,11 +602,7 @@ if (topbarActions) {
   topbarActions.appendChild(recordBtn);
 
   // Instrument HUD toggle
-  const hudBtn = document.createElement("button");
-  hudBtn.className = "topbar-action";
-  hudBtn.title = "Instruments";
-  hudBtn.setAttribute("aria-label", "Toggle instrument HUD");
-  setIcon(hudBtn, iconGauge);
+  const hudBtn = buildActionBtn(iconGauge, "INST", "Instruments");
   const updateHudBtn = () => {
     hudBtn.classList.toggle("active", getSettings().showInstrumentHUD);
   };
@@ -599,11 +614,7 @@ if (topbarActions) {
   topbarActions.appendChild(hudBtn);
 
   // Tracks panel button
-  const trackBtn = document.createElement("button");
-  trackBtn.className = "topbar-action";
-  trackBtn.title = "Tracks";
-  trackBtn.setAttribute("aria-label", "Tracks");
-  setIcon(trackBtn, iconTrack);
+  const trackBtn = buildActionBtn(iconTrack, "TRK", "Tracks");
   trackBtn.addEventListener("click", () => {
     trackPanel.toggle();
     settingsHandle?.hide();
@@ -611,11 +622,7 @@ if (topbarActions) {
   topbarActions.appendChild(trackBtn);
 
   // Routes panel button
-  const routeBtn = document.createElement("button");
-  routeBtn.className = "topbar-action";
-  routeBtn.title = "Routes";
-  routeBtn.setAttribute("aria-label", "Routes");
-  setIcon(routeBtn, iconRoute);
+  const routeBtn = buildActionBtn(iconRoute, "RTE", "Routes");
   routeBtn.addEventListener("click", () => {
     routePanel.toggle();
     settingsHandle?.hide();

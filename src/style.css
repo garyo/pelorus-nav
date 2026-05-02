@@ -12,8 +12,11 @@ body {
   height: 100%;
   overflow: hidden;
   font-family: system-ui, -apple-system, sans-serif;
+  /* Top-bar height (without safe-area). Bumped to fit icon + label
+     on promoted action buttons. */
+  --topbar-height: 46px;
   /* Below-topbar offset: topbar height + system safe area (camera cutout etc.) */
-  --topbar-bottom: calc(36px + env(safe-area-inset-top, 0px));
+  --topbar-bottom: calc(var(--topbar-height) + env(safe-area-inset-top, 0px));
 }
 
 /* Crosshair cursor on the map for precise position identification */
@@ -31,7 +34,7 @@ body {
 #top-bar {
   display: flex;
   align-items: center;
-  height: calc(36px + env(safe-area-inset-top, 0px));
+  height: var(--topbar-bottom);
   padding: env(safe-area-inset-top, 0px) 12px 0;
   background: rgba(26, 26, 46, 0.9);
   color: #e0e0e0;
@@ -59,17 +62,27 @@ body {
   border: none;
   color: #ccc;
   cursor: pointer;
-  /* Match .settings-btn so icons (sized at 1em) render at the same
-     resolution as the rest of the top-bar icons. */
+  /* Sizes the SVG icon (rendered at 1em). Label uses its own size. */
   font-size: 18px;
-  padding: 4px;
-  min-width: 32px;
-  min-height: 32px;
+  padding: 2px 6px;
+  min-width: 40px;
   display: inline-flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
+  gap: 1px;
   border-radius: 4px;
   line-height: 1;
+}
+
+.topbar-action-label {
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  line-height: 1;
+  opacity: 0.85;
+  /* Don't compete with the icon for vertical space when wrapped. */
+  white-space: nowrap;
 }
 
 .topbar-action:hover {
