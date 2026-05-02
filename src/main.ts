@@ -68,6 +68,7 @@ import { RouteManagerPanel } from "./ui/RouteManagerPanel";
 import { SearchDialog } from "./ui/SearchDialog";
 import { createSettingsPanel } from "./ui/SettingsPanel";
 import { TrackManagerPanel } from "./ui/TrackManagerPanel";
+import { buildTopbarAction } from "./ui/topbarButton";
 import { WakeLockController } from "./ui/WakeLock";
 import { WaypointManagerPanel } from "./ui/WaypointManagerPanel";
 import { applyDeclination, bearingModeLabel } from "./utils/magnetic";
@@ -550,43 +551,11 @@ instrumentHUD.onNavCellClick(() => routePanel.showActiveRoute());
 // Restore persisted navigation state (after all subscribers are wired up)
 await activeNav.restore();
 
-// Helper: add a text label span for mobile menu display
-const addMenuLabel = (btn: HTMLElement, label: string) => {
-  const span = document.createElement("span");
-  span.className = "topbar-menu-label";
-  span.textContent = label;
-  btn.appendChild(span);
-};
-
-// Always-visible top-bar action buttons (Record, Instruments, Tracks, Routes).
-// These live in #topbar-actions, outside #topbar-menu, so they stay in the
-// top bar at all viewport widths instead of collapsing into the hamburger.
-const buildActionBtn = (
-  icon: string,
-  label: string,
-  title: string,
-  extraClass = "",
-): HTMLButtonElement => {
-  const btn = document.createElement("button");
-  btn.className = `topbar-action${extraClass ? ` ${extraClass}` : ""}`;
-  btn.title = title;
-  btn.setAttribute("aria-label", title);
-  setIcon(btn, icon);
-  const span = document.createElement("span");
-  span.className = "topbar-action-label";
-  span.textContent = label;
-  btn.appendChild(span);
-  return btn;
-};
-
 if (topbarActions) {
   // Record track toggle
-  const recordBtn = buildActionBtn(
-    iconRecord,
-    "REC",
-    "Record track",
-    "topbar-record",
-  );
+  const recordBtn = buildTopbarAction(iconRecord, "REC", "Record track", {
+    extraClass: "topbar-record",
+  });
   const updateRecordBtn = () => {
     const on = trackRecorder.isRecording();
     recordBtn.classList.toggle("active", on);
@@ -602,7 +571,7 @@ if (topbarActions) {
   topbarActions.appendChild(recordBtn);
 
   // Instrument HUD toggle
-  const hudBtn = buildActionBtn(iconGauge, "INST", "Instruments");
+  const hudBtn = buildTopbarAction(iconGauge, "INST", "Instruments");
   const updateHudBtn = () => {
     hudBtn.classList.toggle("active", getSettings().showInstrumentHUD);
   };
@@ -614,7 +583,7 @@ if (topbarActions) {
   topbarActions.appendChild(hudBtn);
 
   // Tracks panel button
-  const trackBtn = buildActionBtn(iconTrack, "TRK", "Tracks");
+  const trackBtn = buildTopbarAction(iconTrack, "TRK", "Tracks");
   trackBtn.addEventListener("click", () => {
     trackPanel.toggle();
     settingsHandle?.hide();
@@ -622,7 +591,7 @@ if (topbarActions) {
   topbarActions.appendChild(trackBtn);
 
   // Routes panel button
-  const routeBtn = buildActionBtn(iconRoute, "RTE", "Routes");
+  const routeBtn = buildTopbarAction(iconRoute, "RTE", "Routes");
   routeBtn.addEventListener("click", () => {
     routePanel.toggle();
     settingsHandle?.hide();
@@ -635,11 +604,9 @@ if (topbarMenu) {
   const settingsWrapper = topbarMenu.querySelector(".settings-wrapper");
 
   // Waypoints panel button
-  const waypointBtn = document.createElement("button");
-  waypointBtn.className = "settings-btn";
-  waypointBtn.title = "Waypoints";
-  setIcon(waypointBtn, iconPin);
-  addMenuLabel(waypointBtn, "Waypoints");
+  const waypointBtn = buildTopbarAction(iconPin, "WPT", "Waypoints", {
+    fullLabel: "Waypoints",
+  });
   waypointBtn.addEventListener("click", () => {
     waypointPanel.toggle();
     settingsHandle?.hide();
@@ -648,11 +615,9 @@ if (topbarMenu) {
   topbarMenu.insertBefore(waypointBtn, settingsWrapper);
 
   // Plot mode button
-  const plotBtn = document.createElement("button");
-  plotBtn.className = "settings-btn";
-  plotBtn.title = "Plot";
-  setIcon(plotBtn, iconPlot);
-  addMenuLabel(plotBtn, "Plot");
+  const plotBtn = buildTopbarAction(iconPlot, "PLOT", "Plot", {
+    fullLabel: "Plot",
+  });
   plotBtn.addEventListener("click", () => {
     plottingLayer.enterPlotMode();
     closeHamburger();
@@ -681,11 +646,9 @@ if (topbarMenu) {
       }
     })();
   });
-  const cacheBtn = document.createElement("button");
-  cacheBtn.className = "settings-btn";
-  cacheBtn.title = "Chart Regions";
-  setIcon(cacheBtn, iconGlobe);
-  addMenuLabel(cacheBtn, "Chart Regions");
+  const cacheBtn = buildTopbarAction(iconGlobe, "RGNS", "Chart Regions", {
+    fullLabel: "Chart Regions",
+  });
   cacheBtn.addEventListener("click", () => {
     cachePanel.toggle();
     settingsHandle?.hide();
@@ -694,11 +657,9 @@ if (topbarMenu) {
   topbarMenu.insertBefore(cacheBtn, settingsWrapper);
 
   // Search button
-  const searchBtn = document.createElement("button");
-  searchBtn.className = "settings-btn";
-  searchBtn.title = "Search";
-  setIcon(searchBtn, iconSearch);
-  addMenuLabel(searchBtn, "Search");
+  const searchBtn = buildTopbarAction(iconSearch, "FIND", "Search", {
+    fullLabel: "Search",
+  });
   searchBtn.addEventListener("click", () => {
     searchDialog.show();
     closeHamburger();
@@ -715,16 +676,18 @@ if (topbarMenu) {
   });
 
   // Fullscreen toggle
-  const fullscreenBtn = document.createElement("button");
-  fullscreenBtn.className = "topbar-toggle";
-  fullscreenBtn.title = "Fullscreen";
-  setIcon(fullscreenBtn, iconMaximize);
-  addMenuLabel(fullscreenBtn, "Fullscreen");
+  const fullscreenBtn = buildTopbarAction(iconMaximize, "FULL", "Fullscreen", {
+    fullLabel: "Fullscreen",
+  });
   const updateFullscreenBtn = () => {
     const isFs = !!document.fullscreenElement;
     fullscreenBtn.classList.toggle("active", isFs);
     setIcon(fullscreenBtn, isFs ? iconMinimize : iconMaximize);
-    fullscreenBtn.title = isFs ? "Exit fullscreen" : "Fullscreen";
+    const t = isFs ? "Exit fullscreen" : "Fullscreen";
+    fullscreenBtn.title = t;
+    fullscreenBtn.setAttribute("aria-label", t);
+    const fullSpan = fullscreenBtn.querySelector(".topbar-menu-label");
+    if (fullSpan) fullSpan.textContent = t;
   };
   fullscreenBtn.addEventListener("click", () => {
     if (document.fullscreenElement) {
@@ -752,13 +715,11 @@ if (topbarMenu) {
   window.addEventListener("offline", updateOnlineStatus);
   updateOnlineStatus();
 
-  // About button (circle-? icon, left of settings gear)
+  // About button
   const aboutDialog = new AboutDialog();
-  const aboutBtn = document.createElement("button");
-  aboutBtn.className = "settings-btn";
-  aboutBtn.title = "About";
-  setIcon(aboutBtn, iconInfo);
-  addMenuLabel(aboutBtn, "About");
+  const aboutBtn = buildTopbarAction(iconInfo, "INFO", "About", {
+    fullLabel: "About",
+  });
   aboutBtn.addEventListener("click", () => {
     aboutDialog.toggle();
     closeHamburger();

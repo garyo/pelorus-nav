@@ -70,7 +70,7 @@ body {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 1px;
+  gap: 3px;
   border-radius: 4px;
   line-height: 1;
 }
@@ -111,20 +111,6 @@ body {
   text-transform: uppercase;
   letter-spacing: 0.5px;
   margin-right: 4px;
-}
-
-.settings-btn {
-  background: none;
-  border: none;
-  color: #ccc;
-  font-size: 18px;
-  cursor: pointer;
-  padding: 2px 4px;
-  line-height: 1;
-}
-
-.settings-btn:hover {
-  color: #fff;
 }
 
 .settings-panel {
@@ -264,37 +250,8 @@ body {
   accent-color: #6688cc;
 }
 
-/* Top bar toggle buttons (record, instrument HUD) */
-.topbar-toggle {
-  background: none;
-  border: 1px solid transparent;
-  border-radius: 4px;
-  color: #888;
-  font-size: 15px;
-  cursor: pointer;
-  padding: 2px 6px;
-  line-height: 1;
-}
-
-.topbar-toggle:hover {
-  color: #ccc;
-}
-
-.topbar-toggle.active {
-  color: #fff;
-  border-color: #6688cc;
-  background: rgba(102, 136, 204, 0.15);
-}
-
-.topbar-toggle.active.topbar-record {
-  color: #e33;
-  border-color: #e33;
-  background: rgba(238, 51, 51, 0.15);
-}
-
 /* Ensure SVG icons in buttons align properly */
-.settings-btn svg,
-.topbar-toggle svg,
+.topbar-action svg,
 .manager-close svg,
 .manager-item-btn svg,
 .feature-info-close svg,
@@ -1487,8 +1444,6 @@ body {
 }
 
 [data-theme="night"] #top-bar .app-name,
-[data-theme="night"] #top-bar .settings-btn,
-[data-theme="night"] #top-bar .topbar-toggle,
 [data-theme="night"] #top-bar .depth-unit-badge {
   color: #cc3333;
 }
@@ -1620,8 +1575,6 @@ body {
 }
 
 [data-theme="eink"] #top-bar .app-name,
-[data-theme="eink"] #top-bar .settings-btn,
-[data-theme="eink"] #top-bar .topbar-toggle,
 [data-theme="eink"] #top-bar .depth-unit-badge {
   color: #000000;
 }
@@ -1903,12 +1856,22 @@ body {
     display: inline;
     margin-left: 8px;
     font-size: 13px;
+    font-weight: normal;
+    letter-spacing: normal;
+    text-transform: none;
+    opacity: 1;
   }
 
-  /* Menu items: touch-friendly rows */
-  .topbar-menu .settings-btn,
-  .topbar-menu .topbar-toggle {
-    display: flex;
+  /* In the dropdown, drop the small uppercase label — the full descriptive
+     label takes its place. */
+  .topbar-menu .topbar-action-label {
+    display: none;
+  }
+
+  /* Menu items: touch-friendly rows that fill the dropdown width. */
+  .topbar-menu .topbar-action {
+    flex-direction: row;
+    justify-content: flex-start;
     align-items: center;
     padding: 10px 16px;
     min-width: 44px;
@@ -1916,18 +1879,28 @@ body {
     width: 100%;
     text-align: left;
     border-radius: 0;
+    gap: 0;
   }
 
-  .topbar-menu .settings-btn:hover,
-  .topbar-menu .topbar-toggle:hover {
+  .topbar-menu .topbar-action:hover {
     background: rgba(100, 130, 200, 0.2);
   }
 
-  /* Settings wrapper fills menu width */
+  /* Settings wrapper (badges + gear) fills the menu width on mobile.
+     The gear inside provides its own touch padding via .topbar-action. */
   .topbar-menu .settings-wrapper {
     margin-left: 0;
     width: 100%;
-    padding: 10px 16px;
+    display: flex;
+    align-items: center;
+    padding: 0 16px;
+    gap: 6px;
+  }
+
+  .topbar-menu .settings-wrapper .topbar-action {
+    margin-left: auto;
+    padding: 10px 0;
+    width: auto;
   }
 
   /* Settings panel: full-width overlay on mobile */
@@ -1951,13 +1924,6 @@ body {
     font-size: 11px;
     bottom: 10px;
     right: 6px;
-  }
-
-  /* Touch targets */
-  .settings-btn,
-  .topbar-toggle {
-    min-width: 44px;
-    min-height: 44px;
   }
 }
 

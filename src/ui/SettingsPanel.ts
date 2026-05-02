@@ -25,7 +25,8 @@ import {
   type WakeLockMode,
 } from "../settings";
 import { bearingModeLabel } from "../utils/magnetic";
-import { iconSettings, setIcon } from "./icons";
+import { iconSettings } from "./icons";
+import { buildTopbarAction } from "./topbarButton";
 
 const DEPTH_UNITS: { value: DepthUnit; label: string }[] = [
   { value: "meters", label: "Meters" },
@@ -94,10 +95,9 @@ export function createSettingsPanel(
     bearingBadge.textContent = `\u00b0${bearingModeLabel(s.bearingMode)}`;
   });
 
-  const btn = document.createElement("button");
-  btn.className = "settings-btn";
-  btn.setAttribute("aria-label", "Settings");
-  setIcon(btn, iconSettings);
+  const btn = buildTopbarAction(iconSettings, "SET", "Settings", {
+    fullLabel: "Settings",
+  });
   wrapper.appendChild(btn);
 
   const panel = document.createElement("div");

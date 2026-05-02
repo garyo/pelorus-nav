@@ -192,11 +192,17 @@ export const iconPlot = svg(
 );
 
 /**
- * Set an element's innerHTML to an icon SVG.
- * Marks the SVG as aria-hidden so screen readers skip the decorative icon.
+ * Set the SVG icon on an element, replacing any existing SVG child but
+ * preserving other children (label spans etc.). Marks the SVG aria-hidden
+ * so screen readers skip the decorative icon.
  */
 export function setIcon(el: HTMLElement, icon: string): void {
-  el.innerHTML = icon;
-  const svg = el.querySelector("svg");
-  if (svg) svg.setAttribute("aria-hidden", "true");
+  const tpl = document.createElement("template");
+  tpl.innerHTML = icon;
+  const svg = tpl.content.querySelector("svg");
+  if (!svg) return;
+  svg.setAttribute("aria-hidden", "true");
+  const existing = el.querySelector(":scope > svg");
+  if (existing) existing.replaceWith(svg);
+  else el.insertBefore(svg, el.firstChild);
 }
