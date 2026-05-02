@@ -1,7 +1,7 @@
 {
   "name": "pelorus-nav",
   "private": true,
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "Pelorus Nav — open-source web-based marine chartplotter",
   "type": "module",
   "scripts": {
@@ -38,9 +38,9 @@
     "@capacitor/core": "^8.2.0",
     "@capacitor/filesystem": "^8.1.2",
     "@capacitor/share": "^8.0.1",
-    "@maplibre/maplibre-gl-style-spec": "^24.4.1",
+    "@maplibre/maplibre-gl-style-spec": "24.8.1",
     "magvar": "^2.0.1",
-    "maplibre-gl": "^5.24.0",
+    "maplibre-gl": "5.24.0",
     "pmtiles": "^4.4.0"
   },
   "devDependencies": {

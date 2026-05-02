@@ -18,9 +18,6 @@ coverage/
 .env
 .env.*
 
-# Bun
-bun.lock
-
 # Tile pipeline data (large ENC files and generated tiles)
 tile-data/
 tools/s57-pipeline/data
