@@ -82,13 +82,45 @@ export const SCALE_SORT_KEY = [
   0,
 ] as unknown as ExpressionSpecification;
 
-/** Label expression: shows quoted LABEL if present, else empty string. */
-export const LABEL_EXPR = [
+/** Short LABEL expression: shows quoted LABEL if present, else empty string. */
+const SHORT_LABEL_EXPR: ExpressionSpecification = [
   "case",
   ["all", ["has", "LABEL"], ["!=", ["get", "LABEL"], ""]],
   ["concat", '"', ["get", "LABEL"], '"'],
   "",
 ] as unknown as ExpressionSpecification;
+
+/** Full label: prefers OBJNAM, falls back to the short LABEL. */
+const FULL_LABEL_EXPR: ExpressionSpecification = [
+  "case",
+  ["all", ["has", "OBJNAM"], ["!=", ["get", "OBJNAM"], ""]],
+  ["get", "OBJNAM"],
+  SHORT_LABEL_EXPR,
+] as unknown as ExpressionSpecification;
+
+/**
+ * Zoom at which buoy/beacon labels switch from short designation ("2")
+ * to full OBJNAM ("Boston Main Channel Lighted Buoy 2"). Higher detail
+ * levels (Standard+, Full) flip earlier — the user has opted into more
+ * on-screen information.
+ */
+export function fullLabelMinZoom(ctx: StyleContext): number {
+  return ctx.detailLevel >= 1 ? 14 : 15;
+}
+
+/**
+ * Label expression for buoys/beacons: short designation at lower zooms,
+ * full OBJNAM above the detail-dependent threshold.
+ */
+export function labelExpr(ctx: StyleContext): ExpressionSpecification {
+  return [
+    "step",
+    ["zoom"],
+    SHORT_LABEL_EXPR,
+    fullLabelMinZoom(ctx),
+    FULL_LABEL_EXPR,
+  ] as unknown as ExpressionSpecification;
+}
 
 /**
  * Reusable variable-anchor layout fragment for long-ish point labels
