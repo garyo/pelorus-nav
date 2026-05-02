@@ -11,8 +11,10 @@ export interface RecenterButtonOptions {
 
 export class RecenterButton implements maplibregl.IControl {
   private container: HTMLDivElement | null = null;
+  private button: HTMLButtonElement | null = null;
   private readonly onRecenter: () => void;
   private visible = false;
+  private enabled = true;
 
   constructor(options: RecenterButtonOptions) {
     this.onRecenter = options.onRecenter;
@@ -28,22 +30,37 @@ export class RecenterButton implements maplibregl.IControl {
     button.setAttribute("aria-label", "Re-center on vessel");
     button.title = "Re-center on vessel";
     setIcon(button, iconCrosshair);
-    button.addEventListener("click", () => this.onRecenter());
+    button.addEventListener("click", () => {
+      if (this.enabled) this.onRecenter();
+    });
+    this.button = button;
 
     this.container.appendChild(button);
     this.setVisible(this.visible);
+    this.setEnabled(this.enabled);
     return this.container;
   }
 
   onRemove(): void {
     this.container?.remove();
     this.container = null;
+    this.button = null;
   }
 
   setVisible(visible: boolean): void {
     this.visible = visible;
     if (this.container) {
       this.container.style.display = visible ? "block" : "none";
+    }
+  }
+
+  setEnabled(enabled: boolean): void {
+    this.enabled = enabled;
+    if (this.button) {
+      this.button.disabled = !enabled;
+      this.button.title = enabled
+        ? "Re-center on vessel"
+        : "Re-center on vessel (no GPS fix)";
     }
   }
 }

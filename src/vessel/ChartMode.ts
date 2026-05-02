@@ -38,20 +38,25 @@ export class ChartModeController {
     });
 
     // Suppress jumpTo while user is interacting so drag gestures
-    // aren't cancelled by GPS-tick map updates
-    this.map.on("mousedown", () => {
-      this.userInteracting = true;
-    });
-    this.map.on("mouseup", () => {
-      this.userInteracting = false;
-    });
+    // aren't cancelled by GPS-tick map updates.
+    // Press is captured on the canvas; release listens on window so that
+    // touchcancel (Android system gestures), pointercancel, mouseup-outside
+    // the canvas, and focus loss can never leave the flag stuck true.
     const canvas = this.map.getCanvas();
-    canvas.addEventListener("touchstart", () => {
+    const setInteracting = () => {
       this.userInteracting = true;
-    });
-    canvas.addEventListener("touchend", () => {
+    };
+    const clearInteracting = () => {
       this.userInteracting = false;
-    });
+    };
+    canvas.addEventListener("pointerdown", setInteracting);
+    if (typeof window !== "undefined") {
+      window.addEventListener("pointerup", clearInteracting);
+      window.addEventListener("pointercancel", clearInteracting);
+      window.addEventListener("touchend", clearInteracting);
+      window.addEventListener("touchcancel", clearInteracting);
+      window.addEventListener("blur", clearInteracting);
+    }
   }
 
   getMode(): ChartModeType {
