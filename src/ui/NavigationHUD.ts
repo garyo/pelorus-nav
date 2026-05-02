@@ -128,17 +128,17 @@ export class NavigationHUD {
     // GPS data
     navManager.subscribe((data) => {
       const settings = getSettings();
-      this.cogSogLine.textContent = `COG ${formatCOG(data.cog, data.latitude, data.longitude)}  SOG ${formatSpeed(data.sog, settings.speedUnit)}`;
       const varText =
         settings.bearingMode === "magnetic"
           ? `  ${formatDeclination(data.latitude, data.longitude)}`
           : "";
+      this.cogSogLine.textContent = `COG ${formatCOG(data.cog, data.latitude, data.longitude)}  SOG ${formatSpeed(data.sog, settings.speedUnit)}${varText}`;
       const adaptiveState = navManager.getAdaptiveState();
       const rateText =
         navManager.getRateMode() === "adaptive"
           ? ` ${formatRateIndicator(adaptiveState.tier, adaptiveState.intervalMs)}`
           : "";
-      this.gpsLine.textContent = `GPS: ${formatLatLon(data.latitude, "lat")} ${formatLatLon(data.longitude, "lon")} [${shortSource(data.source)}]${rateText}${varText}`;
+      this.gpsLine.textContent = `GPS: ${formatLatLon(data.latitude, "lat")} ${formatLatLon(data.longitude, "lon")} [${shortSource(data.source)}]${rateText}`;
     });
   }
 
