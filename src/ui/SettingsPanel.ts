@@ -45,9 +45,20 @@ type TabId = (typeof TAB_IDS)[number];
 
 const TAB_LABELS: Record<TabId, string> = {
   appearance: "Appearance",
-  layers: "Chart Layers",
+  layers: "Charts & Layers",
   navigation: "Navigation",
 };
+
+/** Chart-source picker wiring passed in from main.ts. */
+export interface ChartProvidersOpt {
+  list: { id: string; name: string }[];
+  getActiveId: () => string;
+  setActive: (id: string) => void;
+}
+
+export interface CreateSettingsPanelOpts {
+  chartProviders: ChartProvidersOpt;
+}
 
 export interface SettingsPanelHandle {
   /** Close the settings panel. */
@@ -60,6 +71,7 @@ export interface SettingsPanelHandle {
 
 export function createSettingsPanel(
   container: HTMLElement,
+  opts: CreateSettingsPanelOpts,
 ): SettingsPanelHandle {
   const wrapper = document.createElement("div");
   wrapper.className = "settings-wrapper";
@@ -90,7 +102,7 @@ export function createSettingsPanel(
 
   const panel = document.createElement("div");
   panel.className = "settings-panel";
-  buildTabbedPanel(panel);
+  buildTabbedPanel(panel, opts);
   document.body.appendChild(panel);
 
   container.appendChild(wrapper);
@@ -128,7 +140,10 @@ export function createSettingsPanel(
   };
 }
 
-function buildTabbedPanel(panel: HTMLElement): void {
+function buildTabbedPanel(
+  panel: HTMLElement,
+  opts: CreateSettingsPanelOpts,
+): void {
   const settings = getSettings();
 
   // --- Tab bar ---
@@ -156,7 +171,7 @@ function buildTabbedPanel(panel: HTMLElement): void {
   bodyContainer.className = "settings-tab-content";
 
   tabBodies.set("appearance", buildAppearanceTab(settings));
-  tabBodies.set("layers", buildLayersTab(settings));
+  tabBodies.set("layers", buildLayersTab(settings, opts.chartProviders));
   tabBodies.set("navigation", buildNavigationTab(settings));
 
   for (const [id, body] of tabBodies) {
@@ -402,8 +417,21 @@ function buildAppearanceTab(
   return tab;
 }
 
-function buildLayersTab(settings: ReturnType<typeof getSettings>): HTMLElement {
+function buildLayersTab(
+  settings: ReturnType<typeof getSettings>,
+  chartProviders: ChartProvidersOpt,
+): HTMLElement {
   const tab = document.createElement("div");
+
+  tab.appendChild(
+    buildSelectRow(
+      "Chart source",
+      "settings-chart-source",
+      chartProviders.list.map((p) => ({ value: p.id, label: p.name })),
+      chartProviders.getActiveId(),
+      (v) => chartProviders.setActive(v),
+    ),
+  );
 
   for (const [groupId, label] of Object.entries(LAYER_GROUP_LABELS)) {
     const checked = settings.layerGroups[groupId] !== false;

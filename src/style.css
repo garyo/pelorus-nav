@@ -46,14 +46,44 @@ body {
   white-space: nowrap;
 }
 
-#chart-select {
-  padding: 2px 6px;
-  font-size: 13px;
-  border: 1px solid #444;
-  border-radius: 4px;
-  background: #2a2a3e;
-  color: #e0e0e0;
+/* Promoted top-bar action buttons (Record, Instruments, Tracks, Routes).
+   Always visible on every viewport — they live outside #topbar-menu. */
+.topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.topbar-action {
+  background: none;
+  border: none;
+  color: #ccc;
   cursor: pointer;
+  /* Match .settings-btn so icons (sized at 1em) render at the same
+     resolution as the rest of the top-bar icons. */
+  font-size: 18px;
+  padding: 4px;
+  min-width: 32px;
+  min-height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  line-height: 1;
+}
+
+.topbar-action:hover {
+  color: #fff;
+  background: rgba(100, 130, 200, 0.18);
+}
+
+.topbar-action.active {
+  color: #fff;
+  background: rgba(100, 130, 200, 0.32);
+}
+
+.topbar-record.active {
+  color: #ff5252;
 }
 
 /* Settings */
@@ -1968,6 +1998,40 @@ body {
   background: #ffffff;
   border: 2px solid #000000;
   border-radius: 0;
+}
+
+/* ── Theme overrides for promoted top-bar action buttons ────────── */
+[data-theme="night"] .topbar-action {
+  color: #cc3333;
+}
+
+[data-theme="night"] .topbar-action:hover,
+[data-theme="night"] .topbar-action.active {
+  background: rgba(204, 51, 51, 0.18);
+  color: #ff6666;
+}
+
+[data-theme="night"] .topbar-record.active {
+  color: #ff6666;
+}
+
+[data-theme="dusk"] .topbar-action {
+  color: #b0b0c0;
+}
+
+[data-theme="eink"] .topbar-action {
+  color: #000000;
+}
+
+[data-theme="eink"] .topbar-action:hover,
+[data-theme="eink"] .topbar-action.active {
+  background: #dddddd;
+  color: #000000;
+}
+
+[data-theme="eink"] .topbar-record.active {
+  color: #000000;
+  background: #cccccc;
 }
 
 /* --- Plot toolbar --- */

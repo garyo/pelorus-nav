@@ -198,23 +198,6 @@ const EINK_FRAME_INTERVAL = 250; // ms between frames
   map.triggerRepaint = throttledRepaint;
 }
 
-// Populate chart selector in top bar
-const chartSelect = document.getElementById(
-  "chart-select",
-) as HTMLSelectElement;
-for (const provider of chartManager.getProviders()) {
-  const option = document.createElement("option");
-  option.value = provider.id;
-  option.textContent = provider.name;
-  if (provider.id === chartManager.getActiveProvider()?.id) {
-    option.selected = true;
-  }
-  chartSelect.appendChild(option);
-}
-chartSelect.addEventListener("change", () => {
-  chartManager.setActiveProvider(chartSelect.value);
-});
-
 new FeatureQueryHandler(chartManager);
 
 // Light sector arcs and range circles (client-side generated from LIGHTS data)
@@ -226,7 +209,19 @@ new PelLightLayer(chartManager.map);
 
 // Settings gear in top bar menu
 const topbarMenu = document.getElementById("topbar-menu");
-const settingsHandle = topbarMenu ? createSettingsPanel(topbarMenu) : null;
+const topbarActions = document.getElementById("topbar-actions");
+const settingsHandle = topbarMenu
+  ? createSettingsPanel(topbarMenu, {
+      chartProviders: {
+        list: chartManager.getProviders().map((p) => ({
+          id: p.id,
+          name: p.name,
+        })),
+        getActiveId: () => chartManager.getActiveProvider()?.id ?? "",
+        setActive: (id) => chartManager.setActiveProvider(id),
+      },
+    })
+  : null;
 
 // Hamburger toggle for mobile
 const hamburgerBtn = document.getElementById("hamburger-btn");
@@ -563,75 +558,74 @@ const addMenuLabel = (btn: HTMLElement, label: string) => {
   btn.appendChild(span);
 };
 
-// Add toolbar buttons to top bar menu
-if (topbarMenu) {
-  const settingsWrapper = topbarMenu.querySelector(".settings-wrapper");
-
+// Always-visible top-bar action buttons (Record, Instruments, Tracks, Routes).
+// These live in #topbar-actions, outside #topbar-menu, so they stay in the
+// top bar at all viewport widths instead of collapsing into the hamburger.
+if (topbarActions) {
   // Record track toggle
   const recordBtn = document.createElement("button");
-  recordBtn.className = "topbar-toggle topbar-record";
+  recordBtn.className = "topbar-action topbar-record";
   recordBtn.title = "Record track";
+  recordBtn.setAttribute("aria-label", "Record track");
   setIcon(recordBtn, iconRecord);
-  addMenuLabel(recordBtn, "Record");
-  const recordLabel = recordBtn.querySelector(
-    ".topbar-menu-label",
-  ) as HTMLElement;
   const updateRecordBtn = () => {
     const on = trackRecorder.isRecording();
     recordBtn.classList.toggle("active", on);
-    recordBtn.title = on ? "Stop recording" : "Record track";
-    if (recordLabel) recordLabel.textContent = on ? "Recording" : "Record";
+    const label = on ? "Stop recording" : "Record track";
+    recordBtn.title = label;
+    recordBtn.setAttribute("aria-label", label);
   };
   recordBtn.addEventListener("click", () => {
     updateSettings({ trackRecordingEnabled: !trackRecorder.isRecording() });
-    closeHamburger();
   });
   trackRecorder.onRecordingChange(updateRecordBtn);
   updateRecordBtn();
-  topbarMenu.insertBefore(recordBtn, settingsWrapper);
+  topbarActions.appendChild(recordBtn);
 
   // Instrument HUD toggle
   const hudBtn = document.createElement("button");
-  hudBtn.className = "topbar-toggle";
-  hudBtn.title = "Instrument HUD";
+  hudBtn.className = "topbar-action";
+  hudBtn.title = "Instruments";
+  hudBtn.setAttribute("aria-label", "Toggle instrument HUD");
   setIcon(hudBtn, iconGauge);
-  addMenuLabel(hudBtn, "Instruments");
   const updateHudBtn = () => {
     hudBtn.classList.toggle("active", getSettings().showInstrumentHUD);
   };
   hudBtn.addEventListener("click", () => {
     updateSettings({ showInstrumentHUD: !getSettings().showInstrumentHUD });
-    closeHamburger();
   });
   onSettingsChange(updateHudBtn);
   updateHudBtn();
-  topbarMenu.insertBefore(hudBtn, settingsWrapper);
+  topbarActions.appendChild(hudBtn);
 
   // Tracks panel button
   const trackBtn = document.createElement("button");
-  trackBtn.className = "settings-btn";
+  trackBtn.className = "topbar-action";
   trackBtn.title = "Tracks";
+  trackBtn.setAttribute("aria-label", "Tracks");
   setIcon(trackBtn, iconTrack);
-  addMenuLabel(trackBtn, "Tracks");
   trackBtn.addEventListener("click", () => {
     trackPanel.toggle();
     settingsHandle?.hide();
-    closeHamburger();
   });
-  topbarMenu.insertBefore(trackBtn, settingsWrapper);
+  topbarActions.appendChild(trackBtn);
 
   // Routes panel button
   const routeBtn = document.createElement("button");
-  routeBtn.className = "settings-btn";
+  routeBtn.className = "topbar-action";
   routeBtn.title = "Routes";
+  routeBtn.setAttribute("aria-label", "Routes");
   setIcon(routeBtn, iconRoute);
-  addMenuLabel(routeBtn, "Routes");
   routeBtn.addEventListener("click", () => {
     routePanel.toggle();
     settingsHandle?.hide();
-    closeHamburger();
   });
-  topbarMenu.insertBefore(routeBtn, settingsWrapper);
+  topbarActions.appendChild(routeBtn);
+}
+
+// Remaining toolbar buttons live in the hamburger menu (collapse on mobile).
+if (topbarMenu) {
+  const settingsWrapper = topbarMenu.querySelector(".settings-wrapper");
 
   // Waypoints panel button
   const waypointBtn = document.createElement("button");
@@ -684,7 +678,7 @@ if (topbarMenu) {
   cacheBtn.className = "settings-btn";
   cacheBtn.title = "Chart Regions";
   setIcon(cacheBtn, iconGlobe);
-  addMenuLabel(cacheBtn, "Charts");
+  addMenuLabel(cacheBtn, "Chart Regions");
   cacheBtn.addEventListener("click", () => {
     cachePanel.toggle();
     settingsHandle?.hide();
