@@ -2002,15 +2002,24 @@ body {
   color: #000000;
 }
 
-[data-theme="eink"] .topbar-action:hover,
-[data-theme="eink"] .topbar-action.active {
+[data-theme="eink"] .topbar-action:hover {
   background: #dddddd;
   color: #000000;
 }
 
-[data-theme="eink"] .topbar-record.active {
+/* On e-ink, the light-gray background tint is barely visible. Add a thick
+   red underline so the toggled state is unambiguous. box-shadow inset keeps
+   the icon from shifting on activation. */
+[data-theme="eink"] .topbar-action.active {
+  background: #dddddd;
   color: #000000;
+  box-shadow: inset 0 -3px 0 #c00000;
+}
+
+[data-theme="eink"] .topbar-record.active {
   background: #cccccc;
+  color: #000000;
+  box-shadow: inset 0 -3px 0 #c00000;
 }
 
 /* --- Plot toolbar --- */
