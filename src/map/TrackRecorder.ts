@@ -42,6 +42,14 @@ export class TrackRecorder {
   private lastLon = 0;
   private listeners: RecorderListener[] = [];
   private navCallback: ((data: NavigationData) => void) | null = null;
+  /**
+   * In-flight tryResumeTrack(). onNavData and recoverBackgroundPoints
+   * await this before touching currentTrack — without it, a GPS fix or
+   * visibility-change arriving during the resume's IDB lookup creates a
+   * new track that resume then overwrites, leaving an orphan zero-point
+   * meta in IDB.
+   */
+  private resumePromise: Promise<void> | null = null;
 
   constructor(navManager: NavigationDataManager) {
     this.navManager = navManager;
@@ -67,7 +75,8 @@ export class TrackRecorder {
   start(): void {
     if (this.recording) return;
     this.recording = true;
-    this.tryResumeTrack().catch(console.error);
+    this.resumePromise = this.tryResumeTrack();
+    this.resumePromise.catch(console.error);
     this.navCallback = (data) => {
       this.onNavData(data).catch(console.error);
     };
@@ -90,6 +99,7 @@ export class TrackRecorder {
     this.currentTrack = null;
     this.trackPersisted = false;
     this.lastRecordedTime = 0;
+    this.resumePromise = null;
     localStorage.removeItem(ACTIVE_TRACK_KEY);
     this.updateNativeNotification("Navigating");
     this.notify();
@@ -126,6 +136,11 @@ export class TrackRecorder {
       const elapsed = Date.now() - lastPoint.timestamp;
       if (elapsed > GAP_THRESHOLD_MS) return; // too old, start fresh
 
+      // Defensive: if onNavData/recovery already created a track (they
+      // should now await resumePromise so this shouldn't fire), don't
+      // clobber it.
+      if (this.currentTrack) return;
+
       // Resume this track
       this.currentTrack = { ...meta, pointCount: points.length };
       this.trackPersisted = true;
@@ -144,13 +159,25 @@ export class TrackRecorder {
    */
   async recoverBackgroundPoints(): Promise<void> {
     if (!Capacitor.isNativePlatform()) return;
+    // Wait for any in-flight tryResumeTrack — without this, recovery could
+    // create a fresh track that resume then overwrites.
+    if (this.resumePromise) await this.resumePromise;
 
     const { points } = await BackgroundGPS.getRecordedPoints();
     if (points.length === 0) return;
 
+    // Filter to only points newer than what we've already recorded.
+    const newPoints = points.filter(
+      (pt) => pt.timestamp > this.lastRecordedTime,
+    );
+    if (newPoints.length === 0) {
+      await BackgroundGPS.clearRecordedPoints();
+      return;
+    }
+
     // Ensure we have an active track
     if (!this.currentTrack) {
-      const now = points[0].timestamp;
+      const now = newPoints[0].timestamp;
       const date = new Date(now);
       const name = `Track ${localDateTime(date)}`;
       this.currentTrack = {
@@ -164,17 +191,7 @@ export class TrackRecorder {
       this.trackPersisted = false;
     }
 
-    // Persist meta if not yet done
-    if (!this.trackPersisted) {
-      await saveTrackMeta(this.currentTrack);
-      this.trackPersisted = true;
-      this.notify();
-    }
-
-    // Insert points that are newer than our last recorded timestamp
-    for (const pt of points) {
-      if (pt.timestamp <= this.lastRecordedTime) continue;
-
+    for (const pt of newPoints) {
       const trackPoint: TrackPoint = {
         lat: pt.lat,
         lon: pt.lon,
@@ -183,11 +200,21 @@ export class TrackRecorder {
         cog: pt.course >= 0 ? pt.course : null,
       };
 
-      await appendTrackPoint(this.currentTrack.id, trackPoint);
-      this.currentTrack.pointCount++;
+      // Update state BEFORE awaiting append, so a concurrent onNavData
+      // sees the updated lastRecordedTime and won't duplicate.
       this.lastRecordedTime = pt.timestamp;
       this.lastLat = pt.lat;
       this.lastLon = pt.lon;
+
+      await appendTrackPoint(this.currentTrack.id, trackPoint);
+      this.currentTrack.pointCount++;
+
+      // Persist meta on first point (avoids zero-point track meta in IDB)
+      if (!this.trackPersisted) {
+        await saveTrackMeta(this.currentTrack);
+        this.trackPersisted = true;
+        this.notify();
+      }
     }
 
     // Save updated meta and clear native buffer
@@ -197,6 +224,11 @@ export class TrackRecorder {
   }
 
   private async onNavData(data: NavigationData): Promise<void> {
+    // Wait for any in-flight tryResumeTrack — without this, a fix arriving
+    // during resume's IDB lookup would create a new track that resume
+    // immediately overwrites, leaving an orphan zero-point meta.
+    if (this.resumePromise) await this.resumePromise;
+
     const now = data.timestamp;
 
     // Check for time gap → start new track
@@ -227,7 +259,7 @@ export class TrackRecorder {
       if (dist < MIN_MOVE_NM) return;
     }
 
-    // Create new track if needed (but don't persist meta yet)
+    // Create new track if needed (but don't persist meta yet — see below)
     if (!this.currentTrack) {
       const date = new Date(now);
       const name = `Track ${localDateTime(date)}`;
@@ -250,18 +282,21 @@ export class TrackRecorder {
       cog: data.cog,
     };
 
-    // Persist meta on first point (avoids zero-point tracks)
-    if (!this.trackPersisted) {
-      await saveTrackMeta(this.currentTrack);
-      this.trackPersisted = true;
-      this.notify();
-    }
-
-    await appendTrackPoint(this.currentTrack.id, point);
-    this.currentTrack.pointCount++;
+    // Update state BEFORE awaiting, so a concurrent recoverBackgroundPoints
+    // sees the new lastRecordedTime and skips this same fix from SQLite.
     this.lastRecordedTime = now;
     this.lastLat = data.latitude;
     this.lastLon = data.longitude;
+
+    await appendTrackPoint(this.currentTrack.id, point);
+    this.currentTrack.pointCount++;
+
+    // Persist meta only after the first point is in the store, so a meta
+    // record always corresponds to ≥ 1 stored point.
+    if (!this.trackPersisted) {
+      await saveTrackMeta(this.currentTrack);
+      this.trackPersisted = true;
+    }
     this.notify();
 
     // Persist active track ID for resume-after-refresh

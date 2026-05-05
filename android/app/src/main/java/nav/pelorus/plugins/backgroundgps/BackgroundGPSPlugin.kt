@@ -3,6 +3,7 @@ package nav.pelorus.plugins.backgroundgps
 import android.Manifest
 import android.content.Intent
 import android.os.Build
+import android.util.Log
 import android.view.WindowManager
 import com.getcapacitor.JSArray
 import com.getcapacitor.JSObject
@@ -78,7 +79,21 @@ class BackgroundGPSPlugin : Plugin() {
     }
 
     private fun doStartTracking(call: PluginCall) {
-        // Wire up live location delivery to the WebView
+        // Wire up live location delivery to the WebView. The bridge listener
+        // is only invoked when the service is in ACTIVE mode (the service
+        // clears its own reference on PASSIVE → see applyMode()).
+        installBridgeListener()
+
+        val intent = Intent(context, BackgroundTrackService::class.java)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            context.startForegroundService(intent)
+        } else {
+            context.startService(intent)
+        }
+        call.resolve()
+    }
+
+    private fun installBridgeListener() {
         BackgroundTrackService.locationListener = { point ->
             val data = JSObject().apply {
                 put("timestamp", point.timestamp)
@@ -90,19 +105,17 @@ class BackgroundGPSPlugin : Plugin() {
             }
             notifyListeners("locationUpdate", data)
         }
-
-        val intent = Intent(context, BackgroundTrackService::class.java)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            context.startForegroundService(intent)
-        } else {
-            context.startService(intent)
-        }
-        call.resolve()
     }
 
     @PluginMethod
     fun stopTracking(call: PluginCall) {
+        // Trace who's stopping the service — we hit a mystery cycle of stops
+        // during screen-off cruising and we want to know the JS path that
+        // triggered it. Walk the stack by throwing+catching a Throwable.
+        val st = Throwable("stopTracking()").stackTraceToString()
+        Log.i("BackgroundGPSPlugin", "stopTracking called\n$st")
         BackgroundTrackService.locationListener = null
+        BackgroundTrackService.instance?.cancelPendingPassive()
         val intent = Intent(context, BackgroundTrackService::class.java)
         context.stopService(intent)
         call.resolve()
@@ -133,14 +146,64 @@ class BackgroundGPSPlugin : Plugin() {
         call.resolve()
     }
 
+    /**
+     * Set the GPS power mode.
+     *
+     * mode:        "active"  → HIGH_ACCURACY, fast interval, bridge on, wake lock held.
+     *              "passive" → BALANCED_POWER_ACCURACY, slow interval, bridge silenced,
+     *                          wake lock toggled per-fix.
+     * intervalMs:  optional. Updates the active or passive default depending on mode.
+     * graceMs:     optional, only meaningful for mode="passive". When > 0, the
+     *              transition to passive is deferred by this many ms via a native
+     *              Handler — JS setTimeout would be throttled or suspended while
+     *              the WebView is hidden, so the timer has to live here. ACTIVE
+     *              cancels any pending passive transition.
+     */
     @PluginMethod
-    fun setGpsInterval(call: PluginCall) {
-        val intervalMs = call.getLong("intervalMs", 1000L) ?: 1000L
-        val adaptive = call.getBoolean("adaptive", false) ?: false
-        BackgroundTrackService.desiredIntervalMs = intervalMs
-        BackgroundTrackService.adaptiveEnabled = adaptive
-        // If service is running, apply immediately
-        BackgroundTrackService.instance?.updateInterval()
+    fun setPowerMode(call: PluginCall) {
+        val mode = call.getString("mode") ?: BackgroundTrackService.MODE_ACTIVE
+        if (mode != BackgroundTrackService.MODE_ACTIVE &&
+            mode != BackgroundTrackService.MODE_PASSIVE) {
+            call.reject("Unknown mode: $mode")
+            return
+        }
+        // Capacitor's call.getLong() rejects values that arrive on the wire as
+        // Integer (any JS Number that fits in 32 bits), returning null even
+        // when the key is present. optLong on the underlying JSObject is
+        // type-tolerant and handles Integer/Long/Double uniformly.
+        val intervalMs = if (call.data.has("intervalMs")) call.data.optLong("intervalMs") else null
+        val graceMs = call.data.optLong("graceMs", 0L)
+        Log.i("BackgroundGPSPlugin", "setPowerMode(mode=$mode, intervalMs=$intervalMs, graceMs=$graceMs)")
+
+        if (mode == BackgroundTrackService.MODE_ACTIVE) {
+            // Active is always immediate — cancel any scheduled passive grace.
+            BackgroundTrackService.instance?.cancelPendingPassive()
+            if (intervalMs != null) BackgroundTrackService.activeIntervalMs = intervalMs
+            BackgroundTrackService.currentMode = BackgroundTrackService.MODE_ACTIVE
+            installBridgeListener()
+            BackgroundTrackService.instance?.applyMode()
+            call.resolve()
+            return
+        }
+
+        // PASSIVE
+        val effectiveInterval = intervalMs ?: BackgroundTrackService.passiveIntervalMs
+        if (graceMs > 0) {
+            val svc = BackgroundTrackService.instance
+            if (svc != null) {
+                svc.schedulePassive(graceMs, effectiveInterval, this)
+            } else {
+                // Service not running — apply immediately so a future start picks it up.
+                BackgroundTrackService.currentMode = BackgroundTrackService.MODE_PASSIVE
+                BackgroundTrackService.passiveIntervalMs = effectiveInterval
+                BackgroundTrackService.locationListener = null
+            }
+        } else {
+            BackgroundTrackService.currentMode = BackgroundTrackService.MODE_PASSIVE
+            BackgroundTrackService.passiveIntervalMs = effectiveInterval
+            BackgroundTrackService.locationListener = null
+            BackgroundTrackService.instance?.applyMode()
+        }
         call.resolve()
     }
 

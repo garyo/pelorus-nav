@@ -14,6 +14,7 @@ import {
 import { LightSectorLayer } from "./chart/LightSectorLayer";
 import { PelLightLayer } from "./chart/PelLightLayer";
 import { SafetyContour } from "./chart/SafetyContour";
+import { repairTrackPointCounts } from "./data/db";
 import { downloadFile } from "./data/file-io";
 import { OPFSSource } from "./data/opfs-source";
 import { chartAssetBase } from "./data/remote-url";
@@ -455,26 +456,83 @@ onSettingsChange((s) => {
     trackRecorder.stop();
   }
 });
-if (getSettings().trackRecordingEnabled) trackRecorder.start();
 
-// Capacitor screen-off power management: reduce GPS polling when screen is off
-if (capacitorGPS) {
-  document.addEventListener("visibilitychange", () => {
-    if (document.visibilityState === "hidden") {
-      if (trackRecorder.isRecording()) {
-        // Recording: keep foreground service alive but enable native adaptive rate
-        capacitorGPS?.enableBackgroundAdaptive(5000);
-      } else {
-        // Not recording: stop native GPS entirely to save power
-        capacitorGPS?.pauseTracking();
-      }
-    } else {
-      // Screen on: restart native GPS and let JS control the rate
-      capacitorGPS?.resumeTracking();
-      const interval = navManager.getAdaptiveState().intervalMs;
-      capacitorGPS?.disableBackgroundAdaptive(interval);
+// One-shot repair: re-sync track meta pointCounts with stored points,
+// fixing stale/zero counts left by an earlier race condition. Gated by
+// localStorage so it only runs once per device. Recording is started
+// after repair completes to avoid concurrent writes to the same meta.
+const TRACK_REPAIR_FLAG = "pelorus-nav-track-counts-repaired-v1";
+(async () => {
+  if (!localStorage.getItem(TRACK_REPAIR_FLAG)) {
+    try {
+      const { scanned, repaired } = await repairTrackPointCounts();
+      console.log(`Track meta repair: ${repaired}/${scanned} updated`);
+      localStorage.setItem(TRACK_REPAIR_FLAG, "1");
+    } catch (e) {
+      console.error("Track meta repair failed:", e);
     }
+  }
+  if (getSettings().trackRecordingEnabled) trackRecorder.start();
+})();
+
+// Capacitor power management: a single visibility/recording-driven state
+// machine that picks between "active" (HIGH_ACCURACY, fast) and "passive"
+// (BALANCED, slow, bridge-silenced, wake-lock-toggled) GPS modes.
+//
+// Visible:                  active mode at the chosen rate (1 s normally,
+//                           5 s in e-ink theme since the panel can't update
+//                           faster anyway).
+// Hidden + recording:       grace 60 s at the previous active rate, then
+//                           passive at 15 s. Snap back to active on visible.
+// Hidden + not recording:   stop the native GPS entirely.
+if (capacitorGPS) {
+  const HIDDEN_GRACE_MS = 60_000;
+  const PASSIVE_INTERVAL_MS = 15_000;
+  const ACTIVE_INTERVAL_MS = 1_000;
+  const EINK_ACTIVE_INTERVAL_MS = 5_000;
+
+  const activeIntervalForCurrentTheme = () =>
+    getSettings().displayTheme === "eink"
+      ? EINK_ACTIVE_INTERVAL_MS
+      : ACTIVE_INTERVAL_MS;
+
+  const applyGpsPowerMode = () => {
+    if (!capacitorGPS) return;
+    const visible = document.visibilityState === "visible";
+    const recording = trackRecorder.isRecording();
+
+    if (visible) {
+      // Service may have been stopped (hidden+!recording branch) — startTracking
+      // is idempotent when already running, and setPowerMode("active") below
+      // cancels any pending native grace timer.
+      capacitorGPS.resumeTracking();
+      capacitorGPS.setPowerMode("active", activeIntervalForCurrentTheme());
+      return;
+    }
+    if (recording) {
+      // Schedule passive on the native side. JS setTimeout is throttled or
+      // suspended when the WebView is hidden, so the timer has to live in
+      // native land or it will never fire.
+      capacitorGPS.setPowerMode(
+        "passive",
+        PASSIVE_INTERVAL_MS,
+        HIDDEN_GRACE_MS,
+      );
+      return;
+    }
+    capacitorGPS.pauseTracking();
+  };
+
+  document.addEventListener("visibilitychange", applyGpsPowerMode);
+  trackRecorder.onRecordingChange(applyGpsPowerMode);
+  // Theme changes (e-ink ⇄ normal) re-apply the mode so the active interval updates.
+  onSettingsChange((s) => {
+    void s;
+    if (document.visibilityState === "visible") applyGpsPowerMode();
   });
+
+  // Initial state at boot: visible.
+  applyGpsPowerMode();
 }
 
 // --- Routes ---

@@ -138,6 +138,28 @@ export async function getTrackPoints(trackId: string): Promise<TrackPoint[]> {
   });
 }
 
+/**
+ * Re-sync each track meta's `pointCount` with the actual stored point
+ * count. Earlier versions of TrackRecorder had race conditions that left
+ * meta counts stale (or zero, with hidden orphan points). This fixes the
+ * counts in place; it never deletes data.
+ */
+export async function repairTrackPointCounts(): Promise<{
+  scanned: number;
+  repaired: number;
+}> {
+  const metas = await getAllTrackMetas();
+  let repaired = 0;
+  for (const meta of metas) {
+    const points = await getTrackPoints(meta.id);
+    if (points.length !== meta.pointCount) {
+      await saveTrackMeta({ ...meta, pointCount: points.length });
+      repaired++;
+    }
+  }
+  return { scanned: metas.length, repaired };
+}
+
 // --- Routes ---
 
 export async function saveRoute(route: Route): Promise<void> {

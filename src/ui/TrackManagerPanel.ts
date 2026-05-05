@@ -50,6 +50,7 @@ export class TrackManagerPanel {
       '<div style="display:flex;gap:6px;align-items:center">' +
       '<button class="manager-item-btn" id="track-import-btn" title="Import GPX"></button>' +
       '<button class="manager-item-btn" id="track-export-all-btn" title="Export All GPX"></button>' +
+      '<button class="manager-item-btn" id="track-delete-all-btn" title="Delete All Tracks"></button>' +
       '<button class="track-record-btn"></button>' +
       '<button class="manager-close"></button>' +
       "</div>" +
@@ -80,6 +81,14 @@ export class TrackManagerPanel {
     ) as HTMLElement;
     setIcon(exportAllBtn, iconExport);
     exportAllBtn.addEventListener("click", () => this.exportAll());
+
+    const deleteAllBtn = this.el.querySelector(
+      "#track-delete-all-btn",
+    ) as HTMLElement;
+    setIcon(deleteAllBtn, iconTrash);
+    deleteAllBtn.addEventListener("click", () => {
+      this.deleteAll().catch(console.error);
+    });
 
     const closeBtn = this.el.querySelector(".manager-close") as HTMLElement;
     if (closeBtn) {
@@ -319,6 +328,28 @@ export class TrackManagerPanel {
         input.blur();
       }
     });
+  }
+
+  private async deleteAll(): Promise<void> {
+    const metas = await getAllTrackMetas();
+    if (metas.length === 0) {
+      alert("No tracks to delete.");
+      return;
+    }
+    const n = metas.length;
+    if (
+      !confirm(
+        `Delete all ${n} track${n !== 1 ? "s" : ""}? This cannot be undone.`,
+      )
+    ) {
+      return;
+    }
+    this.clearSelection();
+    for (const meta of metas) {
+      await deleteTrack(meta.id);
+    }
+    await this.trackLayer.reloadAll();
+    await this.refresh();
   }
 
   private async exportAll(): Promise<void> {

@@ -55,26 +55,36 @@ export class CapacitorGPSProvider implements NavigationDataProvider {
     if (idx >= 0) this.listeners.splice(idx, 1);
   }
 
-  setDesiredIntervalMs(ms: number): void {
-    BackgroundGPS.setGpsInterval({ intervalMs: ms, adaptive: false }).catch(
-      console.error,
-    );
+  /**
+   * Per-fix HW-rate hints from `NavigationDataManager` would fight the
+   * visibility/recording-driven `setPowerMode` decisions made in main.ts,
+   * so on this provider they're a no-op. The visibility state machine is
+   * the single authority on native rate; the JS adaptive controller still
+   * runs as a broadcast throttle, but its hints don't reach the chip.
+   */
+  setDesiredIntervalMs(_ms: number): void {
+    // intentionally empty
   }
 
-  /** Enable native-side adaptive rate (for screen-off recording). */
-  enableBackgroundAdaptive(hintIntervalMs: number): void {
-    BackgroundGPS.setGpsInterval({
-      intervalMs: hintIntervalMs,
-      adaptive: true,
-    }).catch(console.error);
-  }
-
-  /** Disable native adaptive, let JS control the rate. */
-  disableBackgroundAdaptive(intervalMs: number): void {
-    BackgroundGPS.setGpsInterval({
-      intervalMs: intervalMs,
-      adaptive: false,
-    }).catch(console.error);
+  /**
+   * Set the GPS power mode. Used by the visibility/recording state machine
+   * in main.ts. When `graceMs > 0` (passive only), the transition is deferred
+   * on the native side by that many ms — the JS `setTimeout` we'd otherwise
+   * use is throttled/suspended when the WebView is hidden.
+   */
+  setPowerMode(
+    mode: "active" | "passive",
+    intervalMs?: number,
+    graceMs?: number,
+  ): void {
+    const opts: {
+      mode: "active" | "passive";
+      intervalMs?: number;
+      graceMs?: number;
+    } = { mode };
+    if (intervalMs !== undefined) opts.intervalMs = intervalMs;
+    if (graceMs !== undefined) opts.graceMs = graceMs;
+    BackgroundGPS.setPowerMode(opts).catch(console.error);
   }
 
   /** Stop native GPS without disconnecting the provider (screen-off, not recording). */

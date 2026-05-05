@@ -29,10 +29,25 @@ export interface BackgroundGPSPlugin {
   /** Clear the native SQLite buffer after points have been transferred. */
   clearRecordedPoints(): Promise<void>;
 
-  /** Set GPS polling interval and enable/disable native adaptive rate. */
-  setGpsInterval(options: {
-    intervalMs: number;
-    adaptive: boolean;
+  /**
+   * Set the GPS power mode.
+   * - "active": HIGH_ACCURACY, fast interval (default 1s), bridge events on,
+   *   wake lock held continuously.
+   * - "passive": BALANCED_POWER_ACCURACY, slow interval (default 15s), bridge
+   *   events silenced (fixes go to SQLite for later recovery), wake lock toggled
+   *   per-fix.
+   *
+   * `intervalMs` overrides the default for the chosen mode and is remembered
+   * separately for active vs passive on the native side.
+   *
+   * `graceMs` only applies to mode="passive": when > 0, defer the transition
+   * by this many ms using a native Handler (so it survives WebView suspension).
+   * The active branch cancels any previously-scheduled grace.
+   */
+  setPowerMode(options: {
+    mode: "active" | "passive";
+    intervalMs?: number;
+    graceMs?: number;
   }): Promise<void>;
 
   /** Update the foreground-service notification text (e.g. "Navigating" vs "Recording track"). */
