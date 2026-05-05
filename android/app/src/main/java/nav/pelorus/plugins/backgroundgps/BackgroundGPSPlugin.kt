@@ -123,7 +123,8 @@ class BackgroundGPSPlugin : Plugin() {
 
     @PluginMethod
     fun getRecordedPoints(call: PluginCall) {
-        val points = trackDb?.getAllPoints() ?: emptyList()
+        val since = call.data.optLong("sinceTimestamp", 0L)
+        val points = trackDb?.getPointsSince(since) ?: emptyList()
         val arr = JSArray()
         for (pt in points) {
             arr.put(JSObject().apply {
@@ -141,8 +142,9 @@ class BackgroundGPSPlugin : Plugin() {
     }
 
     @PluginMethod
-    fun clearRecordedPoints(call: PluginCall) {
-        trackDb?.clearAll()
+    fun pruneRecordedPoints(call: PluginCall) {
+        val before = call.data.optLong("beforeTimestamp", 0L)
+        trackDb?.pruneBefore(before)
         call.resolve()
     }
 

@@ -23,11 +23,22 @@ export interface BackgroundGPSPlugin {
   /** Stop the foreground service and GPS tracking. */
   stopTracking(): Promise<void>;
 
-  /** Get all points recorded while the WebView was suspended. */
-  getRecordedPoints(): Promise<{ points: TrackPointNative[] }>;
+  /**
+   * Pull buffered points from the native SQLite store. Pass `sinceTimestamp`
+   * to receive only points strictly newer than that ms-epoch — used by the
+   * provider's drain loop to advance through the buffer without re-emitting.
+   * Returns points sorted ascending by timestamp.
+   */
+  getRecordedPoints(options?: {
+    sinceTimestamp?: number;
+  }): Promise<{ points: TrackPointNative[] }>;
 
-  /** Clear the native SQLite buffer after points have been transferred. */
-  clearRecordedPoints(): Promise<void>;
+  /**
+   * Delete points with timestamp ≤ `beforeTimestamp`. Race-safe: rows the
+   * native service writes between read and prune are preserved as long as
+   * their timestamp is greater. Pass 0 (or omit) to clear the table.
+   */
+  pruneRecordedPoints(options?: { beforeTimestamp?: number }): Promise<void>;
 
   /**
    * Set the GPS power mode.

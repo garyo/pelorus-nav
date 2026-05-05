@@ -12,12 +12,10 @@
 import { Capacitor } from "@capacitor/core";
 import { appendTrackPoint, getTrackPoints, saveTrackMeta } from "../data/db";
 import type { TrackMeta, TrackPoint } from "../data/Track";
-import { GPSFilter } from "../navigation/GPSFilter";
 import type { NavigationData } from "../navigation/NavigationData";
 import type { NavigationDataManager } from "../navigation/NavigationDataManager";
 import { BackgroundGPS } from "../plugins/BackgroundGPS";
 import { haversineDistanceNM } from "../utils/coordinates";
-import { MS_TO_KNOTS } from "../utils/units";
 import { generateUUID } from "../utils/uuid";
 
 const MIN_INTERVAL_MS = 1000;
@@ -45,25 +43,15 @@ export class TrackRecorder {
   private listeners: RecorderListener[] = [];
   private navCallback: ((data: NavigationData) => void) | null = null;
   /**
-   * In-flight tryResumeTrack(). onNavData and recoverBackgroundPoints
-   * await this before touching currentTrack — without it, a GPS fix or
-   * visibility-change arriving during the resume's IDB lookup creates a
-   * new track that resume then overwrites, leaving an orphan zero-point
-   * meta in IDB.
+   * In-flight tryResumeTrack(). onNavData awaits this before touching
+   * currentTrack — without it, a GPS fix arriving during the resume's IDB
+   * lookup creates a new track that resume then overwrites, leaving an
+   * orphan zero-point meta in IDB.
    */
   private resumePromise: Promise<void> | null = null;
 
   constructor(navManager: NavigationDataManager) {
     this.navManager = navManager;
-
-    // Recover background GPS points when app returns to foreground
-    if (Capacitor.isNativePlatform()) {
-      document.addEventListener("visibilitychange", () => {
-        if (document.visibilityState === "visible" && this.recording) {
-          this.recoverBackgroundPoints().catch(console.error);
-        }
-      });
-    }
   }
 
   isRecording(): boolean {
@@ -153,110 +141,6 @@ export class TrackRecorder {
       // Corrupt localStorage entry — ignore
       localStorage.removeItem(ACTIVE_TRACK_KEY);
     }
-  }
-
-  /**
-   * Pull GPS points recorded by the native foreground service while
-   * the WebView was suspended. Inserts them into the active IndexedDB track.
-   */
-  async recoverBackgroundPoints(): Promise<void> {
-    if (!Capacitor.isNativePlatform()) return;
-    // Wait for any in-flight tryResumeTrack — without this, recovery could
-    // create a fresh track that resume then overwrites.
-    if (this.resumePromise) await this.resumePromise;
-
-    const { points } = await BackgroundGPS.getRecordedPoints();
-    if (points.length === 0) return;
-
-    // Filter to only points newer than what we've already recorded.
-    const newPoints = points.filter(
-      (pt) => pt.timestamp > this.lastRecordedTime,
-    );
-    if (newPoints.length === 0) {
-      await BackgroundGPS.clearRecordedPoints();
-      return;
-    }
-
-    // Ensure we have an active track
-    if (!this.currentTrack) {
-      const now = newPoints[0].timestamp;
-      const date = new Date(now);
-      const name = `Track ${localDateTime(date)}`;
-      this.currentTrack = {
-        id: generateUUID(),
-        name,
-        createdAt: now,
-        color: "#ff4444",
-        visible: true,
-        pointCount: 0,
-      };
-      this.trackPersisted = false;
-    }
-
-    // Native passive mode bypasses the live NavigationDataManager pipeline,
-    // so recovered fixes arrive as raw GPS samples. Run them through a fresh
-    // Kalman filter (independent of the live one) before saving — otherwise
-    // the screen-off portion of every track is unfiltered noise.
-    const filter = new GPSFilter();
-
-    for (const pt of newPoints) {
-      const raw: NavigationData = {
-        latitude: pt.lat,
-        longitude: pt.lon,
-        cog: pt.course >= 0 ? pt.course : null,
-        sog: pt.speed >= 0 ? pt.speed * MS_TO_KNOTS : null,
-        heading: null,
-        accuracy: pt.accuracy >= 0 ? pt.accuracy : null,
-        timestamp: pt.timestamp,
-        source: "capacitor-gps",
-      };
-      const f = filter.filter(raw);
-
-      // Dedup near-duplicates (FLP returns identical cached fixes when the
-      // device is stationary — same MIN_MOVE_NM check onNavData uses).
-      if (this.lastRecordedTime > 0) {
-        const dist = haversineDistanceNM(
-          this.lastLat,
-          this.lastLon,
-          f.latitude,
-          f.longitude,
-        );
-        if (dist < MIN_MOVE_NM) {
-          // Advance lastRecordedTime so the same fix isn't re-considered next batch.
-          this.lastRecordedTime = pt.timestamp;
-          continue;
-        }
-      }
-
-      const trackPoint: TrackPoint = {
-        lat: f.latitude,
-        lon: f.longitude,
-        timestamp: f.timestamp,
-        sog: f.sog,
-        cog: f.cog,
-      };
-
-      // Update state BEFORE awaiting append, so a concurrent onNavData
-      // sees the updated lastRecordedTime and won't duplicate.
-      this.lastRecordedTime = pt.timestamp;
-      this.lastLat = f.latitude;
-      this.lastLon = f.longitude;
-
-      await appendTrackPoint(this.currentTrack.id, trackPoint);
-      this.currentTrack.pointCount++;
-
-      // Persist meta on first point (avoids zero-point track meta in IDB)
-      if (!this.trackPersisted) {
-        await saveTrackMeta(this.currentTrack);
-        this.trackPersisted = true;
-        this.notify();
-      }
-    }
-
-    // Save updated meta and clear native buffer
-    await saveTrackMeta(this.currentTrack);
-    localStorage.setItem(ACTIVE_TRACK_KEY, JSON.stringify(this.currentTrack));
-    await BackgroundGPS.clearRecordedPoints();
   }
 
   private async onNavData(data: NavigationData): Promise<void> {

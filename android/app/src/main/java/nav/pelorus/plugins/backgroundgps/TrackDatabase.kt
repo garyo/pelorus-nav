@@ -51,9 +51,18 @@ class TrackDatabase(context: Context) : SQLiteOpenHelper(context, DB_NAME, null,
         })
     }
 
-    fun getAllPoints(): List<TrackPointRow> {
+    /**
+     * Return points strictly newer than [since] in chronological order.
+     * Pass 0 to fetch the entire buffer.
+     */
+    fun getPointsSince(since: Long): List<TrackPointRow> {
         val points = mutableListOf<TrackPointRow>()
-        val cursor = readableDatabase.query(TABLE, null, null, null, null, null, "timestamp ASC")
+        val (selection, args) =
+            if (since > 0) "timestamp > ?" to arrayOf(since.toString())
+            else null to null
+        val cursor = readableDatabase.query(
+            TABLE, null, selection, args, null, null, "timestamp ASC"
+        )
         cursor.use {
             while (it.moveToNext()) {
                 points.add(TrackPointRow(
@@ -69,7 +78,16 @@ class TrackDatabase(context: Context) : SQLiteOpenHelper(context, DB_NAME, null,
         return points
     }
 
-    fun clearAll() {
-        writableDatabase.delete(TABLE, null, null)
+    /**
+     * Delete all points with timestamp ≤ [before]. Pass 0 to clear the table.
+     * Race-safe: any rows inserted after this call (timestamp > before) are
+     * preserved.
+     */
+    fun pruneBefore(before: Long) {
+        if (before > 0) {
+            writableDatabase.delete(TABLE, "timestamp <= ?", arrayOf(before.toString()))
+        } else {
+            writableDatabase.delete(TABLE, null, null)
+        }
     }
 }

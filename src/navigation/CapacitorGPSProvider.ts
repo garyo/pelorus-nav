@@ -2,9 +2,13 @@
  * GPS provider that uses the native BackgroundGPS Capacitor plugin.
  * Active only when running inside a Capacitor native app.
  *
- * - Starts a foreground service for background GPS recording.
- * - Receives live location updates via the Capacitor bridge.
- * - Falls back gracefully (isAvailable() returns false in browsers).
+ * Single-pipeline design: every fix the foreground service produces is
+ * written to native SQLite, and a "locationUpdate" bridge event acts purely
+ * as a wakeup. This provider drains the SQLite buffer in chronological
+ * order on each wakeup and on visibility=visible, emitting fixes through
+ * the same `subscribe` callback the browser provider uses. Recovery from
+ * screen-off periods is therefore not a separate code path — it's just a
+ * longer drain.
  */
 
 import type { PluginListenerHandle } from "@capacitor/core";
@@ -24,6 +28,13 @@ export class CapacitorGPSProvider implements NavigationDataProvider {
   private listeners: NavigationDataCallback[] = [];
   private connected = false;
   private listenerHandle: PluginListenerHandle | null = null;
+  /** Highest fix timestamp emitted so far. Drives the SQLite since-filter. */
+  private lastSeenTimestamp = 0;
+  /** Reentrancy guard: prevents overlapping drain calls from racing. */
+  private draining = false;
+  /** Re-entrancy hint: a wakeup arrived during a drain — drain again on exit. */
+  private drainRequested = false;
+  private visibilityHandler: (() => void) | null = null;
 
   /** Returns true when running inside a Capacitor native shell. */
   static isAvailable(): boolean {
@@ -100,14 +111,34 @@ export class CapacitorGPSProvider implements NavigationDataProvider {
   }
 
   private async startNative(): Promise<void> {
+    // Discard whatever is in the SQLite buffer from previous sessions —
+    // we don't want a fresh connect() to replay stale fixes through the
+    // filter as if they were live.
+    this.lastSeenTimestamp = Date.now();
+    await BackgroundGPS.pruneRecordedPoints({
+      beforeTimestamp: this.lastSeenTimestamp,
+    }).catch(console.error);
+
+    // Bridge events are wakeups, not data: every fix is in SQLite already,
+    // and reading back from SQLite is what gives us race-free ordering.
     this.listenerHandle = await BackgroundGPS.addListener(
       "locationUpdate",
-      (point: TrackPointNative) => this.onNativePoint(point),
+      () => this.requestDrain(),
     );
+
+    this.visibilityHandler = () => {
+      if (document.visibilityState === "visible") this.requestDrain();
+    };
+    document.addEventListener("visibilitychange", this.visibilityHandler);
+
     await BackgroundGPS.startTracking();
   }
 
   private async stopNative(): Promise<void> {
+    if (this.visibilityHandler) {
+      document.removeEventListener("visibilitychange", this.visibilityHandler);
+      this.visibilityHandler = null;
+    }
     await BackgroundGPS.stopTracking();
     if (this.listenerHandle) {
       await this.listenerHandle.remove();
@@ -115,7 +146,53 @@ export class CapacitorGPSProvider implements NavigationDataProvider {
     }
   }
 
-  private onNativePoint(point: TrackPointNative): void {
+  /**
+   * Fire-and-forget drain. If a drain is already in flight, set a flag so
+   * we re-drain after it finishes (catches fixes inserted while we were
+   * reading or emitting).
+   */
+  private requestDrain(): void {
+    if (this.draining) {
+      this.drainRequested = true;
+      return;
+    }
+    this.drain().catch(console.error);
+  }
+
+  /**
+   * Read everything newer than `lastSeenTimestamp` from SQLite, emit each
+   * point in chronological order, advance `lastSeenTimestamp`, then prune
+   * the rows we've consumed. If a wakeup arrives mid-drain, loop again.
+   */
+  async drain(): Promise<void> {
+    if (this.draining) return;
+    this.draining = true;
+    try {
+      do {
+        this.drainRequested = false;
+        const { points } = await BackgroundGPS.getRecordedPoints({
+          sinceTimestamp: this.lastSeenTimestamp,
+        });
+        if (points.length === 0) continue;
+
+        // Native already returns ASC by timestamp, but defend against
+        // out-of-order writes by sorting here too — cheap insurance.
+        points.sort((a, b) => a.timestamp - b.timestamp);
+
+        for (const pt of points) {
+          this.emit(pt);
+          this.lastSeenTimestamp = pt.timestamp;
+        }
+        await BackgroundGPS.pruneRecordedPoints({
+          beforeTimestamp: this.lastSeenTimestamp,
+        });
+      } while (this.drainRequested);
+    } finally {
+      this.draining = false;
+    }
+  }
+
+  private emit(point: TrackPointNative): void {
     const data: NavigationData = {
       latitude: point.lat,
       longitude: point.lon,
@@ -126,7 +203,6 @@ export class CapacitorGPSProvider implements NavigationDataProvider {
       timestamp: point.timestamp,
       source: "capacitor-gps",
     };
-
     for (const fn of this.listeners) {
       fn(data);
     }
