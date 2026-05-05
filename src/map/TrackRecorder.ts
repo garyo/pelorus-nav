@@ -12,10 +12,12 @@
 import { Capacitor } from "@capacitor/core";
 import { appendTrackPoint, getTrackPoints, saveTrackMeta } from "../data/db";
 import type { TrackMeta, TrackPoint } from "../data/Track";
+import { GPSFilter } from "../navigation/GPSFilter";
 import type { NavigationData } from "../navigation/NavigationData";
 import type { NavigationDataManager } from "../navigation/NavigationDataManager";
 import { BackgroundGPS } from "../plugins/BackgroundGPS";
 import { haversineDistanceNM } from "../utils/coordinates";
+import { MS_TO_KNOTS } from "../utils/units";
 import { generateUUID } from "../utils/uuid";
 
 const MIN_INTERVAL_MS = 1000;
@@ -191,20 +193,54 @@ export class TrackRecorder {
       this.trackPersisted = false;
     }
 
+    // Native passive mode bypasses the live NavigationDataManager pipeline,
+    // so recovered fixes arrive as raw GPS samples. Run them through a fresh
+    // Kalman filter (independent of the live one) before saving — otherwise
+    // the screen-off portion of every track is unfiltered noise.
+    const filter = new GPSFilter();
+
     for (const pt of newPoints) {
-      const trackPoint: TrackPoint = {
-        lat: pt.lat,
-        lon: pt.lon,
-        timestamp: pt.timestamp,
-        sog: pt.speed >= 0 ? pt.speed * 1.94384 : null, // m/s → knots
+      const raw: NavigationData = {
+        latitude: pt.lat,
+        longitude: pt.lon,
         cog: pt.course >= 0 ? pt.course : null,
+        sog: pt.speed >= 0 ? pt.speed * MS_TO_KNOTS : null,
+        heading: null,
+        accuracy: pt.accuracy >= 0 ? pt.accuracy : null,
+        timestamp: pt.timestamp,
+        source: "capacitor-gps",
+      };
+      const f = filter.filter(raw);
+
+      // Dedup near-duplicates (FLP returns identical cached fixes when the
+      // device is stationary — same MIN_MOVE_NM check onNavData uses).
+      if (this.lastRecordedTime > 0) {
+        const dist = haversineDistanceNM(
+          this.lastLat,
+          this.lastLon,
+          f.latitude,
+          f.longitude,
+        );
+        if (dist < MIN_MOVE_NM) {
+          // Advance lastRecordedTime so the same fix isn't re-considered next batch.
+          this.lastRecordedTime = pt.timestamp;
+          continue;
+        }
+      }
+
+      const trackPoint: TrackPoint = {
+        lat: f.latitude,
+        lon: f.longitude,
+        timestamp: f.timestamp,
+        sog: f.sog,
+        cog: f.cog,
       };
 
       // Update state BEFORE awaiting append, so a concurrent onNavData
       // sees the updated lastRecordedTime and won't duplicate.
       this.lastRecordedTime = pt.timestamp;
-      this.lastLat = pt.lat;
-      this.lastLon = pt.lon;
+      this.lastLat = f.latitude;
+      this.lastLon = f.longitude;
 
       await appendTrackPoint(this.currentTrack.id, trackPoint);
       this.currentTrack.pointCount++;
