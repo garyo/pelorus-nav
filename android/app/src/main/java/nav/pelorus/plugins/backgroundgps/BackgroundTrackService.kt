@@ -48,11 +48,12 @@ class BackgroundTrackService : Service() {
         const val MODE_PASSIVE = "passive"
 
         /**
-         * Wake-lock timeout for one-shot acquires in PASSIVE mode. Held just
-         * long enough to cover the synchronous SQLite insert and the (no-op
-         * in passive) listener fanout — sub-ms each, so 500 ms is already
-         * 100× margin. The previous 5 s value was wildly over-provisioned
-         * and showed up as ~1 m/hr of wake-lock time in battery stats.
+         * Safety-net timeout for the per-fix wake lock in PASSIVE mode. The
+         * onLocationResult handler releases the lock explicitly in a
+         * finally block as soon as the work is done (sub-ms), so the
+         * actual hold time is dominated by SQLite insert latency, not this
+         * value. The timeout only fires if the release path is somehow
+         * skipped — bug or unexpected exception during fanout.
          */
         private const val PASSIVE_WAKE_LOCK_HOLD_MS = 500L
 
@@ -116,37 +117,46 @@ class BackgroundTrackService : Service() {
 
         locationCallback = object : LocationCallback() {
             override fun onLocationResult(result: LocationResult) {
-                // PASSIVE: CPU may have been sleeping. Hold a brief lock for the
-                // duration of this callback so SQLite writes complete. The lock
-                // releases automatically after the timeout.
-                if (!holdLockContinuously) {
+                // PASSIVE: CPU may have been sleeping. Hold a lock for the
+                // duration of this callback so SQLite writes complete, and
+                // release as soon as the work is done — the timeout on
+                // acquire() is a safety net if the release path is skipped,
+                // not the intended hold duration.
+                val acquiredPassiveLock = !holdLockContinuously
+                if (acquiredPassiveLock) {
                     partialWakeLock?.acquire(PASSIVE_WAKE_LOCK_HOLD_MS)
                 }
-                for (location in result.locations) {
-                    val point = TrackPointRow(
-                        timestamp = location.time,
-                        lat = location.latitude,
-                        lon = location.longitude,
-                        speed = if (location.hasSpeed()) location.speed else -1f,
-                        course = if (location.hasBearing()) location.bearing else -1f,
-                        accuracy = if (location.hasAccuracy()) location.accuracy else -1f
-                    )
-                    trackDb.insertPoint(point)
-                    // Bridge gating: in PASSIVE mode we drop locationListener so
-                    // JS doesn't get fanned-out fixes it can't use anyway.
-                    locationListener?.invoke(point)
+                try {
+                    for (location in result.locations) {
+                        val point = TrackPointRow(
+                            timestamp = location.time,
+                            lat = location.latitude,
+                            lon = location.longitude,
+                            speed = if (location.hasSpeed()) location.speed else -1f,
+                            course = if (location.hasBearing()) location.bearing else -1f,
+                            accuracy = if (location.hasAccuracy()) location.accuracy else -1f
+                        )
+                        trackDb.insertPoint(point)
+                        // Bridge gating: in PASSIVE mode we drop locationListener so
+                        // JS doesn't get fanned-out fixes it can't use anyway.
+                        locationListener?.invoke(point)
 
-                    // Adaptive passive sampling: feed the steadiness tracker
-                    // and re-issue the LocationRequest if its recommendation
-                    // flipped. Active mode never participates — visible
-                    // recording stays at the user-facing rate.
-                    if (currentMode == MODE_PASSIVE) {
-                        val nowSteady =
-                            steadinessTracker.onFix(location.latitude, location.longitude)
-                        if (nowSteady != lastSteadyState) {
-                            lastSteadyState = nowSteady
-                            applyMode()
+                        // Adaptive passive sampling: feed the steadiness tracker
+                        // and re-issue the LocationRequest if its recommendation
+                        // flipped. Active mode never participates — visible
+                        // recording stays at the user-facing rate.
+                        if (currentMode == MODE_PASSIVE) {
+                            val nowSteady =
+                                steadinessTracker.onFix(location.latitude, location.longitude)
+                            if (nowSteady != lastSteadyState) {
+                                lastSteadyState = nowSteady
+                                applyMode()
+                            }
                         }
+                    }
+                } finally {
+                    if (acquiredPassiveLock) {
+                        partialWakeLock?.takeIf { it.isHeld }?.release()
                     }
                 }
             }
