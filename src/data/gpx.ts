@@ -89,13 +89,18 @@ function trackPointXml(pt: TrackPoint): string {
   if (pt.timestamp) {
     xml += `        <time>${new Date(pt.timestamp).toISOString()}</time>\n`;
   }
-  if (pt.sog !== null || pt.cog !== null) {
+  const hasRaw = pt.rawLat !== undefined && pt.rawLon !== undefined;
+  if (pt.sog !== null || pt.cog !== null || hasRaw) {
     xml += "        <extensions>\n";
     if (pt.sog !== null) {
       xml += `          <pelorus:sog>${pt.sog}</pelorus:sog>\n`;
     }
     if (pt.cog !== null) {
       xml += `          <pelorus:cog>${pt.cog}</pelorus:cog>\n`;
+    }
+    if (hasRaw) {
+      xml += `          <pelorus:lat-raw>${pt.rawLat}</pelorus:lat-raw>\n`;
+      xml += `          <pelorus:lon-raw>${pt.rawLon}</pelorus:lon-raw>\n`;
     }
     xml += "        </extensions>\n";
   }
@@ -113,6 +118,10 @@ function trackXml(meta: TrackMeta, points: TrackPoint[]): string {
   }
   xml += "    <trkseg>\n";
   for (const pt of points) {
+    // Outliers flagged by the post-processor are kept in IDB for debug
+    // but excluded from exports — the polyline reads cleaner without
+    // them, and downstream tools shouldn't have to know about our flag.
+    if (pt.dropped) continue;
     xml += trackPointXml(pt);
   }
   xml += "    </trkseg>\n";
@@ -277,13 +286,20 @@ export function parseGpx(xml: string): GpxImportResult {
           const timeStr = childText(ptEl, "time");
           const sogStr = pelorusExt(ptEl, "sog");
           const cogStr = pelorusExt(ptEl, "cog");
-          points.push({
+          const latRawStr = pelorusExt(ptEl, "lat-raw");
+          const lonRawStr = pelorusExt(ptEl, "lon-raw");
+          const point: TrackPoint = {
             lat: Number.parseFloat(ptEl.getAttribute("lat") ?? "0"),
             lon: Number.parseFloat(ptEl.getAttribute("lon") ?? "0"),
             timestamp: timeStr ? new Date(timeStr).getTime() : 0,
             sog: sogStr !== null ? Number.parseFloat(sogStr) : null,
             cog: cogStr !== null ? Number.parseFloat(cogStr) : null,
-          });
+          };
+          if (latRawStr !== null && lonRawStr !== null) {
+            point.rawLat = Number.parseFloat(latRawStr);
+            point.rawLon = Number.parseFloat(lonRawStr);
+          }
+          points.push(point);
         }
       }
 

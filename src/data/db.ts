@@ -11,7 +11,7 @@ import type { StandaloneWaypoint } from "./Waypoint";
 const DB_NAME = "pelorus-nav";
 // Bump DB_VERSION when adding/removing stores or indexes. In onupgradeneeded,
 // check oldVersion and apply incremental migrations (e.g. if (oldVersion < 2) ...).
-const DB_VERSION = 4;
+const DB_VERSION = 5;
 
 let dbPromise: Promise<IDBDatabase> | null = null;
 
@@ -41,6 +41,11 @@ function openDB(): Promise<IDBDatabase> {
         // Add compound index so track points are returned sorted by timestamp
         const ptStore = tx.objectStore("trackPoints");
         ptStore.createIndex("byTrackTime", ["trackId", "timestamp"]);
+      }
+      if (oldVersion < 5) {
+        // No store changes — TrackPoint gained optional rawLat/rawLon/dropped
+        // and TrackMeta gained optional `smoothed`. IDB stores arbitrary
+        // objects so existing rows stay valid; bump just signals the shape.
       }
     };
     req.onsuccess = () => resolve(req.result);
@@ -116,6 +121,38 @@ export async function appendTrackPoint(
   return new Promise((resolve, reject) => {
     const tx = db.transaction("trackPoints", "readwrite");
     tx.objectStore("trackPoints").add({ trackId, ...point });
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+}
+
+/**
+ * Atomically replace every point of a track. Used by Stop-time
+ * post-processing: load → smooth → write back. Race-safe within a single
+ * transaction; partial failure leaves the previous point set intact.
+ */
+export async function replaceTrackPoints(
+  trackId: string,
+  points: TrackPoint[],
+): Promise<void> {
+  const db = await openDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction("trackPoints", "readwrite");
+    const store = tx.objectStore("trackPoints");
+    const idx = store.index("byTrack");
+    const cursorReq = idx.openCursor(IDBKeyRange.only(trackId));
+    cursorReq.onsuccess = () => {
+      const cursor = cursorReq.result;
+      if (cursor) {
+        cursor.delete();
+        cursor.continue();
+        return;
+      }
+      // Cursor exhausted — old points are deleted; insert the new set.
+      for (const point of points) {
+        store.add({ trackId, ...point });
+      }
+    };
     tx.oncomplete = () => resolve();
     tx.onerror = () => reject(tx.error);
   });

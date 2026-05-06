@@ -166,6 +166,61 @@ describe("GPX import", () => {
     expect(points[2].cog).toBeNull();
   });
 
+  it("round-trips a smoothed track preserving raw lat/lon", () => {
+    const smoothedPoints: TrackPoint[] = [
+      {
+        lat: 42.3601,
+        lon: -71.0599,
+        timestamp: 1700000000000,
+        sog: 5.2,
+        cog: 45,
+        rawLat: 42.36,
+        rawLon: -71.06,
+      },
+      {
+        lat: 42.3611,
+        lon: -71.0589,
+        timestamp: 1700000060000,
+        sog: 5.5,
+        cog: 47,
+        rawLat: 42.361,
+        rawLon: -71.059,
+      },
+    ];
+    const gpx = trackToGpx(sampleTrackMeta, smoothedPoints);
+    const result = parseGpx(gpx);
+    const points = result.tracks[0].points;
+    expect(points).toHaveLength(2);
+    expect(points[0].rawLat).toBe(42.36);
+    expect(points[0].rawLon).toBe(-71.06);
+    expect(points[1].rawLat).toBe(42.361);
+    expect(points[1].rawLon).toBe(-71.059);
+    // Smoothed lat/lon (the trkpt attributes) preserved alongside.
+    expect(points[0].lat).toBe(42.3601);
+    expect(points[0].lon).toBe(-71.0599);
+  });
+
+  it("excludes dropped points from track export", () => {
+    const points: TrackPoint[] = [
+      { lat: 42.36, lon: -71.06, timestamp: 1700000000000, sog: 5, cog: 45 },
+      {
+        lat: 42.37,
+        lon: -71.05,
+        timestamp: 1700000060000,
+        sog: 5,
+        cog: 45,
+        dropped: true,
+      },
+      { lat: 42.362, lon: -71.058, timestamp: 1700000120000, sog: 5, cog: 45 },
+    ];
+    const gpx = trackToGpx(sampleTrackMeta, points);
+    const result = parseGpx(gpx);
+    expect(result.tracks[0].points).toHaveLength(2);
+    expect(result.tracks[0].points.map((p) => p.timestamp)).toEqual([
+      1700000000000, 1700000120000,
+    ]);
+  });
+
   it("round-trips waypoints with notes and icon", () => {
     const gpx = waypointsToGpx(sampleWaypoints);
     const result = parseGpx(gpx);

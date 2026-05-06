@@ -172,9 +172,12 @@ export class TrackLayer {
 
   private async loadTrack(meta: TrackMeta): Promise<void> {
     const points = await getTrackPoints(meta.id);
-    const coords = points.map(
-      (p: TrackPoint) => [p.lon, p.lat] as [number, number],
-    );
+    // Outliers from Stop-time post-processing are kept in IDB so we can
+    // still see the raw fix in debug tooling, but they're hidden from
+    // rendering — the polyline reads cleaner without them.
+    const coords = points
+      .filter((p: TrackPoint) => !p.dropped)
+      .map((p: TrackPoint) => [p.lon, p.lat] as [number, number]);
     this.addTrackLine(meta.id, meta.color, coords);
   }
 
@@ -227,9 +230,9 @@ export class TrackLayer {
     this.selectedTrackId = meta.id;
     const points = await getTrackPoints(meta.id);
     if (this.selectedTrackId !== meta.id) return; // raced against another select
-    const coords = points.map(
-      (p: TrackPoint) => [p.lon, p.lat] as [number, number],
-    );
+    const coords = points
+      .filter((p: TrackPoint) => !p.dropped)
+      .map((p: TrackPoint) => [p.lon, p.lat] as [number, number]);
     if (coords.length < 2) {
       this.clearSelectedTrack();
       return;
@@ -296,7 +299,9 @@ export class TrackLayer {
 
   /** Zoom to fit the track, but only if it's not already fully visible. */
   async fitTrack(meta: TrackMeta): Promise<void> {
-    const points = await getTrackPoints(meta.id);
+    const allPoints = await getTrackPoints(meta.id);
+    // Use only the points the user actually sees on the map.
+    const points = allPoints.filter((p) => !p.dropped);
     if (points.length === 0) return;
     let minLon = points[0].lon;
     let minLat = points[0].lat;

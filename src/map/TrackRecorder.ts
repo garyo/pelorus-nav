@@ -10,10 +10,16 @@
  */
 
 import { Capacitor } from "@capacitor/core";
-import { appendTrackPoint, getTrackPoints, saveTrackMeta } from "../data/db";
+import {
+  appendTrackPoint,
+  getTrackPoints,
+  replaceTrackPoints,
+  saveTrackMeta,
+} from "../data/db";
 import type { TrackMeta, TrackPoint } from "../data/Track";
 import type { NavigationData } from "../navigation/NavigationData";
 import type { NavigationDataManager } from "../navigation/NavigationDataManager";
+import { smoothTrack } from "../navigation/RTSmoother";
 import { BackgroundGPS } from "../plugins/BackgroundGPS";
 import { haversineDistanceNM } from "../utils/coordinates";
 import { generateUUID } from "../utils/uuid";
@@ -21,6 +27,9 @@ import { generateUUID } from "../utils/uuid";
 const MIN_INTERVAL_MS = 1000;
 const MIN_MOVE_NM = 5 / 1852; // 5 meters in NM
 const GAP_THRESHOLD_MS = 30 * 60 * 1000; // 30 minutes
+/** Tracks shorter than this skip the Stop-time RTS post-processor —
+ *  too few points for the smoother to add value. */
+const MIN_POINTS_FOR_SMOOTHING = 20;
 const ACTIVE_TRACK_KEY = "pelorus-nav-active-track";
 
 /** Format a Date as "YYYY-MM-DD HH:MM" in local time. */
@@ -82,9 +91,12 @@ export class TrackRecorder {
       this.navManager.unsubscribe(this.navCallback);
       this.navCallback = null;
     }
-    // Save final point count if track was persisted
-    if (this.currentTrack && this.trackPersisted) {
-      saveTrackMeta(this.currentTrack).catch(console.error);
+    // Snapshot the meta so the post-processor can run after we clear
+    // the recording state — saves UI latency by not blocking the Stop.
+    const closingTrack =
+      this.currentTrack && this.trackPersisted ? this.currentTrack : null;
+    if (closingTrack) {
+      saveTrackMeta(closingTrack).catch(console.error);
     }
     this.currentTrack = null;
     this.trackPersisted = false;
@@ -92,6 +104,49 @@ export class TrackRecorder {
     this.resumePromise = null;
     localStorage.removeItem(ACTIVE_TRACK_KEY);
     this.updateNativeNotification("Navigating");
+    this.notify();
+
+    if (closingTrack && closingTrack.pointCount >= MIN_POINTS_FOR_SMOOTHING) {
+      this.postProcessTrack(closingTrack).catch(console.error);
+    }
+  }
+
+  /**
+   * One-shot RTS smoother + outlier rejection on a closed track. Loads
+   * all points, smooths them with full past+future context, marks
+   * outliers as `dropped`, preserves the originals as `rawLat/rawLon`,
+   * writes the result back, and updates the meta. Runs in the
+   * background after stop() returns; the panel re-renders via notify()
+   * when complete.
+   */
+  private async postProcessTrack(meta: TrackMeta): Promise<void> {
+    const points = await getTrackPoints(meta.id);
+    if (points.length < MIN_POINTS_FOR_SMOOTHING) return;
+
+    const result = smoothTrack(points);
+    const outlierSet = new Set(result.outliers);
+
+    const newPoints: TrackPoint[] = points.map((raw, i) => {
+      const sm = result.smoothed[i];
+      const isOutlier = outlierSet.has(i);
+      return {
+        lat: isOutlier ? raw.lat : sm.lat,
+        lon: isOutlier ? raw.lon : sm.lon,
+        timestamp: raw.timestamp,
+        sog: isOutlier ? raw.sog : sm.sog,
+        cog: isOutlier ? raw.cog : sm.cog,
+        rawLat: raw.lat,
+        rawLon: raw.lon,
+        ...(isOutlier ? { dropped: true } : {}),
+      };
+    });
+
+    await replaceTrackPoints(meta.id, newPoints);
+    await saveTrackMeta({
+      ...meta,
+      smoothed: true,
+      pointCount: newPoints.length,
+    });
     this.notify();
   }
 
