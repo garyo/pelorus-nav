@@ -1,0 +1,2020 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<gpx version="1.1" creator="Pelorus Nav"
+     xmlns="http://www.topografix.com/GPX/1/1"
+     xmlns:pelorus="https://pelorus-nav.app/gpx/1">
+  <metadata>
+    <name>Pelorus Nav Export</name>
+    <time>2026-05-05T21:05:03.006Z</time>
+  </metadata>
+  <trk>
+    <name>Track 2026-05-05 09:18</name>
+    <extensions>
+      <pelorus:color>#ff4444</pelorus:color>
+    </extensions>
+    <trkseg>
+      <trkpt lat="42.435566220072644" lon="-71.16735635621748">
+        <time>2026-05-05T13:18:57.670Z</time>
+        <extensions>
+          <pelorus:sog>0.1754828236744168</pelorus:sog>
+        </extensions>
+      </trkpt>
+      <trkpt lat="42.4355639" lon="-71.1673405">
+        <time>2026-05-05T13:19:06.076Z</time>
+        <extensions>
+          <pelorus:sog>0.12166902766399999</pelorus:sog>
+        </extensions>
+      </trkpt>
+      <trkpt lat="42.4355694" lon="-71.1673494">
+        <time>2026-05-05T13:19:16.321Z</time>
+        <extensions>
+          <pelorus:sog>0.03554339431296</pelorus:sog>
+        </extensions>
+      </trkpt>
+      <trkpt lat="42.4355695" lon="-71.1673468">
+        <time>2026-05-05T13:19:26.341Z</time>
+        <extensions>
+          <pelorus:sog>0.008027269417808</pelorus:sog>
+        </extensions>
+      </trkpt>
+      <trkpt lat="42.4355736" lon="-71.1673332">
+        <time>2026-05-05T13:19:36.375Z</time>
+        <extensions>
+          <pelorus:sog>0.0443293975496</pelorus:sog>
+        </extensions>
+      </trkpt>
+      <trkpt lat="42.4355681" lon="-71.1673544">
+        <time>2026-05-05T13:19:46.406Z</time>
+        <extensions>
+          <pelorus:sog>0.07270494212159999</pelorus:sog>
+        </extensions>
+      </trkpt>
+      <trkpt lat="42.4355731" lon="-71.1673406">
+        <time>2026-05-05T13:19:46.515Z</time>
+        <extensions>
+          <pelorus:sog>0.6073822766144</pelorus:sog>
+          <pelorus:cog>62.95174</pelorus:cog>
+        </extensions>
+      </trkpt>
+      <trkpt lat="42.4355743" lon="-71.1673375">
+        <time>2026-05-05T13:20:51.386Z</time>
+      </trkpt>
+      <trkpt lat="42.4355743" lon="-71.1673375">
+        <time>2026-05-05T13:21:25.376Z</time>
+      </trkpt>
+      <trkpt lat="42.4355743" lon="-71.1673375">
+        <time>2026-05-05T13:22:01.366Z</time>
+      </trkpt>
+      <trkpt lat="42.4355743" lon="-71.1673375">
+        <time>2026-05-05T13:23:00.377Z</time>
+      </trkpt>
+      <trkpt lat="42.4355743" lon="-71.1673375">
+        <time>2026-05-05T13:24:01.382Z</time>
+      </trkpt>
+      <trkpt lat="42.4355743" lon="-71.1673375">
+        <time>2026-05-05T13:25:01.382Z</time>
+      </trkpt>
+      <trkpt lat="42.4355743" lon="-71.1673375">
+        <time>2026-05-05T13:26:01.378Z</time>
+      </trkpt>
+      <trkpt lat="42.4355743" lon="-71.1673375">
+        <time>2026-05-05T13:27:01.380Z</time>
+      </trkpt>
+      <trkpt lat="42.4355743" lon="-71.1673375">
+        <time>2026-05-05T13:28:01.365Z</time>
+      </trkpt>
+      <trkpt lat="42.4355743" lon="-71.1673375">
+        <time>2026-05-05T13:29:00.360Z</time>
+      </trkpt>
+      <trkpt lat="42.4355743" lon="-71.1673375">
+        <time>2026-05-05T13:30:00.378Z</time>
+      </trkpt>
+      <trkpt lat="42.4355743" lon="-71.1673375">
+        <time>2026-05-05T13:31:01.375Z</time>
+      </trkpt>
+      <trkpt lat="42.4355743" lon="-71.1673375">
+        <time>2026-05-05T13:32:01.375Z</time>
+      </trkpt>
+      <trkpt lat="42.4355743" lon="-71.1673375">
+        <time>2026-05-05T13:33:00.369Z</time>
+      </trkpt>
+      <trkpt lat="42.4355743" lon="-71.1673375">
+        <time>2026-05-05T13:34:01.378Z</time>
+      </trkpt>
+      <trkpt lat="42.4355743" lon="-71.1673375">
+        <time>2026-05-05T13:35:01.374Z</time>
+      </trkpt>
+      <trkpt lat="42.4355743" lon="-71.1673375">
+        <time>2026-05-05T13:36:01.371Z</time>
+      </trkpt>
+      <trkpt lat="42.4355743" lon="-71.1673375">
+        <time>2026-05-05T13:37:00.376Z</time>
+      </trkpt>
+      <trkpt lat="42.4355743" lon="-71.1673375">
+        <time>2026-05-05T13:38:01.372Z</time>
+      </trkpt>
+      <trkpt lat="42.4355743" lon="-71.1673375">
+        <time>2026-05-05T13:39:00.375Z</time>
+      </trkpt>
+      <trkpt lat="42.4355743" lon="-71.1673375">
+        <time>2026-05-05T13:40:00.362Z</time>
+      </trkpt>
+      <trkpt lat="42.4355743" lon="-71.1673375">
+        <time>2026-05-05T13:41:01.374Z</time>
+      </trkpt>
+      <trkpt lat="42.4355693" lon="-71.1673474">
+        <time>2026-05-05T13:42:00.008Z</time>
+      </trkpt>
+      <trkpt lat="42.4355693" lon="-71.1673474">
+        <time>2026-05-05T13:43:01.040Z</time>
+      </trkpt>
+      <trkpt lat="42.4355693" lon="-71.1673474">
+        <time>2026-05-05T13:44:01.365Z</time>
+      </trkpt>
+      <trkpt lat="42.4355693" lon="-71.1673474">
+        <time>2026-05-05T13:45:00.365Z</time>
+      </trkpt>
+      <trkpt lat="42.4355693" lon="-71.1673474">
+        <time>2026-05-05T13:46:01.367Z</time>
+      </trkpt>
+      <trkpt lat="42.4355693" lon="-71.1673474">
+        <time>2026-05-05T13:47:00.362Z</time>
+      </trkpt>
+      <trkpt lat="42.4355693" lon="-71.1673474">
+        <time>2026-05-05T13:48:01.367Z</time>
+      </trkpt>
+      <trkpt lat="42.4355693" lon="-71.1673474">
+        <time>2026-05-05T13:49:01.367Z</time>
+      </trkpt>
+      <trkpt lat="42.4354260836778" lon="-71.16729794511421">
+        <time>2026-05-05T13:49:35.895Z</time>
+        <extensions>
+          <pelorus:sog>2.3399159609159876</pelorus:sog>
+          <pelorus:cog>163.67231019092893</pelorus:cog>
+        </extensions>
+      </trkpt>
+      <trkpt lat="42.435336238655985" lon="-71.16726649751874">
+        <time>2026-05-05T13:49:45.944Z</time>
+        <extensions>
+          <pelorus:sog>2.128556365529976</pelorus:sog>
+          <pelorus:cog>165.54750923239163</pelorus:cog>
+        </extensions>
+      </trkpt>
+      <trkpt lat="42.43526000529135" lon="-71.16723873505012">
+        <time>2026-05-05T13:50:00.991Z</time>
+        <extensions>
+          <pelorus:sog>1.6694707907479946</pelorus:sog>
+          <pelorus:cog>165.31432245716005</pelorus:cog>
+        </extensions>
+      </trkpt>
+      <trkpt lat="42.43550313190684" lon="-71.16732110082253">
+        <time>2026-05-05T13:50:11.133Z</time>
+        <extensions>
+          <pelorus:sog>1.4751828627943195</pelorus:sog>
+          <pelorus:cog>349.7473242995938</pelorus:cog>
+        </extensions>
+      </trkpt>
+      <trkpt lat="42.43540237126085" lon="-71.16728466065437">
+        <time>2026-05-05T13:50:20.759Z</time>
+        <extensions>
+          <pelorus:sog>2.3818227578308555</pelorus:sog>
+          <pelorus:cog>164.93468318808226</pelorus:cog>
+        </extensions>
+      </trkpt>
+      <trkpt lat="42.43551427219716" lon="-71.16730586519819">
+        <time>2026-05-05T13:50:35.911Z</time>
+        <extensions>
+          <pelorus:sog>0.8335203061673501</pelorus:sog>
+        </extensions>
+      </trkpt>
+      <trkpt lat="42.43555072359391" lon="-71.16737099116983">
+        <time>2026-05-05T13:50:55.270Z</time>
+        <extensions>
+          <pelorus:sog>0.5232022166893125</pelorus:sog>
+        </extensions>
+      </trkpt>
+      <trkpt lat="42.4355723" lon="-71.1673528">
+        <time>2026-05-05T13:50:55.828Z</time>
+        <extensions>
+          <pelorus:sog>1.3420531057023999</pelorus:sog>
+          <pelorus:cog>42.71945</pelorus:cog>
+        </extensions>
+      </trkpt>
+      <trkpt lat="42.4355736" lon="-71.1673511">
+        <time>2026-05-05T13:52:01.371Z</time>
+      </trkpt>
+      <trkpt lat="42.4355736" lon="-71.1673511">
+        <time>2026-05-05T13:52:54.360Z</time>
+      </trkpt>
+      <trkpt lat="42.4355736" lon="-71.1673511">
+        <time>2026-05-05T13:54:01.351Z</time>
+      </trkpt>
+      <trkpt lat="42.4355736" lon="-71.1673511">
+        <time>2026-05-05T13:55:01.340Z</time>
+      </trkpt>
+      <trkpt lat="42.4355736" lon="-71.1673511">
+        <time>2026-05-05T13:55:59.341Z</time>
+      </trkpt>
+      <trkpt lat="42.4355736" lon="-71.1673511">
+        <time>2026-05-05T13:56:30.095Z</time>
+      </trkpt>
+      <trkpt lat="42.4355736" lon="-71.1673511">
+        <time>2026-05-05T13:57:00.196Z</time>
+      </trkpt>
+      <trkpt lat="42.4355736" lon="-71.1673511">
+        <time>2026-05-05T13:57:30.297Z</time>
+      </trkpt>
+      <trkpt lat="42.4355736" lon="-71.1673511">
+        <time>2026-05-05T13:58:01.368Z</time>
+      </trkpt>
+      <trkpt lat="42.4355736" lon="-71.1673511">
+        <time>2026-05-05T13:59:01.365Z</time>
+      </trkpt>
+      <trkpt lat="42.4355736" lon="-71.1673511">
+        <time>2026-05-05T14:00:00.951Z</time>
+      </trkpt>
+      <trkpt lat="42.4355736" lon="-71.1673511">
+        <time>2026-05-05T14:01:00.003Z</time>
+      </trkpt>
+      <trkpt lat="42.4355736" lon="-71.1673511">
+        <time>2026-05-05T14:02:00.342Z</time>
+      </trkpt>
+      <trkpt lat="42.4355736" lon="-71.1673511">
+        <time>2026-05-05T14:03:01.355Z</time>
+      </trkpt>
+      <trkpt lat="42.4355736" lon="-71.1673511">
+        <time>2026-05-05T14:04:01.342Z</time>
+      </trkpt>
+      <trkpt lat="42.4355736" lon="-71.1673511">
+        <time>2026-05-05T14:05:00.003Z</time>
+      </trkpt>
+      <trkpt lat="42.4355736" lon="-71.1673511">
+        <time>2026-05-05T14:06:01.356Z</time>
+      </trkpt>
+      <trkpt lat="42.4355736" lon="-71.1673511">
+        <time>2026-05-05T14:07:01.359Z</time>
+      </trkpt>
+      <trkpt lat="42.4355736" lon="-71.1673511">
+        <time>2026-05-05T14:08:01.335Z</time>
+      </trkpt>
+      <trkpt lat="42.4355736" lon="-71.1673511">
+        <time>2026-05-05T14:08:37.341Z</time>
+      </trkpt>
+      <trkpt lat="42.4355736" lon="-71.1673511">
+        <time>2026-05-05T14:09:07.443Z</time>
+      </trkpt>
+      <trkpt lat="42.4355736" lon="-71.1673511">
+        <time>2026-05-05T14:09:37.545Z</time>
+      </trkpt>
+      <trkpt lat="42.4355736" lon="-71.1673511">
+        <time>2026-05-05T14:10:07.647Z</time>
+      </trkpt>
+      <trkpt lat="42.4355736" lon="-71.1673511">
+        <time>2026-05-05T14:10:37.748Z</time>
+      </trkpt>
+      <trkpt lat="42.4355736" lon="-71.1673511">
+        <time>2026-05-05T14:11:27.353Z</time>
+      </trkpt>
+      <trkpt lat="42.4355736" lon="-71.1673511">
+        <time>2026-05-05T14:12:01.345Z</time>
+      </trkpt>
+      <trkpt lat="42.4355736" lon="-71.1673511">
+        <time>2026-05-05T14:13:00.347Z</time>
+      </trkpt>
+      <trkpt lat="42.4355736" lon="-71.1673511">
+        <time>2026-05-05T14:14:01.349Z</time>
+      </trkpt>
+      <trkpt lat="42.4355736" lon="-71.1673511">
+        <time>2026-05-05T14:15:01.343Z</time>
+      </trkpt>
+      <trkpt lat="42.4355736" lon="-71.1673511">
+        <time>2026-05-05T14:16:01.348Z</time>
+      </trkpt>
+      <trkpt lat="42.4355736" lon="-71.1673511">
+        <time>2026-05-05T14:17:00.351Z</time>
+      </trkpt>
+      <trkpt lat="42.4355736" lon="-71.1673511">
+        <time>2026-05-05T14:18:01.348Z</time>
+      </trkpt>
+      <trkpt lat="42.4355736" lon="-71.1673511">
+        <time>2026-05-05T14:19:00.342Z</time>
+      </trkpt>
+      <trkpt lat="42.4355736" lon="-71.1673511">
+        <time>2026-05-05T14:20:00.347Z</time>
+      </trkpt>
+      <trkpt lat="42.4355736" lon="-71.1673511">
+        <time>2026-05-05T14:21:01.348Z</time>
+      </trkpt>
+      <trkpt lat="42.4355736" lon="-71.1673511">
+        <time>2026-05-05T14:21:53.501Z</time>
+      </trkpt>
+      <trkpt lat="42.4355736" lon="-71.1673511">
+        <time>2026-05-05T14:22:23.602Z</time>
+      </trkpt>
+      <trkpt lat="42.4355736" lon="-71.1673511">
+        <time>2026-05-05T14:22:53.702Z</time>
+      </trkpt>
+      <trkpt lat="42.4355736" lon="-71.1673511">
+        <time>2026-05-05T14:23:54.349Z</time>
+      </trkpt>
+      <trkpt lat="42.4355736" lon="-71.1673511">
+        <time>2026-05-05T14:25:01.341Z</time>
+      </trkpt>
+      <trkpt lat="42.4355736" lon="-71.1673511">
+        <time>2026-05-05T14:26:01.341Z</time>
+      </trkpt>
+      <trkpt lat="42.4355736" lon="-71.1673511">
+        <time>2026-05-05T14:27:00.347Z</time>
+      </trkpt>
+      <trkpt lat="42.4355736" lon="-71.1673511">
+        <time>2026-05-05T14:28:01.343Z</time>
+      </trkpt>
+      <trkpt lat="42.4355736" lon="-71.1673511">
+        <time>2026-05-05T14:29:01.343Z</time>
+      </trkpt>
+      <trkpt lat="42.4355649" lon="-71.16737">
+        <time>2026-05-05T14:30:01.345Z</time>
+      </trkpt>
+      <trkpt lat="42.4355649" lon="-71.16737">
+        <time>2026-05-05T14:31:01.343Z</time>
+      </trkpt>
+      <trkpt lat="42.4355649" lon="-71.16737">
+        <time>2026-05-05T14:32:01.343Z</time>
+      </trkpt>
+      <trkpt lat="42.4355649" lon="-71.16737">
+        <time>2026-05-05T14:33:01.349Z</time>
+      </trkpt>
+      <trkpt lat="42.4355649" lon="-71.16737">
+        <time>2026-05-05T14:34:00.343Z</time>
+      </trkpt>
+      <trkpt lat="42.4355649" lon="-71.16737">
+        <time>2026-05-05T14:35:01.340Z</time>
+      </trkpt>
+      <trkpt lat="42.4355649" lon="-71.16737">
+        <time>2026-05-05T14:36:01.334Z</time>
+      </trkpt>
+      <trkpt lat="42.4355649" lon="-71.16737">
+        <time>2026-05-05T14:37:01.345Z</time>
+      </trkpt>
+      <trkpt lat="42.4355649" lon="-71.16737">
+        <time>2026-05-05T14:38:01.328Z</time>
+      </trkpt>
+      <trkpt lat="42.4355649" lon="-71.16737">
+        <time>2026-05-05T14:39:00.004Z</time>
+      </trkpt>
+      <trkpt lat="42.4355649" lon="-71.16737">
+        <time>2026-05-05T14:40:01.328Z</time>
+      </trkpt>
+      <trkpt lat="42.4355649" lon="-71.16737">
+        <time>2026-05-05T14:41:01.331Z</time>
+      </trkpt>
+      <trkpt lat="42.4355649" lon="-71.16737">
+        <time>2026-05-05T14:42:00.004Z</time>
+      </trkpt>
+      <trkpt lat="42.4355649" lon="-71.16737">
+        <time>2026-05-05T14:43:01.333Z</time>
+      </trkpt>
+      <trkpt lat="42.4356157" lon="-71.1673303">
+        <time>2026-05-05T14:44:01.328Z</time>
+      </trkpt>
+      <trkpt lat="42.4356157" lon="-71.1673303">
+        <time>2026-05-05T14:45:01.330Z</time>
+      </trkpt>
+      <trkpt lat="42.4356157" lon="-71.1673303">
+        <time>2026-05-05T14:46:01.328Z</time>
+      </trkpt>
+      <trkpt lat="42.4356157" lon="-71.1673303">
+        <time>2026-05-05T14:47:00.333Z</time>
+      </trkpt>
+      <trkpt lat="42.4356157" lon="-71.1673303">
+        <time>2026-05-05T14:48:01.322Z</time>
+      </trkpt>
+      <trkpt lat="42.4356157" lon="-71.1673303">
+        <time>2026-05-05T14:49:00.332Z</time>
+      </trkpt>
+      <trkpt lat="42.4356157" lon="-71.1673303">
+        <time>2026-05-05T14:50:00.331Z</time>
+      </trkpt>
+      <trkpt lat="42.4356157" lon="-71.1673303">
+        <time>2026-05-05T14:50:59.329Z</time>
+      </trkpt>
+      <trkpt lat="42.4356157" lon="-71.1673303">
+        <time>2026-05-05T14:52:01.320Z</time>
+      </trkpt>
+      <trkpt lat="42.4356157" lon="-71.1673303">
+        <time>2026-05-05T14:53:01.221Z</time>
+      </trkpt>
+      <trkpt lat="42.4356157" lon="-71.1673303">
+        <time>2026-05-05T14:54:00.002Z</time>
+      </trkpt>
+      <trkpt lat="42.4356157" lon="-71.1673303">
+        <time>2026-05-05T14:55:01.239Z</time>
+      </trkpt>
+      <trkpt lat="42.4356157" lon="-71.1673303">
+        <time>2026-05-05T14:56:01.320Z</time>
+      </trkpt>
+      <trkpt lat="42.4356157" lon="-71.1673303">
+        <time>2026-05-05T14:56:47.672Z</time>
+      </trkpt>
+    </trkseg>
+  </trk>
+  <trk>
+    <name>Track 2026-05-05 13:17</name>
+    <extensions>
+      <pelorus:color>#ff4444</pelorus:color>
+    </extensions>
+    <trkseg>
+      <trkpt lat="42.615169538010484" lon="-70.65516112163326">
+        <time>2026-05-05T17:17:17.752Z</time>
+        <extensions>
+          <pelorus:sog>0.049543373405904464</pelorus:sog>
+        </extensions>
+      </trkpt>
+      <trkpt lat="42.61521826423037" lon="-70.65512727036317">
+        <time>2026-05-05T17:17:33.753Z</time>
+        <extensions>
+          <pelorus:sog>1.6786556522691054</pelorus:sog>
+          <pelorus:cog>355.25117085802066</pelorus:cog>
+        </extensions>
+      </trkpt>
+      <trkpt lat="42.61527714836896" lon="-70.6551455278026">
+        <time>2026-05-05T17:17:38.753Z</time>
+        <extensions>
+          <pelorus:sog>2.347007999793191</pelorus:sog>
+          <pelorus:cog>348.47963288878924</pelorus:cog>
+        </extensions>
+      </trkpt>
+      <trkpt lat="42.61532991476004" lon="-70.65515405070327">
+        <time>2026-05-05T17:17:43.753Z</time>
+        <extensions>
+          <pelorus:sog>2.2897583435658446</pelorus:sog>
+          <pelorus:cog>353.064110252424</pelorus:cog>
+        </extensions>
+      </trkpt>
+      <trkpt lat="42.6154006751998" lon="-70.65513681670855">
+        <time>2026-05-05T17:17:50.752Z</time>
+        <extensions>
+          <pelorus:sog>2.213855763552746</pelorus:sog>
+          <pelorus:cog>9.20685578863341</pelorus:cog>
+        </extensions>
+      </trkpt>
+      <trkpt lat="42.61542181534159" lon="-70.65508182828538">
+        <time>2026-05-05T17:17:55.761Z</time>
+        <extensions>
+          <pelorus:sog>1.8261545433177342</pelorus:sog>
+          <pelorus:cog>48.46405963735393</pelorus:cog>
+        </extensions>
+      </trkpt>
+      <trkpt lat="42.61546265044167" lon="-70.65500935592499">
+        <time>2026-05-05T17:18:01.751Z</time>
+        <extensions>
+          <pelorus:sog>2.219825481045601</pelorus:sog>
+          <pelorus:cog>50.9761600486946</pelorus:cog>
+        </extensions>
+      </trkpt>
+      <trkpt lat="42.61549909440993" lon="-70.65494120004209">
+        <time>2026-05-05T17:18:06.751Z</time>
+        <extensions>
+          <pelorus:sog>2.4720825529253516</pelorus:sog>
+          <pelorus:cog>52.07719823835811</pelorus:cog>
+        </extensions>
+      </trkpt>
+      <trkpt lat="42.61554528355919" lon="-70.65489100030652">
+        <time>2026-05-05T17:18:11.752Z</time>
+        <extensions>
+          <pelorus:sog>2.550992458279863</pelorus:sog>
+          <pelorus:cog>40.562414301331536</pelorus:cog>
+        </extensions>
+      </trkpt>
+      <trkpt lat="42.61557950910283" lon="-70.65483539992518">
+        <time>2026-05-05T17:18:16.760Z</time>
+        <extensions>
+          <pelorus:sog>2.2678373247518966</pelorus:sog>
+          <pelorus:cog>51.70853155739377</pelorus:cog>
+        </extensions>
+      </trkpt>
+      <trkpt lat="42.61558657802304" lon="-70.65476402227183">
+        <time>2026-05-05T17:18:21.757Z</time>
+        <extensions>
+          <pelorus:sog>2.2010983657996563</pelorus:sog>
+          <pelorus:cog>77.14990401482643</pelorus:cog>
+        </extensions>
+      </trkpt>
+      <trkpt lat="42.61558562776921" lon="-70.654681961873">
+        <time>2026-05-05T17:18:27.752Z</time>
+        <extensions>
+          <pelorus:sog>2.131535270056568</pelorus:sog>
+          <pelorus:cog>89.64324661903792</pelorus:cog>
+        </extensions>
+      </trkpt>
+      <trkpt lat="42.6155803" lon="-70.6546719">
+        <time>2026-05-05T17:18:28.758Z</time>
+        <extensions>
+          <pelorus:sog>1.98871549024</pelorus:sog>
+          <pelorus:cog>100.09645</pelorus:cog>
+        </extensions>
+      </trkpt>
+      <trkpt lat="42.6155767" lon="-70.6546608">
+        <time>2026-05-05T17:18:29.749Z</time>
+        <extensions>
+          <pelorus:sog>1.647386322288</pelorus:sog>
+          <pelorus:cog>113.51921</pelorus:cog>
+        </extensions>
+      </trkpt>
+      <trkpt lat="42.6155754" lon="-70.6546587">
+        <time>2026-05-05T17:18:30.749Z</time>
+        <extensions>
+          <pelorus:sog>1.0749065092863999</pelorus:sog>
+          <pelorus:cog>112.10966</pelorus:cog>
+        </extensions>
+      </trkpt>
+      <trkpt lat="42.6155742" lon="-70.6546587">
+        <time>2026-05-05T17:18:31.750Z</time>
+        <extensions>
+          <pelorus:sog>0.5611952192112001</pelorus:sog>
+          <pelorus:cog>102.46699</pelorus:cog>
+        </extensions>
+      </trkpt>
+      <trkpt lat="42.6155741" lon="-70.6546597">
+        <time>2026-05-05T17:18:32.758Z</time>
+        <extensions>
+          <pelorus:sog>0.27858868012320004</pelorus:sog>
+          <pelorus:cog>99.73096</pelorus:cog>
+        </extensions>
+      </trkpt>
+      <trkpt lat="42.6155752" lon="-70.6546656">
+        <time>2026-05-05T17:18:33.755Z</time>
+        <extensions>
+          <pelorus:sog>0.08324532121728</pelorus:sog>
+        </extensions>
+      </trkpt>
+      <trkpt lat="42.6155767" lon="-70.6546706">
+        <time>2026-05-05T17:18:34.749Z</time>
+        <extensions>
+          <pelorus:sog>0.05622006510128</pelorus:sog>
+        </extensions>
+      </trkpt>
+      <trkpt lat="42.6155781" lon="-70.6546733">
+        <time>2026-05-05T17:18:35.748Z</time>
+        <extensions>
+          <pelorus:sog>0.0373341296992</pelorus:sog>
+        </extensions>
+      </trkpt>
+      <trkpt lat="42.6155783" lon="-70.6546734">
+        <time>2026-05-05T17:18:36.754Z</time>
+        <extensions>
+          <pelorus:sog>0.03561593842176</pelorus:sog>
+        </extensions>
+      </trkpt>
+      <trkpt lat="42.6155782" lon="-70.654674">
+        <time>2026-05-05T17:18:37.755Z</time>
+        <extensions>
+          <pelorus:sog>0.02393916324832</pelorus:sog>
+        </extensions>
+      </trkpt>
+      <trkpt lat="42.6155785" lon="-70.654674">
+        <time>2026-05-05T17:18:38.755Z</time>
+        <extensions>
+          <pelorus:sog>0.03079066663616</pelorus:sog>
+        </extensions>
+      </trkpt>
+      <trkpt lat="42.6155779" lon="-70.6546747">
+        <time>2026-05-05T17:18:39.751Z</time>
+        <extensions>
+          <pelorus:sog>0.03537916315904</pelorus:sog>
+        </extensions>
+      </trkpt>
+      <trkpt lat="42.6155775" lon="-70.6546753">
+        <time>2026-05-05T17:18:40.755Z</time>
+        <extensions>
+          <pelorus:sog>0.02330614397696</pelorus:sog>
+        </extensions>
+      </trkpt>
+      <trkpt lat="42.615579" lon="-70.6546798">
+        <time>2026-05-05T17:18:41.754Z</time>
+        <extensions>
+          <pelorus:sog>0.032054460043680004</pelorus:sog>
+        </extensions>
+      </trkpt>
+      <trkpt lat="42.615579" lon="-70.6546811">
+        <time>2026-05-05T17:18:42.751Z</time>
+        <extensions>
+          <pelorus:sog>0.12482634866079999</pelorus:sog>
+        </extensions>
+      </trkpt>
+      <trkpt lat="42.6155795" lon="-70.6546817">
+        <time>2026-05-05T17:18:43.756Z</time>
+        <extensions>
+          <pelorus:sog>0.13144898043935999</pelorus:sog>
+        </extensions>
+      </trkpt>
+      <trkpt lat="42.6155797" lon="-70.6546823">
+        <time>2026-05-05T17:18:44.748Z</time>
+        <extensions>
+          <pelorus:sog>0.12590690210304</pelorus:sog>
+        </extensions>
+      </trkpt>
+      <trkpt lat="42.6155794" lon="-70.6546827">
+        <time>2026-05-05T17:18:45.750Z</time>
+        <extensions>
+          <pelorus:sog>0.1338086194784</pelorus:sog>
+        </extensions>
+      </trkpt>
+      <trkpt lat="42.6155801" lon="-70.6546831">
+        <time>2026-05-05T17:18:46.752Z</time>
+        <extensions>
+          <pelorus:sog>0.12338412434816</pelorus:sog>
+        </extensions>
+      </trkpt>
+      <trkpt lat="42.6155835" lon="-70.6546918">
+        <time>2026-05-05T17:18:47.753Z</time>
+        <extensions>
+          <pelorus:sog>0.12372137281279999</pelorus:sog>
+        </extensions>
+      </trkpt>
+      <trkpt lat="42.615584" lon="-70.6546955">
+        <time>2026-05-05T17:18:48.753Z</time>
+        <extensions>
+          <pelorus:sog>0.1313323033872</pelorus:sog>
+        </extensions>
+      </trkpt>
+      <trkpt lat="42.6155839" lon="-70.6546953">
+        <time>2026-05-05T17:18:49.758Z</time>
+        <extensions>
+          <pelorus:sog>0.12951325791520002</pelorus:sog>
+        </extensions>
+      </trkpt>
+      <trkpt lat="42.6155837" lon="-70.6546945">
+        <time>2026-05-05T17:18:50.753Z</time>
+        <extensions>
+          <pelorus:sog>0.13837918990880002</pelorus:sog>
+        </extensions>
+      </trkpt>
+      <trkpt lat="42.6155834" lon="-70.6546937">
+        <time>2026-05-05T17:18:51.759Z</time>
+        <extensions>
+          <pelorus:sog>0.1351333853152</pelorus:sog>
+        </extensions>
+      </trkpt>
+      <trkpt lat="42.6155829" lon="-70.654693">
+        <time>2026-05-05T17:18:52.751Z</time>
+        <extensions>
+          <pelorus:sog>0.139008955192</pelorus:sog>
+        </extensions>
+      </trkpt>
+      <trkpt lat="42.6155862" lon="-70.6547008">
+        <time>2026-05-05T17:18:53.750Z</time>
+        <extensions>
+          <pelorus:sog>0.1291476313304</pelorus:sog>
+        </extensions>
+      </trkpt>
+      <trkpt lat="42.615586" lon="-70.6547003">
+        <time>2026-05-05T17:18:54.748Z</time>
+        <extensions>
+          <pelorus:sog>0.1326671091576</pelorus:sog>
+        </extensions>
+      </trkpt>
+      <trkpt lat="42.6155856" lon="-70.6546994">
+        <time>2026-05-05T17:18:55.748Z</time>
+        <extensions>
+          <pelorus:sog>0.1386430467504</pelorus:sog>
+        </extensions>
+      </trkpt>
+      <trkpt lat="42.6155852" lon="-70.6546981">
+        <time>2026-05-05T17:18:56.756Z</time>
+        <extensions>
+          <pelorus:sog>0.1366477630248</pelorus:sog>
+        </extensions>
+      </trkpt>
+      <trkpt lat="42.6155848" lon="-70.6546972">
+        <time>2026-05-05T17:18:57.754Z</time>
+        <extensions>
+          <pelorus:sog>0.13537825084000002</pelorus:sog>
+        </extensions>
+      </trkpt>
+      <trkpt lat="42.6155844" lon="-70.6546963">
+        <time>2026-05-05T17:18:58.757Z</time>
+        <extensions>
+          <pelorus:sog>0.13914000888480002</pelorus:sog>
+        </extensions>
+      </trkpt>
+      <trkpt lat="42.6155875" lon="-70.6547025">
+        <time>2026-05-05T17:18:59.759Z</time>
+        <extensions>
+          <pelorus:sog>0.131640926864</pelorus:sog>
+        </extensions>
+      </trkpt>
+      <trkpt lat="42.6155875" lon="-70.654702">
+        <time>2026-05-05T17:19:00.755Z</time>
+        <extensions>
+          <pelorus:sog>0.1357930857344</pelorus:sog>
+        </extensions>
+      </trkpt>
+      <trkpt lat="42.6155873" lon="-70.6547011">
+        <time>2026-05-05T17:19:01.750Z</time>
+        <extensions>
+          <pelorus:sog>0.13753688516</pelorus:sog>
+        </extensions>
+      </trkpt>
+      <trkpt lat="42.6155872" lon="-70.6547002">
+        <time>2026-05-05T17:19:02.753Z</time>
+        <extensions>
+          <pelorus:sog>0.1396237626264</pelorus:sog>
+        </extensions>
+      </trkpt>
+      <trkpt lat="42.615587" lon="-70.6546994">
+        <time>2026-05-05T17:19:03.751Z</time>
+        <extensions>
+          <pelorus:sog>0.14866065729184</pelorus:sog>
+        </extensions>
+      </trkpt>
+      <trkpt lat="42.6155868" lon="-70.6546986">
+        <time>2026-05-05T17:19:04.755Z</time>
+        <extensions>
+          <pelorus:sog>0.14913870197536</pelorus:sog>
+        </extensions>
+      </trkpt>
+      <trkpt lat="42.6155866" lon="-70.6546977">
+        <time>2026-05-05T17:19:05.753Z</time>
+        <extensions>
+          <pelorus:sog>0.1527950378016</pelorus:sog>
+        </extensions>
+      </trkpt>
+      <trkpt lat="42.6155863" lon="-70.6546971">
+        <time>2026-05-05T17:19:06.761Z</time>
+        <extensions>
+          <pelorus:sog>0.15221596786560002</pelorus:sog>
+        </extensions>
+      </trkpt>
+      <trkpt lat="42.6155862" lon="-70.654696">
+        <time>2026-05-05T17:19:07.751Z</time>
+        <extensions>
+          <pelorus:sog>0.15317496910496</pelorus:sog>
+        </extensions>
+      </trkpt>
+      <trkpt lat="42.615586" lon="-70.6546952">
+        <time>2026-05-05T17:19:08.760Z</time>
+        <extensions>
+          <pelorus:sog>0.15790553700576002</pelorus:sog>
+        </extensions>
+      </trkpt>
+      <trkpt lat="42.6155858" lon="-70.6546946">
+        <time>2026-05-05T17:19:09.755Z</time>
+        <extensions>
+          <pelorus:sog>0.15829018406496</pelorus:sog>
+        </extensions>
+      </trkpt>
+      <trkpt lat="42.6155894" lon="-70.6546978">
+        <time>2026-05-05T17:19:10.756Z</time>
+        <extensions>
+          <pelorus:sog>0.156033689064</pelorus:sog>
+        </extensions>
+      </trkpt>
+      <trkpt lat="42.6155895" lon="-70.6546977">
+        <time>2026-05-05T17:19:11.748Z</time>
+        <extensions>
+          <pelorus:sog>0.162143566952</pelorus:sog>
+        </extensions>
+      </trkpt>
+      <trkpt lat="42.6155893" lon="-70.6546971">
+        <time>2026-05-05T17:19:12.757Z</time>
+        <extensions>
+          <pelorus:sog>0.1646335288</pelorus:sog>
+        </extensions>
+      </trkpt>
+      <trkpt lat="42.6155891" lon="-70.6546966">
+        <time>2026-05-05T17:19:13.752Z</time>
+        <extensions>
+          <pelorus:sog>0.1706174069792</pelorus:sog>
+        </extensions>
+      </trkpt>
+      <trkpt lat="42.6155889" lon="-70.654696">
+        <time>2026-05-05T17:19:14.757Z</time>
+        <extensions>
+          <pelorus:sog>0.17140520645440002</pelorus:sog>
+        </extensions>
+      </trkpt>
+      <trkpt lat="42.6155886" lon="-70.6546956">
+        <time>2026-05-05T17:19:15.751Z</time>
+        <extensions>
+          <pelorus:sog>0.174613883704</pelorus:sog>
+        </extensions>
+      </trkpt>
+      <trkpt lat="42.6155918" lon="-70.6546971">
+        <time>2026-05-05T17:19:16.755Z</time>
+        <extensions>
+          <pelorus:sog>0.1732751805344</pelorus:sog>
+        </extensions>
+      </trkpt>
+      <trkpt lat="42.6155918" lon="-70.6546971">
+        <time>2026-05-05T17:19:16.755Z</time>
+        <extensions>
+          <pelorus:sog>0.1732751805344</pelorus:sog>
+        </extensions>
+      </trkpt>
+      <trkpt lat="42.6156048" lon="-70.6547005">
+        <time>2026-05-05T17:19:30.757Z</time>
+        <extensions>
+          <pelorus:sog>0.21952306069119998</pelorus:sog>
+          <pelorus:cog>41.51136</pelorus:cog>
+        </extensions>
+      </trkpt>
+      <trkpt lat="42.6156124" lon="-70.654702">
+        <time>2026-05-05T17:19:44.755Z</time>
+        <extensions>
+          <pelorus:sog>0.22474007455199999</pelorus:sog>
+          <pelorus:cog>18.378155</pelorus:cog>
+        </extensions>
+      </trkpt>
+      <trkpt lat="42.6156155" lon="-70.6547101">
+        <time>2026-05-05T17:19:58.752Z</time>
+        <extensions>
+          <pelorus:sog>0.17610266104080002</pelorus:sog>
+        </extensions>
+      </trkpt>
+      <trkpt lat="42.6156098" lon="-70.6547061">
+        <time>2026-05-05T17:20:12.751Z</time>
+        <extensions>
+          <pelorus:sog>0.1524689975184</pelorus:sog>
+        </extensions>
+      </trkpt>
+      <trkpt lat="42.6156021" lon="-70.6546999">
+        <time>2026-05-05T17:20:26.754Z</time>
+        <extensions>
+          <pelorus:sog>0.1532760215712</pelorus:sog>
+        </extensions>
+      </trkpt>
+      <trkpt lat="42.6155894" lon="-70.6546919">
+        <time>2026-05-05T17:20:40.747Z</time>
+        <extensions>
+          <pelorus:sog>0.1585777965752</pelorus:sog>
+        </extensions>
+      </trkpt>
+      <trkpt lat="42.6155934" lon="-70.654697">
+        <time>2026-05-05T17:20:54.751Z</time>
+        <extensions>
+          <pelorus:sog>0.1602228975248</pelorus:sog>
+        </extensions>
+      </trkpt>
+      <trkpt lat="42.6155956" lon="-70.6546994">
+        <time>2026-05-05T17:21:08.747Z</time>
+        <extensions>
+          <pelorus:sog>0.1662782895776</pelorus:sog>
+        </extensions>
+      </trkpt>
+      <trkpt lat="42.6156035" lon="-70.6547074">
+        <time>2026-05-05T17:21:22.749Z</time>
+        <extensions>
+          <pelorus:sog>0.1939219297936</pelorus:sog>
+        </extensions>
+      </trkpt>
+      <trkpt lat="42.6156036" lon="-70.6547026">
+        <time>2026-05-05T17:21:36.753Z</time>
+        <extensions>
+          <pelorus:sog>0.1590966560672</pelorus:sog>
+        </extensions>
+      </trkpt>
+      <trkpt lat="42.615597" lon="-70.6546965">
+        <time>2026-05-05T17:21:50.750Z</time>
+        <extensions>
+          <pelorus:sog>0.18209251652800001</pelorus:sog>
+        </extensions>
+      </trkpt>
+      <trkpt lat="42.6156055" lon="-70.6547023">
+        <time>2026-05-05T17:22:04.758Z</time>
+        <extensions>
+          <pelorus:sog>0.1628874939584</pelorus:sog>
+        </extensions>
+      </trkpt>
+      <trkpt lat="42.6156019" lon="-70.6547025">
+        <time>2026-05-05T17:22:18.756Z</time>
+        <extensions>
+          <pelorus:sog>0.1584106749312</pelorus:sog>
+        </extensions>
+      </trkpt>
+      <trkpt lat="42.6155915" lon="-70.6546953">
+        <time>2026-05-05T17:22:32.686Z</time>
+        <extensions>
+          <pelorus:sog>0.16888031380159998</pelorus:sog>
+        </extensions>
+      </trkpt>
+      <trkpt lat="42.615596" lon="-70.6547011">
+        <time>2026-05-05T17:22:46.756Z</time>
+        <extensions>
+          <pelorus:sog>0.146718516208</pelorus:sog>
+        </extensions>
+      </trkpt>
+      <trkpt lat="42.6155938" lon="-70.6546995">
+        <time>2026-05-05T17:23:24.962Z</time>
+      </trkpt>
+      <trkpt lat="42.6155938" lon="-70.6546995">
+        <time>2026-05-05T17:23:56.957Z</time>
+      </trkpt>
+      <trkpt lat="42.6157238" lon="-70.6550075">
+        <time>2026-05-05T17:25:05.234Z</time>
+      </trkpt>
+      <trkpt lat="42.615837" lon="-70.6552206">
+        <time>2026-05-05T17:26:08.077Z</time>
+      </trkpt>
+      <trkpt lat="42.615695" lon="-70.65561">
+        <time>2026-05-05T17:26:24.049Z</time>
+      </trkpt>
+      <trkpt lat="42.6153755" lon="-70.6552536">
+        <time>2026-05-05T17:26:39.824Z</time>
+      </trkpt>
+      <trkpt lat="42.6152708" lon="-70.65495">
+        <time>2026-05-05T17:26:55.643Z</time>
+      </trkpt>
+      <trkpt lat="42.6152414" lon="-70.6550446">
+        <time>2026-05-05T17:27:11.226Z</time>
+      </trkpt>
+      <trkpt lat="42.615058" lon="-70.6550352">
+        <time>2026-05-05T17:27:26.796Z</time>
+      </trkpt>
+      <trkpt lat="42.6150663" lon="-70.6550264">
+        <time>2026-05-05T17:27:42.631Z</time>
+      </trkpt>
+      <trkpt lat="42.6150959" lon="-70.6549634">
+        <time>2026-05-05T17:27:58.222Z</time>
+      </trkpt>
+      <trkpt lat="42.6150016" lon="-70.6549594">
+        <time>2026-05-05T17:28:14.058Z</time>
+      </trkpt>
+      <trkpt lat="42.6150596" lon="-70.654975">
+        <time>2026-05-05T17:28:29.903Z</time>
+      </trkpt>
+      <trkpt lat="42.6150715" lon="-70.6550287">
+        <time>2026-05-05T17:28:45.733Z</time>
+      </trkpt>
+      <trkpt lat="42.6150996" lon="-70.6550144">
+        <time>2026-05-05T17:29:12.710Z</time>
+        <extensions>
+          <pelorus:sog>0.1376563730048</pelorus:sog>
+        </extensions>
+      </trkpt>
+      <trkpt lat="42.61506330144854" lon="-70.65505156218356">
+        <time>2026-05-05T17:29:25.751Z</time>
+        <extensions>
+          <pelorus:sog>0.46267275823910126</pelorus:sog>
+        </extensions>
+      </trkpt>
+      <trkpt lat="42.61508962345511" lon="-70.6551061972368">
+        <time>2026-05-05T17:29:34.752Z</time>
+        <extensions>
+          <pelorus:sog>0.6628368130962407</pelorus:sog>
+          <pelorus:cog>294.07593228757287</pelorus:cog>
+        </extensions>
+      </trkpt>
+    </trkseg>
+  </trk>
+  <trk>
+    <name>Track 2026-05-05 15:15</name>
+    <extensions>
+      <pelorus:color>#ff4444</pelorus:color>
+    </extensions>
+    <trkseg>
+      <trkpt lat="42.61012907014966" lon="-70.66920727159096">
+        <time>2026-05-05T19:15:38.736Z</time>
+        <extensions>
+          <pelorus:sog>0.14537390805910244</pelorus:sog>
+        </extensions>
+      </trkpt>
+      <trkpt lat="42.61014040449443" lon="-70.66927545942085">
+        <time>2026-05-05T19:15:50.737Z</time>
+        <extensions>
+          <pelorus:sog>1.3536777105559472</pelorus:sog>
+          <pelorus:cog>300.5821529528202</pelorus:cog>
+        </extensions>
+      </trkpt>
+      <trkpt lat="42.61015264532592" lon="-70.66934557581807">
+        <time>2026-05-05T19:15:54.738Z</time>
+        <extensions>
+          <pelorus:sog>2.1459931677344413</pelorus:sog>
+          <pelorus:cog>285.79668992048056</pelorus:cog>
+        </extensions>
+      </trkpt>
+      <trkpt lat="42.61012254710495" lon="-70.6693920990393">
+        <time>2026-05-05T19:16:01.737Z</time>
+        <extensions>
+          <pelorus:sog>1.2117411880198925</pelorus:sog>
+          <pelorus:cog>239.48951379809972</pelorus:cog>
+        </extensions>
+      </trkpt>
+      <trkpt lat="42.61010735927615" lon="-70.66929558688584">
+        <time>2026-05-05T19:16:25.738Z</time>
+        <extensions>
+          <pelorus:sog>1.8274365130889332</pelorus:sog>
+          <pelorus:cog>97.5647921656728</pelorus:cog>
+        </extensions>
+      </trkpt>
+      <trkpt lat="42.61010061057321" lon="-70.66922687425634">
+        <time>2026-05-05T19:16:28.737Z</time>
+        <extensions>
+          <pelorus:sog>2.7452762818865355</pelorus:sog>
+          <pelorus:cog>97.25540460134894</pelorus:cog>
+        </extensions>
+      </trkpt>
+      <trkpt lat="42.61008888191994" lon="-70.66914797378587">
+        <time>2026-05-05T19:16:32.738Z</time>
+        <extensions>
+          <pelorus:sog>2.963364508420561</pelorus:sog>
+          <pelorus:cog>101.63227232000337</pelorus:cog>
+        </extensions>
+      </trkpt>
+      <trkpt lat="42.61007623198861" lon="-70.6690891359472">
+        <time>2026-05-05T19:16:37.737Z</time>
+        <extensions>
+          <pelorus:sog>2.200683012941054</pelorus:sog>
+          <pelorus:cog>99.79860646595638</pelorus:cog>
+        </extensions>
+      </trkpt>
+      <trkpt lat="42.61006950350284" lon="-70.66902146747509">
+        <time>2026-05-05T19:16:43.737Z</time>
+        <extensions>
+          <pelorus:sog>1.9377177612275014</pelorus:sog>
+          <pelorus:cog>97.88783786414777</pelorus:cog>
+        </extensions>
+      </trkpt>
+      <trkpt lat="42.61006460096035" lon="-70.66895617808447">
+        <time>2026-05-05T19:16:48.738Z</time>
+        <extensions>
+          <pelorus:sog>2.041457987720776</pelorus:sog>
+          <pelorus:cog>97.10229810379275</pelorus:cog>
+        </extensions>
+      </trkpt>
+      <trkpt lat="42.610055413810336" lon="-70.66888101338294">
+        <time>2026-05-05T19:16:54.736Z</time>
+        <extensions>
+          <pelorus:sog>2.025964147340669</pelorus:sog>
+          <pelorus:cog>98.65334729918142</pelorus:cog>
+        </extensions>
+      </trkpt>
+      <trkpt lat="42.610057129557354" lon="-70.6688029794865">
+        <time>2026-05-05T19:16:59.737Z</time>
+        <extensions>
+          <pelorus:sog>2.32999847112564</pelorus:sog>
+          <pelorus:cog>92.21570998655513</pelorus:cog>
+        </extensions>
+      </trkpt>
+      <trkpt lat="42.61005660778093" lon="-70.6687375987744">
+        <time>2026-05-05T19:17:03.737Z</time>
+        <extensions>
+          <pelorus:sog>2.473139320240927</pelorus:sog>
+          <pelorus:cog>90.7208059279642</pelorus:cog>
+        </extensions>
+      </trkpt>
+      <trkpt lat="42.61005749382892" lon="-70.66867252995284">
+        <time>2026-05-05T19:17:08.737Z</time>
+        <extensions>
+          <pelorus:sog>2.1961163085784983</pelorus:sog>
+          <pelorus:cog>87.0259578187182</pelorus:cog>
+        </extensions>
+      </trkpt>
+      <trkpt lat="42.610063968696686" lon="-70.6686090368202">
+        <time>2026-05-05T19:17:13.738Z</time>
+        <extensions>
+          <pelorus:sog>2.08043989860686</pelorus:sog>
+          <pelorus:cog>85.26983846473023</pelorus:cog>
+        </extensions>
+      </trkpt>
+      <trkpt lat="42.610059050254385" lon="-70.66854129299973">
+        <time>2026-05-05T19:17:18.736Z</time>
+        <extensions>
+          <pelorus:sog>2.113110486239718</pelorus:sog>
+          <pelorus:cog>92.422695597234</pelorus:cog>
+        </extensions>
+      </trkpt>
+      <trkpt lat="42.610055608385814" lon="-70.66847370576401">
+        <time>2026-05-05T19:17:23.737Z</time>
+        <extensions>
+          <pelorus:sog>2.1479149226743144</pelorus:sog>
+          <pelorus:cog>94.71217444305935</pelorus:cog>
+        </extensions>
+      </trkpt>
+      <trkpt lat="42.610055500102774" lon="-70.66838062446739">
+        <time>2026-05-05T19:17:29.736Z</time>
+        <extensions>
+          <pelorus:sog>2.4289315146328563</pelorus:sog>
+          <pelorus:cog>88.88441961030594</pelorus:cog>
+        </extensions>
+      </trkpt>
+      <trkpt lat="42.610046479585726" lon="-70.66830152479125">
+        <time>2026-05-05T19:17:34.737Z</time>
+        <extensions>
+          <pelorus:sog>2.503327770851888</pelorus:sog>
+          <pelorus:cog>96.53769725424621</pelorus:cog>
+        </extensions>
+      </trkpt>
+      <trkpt lat="42.61002228573456" lon="-70.66824865347814">
+        <time>2026-05-05T19:17:39.737Z</time>
+        <extensions>
+          <pelorus:sog>2.092591512011931</pelorus:sog>
+          <pelorus:cog>117.23352343682735</pelorus:cog>
+        </extensions>
+      </trkpt>
+      <trkpt lat="42.6099706621402" lon="-70.66826130901214">
+        <time>2026-05-05T19:17:44.737Z</time>
+        <extensions>
+          <pelorus:sog>1.9225629607472055</pelorus:sog>
+          <pelorus:cog>171.86554283209693</pelorus:cog>
+        </extensions>
+      </trkpt>
+      <trkpt lat="42.6099524" lon="-70.6682952">
+        <time>2026-05-05T19:17:45.736Z</time>
+        <extensions>
+          <pelorus:sog>2.6154182535199997</pelorus:sog>
+          <pelorus:cog>209.7844</pelorus:cog>
+        </extensions>
+      </trkpt>
+      <trkpt lat="42.6099459" lon="-70.6683029">
+        <time>2026-05-05T19:17:46.738Z</time>
+        <extensions>
+          <pelorus:sog>2.465783199776</pelorus:sog>
+          <pelorus:cog>218.48859</pelorus:cog>
+        </extensions>
+      </trkpt>
+      <trkpt lat="42.6099386" lon="-70.6683137">
+        <time>2026-05-05T19:17:47.737Z</time>
+        <extensions>
+          <pelorus:sog>2.351520785664</pelorus:sog>
+          <pelorus:cog>223.07613</pelorus:cog>
+        </extensions>
+      </trkpt>
+      <trkpt lat="42.6099322" lon="-70.668324">
+        <time>2026-05-05T19:17:48.736Z</time>
+        <extensions>
+          <pelorus:sog>2.0435885383679997</pelorus:sog>
+          <pelorus:cog>221.19055</pelorus:cog>
+        </extensions>
+      </trkpt>
+      <trkpt lat="42.6099322" lon="-70.668324">
+        <time>2026-05-05T19:17:48.736Z</time>
+        <extensions>
+          <pelorus:sog>2.0435885383679997</pelorus:sog>
+          <pelorus:cog>221.19055</pelorus:cog>
+        </extensions>
+      </trkpt>
+      <trkpt lat="42.6102224" lon="-70.6686517">
+        <time>2026-05-05T19:18:03.878Z</time>
+      </trkpt>
+      <trkpt lat="42.6101948" lon="-70.6696648">
+        <time>2026-05-05T19:18:20.304Z</time>
+      </trkpt>
+      <trkpt lat="42.6102342" lon="-70.6690823">
+        <time>2026-05-05T19:18:37.078Z</time>
+      </trkpt>
+      <trkpt lat="42.6102512" lon="-70.6693573">
+        <time>2026-05-05T19:18:55.233Z</time>
+      </trkpt>
+      <trkpt lat="42.6102601" lon="-70.6692803">
+        <time>2026-05-05T19:19:11.648Z</time>
+      </trkpt>
+      <trkpt lat="42.6102676" lon="-70.6697552">
+        <time>2026-05-05T19:19:28.024Z</time>
+      </trkpt>
+      <trkpt lat="42.6101893" lon="-70.6700311">
+        <time>2026-05-05T19:19:43.595Z</time>
+      </trkpt>
+      <trkpt lat="42.6102156" lon="-70.670296">
+        <time>2026-05-05T19:19:59.264Z</time>
+      </trkpt>
+      <trkpt lat="42.6102494" lon="-70.670415">
+        <time>2026-05-05T19:20:14.841Z</time>
+      </trkpt>
+      <trkpt lat="42.6101089" lon="-70.6699817">
+        <time>2026-05-05T19:20:36.051Z</time>
+      </trkpt>
+      <trkpt lat="42.6100555" lon="-70.6703933">
+        <time>2026-05-05T19:20:49.713Z</time>
+        <extensions>
+          <pelorus:sog>1.297731687616</pelorus:sog>
+          <pelorus:cog>281.7328</pelorus:cog>
+        </extensions>
+      </trkpt>
+      <trkpt lat="42.61004" lon="-70.6703157">
+        <time>2026-05-05T19:21:01.727Z</time>
+        <extensions>
+          <pelorus:sog>1.283510359792</pelorus:sog>
+          <pelorus:cog>64.75854</pelorus:cog>
+        </extensions>
+      </trkpt>
+      <trkpt lat="42.610039791330756" lon="-70.67030006640177">
+        <time>2026-05-05T19:21:03.736Z</time>
+        <extensions>
+          <pelorus:sog>1.27387007687523</pelorus:sog>
+          <pelorus:cog>65.20575732096555</pelorus:cog>
+        </extensions>
+      </trkpt>
+      <trkpt lat="42.61007216044706" lon="-70.67024278007068">
+        <time>2026-05-05T19:21:13.720Z</time>
+        <extensions>
+          <pelorus:sog>1.2425793057244112</pelorus:sog>
+          <pelorus:cog>52.30026458796362</pelorus:cog>
+        </extensions>
+      </trkpt>
+      <trkpt lat="42.610089224442326" lon="-70.67018236126931">
+        <time>2026-05-05T19:21:17.737Z</time>
+        <extensions>
+          <pelorus:sog>1.9602079699721944</pelorus:sog>
+          <pelorus:cog>64.68429512647127</pelorus:cog>
+        </extensions>
+      </trkpt>
+      <trkpt lat="42.61009333649462" lon="-70.67008200167568">
+        <time>2026-05-05T19:21:22.736Z</time>
+        <extensions>
+          <pelorus:sog>2.6341361173744673</pelorus:sog>
+          <pelorus:cog>82.1385441342918</pelorus:cog>
+        </extensions>
+      </trkpt>
+      <trkpt lat="42.61009705275668" lon="-70.67000741479332">
+        <time>2026-05-05T19:21:27.656Z</time>
+        <extensions>
+          <pelorus:sog>2.4778942344086317</pelorus:sog>
+          <pelorus:cog>85.9282836615115</pelorus:cog>
+        </extensions>
+      </trkpt>
+      <trkpt lat="42.6100995110925" lon="-70.66994593039456">
+        <time>2026-05-05T19:21:31.736Z</time>
+        <extensions>
+          <pelorus:sog>2.4197052176749696</pelorus:sog>
+          <pelorus:cog>85.62061791546725</pelorus:cog>
+        </extensions>
+      </trkpt>
+      <trkpt lat="42.610104375968106" lon="-70.66985587647717">
+        <time>2026-05-05T19:21:37.736Z</time>
+        <extensions>
+          <pelorus:sog>2.391730276540541</pelorus:sog>
+          <pelorus:cog>85.79051075362393</pelorus:cog>
+        </extensions>
+      </trkpt>
+      <trkpt lat="42.61013582790701" lon="-70.6698077042525">
+        <time>2026-05-05T19:21:41.736Z</time>
+        <extensions>
+          <pelorus:sog>2.425198421060213</pelorus:sog>
+          <pelorus:cog>59.9579797299822</pelorus:cog>
+        </extensions>
+      </trkpt>
+      <trkpt lat="42.610185100610046" lon="-70.66974856177647">
+        <time>2026-05-05T19:21:47.736Z</time>
+        <extensions>
+          <pelorus:sog>2.3077917197427373</pelorus:sog>
+          <pelorus:cog>47.96132582696107</pelorus:cog>
+        </extensions>
+      </trkpt>
+      <trkpt lat="42.610192571572014" lon="-70.66982374109243">
+        <time>2026-05-05T19:21:59.735Z</time>
+        <extensions>
+          <pelorus:sog>1.3389131419013771</pelorus:sog>
+          <pelorus:cog>278.4122851983589</pelorus:cog>
+        </extensions>
+      </trkpt>
+      <trkpt lat="42.61019062261508" lon="-70.66991913766678">
+        <time>2026-05-05T19:22:06.561Z</time>
+        <extensions>
+          <pelorus:sog>2.093337144539618</pelorus:sog>
+          <pelorus:cog>265.66847144699</pelorus:cog>
+        </extensions>
+      </trkpt>
+      <trkpt lat="42.61018461685328" lon="-70.66999243049341">
+        <time>2026-05-05T19:22:11.736Z</time>
+        <extensions>
+          <pelorus:sog>2.213762400622627</pelorus:sog>
+          <pelorus:cog>264.62206849350866</pelorus:cog>
+        </extensions>
+      </trkpt>
+      <trkpt lat="42.610180681836184" lon="-70.67006023539999">
+        <time>2026-05-05T19:22:16.737Z</time>
+        <extensions>
+          <pelorus:sog>2.130763578673626</pelorus:sog>
+          <pelorus:cog>265.18886056076934</pelorus:cog>
+        </extensions>
+      </trkpt>
+      <trkpt lat="42.61018320285767" lon="-70.67012190200009">
+        <time>2026-05-05T19:22:21.736Z</time>
+        <extensions>
+          <pelorus:sog>1.9818010913712358</pelorus:sog>
+          <pelorus:cog>273.00992211165766</pelorus:cog>
+        </extensions>
+      </trkpt>
+      <trkpt lat="42.61018323922023" lon="-70.67020164481255">
+        <time>2026-05-05T19:22:27.737Z</time>
+        <extensions>
+          <pelorus:sog>2.1131618242312453</pelorus:sog>
+          <pelorus:cog>268.9518878921716</pelorus:cog>
+        </extensions>
+      </trkpt>
+      <trkpt lat="42.61015257709785" lon="-70.67027525089887">
+        <time>2026-05-05T19:22:34.707Z</time>
+        <extensions>
+          <pelorus:sog>1.958273993216537</pelorus:sog>
+          <pelorus:cog>237.05215582261658</pelorus:cog>
+        </extensions>
+      </trkpt>
+      <trkpt lat="42.61009011984213" lon="-70.6703156370611">
+        <time>2026-05-05T19:22:41.736Z</time>
+        <extensions>
+          <pelorus:sog>2.055471659399494</pelorus:sog>
+          <pelorus:cog>208.33178470826832</pelorus:cog>
+        </extensions>
+      </trkpt>
+      <trkpt lat="42.6100804" lon="-70.670317">
+        <time>2026-05-05T19:22:42.735Z</time>
+        <extensions>
+          <pelorus:sog>1.7424620636800001</pelorus:sog>
+          <pelorus:cog>230.34119</pelorus:cog>
+        </extensions>
+      </trkpt>
+      <trkpt lat="42.6100756" lon="-70.6703269">
+        <time>2026-05-05T19:22:43.741Z</time>
+        <extensions>
+          <pelorus:sog>1.78598464128</pelorus:sog>
+          <pelorus:cog>242.84251</pelorus:cog>
+        </extensions>
+      </trkpt>
+      <trkpt lat="42.6100722" lon="-70.6703328">
+        <time>2026-05-05T19:22:44.736Z</time>
+        <extensions>
+          <pelorus:sog>1.750611418496</pelorus:sog>
+          <pelorus:cog>257.1098</pelorus:cog>
+        </extensions>
+      </trkpt>
+      <trkpt lat="42.6100714" lon="-70.6703352">
+        <time>2026-05-05T19:22:45.737Z</time>
+        <extensions>
+          <pelorus:sog>1.715813572352</pelorus:sog>
+          <pelorus:cog>274.7951</pelorus:cog>
+        </extensions>
+      </trkpt>
+      <trkpt lat="42.6100745" lon="-70.6703343">
+        <time>2026-05-05T19:22:46.735Z</time>
+        <extensions>
+          <pelorus:sog>1.1452982818080002</pelorus:sog>
+          <pelorus:cog>316.85242</pelorus:cog>
+        </extensions>
+      </trkpt>
+      <trkpt lat="42.6100796" lon="-70.6703336">
+        <time>2026-05-05T19:22:47.735Z</time>
+        <extensions>
+          <pelorus:sog>0.660827166056</pelorus:sog>
+          <pelorus:cog>330.1861</pelorus:cog>
+        </extensions>
+      </trkpt>
+      <trkpt lat="42.6100801" lon="-70.670332">
+        <time>2026-05-05T19:22:48.737Z</time>
+        <extensions>
+          <pelorus:sog>0.3958243918992</pelorus:sog>
+          <pelorus:cog>330.05066</pelorus:cog>
+        </extensions>
+      </trkpt>
+      <trkpt lat="42.6100792" lon="-70.6703308">
+        <time>2026-05-05T19:22:49.737Z</time>
+        <extensions>
+          <pelorus:sog>0.23820980692080002</pelorus:sog>
+          <pelorus:cog>328.37216</pelorus:cog>
+        </extensions>
+      </trkpt>
+      <trkpt lat="42.6100785" lon="-70.6703292">
+        <time>2026-05-05T19:22:50.736Z</time>
+        <extensions>
+          <pelorus:sog>0.19347644054239999</pelorus:sog>
+        </extensions>
+      </trkpt>
+      <trkpt lat="42.6100789" lon="-70.6703283">
+        <time>2026-05-05T19:22:51.737Z</time>
+        <extensions>
+          <pelorus:sog>0.1848821990656</pelorus:sog>
+        </extensions>
+      </trkpt>
+      <trkpt lat="42.610079" lon="-70.6703287">
+        <time>2026-05-05T19:22:52.736Z</time>
+        <extensions>
+          <pelorus:sog>0.1919146039792</pelorus:sog>
+        </extensions>
+      </trkpt>
+      <trkpt lat="42.6100824" lon="-70.6703325">
+        <time>2026-05-05T19:22:53.736Z</time>
+        <extensions>
+          <pelorus:sog>0.1640544394256</pelorus:sog>
+        </extensions>
+      </trkpt>
+      <trkpt lat="42.6100829" lon="-70.6703326">
+        <time>2026-05-05T19:22:54.737Z</time>
+        <extensions>
+          <pelorus:sog>0.17468069348479998</pelorus:sog>
+        </extensions>
+      </trkpt>
+      <trkpt lat="42.6100827" lon="-70.6703324">
+        <time>2026-05-05T19:22:55.735Z</time>
+        <extensions>
+          <pelorus:sog>0.169172686776</pelorus:sog>
+        </extensions>
+      </trkpt>
+      <trkpt lat="42.6100828" lon="-70.6703326">
+        <time>2026-05-05T19:22:56.737Z</time>
+        <extensions>
+          <pelorus:sog>0.1941668633528</pelorus:sog>
+        </extensions>
+      </trkpt>
+      <trkpt lat="42.6100821" lon="-70.6703316">
+        <time>2026-05-05T19:22:57.736Z</time>
+        <extensions>
+          <pelorus:sog>0.2904350242352</pelorus:sog>
+          <pelorus:cog>79.162926</pelorus:cog>
+        </extensions>
+      </trkpt>
+      <trkpt lat="42.6100803" lon="-70.6703288">
+        <time>2026-05-05T19:22:58.735Z</time>
+        <extensions>
+          <pelorus:sog>0.3733393725904</pelorus:sog>
+          <pelorus:cog>126.21498</pelorus:cog>
+        </extensions>
+      </trkpt>
+      <trkpt lat="42.6100769" lon="-70.6703256">
+        <time>2026-05-05T19:22:59.736Z</time>
+        <extensions>
+          <pelorus:sog>0.5380201755792</pelorus:sog>
+          <pelorus:cog>135.19449</pelorus:cog>
+        </extensions>
+      </trkpt>
+      <trkpt lat="42.610072" lon="-70.6703198">
+        <time>2026-05-05T19:23:00.735Z</time>
+        <extensions>
+          <pelorus:sog>0.7201777135552</pelorus:sog>
+          <pelorus:cog>136.67868</pelorus:cog>
+        </extensions>
+      </trkpt>
+      <trkpt lat="42.6100669" lon="-70.670312">
+        <time>2026-05-05T19:23:01.736Z</time>
+        <extensions>
+          <pelorus:sog>0.9590073041407999</pelorus:sog>
+          <pelorus:cog>126.76567</pelorus:cog>
+        </extensions>
+      </trkpt>
+      <trkpt lat="42.6100644" lon="-70.6703055">
+        <time>2026-05-05T19:23:02.737Z</time>
+        <extensions>
+          <pelorus:sog>0.7261002830208</pelorus:sog>
+          <pelorus:cog>126.60725</pelorus:cog>
+        </extensions>
+      </trkpt>
+      <trkpt lat="42.6100635" lon="-70.670301">
+        <time>2026-05-05T19:23:03.736Z</time>
+        <extensions>
+          <pelorus:sog>0.5587785012544</pelorus:sog>
+          <pelorus:cog>105.916</pelorus:cog>
+        </extensions>
+      </trkpt>
+      <trkpt lat="42.6100698" lon="-70.6702862">
+        <time>2026-05-05T19:23:04.737Z</time>
+        <extensions>
+          <pelorus:sog>0.5433011028992</pelorus:sog>
+          <pelorus:cog>87.29291</pelorus:cog>
+        </extensions>
+      </trkpt>
+      <trkpt lat="42.6100705" lon="-70.670284">
+        <time>2026-05-05T19:23:05.735Z</time>
+        <extensions>
+          <pelorus:sog>0.3573045586768</pelorus:sog>
+          <pelorus:cog>64.335915</pelorus:cog>
+        </extensions>
+      </trkpt>
+      <trkpt lat="42.6100705" lon="-70.6702842">
+        <time>2026-05-05T19:23:06.737Z</time>
+        <extensions>
+          <pelorus:sog>0.2581036777904</pelorus:sog>
+          <pelorus:cog>60.11333</pelorus:cog>
+        </extensions>
+      </trkpt>
+      <trkpt lat="42.6100697" lon="-70.6702829">
+        <time>2026-05-05T19:23:07.735Z</time>
+        <extensions>
+          <pelorus:sog>0.2348400339312</pelorus:sog>
+          <pelorus:cog>60.033165</pelorus:cog>
+        </extensions>
+      </trkpt>
+      <trkpt lat="42.610069" lon="-70.670282">
+        <time>2026-05-05T19:23:08.735Z</time>
+        <extensions>
+          <pelorus:sog>0.16543288246016</pelorus:sog>
+        </extensions>
+      </trkpt>
+      <trkpt lat="42.6100688" lon="-70.6702811">
+        <time>2026-05-05T19:23:09.736Z</time>
+        <extensions>
+          <pelorus:sog>0.1610206300224</pelorus:sog>
+        </extensions>
+      </trkpt>
+      <trkpt lat="42.6100743" lon="-70.6702717">
+        <time>2026-05-05T19:23:10.736Z</time>
+        <extensions>
+          <pelorus:sog>0.1630148154784</pelorus:sog>
+        </extensions>
+      </trkpt>
+      <trkpt lat="42.6100746" lon="-70.6702705">
+        <time>2026-05-05T19:23:11.736Z</time>
+        <extensions>
+          <pelorus:sog>0.1556532990144</pelorus:sog>
+        </extensions>
+      </trkpt>
+      <trkpt lat="42.6100746" lon="-70.6702698">
+        <time>2026-05-05T19:23:12.736Z</time>
+        <extensions>
+          <pelorus:sog>0.151855113408</pelorus:sog>
+        </extensions>
+      </trkpt>
+      <trkpt lat="42.6100745" lon="-70.6702694">
+        <time>2026-05-05T19:23:13.736Z</time>
+        <extensions>
+          <pelorus:sog>0.15479728241824</pelorus:sog>
+        </extensions>
+      </trkpt>
+      <trkpt lat="42.6100743" lon="-70.6702689">
+        <time>2026-05-05T19:23:14.737Z</time>
+        <extensions>
+          <pelorus:sog>0.15370341367200002</pelorus:sog>
+        </extensions>
+      </trkpt>
+      <trkpt lat="42.6100761" lon="-70.6702671">
+        <time>2026-05-05T19:23:15.736Z</time>
+        <extensions>
+          <pelorus:sog>0.1547379447584</pelorus:sog>
+        </extensions>
+      </trkpt>
+      <trkpt lat="42.6100761" lon="-70.6702668">
+        <time>2026-05-05T19:23:16.736Z</time>
+        <extensions>
+          <pelorus:sog>0.15754414993600002</pelorus:sog>
+        </extensions>
+      </trkpt>
+      <trkpt lat="42.6100759" lon="-70.6702667">
+        <time>2026-05-05T19:23:17.736Z</time>
+        <extensions>
+          <pelorus:sog>0.152818966472</pelorus:sog>
+        </extensions>
+      </trkpt>
+      <trkpt lat="42.6100755" lon="-70.6702661">
+        <time>2026-05-05T19:23:18.736Z</time>
+        <extensions>
+          <pelorus:sog>0.2408918493184</pelorus:sog>
+          <pelorus:cog>60.617725</pelorus:cog>
+        </extensions>
+      </trkpt>
+      <trkpt lat="42.6100754" lon="-70.6702656">
+        <time>2026-05-05T19:23:19.736Z</time>
+        <extensions>
+          <pelorus:sog>0.1961128707344</pelorus:sog>
+          <pelorus:cog>65.29068</pelorus:cog>
+        </extensions>
+      </trkpt>
+      <trkpt lat="42.6100751" lon="-70.6702654">
+        <time>2026-05-05T19:23:20.736Z</time>
+        <extensions>
+          <pelorus:sog>0.1701315052944</pelorus:sog>
+        </extensions>
+      </trkpt>
+      <trkpt lat="42.6100756" lon="-70.6702655">
+        <time>2026-05-05T19:23:21.736Z</time>
+        <extensions>
+          <pelorus:sog>0.1549541580816</pelorus:sog>
+        </extensions>
+      </trkpt>
+      <trkpt lat="42.6100754" lon="-70.6702655">
+        <time>2026-05-05T19:23:22.736Z</time>
+        <extensions>
+          <pelorus:sog>0.1470559862704</pelorus:sog>
+        </extensions>
+      </trkpt>
+      <trkpt lat="42.6100751" lon="-70.6702655">
+        <time>2026-05-05T19:23:23.736Z</time>
+        <extensions>
+          <pelorus:sog>0.1481775041968</pelorus:sog>
+        </extensions>
+      </trkpt>
+      <trkpt lat="42.610075" lon="-70.6702656">
+        <time>2026-05-05T19:23:24.735Z</time>
+        <extensions>
+          <pelorus:sog>0.148236460864</pelorus:sog>
+        </extensions>
+      </trkpt>
+      <trkpt lat="42.6100746" lon="-70.6702655">
+        <time>2026-05-05T19:23:25.736Z</time>
+        <extensions>
+          <pelorus:sog>0.1520027869328</pelorus:sog>
+        </extensions>
+      </trkpt>
+      <trkpt lat="42.6100748" lon="-70.6702668">
+        <time>2026-05-05T19:23:26.736Z</time>
+        <extensions>
+          <pelorus:sog>0.15394039692560002</pelorus:sog>
+        </extensions>
+      </trkpt>
+      <trkpt lat="42.6100745" lon="-70.6702668">
+        <time>2026-05-05T19:23:27.736Z</time>
+        <extensions>
+          <pelorus:sog>0.1509437051472</pelorus:sog>
+        </extensions>
+      </trkpt>
+      <trkpt lat="42.6100742" lon="-70.6702668">
+        <time>2026-05-05T19:23:28.736Z</time>
+        <extensions>
+          <pelorus:sog>0.14972206779775998</pelorus:sog>
+        </extensions>
+      </trkpt>
+      <trkpt lat="42.6100739" lon="-70.6702669">
+        <time>2026-05-05T19:23:29.736Z</time>
+        <extensions>
+          <pelorus:sog>0.14849949351744</pelorus:sog>
+        </extensions>
+      </trkpt>
+      <trkpt lat="42.6100735" lon="-70.6702669">
+        <time>2026-05-05T19:23:30.737Z</time>
+        <extensions>
+          <pelorus:sog>0.1476283110816</pelorus:sog>
+        </extensions>
+      </trkpt>
+      <trkpt lat="42.6100732" lon="-70.670267">
+        <time>2026-05-05T19:23:31.736Z</time>
+        <extensions>
+          <pelorus:sog>0.1476505097344</pelorus:sog>
+        </extensions>
+      </trkpt>
+      <trkpt lat="42.6100741" lon="-70.6702641">
+        <time>2026-05-05T19:23:32.735Z</time>
+        <extensions>
+          <pelorus:sog>0.1536662085744</pelorus:sog>
+        </extensions>
+      </trkpt>
+      <trkpt lat="42.6100738" lon="-70.6702641">
+        <time>2026-05-05T19:23:33.737Z</time>
+        <extensions>
+          <pelorus:sog>0.1528552579648</pelorus:sog>
+        </extensions>
+      </trkpt>
+      <trkpt lat="42.6100732" lon="-70.6702645">
+        <time>2026-05-05T19:23:34.737Z</time>
+        <extensions>
+          <pelorus:sog>0.150107795632</pelorus:sog>
+        </extensions>
+      </trkpt>
+      <trkpt lat="42.6100729" lon="-70.6702648">
+        <time>2026-05-05T19:23:35.736Z</time>
+        <extensions>
+          <pelorus:sog>0.1495043888192</pelorus:sog>
+        </extensions>
+      </trkpt>
+      <trkpt lat="42.6100726" lon="-70.6702649">
+        <time>2026-05-05T19:23:36.737Z</time>
+        <extensions>
+          <pelorus:sog>0.15045023026176</pelorus:sog>
+        </extensions>
+      </trkpt>
+      <trkpt lat="42.6100722" lon="-70.6702652">
+        <time>2026-05-05T19:23:37.736Z</time>
+        <extensions>
+          <pelorus:sog>0.1506733364416</pelorus:sog>
+        </extensions>
+      </trkpt>
+      <trkpt lat="42.6100719" lon="-70.6702655">
+        <time>2026-05-05T19:23:38.735Z</time>
+        <extensions>
+          <pelorus:sog>0.15013317440704002</pelorus:sog>
+        </extensions>
+      </trkpt>
+      <trkpt lat="42.6100715" lon="-70.6702657">
+        <time>2026-05-05T19:23:39.736Z</time>
+        <extensions>
+          <pelorus:sog>0.15231239204879998</pelorus:sog>
+        </extensions>
+      </trkpt>
+      <trkpt lat="42.6100712" lon="-70.670266">
+        <time>2026-05-05T19:23:40.736Z</time>
+        <extensions>
+          <pelorus:sog>0.14996349466960002</pelorus:sog>
+        </extensions>
+      </trkpt>
+      <trkpt lat="42.6100687" lon="-70.6702682">
+        <time>2026-05-05T19:23:41.736Z</time>
+        <extensions>
+          <pelorus:sog>0.1388906142128</pelorus:sog>
+        </extensions>
+      </trkpt>
+      <trkpt lat="42.6100687" lon="-70.6702682">
+        <time>2026-05-05T19:23:41.736Z</time>
+        <extensions>
+          <pelorus:sog>0.1388906142128</pelorus:sog>
+        </extensions>
+      </trkpt>
+      <trkpt lat="42.6100687" lon="-70.6702682">
+        <time>2026-05-05T19:25:07.565Z</time>
+      </trkpt>
+      <trkpt lat="42.6102128" lon="-70.6707116">
+        <time>2026-05-05T19:25:23.430Z</time>
+      </trkpt>
+      <trkpt lat="42.6101627" lon="-70.6714561">
+        <time>2026-05-05T19:25:38.998Z</time>
+      </trkpt>
+      <trkpt lat="42.6101661" lon="-70.6700375">
+        <time>2026-05-05T19:25:54.538Z</time>
+      </trkpt>
+      <trkpt lat="42.6102267" lon="-70.6703754">
+        <time>2026-05-05T19:26:11.226Z</time>
+      </trkpt>
+      <trkpt lat="42.6100545" lon="-70.6704826">
+        <time>2026-05-05T19:26:51.247Z</time>
+      </trkpt>
+      <trkpt lat="42.6100545" lon="-70.6704826">
+        <time>2026-05-05T19:28:26.753Z</time>
+      </trkpt>
+      <trkpt lat="42.6100545" lon="-70.6704826">
+        <time>2026-05-05T19:28:56.853Z</time>
+      </trkpt>
+      <trkpt lat="42.6100545" lon="-70.6704826">
+        <time>2026-05-05T19:29:26.955Z</time>
+      </trkpt>
+      <trkpt lat="42.6101962" lon="-70.6700812">
+        <time>2026-05-05T19:29:50.181Z</time>
+      </trkpt>
+      <trkpt lat="42.6101792" lon="-70.6700073">
+        <time>2026-05-05T19:30:05.761Z</time>
+      </trkpt>
+      <trkpt lat="42.610162" lon="-70.6700233">
+        <time>2026-05-05T19:30:21.342Z</time>
+      </trkpt>
+      <trkpt lat="42.6101608" lon="-70.6700471">
+        <time>2026-05-05T19:30:37.608Z</time>
+      </trkpt>
+      <trkpt lat="42.6102499" lon="-70.6701545">
+        <time>2026-05-05T19:30:54.226Z</time>
+      </trkpt>
+      <trkpt lat="42.6102096" lon="-70.6699475">
+        <time>2026-05-05T19:31:10.218Z</time>
+      </trkpt>
+      <trkpt lat="42.6101806" lon="-70.6701319">
+        <time>2026-05-05T19:31:25.809Z</time>
+      </trkpt>
+      <trkpt lat="42.6103147" lon="-70.6702653">
+        <time>2026-05-05T19:31:42.222Z</time>
+      </trkpt>
+      <trkpt lat="42.6102492" lon="-70.6693475">
+        <time>2026-05-05T19:31:58.490Z</time>
+      </trkpt>
+      <trkpt lat="42.61027" lon="-70.6690408">
+        <time>2026-05-05T19:32:14.910Z</time>
+      </trkpt>
+      <trkpt lat="42.6101415" lon="-70.6701205">
+        <time>2026-05-05T19:32:32.227Z</time>
+      </trkpt>
+      <trkpt lat="42.6102232" lon="-70.6693987">
+        <time>2026-05-05T19:32:48.238Z</time>
+      </trkpt>
+      <trkpt lat="42.6102472" lon="-70.6689206">
+        <time>2026-05-05T19:33:05.224Z</time>
+      </trkpt>
+      <trkpt lat="42.6102908" lon="-70.6692161">
+        <time>2026-05-05T19:33:22.074Z</time>
+      </trkpt>
+      <trkpt lat="42.610282" lon="-70.6687155">
+        <time>2026-05-05T19:33:39.216Z</time>
+      </trkpt>
+      <trkpt lat="42.610297" lon="-70.6691136">
+        <time>2026-05-05T19:33:55.587Z</time>
+      </trkpt>
+      <trkpt lat="42.6102924" lon="-70.6691859">
+        <time>2026-05-05T19:34:11.977Z</time>
+      </trkpt>
+      <trkpt lat="42.6103583" lon="-70.6692316">
+        <time>2026-05-05T19:34:25.734Z</time>
+        <extensions>
+          <pelorus:sog>0.1744697771256</pelorus:sog>
+        </extensions>
+      </trkpt>
+      <trkpt lat="42.6102437" lon="-70.6695055">
+        <time>2026-05-05T19:34:55.225Z</time>
+      </trkpt>
+      <trkpt lat="42.6102588" lon="-70.6711347">
+        <time>2026-05-05T19:35:10.836Z</time>
+      </trkpt>
+      <trkpt lat="42.6101657" lon="-70.6725671">
+        <time>2026-05-05T19:35:26.604Z</time>
+      </trkpt>
+      <trkpt lat="42.6095266" lon="-70.6742639">
+        <time>2026-05-05T19:35:43.212Z</time>
+      </trkpt>
+      <trkpt lat="42.6089164" lon="-70.6770707">
+        <time>2026-05-05T19:36:00.229Z</time>
+      </trkpt>
+      <trkpt lat="42.6085375" lon="-70.6778234">
+        <time>2026-05-05T19:36:16.139Z</time>
+        <extensions>
+          <pelorus:sog>8.10641150272</pelorus:sog>
+          <pelorus:cog>227.22908</pelorus:cog>
+        </extensions>
+      </trkpt>
+      <trkpt lat="42.6071579" lon="-70.6788392">
+        <time>2026-05-05T19:36:32.457Z</time>
+        <extensions>
+          <pelorus:sog>18.92712925936</pelorus:sog>
+          <pelorus:cog>207.14726</pelorus:cog>
+        </extensions>
+      </trkpt>
+      <trkpt lat="42.6054913" lon="-70.6787685">
+        <time>2026-05-05T19:36:48.736Z</time>
+        <extensions>
+          <pelorus:sog>20.04588304528</pelorus:sog>
+          <pelorus:cog>177.6759</pelorus:cog>
+        </extensions>
+      </trkpt>
+      <trkpt lat="42.6043002" lon="-70.6788268">
+        <time>2026-05-05T19:37:02.853Z</time>
+        <extensions>
+          <pelorus:sog>17.96060730304</pelorus:sog>
+          <pelorus:cog>180.99237</pelorus:cog>
+        </extensions>
+      </trkpt>
+      <trkpt lat="42.6035897" lon="-70.6797646">
+        <time>2026-05-05T19:37:19.230Z</time>
+      </trkpt>
+      <trkpt lat="42.6035614" lon="-70.6797416">
+        <time>2026-05-05T19:37:35.210Z</time>
+      </trkpt>
+      <trkpt lat="42.6035614" lon="-70.6797416">
+        <time>2026-05-05T19:37:50.811Z</time>
+      </trkpt>
+      <trkpt lat="42.610239" lon="-70.6724253">
+        <time>2026-05-05T19:38:07.160Z</time>
+      </trkpt>
+      <trkpt lat="42.604012" lon="-70.6801119">
+        <time>2026-05-05T19:38:25.337Z</time>
+      </trkpt>
+      <trkpt lat="42.6043957" lon="-70.6798915">
+        <time>2026-05-05T19:38:40.842Z</time>
+      </trkpt>
+      <trkpt lat="42.6036965" lon="-70.6799089">
+        <time>2026-05-05T19:38:56.384Z</time>
+      </trkpt>
+      <trkpt lat="42.6058894" lon="-70.6795293">
+        <time>2026-05-05T19:39:11.972Z</time>
+      </trkpt>
+      <trkpt lat="42.6052602" lon="-70.6784791">
+        <time>2026-05-05T19:39:27.892Z</time>
+      </trkpt>
+      <trkpt lat="42.6052332" lon="-70.678469">
+        <time>2026-05-05T19:39:44.355Z</time>
+      </trkpt>
+      <trkpt lat="42.6038274" lon="-70.679783">
+        <time>2026-05-05T19:39:59.691Z</time>
+      </trkpt>
+      <trkpt lat="42.6035615" lon="-70.6797382">
+        <time>2026-05-05T19:40:16.235Z</time>
+      </trkpt>
+      <trkpt lat="42.605176" lon="-70.6784342">
+        <time>2026-05-05T19:40:31.521Z</time>
+      </trkpt>
+      <trkpt lat="42.6051925" lon="-70.6784435">
+        <time>2026-05-05T19:40:46.796Z</time>
+      </trkpt>
+      <trkpt lat="42.6051487" lon="-70.6789621">
+        <time>2026-05-05T19:41:02.257Z</time>
+      </trkpt>
+      <trkpt lat="42.6051362" lon="-70.6785459">
+        <time>2026-05-05T19:41:17.727Z</time>
+      </trkpt>
+      <trkpt lat="42.6051819" lon="-70.6784462">
+        <time>2026-05-05T19:41:33.329Z</time>
+      </trkpt>
+      <trkpt lat="42.6051819" lon="-70.6784462">
+        <time>2026-05-05T19:41:48.669Z</time>
+      </trkpt>
+      <trkpt lat="42.60429289485297" lon="-70.67800498294238">
+        <time>2026-05-05T19:42:03.303Z</time>
+        <extensions>
+          <pelorus:sog>0.3793505503270701</pelorus:sog>
+        </extensions>
+      </trkpt>
+      <trkpt lat="42.604235545584004" lon="-70.67803700874966">
+        <time>2026-05-05T19:42:05.735Z</time>
+        <extensions>
+          <pelorus:sog>1.4824253649863557</pelorus:sog>
+          <pelorus:cog>182.27769764009682</pelorus:cog>
+        </extensions>
+      </trkpt>
+      <trkpt lat="42.60416316813028" lon="-70.6780472414112">
+        <time>2026-05-05T19:42:09.734Z</time>
+        <extensions>
+          <pelorus:sog>2.7685017809490247</pelorus:sog>
+          <pelorus:cog>183.79550360189901</pelorus:cog>
+        </extensions>
+      </trkpt>
+      <trkpt lat="42.60411077455729" lon="-70.67803377325636">
+        <time>2026-05-05T19:42:13.736Z</time>
+        <extensions>
+          <pelorus:sog>2.802348791649917</pelorus:sog>
+          <pelorus:cog>176.87585708899675</pelorus:cog>
+        </extensions>
+      </trkpt>
+      <trkpt lat="42.604068949692596" lon="-70.67799732975294">
+        <time>2026-05-05T19:42:17.736Z</time>
+        <extensions>
+          <pelorus:sog>2.6046227482220394</pelorus:sog>
+          <pelorus:cog>163.9585769275222</pelorus:cog>
+        </extensions>
+      </trkpt>
+      <trkpt lat="42.6040213277421" lon="-70.6779358653148">
+        <time>2026-05-05T19:42:30.735Z</time>
+        <extensions>
+          <pelorus:sog>2.1876433169568177</pelorus:sog>
+          <pelorus:cog>147.9175350133596</pelorus:cog>
+        </extensions>
+      </trkpt>
+      <trkpt lat="42.6039521178858" lon="-70.67788044548792">
+        <time>2026-05-05T19:42:36.734Z</time>
+        <extensions>
+          <pelorus:sog>2.6495580151592732</pelorus:sog>
+          <pelorus:cog>148.6841160430588</pelorus:cog>
+        </extensions>
+      </trkpt>
+      <trkpt lat="42.60389615264601" lon="-70.67782889560105">
+        <time>2026-05-05T19:42:42.735Z</time>
+        <extensions>
+          <pelorus:sog>2.4984933621715784</pelorus:sog>
+          <pelorus:cog>145.89821526612585</pelorus:cog>
+        </extensions>
+      </trkpt>
+      <trkpt lat="42.603829887872436" lon="-70.6777794794525">
+        <time>2026-05-05T19:42:49.736Z</time>
+        <extensions>
+          <pelorus:sog>2.330656050306184</pelorus:sog>
+          <pelorus:cog>154.09587470587167</pelorus:cog>
+        </extensions>
+      </trkpt>
+      <trkpt lat="42.6038284" lon="-70.6777767">
+        <time>2026-05-05T19:42:50.735Z</time>
+        <extensions>
+          <pelorus:sog>1.3731865801856</pelorus:sog>
+          <pelorus:cog>125.55993</pelorus:cog>
+        </extensions>
+      </trkpt>
+      <trkpt lat="42.6038283" lon="-70.6777765">
+        <time>2026-05-05T19:42:51.736Z</time>
+        <extensions>
+          <pelorus:sog>0.8635751013695999</pelorus:sog>
+          <pelorus:cog>125.69629</pelorus:cog>
+        </extensions>
+      </trkpt>
+      <trkpt lat="42.6038298" lon="-70.6777793">
+        <time>2026-05-05T19:42:52.736Z</time>
+        <extensions>
+          <pelorus:sog>0.48106025970399996</pelorus:sog>
+          <pelorus:cog>126.225716</pelorus:cog>
+        </extensions>
+      </trkpt>
+      <trkpt lat="42.6038318" lon="-70.6777832">
+        <time>2026-05-05T19:42:53.734Z</time>
+        <extensions>
+          <pelorus:sog>0.17365412436704</pelorus:sog>
+        </extensions>
+      </trkpt>
+      <trkpt lat="42.6038331" lon="-70.6777864">
+        <time>2026-05-05T19:42:54.735Z</time>
+        <extensions>
+          <pelorus:sog>0.1336905506368</pelorus:sog>
+        </extensions>
+      </trkpt>
+      <trkpt lat="42.6038337" lon="-70.6777876">
+        <time>2026-05-05T19:42:55.735Z</time>
+        <extensions>
+          <pelorus:sog>0.1350529686544</pelorus:sog>
+        </extensions>
+      </trkpt>
+      <trkpt lat="42.6038345" lon="-70.6777889">
+        <time>2026-05-05T19:42:56.735Z</time>
+        <extensions>
+          <pelorus:sog>0.0388685192416</pelorus:sog>
+        </extensions>
+      </trkpt>
+      <trkpt lat="42.6038358" lon="-70.6777903">
+        <time>2026-05-05T19:42:57.735Z</time>
+        <extensions>
+          <pelorus:sog>0.05393144814432</pelorus:sog>
+        </extensions>
+      </trkpt>
+      <trkpt lat="42.6038359" lon="-70.677791">
+        <time>2026-05-05T19:42:58.735Z</time>
+        <extensions>
+          <pelorus:sog>0.04502004973312</pelorus:sog>
+        </extensions>
+      </trkpt>
+      <trkpt lat="42.6038362" lon="-70.6777916">
+        <time>2026-05-05T19:42:59.735Z</time>
+        <extensions>
+          <pelorus:sog>0.05724719015728</pelorus:sog>
+        </extensions>
+      </trkpt>
+      <trkpt lat="42.6038364" lon="-70.677792">
+        <time>2026-05-05T19:43:00.734Z</time>
+        <extensions>
+          <pelorus:sog>0.06131905871648</pelorus:sog>
+        </extensions>
+      </trkpt>
+    </trkseg>
+  </trk>
+</gpx>
