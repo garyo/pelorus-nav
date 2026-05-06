@@ -56,6 +56,15 @@ class BackgroundTrackService : Service() {
          */
         private const val PASSIVE_WAKE_LOCK_HOLD_MS = 500L
 
+        /**
+         * When the SteadinessTracker reports the boat is on a steady course,
+         * scale the passive interval up by this factor (capped). Capped well
+         * below chip-power-optimal so post-turn detection latency stays
+         * bounded — at most ~one slow interval before the deviation shows up.
+         */
+        private const val STEADY_PASSIVE_INTERVAL_MULTIPLIER = 2L
+        private const val STEADY_PASSIVE_INTERVAL_CAP_MS = 30_000L
+
         /** Callback for delivering live location updates to the plugin. Cleared in PASSIVE mode. */
         var locationListener: ((TrackPointRow) -> Unit)? = null
 
@@ -86,6 +95,13 @@ class BackgroundTrackService : Service() {
      */
     private val mainHandler = Handler(Looper.getMainLooper())
     private var pendingPassiveRunnable: Runnable? = null
+
+    /** Steadiness detector for adaptive passive sampling. PASSIVE-only. */
+    private val steadinessTracker = SteadinessTracker()
+    /** Last value the tracker returned — caller compares to detect flips. */
+    private var lastSteadyState = false
+    /** Mode applyMode() last ran with — used to reset adaptive state on flips. */
+    private var lastModeApplied: String? = null
 
     override fun onCreate() {
         super.onCreate()
@@ -119,6 +135,19 @@ class BackgroundTrackService : Service() {
                     // Bridge gating: in PASSIVE mode we drop locationListener so
                     // JS doesn't get fanned-out fixes it can't use anyway.
                     locationListener?.invoke(point)
+
+                    // Adaptive passive sampling: feed the steadiness tracker
+                    // and re-issue the LocationRequest if its recommendation
+                    // flipped. Active mode never participates — visible
+                    // recording stays at the user-facing rate.
+                    if (currentMode == MODE_PASSIVE) {
+                        val nowSteady =
+                            steadinessTracker.onFix(location.latitude, location.longitude)
+                        if (nowSteady != lastSteadyState) {
+                            lastSteadyState = nowSteady
+                            applyMode()
+                        }
+                    }
                 }
             }
         }
@@ -211,7 +240,25 @@ class BackgroundTrackService : Service() {
             return
         }
         val passive = (currentMode == MODE_PASSIVE)
-        val intervalMs = if (passive) passiveIntervalMs else activeIntervalMs
+
+        // Mode transition: clear adaptive state so a stale buffer can't make
+        // a wrong call the moment we re-enter passive (or stick around in
+        // active where it's unused).
+        if (lastModeApplied != currentMode) {
+            steadinessTracker.reset()
+            lastSteadyState = false
+            lastModeApplied = currentMode
+        }
+
+        val intervalMs = when {
+            !passive -> activeIntervalMs
+            lastSteadyState ->
+                minOf(
+                    passiveIntervalMs * STEADY_PASSIVE_INTERVAL_MULTIPLIER,
+                    STEADY_PASSIVE_INTERVAL_CAP_MS,
+                )
+            else -> passiveIntervalMs
+        }
         val priority = if (passive) Priority.PRIORITY_BALANCED_POWER_ACCURACY else Priority.PRIORITY_HIGH_ACCURACY
 
         // Wake-lock policy first: if entering PASSIVE, drop the continuous hold;
