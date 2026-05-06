@@ -47,8 +47,14 @@ class BackgroundTrackService : Service() {
         const val MODE_ACTIVE = "active"
         const val MODE_PASSIVE = "passive"
 
-        /** Wake-lock timeout for one-shot acquires in PASSIVE mode. */
-        private const val PASSIVE_WAKE_LOCK_HOLD_MS = 5_000L
+        /**
+         * Wake-lock timeout for one-shot acquires in PASSIVE mode. Held just
+         * long enough to cover the synchronous SQLite insert and the (no-op
+         * in passive) listener fanout — sub-ms each, so 500 ms is already
+         * 100× margin. The previous 5 s value was wildly over-provisioned
+         * and showed up as ~1 m/hr of wake-lock time in battery stats.
+         */
+        private const val PASSIVE_WAKE_LOCK_HOLD_MS = 500L
 
         /** Callback for delivering live location updates to the plugin. Cleared in PASSIVE mode. */
         var locationListener: ((TrackPointRow) -> Unit)? = null
