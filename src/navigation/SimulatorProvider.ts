@@ -15,6 +15,41 @@ import type {
   NavigationDataProvider,
 } from "./NavigationData";
 
+/**
+ * Synthetic GPS error patterns layered on top of the base motion model.
+ * The default {kind: "none"} keeps existing behaviour (just per-fix
+ * baseline jitter). Other modes are deterministic functions of the
+ * tick counter, so two simulator runs with the same seed/config
+ * produce identical fix sequences — important for reproducible tests.
+ */
+export type SimulatorErrorMode =
+  | { kind: "none" }
+  /** With probability `rate`, replace this fix with one displaced by
+   *  `magnitudeM` metres in a random direction. Models a single bad
+   *  GPS sample (multipath, satellite glitch). */
+  | { kind: "shot"; rate: number; magnitudeM: number }
+  /** Every `period` ticks, the next `burstLen` ticks have Gaussian
+   *  noise of σ=`noiseM` metres added on top of the baseline jitter.
+   *  Models entering and exiting a noisy area (urban canyon). */
+  | {
+      kind: "noisy-burst";
+      period: number;
+      burstLen: number;
+      noiseM: number;
+    }
+  /** Add a constant [east, north] metre offset for ticks t0..t0+duration.
+   *  Models sustained multipath bias (e.g. boat sitting beside a tall
+   *  steel hull). After duration ends, the bias releases instantly. */
+  | {
+      kind: "sustained-bias";
+      startTick: number;
+      durationTicks: number;
+      biasM: [number, number];
+    }
+  /** With probability `rate`, suppress the fix entirely (no callback
+   *  fires this tick). Lets us test variable-dt behaviour. */
+  | { kind: "dropout"; rate: number };
+
 export interface SimulatorOptions {
   mode: "route" | "circular" | "static";
   /** Waypoints for route mode: [lat, lng][] */
@@ -31,6 +66,10 @@ export interface SimulatorOptions {
   intervalMs?: number;
   /** Time multiplier for faster simulation (e.g. 10 = 10x speed) */
   speedMultiplier?: number;
+  /** Optional synthetic GPS error layered on top of the baseline jitter. */
+  errorMode?: SimulatorErrorMode;
+  /** Seed for the deterministic RNG used by error modes. */
+  errorSeed?: number;
 }
 
 /** Default Boston Harbor loop */
@@ -49,6 +88,45 @@ const BOSTON_HARBOR_ROUTE: [number, number][] = [
 
 const DEFAULT_SPEED_KN = 6;
 const DEFAULT_INTERVAL_MS = 1000;
+const M_PER_DEG = 111_111;
+
+/**
+ * Deterministic small-state RNG (mulberry32). Used by error modes so
+ * test sequences are reproducible; the baseline addJitter() still uses
+ * Math.random because production simulator runs benefit from the
+ * non-determinism of slightly different jitter each session.
+ */
+function makeRng(seed: number): () => number {
+  let s = seed >>> 0;
+  return () => {
+    s = (s + 0x6d2b79f5) >>> 0;
+    let t = s;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+/** Box-Muller-ish standard normal from two uniform draws. */
+function gaussian(rng: () => number): number {
+  const u1 = Math.max(rng(), 1e-12);
+  const u2 = rng();
+  return Math.sqrt(-2 * Math.log(u1)) * Math.cos(2 * Math.PI * u2);
+}
+
+/** Offset a fix's position by (eastM, northM) metres. */
+function offsetMetres(
+  data: NavigationData,
+  eastM: number,
+  northM: number,
+): NavigationData {
+  const cosLat = Math.cos((data.latitude * Math.PI) / 180);
+  return {
+    ...data,
+    latitude: data.latitude + northM / M_PER_DEG,
+    longitude: data.longitude + eastM / (M_PER_DEG * cosLat),
+  };
+}
 
 /** Add realistic GPS jitter to position, speed, and heading. */
 function addJitter(data: NavigationData): NavigationData {
@@ -79,6 +157,9 @@ export class SimulatorProvider implements NavigationDataProvider {
   private listeners: NavigationDataCallback[] = [];
   private timer: ReturnType<typeof setInterval> | null = null;
   private startTime = 0;
+  private tickCount = 0;
+  private errorMode: SimulatorErrorMode;
+  private errorRng: () => number;
 
   constructor(options?: Partial<SimulatorOptions>) {
     this.opts = {
@@ -91,6 +172,18 @@ export class SimulatorProvider implements NavigationDataProvider {
       intervalMs: options?.intervalMs ?? DEFAULT_INTERVAL_MS,
       speedMultiplier: options?.speedMultiplier ?? 1,
     };
+    this.errorMode = options?.errorMode ?? { kind: "none" };
+    this.errorRng = makeRng(options?.errorSeed ?? 0xc0ffee);
+  }
+
+  /**
+   * Replace the active error mode at runtime. The deterministic RNG is
+   * re-seeded so the new mode's pattern is reproducible from this call
+   * onward.
+   */
+  setErrorMode(mode: SimulatorErrorMode, seed = 0xc0ffee): void {
+    this.errorMode = mode;
+    this.errorRng = makeRng(seed);
   }
 
   isConnected(): boolean {
@@ -134,6 +227,7 @@ export class SimulatorProvider implements NavigationDataProvider {
   }
 
   private tick(): void {
+    const tickIdx = this.tickCount++;
     const elapsed =
       ((Date.now() - this.startTime) / 1000) * this.opts.speedMultiplier;
     let data: NavigationData;
@@ -150,9 +244,57 @@ export class SimulatorProvider implements NavigationDataProvider {
         break;
     }
 
-    const output = this.opts.mode === "static" ? data : addJitter(data);
+    let output = this.opts.mode === "static" ? data : addJitter(data);
+    const errored = this.applyErrorMode(output, tickIdx);
+    if (errored === null) return; // dropout — suppress this tick
+    output = errored;
     for (const fn of this.listeners) {
       fn(output);
+    }
+  }
+
+  /**
+   * Apply the configured synthetic error pattern to the (already
+   * baseline-jittered) data. Returns null to indicate the fix should
+   * be suppressed entirely (dropout mode).
+   */
+  private applyErrorMode(
+    data: NavigationData,
+    tickIdx: number,
+  ): NavigationData | null {
+    const mode = this.errorMode;
+    switch (mode.kind) {
+      case "none":
+        return data;
+      case "shot": {
+        if (this.errorRng() >= mode.rate) return data;
+        const dir = this.errorRng() * 2 * Math.PI;
+        return offsetMetres(
+          data,
+          mode.magnitudeM * Math.cos(dir),
+          mode.magnitudeM * Math.sin(dir),
+        );
+      }
+      case "noisy-burst": {
+        const inBurst = tickIdx % mode.period < mode.burstLen;
+        if (!inBurst) return data;
+        return offsetMetres(
+          data,
+          gaussian(this.errorRng) * mode.noiseM,
+          gaussian(this.errorRng) * mode.noiseM,
+        );
+      }
+      case "sustained-bias": {
+        if (
+          tickIdx < mode.startTick ||
+          tickIdx >= mode.startTick + mode.durationTicks
+        ) {
+          return data;
+        }
+        return offsetMetres(data, mode.biasM[0], mode.biasM[1]);
+      }
+      case "dropout":
+        return this.errorRng() < mode.rate ? null : data;
     }
   }
 

@@ -1,8 +1,13 @@
 // @vitest-environment jsdom
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { TrackPoint } from "../data/Track";
 import { loadTrackFixture } from "../data/test-fixtures";
+import type { NavigationData } from "./NavigationData";
 import { smoothTrack } from "./RTSmoother";
+import {
+  type SimulatorErrorMode,
+  SimulatorProvider,
+} from "./SimulatorProvider";
 
 const M_PER_DEG = 111_111;
 
@@ -87,6 +92,102 @@ describe("smoothTrack — synthetic", () => {
     // East-going course → COG ≈ 90°.
     const cogs = interior.map((p) => p.cog ?? 0);
     expect(median(cogs)).toBeCloseTo(90, 0);
+  });
+});
+
+/** Drive a SimulatorProvider for the requested number of ticks and
+ *  return the captured fixes as TrackPoints. Uses fake timers so the
+ *  test is deterministic and instant. */
+function captureSimulatorFixes(
+  ticks: number,
+  errorMode: SimulatorErrorMode,
+  intervalMs = 1000,
+): TrackPoint[] {
+  const sim = new SimulatorProvider({
+    mode: "circular",
+    center: [42.0, -71.0],
+    radius: 0.2,
+    speed: 6,
+    intervalMs,
+    errorMode,
+    errorSeed: 42,
+  });
+  const captured: TrackPoint[] = [];
+  sim.subscribe((data: NavigationData) => {
+    captured.push({
+      lat: data.latitude,
+      lon: data.longitude,
+      timestamp: data.timestamp,
+      sog: data.sog,
+      cog: data.cog,
+    });
+  });
+  sim.connect(); // first tick fires synchronously
+  for (let i = 1; i < ticks; i++) {
+    vi.advanceTimersByTime(intervalMs);
+  }
+  sim.disconnect();
+  return captured;
+}
+
+describe("smoothTrack — simulator", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-05-06T20:00:00Z"));
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("with errorMode=none, smoother shifts stay small", () => {
+    const fixes = captureSimulatorFixes(60, { kind: "none" });
+    const r = smoothTrack(fixes);
+    expect(r.outliers).toEqual([]);
+    // Baseline jitter ~5m → smoothed shifts a few m. Be generous.
+    const interior = r.shifts.slice(5, -5);
+    expect(median(interior)).toBeLessThan(5);
+  });
+
+  it("flags shot-noise spikes and roughly matches the configured rate", () => {
+    // 2 % rate, 100 m magnitude over 200 ticks → expect ~4 outliers ± slack.
+    const fixes = captureSimulatorFixes(200, {
+      kind: "shot",
+      rate: 0.02,
+      magnitudeM: 100,
+    });
+    const r = smoothTrack(fixes);
+    expect(r.outliers.length).toBeGreaterThanOrEqual(2);
+    expect(r.outliers.length).toBeLessThanOrEqual(8);
+    // Each flagged index should sit far from its neighbours pre-smoothing.
+    for (const idx of r.outliers) {
+      expect(r.shifts[idx]).toBeGreaterThan(r.outlierThresholdM);
+    }
+  });
+
+  it("dampens noisy bursts without flagging individual fixes", () => {
+    // ~10 m noise burst — well below the 25 m floor for outlier detection.
+    const fixes = captureSimulatorFixes(120, {
+      kind: "noisy-burst",
+      period: 30,
+      burstLen: 10,
+      noiseM: 10,
+    });
+    const r = smoothTrack(fixes);
+    expect(r.outliers).toEqual([]);
+    // Smoother should reduce the in-burst shift well below the noise σ.
+    expect(median(r.shifts)).toBeLessThan(10);
+  });
+
+  it("handles dropouts (suppressed fixes) without producing NaN", () => {
+    const fixes = captureSimulatorFixes(150, {
+      kind: "dropout",
+      rate: 0.2,
+    });
+    expect(fixes.length).toBeGreaterThan(50);
+    expect(fixes.length).toBeLessThan(150);
+    const r = smoothTrack(fixes);
+    expect(r.smoothed.every((p) => Number.isFinite(p.lat))).toBe(true);
+    expect(r.smoothed.every((p) => Number.isFinite(p.lon))).toBe(true);
   });
 });
 
