@@ -166,7 +166,7 @@ describe("GPX import", () => {
     expect(points[2].cog).toBeNull();
   });
 
-  it("round-trips a smoothed track preserving raw lat/lon", () => {
+  it("does not emit raw lat/lon by default; smoothed lat/lon export cleanly", () => {
     const smoothedPoints: TrackPoint[] = [
       {
         lat: 42.3601,
@@ -177,27 +177,18 @@ describe("GPX import", () => {
         rawLat: 42.36,
         rawLon: -71.06,
       },
-      {
-        lat: 42.3611,
-        lon: -71.0589,
-        timestamp: 1700000060000,
-        sog: 5.5,
-        cog: 47,
-        rawLat: 42.361,
-        rawLon: -71.059,
-      },
     ];
     const gpx = trackToGpx(sampleTrackMeta, smoothedPoints);
+    expect(gpx).not.toContain("pelorus:lat-raw");
+    expect(gpx).not.toContain("pelorus:lon-raw");
+    // Smoothed lat/lon still go out as the trkpt attrs.
+    expect(gpx).toContain('lat="42.3601"');
+    expect(gpx).toContain('lon="-71.0599"');
+    // Round-trip drops the raw fields (they're not emitted).
     const result = parseGpx(gpx);
     const points = result.tracks[0].points;
-    expect(points).toHaveLength(2);
-    expect(points[0].rawLat).toBe(42.36);
-    expect(points[0].rawLon).toBe(-71.06);
-    expect(points[1].rawLat).toBe(42.361);
-    expect(points[1].rawLon).toBe(-71.059);
-    // Smoothed lat/lon (the trkpt attributes) preserved alongside.
-    expect(points[0].lat).toBe(42.3601);
-    expect(points[0].lon).toBe(-71.0599);
+    expect(points[0].rawLat).toBeUndefined();
+    expect(points[0].rawLon).toBeUndefined();
   });
 
   it("excludes dropped points from track export", () => {

@@ -11,6 +11,12 @@ import type { StandaloneWaypoint, WaypointIcon } from "./Waypoint";
 const GPX_NS = "http://www.topografix.com/GPX/1/1";
 const PELORUS_NS = "https://pelorus-nav.app/gpx/1";
 
+/** Emit per-point raw lat/lon as Pelorus extensions when a track has been
+ *  smoothed. Useful while debugging the post-processor; off for normal
+ *  exports so the file stays compact. The import side still parses these
+ *  if present, so flipping this back on is a one-line change. */
+const EMIT_RAW_TRACK_POINTS = false;
+
 // Default color palette for imported items without color info
 const IMPORT_COLORS = [
   "#4488cc",
@@ -89,8 +95,9 @@ function trackPointXml(pt: TrackPoint): string {
   if (pt.timestamp) {
     xml += `        <time>${new Date(pt.timestamp).toISOString()}</time>\n`;
   }
-  const hasRaw = pt.rawLat !== undefined && pt.rawLon !== undefined;
-  if (pt.sog !== null || pt.cog !== null || hasRaw) {
+  const emitRaw =
+    EMIT_RAW_TRACK_POINTS && pt.rawLat !== undefined && pt.rawLon !== undefined;
+  if (pt.sog !== null || pt.cog !== null || emitRaw) {
     xml += "        <extensions>\n";
     if (pt.sog !== null) {
       xml += `          <pelorus:sog>${pt.sog}</pelorus:sog>\n`;
@@ -98,7 +105,7 @@ function trackPointXml(pt: TrackPoint): string {
     if (pt.cog !== null) {
       xml += `          <pelorus:cog>${pt.cog}</pelorus:cog>\n`;
     }
-    if (hasRaw) {
+    if (emitRaw) {
       xml += `          <pelorus:lat-raw>${pt.rawLat}</pelorus:lat-raw>\n`;
       xml += `          <pelorus:lon-raw>${pt.rawLon}</pelorus:lon-raw>\n`;
     }

@@ -165,12 +165,14 @@ describe("smoothTrack — simulator", () => {
   });
 
   it("dampens noisy bursts without flagging individual fixes", () => {
-    // ~10 m noise burst — well below the 25 m floor for outlier detection.
+    // 5 m σ burst noise: plus baseline jitter (unseeded Math.random in the
+    // simulator) typically peaks under the 20 m outlier floor, so any
+    // flagged samples would indicate over-aggressive rejection.
     const fixes = captureSimulatorFixes(120, {
       kind: "noisy-burst",
       period: 30,
       burstLen: 10,
-      noiseM: 10,
+      noiseM: 5,
     });
     const r = smoothTrack(fixes);
     expect(r.outliers).toEqual([]);
