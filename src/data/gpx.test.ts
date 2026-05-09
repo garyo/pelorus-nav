@@ -191,6 +191,34 @@ describe("GPX import", () => {
     expect(points[0].rawLon).toBeUndefined();
   });
 
+  it("round-trips per-point accuracy via pelorus extension", () => {
+    const points: TrackPoint[] = [
+      {
+        lat: 42.36,
+        lon: -71.06,
+        timestamp: 1700000000000,
+        sog: 5,
+        cog: 45,
+        accuracy: 8.4,
+      },
+      {
+        lat: 42.37,
+        lon: -71.05,
+        timestamp: 1700000060000,
+        sog: 5,
+        cog: 45,
+        accuracy: null,
+      },
+    ];
+    const gpx = trackToGpx(sampleTrackMeta, points);
+    expect(gpx).toContain("<pelorus:accuracy>8.4</pelorus:accuracy>");
+    const result = parseGpx(gpx);
+    const parsed = result.tracks[0].points;
+    expect(parsed[0].accuracy).toBe(8.4);
+    // null accuracy isn't emitted, so it doesn't come back
+    expect(parsed[1].accuracy).toBeUndefined();
+  });
+
   it("excludes dropped points from track export", () => {
     const points: TrackPoint[] = [
       { lat: 42.36, lon: -71.06, timestamp: 1700000000000, sog: 5, cog: 45 },

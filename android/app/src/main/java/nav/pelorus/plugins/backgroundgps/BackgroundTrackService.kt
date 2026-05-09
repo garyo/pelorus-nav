@@ -27,10 +27,14 @@ import com.google.android.gms.location.Priority
  *   ACTIVE  — chart is visible. HIGH_ACCURACY chip, fast interval (default 1s),
  *             every fix delivered to JS via the bridge, partial wake lock held
  *             continuously.
- *   PASSIVE — screen off, recording. BALANCED_POWER_ACCURACY, slow interval
- *             (default 15s), JS bridge silenced (fixes go to SQLite only and
- *             are recovered on next visible transition), wake lock released
- *             between fixes.
+ *   PASSIVE — screen off, recording. HIGH_ACCURACY chip, slow interval
+ *             (default 30s) with setWaitForAccurateLocation(true) so FLP only
+ *             delivers real GPS fixes (never cell-tower / WiFi fallbacks).
+ *             JS bridge silenced (fixes go to SQLite only and are recovered
+ *             on next visible transition), wake lock released between fixes.
+ *
+ * Low-quality fixes (accuracy worse than [MAX_ACCURACY_M]) are dropped before
+ * SQLite insert as a backstop against any FLP fallback that slips through.
  *
  * The mode is chosen entirely by the JS layer based on `document.visibilityState`,
  * recording state, and theme. No speed/DR-based adaptation here — that's been
@@ -74,7 +78,15 @@ class BackgroundTrackService : Service() {
 
         @Volatile var currentMode: String = MODE_ACTIVE
         @Volatile var activeIntervalMs: Long = 1000L
-        @Volatile var passiveIntervalMs: Long = 15_000L
+        @Volatile var passiveIntervalMs: Long = 30_000L
+
+        /**
+         * Reject fixes worse than this (meters). Real GPS is typically
+         * <15 m even in marginal conditions; cell-tower / WiFi fallbacks
+         * arrive at 100 m+. Mirrors MAX_ACCURACY_M in TrackRecorder.ts —
+         * the JS side has the same backstop on its own ingress path.
+         */
+        private const val MAX_ACCURACY_M = 30f
 
         /** Text shown in the foreground-service notification. JS can update this via the plugin. */
         @Volatile var notificationText: String = "Navigating"
@@ -128,6 +140,14 @@ class BackgroundTrackService : Service() {
                 }
                 try {
                     for (location in result.locations) {
+                        // Drop fixes worse than MAX_ACCURACY_M — these are the
+                        // cell-tower / WiFi fallbacks we don't want polluting
+                        // the recorded track. Fixes with no accuracy field are
+                        // accepted; we don't have a basis to reject them.
+                        if (location.hasAccuracy() && location.accuracy > MAX_ACCURACY_M) {
+                            Log.d(TAG, "Dropping low-accuracy fix: ${location.accuracy}m")
+                            continue
+                        }
                         val point = TrackPointRow(
                             timestamp = location.time,
                             lat = location.latitude,
@@ -269,7 +289,11 @@ class BackgroundTrackService : Service() {
                 )
             else -> passiveIntervalMs
         }
-        val priority = if (passive) Priority.PRIORITY_BALANCED_POWER_ACCURACY else Priority.PRIORITY_HIGH_ACCURACY
+        // Both modes ask for HIGH_ACCURACY — BALANCED lets FLP synthesise
+        // locations from cell tower / WiFi when the GPS chip is asleep, and
+        // those can be kilometres off offshore. We accept the small extra
+        // chip-power cost; FLP still duty-cycles internally between fixes.
+        val priority = Priority.PRIORITY_HIGH_ACCURACY
 
         // Wake-lock policy first: if entering PASSIVE, drop the continuous hold;
         // if entering ACTIVE, re-acquire it before we start delivering 1 Hz fixes.
@@ -284,9 +308,13 @@ class BackgroundTrackService : Service() {
         if (intervalMs == appliedIntervalMs && priority == appliedPriority) return
 
         fusedClient.removeLocationUpdates(locationCallback)
+        // setWaitForAccurateLocation(true) in PASSIVE: tells FLP to wait for
+        // the location engine to fuse a real fix instead of returning a
+        // cached / cell-tower estimate immediately. ACTIVE keeps it false so
+        // the 1 Hz stream isn't delayed waiting on every fix.
         val request = LocationRequest.Builder(priority, intervalMs)
             .setMinUpdateIntervalMillis(intervalMs)
-            .setWaitForAccurateLocation(false)
+            .setWaitForAccurateLocation(passive)
             .build()
         fusedClient.requestLocationUpdates(request, locationCallback, Looper.getMainLooper())
         appliedIntervalMs = intervalMs

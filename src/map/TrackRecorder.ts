@@ -30,6 +30,16 @@ const GAP_THRESHOLD_MS = 30 * 60 * 1000; // 30 minutes
 /** Tracks shorter than this skip the Stop-time RTS post-processor —
  *  too few points for the smoother to add value. */
 const MIN_POINTS_FOR_SMOOTHING = 20;
+/**
+ * Reject GPS fixes with accuracy worse than this (meters). On Android,
+ * FusedLocationProvider can fall back to cell-tower / WiFi-derived
+ * locations when the GPS chip is asleep or signal is poor; those fixes
+ * arrive with accuracy in the hundreds of meters and are sometimes
+ * kilometers off the true position. Real GPS fixes are typically <15 m
+ * even in marginal conditions, so 30 m is a comfortable floor. Fixes
+ * with no accuracy field are accepted (some sources don't report it).
+ */
+const MAX_ACCURACY_M = 30;
 const ACTIVE_TRACK_KEY = "pelorus-nav-active-track";
 
 /** Format a Date as "YYYY-MM-DD HH:MM" in local time. */
@@ -135,6 +145,7 @@ export class TrackRecorder {
         timestamp: raw.timestamp,
         sog: isOutlier ? raw.sog : sm.sog,
         cog: isOutlier ? raw.cog : sm.cog,
+        accuracy: raw.accuracy,
         rawLat: raw.lat,
         rawLon: raw.lon,
         ...(isOutlier ? { dropped: true } : {}),
@@ -204,6 +215,13 @@ export class TrackRecorder {
     // immediately overwrites, leaving an orphan zero-point meta.
     if (this.resumePromise) await this.resumePromise;
 
+    // Reject low-quality fixes outright. These are mostly cell-tower /
+    // WiFi-derived positions that FLP returns when the GPS chip is asleep;
+    // they corrupt the track without any salvageable signal.
+    if (data.accuracy !== null && data.accuracy > MAX_ACCURACY_M) {
+      return;
+    }
+
     const now = data.timestamp;
 
     // Check for time gap → start new track
@@ -255,6 +273,7 @@ export class TrackRecorder {
       timestamp: now,
       sog: data.sog,
       cog: data.cog,
+      accuracy: data.accuracy,
     };
 
     // Update state BEFORE awaiting, so a concurrent recoverBackgroundPoints

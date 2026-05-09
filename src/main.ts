@@ -476,18 +476,20 @@ const TRACK_REPAIR_FLAG = "pelorus-nav-track-counts-repaired-v1";
 })();
 
 // Capacitor power management: a single visibility/recording-driven state
-// machine that picks between "active" (HIGH_ACCURACY, fast) and "passive"
-// (BALANCED, slow, bridge-silenced, wake-lock-toggled) GPS modes.
+// machine that picks between "active" (fast, every fix to JS) and
+// "passive" (slow, bridge-silenced, wake-lock-toggled) GPS modes. Both
+// modes request HIGH_ACCURACY with setWaitForAccurateLocation(true) so
+// FLP only delivers real GPS fixes, never cell-tower / WiFi fallbacks.
 //
 // Visible:                  active mode at the chosen rate (1 s normally,
 //                           5 s in e-ink theme since the panel can't update
 //                           faster anyway).
 // Hidden + recording:       grace 60 s at the previous active rate, then
-//                           passive at 15 s. Snap back to active on visible.
+//                           passive at 30 s. Snap back to active on visible.
 // Hidden + not recording:   stop the native GPS entirely.
 if (capacitorGPS) {
   const HIDDEN_GRACE_MS = 60_000;
-  const PASSIVE_INTERVAL_MS = 15_000;
+  const PASSIVE_INTERVAL_MS = 30_000;
   const ACTIVE_INTERVAL_MS = 1_000;
   const EINK_ACTIVE_INTERVAL_MS = 5_000;
 

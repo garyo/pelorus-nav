@@ -9,6 +9,10 @@ export interface TrackPoint {
   timestamp: number;
   sog: number | null;
   cog: number | null;
+  /** Horizontal accuracy in meters as reported by the GPS source. Used by
+   *  the recorder to reject low-quality fixes (cell-tower / WiFi fallbacks)
+   *  and preserved for diagnostic export. */
+  accuracy?: number | null;
   /** Original raw lat/lon, preserved when the track is smoothed. */
   rawLat?: number;
   rawLon?: number;

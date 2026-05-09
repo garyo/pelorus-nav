@@ -97,13 +97,17 @@ function trackPointXml(pt: TrackPoint): string {
   }
   const emitRaw =
     EMIT_RAW_TRACK_POINTS && pt.rawLat !== undefined && pt.rawLon !== undefined;
-  if (pt.sog !== null || pt.cog !== null || emitRaw) {
+  const hasAccuracy = pt.accuracy !== null && pt.accuracy !== undefined;
+  if (pt.sog !== null || pt.cog !== null || hasAccuracy || emitRaw) {
     xml += "        <extensions>\n";
     if (pt.sog !== null) {
       xml += `          <pelorus:sog>${pt.sog}</pelorus:sog>\n`;
     }
     if (pt.cog !== null) {
       xml += `          <pelorus:cog>${pt.cog}</pelorus:cog>\n`;
+    }
+    if (hasAccuracy) {
+      xml += `          <pelorus:accuracy>${pt.accuracy}</pelorus:accuracy>\n`;
     }
     if (emitRaw) {
       xml += `          <pelorus:lat-raw>${pt.rawLat}</pelorus:lat-raw>\n`;
@@ -293,6 +297,7 @@ export function parseGpx(xml: string): GpxImportResult {
           const timeStr = childText(ptEl, "time");
           const sogStr = pelorusExt(ptEl, "sog");
           const cogStr = pelorusExt(ptEl, "cog");
+          const accStr = pelorusExt(ptEl, "accuracy");
           const latRawStr = pelorusExt(ptEl, "lat-raw");
           const lonRawStr = pelorusExt(ptEl, "lon-raw");
           const point: TrackPoint = {
@@ -302,6 +307,9 @@ export function parseGpx(xml: string): GpxImportResult {
             sog: sogStr !== null ? Number.parseFloat(sogStr) : null,
             cog: cogStr !== null ? Number.parseFloat(cogStr) : null,
           };
+          if (accStr !== null) {
+            point.accuracy = Number.parseFloat(accStr);
+          }
           if (latRawStr !== null && lonRawStr !== null) {
             point.rawLat = Number.parseFloat(latRawStr);
             point.rawLon = Number.parseFloat(lonRawStr);
