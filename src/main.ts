@@ -485,11 +485,13 @@ const TRACK_REPAIR_FLAG = "pelorus-nav-track-counts-repaired-v1";
 //                           5 s in e-ink theme since the panel can't update
 //                           faster anyway).
 // Hidden + recording:       grace 60 s at the previous active rate, then
-//                           passive at 30 s. Snap back to active on visible.
+//                           passive at 15 s (extends to 30 s on steady
+//                           course via SteadinessTracker). Snap back to
+//                           active on visible.
 // Hidden + not recording:   stop the native GPS entirely.
 if (capacitorGPS) {
   const HIDDEN_GRACE_MS = 60_000;
-  const PASSIVE_INTERVAL_MS = 30_000;
+  const PASSIVE_INTERVAL_MS = 15_000;
   const ACTIVE_INTERVAL_MS = 1_000;
   const EINK_ACTIVE_INTERVAL_MS = 5_000;
 

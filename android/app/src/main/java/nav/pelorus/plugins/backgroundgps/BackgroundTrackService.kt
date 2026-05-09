@@ -28,10 +28,12 @@ import com.google.android.gms.location.Priority
  *             every fix delivered to JS via the bridge, partial wake lock held
  *             continuously.
  *   PASSIVE — screen off, recording. HIGH_ACCURACY chip, slow interval
- *             (default 30s) with setWaitForAccurateLocation(true) so FLP only
- *             delivers real GPS fixes (never cell-tower / WiFi fallbacks).
- *             JS bridge silenced (fixes go to SQLite only and are recovered
- *             on next visible transition), wake lock released between fixes.
+ *             (default 15s, doubling to 30s when SteadinessTracker reports a
+ *             steady course) with setWaitForAccurateLocation(true) so FLP
+ *             only delivers real GPS fixes (never cell-tower / WiFi
+ *             fallbacks). JS bridge silenced (fixes go to SQLite only and
+ *             are recovered on next visible transition), wake lock released
+ *             between fixes.
  *
  * Low-quality fixes (accuracy worse than [MAX_ACCURACY_M]) are dropped before
  * SQLite insert as a backstop against any FLP fallback that slips through.
@@ -78,7 +80,7 @@ class BackgroundTrackService : Service() {
 
         @Volatile var currentMode: String = MODE_ACTIVE
         @Volatile var activeIntervalMs: Long = 1000L
-        @Volatile var passiveIntervalMs: Long = 30_000L
+        @Volatile var passiveIntervalMs: Long = 15_000L
 
         /**
          * Reject fixes worse than this (meters). Real GPS is typically
