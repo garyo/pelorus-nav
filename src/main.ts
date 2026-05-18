@@ -184,6 +184,15 @@ const EINK_FRAME_INTERVAL = 250; // ms between frames
       originalTriggerRepaint();
       return;
     }
+    // During gestures (pinch/pan/rotate) and the inertia that follows,
+    // bypass the throttle so the user sees what they're doing — otherwise
+    // they over-pinch waiting for feedback and the accumulated zoom lands
+    // all at once at min/max limits.
+    if (map.isMoving() || map.isZooming() || map.isRotating()) {
+      lastFrameTime = performance.now();
+      originalTriggerRepaint();
+      return;
+    }
     const now = performance.now();
     const elapsed = now - lastFrameTime;
     if (elapsed >= EINK_FRAME_INTERVAL) {
