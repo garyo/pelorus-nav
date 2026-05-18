@@ -1,18 +1,23 @@
 package nav.pelorus.plugins.backgroundgps
 
+import android.app.AlarmManager
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.app.Service
+import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.os.Build
 import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
 import android.os.PowerManager
+import android.os.SystemClock
 import android.util.Log
+import androidx.core.content.ContextCompat
 import com.google.android.gms.location.FusedLocationProviderClient
 import com.google.android.gms.location.LocationCallback
 import com.google.android.gms.location.LocationRequest
@@ -72,6 +77,24 @@ class BackgroundTrackService : Service() {
         private const val STEADY_PASSIVE_INTERVAL_MULTIPLIER = 2L
         private const val STEADY_PASSIVE_INTERVAL_CAP_MS = 30_000L
 
+        /**
+         * Watchdog: if no fix has been delivered in PASSIVE for this long,
+         * the chip has likely been duty-cycled off by FLP. Kick it back to
+         * ACTIVE to force a warmup. Set to 6× the nominal passive interval
+         * so a few missed callbacks (which happen normally) don't trip it.
+         */
+        private const val WATCHDOG_THRESHOLD_MS = 90_000L
+
+        /**
+         * Maximum time to stay in a watchdog-triggered ACTIVE kick before
+         * giving up and returning to PASSIVE. If a kick doesn't yield a fix
+         * inside this window we're in a real coverage hole and more CPU
+         * isn't going to help — drop back so we don't burn battery forever.
+         */
+        private const val KICK_DURATION_MS = 60_000L
+
+        private const val ACTION_WATCHDOG = "nav.pelorus.WATCHDOG_TICK"
+
         /** Callback for delivering live location updates to the plugin. Cleared in PASSIVE mode. */
         var locationListener: ((TrackPointRow) -> Unit)? = null
 
@@ -118,10 +141,43 @@ class BackgroundTrackService : Service() {
     /** Mode applyMode() last ran with — used to reset adaptive state on flips. */
     private var lastModeApplied: String? = null
 
+    private var alarmManager: AlarmManager? = null
+    private var watchdogPendingIntent: PendingIntent? = null
+    /**
+     * Receives the watchdog alarm broadcast. setAndAllowWhileIdle requires
+     * a PendingIntent (no OnAlarmListener overload), so we register this
+     * receiver dynamically in onCreate and route its callback to
+     * [onWatchdogFired]. Meaning depends on [inKick]: a fire while not in
+     * kick starts one; a fire during a kick is the give-up timer.
+     */
+    private val watchdogReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            onWatchdogFired()
+        }
+    }
+    /** True while we're in a watchdog-triggered ACTIVE recovery. */
+    private var inKick = false
+
     override fun onCreate() {
         super.onCreate()
         fusedClient = LocationServices.getFusedLocationProviderClient(this)
         trackDb = TrackDatabase(this)
+        alarmManager = getSystemService(Context.ALARM_SERVICE) as AlarmManager
+
+        // Dynamic registration: the watchdog alarm broadcasts back to us
+        // privately. NOT_EXPORTED so no other app can spoof a tick.
+        ContextCompat.registerReceiver(
+            this,
+            watchdogReceiver,
+            IntentFilter(ACTION_WATCHDOG),
+            ContextCompat.RECEIVER_NOT_EXPORTED,
+        )
+        watchdogPendingIntent = PendingIntent.getBroadcast(
+            this,
+            0,
+            Intent(ACTION_WATCHDOG).setPackage(packageName),
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+        )
 
         val pm = getSystemService(Context.POWER_SERVICE) as PowerManager
         partialWakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "PelorusNav::TrackRecording")
@@ -140,6 +196,7 @@ class BackgroundTrackService : Service() {
                 if (acquiredPassiveLock) {
                     partialWakeLock?.acquire(PASSIVE_WAKE_LOCK_HOLD_MS)
                 }
+                var accepted = false
                 try {
                     for (location in result.locations) {
                         // Drop fixes worse than MAX_ACCURACY_M — these are the
@@ -150,6 +207,7 @@ class BackgroundTrackService : Service() {
                             Log.d(TAG, "Dropping low-accuracy fix: ${location.accuracy}m")
                             continue
                         }
+                        accepted = true
                         val point = TrackPointRow(
                             timestamp = location.time,
                             lat = location.latitude,
@@ -167,7 +225,7 @@ class BackgroundTrackService : Service() {
                         // and re-issue the LocationRequest if its recommendation
                         // flipped. Active mode never participates — visible
                         // recording stays at the user-facing rate.
-                        if (currentMode == MODE_PASSIVE) {
+                        if (currentMode == MODE_PASSIVE && !inKick) {
                             val nowSteady =
                                 steadinessTracker.onFix(location.latitude, location.longitude)
                             if (nowSteady != lastSteadyState) {
@@ -179,6 +237,16 @@ class BackgroundTrackService : Service() {
                 } finally {
                     if (acquiredPassiveLock) {
                         partialWakeLock?.takeIf { it.isHeld }?.release()
+                    }
+                }
+                // Watchdog: a fix arrived. If we were kicking, the chip is
+                // alive again — end the kick and return to PASSIVE. Otherwise
+                // just re-arm the deadline if we're still in PASSIVE.
+                if (accepted) {
+                    if (inKick) {
+                        endKick("fix arrived")
+                    } else if (currentMode == MODE_PASSIVE) {
+                        armWatchdog(WATCHDOG_THRESHOLD_MS)
                     }
                 }
             }
@@ -216,6 +284,7 @@ class BackgroundTrackService : Service() {
     override fun onDestroy() {
         super.onDestroy()
         cancelPendingPassive()
+        cancelWatchdog()
         instance = null
         if (::fusedClient.isInitialized && ::locationCallback.isInitialized) {
             fusedClient.removeLocationUpdates(locationCallback)
@@ -223,6 +292,14 @@ class BackgroundTrackService : Service() {
         locationListener = null
         partialWakeLock?.let { if (it.isHeld) it.release() }
         partialWakeLock = null
+        try {
+            unregisterReceiver(watchdogReceiver)
+        } catch (e: IllegalArgumentException) {
+            // Already unregistered (onCreate failed before registration) — harmless.
+        }
+        watchdogPendingIntent?.cancel()
+        watchdogPendingIntent = null
+        alarmManager = null
         Log.i(TAG, "Background track service stopped")
     }
 
@@ -275,11 +352,13 @@ class BackgroundTrackService : Service() {
 
         // Mode transition: clear adaptive state so a stale buffer can't make
         // a wrong call the moment we re-enter passive (or stick around in
-        // active where it's unused).
+        // active where it's unused). Also clear any in-progress watchdog
+        // kick — an external mode change supersedes it.
         if (lastModeApplied != currentMode) {
             steadinessTracker.reset()
             lastSteadyState = false
             lastModeApplied = currentMode
+            inKick = false
         }
 
         val intervalMs = when {
@@ -307,6 +386,17 @@ class BackgroundTrackService : Service() {
             holdLockContinuously = true
         }
 
+        // Watchdog: arm only while genuinely in PASSIVE. A kick uses
+        // KICK_DURATION_MS via kickToActive() — we don't want applyMode
+        // to overwrite the give-up deadline. Done before the early-return
+        // below so an external mode change still updates the watchdog
+        // state even if the request itself doesn't need re-issuing.
+        if (passive && !inKick) {
+            armWatchdog(WATCHDOG_THRESHOLD_MS)
+        } else if (!passive) {
+            cancelWatchdog()
+        }
+
         if (intervalMs == appliedIntervalMs && priority == appliedPriority) return
 
         fusedClient.removeLocationUpdates(locationCallback)
@@ -322,6 +412,84 @@ class BackgroundTrackService : Service() {
         appliedIntervalMs = intervalMs
         appliedPriority = priority
         Log.d(TAG, "GPS mode=$currentMode interval=${intervalMs}ms priority=$priority")
+    }
+
+    /**
+     * Schedule the watchdog to fire [delayMs] from now. Uses
+     * setAndAllowWhileIdle so the alarm pierces Doze without needing
+     * SCHEDULE_EXACT_ALARM. Latency in deep Doze can be a couple of
+     * minutes — fine for our purpose (catching multi-minute gaps).
+     */
+    private fun armWatchdog(delayMs: Long) {
+        val am = alarmManager ?: return
+        val pi = watchdogPendingIntent ?: return
+        am.cancel(pi)
+        am.setAndAllowWhileIdle(
+            AlarmManager.ELAPSED_REALTIME_WAKEUP,
+            SystemClock.elapsedRealtime() + delayMs,
+            pi,
+        )
+    }
+
+    private fun cancelWatchdog() {
+        val am = alarmManager ?: return
+        val pi = watchdogPendingIntent ?: return
+        am.cancel(pi)
+    }
+
+    /**
+     * Watchdog fired: either no fix has arrived in WATCHDOG_THRESHOLD_MS
+     * while in PASSIVE (start a kick), or KICK_DURATION_MS elapsed during
+     * a kick without an accepted fix (give up).
+     */
+    private fun onWatchdogFired() {
+        // If we've left PASSIVE while the alarm was in flight (e.g. user
+        // brought the app to foreground), there's nothing to do.
+        if (currentMode != MODE_PASSIVE) {
+            inKick = false
+            return
+        }
+        if (inKick) {
+            endKick("kick timed out without accepted fix")
+        } else {
+            kickToActive()
+        }
+    }
+
+    /**
+     * Force the chip awake by promoting to ACTIVE behavior — continuous
+     * wake lock, fast interval, HIGH_ACCURACY without the wait-for-accurate
+     * gate that PASSIVE uses. currentMode stays PASSIVE so we revert
+     * cleanly when an accepted fix arrives or the give-up timer fires.
+     */
+    @Suppress("MissingPermission")
+    private fun kickToActive() {
+        if (!::fusedClient.isInitialized || !::locationCallback.isInitialized) return
+        Log.i(TAG, "Watchdog kick: forcing GPS chip warmup (no fix in ${WATCHDOG_THRESHOLD_MS}ms)")
+        inKick = true
+        if (!holdLockContinuously) {
+            partialWakeLock?.takeIf { !it.isHeld }?.acquire()
+            holdLockContinuously = true
+        }
+        fusedClient.removeLocationUpdates(locationCallback)
+        val request = LocationRequest.Builder(Priority.PRIORITY_HIGH_ACCURACY, activeIntervalMs)
+            .setMinUpdateIntervalMillis(activeIntervalMs)
+            .setWaitForAccurateLocation(false)
+            .build()
+        fusedClient.requestLocationUpdates(request, locationCallback, Looper.getMainLooper())
+        appliedIntervalMs = activeIntervalMs
+        appliedPriority = Priority.PRIORITY_HIGH_ACCURACY
+        armWatchdog(KICK_DURATION_MS)
+    }
+
+    /**
+     * End a watchdog kick — restore PASSIVE behavior via applyMode(),
+     * which also re-arms the watchdog at the normal threshold.
+     */
+    private fun endKick(reason: String) {
+        Log.i(TAG, "Watchdog kick ended: $reason")
+        inKick = false
+        applyMode()
     }
 
     private fun createNotificationChannel() {
