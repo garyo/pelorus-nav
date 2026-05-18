@@ -48,5 +48,35 @@
     "id": "ny-inland",
     "name": "NY Inland Waterways",
     "bbox": [-79.2, 42.3, -73.5, 44.0]
+  },
+  {
+    "id": "washington",
+    "name": "Washington",
+    "bbox": [-125.5, 46.0, -121.0, 49.1]
+  },
+  {
+    "id": "oregon",
+    "name": "Oregon",
+    "bbox": [-125.5, 42.0, -122.5, 46.3]
+  },
+  {
+    "id": "northern-california",
+    "name": "Northern California",
+    "bbox": [-125.5, 38.2, -123.0, 42.0]
+  },
+  {
+    "id": "central-california",
+    "name": "Central California",
+    "bbox": [-125.0, 35.0, -120.5, 38.2]
+  },
+  {
+    "id": "southern-california",
+    "name": "Southern California",
+    "bbox": [-122.0, 32.4, -116.5, 35.0]
+  },
+  {
+    "id": "hawaii",
+    "name": "Hawaii",
+    "bbox": [-161.0, 18.0, -154.0, 23.0]
   }
 ]

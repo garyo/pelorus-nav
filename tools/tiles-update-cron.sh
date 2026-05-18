@@ -9,10 +9,18 @@ cd "$(cd "$(dirname "$0")/.." && pwd)"
 
 echo "=== tiles:update started at $(date) ===" >> "$LOG"
 
+# Self-update: pull latest from origin/main so new region definitions, build
+# scripts, etc. are picked up automatically. --ff-only fails loudly if the
+# working tree has local edits, which is what we want — a stale build is
+# preferable to a silent merge, and the failure surfaces via the notify path.
+echo "--- git pull --ff-only origin main ---" >> "$LOG"
+if ! git pull --ff-only origin main >> "$LOG" 2>&1; then
+  echo "=== git pull failed at $(date) ===" >> "$LOG"
+  STATUS=1
 # Test affordance: when /tmp/pelorus-tiles-force-fail exists, skip the real
 # build and force the failure path. Used to smoke-test launchd + notifications
 # end-to-end without waiting for a 2-hour rebuild.
-if [[ -f /tmp/pelorus-tiles-force-fail ]]; then
+elif [[ -f /tmp/pelorus-tiles-force-fail ]]; then
   echo "=== TEST MODE: flag file present, forcing failure ===" >> "$LOG"
   STATUS=1
 elif bun run tiles:update >> "$LOG" 2>&1; then

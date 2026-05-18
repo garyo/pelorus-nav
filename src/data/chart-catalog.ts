@@ -83,6 +83,36 @@ const DISPLAY: Record<string, DisplayMeta> = {
     center: [-76.5, 43.0],
     defaultZoom: 8,
   },
+  washington: {
+    sizeEstimate: 90 * 1024 * 1024,
+    center: [-122.45, 47.6],
+    defaultZoom: 9,
+  },
+  oregon: {
+    sizeEstimate: 60 * 1024 * 1024,
+    center: [-124.0, 44.5],
+    defaultZoom: 8,
+  },
+  "northern-california": {
+    sizeEstimate: 25 * 1024 * 1024,
+    center: [-123.8, 39.8],
+    defaultZoom: 8,
+  },
+  "central-california": {
+    sizeEstimate: 50 * 1024 * 1024,
+    center: [-122.45, 37.78],
+    defaultZoom: 10,
+  },
+  "southern-california": {
+    sizeEstimate: 45 * 1024 * 1024,
+    center: [-118.4, 33.7],
+    defaultZoom: 10,
+  },
+  hawaii: {
+    sizeEstimate: 50 * 1024 * 1024,
+    center: [-157.85, 21.3],
+    defaultZoom: 8,
+  },
 };
 
 /** Region ids excluded from the production client catalog. */

@@ -59,6 +59,12 @@ _DESCRIPTIONS: dict[str, str] = {
     "gulf-coast": "TX/LA/MS/AL/west-FL coast, Gulf ICW, and Dry Tortugas",
     "great-lakes": "Lakes Superior, Michigan, Huron, Erie, Ontario, St. Clair, Detroit/Niagara rivers",
     "ny-inland": "Erie Canal, Oswego Canal, Mohawk River, Finger Lakes (Seneca, Cayuga), Oneida Lake",
+    "washington": "WA outer coast, Strait of Juan de Fuca, San Juan Islands, Puget Sound (Seattle/Tacoma)",
+    "oregon": "Oregon coast (Brookings to Astoria) and lower Columbia River",
+    "northern-california": "CA coast from Bodega/Point Reyes north — Mendocino, Eureka, Crescent City",
+    "central-california": "Point Conception to Point Reyes — Big Sur, Monterey Bay, San Francisco Bay, Half Moon Bay",
+    "southern-california": "San Diego to Point Conception — Channel Islands, Catalina, LA/Long Beach",
+    "hawaii": "Hawaiian Islands (Kauai, Oahu, Molokai, Maui, Lanai, Hawai'i) and approaches",
 }
 
 
