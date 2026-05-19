@@ -301,6 +301,11 @@ let lastNavData: NavigationData | null = null;
 navManager.subscribe((data) => {
   lastNavData = data;
   vesselLayer.update(data); // initial position update; smoothed rotation applied per-frame
+  // Also feed chartMode every fix (not just when smoothed is available),
+  // so it has a last-known position to centre on when the user is
+  // stationary — otherwise tapping the mode-toggle button does nothing
+  // until COG/SOG become valid.
+  chartMode.update(data);
   courseSmoother.addSample(
     data.cog,
     data.sog,

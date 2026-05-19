@@ -129,6 +129,29 @@ describe("ChartModeController", () => {
     expect(controller.getMode()).toBe("north-up");
   });
 
+  // Regression: a stationary vessel (cog/sog null) feeds update() without a
+  // smoothed value. Without this, cycling modes via the chart-mode button
+  // wouldn't jump the map to the boat until movement began.
+  it("update(data) without smoothed still centers on the boat in follow mode", () => {
+    controller.setMode("follow");
+    mockMap.jumpTo.mockClear();
+    const stationary = makeNavData({ cog: null, sog: null, heading: null });
+    controller.update(stationary);
+    expect(mockMap.jumpTo).toHaveBeenCalledWith(
+      expect.objectContaining({ center: [-71.04, 42.35] }),
+    );
+  });
+
+  it("setMode jumps to the last known position even when stationary", () => {
+    controller.setMode("free");
+    controller.update(makeNavData({ cog: null, sog: null, heading: null }));
+    mockMap.jumpTo.mockClear();
+    controller.setMode("follow");
+    expect(mockMap.jumpTo).toHaveBeenCalledWith(
+      expect.objectContaining({ center: [-71.04, 42.35] }),
+    );
+  });
+
   it("applies look-ahead padding when moving fast in course-up", () => {
     controller.setMode("course-up");
     controller.update(makeNavData({ cog: 0, heading: 0, sog: 6 }));
