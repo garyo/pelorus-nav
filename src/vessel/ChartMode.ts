@@ -9,6 +9,78 @@ import type { NavigationData } from "../navigation/NavigationData";
 import type { ChartMode as ChartModeType } from "../settings";
 import { getSettings, updateSettings } from "../settings";
 
+/** Below this speed (knots) the boat sits centered. */
+const LOOK_AHEAD_MIN_SPEED_KT = 1;
+/** At/above this speed the look-ahead offset reaches its maximum. */
+const LOOK_AHEAD_MAX_SPEED_KT = 3;
+/**
+ * Max boat displacement from canvas center, as a fraction of the
+ * canvas dimension along the offset axis. 0.25 puts the boat at ~75%
+ * of the way from center to the edge (with ~75% of canvas ahead).
+ */
+const LOOK_AHEAD_FRACTION = 0.25;
+
+export interface PaddingOptions {
+  top: number;
+  bottom: number;
+  left: number;
+  right: number;
+}
+
+const ZERO_PADDING: PaddingOptions = { top: 0, bottom: 0, left: 0, right: 0 };
+
+/**
+ * Compute MapLibre padding that shifts the vessel toward the screen edge
+ * opposite its direction of travel, so the area ahead is more visible.
+ *
+ * @param aheadAngleDeg  Screen angle of "ahead": 0 = up, 90 = right
+ *                       (clockwise, MapLibre bearing convention).
+ *                       Null means direction unknown — no offset.
+ * @param sogKnots       Speed over ground in knots. Null/<min → no offset.
+ * @param canvas         CSS pixel dimensions of the visible map canvas.
+ */
+export function computeLookAheadPadding(
+  aheadAngleDeg: number | null,
+  sogKnots: number | null,
+  canvas: { width: number; height: number },
+): PaddingOptions {
+  if (
+    aheadAngleDeg == null ||
+    sogKnots == null ||
+    !(canvas.width > 0) ||
+    !(canvas.height > 0)
+  ) {
+    return ZERO_PADDING;
+  }
+  const speedFrac = Math.max(
+    0,
+    Math.min(
+      1,
+      (sogKnots - LOOK_AHEAD_MIN_SPEED_KT) /
+        (LOOK_AHEAD_MAX_SPEED_KT - LOOK_AHEAD_MIN_SPEED_KT),
+    ),
+  );
+  if (speedFrac === 0) return ZERO_PADDING;
+
+  // Desired pixel displacement of the boat from the canvas centre.
+  // MapLibre places the camera at the centre of the unpadded rectangle,
+  // so a padding value of N only shifts the centre by N/2 — hence the
+  // `2 ×` multiplier below.
+  const theta = (aheadAngleDeg * Math.PI) / 180;
+  const offsetY =
+    LOOK_AHEAD_FRACTION * canvas.height * speedFrac * Math.cos(theta);
+  const offsetX =
+    -LOOK_AHEAD_FRACTION * canvas.width * speedFrac * Math.sin(theta);
+  return {
+    top: Math.max(0, 2 * offsetY),
+    bottom: Math.max(0, -2 * offsetY),
+    left: Math.max(0, 2 * offsetX),
+    right: Math.max(0, -2 * offsetX),
+  };
+}
+
+export type ChartModeListener = (mode: ChartModeType) => void;
+
 export class ChartModeController {
   private readonly map: maplibregl.Map;
   private mode: ChartModeType;
@@ -18,6 +90,7 @@ export class ChartModeController {
   private lastSmoothed: SmoothedCourse | null = null;
   /** True while mouse/touch is down — suppresses jumpTo so drag can start. */
   private userInteracting = false;
+  private readonly listeners: ChartModeListener[] = [];
 
   constructor(map: maplibregl.Map) {
     this.map = map;
@@ -69,6 +142,7 @@ export class ChartModeController {
   }
 
   setMode(mode: ChartModeType): void {
+    const changed = this.mode !== mode;
     this.mode = mode;
     if (mode !== "free") {
       this.modeBeforeFree = mode;
@@ -84,6 +158,19 @@ export class ChartModeController {
     if (this.lastData && mode !== "free") {
       this.applyPosition(this.lastData);
     }
+
+    if (changed) {
+      for (const fn of this.listeners) fn(mode);
+    }
+  }
+
+  /** Subscribe to mode changes; returns an unsubscribe function. */
+  onModeChange(listener: ChartModeListener): () => void {
+    this.listeners.push(listener);
+    return () => {
+      const i = this.listeners.indexOf(listener);
+      if (i >= 0) this.listeners.splice(i, 1);
+    };
   }
 
   update(data: NavigationData, smoothed?: SmoothedCourse | null): void {
@@ -102,18 +189,65 @@ export class ChartModeController {
       ? [s.lon, s.lat]
       : [data.longitude, data.latitude];
 
+    const sog = s?.sog ?? data.sog;
+    const cog = s?.cog ?? data.heading ?? data.cog;
+    // The look-ahead offset is computed relative to the VISIBLE map area
+    // (the container) — MapLibre's canvas can be CSS-sized larger than its
+    // container, so we add the overshoot to padding.bottom/right.
+    const container = this.map.getContainer();
+    const canvas = this.map.getCanvas();
+    const visible = {
+      width: container.clientWidth,
+      height: container.clientHeight,
+    };
+    const overshoot = {
+      bottom: Math.max(0, canvas.clientHeight - visible.height),
+      right: Math.max(0, canvas.clientWidth - visible.width),
+    };
+
     switch (this.mode) {
-      case "follow":
-        this.map.jumpTo({ center });
-        break;
-      case "course-up": {
-        const bearing = s?.cog ?? data.heading ?? data.cog ?? 0;
-        this.map.jumpTo({ center, bearing });
+      case "follow": {
+        // Bearing is whatever the user last set; ahead-on-screen = cog - bearing.
+        const theta = cog != null ? cog - this.map.getBearing() : null;
+        const padding = addOvershoot(
+          computeLookAheadPadding(theta, sog, visible),
+          overshoot,
+        );
+        this.map.jumpTo({ center, padding });
         break;
       }
-      case "north-up":
-        this.map.jumpTo({ center, bearing: 0 });
+      case "course-up": {
+        const bearing = cog ?? 0;
+        // Map is rotated so cog → screen-up; ahead is always up.
+        const theta = cog != null ? 0 : null;
+        const padding = addOvershoot(
+          computeLookAheadPadding(theta, sog, visible),
+          overshoot,
+        );
+        this.map.jumpTo({ center, bearing, padding });
         break;
+      }
+      case "north-up": {
+        // Bearing 0, so screen angle of ahead == cog itself.
+        const padding = addOvershoot(
+          computeLookAheadPadding(cog ?? null, sog, visible),
+          overshoot,
+        );
+        this.map.jumpTo({ center, bearing: 0, padding });
+        break;
+      }
     }
   }
+}
+
+function addOvershoot(
+  pad: PaddingOptions,
+  overshoot: { bottom: number; right: number },
+): PaddingOptions {
+  return {
+    top: pad.top,
+    bottom: pad.bottom + overshoot.bottom,
+    left: pad.left,
+    right: pad.right + overshoot.right,
+  };
 }

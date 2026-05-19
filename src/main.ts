@@ -282,14 +282,15 @@ const courseSmoother = new CourseSmoothing();
 // Chart mode controller (follow, course-up, north-up, free)
 const chartMode = new ChartModeController(chartManager.map);
 
-// Re-center button. Visibility is driven from onSettingsChange (mode change)
-// rather than from the GPS tick, so it appears the instant the user pans into
-// free mode and disappears the instant recenter restores follow/course-up.
+// Chart-mode toggle in the bottom-left. The icon reflects the current
+// mode (free / follow / course-up / north-up) and tapping cycles through.
 const recenterBtn = new RecenterButton({
-  onRecenter: () => chartMode.recenter(),
+  getMode: () => chartMode.getMode(),
+  recenter: () => chartMode.recenter(),
+  setMode: (m) => chartMode.setMode(m),
 });
 chartManager.map.addControl(recenterBtn, "bottom-left");
-recenterBtn.setVisible(chartMode.getMode() === "free");
+chartMode.onModeChange(() => recenterBtn.refresh());
 recenterBtn.setEnabled(false); // until first GPS fix arrives
 
 // Course line (projected COG line)
@@ -359,9 +360,6 @@ onSettingsChange((s) => {
   if (s.chartMode !== chartMode.getMode()) {
     chartMode.setMode(s.chartMode);
   }
-  // Recenter button visibility tracks free-mode synchronously here,
-  // because setMode() writes to settings which triggers this listener.
-  recenterBtn.setVisible(s.chartMode === "free");
   if (s.gpsSource !== navManager.getActiveProvider()?.id) {
     navManager.setActiveProvider(s.gpsSource);
   }

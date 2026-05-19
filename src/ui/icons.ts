@@ -55,6 +55,31 @@ export const iconCrosshair = svg(
     '<line x1="18" y1="12" x2="22" y2="12"/>',
 );
 
+/** Chart mode: follow — boat-arrow centered in a target ring. */
+export const iconChartFollow = svg(
+  '<circle cx="12" cy="12" r="10"/>' +
+    '<polygon points="12 7 15 17 12 15 9 17" fill="currentColor" stroke="none"/>',
+);
+
+/**
+ * Chart mode: course-up — boat-arrow with a curved arrow on the side
+ * indicating that the map rotates with the vessel.
+ */
+export const iconCourseUp = svg(
+  '<polygon points="12 4 16 16 12 14 8 16" fill="currentColor" stroke="none"/>' +
+    '<path d="M3 11 a8 8 0 0 1 7 -8"/>' +
+    '<polyline points="3 7 3 11 7 11"/>',
+);
+
+/**
+ * Chart mode: north-up — letter "N" at top of the icon over a fixed
+ * upward arrow (map orientation locked to north).
+ */
+export const iconNorthUp = svg(
+  '<polyline points="8 8 8 3 15 8 15 3"/>' +
+    '<polygon points="12 11 16 21 12 19 8 21" fill="currentColor" stroke="none"/>',
+);
+
 /** Eye / visible. */
 export const iconEye = svg(
   '<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8S1 12 1 12z"/>' +
