@@ -430,21 +430,30 @@ function quoteNumber(val: unknown): string | null {
   return `"${val}"`;
 }
 
+/** Combine colour and shape into a single phrase like "Red Pillar". */
+function combineColorShape(
+  color: string | undefined,
+  shape: string | undefined,
+): string | undefined {
+  if (color && shape) return `${color} ${shape}`;
+  return color ?? shape;
+}
+
 function formatBuoy(
   props: Record<string, unknown>,
 ): { label: string; value: string }[] {
   const details: { label: string; value: string }[] = [];
   addIfPresent(details, "Number", quoteNumber(props.LABEL ?? props.OBJNAM));
-  const cat = lookupCode(CATLAM, props.CATLAM);
+  const cat =
+    lookupCode(CATLAM, props.CATLAM) ?? lookupCode(CATCAM, props.CATCAM);
   if (cat) details.push({ label: "Category", value: cat });
-  const cam = lookupCode(CATCAM, props.CATCAM);
-  if (cam) details.push({ label: "Category", value: cam });
-  const shape = lookupCode(BOYSHP, props.BOYSHP);
-  if (shape) details.push({ label: "Shape", value: shape });
-  addIfPresent(details, "Color", lookupAllCodes(COLOUR, props.COLOUR));
-  const status = lookupAllCodes(STATUS, props.STATUS);
-  addIfPresent(details, "Status", status);
+  const appearance = combineColorShape(
+    lookupAllCodes(COLOUR, props.COLOUR),
+    lookupCode(BOYSHP, props.BOYSHP),
+  );
+  if (appearance) details.push({ label: "Appearance", value: appearance });
   addIfPresent(details, "Information", props.INFORM);
+  addIfPresent(details, "Status", lookupAllCodes(STATUS, props.STATUS));
   return details;
 }
 
@@ -1642,10 +1651,11 @@ function formatDaymark(
 ): { label: string; value: string }[] {
   const details: { label: string; value: string }[] = [];
   addIfPresent(details, "Name", props.OBJNAM);
-  const shape = lookupCode(TOPSHP, props.TOPSHP);
-  addIfPresent(details, "Shape", shape);
-  const col = lookupAllCodes(COLOUR, props.COLOUR);
-  addIfPresent(details, "Color", col);
+  const appearance = combineColorShape(
+    lookupAllCodes(COLOUR, props.COLOUR),
+    lookupCode(TOPSHP, props.TOPSHP),
+  );
+  if (appearance) details.push({ label: "Appearance", value: appearance });
   addIfPresent(details, "Information", props.INFORM);
   return details;
 }
@@ -1857,9 +1867,23 @@ export function formatFeatureInfo(
     properties.OBJNAM != null ? String(properties.OBJNAM) : undefined;
 
   const formatter = FORMATTERS[sourceLayer];
-  const details = formatter
-    ? formatter(properties)
-    : formatFallback(properties);
+  let details = formatter ? formatter(properties) : formatFallback(properties);
+
+  // Drop rows that exactly duplicate the title (e.g. "Type: Tower" when the
+  // title is already "Tower [Conspic]: …", or "Visibility: Visually
+  // conspicuous" when [Conspic] is already annotated). Saves space on mobile.
+  const titleBase = type.split(" [")[0];
+  const titleHasConspic = annotations.includes("Conspic");
+  details = details.filter((d) => {
+    if (d.label === "Type" && d.value === titleBase) return false;
+    if (
+      d.label === "Visibility" &&
+      d.value === "Visually conspicuous" &&
+      titleHasConspic
+    )
+      return false;
+    return true;
+  });
 
   if (lngLat) {
     details.push({
@@ -1868,5 +1892,25 @@ export function formatFeatureInfo(
     });
   }
 
-  return { type, name, details };
+  return { type, name, details: reorderDetails(details) };
+}
+
+// Display priority — lower comes first. Unlisted labels default to 50.
+const FIELD_PRIORITY: Record<string, number> = {
+  Number: 1,
+  Name: 1,
+  Characteristic: 2,
+  Information: 3,
+  Status: 90,
+  Position: 100,
+};
+
+function reorderDetails(
+  details: { label: string; value: string }[],
+): { label: string; value: string }[] {
+  return [...details].sort((a, b) => {
+    const pa = FIELD_PRIORITY[a.label] ?? 50;
+    const pb = FIELD_PRIORITY[b.label] ?? 50;
+    return pa - pb;
+  });
 }

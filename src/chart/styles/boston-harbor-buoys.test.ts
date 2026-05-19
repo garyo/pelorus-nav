@@ -36,8 +36,7 @@ describe("Boston Harbor BOYLAT buoys (US5BOSCD)", () => {
     };
     expect(resolveIcon("BOYLAT", props)).toBe("BOYLAT14"); // red conical
     expect(getDetail("BOYLAT", props, "Category")).toBe("Starboard");
-    expect(getDetail("BOYLAT", props, "Shape")).toBe("Conical");
-    expect(getDetail("BOYLAT", props, "Color")).toBe("Red");
+    expect(getDetail("BOYLAT", props, "Appearance")).toBe("Red Conical");
   });
 
   it("Winthrop Channel Buoy 3 — port can green", () => {
@@ -50,8 +49,7 @@ describe("Boston Harbor BOYLAT buoys (US5BOSCD)", () => {
     };
     expect(resolveIcon("BOYLAT", props)).toBe("BOYLAT23"); // green can/pillar
     expect(getDetail("BOYLAT", props, "Category")).toBe("Port");
-    expect(getDetail("BOYLAT", props, "Shape")).toBe("Can");
-    expect(getDetail("BOYLAT", props, "Color")).toBe("Green");
+    expect(getDetail("BOYLAT", props, "Appearance")).toBe("Green Can");
   });
 
   it("Boston Main Channel Lighted Buoy 12 — stbd pillar red", () => {
@@ -63,7 +61,7 @@ describe("Boston Harbor BOYLAT buoys (US5BOSCD)", () => {
       COLOUR: "3",
     };
     expect(resolveIcon("BOYLAT", props)).toBe("BOYLAT24"); // red pillar
-    expect(getDetail("BOYLAT", props, "Shape")).toBe("Pillar");
+    expect(getDetail("BOYLAT", props, "Appearance")).toBe("Red Pillar");
   });
 
   it("Dorchester Bay Lighted Buoy 5 — port pillar green", () => {
@@ -76,7 +74,7 @@ describe("Boston Harbor BOYLAT buoys (US5BOSCD)", () => {
     };
     expect(resolveIcon("BOYLAT", props)).toBe("BOYLAT23"); // green pillar
     expect(getDetail("BOYLAT", props, "Category")).toBe("Port");
-    expect(getDetail("BOYLAT", props, "Shape")).toBe("Pillar");
+    expect(getDetail("BOYLAT", props, "Appearance")).toBe("Green Pillar");
   });
 
   it("Lower Middle Channel Buoy 1 — port can green", () => {
@@ -105,8 +103,9 @@ describe("Boston Harbor preferred channel buoys (US5BOSCE)", () => {
     expect(getDetail("BOYLAT", props, "Category")).toBe(
       "Preferred channel to starboard",
     );
-    expect(getDetail("BOYLAT", props, "Color")).toBe("Green, Red, Green");
-    expect(getDetail("BOYLAT", props, "Shape")).toBe("Pillar");
+    expect(getDetail("BOYLAT", props, "Appearance")).toBe(
+      "Green, Red, Green Pillar",
+    );
   });
 
   it("Nantasket Roads Channel Buoy TN — pref port, pillar, red dominant", () => {
@@ -122,7 +121,9 @@ describe("Boston Harbor preferred channel buoys (US5BOSCE)", () => {
     expect(getDetail("BOYLAT", props, "Category")).toBe(
       "Preferred channel to port",
     );
-    expect(getDetail("BOYLAT", props, "Color")).toBe("Red, Green, Red");
+    expect(getDetail("BOYLAT", props, "Appearance")).toBe(
+      "Red, Green, Red Pillar",
+    );
   });
 
   it("Peddocks Island Buoy HS — pref stbd, can, green dominant", () => {
@@ -135,7 +136,9 @@ describe("Boston Harbor preferred channel buoys (US5BOSCE)", () => {
     };
     // Pref stbd = green dominant → port shape set → can → BOYLAT23
     expect(resolveIcon("BOYLAT", props)).toBe("BOYLAT23");
-    expect(getDetail("BOYLAT", props, "Shape")).toBe("Can");
+    expect(getDetail("BOYLAT", props, "Appearance")).toBe(
+      "Green, Red, Green Can",
+    );
   });
 });
 
@@ -150,9 +153,10 @@ describe("Boston Harbor BOYSPP buoys (US5BOSCD)", () => {
       STATUS: "8",
     };
     expect(resolveIcon("BOYSPP", props)).toBe("BOYSPP35"); // w/o pillar
-    expect(getDetail("BOYSPP", props, "Color")).toBe("White, Orange");
+    expect(getDetail("BOYSPP", props, "Appearance")).toBe(
+      "White, Orange Pillar",
+    );
     expect(getDetail("BOYSPP", props, "Status")).toBe("Private");
-    expect(getDetail("BOYSPP", props, "Shape")).toBe("Pillar");
   });
 
   it("Bird Island Flats Anchorage Buoy A — can yellow", () => {
@@ -165,8 +169,7 @@ describe("Boston Harbor BOYSPP buoys (US5BOSCD)", () => {
       STATUS: "1",
     };
     expect(resolveIcon("BOYSPP", props)).toBe("BOYSPP25"); // yellow can
-    expect(getDetail("BOYSPP", props, "Color")).toBe("Yellow");
-    expect(getDetail("BOYSPP", props, "Shape")).toBe("Can");
+    expect(getDetail("BOYSPP", props, "Appearance")).toBe("Yellow Can");
     expect(getDetail("BOYSPP", props, "Status")).toBe("Permanent");
   });
 
@@ -213,7 +216,9 @@ describe("Boston Harbor BOYSPP buoys (US5BOSCD)", () => {
       STATUS: "5,8",
     };
     expect(resolveIcon("BOYSPP", props)).toBe("BOYSPP35"); // w/o pillar
-    expect(getDetail("BOYSPP", props, "Color")).toBe("White, Orange");
+    expect(getDetail("BOYSPP", props, "Appearance")).toBe(
+      "White, Orange Pillar",
+    );
     expect(getDetail("BOYSPP", props, "Status")).toBe("Temporary, Private");
   });
 

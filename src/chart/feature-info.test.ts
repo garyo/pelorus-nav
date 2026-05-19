@@ -30,14 +30,16 @@ describe("formatFeatureInfo", () => {
       LABEL: "3",
       CATLAM: 1,
       BOYSHP: 2,
-      COLOUR: "red",
+      COLOUR: "3",
     });
     expect(info.type).toBe("Lateral Buoy");
     expect(info.name).toBe("Boston Approach #3");
     expect(info.details).toContainEqual({ label: "Number", value: '"3"' });
     expect(info.details).toContainEqual({ label: "Category", value: "Port" });
-    expect(info.details).toContainEqual({ label: "Shape", value: "Can" });
-    expect(info.details).toContainEqual({ label: "Color", value: "red" });
+    expect(info.details).toContainEqual({
+      label: "Appearance",
+      value: "Red Can",
+    });
   });
 
   it("formats a buoy using OBJNAM when LABEL is missing", () => {
@@ -199,8 +201,8 @@ describe("colour code display", () => {
       CATLAM: 1,
       COLOUR: 4,
     });
-    const color = info.details.find((d) => d.label === "Color");
-    expect(color?.value).toBe("Green");
+    const appearance = info.details.find((d) => d.label === "Appearance");
+    expect(appearance?.value).toBe("Green");
   });
 
   it("displays single string colour code", () => {
@@ -208,8 +210,8 @@ describe("colour code display", () => {
       CATLAM: 1,
       COLOUR: "4",
     });
-    const color = info.details.find((d) => d.label === "Color");
-    expect(color?.value).toBe("Green");
+    const appearance = info.details.find((d) => d.label === "Appearance");
+    expect(appearance?.value).toBe("Green");
   });
 
   it("displays comma-separated colour codes as names", () => {
@@ -217,8 +219,8 @@ describe("colour code display", () => {
       CATLAM: 1,
       COLOUR: "1,11",
     });
-    const color = info.details.find((d) => d.label === "Color");
-    expect(color?.value).toBe("White, Orange");
+    const appearance = info.details.find((d) => d.label === "Appearance");
+    expect(appearance?.value).toBe("White, Orange");
   });
 
   it("displays multi-colour comma-separated (3 colours)", () => {
@@ -226,8 +228,8 @@ describe("colour code display", () => {
       CATLAM: 1,
       COLOUR: "4,3,4",
     });
-    const color = info.details.find((d) => d.label === "Color");
-    expect(color?.value).toBe("Green, Red, Green");
+    const appearance = info.details.find((d) => d.label === "Appearance");
+    expect(appearance?.value).toBe("Green, Red, Green");
   });
 
   it("displays legacy JSON array colour codes", () => {
@@ -235,8 +237,8 @@ describe("colour code display", () => {
       CATLAM: 1,
       COLOUR: '["1","11"]',
     });
-    const color = info.details.find((d) => d.label === "Color");
-    expect(color?.value).toBe("White, Orange");
+    const appearance = info.details.find((d) => d.label === "Appearance");
+    expect(appearance?.value).toBe("White, Orange");
   });
 
   it("handles unknown colour code gracefully", () => {
@@ -244,8 +246,8 @@ describe("colour code display", () => {
       CATLAM: 1,
       COLOUR: "99",
     });
-    const color = info.details.find((d) => d.label === "Color");
-    expect(color?.value).toBe("99");
+    const appearance = info.details.find((d) => d.label === "Appearance");
+    expect(appearance?.value).toBe("99");
   });
 
   it("handles comma-separated with unknown code", () => {
@@ -253,16 +255,16 @@ describe("colour code display", () => {
       CATLAM: 1,
       COLOUR: "4,99",
     });
-    const color = info.details.find((d) => d.label === "Color");
-    expect(color?.value).toBe("Green, 99");
+    const appearance = info.details.find((d) => d.label === "Appearance");
+    expect(appearance?.value).toBe("Green, 99");
   });
 
   it("handles null/undefined colour", () => {
     const info = formatFeatureInfo("BOYLAT", {
       CATLAM: 1,
     });
-    const color = info.details.find((d) => d.label === "Color");
-    expect(color).toBeUndefined();
+    const appearance = info.details.find((d) => d.label === "Appearance");
+    expect(appearance).toBeUndefined();
   });
 });
 
@@ -298,8 +300,10 @@ describe("special purpose buoy formatting", () => {
       STATUS: "1",
     });
     expect(info.type).toBe("Special Purpose Buoy");
-    expect(info.details).toContainEqual({ label: "Shape", value: "Can" });
-    expect(info.details).toContainEqual({ label: "Color", value: "Yellow" });
+    expect(info.details).toContainEqual({
+      label: "Appearance",
+      value: "Yellow Can",
+    });
     expect(info.details).toContainEqual({
       label: "Status",
       value: "Permanent",
@@ -314,10 +318,9 @@ describe("special purpose buoy formatting", () => {
       COLOUR: "1,11",
       STATUS: "8",
     });
-    expect(info.details).toContainEqual({ label: "Shape", value: "Pillar" });
     expect(info.details).toContainEqual({
-      label: "Color",
-      value: "White, Orange",
+      label: "Appearance",
+      value: "White, Orange Pillar",
     });
     expect(info.details).toContainEqual({
       label: "Status",
@@ -342,24 +345,79 @@ describe("preferred channel buoy formatting", () => {
       value: "Preferred channel to starboard",
     });
     expect(info.details).toContainEqual({
-      label: "Color",
-      value: "Green, Red, Green",
+      label: "Appearance",
+      value: "Green, Red, Green Pillar",
     });
-    expect(info.details).toContainEqual({ label: "Shape", value: "Pillar" });
   });
 
   it("formats a preferred channel to port (red dominant)", () => {
     const info = formatFeatureInfo("BOYLAT", {
       CATLAM: 4,
       COLOUR: "3,4,3",
+      BOYSHP: 1,
     });
     expect(info.details).toContainEqual({
       label: "Category",
       value: "Preferred channel to port",
     });
     expect(info.details).toContainEqual({
-      label: "Color",
-      value: "Red, Green, Red",
+      label: "Appearance",
+      value: "Red, Green, Red Conical",
+    });
+  });
+});
+
+describe("detail row ordering and dedup", () => {
+  it("places Number first, Information near top, Status near last", () => {
+    const info = formatFeatureInfo(
+      "BOYSPP",
+      {
+        OBJNAM: "Caution",
+        LABEL: "C",
+        BOYSHP: 4,
+        COLOUR: "6",
+        STATUS: "5",
+        INFORM: "Seasonal hazard buoy",
+      },
+      { lng: -71, lat: 42 },
+    );
+    const labels = info.details.map((d) => d.label);
+    expect(labels[0]).toBe("Number");
+    expect(labels.indexOf("Information")).toBeLessThan(
+      labels.indexOf("Appearance"),
+    );
+    expect(labels.indexOf("Status")).toBeGreaterThan(
+      labels.indexOf("Appearance"),
+    );
+    expect(labels[labels.length - 1]).toBe("Position");
+  });
+
+  it("drops Type row that duplicates the landmark title", () => {
+    const info = formatFeatureInfo("LNDMRK", {
+      OBJNAM: "Point Loma Light",
+      CATLMK: 17, // Tower → sets title type
+      CONVIS: 1, // adds [Conspic] to title
+      FUNCTN: 33,
+      COLOUR: "2,1",
+      HEIGHT: 27,
+    });
+    expect(info.type).toBe("Tower [Conspic]");
+    expect(info.details.find((d) => d.label === "Type")).toBeUndefined();
+    expect(info.details.find((d) => d.label === "Visibility")).toBeUndefined();
+    expect(info.details).toContainEqual({
+      label: "Function",
+      value: "Light Support",
+    });
+  });
+
+  it("keeps Type row when CATLMK is multi-valued (title shows only the first)", () => {
+    const info = formatFeatureInfo("LNDMRK", {
+      CATLMK: "17,3", // Tower, Chimney
+    });
+    expect(info.type).toBe("Tower");
+    expect(info.details).toContainEqual({
+      label: "Type",
+      value: "Tower, Chimney",
     });
   });
 });
