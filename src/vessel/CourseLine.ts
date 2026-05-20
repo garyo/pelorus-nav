@@ -15,6 +15,7 @@ import { projectPoint } from "../utils/coordinates";
 
 const SOURCE_ID = "_course-line";
 const LAYER_ID = "_course-line-layer";
+const TICK_LAYER_ID = "_course-line-ticks";
 const VESSEL_ICON_LAYER = "_vessel-icon";
 
 /** Minimum SOG (knots) below which the line is hidden. */
@@ -24,7 +25,7 @@ const MIN_SOG_KT = 0.1;
 const MIN_LENGTH_M = 200;
 
 /** Tick half-length in screen pixels (each side of the main line). */
-const TICK_HALF_PX = 4;
+const TICK_HALF_PX = 6;
 
 /** Tick spacing in minutes, keyed by course-line duration in minutes. */
 const TICK_SPACING_MIN: Record<number, number> = {
@@ -118,6 +119,7 @@ export class CourseLine {
         id: LAYER_ID,
         type: "line",
         source: SOURCE_ID,
+        filter: ["!=", ["get", "kind"], "tick"],
         paint: {
           "line-color": "#2266dd",
           "line-width": 2,
@@ -127,16 +129,33 @@ export class CourseLine {
       beforeLayer,
     );
 
+    // Ticks need to stand out against chart clutter — darker and fully
+    // opaque so they're legible over dense areas (depth labels,
+    // navigation aids, etc).
+    this.map.addLayer(
+      {
+        id: TICK_LAYER_ID,
+        type: "line",
+        source: SOURCE_ID,
+        filter: ["==", ["get", "kind"], "tick"],
+        paint: {
+          "line-color": "#164295",
+          "line-width": 2,
+          "line-opacity": 1,
+        },
+      },
+      beforeLayer,
+    );
+
     this.updateVisibility();
   }
 
   private updateVisibility(): void {
-    if (this.map.getLayer(LAYER_ID)) {
-      this.map.setLayoutProperty(
-        LAYER_ID,
-        "visibility",
-        this.duration === 0 ? "none" : "visible",
-      );
+    const visibility = this.duration === 0 ? "none" : "visible";
+    for (const id of [LAYER_ID, TICK_LAYER_ID]) {
+      if (this.map.getLayer(id)) {
+        this.map.setLayoutProperty(id, "visibility", visibility);
+      }
     }
     if (this.duration === 0) {
       this.clearLine();
@@ -159,7 +178,7 @@ export class CourseLine {
     const features: GeoJSON.Feature[] = [
       {
         type: "Feature",
-        properties: {},
+        properties: { kind: "main" },
         geometry: {
           type: "LineString",
           coordinates: [
@@ -182,7 +201,7 @@ export class CourseLine {
         const perpX = -dy / lenPx;
         const perpY = dx / lenPx;
         const totalMin = this.duration;
-        for (let t = tickMinutes; t < totalMin; t += tickMinutes) {
+        for (let t = tickMinutes; t <= totalMin; t += tickMinutes) {
           const tickDist = distanceNM * (t / totalMin);
           const [cLon, cLat] = projectPoint(startLat, startLon, cog, tickDist);
           const cPx = this.map.project([cLon, cLat]);
@@ -196,7 +215,7 @@ export class CourseLine {
           ]);
           features.push({
             type: "Feature",
-            properties: {},
+            properties: { kind: "tick" },
             geometry: {
               type: "LineString",
               coordinates: [
