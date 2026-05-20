@@ -16,6 +16,7 @@ import { projectPoint } from "../utils/coordinates";
 const SOURCE_ID = "_course-line";
 const LAYER_ID = "_course-line-layer";
 const TICK_LAYER_ID = "_course-line-ticks";
+const LABEL_LAYER_ID = "_course-line-labels";
 const VESSEL_ICON_LAYER = "_vessel-icon";
 
 /** Minimum SOG (knots) below which the line is hidden. */
@@ -34,6 +35,50 @@ const TICK_SPACING_MIN: Record<number, number> = {
   30: 5,
   60: 10,
 };
+
+/**
+ * Auto-mode buckets — (duration, tick) pairs where `duration % tick === 0`
+ * so the endpoint always lands on a tick. The fixed-mode tick lookup
+ * (TICK_SPACING_MIN) draws from the same set, so a manual 15 min line
+ * and an auto-picked 15 min line render identically.
+ */
+const AUTO_BUCKETS: { duration: number; tick: number }[] = [
+  { duration: 1, tick: 0.25 }, // 1 min line, 15 s ticks (very high zoom)
+  { duration: 2, tick: 0.5 }, // 2 min, 30 s
+  { duration: 5, tick: 1 },
+  { duration: 10, tick: 2 },
+  { duration: 15, tick: 5 },
+  { duration: 30, tick: 5 },
+  { duration: 60, tick: 10 },
+];
+
+/**
+ * Pick the auto bucket whose duration is closest to the target on a
+ * log scale — feels right because [2, 5] is a bigger relative jump
+ * than [10, 25].
+ */
+export function selectAutoBucket(targetMin: number): {
+  duration: number;
+  tick: number;
+} {
+  const t = Math.log(Math.max(targetMin, AUTO_BUCKETS[0].duration / 2));
+  let best = AUTO_BUCKETS[0];
+  for (const b of AUTO_BUCKETS) {
+    if (
+      Math.abs(Math.log(b.duration) - t) < Math.abs(Math.log(best.duration) - t)
+    ) {
+      best = b;
+    }
+  }
+  return best;
+}
+
+/** Short label for a duration: "30s", "5m", "1h". */
+export function formatTickLabel(min: number): string {
+  if (min >= 60) return `${Math.round(min / 60)}h`;
+  if (min < 1) return `${Math.round(min * 60)}s`;
+  return `${min}m`;
+}
 
 export class CourseLine {
   private readonly map: maplibregl.Map;
@@ -83,7 +128,8 @@ export class CourseLine {
       return;
     }
 
-    const durationHours = this.duration / 60;
+    const { durationMin, tickMin } = this.resolveDuration(smoothed.sog);
+    const durationHours = durationMin / 60;
     const actualDistanceNM = smoothed.sog * durationHours;
 
     const minNM = MIN_LENGTH_M / 1852;
@@ -96,8 +142,44 @@ export class CourseLine {
     const startLon = data.longitude;
 
     // Ticks only make sense when the line represents real time progression.
-    const tickMinutes = stretched ? 0 : (TICK_SPACING_MIN[this.duration] ?? 0);
-    this.setLine(startLat, startLon, smoothed.cog, distanceNM, tickMinutes);
+    const tickMinutes = stretched ? 0 : tickMin;
+    this.setLine(
+      startLat,
+      startLon,
+      smoothed.cog,
+      distanceNM,
+      durationMin,
+      tickMinutes,
+    );
+  }
+
+  /**
+   * Pick the concrete duration + tick interval for this draw, either from
+   * the fixed user setting or computed from sog + viewport in Auto mode.
+   */
+  private resolveDuration(sog: number): {
+    durationMin: number;
+    tickMin: number;
+  } {
+    if (this.duration === "auto") {
+      // Pixels per nautical mile via the map's projection (latitude-correct).
+      const c = this.map.getCenter();
+      const a = this.map.project([c.lng, c.lat]);
+      const b = this.map.project([c.lng, c.lat + 0.001]);
+      const pxPerNM = Math.abs(b.y - a.y) / 0.001 / 60;
+      // The vessel sits roughly 75% from the top of the canvas (look-ahead
+      // offset), so the visible-ahead extent is ~75% of viewport height.
+      // Target the line at 60% of that.
+      const aheadPx = this.map.getContainer().clientHeight * 0.75 * 0.6;
+      const targetNM = pxPerNM > 0 ? aheadPx / pxPerNM : 1;
+      const targetMin = (targetNM / Math.max(sog, 0.5)) * 60;
+      const bucket = selectAutoBucket(targetMin);
+      return { durationMin: bucket.duration, tickMin: bucket.tick };
+    }
+    return {
+      durationMin: this.duration,
+      tickMin: TICK_SPACING_MIN[this.duration] ?? 0,
+    };
   }
 
   private setup(): void {
@@ -147,12 +229,37 @@ export class CourseLine {
       beforeLayer,
     );
 
+    // Tick labels (first-tick interval + endpoint total).
+    this.map.addLayer(
+      {
+        id: LABEL_LAYER_ID,
+        type: "symbol",
+        source: SOURCE_ID,
+        filter: ["==", ["get", "kind"], "label"],
+        layout: {
+          "text-field": ["get", "label"],
+          "text-font": ["Open Sans Regular"],
+          "text-size": 11,
+          "text-anchor": "center",
+          "text-rotation-alignment": "viewport",
+          "text-allow-overlap": true,
+          "text-ignore-placement": true,
+        },
+        paint: {
+          "text-color": "#0a2056",
+          "text-halo-color": "rgba(255, 255, 255, 0.9)",
+          "text-halo-width": 1.5,
+        },
+      },
+      beforeLayer,
+    );
+
     this.updateVisibility();
   }
 
   private updateVisibility(): void {
     const visibility = this.duration === 0 ? "none" : "visible";
-    for (const id of [LAYER_ID, TICK_LAYER_ID]) {
+    for (const id of [LAYER_ID, TICK_LAYER_ID, LABEL_LAYER_ID]) {
       if (this.map.getLayer(id)) {
         this.map.setLayoutProperty(id, "visibility", visibility);
       }
@@ -167,6 +274,7 @@ export class CourseLine {
     startLon: number,
     cog: number,
     distanceNM: number,
+    totalMin: number,
     tickMinutes: number,
   ): void {
     const source = this.map.getSource(SOURCE_ID) as
@@ -200,7 +308,7 @@ export class CourseLine {
       if (lenPx > 0) {
         const perpX = -dy / lenPx;
         const perpY = dx / lenPx;
-        const totalMin = this.duration;
+        const labelOffsetPx = TICK_HALF_PX + 8;
         for (let t = tickMinutes; t <= totalMin; t += tickMinutes) {
           const tickDist = distanceNM * (t / totalMin);
           const [cLon, cLat] = projectPoint(startLat, startLon, cog, tickDist);
@@ -224,6 +332,28 @@ export class CourseLine {
               ],
             },
           });
+
+          // Label the first tick (interval) and the endpoint tick (total).
+          // Close-to-tolerant comparison avoids float-drift issues.
+          const isFirst = Math.abs(t - tickMinutes) < 1e-6;
+          const isLast = Math.abs(t - totalMin) < 1e-6;
+          if (isFirst || isLast) {
+            const labelPx = this.map.unproject([
+              cPx.x + perpX * labelOffsetPx,
+              cPx.y + perpY * labelOffsetPx,
+            ]);
+            features.push({
+              type: "Feature",
+              properties: {
+                kind: "label",
+                label: formatTickLabel(isLast ? totalMin : tickMinutes),
+              },
+              geometry: {
+                type: "Point",
+                coordinates: [labelPx.lng, labelPx.lat],
+              },
+            });
+          }
         }
       }
     }

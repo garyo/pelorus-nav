@@ -509,6 +509,7 @@ function buildNavigationTab(
   // Course line duration
   const COURSE_LINE_OPTIONS = [
     { value: "0", label: "Off" },
+    { value: "auto", label: "Auto" },
     { value: "5", label: "5 min" },
     { value: "15", label: "15 min" },
     { value: "30", label: "30 min" },
@@ -522,7 +523,8 @@ function buildNavigationTab(
       String(settings.courseLineDuration),
       (v) =>
         updateSettings({
-          courseLineDuration: Number(v) as CourseLineDuration,
+          courseLineDuration:
+            v === "auto" ? "auto" : (Number(v) as CourseLineDuration),
         }),
     ),
   );
