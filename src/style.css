@@ -531,6 +531,19 @@ body {
   cursor: pointer;
 }
 
+.nav-hud-thermal {
+  margin-left: 6px;
+  font-size: 11px;
+  /* Emoji colour can't be styled, so tint via filter. */
+  filter: hue-rotate(0deg) saturate(1.2);
+}
+.nav-hud-thermal[data-state="serious"] {
+  filter: hue-rotate(-20deg) saturate(1.6) brightness(1.1);
+}
+.nav-hud-thermal[data-state="critical"] {
+  filter: hue-rotate(-40deg) saturate(2) brightness(1.2);
+}
+
 /* Go-To coordinate dialog */
 .goto-overlay {
   display: none;

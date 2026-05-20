@@ -73,6 +73,7 @@ import { buildTopbarAction } from "./ui/topbarButton";
 import { WakeLockController } from "./ui/WakeLock";
 import { WaypointManagerPanel } from "./ui/WaypointManagerPanel";
 import { applyDeclination, bearingModeLabel } from "./utils/magnetic";
+import { createThermalMonitor } from "./utils/thermal";
 import { ChartModeController } from "./vessel/ChartMode";
 import { CourseLine } from "./vessel/CourseLine";
 import { VesselLayer } from "./vessel/VesselLayer";
@@ -171,8 +172,23 @@ chartManager.map.on("moveend", () => {
   );
 });
 
-// E-ink frame rate throttle: limit repaints to ~4 fps to reduce ghosting
-const EINK_FRAME_INTERVAL = 250; // ms between frames
+// Watches CPU/thermal pressure via the Compute Pressure API; falls back to
+// "nominal" on browsers that don't expose `PressureObserver`. Drives both
+// the throttle below and the HUD indicator (see NavigationHUD).
+const thermalMonitor = createThermalMonitor();
+
+// Repaint throttle. Caps idle/steady-state rendering to save battery on
+// long passages — the course smoother is dt-aware, so visible motion
+// stays equally smooth at a lower frame rate. Gestures bypass the cap
+// (see the e-ink pinch-overshoot fix that originally added this).
+//   - E-ink: 250 ms (4 fps) to reduce ghosting.
+//   - Thermal serious/critical: 200 ms (5 fps) to let the SoC cool down.
+//   - Everything else: 100 ms (10 fps), responsive enough for the start
+//     of a turn while saving ~50× of the GPU work between GPS fixes
+//     vs. an uncapped 60 fps animation loop.
+const FRAME_INTERVAL_EINK = 250;
+const FRAME_INTERVAL_HOT = 200;
+const FRAME_INTERVAL_STEADY = 100;
 {
   const map = chartManager.map;
   const originalTriggerRepaint = map.triggerRepaint.bind(map);
@@ -180,22 +196,30 @@ const EINK_FRAME_INTERVAL = 250; // ms between frames
   let pendingFrame: ReturnType<typeof setTimeout> | null = null;
 
   const throttledRepaint = () => {
-    if (getSettings().displayTheme !== "eink") {
-      originalTriggerRepaint();
-      return;
-    }
     // During gestures (pinch/pan/rotate) and the inertia that follows,
-    // bypass the throttle so the user sees what they're doing — otherwise
-    // they over-pinch waiting for feedback and the accumulated zoom lands
-    // all at once at min/max limits.
+    // run at full rate so the user sees what they're doing — otherwise
+    // incremental deltas pile up in MapLibre's _changes queue and the
+    // accumulated motion lands all at once (overshooting zoom limits, etc).
     if (map.isMoving() || map.isZooming() || map.isRotating()) {
+      if (pendingFrame) {
+        clearTimeout(pendingFrame);
+        pendingFrame = null;
+      }
       lastFrameTime = performance.now();
       originalTriggerRepaint();
       return;
     }
+    const thermalState = thermalMonitor.getState();
+    const isHot = thermalState === "serious" || thermalState === "critical";
+    const interval =
+      getSettings().displayTheme === "eink"
+        ? FRAME_INTERVAL_EINK
+        : isHot
+          ? FRAME_INTERVAL_HOT
+          : FRAME_INTERVAL_STEADY;
     const now = performance.now();
     const elapsed = now - lastFrameTime;
-    if (elapsed >= EINK_FRAME_INTERVAL) {
+    if (elapsed >= interval) {
       lastFrameTime = now;
       originalTriggerRepaint();
     } else if (!pendingFrame) {
@@ -203,7 +227,7 @@ const EINK_FRAME_INTERVAL = 250; // ms between frames
         pendingFrame = null;
         lastFrameTime = performance.now();
         originalTriggerRepaint();
-      }, EINK_FRAME_INTERVAL - elapsed);
+      }, interval - elapsed);
     }
   };
   map.triggerRepaint = throttledRepaint;
@@ -559,7 +583,12 @@ const routePanel = new RouteManagerPanel(routeLayer, routeEditor);
 // --- Waypoints + Active Navigation ---
 const activeNav = new ActiveNavigationManager(navManager);
 const waypointLayer = new WaypointLayer(chartManager.map);
-const navHud = new NavigationHUD(chartManager.map, navManager, waypointLayer);
+const navHud = new NavigationHUD(
+  chartManager.map,
+  navManager,
+  waypointLayer,
+  thermalMonitor,
+);
 new CenterCrosshair(chartManager.map, navHud.getCursorCoordsEl());
 new BearingLine(chartManager.map, activeNav, navManager);
 const waypointPanel = new WaypointManagerPanel(waypointLayer, activeNav);

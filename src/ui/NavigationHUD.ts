@@ -11,6 +11,7 @@ import type { SpeedUnit } from "../settings";
 import { getSettings } from "../settings";
 import { formatLatLon } from "../utils/coordinates";
 import { formatBearing, formatDeclination } from "../utils/magnetic";
+import type { ThermalMonitor, ThermalState } from "../utils/thermal";
 import { convertSpeed, speedUnitLabel } from "../utils/units";
 import { GoToDialog } from "./GoToDialog";
 
@@ -54,16 +55,25 @@ function formatRateIndicator(tier: AdaptiveTier, intervalMs: number): string {
   return `${TIER_ICONS[tier]}${(intervalMs / 1000).toFixed(0)}s`;
 }
 
+const THERMAL_LABEL: Record<ThermalState, string> = {
+  nominal: "",
+  fair: "",
+  serious: "Warm — frame rate reduced to 5 fps",
+  critical: "Hot — frame rate reduced to 5 fps",
+};
+
 export class NavigationHUD {
   private readonly container: HTMLDivElement;
   private readonly cursorLine: HTMLDivElement;
   private readonly cogSogLine: HTMLDivElement;
   private readonly gpsLine: HTMLDivElement;
+  private readonly thermalBadge: HTMLSpanElement;
 
   constructor(
     map: maplibregl.Map,
     navManager: NavigationDataManager,
     waypointLayer: WaypointLayer,
+    thermalMonitor?: ThermalMonitor,
   ) {
     this.container = document.createElement("div");
     this.container.className = "nav-hud";
@@ -86,7 +96,13 @@ export class NavigationHUD {
     const zoomSpan = document.createElement("span");
     const cursorSpan = document.createElement("span");
     cursorSpan.className = "nav-hud-cursor-coords";
-    this.cursorLine.append(cursorSpan, zoomSpan);
+    // Thermal indicator: hidden while pressure is nominal/fair, shown
+    // with a colour when the throttle kicks in to slow rendering down.
+    this.thermalBadge = document.createElement("span");
+    this.thermalBadge.className = "nav-hud-thermal";
+    this.thermalBadge.textContent = "\u{1F321}️"; // thermometer
+    this.thermalBadge.style.display = "none";
+    this.cursorLine.append(cursorSpan, zoomSpan, this.thermalBadge);
 
     this.cogSogLine = document.createElement("div");
     this.cogSogLine.textContent = "COG --  SOG --";
@@ -123,6 +139,23 @@ export class NavigationHUD {
         const { lng, lat } = e.lngLat;
         cursorSpan.textContent = `${formatLatLon(lat, "lat")} ${formatLatLon(lng, "lon")}  `;
       });
+    }
+
+    // Thermal pressure indicator
+    if (thermalMonitor) {
+      const applyThermal = (s: ThermalState) => {
+        this.thermalBadge.dataset.state = s;
+        const label = THERMAL_LABEL[s];
+        if (label) {
+          this.thermalBadge.style.display = "";
+          this.thermalBadge.title = label;
+          this.thermalBadge.setAttribute("aria-label", label);
+        } else {
+          this.thermalBadge.style.display = "none";
+        }
+      };
+      applyThermal(thermalMonitor.getState());
+      thermalMonitor.onChange(applyThermal);
     }
 
     // GPS data
