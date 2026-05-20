@@ -81,13 +81,19 @@ export class AboutDialog {
     ghLink.rel = "noopener";
     ghLink.textContent = "GitHub";
 
+    const releasesLink = document.createElement("a");
+    releasesLink.href = `${REPO_URL}/releases`;
+    releasesLink.target = "_blank";
+    releasesLink.rel = "noopener";
+    releasesLink.textContent = "Releases";
+
     const licenseLink = document.createElement("a");
     licenseLink.href = `${REPO_URL}/blob/main/LICENSE`;
     licenseLink.target = "_blank";
     licenseLink.rel = "noopener";
     licenseLink.textContent = "MIT License";
 
-    links.append(ghLink, licenseLink);
+    links.append(ghLink, releasesLink, licenseLink);
 
     // Credits
     const creditsHeading = document.createElement("div");
