@@ -152,6 +152,41 @@ describe("ChartModeController", () => {
     );
   });
 
+  it("skips jumpTo when args are unchanged from the previous frame", () => {
+    controller.setMode("north-up");
+    const data = makeNavData({ cog: 0, heading: 0, sog: 6 });
+    controller.update(data);
+    mockMap.jumpTo.mockClear();
+    // Same data again — smoother has converged, nothing changed.
+    controller.update(data);
+    expect(mockMap.jumpTo).not.toHaveBeenCalled();
+  });
+
+  it("re-applies jumpTo when position changes", () => {
+    controller.setMode("north-up");
+    controller.update(makeNavData({ cog: 0, heading: 0, sog: 6 }));
+    mockMap.jumpTo.mockClear();
+    controller.update(
+      makeNavData({ cog: 0, heading: 0, sog: 6, latitude: 42.36 }),
+    );
+    expect(mockMap.jumpTo).toHaveBeenCalledTimes(1);
+  });
+
+  it("re-centers on the boat when returning from free mode (cache invalidation)", () => {
+    controller.setMode("north-up");
+    const data = makeNavData({ cog: 0, heading: 0, sog: 6 });
+    controller.update(data); // initial apply, cache populated
+    // User pans → switch to free (applyPosition stops, cache unchanged)
+    mockMap._fire("movestart", { originalEvent: { type: "mousedown" } });
+    expect(controller.getMode()).toBe("free");
+    // Recenter back to north-up. Without cache invalidation in setMode,
+    // applyPosition would see "args match the stale cache" and skip the
+    // jumpTo, leaving the map at wherever the user panned to.
+    mockMap.jumpTo.mockClear();
+    controller.recenter();
+    expect(mockMap.jumpTo).toHaveBeenCalled();
+  });
+
   it("applies look-ahead padding when moving fast in course-up", () => {
     controller.setMode("course-up");
     controller.update(makeNavData({ cog: 0, heading: 0, sog: 6 }));

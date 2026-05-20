@@ -81,6 +81,12 @@ export function computeLookAheadPadding(
 
 export type ChartModeListener = (mode: ChartModeType) => void;
 
+type JumpToArgs = {
+  center: [number, number];
+  bearing?: number;
+  padding: PaddingOptions;
+};
+
 export class ChartModeController {
   private readonly map: maplibregl.Map;
   private mode: ChartModeType;
@@ -91,6 +97,13 @@ export class ChartModeController {
   /** True while mouse/touch is down — suppresses jumpTo so drag can start. */
   private userInteracting = false;
   private readonly listeners: ChartModeListener[] = [];
+  /**
+   * The args from the most recent `map.jumpTo` we issued. Lets per-frame
+   * applyPosition() skip the call when the smoother has converged and
+   * nothing has changed. Cleared whenever the map state may have diverged
+   * from us — currently just on mode transitions.
+   */
+  private lastApplied: JumpToArgs | null = null;
 
   constructor(map: maplibregl.Map) {
     this.map = map;
@@ -149,6 +162,11 @@ export class ChartModeController {
     }
     updateSettings({ chartMode: mode });
 
+    // Any mode transition (or even re-asserting the same mode) means the
+    // map state may have diverged from our cache — most commonly the user
+    // panned the map (→ free) and is now coming back.
+    this.lastApplied = null;
+
     // When switching to north-up, reset bearing
     if (mode === "north-up" && this.map.getBearing() !== 0) {
       this.map.jumpTo({ bearing: 0 });
@@ -205,6 +223,7 @@ export class ChartModeController {
       right: Math.max(0, canvas.clientWidth - visible.width),
     };
 
+    let args: JumpToArgs;
     switch (this.mode) {
       case "follow": {
         // Bearing is whatever the user last set; ahead-on-screen = cog - bearing.
@@ -213,7 +232,7 @@ export class ChartModeController {
           computeLookAheadPadding(theta, sog, visible),
           overshoot,
         );
-        this.map.jumpTo({ center, padding });
+        args = { center, padding };
         break;
       }
       case "course-up": {
@@ -224,7 +243,7 @@ export class ChartModeController {
           computeLookAheadPadding(theta, sog, visible),
           overshoot,
         );
-        this.map.jumpTo({ center, bearing, padding });
+        args = { center, bearing, padding };
         break;
       }
       case "north-up": {
@@ -233,11 +252,34 @@ export class ChartModeController {
           computeLookAheadPadding(cog ?? null, sog, visible),
           overshoot,
         );
-        this.map.jumpTo({ center, bearing: 0, padding });
+        args = { center, bearing: 0, padding };
         break;
       }
+      default:
+        // mode === "free" — applyPosition's callers already guard this, but
+        // keep the switch exhaustive so the args assignment is provably
+        // complete to the type-checker.
+        return;
     }
+
+    // After the CourseSmoothing converges, args becomes bit-identical
+    // between frames — skip the jumpTo to save the per-frame work.
+    if (sameJumpToArgs(this.lastApplied, args)) return;
+    this.lastApplied = args;
+    this.map.jumpTo(args);
   }
+}
+
+function sameJumpToArgs(a: JumpToArgs | null, b: JumpToArgs): boolean {
+  if (!a) return false;
+  if (a.center[0] !== b.center[0] || a.center[1] !== b.center[1]) return false;
+  if (a.bearing !== b.bearing) return false; // both undefined → equal
+  return (
+    a.padding.top === b.padding.top &&
+    a.padding.bottom === b.padding.bottom &&
+    a.padding.left === b.padding.left &&
+    a.padding.right === b.padding.right
+  );
 }
 
 function addOvershoot(
