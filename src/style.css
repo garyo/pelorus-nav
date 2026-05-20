@@ -1823,6 +1823,12 @@ body {
   .nav-hud-cursor-coords.dragging {
     display: inline;
   }
+  /* MapLibre zoom +/- pill (and our other corner controls) — ~20%
+     larger touch target on mobile. 29 → 35 px = 1.21×. */
+  .maplibregl-ctrl-group button {
+    width: 35px;
+    height: 35px;
+  }
 }
 
 /* Nav HUD collapse toggle */
