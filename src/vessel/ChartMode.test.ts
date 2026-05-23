@@ -1,7 +1,11 @@
 import type maplibregl from "maplibre-gl";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { NavigationData } from "../navigation/NavigationData";
-import { ChartModeController, computeLookAheadPadding } from "./ChartMode";
+import {
+  ChartModeController,
+  computeLookAheadPadding,
+  LOOK_AHEAD_FRACTION,
+} from "./ChartMode";
 
 // Mock settings module
 vi.mock("../settings", () => ({
@@ -191,8 +195,8 @@ describe("ChartModeController", () => {
     controller.setMode("course-up");
     controller.update(makeNavData({ cog: 0, heading: 0, sog: 6 }));
     const call = mockMap.jumpTo.mock.calls.at(-1)?.[0];
-    // Mocked canvas is 1000×800; offset = 0.25 × 800 = 200; padding = 2 × 200
-    expect(call?.padding?.top).toBeCloseTo(2 * 0.25 * 800, 5);
+    // Mocked canvas is 1000×800; offset = LOOK_AHEAD_FRACTION × 800; padding = 2 × offset
+    expect(call?.padding?.top).toBeCloseTo(2 * LOOK_AHEAD_FRACTION * 800, 5);
     expect(call?.padding?.bottom).toBe(0);
     expect(call?.padding?.left).toBe(0);
     expect(call?.padding?.right).toBe(0);
@@ -214,7 +218,8 @@ describe("ChartModeController", () => {
     controller.setMode("north-up");
     controller.update(makeNavData({ cog: 90, heading: 90, sog: 6 }));
     const call = mockMap.jumpTo.mock.calls.at(-1)?.[0];
-    expect(call?.padding?.right).toBeCloseTo(2 * 0.25 * 1000, 5);
+    // Radial offset uses min(W, H) = 800.
+    expect(call?.padding?.right).toBeCloseTo(2 * LOOK_AHEAD_FRACTION * 800, 5);
     expect(call?.padding?.left).toBe(0);
     expect(call?.padding?.top).toBeCloseTo(0, 5);
     expect(call?.padding?.bottom).toBeCloseTo(0, 5);
@@ -224,7 +229,7 @@ describe("ChartModeController", () => {
     controller.setMode("north-up");
     controller.update(makeNavData({ cog: 180, heading: 180, sog: 6 }));
     const call = mockMap.jumpTo.mock.calls.at(-1)?.[0];
-    expect(call?.padding?.bottom).toBeCloseTo(2 * 0.25 * 800, 5);
+    expect(call?.padding?.bottom).toBeCloseTo(2 * LOOK_AHEAD_FRACTION * 800, 5);
     expect(call?.padding?.top).toBeCloseTo(0, 5);
   });
 });
@@ -259,9 +264,12 @@ describe("computeLookAheadPadding", () => {
     });
   });
 
-  // padding = 2 × offset, so max padding.top in 800-tall canvas = 2 × 0.25 × 800 = 400
-  const maxTop = 2 * 0.25 * 800;
-  const maxSide = 2 * 0.25 * 1000;
+  // Padding = 2 × offset. Offset is radial, magnitude proportional to
+  // min(W, H) — so the line through the vessel along COG passes through
+  // canvas centre regardless of aspect ratio.
+  const radialMax = 2 * LOOK_AHEAD_FRACTION * Math.min(1000, 800);
+  const maxTop = radialMax;
+  const maxSide = radialMax;
 
   it("ramps linearly between 1 and 3 kt", () => {
     const halfwayUp = computeLookAheadPadding(0, 2, canvas);

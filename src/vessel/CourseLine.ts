@@ -142,18 +142,22 @@ export class CourseLine {
       return;
     }
 
-    const { durationMin, tickMin } = this.resolveDuration(smoothed.sog);
+    // Start from the vessel's actual position (matches the boat icon),
+    // but use the smoothed COG for the projected direction.
+    const startLat = data.latitude;
+    const startLon = data.longitude;
+
+    const { durationMin, tickMin } = this.resolveDuration(
+      smoothed.sog,
+      startLat,
+      startLon,
+    );
     const durationHours = durationMin / 60;
     const actualDistanceNM = smoothed.sog * durationHours;
 
     const minNM = MIN_LENGTH_M / 1852;
     const stretched = actualDistanceNM < minNM;
     const distanceNM = stretched ? minNM : actualDistanceNM;
-
-    // Start from the vessel's actual position (matches the boat icon),
-    // but use the smoothed COG for the projected direction.
-    const startLat = data.latitude;
-    const startLon = data.longitude;
 
     // Ticks only make sense when the line represents real time progression.
     const tickMinutes = stretched ? 0 : tickMin;
@@ -170,21 +174,37 @@ export class CourseLine {
   /**
    * Pick the concrete duration + tick interval for this draw, either from
    * the fixed user setting or computed from sog + viewport in Auto mode.
+   * In Auto mode we target a line whose midpoint lands near the canvas
+   * centre (the look-ahead offset is radial so this is geometrically
+   * achievable), but the duration is rounded to a bucket so the endpoint
+   * label shows a clean number — readers care more about "the line ends
+   * at 15 min" than about millimetre-perfect centring.
    */
-  private resolveDuration(sog: number): {
-    durationMin: number;
-    tickMin: number;
-  } {
+  private resolveDuration(
+    sog: number,
+    vesselLat: number,
+    vesselLon: number,
+  ): { durationMin: number; tickMin: number } {
     if (this.duration === "auto") {
       // Pixels per nautical mile via the map's projection (latitude-correct).
       const c = this.map.getCenter();
       const a = this.map.project([c.lng, c.lat]);
       const b = this.map.project([c.lng, c.lat + 0.001]);
       const pxPerNM = Math.abs(b.y - a.y) / 0.001 / 60;
-      // The vessel sits roughly 75% from the top of the canvas (look-ahead
-      // offset), so the visible-ahead extent is ~75% of viewport height.
-      // Target the line at 60% of that.
-      const aheadPx = this.map.getContainer().clientHeight * 0.75 * 0.6;
+      // Target line length = 2 × distance(vessel → canvas-centre) in
+      // screen pixels (line passes through canvas centre because the
+      // look-ahead offset is radial along COG — see computeLookAheadOffsetPx).
+      // Floor at half the canvas height so the line stays visible even
+      // when the vessel sits at the centre (no offset applied).
+      const container = this.map.getContainer();
+      const vesselPx = this.map.project([vesselLon, vesselLat]);
+      const dx = container.clientWidth / 2 - vesselPx.x;
+      const dy = container.clientHeight / 2 - vesselPx.y;
+      const distToCenterPx = Math.sqrt(dx * dx + dy * dy);
+      const aheadPx = Math.max(
+        2 * distToCenterPx,
+        container.clientHeight * 0.5,
+      );
       const targetNM = pxPerNM > 0 ? aheadPx / pxPerNM : 1;
       const targetMin = (targetNM / Math.max(sog, 0.5)) * 60;
       const bucket = selectAutoBucket(targetMin);

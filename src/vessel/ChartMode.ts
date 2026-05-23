@@ -15,10 +15,10 @@ const LOOK_AHEAD_MIN_SPEED_KT = 1;
 const LOOK_AHEAD_MAX_SPEED_KT = 3;
 /**
  * Max boat displacement from canvas center, as a fraction of the
- * canvas dimension along the offset axis. 0.25 puts the boat at ~75%
- * of the way from center to the edge (with ~75% of canvas ahead).
+ * canvas dimension along the offset axis. 0.35 puts the boat ~85%
+ * of the way from center to the edge (with ~85% of canvas ahead).
  */
-const LOOK_AHEAD_FRACTION = 0.25;
+export const LOOK_AHEAD_FRACTION = 0.35;
 
 export interface PaddingOptions {
   top: number;
@@ -28,6 +28,50 @@ export interface PaddingOptions {
 }
 
 const ZERO_PADDING: PaddingOptions = { top: 0, bottom: 0, left: 0, right: 0 };
+
+/**
+ * Compute the desired pixel-space offset of the vessel from the canvas
+ * centre (positive Y = downward, screen convention). The offset is *radial*
+ * (same magnitude along the COG direction) so the course line — which is
+ * drawn from the vessel in the COG direction — passes through canvas
+ * centre and its midpoint lands there.
+ *
+ * Magnitude scales with min(W, H) so the look-ahead is consistent across
+ * portrait and landscape orientations and isn't stretched by aspect ratio.
+ *
+ * Returns null when no offset should be applied (idle, missing direction).
+ */
+export function computeLookAheadOffsetPx(
+  aheadAngleDeg: number | null,
+  sogKnots: number | null,
+  canvas: { width: number; height: number },
+): { dx: number; dy: number } | null {
+  if (
+    aheadAngleDeg == null ||
+    sogKnots == null ||
+    !(canvas.width > 0) ||
+    !(canvas.height > 0)
+  ) {
+    return null;
+  }
+  const speedFrac = Math.max(
+    0,
+    Math.min(
+      1,
+      (sogKnots - LOOK_AHEAD_MIN_SPEED_KT) /
+        (LOOK_AHEAD_MAX_SPEED_KT - LOOK_AHEAD_MIN_SPEED_KT),
+    ),
+  );
+  if (speedFrac === 0) return null;
+  const radius =
+    LOOK_AHEAD_FRACTION * speedFrac * Math.min(canvas.width, canvas.height);
+  const theta = (aheadAngleDeg * Math.PI) / 180;
+  return {
+    // Offset is OPPOSITE the ahead direction (vessel sits behind centre).
+    dx: -radius * Math.sin(theta),
+    dy: radius * Math.cos(theta),
+  };
+}
 
 /**
  * Compute MapLibre padding that shifts the vessel toward the screen edge
@@ -44,38 +88,16 @@ export function computeLookAheadPadding(
   sogKnots: number | null,
   canvas: { width: number; height: number },
 ): PaddingOptions {
-  if (
-    aheadAngleDeg == null ||
-    sogKnots == null ||
-    !(canvas.width > 0) ||
-    !(canvas.height > 0)
-  ) {
-    return ZERO_PADDING;
-  }
-  const speedFrac = Math.max(
-    0,
-    Math.min(
-      1,
-      (sogKnots - LOOK_AHEAD_MIN_SPEED_KT) /
-        (LOOK_AHEAD_MAX_SPEED_KT - LOOK_AHEAD_MIN_SPEED_KT),
-    ),
-  );
-  if (speedFrac === 0) return ZERO_PADDING;
-
-  // Desired pixel displacement of the boat from the canvas centre.
+  const offset = computeLookAheadOffsetPx(aheadAngleDeg, sogKnots, canvas);
+  if (!offset) return ZERO_PADDING;
   // MapLibre places the camera at the centre of the unpadded rectangle,
   // so a padding value of N only shifts the centre by N/2 — hence the
-  // `2 ×` multiplier below.
-  const theta = (aheadAngleDeg * Math.PI) / 180;
-  const offsetY =
-    LOOK_AHEAD_FRACTION * canvas.height * speedFrac * Math.cos(theta);
-  const offsetX =
-    -LOOK_AHEAD_FRACTION * canvas.width * speedFrac * Math.sin(theta);
+  // `2 ×` multiplier.
   return {
-    top: Math.max(0, 2 * offsetY),
-    bottom: Math.max(0, -2 * offsetY),
-    left: Math.max(0, 2 * offsetX),
-    right: Math.max(0, -2 * offsetX),
+    top: Math.max(0, 2 * offset.dy),
+    bottom: Math.max(0, -2 * offset.dy),
+    left: Math.max(0, 2 * offset.dx),
+    right: Math.max(0, -2 * offset.dx),
   };
 }
 
