@@ -164,6 +164,11 @@ const chartManager = new ChartManager({
 // Safety contour — bolds the shallowest depth contour >= safetyDepth
 new SafetyContour(chartManager.map);
 
+// Dev-only: expose the map for browser-harness probes (no-op in prod build).
+if (import.meta.env.DEV) {
+  (window as unknown as { __map: unknown }).__map = chartManager.map;
+}
+
 // Persist map position on every move so refresh restores it
 chartManager.map.on("moveend", () => {
   const c = chartManager.map.getCenter();

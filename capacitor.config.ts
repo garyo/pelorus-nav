@@ -13,6 +13,12 @@ const config: CapacitorConfig = {
     // Usage: CAP_DEV_SERVER=http://192.168.0.46:5173 bun run cap:run
     ...(DEV_SERVER ? { url: DEV_SERVER, cleartext: true } : {}),
   },
+  android: {
+    // Enable chrome://inspect WebView debugging on signed-release builds.
+    // Leave this on while we're iterating on e-ink work; revert before
+    // cutting a public release tag.
+    webContentsDebuggingEnabled: true,
+  },
 };
 
 export default config;
