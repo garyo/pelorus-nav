@@ -468,6 +468,19 @@ function applyGpsRateForTheme(theme: string): void {
 }
 applyGpsRateForTheme(initGpsSettings.displayTheme);
 
+/**
+ * Slow MapLibre's pinch-zoom rate on e-ink. The device's slow visual
+ * feedback (~4 fps) makes it easy to over-pinch: the user keeps zooming
+ * because they can't see the result yet. Halving the gesture-to-zoom
+ * ratio gives them room to react. Default (1) restored for other themes.
+ */
+function applyTouchZoomForTheme(theme: string): void {
+  const rate = theme === "eink" ? 0.5 : undefined;
+  chartManager.map.touchZoomRotate.setZoomRate(rate);
+}
+applyTouchZoomForTheme(initGpsSettings.displayTheme);
+onSettingsChange((s) => applyTouchZoomForTheme(s.displayTheme));
+
 // Screen wake lock
 const wakeLockCtrl = new WakeLockController();
 wakeLockCtrl.setMode(initGpsSettings.wakeLock);

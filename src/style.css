@@ -2061,6 +2061,18 @@ body {
   }
 }
 
+/* E-ink touch targets — the BIGME's screen is dense and the device runs
+   without a finger-tracking refresh, so default 35 px buttons are too
+   small to hit reliably underway. Placed after the mobile rule so the
+   linter sees ascending specificity in source order. */
+[data-theme="eink"] .maplibregl-ctrl-group button {
+  width: 50px;
+  height: 50px;
+}
+[data-theme="eink"] .maplibregl-ctrl-group button .maplibregl-ctrl-icon {
+  background-size: 28px 28px;
+}
+
 /* Nav HUD collapse toggle */
 .nav-hud-toggle {
   display: inline-block;

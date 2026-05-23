@@ -89,6 +89,10 @@ export class CourseLine {
   // redraw() short-circuit the frequent move-event path when the line is off
   // or speed is below threshold.
   private isEmpty = true;
+  // Coalesces high-frequency `move` events (especially during pinch) so we
+  // don't fire one full setData per gesture frame — pile-ups stall the JS
+  // thread on e-ink hardware and make pinch zoom feel runaway.
+  private rafPending = false;
 
   constructor(map: maplibregl.Map) {
     this.map = map;
@@ -105,8 +109,18 @@ export class CourseLine {
       this.setup();
     }
 
-    // Ticks are sized in screen pixels, so redraw on zoom/rotate/pan.
-    this.map.on("move", () => this.redraw());
+    // Ticks are sized in screen pixels, so redraw on zoom/rotate/pan —
+    // but coalesced via rAF.
+    this.map.on("move", () => this.scheduleRedraw());
+  }
+
+  private scheduleRedraw(): void {
+    if (this.rafPending) return;
+    this.rafPending = true;
+    requestAnimationFrame(() => {
+      this.rafPending = false;
+      this.redraw();
+    });
   }
 
   update(data: NavigationData, smoothed: SmoothedCourse | null): void {
