@@ -2,6 +2,7 @@
  * Map context menu — right-click / long-press menu with position actions.
  */
 import type maplibregl from "maplibre-gl";
+import type { SearchEntry } from "../data/search-index";
 import type { StandaloneWaypoint } from "../data/Waypoint";
 import { getMode, setMode } from "../map/InteractionMode";
 import type { MeasurementLayer } from "../map/MeasurementLayer";
@@ -9,6 +10,7 @@ import type { PlottingLayer } from "../map/plotting/PlottingLayer";
 import type { RouteEditor } from "../map/RouteEditor";
 import type { WaypointLayer } from "../map/WaypointLayer";
 import type { ActiveNavigationManager } from "../navigation/ActiveNavigation";
+import { findNearestNamedFeature } from "../search/feature-search";
 import { formatLatLon, parseLatLon } from "../utils/coordinates";
 import { generateUUID } from "../utils/uuid";
 
@@ -20,6 +22,8 @@ export interface ContextMenuDeps {
   measurementLayer: MeasurementLayer;
   activeNav: ActiveNavigationManager;
   onWaypointAdded: () => void;
+  /** Returns the loaded chart-feature search index (may be empty until loaded). */
+  getSearchEntries?: () => SearchEntry[];
 }
 
 export interface ContextMenuHandle {
@@ -36,6 +40,7 @@ export function createContextMenu(deps: ContextMenuDeps): ContextMenuHandle {
     measurementLayer,
     activeNav,
     onWaypointAdded,
+    getSearchEntries,
   } = deps;
 
   const menu = document.createElement("div");
@@ -287,11 +292,19 @@ export function createContextMenu(deps: ContextMenuDeps): ContextMenuHandle {
 
   waypointItem.addEventListener("click", () => {
     hide();
+    // Try to auto-name from a nearby charted feature; fall back to the
+    // latitude-based default if no index loaded or nothing close.
+    const entries = getSearchEntries?.();
+    const nearby =
+      entries && entries.length > 0
+        ? findNearestNamedFeature(ctxLng, ctxLat, entries)
+        : null;
+    const name = nearby?.name ?? `WP ${formatLatLon(ctxLat, "lat")}`;
     const wp: StandaloneWaypoint = {
       id: generateUUID(),
       lat: ctxLat,
       lon: ctxLng,
-      name: `WP ${formatLatLon(ctxLat, "lat")}`,
+      name,
       notes: "",
       icon: "default",
       createdAt: Date.now(),

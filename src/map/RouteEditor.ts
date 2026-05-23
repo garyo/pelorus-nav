@@ -9,6 +9,8 @@
 import type maplibregl from "maplibre-gl";
 import { saveRoute } from "../data/db";
 import type { Route, Waypoint } from "../data/Route";
+import type { SearchEntry } from "../data/search-index";
+import { findNearestNamedFeature } from "../search/feature-search";
 import { getSettings } from "../settings";
 import { haversineDistanceNM, initialBearingDeg } from "../utils/coordinates";
 import { formatBearing } from "../utils/magnetic";
@@ -70,6 +72,8 @@ export class RouteEditor {
   private listeners: EditorListener[] = [];
   private finishListeners: FinishListener[] = [];
   private cancelListeners: ((existingId: string | null) => void)[] = [];
+  /** Source of charted-feature names for waypoint auto-naming. */
+  private getSearchEntries: (() => SearchEntry[]) | null = null;
 
   constructor(map: maplibregl.Map, routeLayer: RouteLayer) {
     this.map = map;
@@ -118,8 +122,26 @@ export class RouteEditor {
     this.cancelListeners.push(fn);
   }
 
+  /** Provide a synchronous getter for the loaded chart-feature search
+   *  entries; used to auto-name new waypoints from the nearest charted
+   *  feature when one is close enough. */
+  setSearchEntriesProvider(getter: () => SearchEntry[]): void {
+    this.getSearchEntries = getter;
+  }
+
   getRoute(): Route | null {
     return this.route;
+  }
+
+  /** Pick a default name for a new waypoint at (lat, lon): the nearest
+   *  named chart feature within ~200 m, or the WP-N fallback. */
+  private autoName(lat: number, lon: number, fallback: string): string {
+    const entries = this.getSearchEntries?.();
+    if (entries && entries.length > 0) {
+      const hit = findNearestNamedFeature(lon, lat, entries);
+      if (hit) return hit.name;
+    }
+    return fallback;
   }
 
   /** Start a new route with the first waypoint at the given position. */
@@ -130,7 +152,7 @@ export class RouteEditor {
       createdAt: Date.now(),
       color: "#4488cc",
       visible: true,
-      waypoints: [{ lat, lon, name: "WP1" }],
+      waypoints: [{ lat, lon, name: this.autoName(lat, lon, "WP1") }],
     });
   }
 
@@ -196,10 +218,11 @@ export class RouteEditor {
         return;
       }
 
+      const fallback = `WP${this.route.waypoints.length + 1}`;
       const wp: Waypoint = {
         lat: e.lngLat.lat,
         lon: e.lngLat.lng,
-        name: `WP${this.route.waypoints.length + 1}`,
+        name: this.autoName(e.lngLat.lat, e.lngLat.lng, fallback),
       };
       this.route.waypoints.push(wp);
       this.updateSources();
@@ -267,12 +290,15 @@ export class RouteEditor {
 
   private prependWaypoint(lat: number, lon: number): void {
     if (!this.route) return;
-    const newWp: Waypoint = { lat, lon, name: "" };
+    // Only the new waypoint gets an auto-name; existing waypoints keep
+    // whatever names the user has set (renumbering would clobber custom
+    // and feature-derived names).
+    const newWp: Waypoint = {
+      lat,
+      lon,
+      name: this.autoName(lat, lon, `WP${this.route.waypoints.length + 1}`),
+    };
     this.route.waypoints.unshift(newWp);
-    // Renumber names
-    for (let i = 0; i < this.route.waypoints.length; i++) {
-      this.route.waypoints[i].name = `WP${i + 1}`;
-    }
     this.selectedIndex = 0;
     this.updateSources();
     this.updateBar();
@@ -285,12 +311,12 @@ export class RouteEditor {
     lon: number,
   ): void {
     if (!this.route) return;
-    const newWp: Waypoint = { lat, lon, name: "" };
+    const newWp: Waypoint = {
+      lat,
+      lon,
+      name: this.autoName(lat, lon, `WP${this.route.waypoints.length + 1}`),
+    };
     this.route.waypoints.splice(afterIndex + 1, 0, newWp);
-    // Renumber names
-    for (let i = 0; i < this.route.waypoints.length; i++) {
-      this.route.waypoints[i].name = `WP${i + 1}`;
-    }
     this.selectedIndex = afterIndex + 1;
     this.updateSources();
     this.updateBar();

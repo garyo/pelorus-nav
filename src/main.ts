@@ -18,7 +18,7 @@ import { repairTrackPointCounts } from "./data/db";
 import { downloadFile } from "./data/file-io";
 import { OPFSSource } from "./data/opfs-source";
 import { chartAssetBase } from "./data/remote-url";
-import { loadAllSearchIndices } from "./data/search-index";
+import { loadAllSearchIndices, type SearchEntry } from "./data/search-index";
 import { getChartFile, listStoredCharts } from "./data/tile-store";
 import { BearingLine } from "./map/BearingLine";
 import { MeasurementLayer } from "./map/MeasurementLayer";
@@ -416,7 +416,14 @@ onSettingsChange((s) => {
 
 // Search dialog for chart features
 const searchDialog = new SearchDialog(chartManager.map);
-loadAllSearchIndices().then((entries) => searchDialog.setEntries(entries));
+// Cache the merged search entries so other features (waypoint auto-naming)
+// can read them synchronously without re-loading.
+let cachedSearchEntries: SearchEntry[] = [];
+loadAllSearchIndices().then((entries) => {
+  cachedSearchEntries = entries;
+  searchDialog.setEntries(entries);
+});
+const getSearchEntries = (): SearchEntry[] => cachedSearchEntries;
 
 // Instrument HUD (large data display) — insert before map so it pushes map down
 const mapEl = document.getElementById("map");
@@ -580,6 +587,7 @@ if (capacitorGPS) {
 // --- Routes ---
 const routeLayer = new RouteLayer(chartManager.map);
 const routeEditor = new RouteEditor(chartManager.map, routeLayer);
+routeEditor.setSearchEntriesProvider(getSearchEntries);
 const routePanel = new RouteManagerPanel(routeLayer, routeEditor);
 
 // --- Waypoints + Active Navigation ---
@@ -608,6 +616,7 @@ createContextMenu({
   measurementLayer,
   activeNav,
   onWaypointAdded: () => waypointPanel.show(),
+  getSearchEntries,
 });
 
 // Cancel navigation control

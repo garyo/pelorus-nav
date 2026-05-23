@@ -26,6 +26,9 @@ export interface SearchOptions {
   limit?: number;
 }
 
+/** Convert nautical miles to meters. */
+const METERS_PER_NM = 1852;
+
 /** Type priority for tiebreaking (lower = higher priority). */
 const TYPE_PRIORITY: Record<string, number> = {
   BUAARE: 0,
@@ -159,4 +162,66 @@ export function searchFeatures(
   });
 
   return results.slice(0, limit);
+}
+
+/**
+ * "Effective distance" of a feature from a click point, for picking the
+ * most specific name. For point features it's just the centroid distance.
+ * For an area feature when the click is *inside* its bbox, it's the
+ * half-diagonal of that bbox: a tighter area (small anchorage) scores
+ * better than a sprawling one (whole Gulf), so the more specific name
+ * wins. Centroid distance still applies when outside the bbox.
+ */
+function effectiveDistanceNM(e: SearchEntry, ref: [number, number]): number {
+  if (e.bbox) {
+    const [w, s, ee, n] = e.bbox;
+    if (ref[0] >= w && ref[0] <= ee && ref[1] >= s && ref[1] <= n) {
+      const widthNM = approxDistanceNM([w, (s + n) / 2], [ee, (s + n) / 2]);
+      const heightNM = approxDistanceNM([(w + ee) / 2, s], [(w + ee) / 2, n]);
+      return Math.sqrt(widthNM * widthNM + heightNM * heightNM) / 2;
+    }
+  }
+  return approxDistanceNM(ref, e.center);
+}
+
+/**
+ * Find the nearest named chart feature to a [lon, lat] point. Used for
+ * auto-suggesting waypoint names from the chart.
+ *
+ * - Point features compete on centroid distance.
+ * - Area features (with a `bbox`) score by their half-diagonal *when the
+ *   click is inside the bbox* — small named areas (anchorages, harbours)
+ *   score well, sprawling areas (Gulf of Maine) effectively never match.
+ *   This means a real nearby point feature reliably outranks the
+ *   enclosing area, which is what you want for a waypoint name.
+ * - Ties within 30 m fall back to TYPE_PRIORITY.
+ */
+export function findNearestNamedFeature(
+  lon: number,
+  lat: number,
+  entries: SearchEntry[],
+  maxMeters = 1500,
+): SearchEntry | null {
+  const ref: [number, number] = [lon, lat];
+  const maxNM = maxMeters / METERS_PER_NM;
+  let best: SearchEntry | null = null;
+  let bestDist = Number.POSITIVE_INFINITY;
+  let bestPri = Number.POSITIVE_INFINITY;
+  for (const e of entries) {
+    if (!e.name || e.name.length === 0) continue;
+    const d = effectiveDistanceNM(e, ref);
+    if (d > maxNM) continue;
+    const pri = TYPE_PRIORITY[e.type] ?? 50;
+    const nearTie = Math.abs(d - bestDist) * METERS_PER_NM < 30;
+    if (d < bestDist - 1e-9 && !nearTie) {
+      best = e;
+      bestDist = d;
+      bestPri = pri;
+    } else if (nearTie && pri < bestPri) {
+      best = e;
+      bestDist = d;
+      bestPri = pri;
+    }
+  }
+  return best;
 }
