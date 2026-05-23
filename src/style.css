@@ -1200,6 +1200,123 @@ body {
   width: 320px;
 }
 
+/* Interleaved waypoint+leg list. Each waypoint row is followed by an
+   indented leg row carrying course / distance / cumulative total. */
+.route-list {
+  padding: 4px 10px 6px;
+  font-size: 12px;
+}
+
+.route-list-wp {
+  display: flex;
+  gap: 6px;
+  padding: 2px 0;
+  color: #ddd;
+}
+
+.route-list-wp.active {
+  color: #8fff8f;
+}
+
+.route-list-wp-idx {
+  color: #888;
+  min-width: 22px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.route-list-wp-name {
+  cursor: pointer;
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.route-list-wp-name:hover {
+  color: #fff;
+  text-decoration: underline dotted;
+  text-underline-offset: 2px;
+}
+
+.route-waypoint-input {
+  flex: 1;
+  font: inherit;
+  background: #1e1e30;
+  color: #fff;
+  border: 1px solid #6688cc;
+  border-radius: 3px;
+  padding: 1px 4px;
+  outline: none;
+  min-width: 0;
+}
+
+/* Leg row: indented under its "from" waypoint, smaller, three inline
+   stats (course, leg distance, running total). */
+.route-list-leg {
+  display: flex;
+  gap: 10px;
+  padding: 1px 0 1px 36px;
+  color: #999;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+}
+
+.route-list-leg:hover,
+.route-list-leg.selected {
+  background: rgba(100, 130, 200, 0.18);
+  color: #ddd;
+}
+
+.route-list-leg.active {
+  color: #4caf50;
+}
+
+.route-list-leg-marker {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  margin-left: -18px;
+  margin-right: 4px;
+  color: inherit;
+}
+
+.route-list-leg-marker.nav-btn {
+  cursor: pointer;
+  opacity: 0.4;
+}
+
+.route-list-leg-marker.nav-btn:hover {
+  opacity: 1;
+  color: #6688cc;
+}
+
+.route-list-leg-marker.active-marker {
+  color: #4caf50;
+  font-weight: bold;
+}
+
+.route-list-leg-course {
+  min-width: 52px;
+}
+
+.route-list-leg-dist {
+  flex: 0 0 auto;
+}
+
+.route-list-leg-cum {
+  margin-left: auto;
+  color: #777;
+}
+
+.route-list-leg.active .route-list-leg-cum,
+.route-list-leg:hover .route-list-leg-cum {
+  color: inherit;
+}
+
 .route-detail-footer {
   padding: 6px 12px;
   border-top: 1px solid #444;

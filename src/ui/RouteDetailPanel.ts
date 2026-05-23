@@ -147,13 +147,18 @@ export class RouteDetailPanel {
   }
 
   private refreshRafId: number | null = null;
+  /** True while a waypoint name (or other inline input) is being edited.
+   *  Suppresses re-renders that would clobber the input element. */
+  private editing = false;
 
   /** Re-render the table if visible, throttled to one frame. */
   refreshIfOpen(): void {
     if (!this.currentRoute || !this.el.classList.contains("open")) return;
+    if (this.editing) return;
     if (this.refreshRafId !== null) return;
     this.refreshRafId = requestAnimationFrame(() => {
       this.refreshRafId = null;
+      if (this.editing) return;
       this.render();
     });
   }
@@ -163,12 +168,12 @@ export class RouteDetailPanel {
     this.header.textContent = route.name;
     this.render();
     this.el.classList.add("open");
-    // Subscribe to nav state changes to keep active leg highlighting current
+    // Subscribe to nav state changes to keep active leg highlighting current.
+    // Use refreshIfOpen so an active inline edit (e.g. waypoint rename)
+    // isn't clobbered by the next GPS tick.
     if (this.activeNav && !this.navCallback) {
       this.navCallback = (_info, _state) => {
-        if (this.currentRoute && this.el.classList.contains("open")) {
-          this.render();
-        }
+        this.refreshIfOpen();
       };
       this.activeNav.subscribe(this.navCallback);
     }
@@ -253,87 +258,155 @@ export class RouteDetailPanel {
     this.navBtn.classList.toggle("active", navigating);
     this.navBtn.title = navigating ? "Stop navigation" : "Navigate route";
 
-    // Build table
-    const table = document.createElement("table");
-    table.className = "route-leg-table";
-
-    const thead = document.createElement("thead");
-    thead.innerHTML =
-      activeLegIdx >= 0
-        ? "<tr><th></th><th>Leg</th><th>Course</th><th>Dist</th><th>Total</th></tr>"
-        : "<tr><th>Leg</th><th>Course</th><th>Dist</th><th>Total</th></tr>";
-    table.appendChild(thead);
-
-    const tbody = document.createElement("tbody");
-    for (const leg of legs) {
-      const tr = document.createElement("tr");
-      // legIndex in the route is leg.index + 1 (targeting destination waypoint)
-      const isActive = activeLegIdx === leg.index + 1;
-      if (isActive) tr.classList.add("active-leg");
-
-      let navCell = "";
-      if (activeLegIdx >= 0) {
-        navCell = `<td class="leg-nav-cell">${
-          isActive
-            ? '<span class="leg-active-marker" title="Current target">►</span>'
-            : '<button class="leg-nav-btn" title="Navigate to this leg">►</button>'
-        }</td>`;
-      }
-
-      tr.innerHTML =
-        navCell +
-        `<td class="leg-num">${leg.index + 1}</td>` +
-        `<td class="leg-course">${fmtCourse(leg.course, leg.fromLat, leg.fromLon)}</td>` +
-        `<td class="leg-dist">${fmtDist(leg.dist)}</td>` +
-        `<td class="leg-cum">${fmtDist(leg.cumDist)}</td>`;
-      tr.title = `${leg.from} → ${leg.to}`;
-
-      // Nav-to button click
-      if (activeLegIdx >= 0 && !isActive) {
-        const navBtn = tr.querySelector(".leg-nav-btn");
-        if (navBtn) {
-          navBtn.addEventListener("click", (e) => {
-            e.stopPropagation();
-            this.activeNav?.setLeg(leg.index + 1);
-          });
-        }
-      }
-
-      tr.addEventListener("mouseenter", () => {
-        this.selectRow(tr, leg.index);
-      });
-      tr.addEventListener("mouseleave", () => {
-        this.clearSelection();
-      });
-      tr.addEventListener("click", () => {
-        this.selectRow(tr, leg.index);
-        this.routeLayer.fitLeg(route, leg.index);
-      });
-
-      tbody.appendChild(tr);
-    }
-    table.appendChild(tbody);
-
     this.body.innerHTML = "";
-    this.body.appendChild(table);
+    this.body.appendChild(this.buildRouteList(route, legs, activeLegIdx));
 
     const totalDist = legs[legs.length - 1].cumDist;
     this.footer.textContent = `${legs.length} leg${legs.length !== 1 ? "s" : ""}, ${fmtDist(totalDist)} NM`;
   }
 
-  private selectRow(tr: HTMLTableRowElement, legIndex: number): void {
+  /**
+   * Render the route as an interleaved list: each waypoint, then the leg
+   * info to the next waypoint (indented). Gives a top-to-bottom overview
+   * with the rhumb-line course / distance / running total inline between
+   * each pair of waypoints.
+   */
+  private buildRouteList(
+    route: Route,
+    legs: Leg[],
+    activeLegIdx: number,
+  ): HTMLDivElement {
+    const wrap = document.createElement("div");
+    wrap.className = "route-list";
+    const navigating = activeLegIdx >= 0;
+
+    for (let i = 0; i < route.waypoints.length; i++) {
+      // ── waypoint row ────────────────────────────────────────────
+      const wp = route.waypoints[i];
+      const wpRow = document.createElement("div");
+      wpRow.className = "route-list-wp";
+      if (activeLegIdx === i) wpRow.classList.add("active");
+      const idx = document.createElement("span");
+      idx.className = "route-list-wp-idx";
+      idx.textContent = `${i + 1}.`;
+      const name = document.createElement("span");
+      name.className = "route-list-wp-name";
+      name.textContent = wp.name || `WP${i + 1}`;
+      name.title = "Double-click to rename";
+      name.addEventListener("dblclick", () =>
+        this.renameWaypoint(route, i, name),
+      );
+      wpRow.append(idx, name);
+      wrap.appendChild(wpRow);
+
+      // ── leg row (skip after the final waypoint) ─────────────────
+      if (i >= legs.length) continue;
+      const leg = legs[i];
+      const isActiveLeg = activeLegIdx === leg.index + 1;
+      const legRow = document.createElement("div");
+      legRow.className = "route-list-leg";
+      if (isActiveLeg) legRow.classList.add("active");
+      legRow.title = `${leg.from} → ${leg.to}`;
+
+      // Optional ► nav-to control on the left (only while navigating).
+      if (navigating) {
+        const marker = document.createElement("span");
+        marker.className = "route-list-leg-marker";
+        if (isActiveLeg) {
+          marker.classList.add("active-marker");
+          marker.textContent = "►";
+          marker.title = "Current target";
+        } else {
+          marker.classList.add("nav-btn");
+          marker.textContent = "►";
+          marker.title = "Navigate to this leg";
+          marker.addEventListener("click", (e) => {
+            e.stopPropagation();
+            this.activeNav?.setLeg(leg.index + 1);
+          });
+        }
+        legRow.appendChild(marker);
+      }
+
+      const course = document.createElement("span");
+      course.className = "route-list-leg-course";
+      course.textContent = fmtCourse(leg.course, leg.fromLat, leg.fromLon);
+      const dist = document.createElement("span");
+      dist.className = "route-list-leg-dist";
+      dist.textContent = `${fmtDist(leg.dist)} NM`;
+      const cum = document.createElement("span");
+      cum.className = "route-list-leg-cum";
+      cum.textContent = `Σ ${fmtDist(leg.cumDist)}`;
+      legRow.append(course, dist, cum);
+
+      legRow.addEventListener("mouseenter", () =>
+        this.selectLeg(legRow, leg.index),
+      );
+      legRow.addEventListener("mouseleave", () => this.clearSelection());
+      legRow.addEventListener("click", () => {
+        this.selectLeg(legRow, leg.index);
+        this.routeLayer.fitLeg(route, leg.index);
+      });
+      wrap.appendChild(legRow);
+    }
+    return wrap;
+  }
+
+  /** Inline rename for one waypoint in the current route. */
+  private renameWaypoint(
+    route: Route,
+    index: number,
+    nameEl: HTMLSpanElement,
+  ): void {
+    const wp = route.waypoints[index];
+    const input = document.createElement("input");
+    input.type = "text";
+    input.value = wp.name || `WP${index + 1}`;
+    input.className = "route-waypoint-input";
+    nameEl.replaceWith(input);
+    this.editing = true;
+    input.focus();
+    input.select();
+
+    let finished = false;
+    const finish = async (cancel: boolean) => {
+      if (finished) return; // Enter triggers blur which would re-enter.
+      finished = true;
+      const newName = cancel ? wp.name : input.value.trim();
+      if (!cancel && newName && newName !== wp.name) {
+        wp.name = newName;
+        await saveRoute(route);
+        // Refresh the on-map labels for this route.
+        this.routeLayer.updateRoute(route);
+      }
+      this.editing = false;
+      // Full re-render now that we're done editing — picks up the new
+      // name in both the waypoint list and any leg tooltips.
+      this.refreshIfOpen();
+    };
+
+    input.addEventListener("blur", () => {
+      finish(false).catch(console.error);
+    });
+    input.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") input.blur();
+      if (e.key === "Escape") finish(true).catch(console.error);
+    });
+  }
+
+  private selectLeg(row: HTMLElement, legIndex: number): void {
     const route = this.currentRoute;
     if (!route) return;
-    for (const row of this.body.querySelectorAll("tr.selected")) {
-      row.classList.remove("selected");
+    for (const el of this.body.querySelectorAll(".selected")) {
+      el.classList.remove("selected");
     }
-    tr.classList.add("selected");
+    row.classList.add("selected");
     this.routeLayer.highlightLeg(route, legIndex);
   }
 
   private clearSelection(): void {
-    for (const row of this.body.querySelectorAll("tr.selected")) {
-      row.classList.remove("selected");
+    for (const el of this.body.querySelectorAll(".selected")) {
+      el.classList.remove("selected");
     }
     this.routeLayer.clearHighlight();
   }

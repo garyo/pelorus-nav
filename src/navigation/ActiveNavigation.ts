@@ -85,7 +85,7 @@ export interface ActiveNavigationInfo {
   vmgKn: number | null;
   /** Signed bearing correction (target − COG) in (−180, +180]. null when COG unknown. */
   steerDeg: number | null;
-  /** Name of the waypoint after the current target (route mode only). */
+  /** Name of the waypoint currently being navigated to (the active target). */
   nextWaypointName: string | null;
 }
 
@@ -200,11 +200,10 @@ export class ActiveNavigationManager {
     return { vmgKn: vmg, steerDeg: steer };
   }
 
-  /** Name of the *next* waypoint after the current leg target, or null. */
+  /** Name of the waypoint currently being navigated to. */
   private getNextWaypointName(): string | null {
-    if (this.state.type !== "route") return null;
-    const wp = this.state.route.waypoints[this.state.legIndex + 1];
-    return wp?.name ?? null;
+    const target = this.getTarget();
+    return target?.name ?? null;
   }
 
   private getTarget(): { lat: number; lon: number; name: string } | null {
