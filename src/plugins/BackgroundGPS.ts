@@ -73,6 +73,15 @@ export interface BackgroundGPSPlugin {
   /** Allow the device screen to turn off normally. */
   allowScreenOff(): Promise<void>;
 
+  /**
+   * Read the system-wide SCREEN_OFF_TIMEOUT setting in milliseconds.
+   * Returns -1 if the setting could not be read.
+   */
+  getScreenOffTimeout(): Promise<{ ms: number }>;
+
+  /** Open the system Display settings screen (where SCREEN_OFF_TIMEOUT lives). */
+  openDisplaySettings(): Promise<void>;
+
   /** Listen for live GPS updates delivered via the Capacitor bridge. */
   addListener(
     eventName: "locationUpdate",

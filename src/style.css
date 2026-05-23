@@ -250,6 +250,22 @@ body {
   accent-color: #6688cc;
 }
 
+.settings-action-btn {
+  background: #2a2a3e;
+  color: #ddd;
+  border: 1px solid #555;
+  border-radius: 4px;
+  padding: 3px 10px;
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.settings-action-btn:hover {
+  background: #36364e;
+  color: #fff;
+}
+
 /* Ensure SVG icons in buttons align properly */
 .topbar-action svg,
 .manager-close svg,
@@ -714,6 +730,53 @@ body {
   font-size: 10px;
   color: #888;
   font-family: monospace;
+}
+
+/* Screen-timeout warning dialog (reuses .about-overlay / .about-card). */
+.screen-timeout-card {
+  width: 420px;
+}
+
+.screen-timeout-body {
+  font-size: 13px;
+  color: #ddd;
+  line-height: 1.5;
+  margin-bottom: 14px;
+}
+
+.screen-timeout-body b {
+  color: #fff;
+}
+
+.screen-timeout-buttons {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.screen-timeout-btn {
+  background: #2a2a3e;
+  color: #ddd;
+  border: 1px solid #555;
+  border-radius: 4px;
+  padding: 6px 14px;
+  font: inherit;
+  cursor: pointer;
+}
+
+.screen-timeout-btn:hover {
+  background: #36364e;
+  color: #fff;
+}
+
+.screen-timeout-btn.primary {
+  background: #36578a;
+  border-color: #6688cc;
+  color: #fff;
+}
+
+.screen-timeout-btn.primary:hover {
+  background: #4570b0;
 }
 
 .about-clear-cache {

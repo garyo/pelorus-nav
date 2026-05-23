@@ -3,6 +3,7 @@ package nav.pelorus.plugins.backgroundgps
 import android.Manifest
 import android.content.Intent
 import android.os.Build
+import android.provider.Settings
 import android.util.Log
 import android.view.WindowManager
 import com.getcapacitor.JSArray
@@ -243,5 +244,50 @@ class BackgroundGPSPlugin : Plugin() {
             activity.window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         }
         call.resolve()
+    }
+
+    /**
+     * Return the system-wide screen-off timeout in milliseconds. Used at
+     * startup to warn users whose timeout is too short for marine use —
+     * e-ink devices in particular ship with vendor screensavers that yank
+     * focus when this timer fires, defeating FLAG_KEEP_SCREEN_ON.
+     */
+    @PluginMethod
+    fun getScreenOffTimeout(call: PluginCall) {
+        val ms = try {
+            Settings.System.getInt(
+                activity.contentResolver,
+                Settings.System.SCREEN_OFF_TIMEOUT,
+            )
+        } catch (_: Settings.SettingNotFoundException) {
+            -1
+        }
+        val result = JSObject()
+        result.put("ms", ms)
+        call.resolve(result)
+    }
+
+    /**
+     * Open the device's Display settings screen so the user can adjust
+     * the screen-off timeout. Falls back to top-level Settings if the
+     * Display intent isn't resolvable.
+     */
+    @PluginMethod
+    fun openDisplaySettings(call: PluginCall) {
+        try {
+            val intent = Intent(Settings.ACTION_DISPLAY_SETTINGS)
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            activity.startActivity(intent)
+            call.resolve()
+        } catch (e: Exception) {
+            try {
+                val fallback = Intent(Settings.ACTION_SETTINGS)
+                fallback.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                activity.startActivity(fallback)
+                call.resolve()
+            } catch (e2: Exception) {
+                call.reject("Could not open settings: ${e2.message}")
+            }
+        }
     }
 }

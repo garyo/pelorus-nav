@@ -3,6 +3,7 @@
  * Tabs: Appearance, Chart Layers, Navigation.
  */
 
+import { Capacitor } from "@capacitor/core";
 import { CapacitorGPSProvider } from "../navigation/CapacitorGPSProvider";
 import {
   type BearingMode,
@@ -26,6 +27,10 @@ import {
 } from "../settings";
 import { bearingModeLabel } from "../utils/magnetic";
 import { iconSettings } from "./icons";
+import {
+  maybeShowScreenTimeoutWarning,
+  resetScreenTimeoutDismissal,
+} from "./ScreenTimeoutDialog";
 import { buildTopbarAction } from "./topbarButton";
 
 const DEPTH_UNITS: { value: DepthUnit; label: string }[] = [
@@ -598,6 +603,22 @@ function buildNavigationTab(
     ),
   );
 
+  // Re-trigger the screen-timeout warning dialog (useful if previously
+  // dismissed). Native-only.
+  if (Capacitor.isNativePlatform()) {
+    tab.appendChild(
+      buildActionRow(
+        "Check screen-off timeout",
+        "settings-check-screen-timeout",
+        "Check",
+        () => {
+          resetScreenTimeoutDismissal();
+          void maybeShowScreenTimeoutWarning();
+        },
+      ),
+    );
+  }
+
   return tab;
 }
 
@@ -953,6 +974,32 @@ function buildCheckboxRow(
 
   label.append(cb, ` ${labelText}`);
   row.appendChild(label);
+
+  return row;
+}
+
+/** Settings row with a label and a single action button on the right. */
+function buildActionRow(
+  labelText: string,
+  id: string,
+  buttonText: string,
+  onClick: () => void,
+): HTMLElement {
+  const row = document.createElement("div");
+  row.className = "settings-row";
+
+  const label = document.createElement("label");
+  label.htmlFor = id;
+  label.textContent = labelText;
+  row.appendChild(label);
+
+  const btn = document.createElement("button");
+  btn.id = id;
+  btn.type = "button";
+  btn.className = "settings-action-btn";
+  btn.textContent = buttonText;
+  btn.addEventListener("click", onClick);
+  row.appendChild(btn);
 
   return row;
 }

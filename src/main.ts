@@ -66,6 +66,7 @@ import { NavigationHUD } from "./ui/NavigationHUD";
 import { trackInstrumentHUD } from "./ui/PanelStack";
 import { RecenterButton } from "./ui/RecenterButton";
 import { RouteManagerPanel } from "./ui/RouteManagerPanel";
+import { maybeShowScreenTimeoutWarning } from "./ui/ScreenTimeoutDialog";
 import { SearchDialog } from "./ui/SearchDialog";
 import { createSettingsPanel } from "./ui/SettingsPanel";
 import { TrackManagerPanel } from "./ui/TrackManagerPanel";
@@ -865,6 +866,11 @@ if (topbarMenu) {
   });
   topbarMenu.insertBefore(aboutBtn, settingsWrapper);
 }
+
+// Warn the user once if the OS screen-off timeout is too short for marine
+// use — see ScreenTimeoutDialog for the e-ink BIGME diagnosis that motivated
+// this. Fires after the UI is up so the dialog appears on top.
+maybeShowScreenTimeoutWarning().catch(console.error);
 
 // Dim overlay layers (routes, waypoints, bearing line) in night/dusk themes
 const NIGHT_OPACITY = 0.45;
