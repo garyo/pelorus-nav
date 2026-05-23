@@ -58,6 +58,8 @@ export interface Settings {
   deepDepth: number;
   /** Screen wake lock: off, when GPS active, or always. */
   wakeLock: WakeLockMode;
+  /** Auto-dim the screen after a stretch of no user interaction (native only). */
+  autoDimWhenIdle: boolean;
   /** Scale factor for chart text labels (1 = default). */
   textScale: number;
   /** Scale factor for chart icons (1 = default, multiplied with scheme/theme scale). */
@@ -111,6 +113,7 @@ const DEFAULTS: Settings = {
   safetyDepth: 6.1,
   deepDepth: 15.24,
   wakeLock: "when-nav",
+  autoDimWhenIdle: false,
   textScale: 1,
   iconScale: 1,
 };

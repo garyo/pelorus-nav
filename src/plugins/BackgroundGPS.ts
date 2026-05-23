@@ -74,6 +74,13 @@ export interface BackgroundGPSPlugin {
   allowScreenOff(): Promise<void>;
 
   /**
+   * Set the activity-window brightness. `level` is 0..1, or -1 to release
+   * the window-level override and follow the system brightness. Does not
+   * change the system brightness setting (per-window only).
+   */
+  setScreenBrightness(options: { level: number }): Promise<void>;
+
+  /**
    * Read the system-wide SCREEN_OFF_TIMEOUT setting in milliseconds.
    * Returns -1 if the setting could not be read.
    */

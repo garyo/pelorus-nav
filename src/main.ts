@@ -1,5 +1,6 @@
 import { Capacitor } from "@capacitor/core";
 import { addProtocol } from "maplibre-gl";
+import { BackgroundGPS } from "./plugins/BackgroundGPS";
 import "maplibre-gl/dist/maplibre-gl.css";
 import { PMTiles, Protocol } from "pmtiles";
 import "./style.css";
@@ -47,6 +48,7 @@ import { CancelNavButton } from "./ui/CancelNavButton";
 import { CenterCrosshair } from "./ui/CenterCrosshair";
 import { ChartCachePanel } from "./ui/ChartCachePanel";
 import { createContextMenu } from "./ui/ContextMenu";
+import { createIdleDetector } from "./ui/IdleDetector";
 import { createInstrumentHUD, INSTRUMENTS } from "./ui/InstrumentHUD";
 import {
   iconGauge,
@@ -414,10 +416,9 @@ onSettingsChange((s) => {
   }
 });
 
-// Search dialog for chart features
+// Search dialog for chart features. Cache the merged entries so other
+// features (waypoint auto-naming) can read them synchronously.
 const searchDialog = new SearchDialog(chartManager.map);
-// Cache the merged search entries so other features (waypoint auto-naming)
-// can read them synchronously without re-loading.
 let cachedSearchEntries: SearchEntry[] = [];
 loadAllSearchIndices().then((entries) => {
   cachedSearchEntries = entries;
@@ -542,21 +543,29 @@ const TRACK_REPAIR_FLAG = "pelorus-nav-track-counts-repaired-v1";
 // Visible:                  active mode at the chosen rate (1 s normally,
 //                           5 s in e-ink theme since the panel can't update
 //                           faster anyway).
-// Hidden + recording:       grace 60 s at the previous active rate, then
+// Hidden + recording:       grace 20 s at the previous active rate, then
 //                           passive at 15 s (extends to 30 s on steady
 //                           course via SteadinessTracker). Snap back to
 //                           active on visible.
 // Hidden + not recording:   stop the native GPS entirely.
 if (capacitorGPS) {
-  const HIDDEN_GRACE_MS = 60_000;
+  const HIDDEN_GRACE_MS = 20_000;
   const PASSIVE_INTERVAL_MS = 15_000;
   const ACTIVE_INTERVAL_MS = 1_000;
   const EINK_ACTIVE_INTERVAL_MS = 5_000;
+  /** When visible-but-idle, slow GPS to this. At anchor / on autopilot we
+   *  don't need 1 Hz fixes. Wake up on the next touch. */
+  const IDLE_INTERVAL_MS = 3_000;
+  const IDLE_TIMEOUT_MS = 30_000;
 
-  const activeIntervalForCurrentTheme = () =>
-    getSettings().displayTheme === "eink"
+  const idleDetector = createIdleDetector(IDLE_TIMEOUT_MS);
+
+  const activeIntervalForCurrentTheme = () => {
+    if (idleDetector.isIdle()) return IDLE_INTERVAL_MS;
+    return getSettings().displayTheme === "eink"
       ? EINK_ACTIVE_INTERVAL_MS
       : ACTIVE_INTERVAL_MS;
+  };
 
   const applyGpsPowerMode = () => {
     if (!capacitorGPS) return;
@@ -587,6 +596,9 @@ if (capacitorGPS) {
 
   document.addEventListener("visibilitychange", applyGpsPowerMode);
   trackRecorder.onRecordingChange(applyGpsPowerMode);
+  idleDetector.onChange(() => {
+    if (document.visibilityState === "visible") applyGpsPowerMode();
+  });
   // Theme changes (e-ink ⇄ normal) re-apply the mode so the active interval updates.
   onSettingsChange((s) => {
     void s;
@@ -595,6 +607,28 @@ if (capacitorGPS) {
 
   // Initial state at boot: visible.
   applyGpsPowerMode();
+}
+
+// Auto-dim the window when the user has been idle for a while. Per-window
+// brightness override — does not touch the system brightness setting.
+if (Capacitor.isNativePlatform()) {
+  const DIM_LEVEL = 0.3;
+  const dimDetector = createIdleDetector(60_000);
+  const applyDim = () => {
+    const enabled = getSettings().autoDimWhenIdle;
+    const shouldDim =
+      enabled && dimDetector.isIdle() && document.visibilityState === "visible";
+    BackgroundGPS.setScreenBrightness({
+      level: shouldDim ? DIM_LEVEL : -1,
+    }).catch(console.error);
+  };
+  dimDetector.onChange(applyDim);
+  document.addEventListener("visibilitychange", applyDim);
+  onSettingsChange((s) => {
+    void s;
+    applyDim();
+  });
+  applyDim();
 }
 
 // --- Routes ---

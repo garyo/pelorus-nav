@@ -603,6 +603,16 @@ function buildNavigationTab(
     ),
   );
 
+  // Auto-dim when idle
+  tab.appendChild(
+    buildCheckboxRow(
+      "Auto-dim screen when idle (1 min)",
+      "settings-auto-dim",
+      settings.autoDimWhenIdle,
+      (checked) => updateSettings({ autoDimWhenIdle: checked }),
+    ),
+  );
+
   // Re-trigger the screen-timeout warning dialog (useful if previously
   // dismissed). Native-only.
   if (Capacitor.isNativePlatform()) {

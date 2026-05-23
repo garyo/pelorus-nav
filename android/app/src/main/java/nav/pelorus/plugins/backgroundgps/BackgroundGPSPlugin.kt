@@ -247,6 +247,26 @@ class BackgroundGPSPlugin : Plugin() {
     }
 
     /**
+     * Override the activity window's screen brightness. level=-1 releases
+     * the per-window override so the device system brightness applies again.
+     * Values in (0, 1] dim/brighten the app's window only — the OS setting
+     * is untouched.
+     */
+    @PluginMethod
+    fun setScreenBrightness(call: PluginCall) {
+        val level = call.getFloat("level") ?: run {
+            call.reject("level (Float) required")
+            return
+        }
+        activity.runOnUiThread {
+            val attrs = activity.window.attributes
+            attrs.screenBrightness = if (level < 0f) -1f else level.coerceIn(0.01f, 1f)
+            activity.window.attributes = attrs
+        }
+        call.resolve()
+    }
+
+    /**
      * Return the system-wide screen-off timeout in milliseconds. Used at
      * startup to warn users whose timeout is too short for marine use —
      * e-ink devices in particular ship with vendor screensavers that yank
