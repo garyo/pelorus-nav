@@ -40,7 +40,45 @@ const MIN_POINTS_FOR_SMOOTHING = 20;
  * with no accuracy field are accepted (some sources don't report it).
  */
 const MAX_ACCURACY_M = 30;
+/**
+ * Single-point glitch detector. When the GPS goes silent for a while
+ * (reception loss in a marina, under a bridge, between buildings) and
+ * then returns a fix far away from the last good one, that fix is often
+ * wrong — the chip "refound itself" in the wrong spot. The next fix
+ * usually returns to the real position. We reject the spurious one by
+ * requiring that any implied speed above SUSPICIOUS_SPEED_KN must come
+ * from a gap of at most MAX_GAP_FOR_HIGH_SPEED_MS.
+ *
+ * Tuned conservatively: a real sport boat at 25 kn with a 30 s gap
+ * (its fixes were arriving fine) is *not* rejected. A 4 kn sailboat
+ * with a 79 s gap and a 17 kn implied speed *is* — the matching
+ * real-world incident: Track 2026-05-22 13_14.gpx, idx 2760.
+ */
+const MAX_GAP_FOR_HIGH_SPEED_MS = 30_000;
+const SUSPICIOUS_SPEED_KN = 15;
 const ACTIVE_TRACK_KEY = "pelorus-nav-active-track";
+
+/**
+ * Returns true if the new fix (relative to the last accepted fix and its
+ * timestamp) looks like a single-point GPS glitch and should be skipped.
+ * Pure — exported for testing.
+ */
+export function isGapGlitch(
+  prevLat: number,
+  prevLon: number,
+  prevTimestampMs: number,
+  newLat: number,
+  newLon: number,
+  newTimestampMs: number,
+  maxGapMs = MAX_GAP_FOR_HIGH_SPEED_MS,
+  maxSpeedKn = SUSPICIOUS_SPEED_KN,
+): boolean {
+  const dtMs = newTimestampMs - prevTimestampMs;
+  if (dtMs <= maxGapMs) return false;
+  const distNM = haversineDistanceNM(prevLat, prevLon, newLat, newLon);
+  const speedKn = (distNM * 3600 * 1000) / dtMs;
+  return speedKn > maxSpeedKn;
+}
 
 /** Format a Date as "YYYY-MM-DD HH:MM" in local time. */
 function localDateTime(d: Date): string {
@@ -223,6 +261,24 @@ export class TrackRecorder {
     }
 
     const now = data.timestamp;
+
+    // Single-point glitch reject: gap + implausibly high implied speed
+    // signals a "GPS came back online in the wrong place" fix. Drop it;
+    // we leave lastLat/lastLon/lastRecordedTime untouched so the *next*
+    // good fix is compared against the previous good fix, not the glitch.
+    if (
+      this.lastRecordedTime > 0 &&
+      isGapGlitch(
+        this.lastLat,
+        this.lastLon,
+        this.lastRecordedTime,
+        data.latitude,
+        data.longitude,
+        now,
+      )
+    ) {
+      return;
+    }
 
     // Check for time gap → start new track
     if (
