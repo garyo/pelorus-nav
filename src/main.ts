@@ -74,6 +74,7 @@ import { WakeLockController } from "./ui/WakeLock";
 import { WaypointManagerPanel } from "./ui/WaypointManagerPanel";
 import { applyDeclination, bearingModeLabel } from "./utils/magnetic";
 import { createThermalMonitor } from "./utils/thermal";
+import { convertSpeed, speedUnitLabel } from "./utils/units";
 import { ChartModeController } from "./vessel/ChartMode";
 import { CourseLine } from "./vessel/CourseLine";
 import { VesselLayer } from "./vessel/VesselLayer";
@@ -612,10 +613,11 @@ createContextMenu({
 const cancelNavBtn = new CancelNavButton(activeNav);
 chartManager.map.addControl(cancelNavBtn, "bottom-left");
 
-// Register BRG/DTW instruments (before restore so HUD is ready)
+// Register nav-mode instruments (before restore so HUD is ready)
 INSTRUMENTS.set("brg", {
   id: "brg",
   label: "Bearing to wpt",
+  shortLabel: "BRG",
   format(data, settings) {
     const info = activeNav.getInfo();
     const mode = settings.bearingMode;
@@ -634,6 +636,7 @@ INSTRUMENTS.set("brg", {
 INSTRUMENTS.set("dtw", {
   id: "dtw",
   label: "Dist to wpt",
+  shortLabel: "DTW",
   format() {
     const info = activeNav.getInfo();
     if (!info) return { value: "--", unit: "NM" };
@@ -644,6 +647,39 @@ INSTRUMENTS.set("dtw", {
           : info.distanceNM.toFixed(1),
       unit: "NM",
     };
+  },
+});
+
+INSTRUMENTS.set("vmg", {
+  id: "vmg",
+  label: "Velocity made good",
+  shortLabel: "VMG",
+  format(_data, settings) {
+    const info = activeNav.getInfo();
+    const unit = speedUnitLabel(settings.speedUnit);
+    if (!info || info.vmgKn == null) return { value: "--", unit };
+    const v = info.vmgKn;
+    const display =
+      v < 0
+        ? -convertSpeed(-v, settings.speedUnit)
+        : convertSpeed(v, settings.speedUnit);
+    return { value: display.toFixed(1), unit };
+  },
+});
+
+INSTRUMENTS.set("steer", {
+  id: "steer",
+  label: "Steer",
+  shortLabel: "STEER",
+  format() {
+    const info = activeNav.getInfo();
+    if (!info || info.steerDeg == null) return { value: "--", unit: "" };
+    const d = info.steerDeg;
+    if (Math.abs(d) < 1) return { value: "0\u00b0", unit: "" };
+    const mag = Math.round(Math.abs(d));
+    return d < 0
+      ? { value: `\u2190 ${mag}\u00b0`, unit: "" }
+      : { value: `${mag}\u00b0 \u2192`, unit: "" };
   },
 });
 

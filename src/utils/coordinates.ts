@@ -118,6 +118,14 @@ function parseDDMComponent(s: string): number {
  * - Mixed: "42.305N 70.946W"
  */
 /**
+ * Signed angular difference `target − current` normalised to [−180, +180).
+ * Negative → turn left, positive → turn right. (±180 both mean "turn around".)
+ */
+export function bearingDelta(targetDeg: number, currentDeg: number): number {
+  return ((((targetDeg - currentDeg) % 360) + 540) % 360) - 180;
+}
+
+/**
  * Initial (forward) bearing from point A to point B in degrees true (0-360).
  * Inputs are in decimal degrees.
  */

@@ -10,6 +10,7 @@ import type { StandaloneWaypoint } from "../data/Waypoint";
 import { getSettings } from "../settings";
 import {
   alongTrackDistanceNM,
+  bearingDelta,
   haversineDistanceNM,
   initialBearingDeg,
 } from "../utils/coordinates";
@@ -80,6 +81,12 @@ export interface ActiveNavigationInfo {
   targetName: string;
   targetLat: number;
   targetLon: number;
+  /** Velocity made good toward the target, in knots. null when COG/SOG unknown. */
+  vmgKn: number | null;
+  /** Signed bearing correction (target − COG) in (−180, +180]. null when COG unknown. */
+  steerDeg: number | null;
+  /** Name of the waypoint after the current target (route mode only). */
+  nextWaypointName: string | null;
 }
 
 export type ActiveNavCallback = (
@@ -117,6 +124,8 @@ export class ActiveNavigationManager {
       targetName: target.name || "Target",
       targetLat: target.lat,
       targetLon: target.lon,
+      ...this.deriveCourseInfo(result.bearingDeg, data),
+      nextWaypointName: this.getNextWaypointName(),
     };
 
     // Route mode: auto-advance on arrival or perpendicular crossing
@@ -163,6 +172,8 @@ export class ActiveNavigationManager {
               targetName: newTarget.name || "Target",
               targetLat: newTarget.lat,
               targetLon: newTarget.lon,
+              ...this.deriveCourseInfo(newResult.bearingDeg, data),
+              nextWaypointName: this.getNextWaypointName(),
             };
           }
         } else {
@@ -175,6 +186,26 @@ export class ActiveNavigationManager {
 
     this.notify();
   };
+
+  /** Compute VMG and steer correction from current GPS COG/SOG. */
+  private deriveCourseInfo(
+    bearingDeg: number,
+    data: NavigationData,
+  ): { vmgKn: number | null; steerDeg: number | null } {
+    const cog = data.cog ?? data.heading ?? null;
+    const sog = data.sog ?? null;
+    if (cog == null) return { vmgKn: null, steerDeg: null };
+    const steer = bearingDelta(bearingDeg, cog);
+    const vmg = sog != null ? sog * Math.cos((steer * Math.PI) / 180) : null;
+    return { vmgKn: vmg, steerDeg: steer };
+  }
+
+  /** Name of the *next* waypoint after the current leg target, or null. */
+  private getNextWaypointName(): string | null {
+    if (this.state.type !== "route") return null;
+    const wp = this.state.route.waypoints[this.state.legIndex + 1];
+    return wp?.name ?? null;
+  }
 
   private getTarget(): { lat: number; lon: number; name: string } | null {
     switch (this.state.type) {
@@ -274,6 +305,9 @@ export class ActiveNavigationManager {
           targetName: target.name || "Target",
           targetLat: target.lat,
           targetLon: target.lon,
+          vmgKn: null,
+          steerDeg: null,
+          nextWaypointName: this.getNextWaypointName(),
         };
       }
       this.notify();

@@ -854,42 +854,62 @@ body {
 }
 
 .instrument-cell {
+  position: relative;
   flex: 1 1 auto;
   display: flex;
   flex-direction: column;
   justify-content: center;
   padding: 4px 16px;
   min-width: 0;
-  height: 90px;
+  /* Track the font-size clamp on .instrument-value so the cell shrinks
+     vertically on narrow viewports — but never grows beyond the historic
+     90 px to keep desktop layout stable. */
+  height: clamp(60px, calc(14vw + 8px), 90px);
 }
 
+/* Nav group always wraps to its own row below SOG/COG: a small caption
+   strip (next waypoint name) then a row of smaller nav cells. min-width:0
+   lets the row shrink to the viewport on narrow phones; without it the
+   default `min-width: auto` lets content force horizontal overflow. */
 .instrument-nav-group {
+  flex-basis: 100%;
+  min-width: 0;
   display: flex;
-  flex: 1 1 auto;
-  border-left: 1px solid #ccc;
+  flex-direction: column;
+  border-top: 1px solid #ccc;
+}
+
+.instrument-nav-row {
+  display: flex;
+  flex-direction: row;
+  min-width: 0;
 }
 
 .instrument-cell--bordered {
   border-left: 1px solid #ccc;
 }
 
+/* Tiny corner label — Maptattoo-style. Top-right so the big digits can
+   sweep across the full cell width. Forced short label on all sizes since
+   the long form (e.g. "Speed over Ground") is too big at this scale. */
 .instrument-label {
-  font-size: 14px;
-  color: #666;
-  line-height: 1.2;
+  position: absolute;
+  top: 4px;
+  right: 12px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #888;
+  line-height: 1;
 }
 
-.instrument-label-short {
+.instrument-label-full {
   display: none;
 }
 
-@media (max-width: 600px) {
-  .instrument-label-full {
-    display: none;
-  }
-  .instrument-label-short {
-    display: inline;
-  }
+.instrument-label-short {
+  display: inline;
 }
 
 .instrument-value-row {
@@ -899,8 +919,10 @@ body {
 }
 
 .instrument-value {
-  font-size: 56px;
-  font-weight: 700;
+  /* clamp so we get big digits on wide screens but never overflow narrow
+     ones. Bigger now that the label sits in the top-right corner. */
+  font-size: clamp(56px, 14vw, 96px);
+  font-weight: 800;
   color: #000;
   line-height: 1;
   font-variant-numeric: tabular-nums;
@@ -911,27 +933,55 @@ body {
   color: #444;
 }
 
-.instrument-nav-group .instrument-cell--bordered {
+/* Caption strip above the nav row. Plain text, full width, modest size —
+   less important than the numbers but worth showing. */
+.instrument-next-wp {
+  padding: 3px 16px 1px;
+  font-size: 13px;
+  font-weight: 500;
+  color: #555;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.instrument-nav-row .instrument-cell--bordered {
   border-left: 1px solid #ccc;
 }
 
-.instrument-nav-group .instrument-cell--nav {
+/* Nav cells: shorter and smaller numbers than the primary SOG/COG cells.
+   Tight padding so 4 cells fit on a narrow phone and the row gives the
+   map back as much vertical real estate as possible. */
+.instrument-cell--nav {
   flex: 1;
+  height: 42px;
+  padding: 2px 4px;
+}
+
+.instrument-cell--nav .instrument-value {
+  font-size: clamp(28px, 5.5vw, 44px);
+  font-weight: 700;
+  /* Keep arrow + digits + ° on one line even when the cell is narrow. */
+  white-space: nowrap;
+}
+
+.instrument-cell--nav .instrument-unit {
+  font-size: 13px;
+}
+
+.instrument-cell--nav .instrument-label {
+  font-size: 10px;
+  top: 2px;
+  right: 4px;
 }
 
 @media (max-width: 600px) {
-  .instrument-nav-group {
-    flex-basis: 100%;
-    border-left: none;
-    border-top: 1px solid #ccc;
+  .instrument-cell--nav {
+    height: 38px;
   }
 
-  .instrument-nav-group .instrument-cell--nav {
-    height: 70px;
-  }
-
-  .instrument-nav-group .instrument-cell--nav .instrument-value {
-    font-size: 36px;
+  .instrument-cell--nav .instrument-value {
+    font-size: clamp(22px, 6vw, 32px);
   }
 }
 

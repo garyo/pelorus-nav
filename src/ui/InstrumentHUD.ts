@@ -19,6 +19,8 @@ export interface InstrumentDef {
   id: string;
   label: string;
   shortLabel?: string;
+  /** Extra CSS class added to the cell (e.g. for smaller text on string-valued cells). */
+  cellClass?: string;
   format(
     data: NavigationData | null,
     settings: Settings,
@@ -68,7 +70,7 @@ export const INSTRUMENTS: Map<string, InstrumentDef> = new Map([
   ],
 ]);
 
-const NAV_INSTRUMENT_IDS = ["dtw", "brg"];
+const NAV_INSTRUMENT_IDS = ["dtw", "brg", "vmg", "steer"];
 
 export interface InstrumentHUDHandle {
   element: HTMLElement;
@@ -96,6 +98,8 @@ export function createInstrumentHUD(
   let baseCells: CellRef[] = [];
   let navCells: CellRef[] = [];
   let navGroup: HTMLDivElement | null = null;
+  let nextWpEl: HTMLDivElement | null = null;
+  let activeNavRef: ActiveNavigationManager | null = null;
 
   /** Rebuild DOM structure (only when cell config or nav active state changes). */
   const rebuildStructure = () => {
@@ -103,6 +107,7 @@ export function createInstrumentHUD(
     baseCells = [];
     navCells = [];
     navGroup = null;
+    nextWpEl = null;
     const s = getSettings();
     const baseIds = s.instrumentCells;
 
@@ -121,14 +126,24 @@ export function createInstrumentHUD(
       navGroup.addEventListener("click", () => {
         if (navCellClickCallback) navCellClickCallback();
       });
+      // Full-width caption for the upcoming waypoint — text-only, hidden
+      // when there is no next waypoint (final leg or goto mode).
+      nextWpEl = document.createElement("div");
+      nextWpEl.className = "instrument-next-wp";
+      navGroup.appendChild(nextWpEl);
+      // Row containing DTW / BRG / VMG / STEER. Sized smaller than the
+      // primary SOG/COG row.
+      const navRow = document.createElement("div");
+      navRow.className = "instrument-nav-row";
       for (let i = 0; i < NAV_INSTRUMENT_IDS.length; i++) {
         const def = INSTRUMENTS.get(NAV_INSTRUMENT_IDS[i]);
         if (!def) continue;
         const { cell, valuEl, unitEl } = buildCell(def, i > 0, lastData, s);
         cell.classList.add("instrument-cell--nav");
         navCells.push({ valuEl, unitEl, def });
-        navGroup.appendChild(cell);
+        navRow.appendChild(cell);
       }
+      navGroup.appendChild(navRow);
       container.appendChild(navGroup);
     }
   };
@@ -145,6 +160,16 @@ export function createInstrumentHUD(
       const f = c.def.format(lastData, s);
       c.valuEl.textContent = f.value;
       c.unitEl.textContent = f.unit;
+    }
+    if (nextWpEl) {
+      const name = activeNavRef?.getInfo()?.nextWaypointName ?? null;
+      if (name) {
+        nextWpEl.textContent = `Next: ${name}`;
+        nextWpEl.style.display = "";
+      } else {
+        nextWpEl.textContent = "";
+        nextWpEl.style.display = "none";
+      }
     }
   };
 
@@ -170,17 +195,22 @@ export function createInstrumentHUD(
       navCellClickCallback = callback;
     },
     setActiveNav(activeNav: ActiveNavigationManager) {
+      activeNavRef = activeNav;
       const onNavChange = (_info: unknown, state: ActiveNavigationState) => {
         const active = state.type !== "idle";
         if (active !== navActive) {
           navActive = active;
           rebuildStructure();
         }
+        // Refresh the next-wp caption even when active didn't change
+        // (e.g. advancing legs within an active route).
+        updateValues();
       };
       activeNav.subscribe(onNavChange);
       if (activeNav.getState().type !== "idle") {
         navActive = true;
         rebuildStructure();
+        updateValues();
       }
     },
   };
@@ -195,6 +225,7 @@ function buildCell(
   const cell = document.createElement("div");
   cell.className = "instrument-cell";
   if (bordered) cell.classList.add("instrument-cell--bordered");
+  if (def.cellClass) cell.classList.add(def.cellClass);
 
   const label = document.createElement("span");
   label.className = "instrument-label";

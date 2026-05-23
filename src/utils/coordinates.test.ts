@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   alongTrackDistanceNM,
+  bearingDelta,
   formatLatLon,
   haversineDistanceNM,
   initialBearingDeg,
@@ -293,5 +294,29 @@ describe("projectPoint", () => {
     const [lon, lat] = projectPoint(42.36, -71.06, 135, 10);
     const dist = haversineDistanceNM(42.36, -71.06, lat, lon);
     expect(dist).toBeCloseTo(10, 1);
+  });
+});
+
+describe("bearingDelta", () => {
+  it("zero when aligned", () => {
+    expect(bearingDelta(45, 45)).toBe(0);
+  });
+  it("positive for right turn", () => {
+    expect(bearingDelta(90, 60)).toBe(30);
+  });
+  it("negative for left turn", () => {
+    expect(bearingDelta(60, 90)).toBe(-30);
+  });
+  it("wraps near 0/360 — small right", () => {
+    expect(bearingDelta(10, 350)).toBe(20);
+  });
+  it("wraps near 0/360 — small left", () => {
+    expect(bearingDelta(350, 10)).toBe(-20);
+  });
+  it("antipode returns ±180 (we get -180 from the modulo formulation)", () => {
+    expect(Math.abs(bearingDelta(180, 0))).toBe(180);
+  });
+  it("handles 360-valued inputs", () => {
+    expect(bearingDelta(360, 0)).toBe(0);
   });
 });
