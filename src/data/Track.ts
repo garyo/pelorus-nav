@@ -49,6 +49,32 @@ export interface Track extends TrackMeta {
 }
 
 /**
+ * "Trivial" track threshold — recordings this short or this empty are
+ * almost always a fat-fingered Record/Stop sequence, not real data, so
+ * the recorder drops them on Stop and the manager panel cleans up
+ * existing ones. A track is trivial if it has too few points, OR (when
+ * the aggregates are cached) too short a duration or distance.
+ */
+const TRIVIAL_POINT_COUNT = 3;
+const TRIVIAL_DURATION_MS = 5_000;
+const TRIVIAL_DISTANCE_NM = 0.005; // ~10 m
+
+/** True if the track is too short to be meaningful — see threshold notes. */
+export function isTrivialTrack(meta: TrackMeta): boolean {
+  if (meta.pointCount < TRIVIAL_POINT_COUNT) return true;
+  if (meta.durationMs !== undefined && meta.durationMs < TRIVIAL_DURATION_MS) {
+    return true;
+  }
+  if (
+    meta.totalDistanceNM !== undefined &&
+    meta.totalDistanceNM < TRIVIAL_DISTANCE_NM
+  ) {
+    return true;
+  }
+  return false;
+}
+
+/**
  * Compute total wall-clock duration and total over-ground distance for
  * a sequence of points. Skips `dropped: true` outliers when summing
  * distance (their positions are wrong, so the haversine segments to

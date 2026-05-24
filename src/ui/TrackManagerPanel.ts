@@ -16,7 +16,11 @@ import {
   sanitizeFilename,
 } from "../data/file-io";
 import { exportAllToGpx, parseGpx, trackToGpx } from "../data/gpx";
-import { computeTrackAggregates, type TrackMeta } from "../data/Track";
+import {
+  computeTrackAggregates,
+  isTrivialTrack,
+  type TrackMeta,
+} from "../data/Track";
 import type { TrackLayer } from "../map/TrackLayer";
 import type { TrackRecorder } from "../map/TrackRecorder";
 import {
@@ -194,22 +198,37 @@ export class TrackManagerPanel {
     // Sort newest first
     metas.sort((a, b) => b.createdAt - a.createdAt);
 
-    if (metas.length === 0) {
+    // Clean up trivially short tracks where we already know they're
+    // trivial without loading points (pointCount<3, or cached aggregates
+    // below threshold). Don't touch the currently-recording track.
+    const activeId = this.recorder.getCurrentTrack()?.id;
+    const visible: TrackMeta[] = [];
+    for (const meta of metas) {
+      if (meta.id !== activeId && isTrivialTrack(meta)) {
+        void this.deleteTrivial(meta);
+        continue;
+      }
+      visible.push(meta);
+    }
+
+    if (visible.length === 0) {
       this.body.innerHTML =
         '<div class="manager-empty">No recorded tracks</div>';
       return;
     }
 
     this.body.innerHTML = "";
-    for (const meta of metas) {
+    for (const meta of visible) {
       this.body.appendChild(this.createTrackItem(meta));
     }
 
     // Lazy-fill duration / distance for legacy tracks recorded before
     // these aggregates were cached. Runs in the background; each row
     // refreshes when its values are ready. New tracks already have the
-    // fields and skip this path.
-    for (const meta of metas) {
+    // fields and skip this path. fillAggregates also re-runs the
+    // trivial check once it has real numbers, so a 0-distance 10-point
+    // track gets cleaned up there.
+    for (const meta of visible) {
       if (meta.durationMs !== undefined && meta.totalDistanceNM !== undefined) {
         continue;
       }
@@ -217,7 +236,22 @@ export class TrackManagerPanel {
     }
   }
 
-  /** Compute + persist + re-render aggregates for a legacy-meta track. */
+  /** Quietly remove a trivial track from IDB and from the on-disk list. */
+  private async deleteTrivial(meta: TrackMeta): Promise<void> {
+    try {
+      await deleteTrack(meta.id);
+      const row = this.body.querySelector<HTMLElement>(
+        `[data-track-id="${meta.id}"]`,
+      );
+      row?.remove();
+    } catch (e) {
+      console.error("trivial-track cleanup failed", meta.id, e);
+    }
+  }
+
+  /** Compute + persist + re-render aggregates for a legacy-meta track.
+   *  If the freshly-computed aggregates reveal the track is trivial,
+   *  delete it instead of saving. */
   private async fillAggregates(meta: TrackMeta): Promise<void> {
     if (this.fillsInFlight.has(meta.id)) return;
     this.fillsInFlight.add(meta.id);
@@ -225,6 +259,10 @@ export class TrackManagerPanel {
       const points = await getTrackPoints(meta.id);
       const { durationMs, totalDistanceNM } = computeTrackAggregates(points);
       const updated: TrackMeta = { ...meta, durationMs, totalDistanceNM };
+      if (isTrivialTrack(updated)) {
+        await this.deleteTrivial(updated);
+        return;
+      }
       await saveTrackMeta(updated);
       const row = this.body.querySelector<HTMLElement>(
         `[data-track-id="${meta.id}"] .manager-item-detail`,

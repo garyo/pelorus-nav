@@ -12,12 +12,14 @@
 import { Capacitor } from "@capacitor/core";
 import {
   appendTrackPoint,
+  deleteTrack,
   getTrackPoints,
   replaceTrackPoints,
   saveTrackMeta,
 } from "../data/db";
 import {
   computeTrackAggregates,
+  isTrivialTrack,
   type TrackMeta,
   type TrackPoint,
 } from "../data/Track";
@@ -147,8 +149,14 @@ export class TrackRecorder {
     // the recording state — saves UI latency by not blocking the Stop.
     const closingTrack =
       this.currentTrack && this.trackPersisted ? this.currentTrack : null;
-    if (closingTrack) {
+    // Drop trivially short tracks (1-2 points, <5 sec, or essentially
+    // no movement) — almost always an accidental Record→Stop, not real
+    // data. Saves the user from a manager full of "0 sec · 0.0 nm" rows.
+    const trivial = closingTrack !== null && isTrivialTrack(closingTrack);
+    if (closingTrack && !trivial) {
       saveTrackMeta(closingTrack).catch(console.error);
+    } else if (closingTrack && trivial) {
+      deleteTrack(closingTrack.id).catch(console.error);
     }
     this.currentTrack = null;
     this.trackPersisted = false;
@@ -158,7 +166,11 @@ export class TrackRecorder {
     this.updateNativeNotification("Navigating");
     this.notify();
 
-    if (closingTrack && closingTrack.pointCount >= MIN_POINTS_FOR_SMOOTHING) {
+    if (
+      closingTrack &&
+      !trivial &&
+      closingTrack.pointCount >= MIN_POINTS_FOR_SMOOTHING
+    ) {
       this.postProcessTrack(closingTrack).catch(console.error);
     }
   }
