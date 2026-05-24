@@ -1196,6 +1196,42 @@ body {
   cursor: pointer;
 }
 
+/* Track currently being recorded — subtle red tint + pulsing dot on
+   the colour swatch so the user can spot it in a long list. Placed
+   below the base .manager-item-color rule so descending-specificity
+   linting is satisfied. */
+.manager-item--recording {
+  background: rgba(220, 60, 60, 0.12);
+}
+
+.manager-item--recording.selected {
+  background: rgba(220, 60, 60, 0.28);
+}
+
+.manager-item--recording .manager-item-color {
+  box-shadow: 0 0 0 2px rgba(255, 80, 80, 0.85);
+  animation: pelorus-rec-pulse 1.6s ease-in-out infinite;
+}
+
+.manager-item--recording .manager-item-name::before {
+  content: "● REC ";
+  color: #ff5252;
+  font-size: 0.85em;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  margin-right: 4px;
+}
+
+@keyframes pelorus-rec-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 2px rgba(255, 80, 80, 0.85);
+  }
+  50% {
+    box-shadow: 0 0 0 4px rgba(255, 80, 80, 0.35);
+  }
+}
+
 .manager-item-info {
   flex: 1;
   min-width: 0;

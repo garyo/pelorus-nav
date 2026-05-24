@@ -16,7 +16,11 @@ import {
   replaceTrackPoints,
   saveTrackMeta,
 } from "../data/db";
-import type { TrackMeta, TrackPoint } from "../data/Track";
+import {
+  computeTrackAggregates,
+  type TrackMeta,
+  type TrackPoint,
+} from "../data/Track";
 import type { NavigationData } from "../navigation/NavigationData";
 import type { NavigationDataManager } from "../navigation/NavigationDataManager";
 import { smoothTrack } from "../navigation/RTSmoother";
@@ -191,10 +195,13 @@ export class TrackRecorder {
     });
 
     await replaceTrackPoints(meta.id, newPoints);
+    const { durationMs, totalDistanceNM } = computeTrackAggregates(newPoints);
     await saveTrackMeta({
       ...meta,
       smoothed: true,
       pointCount: newPoints.length,
+      durationMs,
+      totalDistanceNM,
     });
     this.notify();
   }
@@ -297,16 +304,19 @@ export class TrackRecorder {
     // Throttle: min 1 second between points
     if (now - this.lastRecordedTime < MIN_INTERVAL_MS) return;
 
-    // Skip if barely moved (avoids bloat at anchor)
-    if (this.lastRecordedTime > 0) {
-      const dist = haversineDistanceNM(
-        this.lastLat,
-        this.lastLon,
-        data.latitude,
-        data.longitude,
-      );
-      if (dist < MIN_MOVE_NM) return;
-    }
+    // Distance from the previous accepted fix — used both to skip
+    // anchor-noise points (MIN_MOVE_NM) and to accumulate the running
+    // total distance below. Compute once.
+    const isFirstPoint = this.lastRecordedTime === 0;
+    const segmentNM = isFirstPoint
+      ? 0
+      : haversineDistanceNM(
+          this.lastLat,
+          this.lastLon,
+          data.latitude,
+          data.longitude,
+        );
+    if (!isFirstPoint && segmentNM < MIN_MOVE_NM) return;
 
     // Create new track if needed (but don't persist meta yet — see below)
     if (!this.currentTrack) {
@@ -319,6 +329,8 @@ export class TrackRecorder {
         color: "#ff4444",
         visible: true,
         pointCount: 0,
+        durationMs: 0,
+        totalDistanceNM: 0,
       };
       this.trackPersisted = false;
     }
@@ -331,6 +343,21 @@ export class TrackRecorder {
       cog: data.cog,
       accuracy: data.accuracy,
     };
+
+    // Incremental track aggregates so the panel can show "X min · Y nm"
+    // without rescanning every point. createdAt is the first point's
+    // timestamp (preserved across resume), so `now − createdAt` is the
+    // full recording span.
+    if (segmentNM > 0) {
+      this.currentTrack.totalDistanceNM =
+        (this.currentTrack.totalDistanceNM ?? 0) + segmentNM;
+      // ↑ ?? guard for resume-from-localStorage of a legacy track
+      //   whose persisted meta predates these fields.
+    }
+    this.currentTrack.durationMs = Math.max(
+      0,
+      now - this.currentTrack.createdAt,
+    );
 
     // Update state BEFORE awaiting, so a concurrent recoverBackgroundPoints
     // sees the new lastRecordedTime and skips this same fix from SQLite.

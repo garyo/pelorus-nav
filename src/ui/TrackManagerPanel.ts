@@ -16,7 +16,7 @@ import {
   sanitizeFilename,
 } from "../data/file-io";
 import { exportAllToGpx, parseGpx, trackToGpx } from "../data/gpx";
-import type { TrackMeta } from "../data/Track";
+import { computeTrackAggregates, type TrackMeta } from "../data/Track";
 import type { TrackLayer } from "../map/TrackLayer";
 import type { TrackRecorder } from "../map/TrackRecorder";
 import {
@@ -37,6 +37,10 @@ export class TrackManagerPanel {
   private readonly recorder: TrackRecorder;
   private readonly recordBtn: HTMLButtonElement;
   private selectedTrackId: string | null = null;
+  /** Track IDs currently being lazy-filled with duration/distance. Stops
+   *  duplicate getTrackPoints + saveTrackMeta when refresh() runs again
+   *  before a previous fill completes. */
+  private readonly fillsInFlight: Set<string> = new Set();
 
   constructor(trackLayer: TrackLayer, recorder: TrackRecorder) {
     this.trackLayer = trackLayer;
@@ -182,8 +186,7 @@ export class TrackManagerPanel {
       this.refresh();
       return;
     }
-    const date = new Date(track.createdAt).toLocaleDateString();
-    el.textContent = `${date} \u00b7 ${track.pointCount} pts`;
+    el.textContent = formatTrackDetail(track);
   }
 
   private async refresh(): Promise<void> {
@@ -200,6 +203,37 @@ export class TrackManagerPanel {
     this.body.innerHTML = "";
     for (const meta of metas) {
       this.body.appendChild(this.createTrackItem(meta));
+    }
+
+    // Lazy-fill duration / distance for legacy tracks recorded before
+    // these aggregates were cached. Runs in the background; each row
+    // refreshes when its values are ready. New tracks already have the
+    // fields and skip this path.
+    for (const meta of metas) {
+      if (meta.durationMs !== undefined && meta.totalDistanceNM !== undefined) {
+        continue;
+      }
+      void this.fillAggregates(meta);
+    }
+  }
+
+  /** Compute + persist + re-render aggregates for a legacy-meta track. */
+  private async fillAggregates(meta: TrackMeta): Promise<void> {
+    if (this.fillsInFlight.has(meta.id)) return;
+    this.fillsInFlight.add(meta.id);
+    try {
+      const points = await getTrackPoints(meta.id);
+      const { durationMs, totalDistanceNM } = computeTrackAggregates(points);
+      const updated: TrackMeta = { ...meta, durationMs, totalDistanceNM };
+      await saveTrackMeta(updated);
+      const row = this.body.querySelector<HTMLElement>(
+        `[data-track-id="${meta.id}"] .manager-item-detail`,
+      );
+      if (row) row.textContent = formatTrackDetail(updated);
+    } catch (e) {
+      console.error("track aggregate fill failed", meta.id, e);
+    } finally {
+      this.fillsInFlight.delete(meta.id);
     }
   }
 
@@ -242,11 +276,16 @@ export class TrackManagerPanel {
     const detail = document.createElement("div");
     detail.className = "manager-item-detail";
     const activeTrack = this.recorder.getCurrentTrack();
-    if (activeTrack && meta.id === activeTrack.id) {
+    const isRecording = !!(activeTrack && meta.id === activeTrack.id);
+    if (isRecording) {
       detail.dataset.activeTrackDetail = "1";
+      item.classList.add("manager-item--recording");
+      // Pull live values from the in-memory currentTrack so the row
+      // shows the most recent duration / distance even mid-fix.
+      detail.textContent = formatTrackDetail(activeTrack);
+    } else {
+      detail.textContent = formatTrackDetail(meta);
     }
-    const date = new Date(meta.createdAt).toLocaleDateString();
-    detail.textContent = `${date} \u00b7 ${meta.pointCount} pts`;
 
     info.append(name, detail);
 
@@ -427,4 +466,46 @@ export class TrackManagerPanel {
     const n = result.tracks.length;
     alert(`Imported ${n} track${n !== 1 ? "s" : ""}.`);
   }
+}
+
+/** "May 23 · 1h 47m · 12.4 nm" — date, duration, distance separated by
+ *  middle dots. Falls back to "…" while aggregates are still being
+ *  computed for legacy tracks. */
+function formatTrackDetail(meta: TrackMeta): string {
+  const date = new Date(meta.createdAt).toLocaleDateString(undefined, {
+    month: "short",
+    day: "numeric",
+  });
+  const parts: string[] = [date];
+  if (meta.durationMs !== undefined) {
+    parts.push(formatDurationShort(meta.durationMs));
+  } else {
+    parts.push("…");
+  }
+  if (meta.totalDistanceNM !== undefined) {
+    parts.push(formatDistanceShort(meta.totalDistanceNM));
+  } else {
+    parts.push("…");
+  }
+  return parts.join(" · ");
+}
+
+/** "47s", "12m", "1h 47m", "23h 8m" — compact, sortable-feeling. */
+function formatDurationShort(ms: number): string {
+  if (ms < 0) ms = 0;
+  const totalSec = Math.round(ms / 1000);
+  if (totalSec < 60) return `${totalSec}s`;
+  const totalMin = Math.round(totalSec / 60);
+  if (totalMin < 60) return `${totalMin}m`;
+  const hours = Math.floor(totalMin / 60);
+  const min = totalMin % 60;
+  return min === 0 ? `${hours}h` : `${hours}h ${min}m`;
+}
+
+/** "0.3 nm", "12.4 nm", "127 nm". */
+function formatDistanceShort(nm: number): string {
+  if (nm < 0) nm = 0;
+  if (nm < 10) return `${nm.toFixed(2)} nm`;
+  if (nm < 100) return `${nm.toFixed(1)} nm`;
+  return `${Math.round(nm)} nm`;
 }
