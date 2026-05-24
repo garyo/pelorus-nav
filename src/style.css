@@ -912,7 +912,9 @@ body {
   flex-wrap: wrap;
   background: #fff;
   height: auto;
-  min-height: 90px;
+  /* No min-height — the .instrument-cell `height` clamp drives the row
+     size. A fixed min-height left empty space below the cells on narrow
+     viewports where the clamp falls below the old 90 px. */
   border-bottom: 1px solid #ccc;
 }
 
@@ -927,7 +929,7 @@ body {
   /* Track the font-size clamp on .instrument-value so the cell shrinks
      vertically on narrow viewports — but never grows beyond the historic
      90 px to keep desktop layout stable. */
-  height: clamp(60px, calc(14vw + 8px), 90px);
+  height: clamp(60px, calc(16vw + 4px), 90px);
 }
 
 /* Nav group always wraps to its own row below SOG/COG: a small caption
@@ -984,7 +986,7 @@ body {
 .instrument-value {
   /* clamp so we get big digits on wide screens but never overflow narrow
      ones. Bigger now that the label sits in the top-right corner. */
-  font-size: clamp(56px, 14vw, 96px);
+  font-size: clamp(56px, 16vw, 96px);
   font-weight: 800;
   color: #000;
   line-height: 1;
