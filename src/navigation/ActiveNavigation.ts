@@ -333,8 +333,17 @@ export class ActiveNavigationManager {
         const routes = await getAllRoutes();
         const route = routes.find((r) => r.id === saved.routeId);
         if (route && route.waypoints.length >= 2) {
-          const legIndex = Math.min(saved.legIndex, route.waypoints.length - 1);
-          this.state = { type: "route", route, legIndex };
+          // Always restart at leg 1, ignoring the persisted legIndex.
+          // The onGPSUpdate auto-advance (shouldAdvanceLeg) will then run
+          // forward through any legs the boat has genuinely passed,
+          // converging on the correct one within a few ticks. This avoids
+          // the dev-sim trap where the simulator resets the boat to its
+          // start position on reload but the persisted legIndex still
+          // points deep into the route — and is functionally identical
+          // to trusting the persisted index for real-world resumes (boat
+          // hasn't teleported, so auto-advance lands at the same leg).
+          this.state = { type: "route", route, legIndex: 1 };
+          this.persist();
           this.recompute();
         } else {
           this.persist();
