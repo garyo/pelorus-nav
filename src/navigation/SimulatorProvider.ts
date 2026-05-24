@@ -72,8 +72,9 @@ export interface SimulatorOptions {
   errorSeed?: number;
 }
 
-/** Default Boston Harbor loop */
-const BOSTON_HARBOR_ROUTE: [number, number][] = [
+/** Default Boston Harbor loop. Exported so dev tooling can splice in
+ *  custom starting points without rebuilding the whole loop. */
+export const BOSTON_HARBOR_ROUTE: [number, number][] = [
   [42.363559, -71.047973], // inner harbor
   [42.361406, -71.045476], // past Long Wharf
   [42.353086, -71.03469], // Castle Island

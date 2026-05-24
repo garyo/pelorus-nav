@@ -42,6 +42,7 @@ import { ActiveNavigationManager } from "./navigation/ActiveNavigation";
 import { CourseSmoothing } from "./navigation/CourseSmoothing";
 import { gpsDiagLog } from "./navigation/GPSDiagnosticLog";
 import { RegionAutoSwitch } from "./navigation/RegionAutoSwitch";
+import { BOSTON_HARBOR_ROUTE } from "./navigation/SimulatorProvider";
 import { getSettings, onSettingsChange, updateSettings } from "./settings";
 import { AboutDialog } from "./ui/AboutDialog";
 import { CancelNavButton } from "./ui/CancelNavButton";
@@ -290,8 +291,50 @@ if (hamburgerBtn && topbarMenu) {
 // --- Navigation system ---
 const navManager = new NavigationDataManager();
 
+/**
+ * Parse a `?simStart=lat,lon` URL query and, if present, prepend that
+ * coordinate to the simulator's default route so the sim boat begins
+ * its trip there. Useful for verifying nav-resume behaviour from
+ * arbitrary positions without editing code. Returns undefined (→
+ * default sim options) when the param is missing or malformed.
+ *
+ * Example:
+ *   http://localhost:5173/?simStart=42.334504,-70.968894
+ */
+function buildSimulatorOptions():
+  | undefined
+  | { waypoints: [number, number][] } {
+  try {
+    const raw = new URLSearchParams(window.location.search).get("simStart");
+    if (!raw) return undefined;
+    const m = raw.match(/^\s*(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)\s*$/);
+    if (!m) {
+      console.warn("simStart: expected lat,lon — got", raw);
+      return undefined;
+    }
+    const lat = Number(m[1]);
+    const lon = Number(m[2]);
+    if (
+      Number.isNaN(lat) ||
+      Number.isNaN(lon) ||
+      Math.abs(lat) > 90 ||
+      Math.abs(lon) > 180
+    ) {
+      console.warn("simStart: out-of-range lat/lon", lat, lon);
+      return undefined;
+    }
+    console.log(`simStart override: simulator boat begins at (${lat}, ${lon})`);
+    // Prepend to the default loop. The boat starts at simStart and
+    // continues to the harbour loop's first waypoint, then cycles.
+    return { waypoints: [[lat, lon], ...BOSTON_HARBOR_ROUTE] };
+  } catch (e) {
+    console.warn("simStart parse failed:", e);
+    return undefined;
+  }
+}
+
 // Register available GPS providers
-const simulator = new SimulatorProvider();
+const simulator = new SimulatorProvider(buildSimulatorOptions());
 simulator.setSpeedMultiplier(getSettings().simulatorSpeed);
 navManager.registerProvider(simulator);
 let capacitorGPS: CapacitorGPSProvider | null = null;
