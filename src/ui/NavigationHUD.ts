@@ -78,18 +78,35 @@ export class NavigationHUD {
     this.container = document.createElement("div");
     this.container.className = "nav-hud";
 
-    // Collapse toggle for mobile
+    // Collapse toggle for mobile. Default-collapsed \u2014 the panel mostly
+    // duplicates info shown in the instrument HUD and the chart itself,
+    // so it's only useful when the user wants the extra lat/lon/GPS
+    // detail. Persisted across reloads.
+    const HUD_COLLAPSED_KEY = "pelorus-nav-hud-collapsed";
     const toggleBtn = document.createElement("button");
     toggleBtn.className = "nav-hud-toggle";
-    toggleBtn.textContent = "\u25BC";
     toggleBtn.setAttribute("aria-label", "Toggle HUD details");
-    let hudCollapsed = false;
-    toggleBtn.addEventListener("click", () => {
-      hudCollapsed = !hudCollapsed;
+    let hudCollapsed = true;
+    try {
+      const saved = localStorage.getItem(HUD_COLLAPSED_KEY);
+      if (saved === "0") hudCollapsed = false;
+    } catch {
+      /* ignore */
+    }
+    const applyCollapsed = () => {
       toggleBtn.textContent = hudCollapsed ? "\u25B2" : "\u25BC";
       cursorSpan.style.display = hudCollapsed ? "none" : "";
       this.cogSogLine.style.display = hudCollapsed ? "none" : "";
       this.gpsLine.style.display = hudCollapsed ? "none" : "";
+    };
+    toggleBtn.addEventListener("click", () => {
+      hudCollapsed = !hudCollapsed;
+      try {
+        localStorage.setItem(HUD_COLLAPSED_KEY, hudCollapsed ? "1" : "0");
+      } catch {
+        /* ignore */
+      }
+      applyCollapsed();
     });
 
     this.cursorLine = document.createElement("div");
@@ -116,6 +133,9 @@ export class NavigationHUD {
       this.gpsLine,
     );
     document.body.appendChild(this.container);
+
+    // Apply the initial collapsed state now that all elements exist.
+    applyCollapsed();
 
     // Click on HUD (not the toggle button) opens Go-To dialog
     const goToDialog = new GoToDialog(map, waypointLayer);
