@@ -67,7 +67,7 @@ export function getLineLayers(ctx: StyleContext): LayerSpecification[] {
         "symbol-spacing": 100,
         "text-field": depthContourLabel(ctx),
         "text-size": scaledTextSize(11, ctx),
-        "text-font": ["Open Sans Regular", "Arial Unicode MS Regular"],
+        "text-font": ["Noto Sans Regular"],
         "text-anchor": "center",
         "text-keep-upright": true,
         "text-max-angle": 30,

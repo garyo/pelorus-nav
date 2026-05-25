@@ -272,7 +272,7 @@ export class CourseLine {
         filter: ["==", ["get", "kind"], "label"],
         layout: {
           "text-field": ["get", "label"],
-          "text-font": ["Open Sans Regular"],
+          "text-font": ["Noto Sans Regular"],
           "text-size": 11,
           "text-anchor": "center",
           "text-rotation-alignment": "viewport",

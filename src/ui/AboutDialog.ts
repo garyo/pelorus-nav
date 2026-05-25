@@ -39,9 +39,9 @@ const CREDITS: { name: string; url: string; desc: string }[] = [
     desc: "Magnetic declination via magvar",
   },
   {
-    name: "OpenMapTiles",
-    url: "https://openmaptiles.org",
-    desc: "Map label fonts",
+    name: "Noto Fonts",
+    url: "https://fonts.google.com/noto",
+    desc: "Map label fonts (SIL OFL)",
   },
 ];
 

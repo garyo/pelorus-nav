@@ -36,23 +36,11 @@ export default defineConfig({
           VitePWA({
             registerType: "autoUpdate",
             workbox: {
-              globPatterns: ["**/*.{js,css,html,svg,png,woff2,json}"],
+              // MapLibre glyphs (pbf) are bundled under public/fonts and
+              // precached so labels render fully offline.
+              globPatterns: ["**/*.{js,css,html,svg,png,woff2,json,pbf}"],
               globIgnores: ["**/*.pmtiles", "**/*.geojson", "**/*.search.json"],
               navigateFallback: "/index.html",
-              runtimeCaching: [
-                {
-                  // MapLibre glyphs CDN
-                  urlPattern: /^https:\/\/fonts\.openmaptiles\.org\//,
-                  handler: "CacheFirst",
-                  options: {
-                    cacheName: "maplibre-glyphs",
-                    expiration: {
-                      maxEntries: 500,
-                      maxAgeSeconds: 30 * 24 * 60 * 60, // 30 days
-                    },
-                  },
-                },
-              ],
             },
           }),
         ]

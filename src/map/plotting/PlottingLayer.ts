@@ -328,7 +328,7 @@ export class PlottingLayer {
         "text-size": 11,
         "text-offset": [0, -0.8],
         "text-allow-overlap": true,
-        "text-font": ["Open Sans Regular", "Arial Unicode MS Regular"],
+        "text-font": ["Noto Sans Regular"],
       },
       paint: {
         "text-color": "#222",
@@ -347,7 +347,7 @@ export class PlottingLayer {
         "text-size": 12,
         "text-offset": [0, -1.2],
         "text-allow-overlap": true,
-        "text-font": ["Open Sans Regular", "Arial Unicode MS Regular"],
+        "text-font": ["Noto Sans Regular"],
       },
       paint: {
         "text-color": "#222",
@@ -407,7 +407,7 @@ export class PlottingLayer {
         "text-size": 11,
         "text-offset": [0, 1.4],
         "text-allow-overlap": true,
-        "text-font": ["Open Sans Regular", "Arial Unicode MS Regular"],
+        "text-font": ["Noto Sans Regular"],
       },
       paint: {
         "text-color": "#222",

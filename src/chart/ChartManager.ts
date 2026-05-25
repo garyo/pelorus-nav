@@ -256,7 +256,7 @@ export class ChartManager {
     return {
       version: 8,
       sprite: `${window.location.origin}/sprites/${sprite}`,
-      glyphs: "https://demotiles.maplibre.org/font/{fontstack}/{range}.pbf",
+      glyphs: `${window.location.origin}/fonts/{fontstack}/{range}.pbf`,
       sources,
       layers,
     };
