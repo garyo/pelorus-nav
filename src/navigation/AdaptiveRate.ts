@@ -198,12 +198,16 @@ export class AdaptiveRateController {
   }
 
   /**
-   * Whether enough time has elapsed since the last broadcast for the current tier.
-   * Also returns true if tier transitioned to "fast" (immediate upgrade).
+   * Whether enough time has elapsed since the last broadcast.
+   * Defaults to the current tier interval; pass an explicit interval to
+   * gate on a fixed rate (e.g. manual mode, which never runs onFix()).
    */
-  shouldBroadcast(timestamp: number): boolean {
+  shouldBroadcast(
+    timestamp: number,
+    intervalMs: number = this.state.intervalMs,
+  ): boolean {
     if (this.lastBroadcastTime === 0) return true;
-    return timestamp - this.lastBroadcastTime >= this.state.intervalMs;
+    return timestamp - this.lastBroadcastTime >= intervalMs;
   }
 
   /** Mark that a broadcast was sent at the given timestamp. */

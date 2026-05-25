@@ -120,8 +120,11 @@ export class NavigationDataManager {
         this.scheduleDeferredBroadcast(data);
       }
     } else {
-      // Manual mode: simple throttle
-      const willBroadcast = this.adaptiveCtrl.shouldBroadcast(data.timestamp);
+      // Manual mode: simple throttle at the user-chosen interval
+      const willBroadcast = this.adaptiveCtrl.shouldBroadcast(
+        data.timestamp,
+        this.manualIntervalMs,
+      );
       gpsDiagLog.logAdaptive("manual", this.manualIntervalMs, willBroadcast);
 
       if (willBroadcast) {
