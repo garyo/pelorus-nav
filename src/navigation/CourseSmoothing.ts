@@ -89,6 +89,14 @@ export class CourseSmoothing {
   private lastSmoothTime = 0;
   private initialized = false;
   private posInitialized = false;
+  /**
+   * Set when a large render gap (screen-off / backgrounded resume) is seen.
+   * While set, both smooth() and addSample() snap to target rather than slew,
+   * so the course seeds straight from the recovered fg-service points instead
+   * of crawling over from a stale pre-gap value. Cleared on the next normal
+   * frame, once the recovery drain burst has landed.
+   */
+  private pendingSnap = false;
 
   /**
    * Set the smoothing buffer window. Use to scale with GPS update interval
@@ -159,6 +167,11 @@ export class CourseSmoothing {
       for (const s of this.buffer) sum += s.sog;
       this.targetSog = sum / this.buffer.length;
     }
+
+    // During a post-resume recovery burst the drained points can land after
+    // the gap was detected in smooth(); keep snapping so we settle on the
+    // freshly-recovered course rather than slewing from the stale value.
+    if (this.pendingSnap) this.snapToTarget();
   }
 
   /**
@@ -190,22 +203,35 @@ export class CourseSmoothing {
     } else {
       const dt = (now - this.lastSmoothTime) / 1000;
       this.lastSmoothTime = now;
-      if (dt > 0 && dt < 1) {
-        // Guard against huge dt (e.g. tab backgrounded)
-        const tau = TAU_S + this.quality * (TAU_BAD_S - TAU_S);
-        const tauPos = TAU_POS_S + this.quality * (TAU_POS_BAD_S - TAU_POS_S);
-        const alpha = 1 - Math.exp(-dt / tau);
-        this.smoothedCog = circularInterpolate(
-          this.smoothedCog,
-          this.targetCog,
-          alpha,
-        );
-        this.smoothedSog += alpha * (this.targetSog - this.smoothedSog);
+      if (dt >= 1) {
+        // A large render gap means we just resumed from a no-render period
+        // (screen-off / backgrounded). The buffer holds the recovered
+        // fg-service points, so snap to that course/position instead of
+        // slewing from the now-stale smoothed value. pendingSnap keeps us
+        // snapping as the recovery drain lands (it can arrive a frame later)
+        // and is cleared on the next normal frame below.
+        this.pendingSnap = true;
+        this.snapToTarget();
+      } else if (dt > 0) {
+        if (this.pendingSnap) {
+          this.snapToTarget();
+          this.pendingSnap = false;
+        } else {
+          const tau = TAU_S + this.quality * (TAU_BAD_S - TAU_S);
+          const tauPos = TAU_POS_S + this.quality * (TAU_POS_BAD_S - TAU_POS_S);
+          const alpha = 1 - Math.exp(-dt / tau);
+          this.smoothedCog = circularInterpolate(
+            this.smoothedCog,
+            this.targetCog,
+            alpha,
+          );
+          this.smoothedSog += alpha * (this.targetSog - this.smoothedSog);
 
-        // Position smoothing (shorter time constant)
-        const posAlpha = 1 - Math.exp(-dt / tauPos);
-        this.smoothedLat += posAlpha * (this.targetLat - this.smoothedLat);
-        this.smoothedLon += posAlpha * (this.targetLon - this.smoothedLon);
+          // Position smoothing (shorter time constant)
+          const posAlpha = 1 - Math.exp(-dt / tauPos);
+          this.smoothedLat += posAlpha * (this.targetLat - this.smoothedLat);
+          this.smoothedLon += posAlpha * (this.targetLon - this.smoothedLon);
+        }
       }
     }
 
