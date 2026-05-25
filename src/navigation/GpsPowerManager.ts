@@ -1,0 +1,168 @@
+/**
+ * Native (Capacitor) GPS power management: a single visibility/recording/idle
+ * driven state machine that picks between "active" (fast, every fix to JS) and
+ * "passive" (slow, bridge-silenced, wake-lock-toggled) GPS modes. Both modes
+ * request HIGH_ACCURACY with setWaitForAccurateLocation(true) so FLP only
+ * delivers real GPS fixes, never cell-tower / WiFi fallbacks.
+ *
+ * Visible:                  active mode at the chosen rate (1 s normally,
+ *                           5 s in e-ink theme since the panel can't update
+ *                           faster anyway; backed off to the idle rate when
+ *                           untouched, but never faster than the theme rate).
+ * Hidden + recording:       grace 20 s at the previous active rate, then
+ *                           passive at 15 s (extended to 30 s on steady course
+ *                           by the native SteadinessTracker). Snap back to
+ *                           active on visible.
+ * Hidden + not recording:   stop the native GPS entirely.
+ */
+
+import { getSettings, onSettingsChange } from "../settings";
+import { createIdleDetector, type IdleDetector } from "../ui/IdleDetector";
+
+export interface GpsPowerConfig {
+  /** Native-side delay before a hidden+recording device drops to passive. */
+  hiddenGraceMs: number;
+  /** Passive (hidden + recording) sampling interval. */
+  passiveIntervalMs: number;
+  /** Active sampling interval on a normal display. */
+  activeIntervalMs: number;
+  /** Active sampling interval in e-ink theme (panel can't update faster). */
+  einkActiveIntervalMs: number;
+  /** Backed-off interval once the user has been idle (anchor / autopilot). */
+  idleIntervalMs: number;
+  /** Inactivity before we consider the user idle. */
+  idleTimeoutMs: number;
+}
+
+export const DEFAULT_GPS_POWER_CONFIG: GpsPowerConfig = {
+  hiddenGraceMs: 20_000,
+  passiveIntervalMs: 15_000,
+  activeIntervalMs: 1_000,
+  einkActiveIntervalMs: 5_000,
+  idleIntervalMs: 3_000,
+  idleTimeoutMs: 30_000,
+};
+
+export type GpsPowerDecision =
+  | { mode: "active"; intervalMs: number }
+  | { mode: "passive"; intervalMs: number; graceMs: number }
+  | { mode: "stopped" };
+
+export interface GpsPowerInputs {
+  visible: boolean;
+  recording: boolean;
+  idle: boolean;
+  eink: boolean;
+}
+
+/**
+ * Pure decision: given the current inputs, what native GPS power state should
+ * the device be in? All the branching lives here so it can be unit-tested
+ * without a real provider, DOM, or native bridge.
+ */
+export function decideGpsPower(
+  inputs: GpsPowerInputs,
+  config: GpsPowerConfig = DEFAULT_GPS_POWER_CONFIG,
+): GpsPowerDecision {
+  if (inputs.visible) {
+    const base = inputs.eink
+      ? config.einkActiveIntervalMs
+      : config.activeIntervalMs;
+    // Idle slows GPS down; never let it speed up a slower baseline (e-ink).
+    const intervalMs = inputs.idle
+      ? Math.max(config.idleIntervalMs, base)
+      : base;
+    return { mode: "active", intervalMs };
+  }
+  if (inputs.recording) {
+    return {
+      mode: "passive",
+      intervalMs: config.passiveIntervalMs,
+      graceMs: config.hiddenGraceMs,
+    };
+  }
+  return { mode: "stopped" };
+}
+
+/** Native GPS provider surface the manager drives. */
+export interface GpsPowerSink {
+  resumeTracking(): void;
+  setPowerMode(
+    mode: "active" | "passive",
+    intervalMs?: number,
+    graceMs?: number,
+  ): void;
+  pauseTracking(): void;
+}
+
+/** Recording state source the manager reacts to. */
+export interface RecordingSource {
+  isRecording(): boolean;
+  onRecordingChange(fn: () => void): void;
+}
+
+/**
+ * Wires the decision to its event sources (page visibility, recording state,
+ * idle detector, theme changes) and applies it to the native provider.
+ */
+export class GpsPowerManager {
+  private readonly gps: GpsPowerSink;
+  private readonly recorder: RecordingSource;
+  private readonly config: GpsPowerConfig;
+  private readonly idle: IdleDetector;
+
+  constructor(
+    gps: GpsPowerSink,
+    recorder: RecordingSource,
+    config: GpsPowerConfig = DEFAULT_GPS_POWER_CONFIG,
+  ) {
+    this.gps = gps;
+    this.recorder = recorder;
+    this.config = config;
+    this.idle = createIdleDetector(config.idleTimeoutMs);
+  }
+
+  /** Subscribe to event sources and apply the initial (visible) state. */
+  start(): void {
+    document.addEventListener("visibilitychange", this.apply);
+    this.recorder.onRecordingChange(this.apply);
+    // Idle and theme only change the visible-mode rate, so re-apply only then.
+    this.idle.onChange(this.applyIfVisible);
+    onSettingsChange(this.applyIfVisible);
+    this.apply();
+  }
+
+  private isVisible(): boolean {
+    return document.visibilityState === "visible";
+  }
+
+  private applyIfVisible = (): void => {
+    if (this.isVisible()) this.apply();
+  };
+
+  private apply = (): void => {
+    const decision = decideGpsPower(
+      {
+        visible: this.isVisible(),
+        recording: this.recorder.isRecording(),
+        idle: this.idle.isIdle(),
+        eink: getSettings().displayTheme === "eink",
+      },
+      this.config,
+    );
+    switch (decision.mode) {
+      case "active":
+        // resumeTracking is idempotent when already running; it restarts the
+        // native service if the hidden+!recording branch had stopped it.
+        this.gps.resumeTracking();
+        this.gps.setPowerMode("active", decision.intervalMs);
+        break;
+      case "passive":
+        this.gps.setPowerMode("passive", decision.intervalMs, decision.graceMs);
+        break;
+      case "stopped":
+        this.gps.pauseTracking();
+        break;
+    }
+  };
+}

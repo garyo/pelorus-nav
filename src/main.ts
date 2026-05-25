@@ -41,6 +41,7 @@ import {
 import { ActiveNavigationManager } from "./navigation/ActiveNavigation";
 import { CourseSmoothing } from "./navigation/CourseSmoothing";
 import { gpsDiagLog } from "./navigation/GPSDiagnosticLog";
+import { GpsPowerManager } from "./navigation/GpsPowerManager";
 import { RegionAutoSwitch } from "./navigation/RegionAutoSwitch";
 import { BOSTON_HARBOR_ROUTE } from "./navigation/SimulatorProvider";
 import { getSettings, onSettingsChange, updateSettings } from "./settings";
@@ -582,81 +583,9 @@ const TRACK_REPAIR_FLAG = "pelorus-nav-track-counts-repaired-v1";
   if (getSettings().trackRecordingEnabled) trackRecorder.start();
 })();
 
-// Capacitor power management: a single visibility/recording-driven state
-// machine that picks between "active" (fast, every fix to JS) and
-// "passive" (slow, bridge-silenced, wake-lock-toggled) GPS modes. Both
-// modes request HIGH_ACCURACY with setWaitForAccurateLocation(true) so
-// FLP only delivers real GPS fixes, never cell-tower / WiFi fallbacks.
-//
-// Visible:                  active mode at the chosen rate (1 s normally,
-//                           5 s in e-ink theme since the panel can't update
-//                           faster anyway).
-// Hidden + recording:       grace 20 s at the previous active rate, then
-//                           passive at 15 s (extends to 30 s on steady
-//                           course via SteadinessTracker). Snap back to
-//                           active on visible.
-// Hidden + not recording:   stop the native GPS entirely.
+// Native GPS power management (visibility / recording / idle / theme driven).
 if (capacitorGPS) {
-  const HIDDEN_GRACE_MS = 20_000;
-  const PASSIVE_INTERVAL_MS = 15_000;
-  const ACTIVE_INTERVAL_MS = 1_000;
-  const EINK_ACTIVE_INTERVAL_MS = 5_000;
-  /** When visible-but-idle, slow GPS to this. At anchor / on autopilot we
-   *  don't need 1 Hz fixes. Wake up on the next touch. */
-  const IDLE_INTERVAL_MS = 3_000;
-  const IDLE_TIMEOUT_MS = 30_000;
-
-  const idleDetector = createIdleDetector(IDLE_TIMEOUT_MS);
-
-  const activeIntervalForCurrentTheme = () => {
-    const base =
-      getSettings().displayTheme === "eink"
-        ? EINK_ACTIVE_INTERVAL_MS
-        : ACTIVE_INTERVAL_MS;
-    // Idle slows GPS down; never let it speed up a slower baseline (e-ink).
-    return idleDetector.isIdle() ? Math.max(IDLE_INTERVAL_MS, base) : base;
-  };
-
-  const applyGpsPowerMode = () => {
-    if (!capacitorGPS) return;
-    const visible = document.visibilityState === "visible";
-    const recording = trackRecorder.isRecording();
-
-    if (visible) {
-      // Service may have been stopped (hidden+!recording branch) — startTracking
-      // is idempotent when already running, and setPowerMode("active") below
-      // cancels any pending native grace timer.
-      capacitorGPS.resumeTracking();
-      capacitorGPS.setPowerMode("active", activeIntervalForCurrentTheme());
-      return;
-    }
-    if (recording) {
-      // Schedule passive on the native side. JS setTimeout is throttled or
-      // suspended when the WebView is hidden, so the timer has to live in
-      // native land or it will never fire.
-      capacitorGPS.setPowerMode(
-        "passive",
-        PASSIVE_INTERVAL_MS,
-        HIDDEN_GRACE_MS,
-      );
-      return;
-    }
-    capacitorGPS.pauseTracking();
-  };
-
-  document.addEventListener("visibilitychange", applyGpsPowerMode);
-  trackRecorder.onRecordingChange(applyGpsPowerMode);
-  idleDetector.onChange(() => {
-    if (document.visibilityState === "visible") applyGpsPowerMode();
-  });
-  // Theme changes (e-ink ⇄ normal) re-apply the mode so the active interval updates.
-  onSettingsChange((s) => {
-    void s;
-    if (document.visibilityState === "visible") applyGpsPowerMode();
-  });
-
-  // Initial state at boot: visible.
-  applyGpsPowerMode();
+  new GpsPowerManager(capacitorGPS, trackRecorder).start();
 }
 
 // Auto-dim the window when the user has been idle for a while. Per-window
