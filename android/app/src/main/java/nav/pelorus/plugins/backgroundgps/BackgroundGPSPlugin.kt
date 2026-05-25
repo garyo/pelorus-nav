@@ -84,6 +84,7 @@ class BackgroundGPSPlugin : Plugin() {
         // is only invoked when the service is in ACTIVE mode (the service
         // clears its own reference on PASSIVE → see applyMode()).
         installBridgeListener()
+        DiagLog.log(context, "plugin", "startTracking")
 
         val intent = Intent(context, BackgroundTrackService::class.java)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -115,6 +116,7 @@ class BackgroundGPSPlugin : Plugin() {
         // triggered it. Walk the stack by throwing+catching a Throwable.
         val st = Throwable("stopTracking()").stackTraceToString()
         Log.i("BackgroundGPSPlugin", "stopTracking called\n$st")
+        DiagLog.log(context, "plugin", "stopTracking called\n$st")
         BackgroundTrackService.locationListener = null
         BackgroundTrackService.instance?.cancelPendingPassive()
         val intent = Intent(context, BackgroundTrackService::class.java)
@@ -149,6 +151,15 @@ class BackgroundGPSPlugin : Plugin() {
         call.resolve()
     }
 
+    /** Append a line to the persistent diagnostic log from the JS layer. */
+    @PluginMethod
+    fun appendDiag(call: PluginCall) {
+        val tag = call.getString("tag") ?: "js"
+        val message = call.getString("message") ?: ""
+        DiagLog.log(context, tag, message)
+        call.resolve()
+    }
+
     /**
      * Set the GPS power mode.
      *
@@ -177,6 +188,7 @@ class BackgroundGPSPlugin : Plugin() {
         val intervalMs = if (call.data.has("intervalMs")) call.data.optLong("intervalMs") else null
         val graceMs = call.data.optLong("graceMs", 0L)
         Log.i("BackgroundGPSPlugin", "setPowerMode(mode=$mode, intervalMs=$intervalMs, graceMs=$graceMs)")
+        DiagLog.log(context, "plugin", "setPowerMode mode=$mode interval=$intervalMs grace=$graceMs")
 
         if (mode == BackgroundTrackService.MODE_ACTIVE) {
             // Active is always immediate — cancel any scheduled passive grace.

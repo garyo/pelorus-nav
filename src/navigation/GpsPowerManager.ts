@@ -18,6 +18,7 @@
 
 import { getSettings, onSettingsChange } from "../settings";
 import { createIdleDetector, type IdleDetector } from "../ui/IdleDetector";
+import { diag } from "../utils/diag";
 
 export interface GpsPowerConfig {
   /** Native-side delay before a hidden+recording device drops to passive. */
@@ -141,14 +142,16 @@ export class GpsPowerManager {
   };
 
   private apply = (): void => {
-    const decision = decideGpsPower(
-      {
-        visible: this.isVisible(),
-        recording: this.recorder.isRecording(),
-        idle: this.idle.isIdle(),
-        eink: getSettings().displayTheme === "eink",
-      },
-      this.config,
+    const inputs = {
+      visible: this.isVisible(),
+      recording: this.recorder.isRecording(),
+      idle: this.idle.isIdle(),
+      eink: getSettings().displayTheme === "eink",
+    };
+    const decision = decideGpsPower(inputs, this.config);
+    diag(
+      "power",
+      `visible=${inputs.visible} rec=${inputs.recording} idle=${inputs.idle} -> ${decision.mode}`,
     );
     switch (decision.mode) {
       case "active":

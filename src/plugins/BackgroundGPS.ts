@@ -89,6 +89,13 @@ export interface BackgroundGPSPlugin {
   /** Open the system Display settings screen (where SCREEN_OFF_TIMEOUT lives). */
   openDisplaySettings(): Promise<void>;
 
+  /**
+   * Append a line to the persistent native diagnostic log
+   * (`<externalFilesDir>/diag.log`). Used to trace screen-off recording
+   * behaviour across reloads/restarts that outlive the logcat buffer.
+   */
+  appendDiag(options: { tag: string; message: string }): Promise<void>;
+
   /** Listen for live GPS updates delivered via the Capacitor bridge. */
   addListener(
     eventName: "locationUpdate",

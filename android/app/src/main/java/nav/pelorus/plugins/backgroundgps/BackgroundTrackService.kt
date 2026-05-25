@@ -205,6 +205,7 @@ class BackgroundTrackService : Service() {
                         // accepted; we don't have a basis to reject them.
                         if (location.hasAccuracy() && location.accuracy > MAX_ACCURACY_M) {
                             Log.d(TAG, "Dropping low-accuracy fix: ${location.accuracy}m")
+                            DiagLog.log(applicationContext, "fix", "drop acc=${location.accuracy} mode=$currentMode")
                             continue
                         }
                         accepted = true
@@ -217,6 +218,7 @@ class BackgroundTrackService : Service() {
                             accuracy = if (location.hasAccuracy()) location.accuracy else -1f
                         )
                         trackDb.insertPoint(point)
+                        DiagLog.log(applicationContext, "fix", "ok acc=${if (location.hasAccuracy()) location.accuracy else -1f} mode=$currentMode")
                         // Bridge gating: in PASSIVE mode we drop locationListener so
                         // JS doesn't get fanned-out fixes it can't use anyway.
                         locationListener?.invoke(point)
@@ -255,9 +257,11 @@ class BackgroundTrackService : Service() {
         // ready, so a plugin call landing mid-onCreate doesn't race into
         // applyMode() and skip with the "before service initialized" warning.
         instance = this
+        DiagLog.log(this, "svc", "onCreate")
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        DiagLog.log(this, "svc", "onStartCommand action=${intent?.action} startId=$startId mode=$currentMode")
         if (intent?.action == ACTION_STOP) {
             stopSelf()
             return START_NOT_STICKY
@@ -283,6 +287,7 @@ class BackgroundTrackService : Service() {
 
     override fun onDestroy() {
         super.onDestroy()
+        DiagLog.log(this, "svc", "onDestroy")
         cancelPendingPassive()
         cancelWatchdog()
         instance = null
@@ -320,6 +325,7 @@ class BackgroundTrackService : Service() {
             locationListener = null
             applyMode()
             Log.i(TAG, "Grace expired, switched to passive (interval=${intervalMs}ms)")
+            DiagLog.log(applicationContext, "svc", "grace expired -> passive interval=${intervalMs}ms")
         }
         pendingPassiveRunnable = r
         mainHandler.postDelayed(r, delayMs)
@@ -412,6 +418,7 @@ class BackgroundTrackService : Service() {
         appliedIntervalMs = intervalMs
         appliedPriority = priority
         Log.d(TAG, "GPS mode=$currentMode interval=${intervalMs}ms priority=$priority")
+        DiagLog.log(applicationContext, "svc", "applyMode mode=$currentMode interval=${intervalMs}ms inKick=$inKick")
     }
 
     /**
@@ -466,6 +473,7 @@ class BackgroundTrackService : Service() {
     private fun kickToActive() {
         if (!::fusedClient.isInitialized || !::locationCallback.isInitialized) return
         Log.i(TAG, "Watchdog kick: forcing GPS chip warmup (no fix in ${WATCHDOG_THRESHOLD_MS}ms)")
+        DiagLog.log(applicationContext, "svc", "watchdog kick (no fix in ${WATCHDOG_THRESHOLD_MS}ms)")
         inKick = true
         if (!holdLockContinuously) {
             partialWakeLock?.takeIf { !it.isHeld }?.acquire()
@@ -488,6 +496,7 @@ class BackgroundTrackService : Service() {
      */
     private fun endKick(reason: String) {
         Log.i(TAG, "Watchdog kick ended: $reason")
+        DiagLog.log(applicationContext, "svc", "kick end: $reason")
         inKick = false
         applyMode()
     }

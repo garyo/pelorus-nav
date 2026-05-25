@@ -77,6 +77,7 @@ import { TrackManagerPanel } from "./ui/TrackManagerPanel";
 import { buildTopbarAction } from "./ui/topbarButton";
 import { WakeLockController } from "./ui/WakeLock";
 import { WaypointManagerPanel } from "./ui/WaypointManagerPanel";
+import { diag } from "./utils/diag";
 import { applyDeclination, bearingModeLabel } from "./utils/magnetic";
 import { createThermalMonitor } from "./utils/thermal";
 import { convertSpeed, speedUnitLabel } from "./utils/units";
@@ -489,6 +490,15 @@ trackInstrumentHUD(instrumentHUD.element);
 
 // Configure adaptive GPS rate from settings
 const initGpsSettings = getSettings();
+declare const __APP_VERSION__: string;
+declare const __BUILD_ID__: string;
+// Persistent boot breadcrumb — each app load (incl. WebView reloads) logs its
+// recording-enabled state and GPS source, so a recording that silently stops
+// after a reload is visible in the diag log.
+diag(
+  "boot",
+  `v=${__APP_VERSION__} ${__BUILD_ID__} recEnabled=${initGpsSettings.trackRecordingEnabled} gpsSource=${initGpsSettings.gpsSource}`,
+);
 navManager.setRateMode(
   initGpsSettings.gpsRateMode,
   initGpsSettings.manualUpdateIntervalMs,

@@ -28,6 +28,7 @@ import type { NavigationDataManager } from "../navigation/NavigationDataManager"
 import { smoothTrack } from "../navigation/RTSmoother";
 import { BackgroundGPS } from "../plugins/BackgroundGPS";
 import { haversineDistanceNM } from "../utils/coordinates";
+import { diag } from "../utils/diag";
 import { generateUUID } from "../utils/uuid";
 
 const MIN_INTERVAL_MS = 1000;
@@ -128,6 +129,10 @@ export class TrackRecorder {
   start(): void {
     if (this.recording) return;
     this.recording = true;
+    diag(
+      "rec",
+      `start (saved track ${localStorage.getItem(ACTIVE_TRACK_KEY) ? "present" : "none"})`,
+    );
     this.resumePromise = this.tryResumeTrack();
     this.resumePromise.catch(console.error);
     this.navCallback = (data) => {
@@ -141,6 +146,7 @@ export class TrackRecorder {
   stop(): void {
     if (!this.recording) return;
     this.recording = false;
+    diag("rec", "stop");
     if (this.navCallback) {
       this.navManager.unsubscribe(this.navCallback);
       this.navCallback = null;
