@@ -23,6 +23,7 @@ import {
 } from "../data/Track";
 import type { TrackLayer } from "../map/TrackLayer";
 import type { TrackRecorder } from "../map/TrackRecorder";
+import { updateSettings } from "../settings";
 import {
   iconExport,
   iconEye,
@@ -73,11 +74,11 @@ export class TrackManagerPanel {
     this.updateRecordBtn();
 
     this.recordBtn.addEventListener("click", () => {
-      if (this.recorder.isRecording()) {
-        this.recorder.stop();
-      } else {
-        this.recorder.start();
-      }
+      // Toggle the persisted setting (not recorder.start/stop directly) so the
+      // recording state survives a reload/restart — main.ts resumes recording
+      // on launch from trackRecordingEnabled. The settings listener drives the
+      // actual start()/stop().
+      updateSettings({ trackRecordingEnabled: !this.recorder.isRecording() });
     });
 
     const importBtn = this.el.querySelector("#track-import-btn") as HTMLElement;
