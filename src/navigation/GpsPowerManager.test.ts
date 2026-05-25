@@ -3,6 +3,7 @@ import {
   DEFAULT_GPS_POWER_CONFIG as CFG,
   decideGpsPower,
   type GpsPowerInputs,
+  powerDecisionKey,
 } from "./GpsPowerManager";
 
 const base: GpsPowerInputs = {
@@ -62,5 +63,38 @@ describe("decideGpsPower", () => {
     expect(decideGpsPower({ ...base, visible: true, recording: true })).toEqual(
       { mode: "active", intervalMs: CFG.activeIntervalMs },
     );
+  });
+});
+
+describe("powerDecisionKey (coalescing identity)", () => {
+  it("identical decisions share a key (redundant repeats collapse)", () => {
+    const k = powerDecisionKey(decideGpsPower(base));
+    expect(powerDecisionKey(decideGpsPower({ ...base }))).toBe(k);
+  });
+
+  it("distinguishes mode, interval, and grace changes", () => {
+    const active = powerDecisionKey({ mode: "active", intervalMs: 1000 });
+    const activeSlow = powerDecisionKey({ mode: "active", intervalMs: 5000 });
+    const passive = powerDecisionKey({
+      mode: "passive",
+      intervalMs: 15000,
+      graceMs: 20000,
+    });
+    const passiveNoGrace = powerDecisionKey({
+      mode: "passive",
+      intervalMs: 15000,
+      graceMs: 0,
+    });
+    const stopped = powerDecisionKey({ mode: "stopped" });
+    const keys = [active, activeSlow, passive, passiveNoGrace, stopped];
+    expect(new Set(keys).size).toBe(keys.length); // all distinct
+  });
+
+  it("e-ink idle vs normal produce different keys (re-applies on change)", () => {
+    const normal = powerDecisionKey(decideGpsPower({ ...base }));
+    const idleEink = powerDecisionKey(
+      decideGpsPower({ ...base, idle: true, eink: true }),
+    );
+    expect(idleEink).not.toBe(normal);
   });
 });

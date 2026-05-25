@@ -85,6 +85,22 @@ export function decideGpsPower(
   return { mode: "stopped" };
 }
 
+/**
+ * Stable string identity of a decision, including the parameters that reach
+ * the native side. Two decisions with the same key are the same native power
+ * command, so re-issuing one is redundant.
+ */
+export function powerDecisionKey(d: GpsPowerDecision): string {
+  switch (d.mode) {
+    case "active":
+      return `active:${d.intervalMs}`;
+    case "passive":
+      return `passive:${d.intervalMs}:${d.graceMs}`;
+    case "stopped":
+      return "stopped";
+  }
+}
+
 /** Native GPS provider surface the manager drives. */
 export interface GpsPowerSink {
   resumeTracking(): void;
@@ -111,6 +127,8 @@ export class GpsPowerManager {
   private readonly recorder: RecordingSource;
   private readonly config: GpsPowerConfig;
   private readonly idle: IdleDetector;
+  /** Key of the last decision actually applied, for coalescing repeats. */
+  private lastAppliedKey: string | null = null;
 
   constructor(
     gps: GpsPowerSink,
@@ -149,6 +167,15 @@ export class GpsPowerManager {
       eink: getSettings().displayTheme === "eink",
     };
     const decision = decideGpsPower(inputs, this.config);
+
+    // Coalesce redundant repeats: the visibility, recording, idle, and
+    // settings listeners can all fire apply() for one logical event. Without
+    // this, recording-start alone re-issues ~10 identical FGS restarts. Only
+    // act when the resolved native command actually changes.
+    const key = powerDecisionKey(decision);
+    if (key === this.lastAppliedKey) return;
+    this.lastAppliedKey = key;
+
     diag(
       "power",
       `visible=${inputs.visible} rec=${inputs.recording} idle=${inputs.idle} -> ${decision.mode}`,
