@@ -40,7 +40,7 @@ Pelorus Nav — open-source web-based marine chartplotter (PWA). See PLAN.md for
   - `utils/` — pure utility functions (coordinates, magnetic declination, units)
   - `plugins/` — Capacitor native plugins
 - `tests/e2e/` — Playwright E2E tests
-- `public/` — static assets (PMTiles, sprites, coverage masks)
+- `public/` — static assets (PMTiles, sprites, glyph fonts, coverage masks)
 - `tools/` — offline tools (S-57 pipeline, sprite builder, tile upload/check scripts)
 
 ## Testing
@@ -155,6 +155,19 @@ The app uses **two separate sprite systems** — both must be updated when addin
 The active symbology scheme determines which sprite sheet MapLibre loads. If a symbol is referenced in a
 layer's `icon-image` but only exists in the wrong sprite sheet, MapLibre will log
 "Image could not be loaded" and show nothing.
+
+## Fonts / glyphs
+MapLibre label glyphs are **bundled locally** under `public/fonts/{fontstack}/{range}.pbf` and served
+same-origin (the `glyphs` URL set in `ChartManager.buildStyle`). This is required for offline use: the
+Android WebView has no service worker, and the old demo-server CDN 404'd some stacks.
+
+- Only the **Noto Sans** family is bundled — `Regular`, `Bold`, `Italic` — ranges `0-255` and `256-511`
+  (Latin; enough for US chart text). Every `text-font` in the styles must use one of these stacks.
+- A `text-font` referencing an unbundled font (e.g. `Open Sans Regular`) or text needing a codepoint
+  outside the bundled ranges loads no glyphs and the label silently renders **blank** — no error beyond a
+  network 404. When adding a label layer, reuse an existing Noto stack.
+- To add a stack/range, download it from `https://demotiles.maplibre.org/font/<stack>/<range>.pbf` into
+  `public/fonts/`. The `pbf` extension is in the PWA precache glob (`vite.config.ts`).
 
 ## References
 - IHO S-52/S-101 symbol SVGs (primary reference): https://github.com/iho-ohi/S-101_Portrayal-Catalogue/tree/main/PortrayalCatalog/Symbols
