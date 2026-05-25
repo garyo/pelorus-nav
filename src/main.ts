@@ -609,10 +609,12 @@ if (capacitorGPS) {
   const idleDetector = createIdleDetector(IDLE_TIMEOUT_MS);
 
   const activeIntervalForCurrentTheme = () => {
-    if (idleDetector.isIdle()) return IDLE_INTERVAL_MS;
-    return getSettings().displayTheme === "eink"
-      ? EINK_ACTIVE_INTERVAL_MS
-      : ACTIVE_INTERVAL_MS;
+    const base =
+      getSettings().displayTheme === "eink"
+        ? EINK_ACTIVE_INTERVAL_MS
+        : ACTIVE_INTERVAL_MS;
+    // Idle slows GPS down; never let it speed up a slower baseline (e-ink).
+    return idleDetector.isIdle() ? Math.max(IDLE_INTERVAL_MS, base) : base;
   };
 
   const applyGpsPowerMode = () => {
