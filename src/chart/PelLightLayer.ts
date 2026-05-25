@@ -292,6 +292,15 @@ export class PelLightLayer {
     map.on("style.load", () => this.setup());
     if (map.isStyleLoaded()) this.setup();
 
+    // Registered once — they survive style reloads, so they must not be
+    // re-added in setup() (which runs on every style.load) or they leak.
+    map.on("sourcedata", (e) => {
+      if (e.isSourceLoaded && e.sourceId.startsWith("s57-vector")) {
+        this.debouncedRebuild();
+      }
+    });
+    map.on("moveend", () => this.debouncedRebuild());
+
     let currentTheme = getSettings().displayTheme;
     let currentSymbology = getSettings().symbologyScheme;
     let currentDepthUnit = getSettings().depthUnit;
@@ -324,13 +333,6 @@ export class PelLightLayer {
     // the tracking set so the next rebuild always re-applies our
     // suppression filter, even if the LNAM set hasn't changed.
     this.suppressedLnams = new Set();
-
-    this.map.on("sourcedata", (e) => {
-      if (e.isSourceLoaded && e.sourceId.startsWith("s57-vector")) {
-        this.debouncedRebuild();
-      }
-    });
-    this.map.on("moveend", () => this.debouncedRebuild());
 
     this.rebuild();
   }

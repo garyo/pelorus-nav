@@ -320,6 +320,23 @@ export class LightSectorLayer {
     map.on("style.load", () => this.setup());
     if (map.isStyleLoaded()) this.setup();
 
+    // Registered once — they survive style reloads, so they must not be
+    // re-added in setup() (which runs on every style.load) or they leak.
+    // Rebuild when tiles finish loading for any vector source.
+    map.on("sourcedata", (e) => {
+      if (
+        e.isSourceLoaded &&
+        e.sourceId.startsWith("s57-vector") &&
+        this.enabled
+      ) {
+        this.debouncedRebuild();
+      }
+    });
+    // Also rebuild on moveend (viewport change exposes new tiles).
+    map.on("moveend", () => {
+      if (this.enabled) this.debouncedRebuild();
+    });
+
     let currentTheme = getSettings().displayTheme;
     onSettingsChange((s) => {
       const nowEnabled = s.layerGroups.lightSectors ?? false;
@@ -344,23 +361,6 @@ export class LightSectorLayer {
 
   private setup(): void {
     this.addSourceAndLayers();
-
-    // Rebuild when tiles finish loading for any vector source
-    this.map.on("sourcedata", (e) => {
-      if (
-        e.isSourceLoaded &&
-        e.sourceId.startsWith("s57-vector") &&
-        this.enabled
-      ) {
-        this.debouncedRebuild();
-      }
-    });
-
-    // Also rebuild on moveend (viewport change exposes new tiles)
-    this.map.on("moveend", () => {
-      if (this.enabled) this.debouncedRebuild();
-    });
-
     if (this.enabled) this.rebuild();
   }
 
