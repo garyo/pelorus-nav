@@ -56,6 +56,66 @@ export async function listStoredCharts(): Promise<StoredChartInfo[]> {
   return readMeta();
 }
 
+/** Remote chart metadata from a HEAD request, for update detection. */
+export interface RemoteChartMeta {
+  etag?: string;
+  lastModified?: string;
+  sizeBytes?: number;
+}
+
+/** Strip the weak-validator prefix and surrounding quotes so etags compare equal. */
+function normalizeEtag(etag: string): string {
+  return etag.replace(/^W\//, "").replace(/^"|"$/g, "");
+}
+
+/**
+ * Fetch remote chart metadata via a cheap HEAD request, for update detection.
+ * Returns null when the request fails — offline, or a server that rejects HEAD
+ * or hides the headers behind CORS. Callers treat null as "can't tell".
+ */
+export async function fetchRemoteChartMeta(
+  url: string,
+  signal?: AbortSignal,
+): Promise<RemoteChartMeta | null> {
+  try {
+    const response = await fetch(url, { method: "HEAD", signal });
+    if (!response.ok) return null;
+    const len = response.headers.get("content-length");
+    return {
+      etag: response.headers.get("etag") ?? undefined,
+      lastModified: response.headers.get("last-modified") ?? undefined,
+      sizeBytes: len ? Number(len) : undefined,
+    };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Whether the remote chart is newer than the stored copy. Prefers the etag
+ * (exact), falls back to last-modified vs download time, then a size change.
+ * Returns false on no reliable signal — we don't nag the user on uncertainty.
+ */
+export function isUpdateAvailable(
+  stored: StoredChartInfo,
+  remote: RemoteChartMeta,
+): boolean {
+  if (stored.etag && remote.etag) {
+    return normalizeEtag(stored.etag) !== normalizeEtag(remote.etag);
+  }
+  if (remote.lastModified) {
+    const remoteTime = Date.parse(remote.lastModified);
+    const storedTime = Date.parse(stored.downloadedAt);
+    if (!Number.isNaN(remoteTime) && !Number.isNaN(storedTime)) {
+      return remoteTime > storedTime;
+    }
+  }
+  if (remote.sizeBytes !== undefined) {
+    return remote.sizeBytes !== stored.sizeBytes;
+  }
+  return false;
+}
+
 /**
  * Download a PMTiles file to OPFS with progress reporting.
  * Uses streaming to avoid holding the entire file in memory.

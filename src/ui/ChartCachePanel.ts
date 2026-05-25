@@ -18,8 +18,10 @@ import {
   deleteChart,
   downloadAuxFile,
   downloadChart,
+  fetchRemoteChartMeta,
   getStorageEstimate,
   importChart,
+  isUpdateAvailable,
   listStoredCharts,
 } from "../data/tile-store";
 import { getSettings, updateSettings } from "../settings";
@@ -27,6 +29,7 @@ import {
   iconCloudOff,
   iconDownload,
   iconFolderOpen,
+  iconRefresh,
   iconTrash,
   iconX,
   setIcon,
@@ -47,6 +50,8 @@ export class ChartCachePanel {
   private readonly storageInfo: HTMLDivElement;
   private downloadController: AbortController | null = null;
   private onChartsChanged?: () => void;
+  /** Bumped on each refresh so stale async update-checks are ignored. */
+  private refreshToken = 0;
 
   constructor() {
     this.el = document.createElement("div");
@@ -93,6 +98,7 @@ export class ChartCachePanel {
   }
 
   private async refresh(): Promise<void> {
+    const token = ++this.refreshToken;
     const storedCharts = await listStoredCharts();
     const storedMap = new Map(storedCharts.map((c) => [c.filename, c]));
     const activeRegion = getSettings().activeRegion;
@@ -140,6 +146,58 @@ export class ChartCachePanel {
 
     this.body.appendChild(actions);
     await this.updateStorageInfo();
+
+    // Check downloaded regions for newer charts (non-blocking, bandwidth-cheap).
+    this.checkForUpdates(token, storedCharts);
+  }
+
+  /**
+   * HEAD each downloaded region and flag those with a newer remote copy.
+   * Runs after render so the list shows immediately; stale checks from a
+   * superseded refresh are dropped via the token.
+   */
+  private checkForUpdates(token: number, stored: StoredChartInfo[]): void {
+    const storedByFile = new Map(stored.map((c) => [c.filename, c]));
+    for (const region of CHART_REGIONS) {
+      const info = storedByFile.get(region.filename);
+      if (!info) continue;
+      fetchRemoteChartMeta(`${chartAssetBase()}/${region.filename}`)
+        .then((remote) => {
+          if (token !== this.refreshToken) return; // panel re-rendered
+          if (remote && isUpdateAvailable(info, remote)) {
+            this.markUpdateAvailable(region);
+          }
+        })
+        .catch(() => {
+          // offline / HEAD unsupported — leave the row as-is
+        });
+    }
+  }
+
+  /** Flag a downloaded region's row as having an update, adding an update button. */
+  private markUpdateAvailable(region: ChartRegion): void {
+    const item = this.body.querySelector<HTMLElement>(
+      `[data-region-id="${region.id}"]`,
+    );
+    if (!item || item.querySelector(".chart-region-update")) return;
+
+    const detail = item.querySelector<HTMLElement>(".manager-item-detail");
+    if (detail) {
+      detail.classList.add("manager-item-detail--update");
+      const badge = document.createElement("span");
+      badge.textContent = "Update available · ";
+      detail.prepend(badge);
+    }
+
+    const actions = item.querySelector<HTMLElement>(".manager-item-actions");
+    if (actions) {
+      const updateBtn = document.createElement("button");
+      updateBtn.className = "manager-item-btn chart-region-update";
+      setIcon(updateBtn, iconRefresh);
+      updateBtn.title = `Update ${region.name} to the latest charts`;
+      updateBtn.addEventListener("click", () => this.startDownload(region));
+      actions.prepend(updateBtn);
+    }
   }
 
   /** Create a row for a catalog region. */
@@ -150,6 +208,7 @@ export class ChartCachePanel {
   ): HTMLDivElement {
     const item = document.createElement("div");
     item.className = `manager-item${isActive ? " manager-item--active" : ""}`;
+    item.dataset.regionId = region.id;
 
     // Radio-style select button
     const radio = document.createElement("div");

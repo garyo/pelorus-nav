@@ -1249,6 +1249,18 @@ body {
   color: #999;
 }
 
+.manager-item-detail--update {
+  color: #ff8800;
+}
+
+.manager-item-btn.chart-region-update {
+  color: #ff8800;
+}
+
+.manager-item-btn.chart-region-update:hover {
+  color: #ffaa44;
+}
+
 .manager-item-actions {
   display: flex;
   gap: 4px;
