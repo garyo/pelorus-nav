@@ -256,33 +256,46 @@ do_build() {
   echo "Build $region: $(format_elapsed $elapsed), output: $size"
 }
 
+# Upload a single file to R2, honouring the stamp-based skip (unless --force).
+do_upload_file() {
+  local file="$1"
+  [[ -f "$file" ]] || return 0
+
+  local name
+  name=$(basename "$file")
+  local stamp="${STAMP_DIR}/.uploaded-${name}"
+
+  if ! $FORCE && [[ -f "$stamp" ]] && [[ "$file" -ot "$stamp" ]]; then
+    echo "Skip $name (up to date)"
+    return 0
+  fi
+
+  echo "Uploading $name ($(du -h "$file" | cut -f1))..."
+  bun "$SCRIPT_DIR/r2-upload.ts" "$R2_BUCKET" "$name" "$file"
+  touch "$stamp"
+}
+
+# Upload one region's PMTiles + coverage + search index. Called right after the
+# region builds so a later failure can't strand already-finished regions.
+do_upload_region() {
+  local region="$1"
+  echo "=== Uploading $region ==="
+  do_upload_file "$OUTPUT_DIR/nautical-${region}.pmtiles"
+  do_upload_file "$OUTPUT_DIR/nautical-${region}.coverage.geojson"
+  do_upload_file "$OUTPUT_DIR/nautical-${region}.search.json"
+  echo ""
+}
+
 do_upload() {
   echo "=== Uploading to R2 ==="
   local start=$SECONDS
-  local uploaded=0
-  local skipped=0
 
   for file in "$OUTPUT_DIR"/nautical-*.pmtiles "$OUTPUT_DIR"/nautical-*.coverage.geojson "$OUTPUT_DIR"/nautical-*.search.json; do
-    [[ -f "$file" ]] || continue
-
-    local name
-    name=$(basename "$file")
-    local stamp="${STAMP_DIR}/.uploaded-${name}"
-
-    if ! $FORCE && [[ -f "$stamp" ]] && [[ "$file" -ot "$stamp" ]]; then
-      echo "Skip $name (up to date)"
-      skipped=$((skipped + 1))
-      continue
-    fi
-
-    echo "Uploading $name ($(du -h "$file" | cut -f1))..."
-    bun "$SCRIPT_DIR/r2-upload.ts" "$R2_BUCKET" "$name" "$file"
-    touch "$stamp"
-    uploaded=$((uploaded + 1))
+    do_upload_file "$file"
   done
 
   local elapsed=$((SECONDS - start))
-  echo "Upload: $uploaded uploaded, $skipped skipped in $(format_elapsed $elapsed)"
+  echo "Upload complete in $(format_elapsed $elapsed)"
   echo ""
 }
 
@@ -358,6 +371,12 @@ if $OP_BUILD; then
     echo "=== Building tiles ==="
     for region in "${BUILD_REGIONS[@]}"; do
       do_build "$region"
+      # Ship each region the moment it's built so a later failure leaves the
+      # finished regions already live. The unified coverage mask still waits
+      # for all regions (uploaded in Step 4).
+      if $OP_UPLOAD; then
+        do_upload_region "$region"
+      fi
       echo ""
     done
     unify_coverage
@@ -365,9 +384,17 @@ if $OP_BUILD; then
   fi
 fi
 
-# Step 4: Upload (if requested)
+# Step 4: Upload (if requested). After an interleaved build the per-region
+# files are already up, so only the cross-region unified coverage mask remains.
+# For an upload-only run (no --build) fall back to the full sweep.
 if $OP_UPLOAD && [[ ${#BUILD_REGIONS[@]} -gt 0 ]]; then
-  do_upload
+  if $OP_BUILD; then
+    echo "=== Uploading unified coverage ==="
+    do_upload_file "$OUTPUT_DIR/nautical-unified.coverage.geojson"
+    echo ""
+  else
+    do_upload
+  fi
 fi
 
 # Update state after successful build+upload
