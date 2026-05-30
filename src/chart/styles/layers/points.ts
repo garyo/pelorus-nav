@@ -10,6 +10,7 @@ import type {
 } from "@maplibre/maplibre-gl-style-spec";
 import type { StyleContext } from "../style-context";
 import {
+  BUOY_LABEL_ANCHOR_LAYOUT,
   depthTextField,
   labelExpr,
   lightLabelTextField,
@@ -110,272 +111,14 @@ export function getBuoyBeaconLayers(ctx: StyleContext): LayerSpecification[] {
   const lights = ctx.layerExprs("LIGHTS");
 
   return [
-    // Lateral buoys
-    {
-      id: "s57-boylat",
-      type: "symbol",
-      source: ctx.sourceId,
-      "source-layer": "BOYLAT",
-      minzoom: 8,
-      layout: withOffset(
-        {
-          "symbol-sort-key": SORT_KEY_NAVAID,
-          "icon-image": boylat.iconExpr,
-          "icon-size": scaledSize(0.75, ctx),
-          "icon-allow-overlap": true,
-          "icon-ignore-placement": true,
-          "text-field": labelExpr(ctx),
-          "text-size": scaledTextSize(11, ctx),
-          "text-offset": [0, 1.5],
-          "text-allow-overlap": false,
-          "text-optional": true,
-        },
-        boylat.offsetExpr,
-      ),
-      paint: {
-        "text-color": ctx.colour("CHBLK"),
-        "text-halo-color": ctx.colour("NAIDH"),
-        "text-halo-width": 1.5,
-      },
-    },
-
-    // Cardinal buoys
-    {
-      id: "s57-boycar",
-      type: "symbol",
-      source: ctx.sourceId,
-      "source-layer": "BOYCAR",
-      minzoom: 8,
-      layout: withOffset(
-        {
-          "symbol-sort-key": SORT_KEY_NAVAID,
-          "icon-image": boycar.iconExpr,
-          "icon-size": scaledSize(0.75, ctx),
-          "icon-allow-overlap": true,
-          "icon-ignore-placement": true,
-          "text-field": labelExpr(ctx),
-          "text-size": scaledTextSize(11, ctx),
-          "text-offset": [0, 1.5],
-          "text-allow-overlap": false,
-          "text-optional": true,
-        },
-        boycar.offsetExpr,
-      ),
-      paint: {
-        "text-color": ctx.colour("CHBLK"),
-        "text-halo-color": ctx.colour("NAIDH"),
-        "text-halo-width": 1.5,
-      },
-    },
-
-    // Safe water buoys
-    {
-      id: "s57-boysaw",
-      type: "symbol",
-      source: ctx.sourceId,
-      "source-layer": "BOYSAW",
-      minzoom: 8,
-      layout: withOffset(
-        {
-          "symbol-sort-key": SORT_KEY_NAVAID,
-          "icon-image": boysaw.iconExpr,
-          "icon-size": scaledSize(0.75, ctx),
-          "icon-allow-overlap": true,
-          "icon-ignore-placement": true,
-          "text-field": labelExpr(ctx),
-          "text-size": scaledTextSize(11, ctx),
-          "text-offset": [0, 1.5],
-          "text-allow-overlap": false,
-          "text-optional": true,
-        },
-        boysaw.offsetExpr,
-      ),
-      paint: {
-        "text-color": ctx.colour("CHBLK"),
-        "text-halo-color": ctx.colour("NAIDH"),
-        "text-halo-width": 1.5,
-      },
-    },
-
-    // Special purpose buoys
-    {
-      id: "s57-boyspp",
-      type: "symbol",
-      source: ctx.sourceId,
-      "source-layer": "BOYSPP",
-      minzoom: 8,
-      layout: withOffset(
-        {
-          "symbol-sort-key": SORT_KEY_NAVAID,
-          "icon-image": boyspp.iconExpr,
-          "icon-size": scaledSize(0.7, ctx),
-          "icon-allow-overlap": true,
-          "icon-ignore-placement": true,
-          "text-field": labelExpr(ctx),
-          "text-size": scaledTextSize(11, ctx),
-          "text-offset": [0, 1.5],
-          "text-allow-overlap": false,
-          "text-optional": true,
-        },
-        boyspp.offsetExpr,
-      ),
-      paint: {
-        "text-color": ctx.colour("CHBLK"),
-        "text-halo-color": ctx.colour("NAIDH"),
-        "text-halo-width": 1.5,
-      },
-    },
-
-    // Isolated danger buoys
-    {
-      id: "s57-boyisd",
-      type: "symbol",
-      source: ctx.sourceId,
-      "source-layer": "BOYISD",
-      minzoom: 6,
-      layout: withOffset(
-        {
-          "symbol-sort-key": SORT_KEY_NAVAID,
-          "icon-image": boyisd.iconExpr,
-          "icon-size": scaledSize(0.75, ctx),
-          "icon-allow-overlap": true,
-          "icon-ignore-placement": true,
-          "text-field": labelExpr(ctx),
-          "text-size": scaledTextSize(11, ctx),
-          "text-offset": [0, 1.5],
-          "text-allow-overlap": false,
-          "text-optional": true,
-        },
-        boyisd.offsetExpr,
-      ),
-      paint: {
-        "text-color": ctx.colour("CHBLK"),
-        "text-halo-color": ctx.colour("NAIDH"),
-        "text-halo-width": 1.5,
-      },
-    },
-
-    // Lateral beacons
-    {
-      id: "s57-bcnlat",
-      type: "symbol",
-      source: ctx.sourceId,
-      "source-layer": "BCNLAT",
-      minzoom: 8,
-      layout: withOffset(
-        {
-          "symbol-sort-key": SORT_KEY_NAVAID,
-          "icon-image": bcnlat.iconExpr,
-          "icon-size": scaledSize(0.7, ctx),
-          "icon-allow-overlap": true,
-          "icon-ignore-placement": true,
-          "text-field": labelExpr(ctx),
-          "text-size": scaledTextSize(11, ctx),
-          "text-offset": [0, 1.5],
-          "text-allow-overlap": false,
-          "text-optional": true,
-        },
-        bcnlat.offsetExpr,
-      ),
-      paint: {
-        "text-color": ctx.colour("CHBLK"),
-        "text-halo-color": ctx.colour("NAIDH"),
-        "text-halo-width": 1.5,
-      },
-    },
-
-    // Cardinal beacons
-    {
-      id: "s57-bcncar",
-      type: "symbol",
-      source: ctx.sourceId,
-      "source-layer": "BCNCAR",
-      minzoom: 8,
-      layout: withOffset(
-        {
-          "symbol-sort-key": SORT_KEY_NAVAID,
-          "icon-image": bcncar.iconExpr,
-          "icon-size": scaledSize(0.7, ctx),
-          "icon-allow-overlap": true,
-          "icon-ignore-placement": true,
-          "text-field": labelExpr(ctx),
-          "text-size": scaledTextSize(11, ctx),
-          "text-offset": [0, 1.5],
-          "text-allow-overlap": false,
-          "text-optional": true,
-        },
-        bcncar.offsetExpr,
-      ),
-      paint: {
-        "text-color": ctx.colour("CHBLK"),
-        "text-halo-color": ctx.colour("NAIDH"),
-        "text-halo-width": 1.5,
-      },
-    },
-
-    // Isolated danger beacons
-    {
-      id: "s57-bcnisd",
-      type: "symbol",
-      source: ctx.sourceId,
-      "source-layer": "BCNISD",
-      minzoom: 8,
-      layout: withOffset(
-        {
-          "symbol-sort-key": SORT_KEY_NAVAID,
-          "icon-image": bcnisd.iconExpr,
-          "icon-size": scaledSize(0.7, ctx),
-          "icon-allow-overlap": true,
-          "icon-ignore-placement": true,
-          "text-field": labelExpr(ctx),
-          "text-size": scaledTextSize(11, ctx),
-          "text-offset": [0, 1.5],
-          "text-allow-overlap": false,
-          "text-optional": true,
-        },
-        bcnisd.offsetExpr,
-      ),
-      paint: {
-        "text-color": ctx.colour("CHBLK"),
-        "text-halo-color": ctx.colour("NAIDH"),
-        "text-halo-width": 1.5,
-      },
-    },
-    // Safe water beacons
-    {
-      id: "s57-bcnsaw",
-      type: "symbol",
-      source: ctx.sourceId,
-      "source-layer": "BCNSAW",
-      minzoom: 8,
-      layout: withOffset(
-        {
-          "symbol-sort-key": SORT_KEY_NAVAID,
-          "icon-image": bcnsaw.iconExpr,
-          "icon-size": scaledSize(0.7, ctx),
-          "icon-allow-overlap": true,
-          "icon-ignore-placement": true,
-          "text-field": labelExpr(ctx),
-          "text-size": scaledTextSize(11, ctx),
-          "text-offset": [0, 1.5],
-          "text-allow-overlap": false,
-          "text-optional": true,
-        },
-        bcnsaw.offsetExpr,
-      ),
-      paint: {
-        "text-color": ctx.colour("CHBLK"),
-        "text-halo-color": ctx.colour("NAIDH"),
-        "text-halo-width": 1.5,
-      },
-    },
-
-    // Light icons + characteristics — drawn last so teardrops render
-    // on top of buoy/beacon icons. ``LIGHT_CHAR`` sort-key sits below
-    // LANDMARK so a lighthouse's name ("Boston Light") wins over its
-    // own characteristic label ("Fl(1) 10s 31.1m27M") when they'd
-    // otherwise collide. Light text is ``text-optional`` so the flare
-    // still shows even when the characteristic is suppressed.
+    // Light icons + characteristic labels are placed BEFORE the buoy/beacon
+    // layers so buoy numbers win the label collision: in MapLibre the later
+    // (on-top) layer's text wins, and `symbol-sort-key` only orders WITHIN a
+    // layer, not across layers. Teardrop flares are drawn on top separately by
+    // PelLightLayer (which suppresses this layer's icon for lights it handles),
+    // so the light icon's order here no longer matters for the flare. Light
+    // text is `text-optional`, so a characteristic still shows wherever the
+    // buoy number leaves room.
     {
       id: "s57-lights",
       type: "symbol",
@@ -423,6 +166,266 @@ export function getBuoyBeaconLayers(ctx: StyleContext): LayerSpecification[] {
       ),
       paint: {
         "text-color": ctx.colour("SNDG2"),
+        "text-halo-color": ctx.colour("NAIDH"),
+        "text-halo-width": 1.5,
+      },
+    },
+
+    // Lateral buoys
+    {
+      id: "s57-boylat",
+      type: "symbol",
+      source: ctx.sourceId,
+      "source-layer": "BOYLAT",
+      minzoom: 8,
+      layout: withOffset(
+        {
+          "symbol-sort-key": SORT_KEY_NAVAID,
+          "icon-image": boylat.iconExpr,
+          "icon-size": scaledSize(0.75, ctx),
+          "icon-allow-overlap": true,
+          "icon-ignore-placement": true,
+          "text-field": labelExpr(ctx),
+          "text-size": scaledTextSize(11, ctx),
+          ...BUOY_LABEL_ANCHOR_LAYOUT,
+          "text-allow-overlap": false,
+          "text-optional": true,
+        },
+        boylat.offsetExpr,
+      ),
+      paint: {
+        "text-color": ctx.colour("CHBLK"),
+        "text-halo-color": ctx.colour("NAIDH"),
+        "text-halo-width": 1.5,
+      },
+    },
+
+    // Cardinal buoys
+    {
+      id: "s57-boycar",
+      type: "symbol",
+      source: ctx.sourceId,
+      "source-layer": "BOYCAR",
+      minzoom: 8,
+      layout: withOffset(
+        {
+          "symbol-sort-key": SORT_KEY_NAVAID,
+          "icon-image": boycar.iconExpr,
+          "icon-size": scaledSize(0.75, ctx),
+          "icon-allow-overlap": true,
+          "icon-ignore-placement": true,
+          "text-field": labelExpr(ctx),
+          "text-size": scaledTextSize(11, ctx),
+          ...BUOY_LABEL_ANCHOR_LAYOUT,
+          "text-allow-overlap": false,
+          "text-optional": true,
+        },
+        boycar.offsetExpr,
+      ),
+      paint: {
+        "text-color": ctx.colour("CHBLK"),
+        "text-halo-color": ctx.colour("NAIDH"),
+        "text-halo-width": 1.5,
+      },
+    },
+
+    // Safe water buoys
+    {
+      id: "s57-boysaw",
+      type: "symbol",
+      source: ctx.sourceId,
+      "source-layer": "BOYSAW",
+      minzoom: 8,
+      layout: withOffset(
+        {
+          "symbol-sort-key": SORT_KEY_NAVAID,
+          "icon-image": boysaw.iconExpr,
+          "icon-size": scaledSize(0.75, ctx),
+          "icon-allow-overlap": true,
+          "icon-ignore-placement": true,
+          "text-field": labelExpr(ctx),
+          "text-size": scaledTextSize(11, ctx),
+          ...BUOY_LABEL_ANCHOR_LAYOUT,
+          "text-allow-overlap": false,
+          "text-optional": true,
+        },
+        boysaw.offsetExpr,
+      ),
+      paint: {
+        "text-color": ctx.colour("CHBLK"),
+        "text-halo-color": ctx.colour("NAIDH"),
+        "text-halo-width": 1.5,
+      },
+    },
+
+    // Special purpose buoys
+    {
+      id: "s57-boyspp",
+      type: "symbol",
+      source: ctx.sourceId,
+      "source-layer": "BOYSPP",
+      minzoom: 8,
+      layout: withOffset(
+        {
+          "symbol-sort-key": SORT_KEY_NAVAID,
+          "icon-image": boyspp.iconExpr,
+          "icon-size": scaledSize(0.7, ctx),
+          "icon-allow-overlap": true,
+          "icon-ignore-placement": true,
+          "text-field": labelExpr(ctx),
+          "text-size": scaledTextSize(11, ctx),
+          ...BUOY_LABEL_ANCHOR_LAYOUT,
+          "text-allow-overlap": false,
+          "text-optional": true,
+        },
+        boyspp.offsetExpr,
+      ),
+      paint: {
+        "text-color": ctx.colour("CHBLK"),
+        "text-halo-color": ctx.colour("NAIDH"),
+        "text-halo-width": 1.5,
+      },
+    },
+
+    // Isolated danger buoys
+    {
+      id: "s57-boyisd",
+      type: "symbol",
+      source: ctx.sourceId,
+      "source-layer": "BOYISD",
+      minzoom: 6,
+      layout: withOffset(
+        {
+          "symbol-sort-key": SORT_KEY_NAVAID,
+          "icon-image": boyisd.iconExpr,
+          "icon-size": scaledSize(0.75, ctx),
+          "icon-allow-overlap": true,
+          "icon-ignore-placement": true,
+          "text-field": labelExpr(ctx),
+          "text-size": scaledTextSize(11, ctx),
+          ...BUOY_LABEL_ANCHOR_LAYOUT,
+          "text-allow-overlap": false,
+          "text-optional": true,
+        },
+        boyisd.offsetExpr,
+      ),
+      paint: {
+        "text-color": ctx.colour("CHBLK"),
+        "text-halo-color": ctx.colour("NAIDH"),
+        "text-halo-width": 1.5,
+      },
+    },
+
+    // Lateral beacons
+    {
+      id: "s57-bcnlat",
+      type: "symbol",
+      source: ctx.sourceId,
+      "source-layer": "BCNLAT",
+      minzoom: 8,
+      layout: withOffset(
+        {
+          "symbol-sort-key": SORT_KEY_NAVAID,
+          "icon-image": bcnlat.iconExpr,
+          "icon-size": scaledSize(0.7, ctx),
+          "icon-allow-overlap": true,
+          "icon-ignore-placement": true,
+          "text-field": labelExpr(ctx),
+          "text-size": scaledTextSize(11, ctx),
+          ...BUOY_LABEL_ANCHOR_LAYOUT,
+          "text-allow-overlap": false,
+          "text-optional": true,
+        },
+        bcnlat.offsetExpr,
+      ),
+      paint: {
+        "text-color": ctx.colour("CHBLK"),
+        "text-halo-color": ctx.colour("NAIDH"),
+        "text-halo-width": 1.5,
+      },
+    },
+
+    // Cardinal beacons
+    {
+      id: "s57-bcncar",
+      type: "symbol",
+      source: ctx.sourceId,
+      "source-layer": "BCNCAR",
+      minzoom: 8,
+      layout: withOffset(
+        {
+          "symbol-sort-key": SORT_KEY_NAVAID,
+          "icon-image": bcncar.iconExpr,
+          "icon-size": scaledSize(0.7, ctx),
+          "icon-allow-overlap": true,
+          "icon-ignore-placement": true,
+          "text-field": labelExpr(ctx),
+          "text-size": scaledTextSize(11, ctx),
+          ...BUOY_LABEL_ANCHOR_LAYOUT,
+          "text-allow-overlap": false,
+          "text-optional": true,
+        },
+        bcncar.offsetExpr,
+      ),
+      paint: {
+        "text-color": ctx.colour("CHBLK"),
+        "text-halo-color": ctx.colour("NAIDH"),
+        "text-halo-width": 1.5,
+      },
+    },
+
+    // Isolated danger beacons
+    {
+      id: "s57-bcnisd",
+      type: "symbol",
+      source: ctx.sourceId,
+      "source-layer": "BCNISD",
+      minzoom: 8,
+      layout: withOffset(
+        {
+          "symbol-sort-key": SORT_KEY_NAVAID,
+          "icon-image": bcnisd.iconExpr,
+          "icon-size": scaledSize(0.7, ctx),
+          "icon-allow-overlap": true,
+          "icon-ignore-placement": true,
+          "text-field": labelExpr(ctx),
+          "text-size": scaledTextSize(11, ctx),
+          ...BUOY_LABEL_ANCHOR_LAYOUT,
+          "text-allow-overlap": false,
+          "text-optional": true,
+        },
+        bcnisd.offsetExpr,
+      ),
+      paint: {
+        "text-color": ctx.colour("CHBLK"),
+        "text-halo-color": ctx.colour("NAIDH"),
+        "text-halo-width": 1.5,
+      },
+    },
+    // Safe water beacons
+    {
+      id: "s57-bcnsaw",
+      type: "symbol",
+      source: ctx.sourceId,
+      "source-layer": "BCNSAW",
+      minzoom: 8,
+      layout: withOffset(
+        {
+          "symbol-sort-key": SORT_KEY_NAVAID,
+          "icon-image": bcnsaw.iconExpr,
+          "icon-size": scaledSize(0.7, ctx),
+          "icon-allow-overlap": true,
+          "icon-ignore-placement": true,
+          "text-field": labelExpr(ctx),
+          "text-size": scaledTextSize(11, ctx),
+          ...BUOY_LABEL_ANCHOR_LAYOUT,
+          "text-allow-overlap": false,
+          "text-optional": true,
+        },
+        bcnsaw.offsetExpr,
+      ),
+      paint: {
+        "text-color": ctx.colour("CHBLK"),
         "text-halo-color": ctx.colour("NAIDH"),
         "text-halo-width": 1.5,
       },
@@ -1046,7 +1049,7 @@ export function getOtherNavAidLayers(ctx: StyleContext): LayerSpecification[] {
           "icon-ignore-placement": true,
           "text-field": labelExpr(ctx),
           "text-size": scaledTextSize(11, ctx),
-          "text-offset": [0, 1.5],
+          ...BUOY_LABEL_ANCHOR_LAYOUT,
           "text-allow-overlap": false,
           "text-optional": true,
         },

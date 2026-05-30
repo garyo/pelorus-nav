@@ -142,12 +142,17 @@ export function labelExpr(ctx: StyleContext): ExpressionSpecification {
  * Does not apply when ``symbol-placement`` is "line" or "line-center".
  */
 /**
- * ``symbol-sort-key`` constants for cross-layer collision priority.
+ * ``symbol-sort-key`` constants.
  *
- * MapLibre places symbols in ascending sort-key order; lower keys are
- * placed first and so win collisions when ``text-allow-overlap`` is false.
- * These rankings let safety-critical navaids beat area labels (e.g. a
- * lighthouse's name beats "Massachusetts Bay" in the collision lottery).
+ * IMPORTANT: ``symbol-sort-key`` only orders features *within a single layer*
+ * — it does NOT set priority across layers (verified against the MapLibre
+ * docs/behaviour). Across layers, the later (on-top) layer's text wins a
+ * collision when ``text-allow-overlap`` is false. So for cross-layer priority
+ * you must order the LAYERS, not tune these keys. These values still matter
+ * within a layer that mixes priorities (e.g. dangerous vs ordinary wrecks).
+ *
+ * MapLibre places features in ascending sort-key order; lower keys are placed
+ * first and win collisions among features of the same layer.
  *
  * Leave soundings and raw numeric labels alone — their collision story
  * is governed by ``text-padding`` and they don't compete with place names.
@@ -185,6 +190,29 @@ export const VARIABLE_ANCHOR_LAYOUT: {
     "bottom-right",
   ],
   "text-radial-offset": 1.5,
+  "text-justify": "auto",
+};
+
+/**
+ * Variable-anchor placement for buoy/beacon number labels. For predictability
+ * the label only ever sits directly below the icon (anchor "top") or, if that
+ * spot is blocked, at the bottom-left (anchor "top-right"). Showing the number
+ * slightly off beats dropping it; allowing all eight positions looked random.
+ *
+ * Anchors name the part of the LABEL nearest the point, so "top" places the
+ * label below the point and "top-right" places it to the bottom-left.
+ *
+ * The radial offset is smaller than the old fixed text-offset (1.2) because a
+ * variable anchor pins the label's edge (not its centre) to the point, which
+ * otherwise pushes it noticeably lower.
+ */
+export const BUOY_LABEL_ANCHOR_LAYOUT: {
+  "text-variable-anchor": ("top" | "top-right")[];
+  "text-radial-offset": number;
+  "text-justify": "auto";
+} = {
+  "text-variable-anchor": ["top", "top-right"],
+  "text-radial-offset": 0.8,
   "text-justify": "auto",
 };
 
