@@ -15,7 +15,10 @@ export default defineConfig({
   },
   build: {
     target: "es2022",
-    sourcemap: true,
+    // Capacitor inlines sourcemaps into the JS, bloating the bundle to ~6.8 MB,
+    // which is very slow to parse on weak e-ink WebView CPUs. Keep sourcemaps
+    // for web/dev builds; drop them for the on-device Capacitor bundle.
+    sourcemap: !isCapacitor,
   },
   server: {
     host: true,
