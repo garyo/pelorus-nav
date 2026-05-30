@@ -113,10 +113,11 @@ def _light_label(props: dict) -> str | None:
         return None
     head = char_abbrev
 
-    # Group notation: "(2)" → "Fl(2)". Skip empty "()" and absent. Keep "(1)"
-    # per NOAA viewer convention (e.g. "Fl(1)G").
+    # Group notation: "(2)" → "Fl(2)". Skip empty "()", absent, and the
+    # single-flash group "(1)" — a lone flash is written plainly ("Fl", "Q",
+    # "Oc"), which is shorter and clearer, matching common chart usage.
     siggrp = props.get("SIGGRP")
-    has_group = bool(siggrp) and siggrp != "()"
+    has_group = bool(siggrp) and siggrp not in ("()", "(1)")
     if has_group:
         head = f"{head}{siggrp}"
 
