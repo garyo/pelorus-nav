@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { computeNavigation, shouldAdvanceLeg } from "./ActiveNavigation";
+import type { Route } from "../data/Route";
+import {
+  computeNavigation,
+  pickStartLeg,
+  shouldAdvanceLeg,
+} from "./ActiveNavigation";
 
 describe("computeNavigation", () => {
   it("computes bearing and distance between two points", () => {
@@ -85,5 +90,41 @@ describe("shouldAdvanceLeg", () => {
     expect(
       shouldAdvanceLeg(0, 1.01, fromLat, fromLon, toLat, toLon, arrivalRadius),
     ).toBe(true);
+  });
+});
+
+describe("pickStartLeg", () => {
+  // Route along the equator: wp0 at (0, 0), wp1 at (0, 1) — due east.
+  const route: Route = {
+    id: "r1",
+    name: "Test",
+    createdAt: 0,
+    color: "#000",
+    visible: true,
+    waypoints: [
+      { lat: 0, lon: 0, name: "WP0" },
+      { lat: 0, lon: 1, name: "WP1" },
+    ],
+  };
+  const arrivalRadius = 0.1; // NM
+
+  it("targets waypoint[0] when the vessel is still short of it", () => {
+    // Vessel west of wp0 (behind the route start) — wp0 is ahead.
+    expect(pickStartLeg(0, -0.5, route, arrivalRadius)).toBe(0);
+  });
+
+  it("starts at leg 1 once the vessel has passed waypoint[0]", () => {
+    // Vessel between wp0 and wp1 — already past wp0's perpendicular.
+    expect(pickStartLeg(0, 0.5, route, arrivalRadius)).toBe(1);
+  });
+
+  it("starts at leg 1 when the vessel is within waypoint[0]'s arrival radius", () => {
+    // Vessel essentially at wp0 (but a touch west, so not past perpendicular).
+    expect(pickStartLeg(0, -0.0001, route, arrivalRadius)).toBe(1);
+  });
+
+  it("defaults to leg 1 for a degenerate single-waypoint route", () => {
+    const single: Route = { ...route, waypoints: [route.waypoints[0]] };
+    expect(pickStartLeg(0, -0.5, single, arrivalRadius)).toBe(1);
   });
 });
