@@ -201,9 +201,14 @@ export class CourseLine {
       const dx = container.clientWidth / 2 - vesselPx.x;
       const dy = container.clientHeight / 2 - vesselPx.y;
       const distToCenterPx = Math.sqrt(dx * dx + dy * dy);
-      const aheadPx = Math.max(
-        2 * distToCenterPx,
-        container.clientHeight * 0.5,
+      // Cap the look-ahead at one canvas height. When the vessel is far
+      // off-centre — panned away in free mode, or run off toward an edge —
+      // targeting the now-distant canvas centre would otherwise stretch the
+      // line clear across the chart. In follow modes the vessel offset is
+      // bounded (LOOK_AHEAD_FRACTION) well under this, so the cap never bites.
+      const aheadPx = Math.min(
+        Math.max(2 * distToCenterPx, container.clientHeight * 0.5),
+        container.clientHeight,
       );
       const targetNM = pxPerNM > 0 ? aheadPx / pxPerNM : 1;
       const targetMin = (targetNM / Math.max(sog, 0.5)) * 60;
