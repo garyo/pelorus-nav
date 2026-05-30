@@ -204,9 +204,15 @@ for (const theme of THEMES) {
   for (const file of sourceFiles) {
     const svg = readFileSync(join(SOURCE_DIR, file), "utf-8");
     let coloured = applyColours(svg, colourMaps[theme]);
-    // E-ink: remove fill-opacity to make light flares fully opaque
+    // E-ink: make partially-transparent fills (e.g. light flares) fully
+    // opaque. Preserve fill-opacity="0" — that marks intentionally invisible
+    // elements such as a pattern's transparent background tile rect, which
+    // would otherwise become a solid black fill.
     if (theme === "eink") {
-      coloured = coloured.replace(/\s*fill-opacity="[^"]*"/g, "");
+      coloured = coloured.replace(
+        /\s*fill-opacity="(?!0(?:\.0+)?")[^"]*"/g,
+        "",
+      );
     }
     // Rotate light flare teardrops 135° (up → down-right per S-52 convention)
     const symbolName = file.replace(".svg", "");
