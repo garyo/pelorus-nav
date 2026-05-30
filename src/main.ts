@@ -373,10 +373,24 @@ const chartMode = new ChartModeController(chartManager.map);
 
 // Chart-mode toggle in the bottom-left. The icon reflects the current
 // mode (free / follow / course-up / north-up) and tapping cycles through.
+// Recovery: if the view is stranded zoomed way out, snap back to a usable nav
+// zoom. Runs on any chart-mode button tap (recenter or mode-cycle) so the user
+// can always escape, regardless of the current mode. No-op at normal zooms.
+const recoverZoomIfStranded = () => {
+  if (chartManager.map.getZoom() < 8) {
+    chartManager.map.setZoom(12);
+  }
+};
 const recenterBtn = new RecenterButton({
   getMode: () => chartMode.getMode(),
-  recenter: () => chartMode.recenter(),
-  setMode: (m) => chartMode.setMode(m),
+  recenter: () => {
+    chartMode.recenter();
+    recoverZoomIfStranded();
+  },
+  setMode: (m) => {
+    chartMode.setMode(m);
+    recoverZoomIfStranded();
+  },
 });
 chartManager.map.addControl(recenterBtn, "bottom-left");
 chartMode.onModeChange(() => recenterBtn.refresh());
@@ -547,8 +561,15 @@ applyGpsRateForTheme(initGpsSettings.displayTheme);
  * ratio gives them room to react. Default (1) restored for other themes.
  */
 function applyTouchZoomForTheme(theme: string): void {
-  const rate = theme === "eink" ? 0.5 : undefined;
-  chartManager.map.touchZoomRotate.setZoomRate(rate);
+  const isEink = theme === "eink";
+  chartManager.map.touchZoomRotate.setZoomRate(isEink ? 0.5 : undefined);
+  // E-ink: disable the two-finger-tap-to-zoom-out (and double-tap-to-zoom-in)
+  // gesture. The slow panel makes users lift pinch fingers quickly with little
+  // movement, which MapLibre reads as a two-finger tap and zooms out a level
+  // each time — retries then compound into a big zoom-out. Pinch zoom
+  // (touchZoomRotate) is unaffected.
+  if (isEink) chartManager.map.doubleClickZoom.disable();
+  else chartManager.map.doubleClickZoom.enable();
 }
 applyTouchZoomForTheme(initGpsSettings.displayTheme);
 onSettingsChange((s) => applyTouchZoomForTheme(s.displayTheme));
