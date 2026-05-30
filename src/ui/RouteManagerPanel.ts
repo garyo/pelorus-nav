@@ -163,6 +163,7 @@ export class RouteManagerPanel {
 
   hide(): void {
     this.el.classList.remove("open");
+    this.detailPanel.hide();
     this.clearSelection();
   }
 

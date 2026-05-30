@@ -131,6 +131,12 @@ const applyDisplayTheme = (theme: string) => {
 applyDisplayTheme(getSettings().displayTheme);
 onSettingsChange((s) => applyDisplayTheme(s.displayTheme));
 
+const applyInstrumentLayout = (layout: string) => {
+  document.body.dataset.instrumentLayout = layout;
+};
+applyInstrumentLayout(getSettings().instrumentLayout);
+onSettingsChange((s) => applyInstrumentLayout(s.instrumentLayout));
+
 // Create vector chart provider — loads ALL regions simultaneously
 const initialRegion = getSettings().activeRegion;
 const vectorProvider = new VectorChartProvider(initialRegion);
@@ -269,6 +275,11 @@ const settingsHandle = topbarMenu
       },
     })
   : null;
+
+// Dialogs/panels that the idle auto-return closes. Each is pushed at its
+// creation site below; the idle handler reads the populated list when it fires.
+const idleCloseables: Array<{ hide(): void }> = [];
+if (settingsHandle) idleCloseables.push(settingsHandle);
 
 // Hamburger toggle for mobile
 const hamburgerBtn = document.getElementById("hamburger-btn");
@@ -469,6 +480,7 @@ onSettingsChange((s) => {
 // Search dialog for chart features. Cache the merged entries so other
 // features (waypoint auto-naming) can read them synchronously.
 const searchDialog = new SearchDialog(chartManager.map);
+idleCloseables.push(searchDialog);
 let cachedSearchEntries: SearchEntry[] = [];
 loadAllSearchIndices().then((entries) => {
   cachedSearchEntries = entries;
@@ -565,6 +577,7 @@ document.addEventListener("keydown", (e) => {
 const trackRecorder = new TrackRecorder(navManager);
 const trackLayer = new TrackLayer(chartManager.map, navManager, trackRecorder);
 const trackPanel = new TrackManagerPanel(trackLayer, trackRecorder);
+idleCloseables.push(trackPanel);
 
 // React to track recording setting
 onSettingsChange((s) => {
@@ -612,7 +625,12 @@ if (Capacitor.isNativePlatform()) {
     }).catch(console.error);
   };
   dimDetector.onChange(applyDim);
-  document.addEventListener("visibilitychange", applyDim);
+  document.addEventListener("visibilitychange", () => {
+    // On wake, the throttled idle timeout flushes immediately and would dim
+    // the screen at once. Treat becoming visible as fresh activity.
+    if (document.visibilityState === "visible") dimDetector.reset();
+    applyDim();
+  });
   onSettingsChange((s) => {
     void s;
     applyDim();
@@ -620,11 +638,29 @@ if (Capacitor.isNativePlatform()) {
   applyDim();
 }
 
+// Auto-return: after a stretch of no interaction, close any open dialogs and
+// recenter on the vessel so it's back on screen — like a dedicated plotter.
+{
+  const returnDetector = createIdleDetector(60_000);
+  returnDetector.onChange((idle) => {
+    if (!idle || document.visibilityState !== "visible") return;
+    if (!getSettings().autoReturnWhenIdle) return;
+    for (const c of idleCloseables) c.hide();
+    if (chartMode.getMode() === "free") chartMode.recenter();
+  });
+  // Mirror the dim detector: treat wake as fresh activity so it doesn't fire
+  // the instant the app is restored from sleep.
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible") returnDetector.reset();
+  });
+}
+
 // --- Routes ---
 const routeLayer = new RouteLayer(chartManager.map);
 const routeEditor = new RouteEditor(chartManager.map, routeLayer);
 routeEditor.setSearchEntriesProvider(getSearchEntries);
 const routePanel = new RouteManagerPanel(routeLayer, routeEditor);
+idleCloseables.push(routePanel);
 
 // --- Waypoints + Active Navigation ---
 const activeNav = new ActiveNavigationManager(navManager);
@@ -638,13 +674,14 @@ const navHud = new NavigationHUD(
 new CenterCrosshair(chartManager.map, navHud.getCursorCoordsEl());
 new BearingLine(chartManager.map, activeNav, navManager);
 const waypointPanel = new WaypointManagerPanel(waypointLayer, activeNav);
+idleCloseables.push(waypointPanel);
 routePanel.setActiveNav(activeNav);
 routePanel.setWaypointLayer(waypointLayer);
 
 // --- Context menu (right-click on map) ---
 const plottingLayer = new PlottingLayer(chartManager.map);
 const measurementLayer = new MeasurementLayer(chartManager.map);
-createContextMenu({
+const contextMenu = createContextMenu({
   map: chartManager.map,
   routeEditor,
   waypointLayer,
@@ -654,6 +691,7 @@ createContextMenu({
   onWaypointAdded: () => waypointPanel.show(),
   getSearchEntries,
 });
+idleCloseables.push(contextMenu);
 
 // Cancel navigation control
 const cancelNavBtn = new CancelNavButton(activeNav);
@@ -811,6 +849,7 @@ if (topbarMenu) {
 
   // Chart cache panel button
   const cachePanel = new ChartCachePanel();
+  idleCloseables.push(cachePanel);
   cachePanel.setOnChartsChanged(() => {
     // Reload OPFS charts into PMTiles protocol + refresh offline coverage
     (async () => {
@@ -902,6 +941,7 @@ if (topbarMenu) {
 
   // About button
   const aboutDialog = new AboutDialog();
+  idleCloseables.push(aboutDialog);
   const aboutBtn = buildTopbarAction(iconInfo, "INFO", "About", {
     fullLabel: "About",
   });

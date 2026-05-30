@@ -22,6 +22,12 @@ export type GpsRateMode = "adaptive" | "manual";
  */
 export type GpsFilterMode = "auto" | "strong" | "normal";
 export type WakeLockMode = "off" | "when-nav" | "always";
+/**
+ * Instrument HUD layout on landscape phones (portrait/desktop are unaffected):
+ * "standard" — top bar; all instruments packed into one tight row.
+ * "side" — instruments move to a vertical column down the left edge.
+ */
+export type InstrumentLayout = "standard" | "side";
 
 export interface Settings {
   depthUnit: DepthUnit;
@@ -36,6 +42,8 @@ export interface Settings {
   detailLevel: DetailLevel;
   layerGroups: Record<string, boolean>;
   showInstrumentHUD: boolean;
+  /** Instrument HUD layout on landscape phones. */
+  instrumentLayout: InstrumentLayout;
   instrumentCells: [string, string];
   trackRecordingEnabled: boolean;
   activeTrackColor: string;
@@ -60,6 +68,8 @@ export interface Settings {
   wakeLock: WakeLockMode;
   /** Auto-dim the screen after a stretch of no user interaction (native only). */
   autoDimWhenIdle: boolean;
+  /** After a stretch of no interaction, close open dialogs and recenter on the vessel. */
+  autoReturnWhenIdle: boolean;
   /** Scale factor for chart text labels (1 = default). */
   textScale: number;
   /** Scale factor for chart icons (1 = default, multiplied with scheme/theme scale). */
@@ -98,6 +108,7 @@ const DEFAULTS: Settings = {
   detailLevel: 0,
   layerGroups: { ...DEFAULT_LAYER_GROUPS },
   showInstrumentHUD: false,
+  instrumentLayout: "side",
   instrumentCells: ["sog", "cog"],
   trackRecordingEnabled: false,
   activeTrackColor: "#ff4444",
@@ -114,6 +125,7 @@ const DEFAULTS: Settings = {
   deepDepth: 15.24,
   wakeLock: "when-nav",
   autoDimWhenIdle: false,
+  autoReturnWhenIdle: true,
   textScale: 1,
   iconScale: 1,
 };

@@ -9,6 +9,8 @@ export type IdleListener = (idle: boolean) => void;
 export interface IdleDetector {
   isIdle(): boolean;
   onChange(fn: IdleListener): () => void;
+  /** Clear idle state and restart the timeout, as if the user just interacted. */
+  reset(): void;
   dispose(): void;
 }
 
@@ -54,6 +56,7 @@ export function createIdleDetector(timeoutMs: number): IdleDetector {
 
   return {
     isIdle: () => idle,
+    reset: onInteract,
     onChange(fn: IdleListener): () => void {
       listeners.push(fn);
       return () => {

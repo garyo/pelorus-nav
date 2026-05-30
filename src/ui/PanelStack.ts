@@ -28,8 +28,17 @@ export function trackInstrumentHUD(hudElement: HTMLElement): void {
 
   const update = () => {
     const rect = hudElement.getBoundingClientRect();
-    // If the HUD is hidden (display:none), rect.height is 0 — fall back to top bar only
-    const top = rect.height > 0 ? rect.bottom : TOP_BAR_HEIGHT;
+    // A full-width top bar: the stack sits below it. A narrow side column
+    // (landscape "side" layout): sit beside it, anchored at its top instead.
+    // Hidden HUD (height 0): fall back to the top bar height.
+    let top: number;
+    if (rect.height <= 0) {
+      top = TOP_BAR_HEIGHT;
+    } else if (rect.width >= window.innerWidth * 0.6) {
+      top = rect.bottom;
+    } else {
+      top = rect.top;
+    }
     stack.style.top = `${top}px`;
     stack.style.maxHeight = `calc(100vh - ${top + 10}px)`;
   };

@@ -18,6 +18,7 @@ import {
   type GpsFilterMode,
   type GpsRateMode,
   getSettings,
+  type InstrumentLayout,
   LAYER_GROUP_LABELS,
   onSettingsChange,
   type SpeedUnit,
@@ -360,6 +361,21 @@ function buildAppearanceTab(
     ),
   );
 
+  // Instrument layout (affects landscape phones; portrait/desktop unchanged)
+  const INSTRUMENT_LAYOUT_OPTIONS = [
+    { value: "side", label: "Side column" },
+    { value: "standard", label: "Top bar" },
+  ];
+  tab.appendChild(
+    buildSelectRow(
+      "Landscape instrument layout",
+      "settings-instrument-layout",
+      INSTRUMENT_LAYOUT_OPTIONS,
+      settings.instrumentLayout,
+      (v) => updateSettings({ instrumentLayout: v as InstrumentLayout }),
+    ),
+  );
+
   // ── Units & measurement ─────────────────────────────────────────
 
   // Bearings (true/magnetic)
@@ -418,6 +434,60 @@ function buildAppearanceTab(
       (v) => updateSettings({ showAccuracyCircle: v }),
     ),
   );
+
+  // ── Screen ──────────────────────────────────────────────────────
+
+  // Wake lock (keep screen on)
+  const WAKE_LOCK_OPTIONS = [
+    { value: "off", label: "Off" },
+    { value: "when-nav", label: "When GPS active" },
+    { value: "always", label: "Always" },
+  ];
+  tab.appendChild(
+    buildSelectRow(
+      "Keep screen on",
+      "settings-wake-lock",
+      WAKE_LOCK_OPTIONS,
+      settings.wakeLock,
+      (v) => updateSettings({ wakeLock: v as WakeLockMode }),
+    ),
+  );
+
+  // Auto-dim when idle
+  tab.appendChild(
+    buildCheckboxRow(
+      "Auto-dim screen when idle (1 min)",
+      "settings-auto-dim",
+      settings.autoDimWhenIdle,
+      (checked) => updateSettings({ autoDimWhenIdle: checked }),
+    ),
+  );
+
+  // Auto-return to vessel when idle
+  tab.appendChild(
+    buildCheckboxRow(
+      "Close dialogs & recenter when idle (1 min)",
+      "settings-auto-return",
+      settings.autoReturnWhenIdle,
+      (checked) => updateSettings({ autoReturnWhenIdle: checked }),
+    ),
+  );
+
+  // Re-trigger the screen-timeout warning dialog (useful if previously
+  // dismissed). Native-only.
+  if (Capacitor.isNativePlatform()) {
+    tab.appendChild(
+      buildActionRow(
+        "Check screen-off timeout",
+        "settings-check-screen-timeout",
+        "Check",
+        () => {
+          resetScreenTimeoutDismissal();
+          void maybeShowScreenTimeoutWarning();
+        },
+      ),
+    );
+  }
 
   return tab;
 }
@@ -586,48 +656,6 @@ function buildNavigationTab(
       (v) => updateSettings({ gpsFilterMode: v as GpsFilterMode }),
     ),
   );
-
-  // Wake lock (keep screen on)
-  const WAKE_LOCK_OPTIONS = [
-    { value: "off", label: "Off" },
-    { value: "when-nav", label: "When GPS active" },
-    { value: "always", label: "Always" },
-  ];
-  tab.appendChild(
-    buildSelectRow(
-      "Keep screen on",
-      "settings-wake-lock",
-      WAKE_LOCK_OPTIONS,
-      settings.wakeLock,
-      (v) => updateSettings({ wakeLock: v as WakeLockMode }),
-    ),
-  );
-
-  // Auto-dim when idle
-  tab.appendChild(
-    buildCheckboxRow(
-      "Auto-dim screen when idle (1 min)",
-      "settings-auto-dim",
-      settings.autoDimWhenIdle,
-      (checked) => updateSettings({ autoDimWhenIdle: checked }),
-    ),
-  );
-
-  // Re-trigger the screen-timeout warning dialog (useful if previously
-  // dismissed). Native-only.
-  if (Capacitor.isNativePlatform()) {
-    tab.appendChild(
-      buildActionRow(
-        "Check screen-off timeout",
-        "settings-check-screen-timeout",
-        "Check",
-        () => {
-          resetScreenTimeoutDismissal();
-          void maybeShowScreenTimeoutWarning();
-        },
-      ),
-    );
-  }
 
   return tab;
 }

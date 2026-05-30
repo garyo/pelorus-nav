@@ -2257,7 +2257,138 @@ body {
   }
 
   .instrument-value {
-    font-size: 36px;
+    font-size: 40px;
+  }
+
+  /* Nav (second row) must stay smaller than the primary SOG/COG row — the
+     default 5.5vw clamp grows past the base size on a wide landscape phone. */
+  .instrument-cell--nav .instrument-value {
+    font-size: 26px;
+  }
+}
+
+/* ── Landscape instrument layouts (phones only) ──────────────────────
+   Activated by body[data-instrument-layout] + a short landscape viewport.
+   Portrait and desktop keep the default top-bar layout regardless of the
+   setting. "standard" needs no rules. */
+@media (orientation: landscape) and (max-height: 600px) {
+  /* Approach A — side column: instruments down the left edge, map fills the
+     rest. The HUD is positioned absolutely (rather than via flex-wrap, which
+     would collapse the map's height), and the map is inset by the same width
+     — but only when the HUD is actually visible. */
+  body[data-instrument-layout="side"] {
+    --instr-col-width: clamp(120px, 24vw, 168px);
+  }
+
+  body[data-instrument-layout="side"] .instrument-hud {
+    position: absolute;
+    top: var(--topbar-bottom);
+    left: 0;
+    bottom: 0;
+    width: var(--instr-col-width);
+    height: auto;
+    z-index: 20;
+    flex-direction: column;
+    flex-wrap: nowrap;
+    border-bottom: none;
+    border-right: 1px solid #ccc;
+    overflow-y: auto;
+  }
+
+  body[data-instrument-layout="side"]:has(.instrument-hud:not([style*="none"]))
+    #map {
+    width: auto;
+    margin-left: var(--instr-col-width);
+  }
+
+  /* Stack cells vertically; turn the left-edge dividers into top dividers. */
+  body[data-instrument-layout="side"] .instrument-cell {
+    height: auto;
+    padding: 3px 8px;
+  }
+
+  body[data-instrument-layout="side"] .instrument-cell--bordered {
+    border-left: none;
+    border-top: 1px solid #ccc;
+  }
+
+  /* Big, bold primary values — sized to the column height (vh), not the wide
+     landscape width. */
+  body[data-instrument-layout="side"] .instrument-value {
+    font-size: clamp(40px, 11vh, 68px);
+  }
+
+  body[data-instrument-layout="side"] .instrument-nav-group {
+    flex-basis: auto;
+  }
+
+  body[data-instrument-layout="side"] .instrument-nav-row {
+    flex-direction: column;
+  }
+
+  body[data-instrument-layout="side"] .instrument-cell--nav {
+    height: auto;
+    padding: 3px 8px;
+  }
+
+  body[data-instrument-layout="side"] .instrument-cell--nav .instrument-value {
+    font-size: clamp(24px, 5.5vh, 38px);
+  }
+
+  body[data-instrument-layout="side"]
+    .instrument-nav-row
+    .instrument-cell--bordered {
+    border-left: none;
+    border-top: 1px solid #ccc;
+  }
+
+  /* Standard landscape: pack every instrument into ONE tight row, with the
+     "next waypoint" caption on a thin line below. Reclaims the wasted space to
+     the right of each cell and gives the map back its vertical space. */
+  body[data-instrument-layout="standard"] .instrument-hud {
+    flex-wrap: wrap;
+    align-items: stretch;
+  }
+
+  /* Flatten the nav group so its caption and cells become row items of the
+     HUD itself (the click handler still works via event bubbling). */
+  body[data-instrument-layout="standard"] .instrument-nav-group {
+    display: contents;
+  }
+
+  /* Equal columns: each base cell = 1 unit, the 4-cell nav row = 4 units. */
+  body[data-instrument-layout="standard"] .instrument-cell {
+    flex: 1 1 0;
+    height: auto;
+    padding: 1px 8px 2px;
+  }
+
+  body[data-instrument-layout="standard"] .instrument-nav-row {
+    flex: 4 1 0;
+    min-width: 0;
+    border-left: 1px solid #ccc;
+  }
+
+  body[data-instrument-layout="standard"] .instrument-cell--nav {
+    height: auto;
+    padding: 1px 8px 2px;
+  }
+
+  body[data-instrument-layout="standard"] .instrument-value {
+    font-size: clamp(28px, 4.5vw, 40px);
+  }
+
+  body[data-instrument-layout="standard"]
+    .instrument-cell--nav
+    .instrument-value {
+    font-size: clamp(20px, 3vw, 28px);
+  }
+
+  /* Caption drops to its own thin line below the single row. */
+  body[data-instrument-layout="standard"] .instrument-next-wp {
+    order: 1;
+    flex-basis: 100%;
+    padding: 0 0 2px 12px;
   }
 }
 
