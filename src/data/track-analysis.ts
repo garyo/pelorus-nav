@@ -212,6 +212,40 @@ export function cursorAtFraction(a: TrackAnalysis, frac: number): TrackCursor {
   return cursorAt(a, i, span > 0 ? (d - a.cumulativeNM[i]) / span : 0);
 }
 
+/** Stats for a selected span of the track (chart range-select). */
+export interface RangeStats {
+  start: TrackCursor;
+  end: TrackCursor;
+  distanceNM: number;
+  durationMs: number;
+  avgKn: number;
+  maxKn: number;
+}
+
+/** Compute stats between two scrub fractions (order-insensitive). */
+export function rangeStats(
+  a: TrackAnalysis,
+  fracA: number,
+  fracB: number,
+): RangeStats {
+  const start = cursorAtFraction(a, Math.min(fracA, fracB));
+  const end = cursorAtFraction(a, Math.max(fracA, fracB));
+  const distanceNM = end.distanceNM - start.distanceNM;
+  const durationMs = a.hasTime ? end.timestamp - start.timestamp : 0;
+  let maxKn = Math.max(start.sogKn, end.sogKn);
+  for (let i = start.index + 1; i <= end.index; i++) {
+    if (a.speedsKn[i] > maxKn) maxKn = a.speedsKn[i];
+  }
+  return {
+    start,
+    end,
+    distanceNM,
+    durationMs,
+    avgKn: durationMs > 0 ? distanceNM / (durationMs / MS_PER_HOUR) : 0,
+    maxKn,
+  };
+}
+
 // ── Stops & maneuvers ─────────────────────────────────────────────────
 
 /** Below this speed the boat counts as stopped (anchored, moored, drifting). */

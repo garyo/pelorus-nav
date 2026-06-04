@@ -23,6 +23,7 @@ import {
   type Maneuver,
   movingStats,
   rampColor,
+  rangeStats,
   type StopInterval,
   speedToColor,
   type TrackAnalysis,
@@ -70,6 +71,9 @@ export class TrackViewerPanel {
   private analysis: TrackAnalysis | null = null;
   /** Set while pre-visualizing a route rather than viewing a track. */
   private previewRoute: Route | null = null;
+  /** Whole-track stats line, restored when a range selection clears. */
+  private fullStatsText = "";
+  private rangeActive = false;
   private cursorFrac = 0;
   /** Keep the map centered on the cursor while scrubbing/playing. */
   private followCursor = false;
@@ -134,8 +138,15 @@ export class TrackViewerPanel {
       ),
     );
 
-    // Chart between the legend and the slider, scrubbing both ways
-    this.chart = new SpeedProfileChart((frac) => this.setFraction(frac));
+    // Chart between the legend and the slider. Tap jumps the cursor
+    // (clearing any selection); drag selects a range for span stats.
+    this.chart = new SpeedProfileChart({
+      onScrub: (frac) => {
+        this.clearRange();
+        this.setFraction(frac);
+      },
+      onRange: (fracA, fracB) => this.showRange(fracA, fracB),
+    });
     this.slider.before(this.chart.el);
 
     const closeBtn = this.q<HTMLButtonElement>(".manager-close");
@@ -213,11 +224,7 @@ export class TrackViewerPanel {
     const stops = detectStops(analysis);
     const maneuvers = detectManeuvers(analysis);
     this.previewRoute = null;
-    this.statsEl.textContent = this.formatStats(
-      analysis,
-      stops,
-      maneuvers.length,
-    );
+    this.fullStatsText = this.formatStats(analysis, stops, maneuvers.length);
     this.openAnalysis(meta.name, analysis, stops, maneuvers, "speed");
   }
 
@@ -230,7 +237,7 @@ export class TrackViewerPanel {
     this.previewRoute = route;
     this.planInput.value = String(speed);
     const { speedUnit } = getSettings();
-    this.statsEl.textContent =
+    this.fullStatsText =
       `${formatDistanceShort(analysis.totalNM)} · ` +
       `${formatDurationShort(analysis.durationMs)} @ ` +
       `${convertSpeed(speed, speedUnit).toFixed(1)} ${speedUnitLabel(speedUnit)} · ` +
@@ -249,6 +256,8 @@ export class TrackViewerPanel {
   ): void {
     this.stopPlayback();
     this.analysis = analysis;
+    this.clearRange();
+    this.statsEl.textContent = this.fullStatsText;
     this.nameEl.textContent = title;
     this.planWrap.style.display = this.previewRoute ? "" : "none";
     this.colorSelect.value = colorMode;
@@ -296,6 +305,35 @@ export class TrackViewerPanel {
   /** Alias so the idle-detector can close the viewer like other panels. */
   hide(): void {
     this.close();
+  }
+
+  // ── Range selection (press-and-hold drag on the chart) ───────────
+
+  private showRange(fracA: number, fracB: number): void {
+    const a = this.analysis;
+    if (!a) return;
+    this.rangeActive = true;
+    const r = rangeStats(a, fracA, fracB);
+    const { speedUnit } = getSettings();
+    const unit = speedUnitLabel(speedUnit);
+    const parts = [formatDistanceShort(r.distanceNM)];
+    if (a.hasTime) {
+      parts.push(formatDurationShort(r.durationMs));
+      parts.push(`avg ${convertSpeed(r.avgKn, speedUnit).toFixed(1)} ${unit}`);
+    }
+    parts.push(`max ${convertSpeed(r.maxKn, speedUnit).toFixed(1)} ${unit}`);
+    this.statsEl.textContent = `▸ ${parts.join(" · ")}`;
+    this.statsEl.classList.add("track-viewer-stats--range");
+    this.layer.setRangeHighlight(r.start, r.end);
+  }
+
+  private clearRange(): void {
+    if (!this.rangeActive) return;
+    this.rangeActive = false;
+    this.chart.setRange(null);
+    this.layer.setRangeHighlight(null);
+    this.statsEl.textContent = this.fullStatsText;
+    this.statsEl.classList.remove("track-viewer-stats--range");
   }
 
   /** Move the scrub cursor — single source of truth for slider/chart/map. */

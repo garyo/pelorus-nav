@@ -8,6 +8,7 @@ import {
   detectManeuvers,
   detectStops,
   movingStats,
+  rangeStats,
   STOP_MIN_MS,
   speedToColor,
   trackGradientStops,
@@ -200,6 +201,28 @@ describe("courseToColor", () => {
     expect(courseToColor(370)).toBe(courseToColor(10));
     expect(courseToColor(-90)).toBe(courseToColor(270));
     expect(courseToColor(0)).not.toBe(courseToColor(180));
+  });
+});
+
+describe("rangeStats", () => {
+  it("computes distance, duration, avg and max over a span", () => {
+    // 4 one-minute legs at 4/8/8/4 kn
+    const a = analyzeTrack(northwardTrack([4, 8, 8, 4]));
+    if (!a) throw new Error("null analysis");
+    const r = rangeStats(a, 0.25, 0.75); // minute 1 → minute 3
+    expect(r.durationMs).toBe(2 * MIN);
+    expect(r.distanceNM).toBeCloseTo((8 + 8) / 60, 3);
+    expect(r.avgKn).toBeCloseTo(8, 1);
+    expect(r.maxKn).toBeCloseTo(8, 5);
+  });
+
+  it("is order-insensitive", () => {
+    const a = analyzeTrack(northwardTrack([4, 8, 8, 4]));
+    if (!a) throw new Error("null analysis");
+    const fwd = rangeStats(a, 0.2, 0.9);
+    const rev = rangeStats(a, 0.9, 0.2);
+    expect(rev.distanceNM).toBeCloseTo(fwd.distanceNM, 10);
+    expect(rev.durationMs).toBe(fwd.durationMs);
   });
 });
 

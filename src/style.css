@@ -1600,6 +1600,20 @@ body {
   text-overflow: ellipsis;
 }
 
+/* Range-selection stats — accented so the swap is obvious */
+.track-viewer-stats--range {
+  color: #6ab0ee;
+}
+
+[data-theme="night"] .track-viewer-stats--range {
+  color: #ee5555;
+}
+
+[data-theme="eink"] .track-viewer-stats--range {
+  color: #000000;
+  font-weight: 600;
+}
+
 .track-viewer-legend {
   display: flex;
   align-items: center;

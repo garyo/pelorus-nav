@@ -23,6 +23,7 @@ interface Palette {
   grid: string;
   text: string;
   cursor: string;
+  range: string;
 }
 
 function palette(): Palette {
@@ -35,6 +36,7 @@ function palette(): Palette {
         grid: "rgba(204,51,51,0.2)",
         text: "#883333",
         cursor: "#ee5555",
+        range: "rgba(204,51,51,0.18)",
       };
     case "eink":
       return {
@@ -44,6 +46,7 @@ function palette(): Palette {
         grid: "rgba(0,0,0,0.3)",
         text: "#000000",
         cursor: "#000000",
+        range: "rgba(0,0,0,0.12)",
       };
     default:
       return {
@@ -53,49 +56,98 @@ function palette(): Palette {
         grid: "rgba(255,255,255,0.15)",
         text: "#99a",
         cursor: "#ffffff",
+        range: "rgba(255,255,255,0.16)",
       };
   }
 }
 
+/** Hold roughly still this long to start a range selection. */
+const HOLD_MS = 350;
+/** Movement beyond this (px) before the hold fires commits to scrubbing. */
+const HOLD_SLOP_PX = 6;
+
+export interface ChartCallbacks {
+  /** Scrub (tap or drag): move the cursor; clears any range selection. */
+  onScrub: (frac: number) => void;
+  /** Press-and-hold drag: a range is being selected (fractions unordered). */
+  onRange: (fracA: number, fracB: number) => void;
+}
+
 export class SpeedProfileChart {
   readonly el: HTMLCanvasElement;
-  private readonly onScrub: (frac: number) => void;
+  private readonly callbacks: ChartCallbacks;
   private analysis: TrackAnalysis | null = null;
   private stops: StopInterval[] = [];
   private cursorFrac = 0;
+  private range: [number, number] | null = null;
   private readonly resizeObserver: ResizeObserver;
 
-  constructor(onScrub: (frac: number) => void) {
-    this.onScrub = onScrub;
+  constructor(callbacks: ChartCallbacks) {
+    this.callbacks = callbacks;
     this.el = document.createElement("canvas");
     this.el.className = "track-viewer-chart";
+    this.el.title =
+      "Drag to scrub · press and hold, then drag to measure a span";
 
-    let scrubbing = false;
-    const scrubFromEvent = (e: PointerEvent) => {
+    // Tap/drag scrubs; press-and-hold then drag selects a range.
+    let pointerDown = false;
+    let downX = 0;
+    let anchorFrac = 0;
+    let selecting = false;
+    let holdTimer: ReturnType<typeof setTimeout> | null = null;
+    const fracFromEvent = (e: PointerEvent) => {
       const rect = this.el.getBoundingClientRect();
-      if (rect.width <= 0) return;
-      const frac = Math.min(
-        Math.max((e.clientX - rect.left) / rect.width, 0),
-        1,
-      );
-      this.onScrub(frac);
+      if (rect.width <= 0) return 0;
+      return Math.min(Math.max((e.clientX - rect.left) / rect.width, 0), 1);
     };
     this.el.addEventListener("pointerdown", (e) => {
-      scrubbing = true;
       this.el.setPointerCapture(e.pointerId);
-      scrubFromEvent(e);
+      pointerDown = true;
+      selecting = false;
+      downX = e.clientX;
+      anchorFrac = fracFromEvent(e);
+      this.callbacks.onScrub(anchorFrac);
+      holdTimer = setTimeout(() => {
+        holdTimer = null;
+        if (!pointerDown) return;
+        selecting = true;
+        this.setRange(anchorFrac, anchorFrac);
+        this.callbacks.onRange(anchorFrac, anchorFrac);
+      }, HOLD_MS);
     });
     this.el.addEventListener("pointermove", (e) => {
-      if (scrubbing) scrubFromEvent(e);
+      if (!pointerDown) return;
+      const frac = fracFromEvent(e);
+      if (selecting) {
+        this.setRange(anchorFrac, frac);
+        this.callbacks.onRange(anchorFrac, frac);
+        return;
+      }
+      // Moving before the hold fires means scrubbing, not selecting
+      if (holdTimer && Math.abs(e.clientX - downX) > HOLD_SLOP_PX) {
+        clearTimeout(holdTimer);
+        holdTimer = null;
+      }
+      this.callbacks.onScrub(frac);
     });
     const end = () => {
-      scrubbing = false;
+      pointerDown = false;
+      selecting = false;
+      if (holdTimer) clearTimeout(holdTimer);
+      holdTimer = null;
     };
     this.el.addEventListener("pointerup", end);
     this.el.addEventListener("pointercancel", end);
 
     this.resizeObserver = new ResizeObserver(() => this.draw());
     this.resizeObserver.observe(this.el);
+  }
+
+  /** Show (or clear) the selected-range highlight. */
+  setRange(fracA: number | null, fracB = 0): void {
+    this.range =
+      fracA === null ? null : [Math.min(fracA, fracB), Math.max(fracA, fracB)];
+    this.draw();
   }
 
   setData(analysis: TrackAnalysis, stops: StopInterval[]): void {
@@ -202,6 +254,23 @@ export class SpeedProfileChart {
       3,
       gy - 1,
     );
+
+    // Selected range — translucent band with edge lines
+    if (this.range) {
+      const [f0, f1] = this.range;
+      const x0 = f0 * cssW;
+      const x1 = f1 * cssW;
+      ctx.fillStyle = pal.range;
+      ctx.fillRect(x0, 0, Math.max(x1 - x0, 1), cssH);
+      ctx.strokeStyle = pal.cursor;
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(x0, 0);
+      ctx.lineTo(x0, cssH);
+      ctx.moveTo(x1, 0);
+      ctx.lineTo(x1, cssH);
+      ctx.stroke();
+    }
 
     // Scrub cursor
     const cx = this.cursorFrac * cssW;

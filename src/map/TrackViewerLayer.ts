@@ -24,6 +24,8 @@ const LYR_CASING = "_track-viewer-casing";
 const LYR_LINE = "_track-viewer-line";
 const SRC_MANEUVERS = "_track-viewer-maneuvers-src";
 const LYR_MANEUVERS = "_track-viewer-maneuvers";
+const SRC_RANGE = "_track-viewer-range-src";
+const LYR_RANGE = "_track-viewer-range";
 const SRC_CURSOR = "_track-viewer-cursor-src";
 const LYR_CURSOR = "_track-viewer-cursor";
 const IMG_CURSOR = "_track-viewer-cursor-img";
@@ -37,6 +39,8 @@ export class TrackViewerLayer {
   private cursor: TrackCursor | null = null;
   private colorMode: TrackColorMode = "speed";
   private bottomPadPx = 220;
+  /** Coordinates of the selected range, kept across style rebuilds. */
+  private rangeCoords: [number, number][] = [];
   private maneuverClickCb?: (timestamp: number) => void;
 
   constructor(map: maplibregl.Map) {
@@ -85,6 +89,28 @@ export class TrackViewerLayer {
     this.map.jumpTo({ center: [cursor.lon, cursor.lat] });
   }
 
+  /**
+   * Highlight the track span between two cursors (range-select stats),
+   * or clear it with null. Endpoints are interpolated positions.
+   */
+  setRangeHighlight(start: TrackCursor | null, end?: TrackCursor): void {
+    const a = this.analysis;
+    if (!a || !start || !end) {
+      this.rangeCoords = [];
+    } else {
+      const coords: [number, number][] = [[start.lon, start.lat]];
+      for (let i = start.index + 1; i <= end.index; i++) {
+        coords.push([a.points[i].lon, a.points[i].lat]);
+      }
+      coords.push([end.lon, end.lat]);
+      this.rangeCoords = coords;
+    }
+    const src = this.map.getSource(SRC_RANGE) as
+      | maplibregl.GeoJSONSource
+      | undefined;
+    src?.setData(this.rangeGeoJSON());
+  }
+
   /** Move the scrub cursor. */
   setCursor(cursor: TrackCursor): void {
     this.cursor = cursor;
@@ -98,10 +124,17 @@ export class TrackViewerLayer {
     this.analysis = null;
     this.maneuvers = [];
     this.cursor = null;
-    for (const lyr of [LYR_CURSOR, LYR_MANEUVERS, LYR_LINE, LYR_CASING]) {
+    this.rangeCoords = [];
+    for (const lyr of [
+      LYR_CURSOR,
+      LYR_MANEUVERS,
+      LYR_LINE,
+      LYR_CASING,
+      LYR_RANGE,
+    ]) {
       if (this.map.getLayer(lyr)) this.map.removeLayer(lyr);
     }
-    for (const src of [SRC_CURSOR, SRC_MANEUVERS, SRC_LINE]) {
+    for (const src of [SRC_CURSOR, SRC_MANEUVERS, SRC_RANGE, SRC_LINE]) {
       if (this.map.getSource(src)) this.map.removeSource(src);
     }
   }
@@ -112,7 +145,13 @@ export class TrackViewerLayer {
     const eink = getSettings().displayTheme === "eink";
 
     // Tear down any stale layers (e.g. theme switch or color-mode re-entry)
-    for (const lyr of [LYR_CURSOR, LYR_MANEUVERS, LYR_LINE, LYR_CASING]) {
+    for (const lyr of [
+      LYR_CURSOR,
+      LYR_MANEUVERS,
+      LYR_LINE,
+      LYR_CASING,
+      LYR_RANGE,
+    ]) {
       if (this.map.getLayer(lyr)) this.map.removeLayer(lyr);
     }
 
@@ -137,6 +176,38 @@ export class TrackViewerLayer {
         lineMetrics: true,
       });
     }
+
+    // Range-select highlight — a wide marker-pen band under the track.
+    // Yellow on day/dusk; red-tinted on night to spare night vision.
+    const theme = getSettings().displayTheme;
+    const rangeStyle = eink
+      ? { color: "#000000", opacity: 0.35 }
+      : theme === "night"
+        ? { color: "#ff5533", opacity: 0.55 }
+        : { color: "#ffd200", opacity: 0.8 };
+    const rangeSrc = this.map.getSource(SRC_RANGE) as
+      | maplibregl.GeoJSONSource
+      | undefined;
+    if (rangeSrc) {
+      rangeSrc.setData(this.rangeGeoJSON());
+    } else {
+      this.map.addSource(SRC_RANGE, {
+        type: "geojson",
+        data: this.rangeGeoJSON(),
+      });
+    }
+    this.map.addLayer({
+      id: LYR_RANGE,
+      type: "line",
+      source: SRC_RANGE,
+      layout: { "line-cap": "round", "line-join": "round" },
+      paint: {
+        "line-color": rangeStyle.color,
+        "line-width": LINE_WIDTH + 14,
+        "line-blur": 2,
+        "line-opacity": rangeStyle.opacity,
+      },
+    });
 
     if (!eink) {
       this.map.addLayer({
@@ -255,6 +326,22 @@ export class TrackViewerLayer {
     this.map.addImage(IMG_CURSOR, ctx.getImageData(0, 0, size, size), {
       pixelRatio: 2,
     });
+  }
+
+  private rangeGeoJSON(): GeoJSON.FeatureCollection {
+    if (this.rangeCoords.length < 2) {
+      return { type: "FeatureCollection", features: [] };
+    }
+    return {
+      type: "FeatureCollection",
+      features: [
+        {
+          type: "Feature",
+          properties: {},
+          geometry: { type: "LineString", coordinates: this.rangeCoords },
+        },
+      ],
+    };
   }
 
   private cursorGeoJSON(): GeoJSON.FeatureCollection {
