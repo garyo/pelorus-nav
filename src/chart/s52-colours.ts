@@ -270,10 +270,12 @@ const EINK: Record<string, string> = {
   NAIDH: "#f0f0f0",
   DEPSC: "#404040",
   DEPCN: "#707070",
-  DEPDW: "#f4f8fc",
-  DEPMD: "#dce8f2",
-  DEPMS: "#bcd2e6",
-  DEPVS: "#9cb8d4",
+  // Depth bands kept light: e-ink grayscale renders saturated blues as
+  // heavy gray. Order (darkest = shallowest) must be preserved.
+  DEPDW: "#f8fafd",
+  DEPMD: "#e8eff6",
+  DEPMS: "#d2dfec",
+  DEPVS: "#b8cbde",
   DEPIT: "#a0a0a0",
   RADHI: "#505050",
   RADLO: "#303030",

@@ -159,8 +159,21 @@ export function getAreaLayers(ctx: StyleContext): LayerSpecification[] {
       "source-layer": "DRGARE",
       layout: { "fill-sort-key": SCALE_SORT_KEY },
       paint: {
-        "fill-color": ctx.colour("DEPMS"),
-        "fill-opacity": 0.5,
+        // Dredged areas are depth areas (S-52 Group 1): band by the
+        // maintained depth so a 12 m ship channel doesn't render like a
+        // 3 m marina basin. Unknown depth falls back to shallow —
+        // conservative for the one value that steers boats.
+        "fill-color": [
+          "case",
+          ["<", ["coalesce", ["get", "DRVAL1"], -1], ctx.shallowDepth],
+          ctx.colour("DEPVS"),
+          ["<", ["get", "DRVAL1"], ctx.safetyDepth],
+          ctx.colour("DEPMS"),
+          ["<", ["get", "DRVAL1"], ctx.deepDepth],
+          ctx.colour("DEPMD"),
+          ctx.colour("DEPDW"),
+        ] as unknown as string,
+        "fill-opacity": 1,
       },
     },
     {
