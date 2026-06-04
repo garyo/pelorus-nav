@@ -15,6 +15,10 @@ import {
 import { LightSectorLayer } from "./chart/LightSectorLayer";
 import { PelLightLayer } from "./chart/PelLightLayer";
 import { SafetyContour } from "./chart/SafetyContour";
+import {
+  getStreamingVersions,
+  refreshStreamingVersions,
+} from "./data/chart-update-checker";
 import { repairTrackPointCounts } from "./data/db";
 import { downloadFile } from "./data/file-io";
 import { OPFSSource } from "./data/opfs-source";
@@ -49,6 +53,7 @@ import { AboutDialog } from "./ui/AboutDialog";
 import { CancelNavButton } from "./ui/CancelNavButton";
 import { CenterCrosshair } from "./ui/CenterCrosshair";
 import { ChartCachePanel } from "./ui/ChartCachePanel";
+import { startChartUpdateNotifier } from "./ui/ChartUpdateNotifier";
 import { createContextMenu } from "./ui/ContextMenu";
 import { createIdleDetector } from "./ui/IdleDetector";
 import { createInstrumentHUD, INSTRUMENTS } from "./ui/InstrumentHUD";
@@ -141,6 +146,9 @@ onSettingsChange((s) => applyInstrumentLayout(s.instrumentLayout));
 const initialRegion = getSettings().activeRegion;
 const vectorProvider = new VectorChartProvider(initialRegion);
 await vectorProvider.loadAllOfflineCoverage();
+// Pin streaming regions to their last-known versions so the HTTP cache
+// can't serve stale tile ranges; refreshed against the server below.
+vectorProvider.setStreamingVersions(await getStreamingVersions());
 const activeRegionInfo = vectorProvider.getRegion();
 let prevActiveRegion = activeRegionInfo.id;
 
@@ -168,6 +176,19 @@ const chartManager = new ChartManager({
     vectorProvider,
   ],
   initialProviderId: "s57-vector",
+});
+
+// Re-pin streaming regions when the server has newer charts. Runs once at
+// startup; the daily sweep in ChartUpdateNotifier repeats it for long sessions.
+const applyStreamingVersions = async (): Promise<void> => {
+  const fresh = await refreshStreamingVersions();
+  if (fresh) {
+    vectorProvider.setStreamingVersions(fresh);
+    chartManager.refreshStyle();
+  }
+};
+applyStreamingVersions().catch(() => {
+  // offline — last-known versions stay pinned
 });
 
 // Safety contour — bolds the shallowest depth contour >= safetyDepth
@@ -885,6 +906,8 @@ if (topbarMenu) {
           }
         }
         await vectorProvider.loadAllOfflineCoverage();
+        // The downloaded set changed, so re-derive which regions stream
+        vectorProvider.setStreamingVersions(await getStreamingVersions());
         chartManager.refreshStyle();
       } catch {
         // ignore
@@ -900,6 +923,16 @@ if (topbarMenu) {
     closeHamburger();
   });
   topbarMenu.insertBefore(cacheBtn, settingsWrapper);
+
+  // Periodically offer updates for downloaded regions that are out of date,
+  // and re-pin streaming regions to the latest server version.
+  startChartUpdateNotifier({
+    showChartRegions: () => {
+      cachePanel.show();
+      settingsHandle?.hide();
+    },
+    applyStreamingVersions,
+  });
 
   // Search button
   const searchBtn = buildTopbarAction(iconSearch, "FIND", "Search", {

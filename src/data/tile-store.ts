@@ -64,7 +64,7 @@ export interface RemoteChartMeta {
 }
 
 /** Strip the weak-validator prefix and surrounding quotes so etags compare equal. */
-function normalizeEtag(etag: string): string {
+export function normalizeEtag(etag: string): string {
   return etag.replace(/^W\//, "").replace(/^"|"$/g, "");
 }
 
@@ -78,7 +78,12 @@ export async function fetchRemoteChartMeta(
   signal?: AbortSignal,
 ): Promise<RemoteChartMeta | null> {
   try {
-    const response = await fetch(url, { method: "HEAD", signal });
+    // no-store: a cached answer would defeat the point of the check
+    const response = await fetch(url, {
+      method: "HEAD",
+      cache: "no-store",
+      signal,
+    });
     if (!response.ok) return null;
     const len = response.headers.get("content-length");
     return {
@@ -130,7 +135,8 @@ export async function downloadChart(
   const root = await getRoot();
   if (!root) throw new Error("Offline storage is not available (OPFS)");
 
-  const response = await fetch(url, { signal });
+  // no-store: an update re-download must not be satisfied by a stale HTTP cache
+  const response = await fetch(url, { cache: "no-store", signal });
   if (!response.ok) {
     throw new Error(
       `Download failed: ${response.status} ${response.statusText}`,
@@ -317,7 +323,7 @@ export async function downloadAuxFile(
 ): Promise<void> {
   const root = await getRoot();
   if (!root) throw new Error("Offline storage is not available (OPFS)");
-  const response = await fetch(url, { signal });
+  const response = await fetch(url, { cache: "no-store", signal });
   if (!response.ok) {
     throw new Error(
       `Download failed: ${response.status} ${response.statusText}`,

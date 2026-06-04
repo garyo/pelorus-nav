@@ -30,6 +30,13 @@ export class VectorChartProvider implements ChartProvider {
   private activeRegionId: string;
   /** Blob URL for unified coverage GeoJSON loaded from OPFS. */
   private unifiedCoverageBlobURL: string | null = null;
+  /**
+   * filename → remote version for regions that stream (not in OPFS).
+   * Pins the tiles URL (?v=) so the HTTP cache never serves stale ranges.
+   * Downloaded regions must NOT appear here — their plain URL has to keep
+   * matching the OPFS-backed PMTiles protocol entry.
+   */
+  private streamingVersions: Record<string, string> = {};
 
   constructor(regionId?: string) {
     this.activeRegionId =
@@ -50,6 +57,11 @@ export class VectorChartProvider implements ChartProvider {
     if (!CHART_REGIONS.find((r) => r.id === regionId)) return false;
     this.activeRegionId = regionId;
     return true;
+  }
+
+  /** Set streaming-region versions. Call refreshStyle afterwards to apply. */
+  setStreamingVersions(versions: Record<string, string>): void {
+    this.streamingVersions = versions;
   }
 
   /**
@@ -151,9 +163,12 @@ export class VectorChartProvider implements ChartProvider {
   }
 
   private makeVectorSource(region: ChartRegion): SourceSpecification {
+    const version = this.streamingVersions[region.filename];
+    const query = version ? `?v=${encodeURIComponent(version)}` : "";
+    const url = `${chartAssetBase()}/${region.filename}${query}`;
     return {
       type: "vector",
-      tiles: [`pmtiles://${chartAssetBase()}/${region.filename}/{z}/{x}/{y}`],
+      tiles: [`pmtiles://${url}/{z}/{x}/{y}`],
       minzoom: this.minZoom,
       maxzoom: this.maxZoom,
       attribution: this.getAttribution(),
