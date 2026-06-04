@@ -197,6 +197,25 @@ body {
   accent-color: #6688cc;
 }
 
+/* −/+ steppers: one committed step per tap (vital on e-ink, handy at sea) */
+.settings-step-btn {
+  min-width: 28px;
+  height: 28px;
+  padding: 0;
+  background: #3a3a4a;
+  border: 1px solid #555;
+  border-radius: 4px;
+  color: #ddd;
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.settings-step-btn:active {
+  background: #4a4a5e;
+}
+
 .settings-slider-group span {
   font-size: 12px;
   color: #aaa;
@@ -2327,8 +2346,27 @@ body {
   outline: 2px solid #000000;
 }
 
+/* E-ink: longer slider travel + big square steppers — the panel's slow
+   refresh makes fine slider positioning nearly impossible otherwise */
 [data-theme="eink"] .settings-slider-group input[type="range"] {
   accent-color: #000000;
+  width: 150px;
+}
+
+[data-theme="eink"] .settings-step-btn {
+  min-width: 36px;
+  height: 36px;
+  background: #ffffff;
+  border: 2px solid #000000;
+  border-radius: 0;
+  color: #000000;
+  font-size: 20px;
+  font-weight: 700;
+}
+
+[data-theme="eink"] .settings-step-btn:active {
+  background: #000000;
+  color: #ffffff;
 }
 
 [data-theme="eink"] .settings-toggle input[type="checkbox"] {

@@ -244,112 +244,46 @@ function buildAppearanceTab(
   // ── Chart display ───────────────────────────────────────────────
 
   // Detail level slider
-  {
-    const row = document.createElement("div");
-    row.className = "settings-row";
-
-    const label = document.createElement("label");
-    label.htmlFor = "settings-detail-level";
-    label.textContent = "Detail";
-    row.appendChild(label);
-
-    const sliderGroup = document.createElement("div");
-    sliderGroup.className = "settings-slider-group";
-
-    const slider = document.createElement("input");
-    slider.type = "range";
-    slider.id = "settings-detail-level";
-    slider.min = "-1";
-    slider.max = "2";
-    slider.step = "1";
-    slider.value = String(settings.detailLevel);
-
-    const sliderLabel = document.createElement("span");
-    sliderLabel.id = "settings-detail-label";
-    sliderLabel.textContent = DETAIL_LABELS[settings.detailLevel];
-
-    slider.addEventListener("input", () => {
-      const level = Number(slider.value) as DetailLevel;
-      sliderLabel.textContent = DETAIL_LABELS[level];
-      updateSettings({ detailLevel: level });
-    });
-
-    sliderGroup.append(slider, sliderLabel);
-    row.appendChild(sliderGroup);
-    tab.appendChild(row);
-  }
+  tab.appendChild(
+    buildSliderRow({
+      id: "settings-detail-level",
+      label: "Detail",
+      min: -1,
+      max: 2,
+      step: 1,
+      value: settings.detailLevel,
+      format: (v) => DETAIL_LABELS[v as DetailLevel],
+      commit: (v) => updateSettings({ detailLevel: v as DetailLevel }),
+    }),
+  );
 
   // Chart text size slider
-  {
-    const row = document.createElement("div");
-    row.className = "settings-row";
-
-    const label = document.createElement("label");
-    label.htmlFor = "settings-text-scale";
-    label.textContent = "Chart text size";
-    row.appendChild(label);
-
-    const sliderGroup = document.createElement("div");
-    sliderGroup.className = "settings-slider-group";
-
-    const slider = document.createElement("input");
-    slider.type = "range";
-    slider.id = "settings-text-scale";
-    slider.min = "0.75";
-    slider.max = "2";
-    slider.step = "0.05";
-    slider.value = String(settings.textScale);
-
-    const sliderLabel = document.createElement("span");
-    sliderLabel.id = "settings-text-scale-label";
-    sliderLabel.textContent = `${Math.round(settings.textScale * 100)}%`;
-
-    slider.addEventListener("input", () => {
-      const scale = Number.parseFloat(slider.value);
-      sliderLabel.textContent = `${Math.round(scale * 100)}%`;
-      updateSettings({ textScale: scale });
-    });
-
-    sliderGroup.append(slider, sliderLabel);
-    row.appendChild(sliderGroup);
-    tab.appendChild(row);
-  }
+  tab.appendChild(
+    buildSliderRow({
+      id: "settings-text-scale",
+      label: "Chart text size",
+      min: 0.75,
+      max: 2,
+      step: 0.05,
+      value: settings.textScale,
+      format: (v) => `${Math.round(v * 100)}%`,
+      commit: (v) => updateSettings({ textScale: v }),
+    }),
+  );
 
   // Chart icon size slider
-  {
-    const row = document.createElement("div");
-    row.className = "settings-row";
-
-    const label = document.createElement("label");
-    label.htmlFor = "settings-icon-scale";
-    label.textContent = "Chart icon size";
-    row.appendChild(label);
-
-    const sliderGroup = document.createElement("div");
-    sliderGroup.className = "settings-slider-group";
-
-    const slider = document.createElement("input");
-    slider.type = "range";
-    slider.id = "settings-icon-scale";
-    slider.min = "0.75";
-    slider.max = "2";
-    slider.step = "0.05";
-    slider.value = String(settings.iconScale);
-
-    const sliderLabel = document.createElement("span");
-    sliderLabel.id = "settings-icon-scale-label";
-    sliderLabel.textContent = `${Math.round(settings.iconScale * 100)}%`;
-
-    slider.addEventListener("input", () => {
-      const scale = Number.parseFloat(slider.value);
-      sliderLabel.textContent = `${Math.round(scale * 100)}%`;
-      updateSettings({ iconScale: scale });
-    });
-
-    sliderGroup.append(slider, sliderLabel);
-    row.appendChild(sliderGroup);
-    tab.appendChild(row);
-  }
+  tab.appendChild(
+    buildSliderRow({
+      id: "settings-icon-scale",
+      label: "Chart icon size",
+      min: 0.75,
+      max: 2,
+      step: 0.05,
+      value: settings.iconScale,
+      format: (v) => `${Math.round(v * 100)}%`,
+      commit: (v) => updateSettings({ iconScale: v }),
+    }),
+  );
 
   // OSM underlay (only useful with vector charts)
   tab.appendChild(
@@ -929,28 +863,68 @@ function buildDepthThresholdSliders(): HTMLElement {
   // Slider handlers: convert slider position → meters, snap, skip if unchanged.
   // Guard with `syncing` (syncSliders setting .value re-fires input events)
   // and use tolerance to avoid floating-point churn.
+  // On e-ink, drags only preview into the number input; the commit (and its
+  // slow full-chart refresh) waits for release ("change").
   const DEPTH_CHANGE_THRESHOLD_M = 1e-1;
 
-  shallowSlider.addEventListener("input", () => {
-    if (syncing) return;
-    const m = snapMeters(sliderToMeters(Number(shallowSlider.value)));
-    if (Math.abs(m - getSettings().shallowDepth) > DEPTH_CHANGE_THRESHOLD_M)
-      applyShallowMeters(m);
-  });
+  function wireDepthSlider(
+    slider: HTMLInputElement,
+    input: HTMLInputElement,
+    applyFn: (m: number) => void,
+    getMeters: () => number,
+  ): void {
+    const commit = () => {
+      if (syncing) return;
+      const m = snapMeters(sliderToMeters(Number(slider.value)));
+      if (Math.abs(m - getMeters()) > DEPTH_CHANGE_THRESHOLD_M) applyFn(m);
+    };
+    slider.addEventListener("input", () => {
+      if (syncing) return;
+      if (deferSliderCommits()) {
+        const m = snapMeters(sliderToMeters(Number(slider.value)));
+        input.value = String(metersToDisplay(m, currentUnit()));
+        return;
+      }
+      commit();
+    });
+    slider.addEventListener("change", commit);
+  }
 
-  safetySlider.addEventListener("input", () => {
-    if (syncing) return;
-    const m = snapMeters(sliderToMeters(Number(safetySlider.value)));
-    if (Math.abs(m - getSettings().safetyDepth) > DEPTH_CHANGE_THRESHOLD_M)
-      applySafetyMeters(m);
-  });
+  wireDepthSlider(
+    shallowSlider,
+    shallowInput,
+    applyShallowMeters,
+    () => getSettings().shallowDepth,
+  );
+  wireDepthSlider(
+    safetySlider,
+    safetyInput,
+    applySafetyMeters,
+    () => getSettings().safetyDepth,
+  );
+  wireDepthSlider(
+    deepSlider,
+    deepInput,
+    applyDeepMeters,
+    () => getSettings().deepDepth,
+  );
 
-  deepSlider.addEventListener("input", () => {
-    if (syncing) return;
-    const m = snapMeters(sliderToMeters(Number(deepSlider.value)));
-    if (Math.abs(m - getSettings().deepDepth) > DEPTH_CHANGE_THRESHOLD_M)
-      applyDeepMeters(m);
-  });
+  /** −/+ stepper: one display-unit step (same as arrow keys), committed. */
+  function depthStepButton(
+    dir: -1 | 1,
+    applyFn: (m: number) => void,
+    getMeters: () => number,
+  ): HTMLButtonElement {
+    return buildStepButton(dir, () => {
+      const unit = currentUnit();
+      const factor = depthConversionFactor(unit);
+      const newDisplay = Math.max(
+        0,
+        getMeters() * factor + dir * stepForUnit(unit),
+      );
+      applyFn(snapMeters(newDisplay / factor));
+    });
+  }
 
   // Number input handlers: convert display units → meters
   // Guard with syncing + epsilon to prevent re-fire when syncSliders() sets .value
@@ -981,15 +955,123 @@ function buildDepthThresholdSliders(): HTMLElement {
     if (!syncing) syncSliders();
   });
 
-  shallowGroup.append(shallowSlider, shallowInput, shallowSuffix);
+  const shallowM = () => getSettings().shallowDepth;
+  const safetyM = () => getSettings().safetyDepth;
+  const deepM = () => getSettings().deepDepth;
+  shallowGroup.append(
+    depthStepButton(-1, applyShallowMeters, shallowM),
+    shallowSlider,
+    depthStepButton(1, applyShallowMeters, shallowM),
+    shallowInput,
+    shallowSuffix,
+  );
   shallowRow.appendChild(shallowGroup);
-  safetyGroup.append(safetySlider, safetyInput, safetySuffix);
+  safetyGroup.append(
+    depthStepButton(-1, applySafetyMeters, safetyM),
+    safetySlider,
+    depthStepButton(1, applySafetyMeters, safetyM),
+    safetyInput,
+    safetySuffix,
+  );
   safetyRow.appendChild(safetyGroup);
-  deepGroup.append(deepSlider, deepInput, deepSuffix);
+  deepGroup.append(
+    depthStepButton(-1, applyDeepMeters, deepM),
+    deepSlider,
+    depthStepButton(1, applyDeepMeters, deepM),
+    deepInput,
+    deepSuffix,
+  );
   deepRow.appendChild(deepGroup);
 
   container.append(shallowRow, safetyRow, deepRow);
   return container;
+}
+
+/**
+ * On e-ink, defer chart-affecting slider commits until release — every
+ * intermediate value would cost a (slow) full panel refresh, which makes
+ * the slider impossible to position accurately.
+ */
+function deferSliderCommits(): boolean {
+  return getSettings().displayTheme === "eink";
+}
+
+/** Small −/+ stepper button: one discrete, committed step per tap. */
+function buildStepButton(dir: -1 | 1, onStep: () => void): HTMLButtonElement {
+  const btn = document.createElement("button");
+  btn.type = "button";
+  btn.className = "settings-step-btn";
+  btn.textContent = dir < 0 ? "−" : "+";
+  btn.setAttribute("aria-label", dir < 0 ? "Decrease" : "Increase");
+  btn.addEventListener("click", onStep);
+  return btn;
+}
+
+/**
+ * Settings row with a slider flanked by −/+ steppers and a value label.
+ * Dragging updates the label live; the chart-affecting commit fires on
+ * every input on fast displays but only on release for e-ink. Steppers
+ * always commit immediately — one tap, one discrete refresh.
+ */
+function buildSliderRow(opts: {
+  id: string;
+  label: string;
+  min: number;
+  max: number;
+  step: number;
+  value: number;
+  format: (v: number) => string;
+  commit: (v: number) => void;
+}): HTMLDivElement {
+  const row = document.createElement("div");
+  row.className = "settings-row";
+
+  const label = document.createElement("label");
+  label.htmlFor = opts.id;
+  label.textContent = opts.label;
+  row.appendChild(label);
+
+  const group = document.createElement("div");
+  group.className = "settings-slider-group";
+
+  const slider = document.createElement("input");
+  slider.type = "range";
+  slider.id = opts.id;
+  slider.min = String(opts.min);
+  slider.max = String(opts.max);
+  slider.step = String(opts.step);
+  slider.value = String(opts.value);
+
+  const valueLabel = document.createElement("span");
+  valueLabel.textContent = opts.format(opts.value);
+
+  const current = () => Number.parseFloat(slider.value);
+  const apply = (v: number, commitNow: boolean) => {
+    valueLabel.textContent = opts.format(v);
+    if (commitNow) opts.commit(v);
+  };
+  slider.addEventListener("input", () =>
+    apply(current(), !deferSliderCommits()),
+  );
+  slider.addEventListener("change", () => apply(current(), true));
+
+  const stepBy = (dir: -1 | 1) => {
+    // Snap to the step grid and trim float dust (0.05 steps)
+    const stepped = current() + dir * opts.step;
+    const v = Number(
+      Math.min(opts.max, Math.max(opts.min, stepped)).toFixed(4),
+    );
+    slider.value = String(v);
+    apply(v, true);
+  };
+  group.append(
+    buildStepButton(-1, () => stepBy(-1)),
+    slider,
+    buildStepButton(1, () => stepBy(1)),
+    valueLabel,
+  );
+  row.appendChild(group);
+  return row;
 }
 
 function buildCheckboxRow(
