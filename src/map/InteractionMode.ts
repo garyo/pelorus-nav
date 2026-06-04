@@ -3,7 +3,12 @@
  * Same pub-sub pattern as settings.ts.
  */
 
-export type MapInteractionMode = "query" | "measure" | "route-edit" | "plot";
+export type MapInteractionMode =
+  | "query"
+  | "measure"
+  | "route-edit"
+  | "plot"
+  | "track-view";
 
 type ModeListener = (mode: MapInteractionMode) => void;
 

@@ -1546,6 +1546,87 @@ body {
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
 }
 
+/* ── Track viewer ─────────────────────────────────────────────────── */
+
+.track-viewer-panel {
+  position: fixed;
+  bottom: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(94vw, 560px);
+  background: rgba(30, 30, 50, 0.92);
+  color: #fff;
+  padding: 10px 14px;
+  border-radius: 8px;
+  z-index: 10000;
+  font:
+    13px system-ui,
+    -apple-system,
+    sans-serif;
+  display: none;
+  flex-direction: column;
+  gap: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+.track-viewer-panel.open {
+  display: flex;
+}
+
+.track-viewer-header {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+
+.track-viewer-header .manager-close {
+  margin-left: auto;
+  align-self: center;
+}
+
+.track-viewer-name {
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 40%;
+}
+
+.track-viewer-stats {
+  color: #bbc;
+  font-size: 12px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.track-viewer-legend {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  color: #bbc;
+}
+
+.track-viewer-ramp {
+  flex: 1;
+  height: 6px;
+  border-radius: 3px;
+}
+
+.track-viewer-slider {
+  width: 100%;
+  margin: 0;
+  accent-color: #4488cc;
+}
+
+.track-viewer-readouts {
+  display: flex;
+  justify-content: space-between;
+  font-variant-numeric: tabular-nums;
+  font-size: 14px;
+}
+
 .route-editor-text {
   flex: 1;
 }
@@ -1855,6 +1936,29 @@ body {
 [data-theme="night"] .route-editor-bar {
   background: rgba(26, 10, 10, 0.95);
   color: #cc3333;
+}
+
+[data-theme="night"] .track-viewer-panel {
+  background: rgba(26, 10, 10, 0.95);
+  color: #cc3333;
+}
+
+[data-theme="night"] .track-viewer-stats,
+[data-theme="night"] .track-viewer-legend {
+  color: #883333;
+}
+
+[data-theme="eink"] .track-viewer-panel {
+  background: #ffffff;
+  border: 2px solid #000000;
+  border-radius: 0;
+  color: #000000;
+  box-shadow: none;
+}
+
+[data-theme="eink"] .track-viewer-stats,
+[data-theme="eink"] .track-viewer-legend {
+  color: #444444;
 }
 
 /* Dusk: dimmed blue-grey UI */

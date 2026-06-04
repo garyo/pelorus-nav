@@ -24,7 +24,9 @@ import {
 import type { TrackLayer } from "../map/TrackLayer";
 import type { TrackRecorder } from "../map/TrackRecorder";
 import { updateSettings } from "../settings";
+import { formatDistanceShort, formatDurationShort } from "../utils/format";
 import {
+  iconActivity,
   iconExport,
   iconEye,
   iconEyeOff,
@@ -46,6 +48,7 @@ export class TrackManagerPanel {
    *  duplicate getTrackPoints + saveTrackMeta when refresh() runs again
    *  before a previous fill completes. */
   private readonly fillsInFlight: Set<string> = new Set();
+  private onViewTrack?: (meta: TrackMeta) => void;
 
   constructor(trackLayer: TrackLayer, recorder: TrackRecorder) {
     this.trackLayer = trackLayer;
@@ -109,6 +112,11 @@ export class TrackManagerPanel {
       this.updateRecordBtn();
       this.updateActiveCount();
     });
+  }
+
+  /** Register the track-viewer entry point (wired in main.ts). */
+  setOnViewTrack(cb: (meta: TrackMeta) => void): void {
+    this.onViewTrack = cb;
   }
 
   private updateRecordBtn(): void {
@@ -331,6 +339,12 @@ export class TrackManagerPanel {
     const actions = document.createElement("div");
     actions.className = "manager-item-actions";
 
+    const viewBtn = document.createElement("button");
+    viewBtn.className = "manager-item-btn";
+    setIcon(viewBtn, iconActivity);
+    viewBtn.title = "View track";
+    viewBtn.addEventListener("click", () => this.onViewTrack?.(meta));
+
     const exportBtn = document.createElement("button");
     exportBtn.className = "manager-item-btn";
     setIcon(exportBtn, iconExport);
@@ -375,7 +389,7 @@ export class TrackManagerPanel {
       })().catch(console.error);
     });
 
-    actions.append(exportBtn, toggleBtn, deleteBtn);
+    actions.append(viewBtn, exportBtn, toggleBtn, deleteBtn);
     item.append(color, info, actions);
     return item;
   }
@@ -527,24 +541,4 @@ function formatTrackDetail(meta: TrackMeta): string {
     parts.push("…");
   }
   return parts.join(" · ");
-}
-
-/** "47s", "12m", "1h 47m", "23h 8m" — compact, sortable-feeling. */
-function formatDurationShort(ms: number): string {
-  if (ms < 0) ms = 0;
-  const totalSec = Math.round(ms / 1000);
-  if (totalSec < 60) return `${totalSec}s`;
-  const totalMin = Math.round(totalSec / 60);
-  if (totalMin < 60) return `${totalMin}m`;
-  const hours = Math.floor(totalMin / 60);
-  const min = totalMin % 60;
-  return min === 0 ? `${hours}h` : `${hours}h ${min}m`;
-}
-
-/** "0.3 nm", "12.4 nm", "127 nm". */
-function formatDistanceShort(nm: number): string {
-  if (nm < 0) nm = 0;
-  if (nm < 10) return `${nm.toFixed(2)} nm`;
-  if (nm < 100) return `${nm.toFixed(1)} nm`;
-  return `${Math.round(nm)} nm`;
 }

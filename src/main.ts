@@ -32,6 +32,7 @@ import { RouteEditor } from "./map/RouteEditor";
 import { RouteLayer } from "./map/RouteLayer";
 import { TrackLayer } from "./map/TrackLayer";
 import { TrackRecorder } from "./map/TrackRecorder";
+import { TrackViewerLayer } from "./map/TrackViewerLayer";
 import { WaypointLayer } from "./map/WaypointLayer";
 import {
   BrowserGeolocationProvider,
@@ -80,6 +81,7 @@ import { maybeShowScreenTimeoutWarning } from "./ui/ScreenTimeoutDialog";
 import { SearchDialog } from "./ui/SearchDialog";
 import { createSettingsPanel } from "./ui/SettingsPanel";
 import { TrackManagerPanel } from "./ui/TrackManagerPanel";
+import { TrackViewerPanel } from "./ui/TrackViewerPanel";
 import { buildTopbarAction } from "./ui/topbarButton";
 import { WakeLockController } from "./ui/WakeLock";
 import { WaypointManagerPanel } from "./ui/WaypointManagerPanel";
@@ -625,6 +627,18 @@ const trackRecorder = new TrackRecorder(navManager);
 const trackLayer = new TrackLayer(chartManager.map, navManager, trackRecorder);
 const trackPanel = new TrackManagerPanel(trackLayer, trackRecorder);
 idleCloseables.push(trackPanel);
+
+// --- Track viewer ---
+const trackViewerLayer = new TrackViewerLayer(chartManager.map);
+const trackViewer = new TrackViewerPanel(trackViewerLayer, {
+  // Stop follow-mode from yanking the map back to the vessel mid-scrub
+  onOpen: () => chartMode.setMode("free"),
+});
+idleCloseables.push(trackViewer);
+trackPanel.setOnViewTrack((meta) => {
+  trackPanel.hide();
+  trackViewer.open(meta).catch(console.error);
+});
 
 // React to track recording setting
 onSettingsChange((s) => {
