@@ -8,6 +8,7 @@ import { getAllRoutes } from "../data/db";
 import type { Route } from "../data/Route";
 import { lightenHex } from "../utils/color";
 import { haversineDistanceNM } from "../utils/coordinates";
+import { fitMapToBounds, fitMapToBoundsIfNeeded } from "./fit-bounds";
 import { ensurePointIcons, pointRole, ROLE_ICON_EXPR } from "./point-icons";
 import {
   GLOW_BLUR,
@@ -261,13 +262,10 @@ export class RouteLayer {
     if (legIndex < 0 || legIndex >= wps.length - 1) return;
     const a = wps[legIndex];
     const b = wps[legIndex + 1];
-    this.map.fitBounds(
-      [
-        [Math.min(a.lon, b.lon), Math.min(a.lat, b.lat)],
-        [Math.max(a.lon, b.lon), Math.max(a.lat, b.lat)],
-      ],
-      { padding: 80, maxZoom: 14, duration: 500 },
-    );
+    fitMapToBounds(this.map, [
+      [Math.min(a.lon, b.lon), Math.min(a.lat, b.lat)],
+      [Math.max(a.lon, b.lon), Math.max(a.lat, b.lat)],
+    ]);
   }
 
   // ── Full-route selection halo ───────────────────────────────────────
@@ -372,24 +370,14 @@ export class RouteLayer {
     }
   }
 
-  /** Zoom to fit the route, but only if it's not already fully visible. */
+  /** Zoom to fit the route, unless it's already well-framed on screen. */
   fitRoute(route: Route): void {
     const bbox = routeBbox(route);
     if (!bbox) return;
-    const b = this.map.getBounds();
-    const fullyVisible =
-      bbox[0] >= b.getWest() &&
-      bbox[2] <= b.getEast() &&
-      bbox[1] >= b.getSouth() &&
-      bbox[3] <= b.getNorth();
-    if (fullyVisible) return;
-    this.map.fitBounds(
-      [
-        [bbox[0], bbox[1]],
-        [bbox[2], bbox[3]],
-      ],
-      { padding: 80, maxZoom: 14, duration: 500 },
-    );
+    fitMapToBoundsIfNeeded(this.map, [
+      [bbox[0], bbox[1]],
+      [bbox[2], bbox[3]],
+    ]);
   }
 
   private firstRouteLineLayer(): string | undefined {

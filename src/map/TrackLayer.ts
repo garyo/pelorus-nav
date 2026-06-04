@@ -9,6 +9,7 @@ import type { TrackMeta, TrackPoint } from "../data/Track";
 import type { NavigationData } from "../navigation/NavigationData";
 import type { NavigationDataManager } from "../navigation/NavigationDataManager";
 import { lightenHex } from "../utils/color";
+import { fitMapToBoundsIfNeeded } from "./fit-bounds";
 import {
   GLOW_BLUR,
   GLOW_LIGHTEN,
@@ -297,7 +298,7 @@ export class TrackLayer {
     }
   }
 
-  /** Zoom to fit the track, but only if it's not already fully visible. */
+  /** Zoom to fit the track, unless it's already well-framed on screen. */
   async fitTrack(meta: TrackMeta): Promise<void> {
     const allPoints = await getTrackPoints(meta.id);
     // Use only the points the user actually sees on the map.
@@ -314,20 +315,10 @@ export class TrackLayer {
       if (p.lat < minLat) minLat = p.lat;
       else if (p.lat > maxLat) maxLat = p.lat;
     }
-    const b = this.map.getBounds();
-    const fullyVisible =
-      minLon >= b.getWest() &&
-      maxLon <= b.getEast() &&
-      minLat >= b.getSouth() &&
-      maxLat <= b.getNorth();
-    if (fullyVisible) return;
-    this.map.fitBounds(
-      [
-        [minLon, minLat],
-        [maxLon, maxLat],
-      ],
-      { padding: 80, maxZoom: 14, duration: 500 },
-    );
+    fitMapToBoundsIfNeeded(this.map, [
+      [minLon, minLat],
+      [maxLon, maxLat],
+    ]);
   }
 
   private firstTrackLineLayer(): string | undefined {
