@@ -117,7 +117,7 @@ describe("cursorAtTime / cursorAtFraction", () => {
     expect(cursorAtTime(a, T0 + 99 * MIN).timestamp).toBe(a.endTime);
   });
 
-  it("interpolates COG through the shortest arc, including north wrap", () => {
+  it("holds the segment's course until the next fix (no mid-leg blending)", () => {
     const pts = [
       pt({ cog: 350, sog: 5 }),
       pt({ lat: 42.01, timestamp: T0 + MIN, cog: 10, sog: 5 }),
@@ -125,7 +125,11 @@ describe("cursorAtTime / cursorAtFraction", () => {
     ];
     const a = analyzeTrack(pts);
     if (!a) throw new Error("null analysis");
-    expect(cursorAtTime(a, T0 + 0.5 * MIN).cogDeg).toBeCloseTo(0, 5);
+    // Anywhere inside leg 1 the boat is travelling on leg 1's course
+    expect(cursorAtTime(a, T0 + 0.2 * MIN).cogDeg).toBeCloseTo(350, 5);
+    expect(cursorAtTime(a, T0 + 0.9 * MIN).cogDeg).toBeCloseTo(350, 5);
+    // The turn happens at the fix
+    expect(cursorAtTime(a, T0 + 1.1 * MIN).cogDeg).toBeCloseTo(10, 5);
   });
 
   it("falls back to segment bearing when COG is missing", () => {

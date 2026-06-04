@@ -156,28 +156,16 @@ function lowerIndex(values: ArrayLike<number>, x: number): number {
   return lo;
 }
 
-/** Interpolate a bearing through the shortest arc. */
-function lerpBearing(a: number, b: number, t: number): number {
-  const delta = ((b - a + 540) % 360) - 180;
-  return (a + delta * t + 360) % 360;
-}
-
 function cursorAt(a: TrackAnalysis, i: number, t: number): TrackCursor {
   const p = a.points[i];
   const q = a.points[Math.min(i + 1, a.points.length - 1)];
-  const cog =
-    p.cog !== null &&
-    p.cog !== undefined &&
-    q.cog !== null &&
-    q.cog !== undefined
-      ? lerpBearing(p.cog, q.cog, t)
-      : p === q
-        ? (p.cog ?? 0)
-        : initialBearingDeg(p.lat, p.lon, q.lat, q.lon);
   return {
     lat: p.lat + (q.lat - p.lat) * t,
     lon: p.lon + (q.lon - p.lon) * t,
-    cogDeg: cog,
+    // The segment's course, held constant until the next fix: a position
+    // mid-segment is travelling along it — blending toward the next
+    // course made a route-preview boat crab sideways down long legs.
+    cogDeg: a.coursesDeg[i],
     sogKn:
       a.speedsKn[i] +
       (a.speedsKn[Math.min(i + 1, a.points.length - 1)] - a.speedsKn[i]) * t,
