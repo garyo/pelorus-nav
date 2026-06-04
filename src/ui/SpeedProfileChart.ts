@@ -14,7 +14,7 @@ import type { StopInterval, TrackAnalysis } from "../data/track-analysis";
 import { getSettings } from "../settings";
 import { convertSpeed, speedUnitLabel } from "../utils/units";
 
-const CHART_HEIGHT = 64; // CSS px
+const FALLBACK_HEIGHT = 64; // CSS px — real height comes from the stylesheet
 
 interface Palette {
   line: string;
@@ -123,9 +123,12 @@ export class SpeedProfileChart {
     const a = this.analysis;
     const cssW = this.el.clientWidth;
     if (!a || cssW <= 0) return;
-    const cssH = CHART_HEIGHT;
+    const cssH = this.el.clientHeight || FALLBACK_HEIGHT;
     const dpr = window.devicePixelRatio || 1;
-    if (this.el.width !== Math.round(cssW * dpr)) {
+    if (
+      this.el.width !== Math.round(cssW * dpr) ||
+      this.el.height !== Math.round(cssH * dpr)
+    ) {
       this.el.width = Math.round(cssW * dpr);
       this.el.height = Math.round(cssH * dpr);
     }

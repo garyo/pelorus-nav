@@ -36,6 +36,7 @@ export class TrackViewerLayer {
   private maneuvers: Maneuver[] = [];
   private cursor: TrackCursor | null = null;
   private colorMode: TrackColorMode = "speed";
+  private bottomPadPx = 220;
   private maneuverClickCb?: (timestamp: number) => void;
 
   constructor(map: maplibregl.Map) {
@@ -56,10 +57,18 @@ export class TrackViewerLayer {
     this.maneuverClickCb = cb;
   }
 
-  /** Show the given track and fit the viewport to it. */
-  show(analysis: TrackAnalysis, maneuvers: Maneuver[]): void {
+  /**
+   * Show the given track and fit the viewport to it. `bottomPadPx` is the
+   * viewer panel's height, so the fit keeps the track clear of it.
+   */
+  show(
+    analysis: TrackAnalysis,
+    maneuvers: Maneuver[],
+    bottomPadPx?: number,
+  ): void {
     this.analysis = analysis;
     this.maneuvers = maneuvers;
+    if (bottomPadPx !== undefined) this.bottomPadPx = bottomPadPx;
     this.setup();
     this.fitBounds();
   }
@@ -273,14 +282,24 @@ export class TrackViewerLayer {
       if (p.lat < minLat) minLat = p.lat;
       else if (p.lat > maxLat) maxLat = p.lat;
     }
+    // Pad for the viewer panel, clamped to canvas fractions so the fit
+    // still has room to work with on a landscape phone.
+    const canvas = this.map.getCanvas();
+    const h = canvas.clientHeight;
+    const w = canvas.clientWidth;
+    const padding = {
+      top: Math.min(90, Math.round(h * 0.12)),
+      bottom: Math.min(this.bottomPadPx + 16, Math.round(h * 0.55)),
+      left: Math.min(60, Math.round(w * 0.08)),
+      right: Math.min(60, Math.round(w * 0.08)),
+    };
     fitMapToBounds(
       this.map,
       [
         [minLon, minLat],
         [maxLon, maxLat],
       ],
-      // Extra bottom padding keeps the track clear of the viewer panel
-      { padding: { top: 90, left: 60, right: 60, bottom: 260 }, duration: 500 },
+      { padding, duration: 500 },
     );
   }
 }

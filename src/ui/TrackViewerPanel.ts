@@ -27,7 +27,7 @@ import {
 } from "../data/track-analysis";
 import { setMode } from "../map/InteractionMode";
 import type { TrackViewerLayer } from "../map/TrackViewerLayer";
-import { getSettings } from "../settings";
+import { getSettings, updateSettings } from "../settings";
 import { formatDistanceShort, formatDurationShort } from "../utils/format";
 import { formatBearing } from "../utils/magnetic";
 import { convertSpeed, speedUnitLabel } from "../utils/units";
@@ -62,6 +62,8 @@ export class TrackViewerPanel {
   private readonly readouts: Record<string, HTMLSpanElement>;
   private analysis: TrackAnalysis | null = null;
   private cursorFrac = 0;
+  /** Instruments were on when the viewer opened — restore them on close. */
+  private hudWasOn = false;
   private playing = false;
   private playRate = DEFAULT_PLAY_RATE;
   private rafId: number | null = null;
@@ -190,14 +192,18 @@ export class TrackViewerPanel {
     this.playBtn.disabled = !analysis.hasTime;
     this.rateSelect.disabled = !analysis.hasTime;
 
-    this.layer.show(analysis, maneuvers);
+    // Turn the instrument HUD off — live nav readouts are noise while
+    // reviewing, and switching the real setting returns its space to the
+    // map (which then resizes before the fit below).
+    this.hudWasOn = getSettings().showInstrumentHUD;
+    if (this.hudWasOn) updateSettings({ showInstrumentHUD: false });
 
-    // Open before sizing the chart — a hidden canvas has no width
+    // Open before sizing the chart (a hidden canvas has no width) and
+    // before showing the layer, whose fit pads for the panel's height.
     setMode("track-view");
     this.el.classList.add("open");
-    // Hide the instrument HUD — live nav readouts are noise while reviewing
-    document.body.classList.add("track-viewing");
     this.chart.setData(analysis, stops);
+    this.layer.show(analysis, maneuvers, this.el.offsetHeight);
     this.setFraction(0);
     this.hooks.onOpen?.();
   }
@@ -206,7 +212,10 @@ export class TrackViewerPanel {
     if (!this.isOpen()) return;
     this.stopPlayback();
     this.el.classList.remove("open");
-    document.body.classList.remove("track-viewing");
+    // Restore instruments unless the user re-enabled them mid-view
+    if (this.hudWasOn && !getSettings().showInstrumentHUD) {
+      updateSettings({ showInstrumentHUD: true });
+    }
     this.analysis = null;
     this.layer.hide();
     setMode("query");

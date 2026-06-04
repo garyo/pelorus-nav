@@ -1548,12 +1548,6 @@ body {
 
 /* ── Track viewer ─────────────────────────────────────────────────── */
 
-/* Reviewing a track: live instruments are noise (and compete for space).
-   !important because the HUD's settings toggle sets display inline. */
-body.track-viewing .instrument-hud {
-  display: none !important;
-}
-
 .track-viewer-panel {
   position: fixed;
   bottom: 12px;
@@ -1676,6 +1670,63 @@ body.track-viewing .instrument-hud {
 .track-viewer-play svg {
   width: 20px;
   height: 20px;
+}
+
+/* Narrow phones (portrait): full width, tighter spacing */
+@media (max-width: 480px) {
+  .track-viewer-panel {
+    width: calc(100vw - 12px);
+    bottom: 6px;
+    padding: 8px 10px;
+    gap: 6px;
+  }
+
+  .track-viewer-name {
+    max-width: 35%;
+  }
+
+  .track-viewer-stats {
+    font-size: 11px;
+  }
+
+  .track-viewer-chart {
+    height: 52px;
+  }
+
+  .track-viewer-controls {
+    font-size: 12px;
+    gap: 6px;
+  }
+}
+
+/* Landscape phones: the panel must not eat the map. The slider goes —
+   the chart is already a scrubber — and everything tightens up. */
+@media (orientation: landscape) and (max-height: 500px) {
+  .track-viewer-panel {
+    bottom: 6px;
+    padding: 6px 10px;
+    gap: 4px;
+  }
+
+  .track-viewer-header {
+    font-size: 12px;
+  }
+
+  .track-viewer-stats {
+    font-size: 11px;
+  }
+
+  .track-viewer-slider {
+    display: none;
+  }
+
+  .track-viewer-chart {
+    height: 40px;
+  }
+
+  .track-viewer-controls {
+    font-size: 12px;
+  }
 }
 
 .route-editor-text {
