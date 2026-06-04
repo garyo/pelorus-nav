@@ -1,7 +1,7 @@
 /**
- * Map visuals for track-view mode: the viewed track drawn as a
- * speed-colored gradient line with a casing for contrast, plus a
- * vessel-shaped cursor that scrubs along it.
+ * Map visuals for track-view mode: the viewed track drawn as a gradient
+ * line (colored by speed, course, or time) with a casing for contrast,
+ * maneuver markers, and a vessel-shaped cursor that scrubs along it.
  *
  * On the e-ink theme the gradient is replaced by a plain high-contrast
  * line — a color ramp carries no information in grayscale.
@@ -10,9 +10,11 @@
 import type { ExpressionSpecification } from "@maplibre/maplibre-gl-style-spec";
 import type maplibregl from "maplibre-gl";
 import {
-  speedGradientStops,
+  type Maneuver,
   type TrackAnalysis,
+  type TrackColorMode,
   type TrackCursor,
+  trackGradientStops,
 } from "../data/track-analysis";
 import { getSettings } from "../settings";
 import { fitMapToBounds } from "./fit-bounds";
@@ -20,6 +22,8 @@ import { fitMapToBounds } from "./fit-bounds";
 const SRC_LINE = "_track-viewer-line-src";
 const LYR_CASING = "_track-viewer-casing";
 const LYR_LINE = "_track-viewer-line";
+const SRC_MANEUVERS = "_track-viewer-maneuvers-src";
+const LYR_MANEUVERS = "_track-viewer-maneuvers";
 const SRC_CURSOR = "_track-viewer-cursor-src";
 const LYR_CURSOR = "_track-viewer-cursor";
 const IMG_CURSOR = "_track-viewer-cursor-img";
@@ -29,7 +33,10 @@ const LINE_WIDTH = 4;
 export class TrackViewerLayer {
   private readonly map: maplibregl.Map;
   private analysis: TrackAnalysis | null = null;
+  private maneuvers: Maneuver[] = [];
   private cursor: TrackCursor | null = null;
+  private colorMode: TrackColorMode = "speed";
+  private maneuverClickCb?: (timestamp: number) => void;
 
   constructor(map: maplibregl.Map) {
     this.map = map;
@@ -37,13 +44,31 @@ export class TrackViewerLayer {
     map.on("style.load", () => {
       if (this.analysis) this.setup();
     });
+    // Tap a maneuver marker to jump the scrub cursor there
+    map.on("click", LYR_MANEUVERS, (e) => {
+      const ts = e.features?.[0]?.properties?.timestamp;
+      if (typeof ts === "number") this.maneuverClickCb?.(ts);
+    });
+  }
+
+  /** Register a handler for taps on maneuver markers. */
+  onManeuverClick(cb: (timestamp: number) => void): void {
+    this.maneuverClickCb = cb;
   }
 
   /** Show the given track and fit the viewport to it. */
-  show(analysis: TrackAnalysis): void {
+  show(analysis: TrackAnalysis, maneuvers: Maneuver[]): void {
     this.analysis = analysis;
+    this.maneuvers = maneuvers;
     this.setup();
     this.fitBounds();
+  }
+
+  /** Switch what drives the gradient color. */
+  setColorMode(mode: TrackColorMode): void {
+    if (mode === this.colorMode) return;
+    this.colorMode = mode;
+    if (this.analysis) this.setup();
   }
 
   /** Move the scrub cursor. */
@@ -57,11 +82,12 @@ export class TrackViewerLayer {
 
   hide(): void {
     this.analysis = null;
+    this.maneuvers = [];
     this.cursor = null;
-    for (const lyr of [LYR_CURSOR, LYR_LINE, LYR_CASING]) {
+    for (const lyr of [LYR_CURSOR, LYR_MANEUVERS, LYR_LINE, LYR_CASING]) {
       if (this.map.getLayer(lyr)) this.map.removeLayer(lyr);
     }
-    for (const src of [SRC_CURSOR, SRC_LINE]) {
+    for (const src of [SRC_CURSOR, SRC_MANEUVERS, SRC_LINE]) {
       if (this.map.getSource(src)) this.map.removeSource(src);
     }
   }
@@ -71,8 +97,8 @@ export class TrackViewerLayer {
     if (!a) return;
     const eink = getSettings().displayTheme === "eink";
 
-    // Tear down any stale layers (e.g. theme switch re-entry)
-    for (const lyr of [LYR_CURSOR, LYR_LINE, LYR_CASING]) {
+    // Tear down any stale layers (e.g. theme switch or color-mode re-entry)
+    for (const lyr of [LYR_CURSOR, LYR_MANEUVERS, LYR_LINE, LYR_CASING]) {
       if (this.map.getLayer(lyr)) this.map.removeLayer(lyr);
     }
 
@@ -112,7 +138,7 @@ export class TrackViewerLayer {
       });
     }
 
-    const stops = speedGradientStops(a);
+    const stops = trackGradientStops(a, this.colorMode);
     this.map.addLayer({
       id: LYR_LINE,
       type: "line",
@@ -131,6 +157,39 @@ export class TrackViewerLayer {
               ] as ExpressionSpecification,
             }
           : { "line-color": stops[0][1], "line-width": LINE_WIDTH },
+    });
+
+    // Maneuver markers — tap to jump the cursor there
+    const maneuverData: GeoJSON.FeatureCollection = {
+      type: "FeatureCollection",
+      features: this.maneuvers.map((m) => ({
+        type: "Feature",
+        properties: { timestamp: m.timestamp },
+        geometry: { type: "Point", coordinates: [m.lon, m.lat] },
+      })),
+    };
+    const manSrc = this.map.getSource(SRC_MANEUVERS) as
+      | maplibregl.GeoJSONSource
+      | undefined;
+    if (manSrc) {
+      manSrc.setData(maneuverData);
+    } else {
+      this.map.addSource(SRC_MANEUVERS, {
+        type: "geojson",
+        data: maneuverData,
+      });
+    }
+    this.map.addLayer({
+      id: LYR_MANEUVERS,
+      type: "circle",
+      source: SRC_MANEUVERS,
+      paint: {
+        "circle-radius": 5,
+        "circle-color": "#ffffff",
+        "circle-opacity": 0.9,
+        "circle-stroke-width": 2,
+        "circle-stroke-color": eink ? "#000000" : "#1a3a8c",
+      },
     });
 
     this.addCursorImage(eink);
@@ -221,7 +280,7 @@ export class TrackViewerLayer {
         [maxLon, maxLat],
       ],
       // Extra bottom padding keeps the track clear of the viewer panel
-      { padding: { top: 90, left: 60, right: 60, bottom: 220 }, duration: 500 },
+      { padding: { top: 90, left: 60, right: 60, bottom: 260 }, duration: 500 },
     );
   }
 }

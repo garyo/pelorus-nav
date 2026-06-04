@@ -2,10 +2,15 @@ import { describe, expect, it } from "vitest";
 import type { TrackPoint } from "./Track";
 import {
   analyzeTrack,
+  courseToColor,
   cursorAtFraction,
   cursorAtTime,
-  speedGradientStops,
+  detectManeuvers,
+  detectStops,
+  movingStats,
+  STOP_MIN_MS,
   speedToColor,
+  trackGradientStops,
 } from "./track-analysis";
 
 const T0 = Date.parse("2026-06-01T12:00:00Z");
@@ -154,11 +159,11 @@ describe("speedToColor", () => {
   });
 });
 
-describe("speedGradientStops", () => {
+describe("trackGradientStops", () => {
   it("produces strictly ascending progress stops in [0, 1]", () => {
     const a = analyzeTrack(northwardTrack([2, 4, 6, 8, 6, 4, 2, 5, 7, 3]));
     if (!a) throw new Error("null analysis");
-    const stops = speedGradientStops(a, 5);
+    const stops = trackGradientStops(a, "speed", 5);
     expect(stops.length).toBeGreaterThan(1);
     expect(stops.length).toBeLessThanOrEqual(6);
     for (let i = 0; i < stops.length; i++) {
@@ -176,9 +181,95 @@ describe("speedGradientStops", () => {
     ];
     const a = analyzeTrack(pts);
     if (!a) throw new Error("null analysis");
-    const stops = speedGradientStops(a, 100);
+    const stops = trackGradientStops(a, "speed", 100);
     for (let i = 1; i < stops.length; i++) {
       expect(stops[i][0]).toBeGreaterThan(stops[i - 1][0]);
     }
+  });
+
+  it("time mode runs the ramp from start color to end color", () => {
+    const a = analyzeTrack(northwardTrack([5, 5, 5, 5, 5, 5, 5, 5]));
+    if (!a) throw new Error("null analysis");
+    const stops = trackGradientStops(a, "time", 100);
+    expect(stops[0][1]).not.toBe(stops[stops.length - 1][1]);
+  });
+});
+
+describe("courseToColor", () => {
+  it("is cyclical and normalizes negatives", () => {
+    expect(courseToColor(370)).toBe(courseToColor(10));
+    expect(courseToColor(-90)).toBe(courseToColor(270));
+    expect(courseToColor(0)).not.toBe(courseToColor(180));
+  });
+});
+
+describe("detectStops / movingStats", () => {
+  /** 6kn sail, then anchored (0.1kn) for `stopMin` minutes, then 6kn again. */
+  function trackWithStop(stopMinutes: number): TrackPoint[] {
+    const speeds = [6, 6, 6];
+    for (let i = 0; i < stopMinutes; i++) speeds.push(0.1);
+    speeds.push(6, 6, 6);
+    return northwardTrack(speeds);
+  }
+
+  it("finds an anchored interval and excludes it from moving time", () => {
+    const a = analyzeTrack(trackWithStop(10));
+    if (!a) throw new Error("null analysis");
+    const stops = detectStops(a);
+    expect(stops).toHaveLength(1);
+    expect(stops[0].durationMs).toBeGreaterThanOrEqual(STOP_MIN_MS);
+    const { movingMs, avgMovingKn } = movingStats(a, stops);
+    expect(movingMs).toBeLessThan(a.durationMs);
+    expect(avgMovingKn).toBeGreaterThan(a.avgSpeedKn);
+  });
+
+  it("ignores brief lulls shorter than the minimum", () => {
+    const a = analyzeTrack(trackWithStop(2));
+    if (!a) throw new Error("null analysis");
+    expect(detectStops(a)).toHaveLength(0);
+  });
+
+  it("returns nothing without timestamps", () => {
+    const pts = trackWithStop(10).map((p) => ({ ...p, timestamp: 0 }));
+    const a = analyzeTrack(pts);
+    if (!a) throw new Error("null analysis");
+    expect(detectStops(a)).toHaveLength(0);
+  });
+});
+
+describe("detectManeuvers", () => {
+  /** Constant 5kn with given COG per 10-second fix, positions on a line. */
+  function trackWithCourses(cogs: number[]): TrackPoint[] {
+    return cogs.map((cog, i) =>
+      pt({ lat: 42 + i * 0.001, timestamp: T0 + i * 10_000, sog: 5, cog }),
+    );
+  }
+
+  it("finds a tack-sized course change once", () => {
+    const m = (() => {
+      const a = analyzeTrack(
+        trackWithCourses([30, 30, 30, 30, 110, 110, 110, 110]),
+      );
+      if (!a) throw new Error("null analysis");
+      return detectManeuvers(a);
+    })();
+    expect(m).toHaveLength(1);
+    expect(m[0].turnDeg).toBeCloseTo(80, 0);
+  });
+
+  it("ignores small course wander", () => {
+    const a = analyzeTrack(trackWithCourses([30, 40, 35, 45, 30, 38, 42, 33]));
+    if (!a) throw new Error("null analysis");
+    expect(detectManeuvers(a)).toHaveLength(0);
+  });
+
+  it("ignores swings while drifting below the speed gate", () => {
+    const pts = trackWithCourses([30, 30, 30, 110, 110, 110]).map((p) => ({
+      ...p,
+      sog: 0.2,
+    }));
+    const a = analyzeTrack(pts);
+    if (!a) throw new Error("null analysis");
+    expect(detectManeuvers(a)).toHaveLength(0);
   });
 });

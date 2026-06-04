@@ -30,6 +30,17 @@ export const iconActivity = svg(
   '<polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>',
 );
 
+/** Playback start. */
+export const iconPlay = svg('<polygon points="7 4 19 12 7 20"/>', {
+  fill: true,
+});
+
+/** Playback pause. */
+export const iconPause = svg(
+  '<rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/>',
+  { fill: true },
+);
+
 /** Gauge / instrument panel. */
 export const iconGauge = svg(
   '<path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20z"/>' +

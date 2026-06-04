@@ -706,6 +706,8 @@ if (Capacitor.isNativePlatform()) {
   returnDetector.onChange((idle) => {
     if (!idle || document.visibilityState !== "visible") return;
     if (!getSettings().autoReturnWhenIdle) return;
+    // Watching a track replay is not "idle" — don't yank the user out of it
+    if (trackViewer.isPlaying()) return;
     for (const c of idleCloseables) c.hide();
     if (chartMode.getMode() === "free") chartMode.recenter();
   });

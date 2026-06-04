@@ -1548,6 +1548,12 @@ body {
 
 /* ── Track viewer ─────────────────────────────────────────────────── */
 
+/* Reviewing a track: live instruments are noise (and compete for space).
+   !important because the HUD's settings toggle sets display inline. */
+body.track-viewing .instrument-hud {
+  display: none !important;
+}
+
 .track-viewer-panel {
   position: fixed;
   bottom: 12px;
@@ -1614,17 +1620,62 @@ body {
   border-radius: 3px;
 }
 
+.track-viewer-colorby,
+.track-viewer-rate {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid #556;
+  border-radius: 4px;
+  color: inherit;
+  font-size: 11px;
+  padding: 2px 4px;
+}
+
+.track-viewer-chart {
+  width: 100%;
+  height: 64px;
+  display: block;
+  touch-action: none;
+  cursor: crosshair;
+}
+
 .track-viewer-slider {
   width: 100%;
   margin: 0;
   accent-color: #4488cc;
 }
 
-.track-viewer-readouts {
+.track-viewer-controls {
   display: flex;
-  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
   font-variant-numeric: tabular-nums;
   font-size: 14px;
+}
+
+.track-viewer-controls [data-ro] {
+  flex: 1;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.track-viewer-play {
+  background: none;
+  border: none;
+  color: inherit;
+  cursor: pointer;
+  padding: 2px;
+  display: flex;
+  align-items: center;
+}
+
+.track-viewer-play:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.track-viewer-play svg {
+  width: 20px;
+  height: 20px;
 }
 
 .route-editor-text {
@@ -1948,6 +1999,12 @@ body {
   color: #883333;
 }
 
+[data-theme="night"] .track-viewer-colorby,
+[data-theme="night"] .track-viewer-rate {
+  background: rgba(50, 20, 20, 0.8);
+  border-color: #442222;
+}
+
 [data-theme="eink"] .track-viewer-panel {
   background: #ffffff;
   border: 2px solid #000000;
@@ -1959,6 +2016,13 @@ body {
 [data-theme="eink"] .track-viewer-stats,
 [data-theme="eink"] .track-viewer-legend {
   color: #444444;
+}
+
+[data-theme="eink"] .track-viewer-colorby,
+[data-theme="eink"] .track-viewer-rate {
+  background: #ffffff;
+  border-color: #000000;
+  border-radius: 0;
 }
 
 /* Dusk: dimmed blue-grey UI */
