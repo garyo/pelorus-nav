@@ -309,10 +309,10 @@ export function detectManeuvers(a: TrackAnalysis): Maneuver[] {
     // Advance j to the end of the window starting at i
     if (j < i) j = i;
     while (j + 1 < n && a.times[j + 1] - a.times[i] <= MANEUVER_WINDOW_MS) j++;
-    if (j === i) {
-      i++;
-      continue;
-    }
+    // Sparse recording (adaptive GPS rate) can leave gaps longer than the
+    // window; a big course change across the gap means the turn happened
+    // inside it, so always compare at least adjacent fixes.
+    if (j === i) j = i + 1;
     const turn = bearingDelta(a.coursesDeg[j], a.coursesDeg[i]);
     if (Math.abs(turn) >= MANEUVER_MIN_TURN_DEG) {
       let minKn = Number.POSITIVE_INFINITY;
@@ -320,7 +320,8 @@ export function detectManeuvers(a: TrackAnalysis): Maneuver[] {
         if (a.speedsKn[k] < minKn) minKn = a.speedsKn[k];
       }
       if (minKn >= MANEUVER_MIN_SPEED_KN) {
-        const mid = i + ((j - i) >> 1);
+        // Round up so a gap-spanning pair marks the turn's completion
+        const mid = Math.min(i + Math.ceil((j - i) / 2), n - 1);
         maneuvers.push({
           index: mid,
           timestamp: a.times[mid],

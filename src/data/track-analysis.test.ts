@@ -263,6 +263,21 @@ describe("detectManeuvers", () => {
     expect(detectManeuvers(a)).toHaveLength(0);
   });
 
+  it("finds a turn hidden inside a recording gap longer than the window", () => {
+    const pts = [
+      pt({ lat: 42.0, timestamp: T0, sog: 5, cog: 180 }),
+      pt({ lat: 42.001, timestamp: T0 + 10_000, sog: 5, cog: 180 }),
+      // 2-minute gap (adaptive GPS rate) — the turn happens in here
+      pt({ lat: 42.002, timestamp: T0 + 130_000, sog: 5, cog: 270 }),
+      pt({ lat: 42.003, timestamp: T0 + 140_000, sog: 5, cog: 270 }),
+    ];
+    const a = analyzeTrack(pts);
+    if (!a) throw new Error("null analysis");
+    const m = detectManeuvers(a);
+    expect(m).toHaveLength(1);
+    expect(Math.abs(m[0].turnDeg)).toBeCloseTo(90, 0);
+  });
+
   it("ignores swings while drifting below the speed gate", () => {
     const pts = trackWithCourses([30, 30, 30, 110, 110, 110]).map((p) => ({
       ...p,
