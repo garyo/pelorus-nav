@@ -32,21 +32,22 @@ export default defineConfig({
     entries: ["src/main.ts", "src/worker.ts"],
   },
   plugins: [
-    // Disable PWA/service worker for Capacitor builds — assets are bundled
+    // PWA/service worker is disabled for Capacitor builds — assets are bundled
     // locally and the SW only causes stale-cache problems in Android WebView.
-    ...(!isCapacitor
-      ? [
-          VitePWA({
-            registerType: "autoUpdate",
-            workbox: {
-              // MapLibre glyphs (pbf) are bundled under public/fonts and
-              // precached so labels render fully offline.
-              globPatterns: ["**/*.{js,css,html,svg,png,woff2,json,pbf}"],
-              globIgnores: ["**/*.pmtiles", "**/*.geojson", "**/*.search.json"],
-              navigateFallback: "/index.html",
-            },
-          }),
-        ]
-      : []),
+    // (`disable` still provides a no-op virtual:pwa-register module.)
+    // "prompt" mode: a new build shows a reload notice (AppUpdateNotifier)
+    // instead of hot-swapping code under an active navigation session; a
+    // full app restart still picks up the new version automatically.
+    VitePWA({
+      disable: isCapacitor,
+      registerType: "prompt",
+      workbox: {
+        // MapLibre glyphs (pbf) are bundled under public/fonts and
+        // precached so labels render fully offline.
+        globPatterns: ["**/*.{js,css,html,svg,png,woff2,json,pbf}"],
+        globIgnores: ["**/*.pmtiles", "**/*.geojson", "**/*.search.json"],
+        navigateFallback: "/index.html",
+      },
+    }),
   ],
 });

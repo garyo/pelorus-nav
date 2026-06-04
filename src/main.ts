@@ -50,6 +50,7 @@ import { RegionAutoSwitch } from "./navigation/RegionAutoSwitch";
 import { BOSTON_HARBOR_ROUTE } from "./navigation/SimulatorProvider";
 import { getSettings, onSettingsChange, updateSettings } from "./settings";
 import { AboutDialog } from "./ui/AboutDialog";
+import { startAppUpdateNotifier } from "./ui/AppUpdateNotifier";
 import { CancelNavButton } from "./ui/CancelNavButton";
 import { CenterCrosshair } from "./ui/CenterCrosshair";
 import { ChartCachePanel } from "./ui/ChartCachePanel";
@@ -105,6 +106,10 @@ if (Capacitor.isNativePlatform() && "serviceWorker" in navigator) {
     }
   });
 }
+
+// On the web PWA, register the service worker and offer a reload when a
+// new build is available (no-op stub in Capacitor builds).
+startAppUpdateNotifier();
 
 // Register PMTiles protocol for vector tile sources
 const protocol = new Protocol({ metadata: true });
