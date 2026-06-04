@@ -11,6 +11,7 @@ const base: GpsPowerInputs = {
   recording: false,
   idle: false,
   eink: false,
+  burst: false,
 };
 
 describe("decideGpsPower", () => {
@@ -63,6 +64,39 @@ describe("decideGpsPower", () => {
     expect(decideGpsPower({ ...base, visible: true, recording: true })).toEqual(
       { mode: "active", intervalMs: CFG.activeIntervalMs },
     );
+  });
+
+  it("a burst speeds up the e-ink baseline", () => {
+    expect(decideGpsPower({ ...base, eink: true, burst: true })).toEqual({
+      mode: "active",
+      intervalMs: CFG.burstActiveIntervalMs,
+    });
+  });
+
+  it("a burst overrides the idle back-off (autopilot turn)", () => {
+    expect(
+      decideGpsPower({ ...base, eink: true, idle: true, burst: true }),
+    ).toEqual({
+      mode: "active",
+      intervalMs: CFG.burstActiveIntervalMs,
+    });
+  });
+
+  it("a burst never slows the fast normal-display rate", () => {
+    expect(decideGpsPower({ ...base, burst: true })).toEqual({
+      mode: "active",
+      intervalMs: CFG.activeIntervalMs,
+    });
+  });
+
+  it("a burst does not affect passive (screen-off) mode", () => {
+    expect(
+      decideGpsPower({ ...base, visible: false, recording: true, burst: true }),
+    ).toEqual({
+      mode: "passive",
+      intervalMs: CFG.passiveIntervalMs,
+      graceMs: CFG.hiddenGraceMs,
+    });
   });
 });
 

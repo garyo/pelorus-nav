@@ -22,6 +22,13 @@ export interface AdaptiveRateConfig {
   slowIntervalMs: number;
   /** Gap in ms after which we treat as fresh start */
   staleGapMs: number;
+  /**
+   * After a maneuver (DR-error spike) or a moving↔stopped transition, hold
+   * the fast tier for this long regardless of how steady the course looks —
+   * situational awareness matters most right around a turn, a docking, or
+   * an anchor setting. Retriggered events extend the window.
+   */
+  burstMs: number;
 }
 
 export const DEFAULT_ADAPTIVE_CONFIG: AdaptiveRateConfig = {
@@ -32,12 +39,15 @@ export const DEFAULT_ADAPTIVE_CONFIG: AdaptiveRateConfig = {
   mediumIntervalMs: 5000,
   slowIntervalMs: 10000,
   staleGapMs: 30000,
+  burstMs: 20000,
 };
 
 export interface AdaptiveRateState {
   tier: AdaptiveTier;
   intervalMs: number;
   steadyCount: number;
+  /** Epoch ms until which the burst window holds the fast tier (0 = none). */
+  burstUntilMs: number;
 }
 
 /** Tier-to-interval mapping. */
@@ -134,6 +144,8 @@ export class AdaptiveRateController {
   private config: AdaptiveRateConfig;
   /** When true, tier is locked to "fast" (never downgrades). */
   private _forceFast = false;
+  /** Fix-timestamp until which the burst window holds the fast tier. */
+  private burstUntil = 0;
 
   constructor(config?: Partial<AdaptiveRateConfig>) {
     this.config = { ...DEFAULT_ADAPTIVE_CONFIG, ...config };
@@ -141,6 +153,7 @@ export class AdaptiveRateController {
       tier: "fast",
       intervalMs: this.config.fastIntervalMs,
       steadyCount: 0,
+      burstUntilMs: 0,
     };
   }
 
@@ -158,6 +171,7 @@ export class AdaptiveRateController {
         tier: "fast",
         intervalMs: this.config.fastIntervalMs,
         steadyCount: 0,
+        burstUntilMs: this.burstUntil,
       };
       return this.state;
     }
@@ -178,6 +192,17 @@ export class AdaptiveRateController {
       );
     }
 
+    // Burst triggers: a maneuver (DR-error spike) or a moving↔stopped
+    // transition — both moments where the next half-minute matters.
+    const stationary = (sog: number | null) =>
+      sog === null || sog < this.config.stationaryThresholdKn;
+    const maneuvering =
+      drError !== null && drError > this.config.drErrorThresholdNM;
+    if (maneuvering || stationary(prev.sog) !== stationary(data.sog)) {
+      this.burstUntil = data.timestamp + this.config.burstMs;
+    }
+    const bursting = data.timestamp < this.burstUntil;
+
     const result = decideTier(
       this.state.tier,
       data.sog,
@@ -186,11 +211,12 @@ export class AdaptiveRateController {
       this.config,
     );
 
-    const tier = this._forceFast ? "fast" : result.tier;
+    const tier = this._forceFast || bursting ? "fast" : result.tier;
     this.state = {
       tier,
       intervalMs: tierIntervalMs(tier, this.config),
       steadyCount: result.steadyCount,
+      burstUntilMs: this.burstUntil,
     };
 
     this.prevFix = data;
@@ -231,6 +257,7 @@ export class AdaptiveRateController {
         tier: "fast",
         intervalMs: this.config.fastIntervalMs,
         steadyCount: 0,
+        burstUntilMs: this.burstUntil,
       };
     }
   }
@@ -242,10 +269,12 @@ export class AdaptiveRateController {
   reset(): void {
     this.prevFix = null;
     this.lastBroadcastTime = 0;
+    this.burstUntil = 0;
     this.state = {
       tier: "fast",
       intervalMs: this.config.fastIntervalMs,
       steadyCount: 0,
+      burstUntilMs: 0,
     };
   }
 }

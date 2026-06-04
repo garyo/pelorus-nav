@@ -75,7 +75,10 @@ class BackgroundTrackService : Service() {
          * bounded — at most ~one slow interval before the deviation shows up.
          */
         private const val STEADY_PASSIVE_INTERVAL_MULTIPLIER = 2L
-        private const val STEADY_PASSIVE_INTERVAL_CAP_MS = 30_000L
+        // 20 s (was 30 s): field feedback — 30 s gaps on a steady course
+        // hide whole tacks from the recorded track (see the JS maneuver
+        // detector's gap-spanning fallback) and feel sluggish on wake.
+        private const val STEADY_PASSIVE_INTERVAL_CAP_MS = 20_000L
 
         /**
          * Watchdog: if no fix has been delivered in PASSIVE for this long,

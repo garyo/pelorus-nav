@@ -12,6 +12,19 @@ import { toRadians } from "../utils/coordinates";
 /** Default circular buffer window in milliseconds. */
 const DEFAULT_BUFFER_WINDOW_MS = 5_000;
 
+/**
+ * Cap for the e-ink smoothing window, which scales with the adaptive GPS
+ * interval (×5 to hold ~5 samples). Uncapped, the slow tier (10 s) produced
+ * a 50 s window — the displayed vessel lagged reality by the better part of
+ * a minute and made the GPS feel far slower than it is.
+ */
+export const EINK_BUFFER_WINDOW_MAX_MS = 25_000;
+
+/** E-ink smoothing window for a given adaptive GPS interval. */
+export function einkBufferWindowMs(intervalMs: number): number {
+  return Math.min(intervalMs * 5, EINK_BUFFER_WINDOW_MAX_MS);
+}
+
 /** Buffer window at quality score q=1 (jittery GPS — wider average). */
 const BAD_BUFFER_WINDOW_MS = 25_000;
 

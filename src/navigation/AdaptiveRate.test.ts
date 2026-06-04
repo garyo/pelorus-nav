@@ -196,3 +196,66 @@ describe("AdaptiveRateController", () => {
     expect(ctrl.getState().tier).toBe("fast");
   });
 });
+
+describe("AdaptiveRateController burst window", () => {
+  const BURST = DEFAULT_ADAPTIVE_CONFIG.burstMs;
+
+  it("a maneuver (DR-error spike) opens a burst window", () => {
+    const ctrl = new AdaptiveRateController();
+    const t = 1000000;
+    ctrl.onFix(makeFix({ timestamp: t }));
+    // 5s later, position hasn't advanced as projected → big DR error
+    ctrl.onFix(makeFix({ latitude: 42.36, timestamp: t + 5000 }));
+    expect(ctrl.getState().tier).toBe("fast");
+    expect(ctrl.getState().burstUntilMs).toBe(t + 5000 + BURST);
+  });
+
+  it("a moving→stopped transition bursts instead of dropping to slow", () => {
+    const ctrl = new AdaptiveRateController();
+    const t = 1000000;
+    ctrl.onFix(makeFix({ timestamp: t }));
+    // Stop: same position, SOG below the stationary threshold
+    ctrl.onFix(makeFix({ sog: 0.2, timestamp: t + 5000 }));
+    expect(ctrl.getState().tier).toBe("fast"); // would be "slow" without burst
+    const until = ctrl.getState().burstUntilMs;
+    expect(until).toBe(t + 5000 + BURST);
+
+    // Still stopped inside the window → stays fast, no retrigger
+    ctrl.onFix(makeFix({ sog: 0.2, timestamp: t + 15000 }));
+    expect(ctrl.getState().tier).toBe("fast");
+    expect(ctrl.getState().burstUntilMs).toBe(until);
+
+    // Window expired → settles to slow (stationary)
+    ctrl.onFix(makeFix({ sog: 0.2, timestamp: until + 1000 }));
+    expect(ctrl.getState().tier).toBe("slow");
+  });
+
+  it("a stopped→moving transition bursts", () => {
+    const ctrl = new AdaptiveRateController();
+    const t = 1000000;
+    ctrl.onFix(makeFix({ sog: 0.1, timestamp: t }));
+    ctrl.onFix(makeFix({ sog: 0.1, timestamp: t + 5000 }));
+    expect(ctrl.getState().tier).toBe("slow");
+    ctrl.onFix(makeFix({ sog: 4, timestamp: t + 10000 }));
+    expect(ctrl.getState().tier).toBe("fast");
+    expect(ctrl.getState().burstUntilMs).toBe(t + 10000 + BURST);
+  });
+
+  it("a fresh maneuver extends the window", () => {
+    const ctrl = new AdaptiveRateController();
+    const t = 1000000;
+    ctrl.onFix(makeFix({ timestamp: t }));
+    ctrl.onFix(makeFix({ latitude: 42.36, timestamp: t + 5000 }));
+    ctrl.onFix(makeFix({ latitude: 42.37, timestamp: t + 15000 }));
+    expect(ctrl.getState().burstUntilMs).toBe(t + 15000 + BURST);
+  });
+
+  it("reset clears the burst window", () => {
+    const ctrl = new AdaptiveRateController();
+    const t = 1000000;
+    ctrl.onFix(makeFix({ timestamp: t }));
+    ctrl.onFix(makeFix({ latitude: 42.36, timestamp: t + 5000 }));
+    ctrl.reset();
+    expect(ctrl.getState().burstUntilMs).toBe(0);
+  });
+});

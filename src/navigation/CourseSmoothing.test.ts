@@ -3,6 +3,8 @@ import {
   CourseSmoothing,
   circularInterpolate,
   circularMeanDeg,
+  EINK_BUFFER_WINDOW_MAX_MS,
+  einkBufferWindowMs,
   type SmoothedCourse,
 } from "./CourseSmoothing";
 
@@ -11,6 +13,15 @@ function cogOf(r: SmoothedCourse | null): number {
   if (!r) throw new Error("expected a smoothed course");
   return r.cog;
 }
+
+describe("einkBufferWindowMs", () => {
+  it("holds ~5 samples at fast rates but clamps at the cap", () => {
+    expect(einkBufferWindowMs(2000)).toBe(10_000);
+    expect(einkBufferWindowMs(5000)).toBe(EINK_BUFFER_WINDOW_MAX_MS);
+    // Slow tier (10 s) used to produce a 50 s window — must clamp
+    expect(einkBufferWindowMs(10_000)).toBe(EINK_BUFFER_WINDOW_MAX_MS);
+  });
+});
 
 describe("circular helpers", () => {
   it("circularMeanDeg averages across the 0/360 wrap", () => {

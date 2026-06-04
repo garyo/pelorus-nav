@@ -33,6 +33,8 @@ export interface GpsPowerConfig {
   idleIntervalMs: number;
   /** Inactivity before we consider the user idle. */
   idleTimeoutMs: number;
+  /** Sampling interval while a maneuver/stop burst is in effect. */
+  burstActiveIntervalMs: number;
 }
 
 export const DEFAULT_GPS_POWER_CONFIG: GpsPowerConfig = {
@@ -42,6 +44,7 @@ export const DEFAULT_GPS_POWER_CONFIG: GpsPowerConfig = {
   einkActiveIntervalMs: 5_000,
   idleIntervalMs: 3_000,
   idleTimeoutMs: 30_000,
+  burstActiveIntervalMs: 2_000,
 };
 
 export type GpsPowerDecision =
@@ -54,6 +57,8 @@ export interface GpsPowerInputs {
   recording: boolean;
   idle: boolean;
   eink: boolean;
+  /** A maneuver/stop burst is in effect (see AdaptiveRate burst window). */
+  burst: boolean;
 }
 
 /**
@@ -66,13 +71,18 @@ export function decideGpsPower(
   config: GpsPowerConfig = DEFAULT_GPS_POWER_CONFIG,
 ): GpsPowerDecision {
   if (inputs.visible) {
-    const base = inputs.eink
+    let base = inputs.eink
       ? config.einkActiveIntervalMs
       : config.activeIntervalMs;
+    // A turn or stop is exactly when situational awareness matters: a burst
+    // overrides both the e-ink baseline and the idle back-off (autopilot
+    // users are idle by definition when the course suddenly changes).
+    if (inputs.burst) base = Math.min(base, config.burstActiveIntervalMs);
     // Idle slows GPS down; never let it speed up a slower baseline (e-ink).
-    const intervalMs = inputs.idle
-      ? Math.max(config.idleIntervalMs, base)
-      : base;
+    const intervalMs =
+      inputs.idle && !inputs.burst
+        ? Math.max(config.idleIntervalMs, base)
+        : base;
     return { mode: "active", intervalMs };
   }
   if (inputs.recording) {
@@ -129,6 +139,9 @@ export class GpsPowerManager {
   private readonly idle: IdleDetector;
   /** Key of the last decision actually applied, for coalescing repeats. */
   private lastAppliedKey: string | null = null;
+  /** Epoch ms until which the maneuver/stop burst rate applies. */
+  private burstUntil = 0;
+  private burstTimer: ReturnType<typeof setTimeout> | null = null;
 
   constructor(
     gps: GpsPowerSink,
@@ -139,6 +152,27 @@ export class GpsPowerManager {
     this.recorder = recorder;
     this.config = config;
     this.idle = createIdleDetector(config.idleTimeoutMs);
+  }
+
+  /**
+   * Extend the burst-rate window to the given epoch ms (from the adaptive
+   * controller's burst state). Re-applies immediately and schedules the
+   * drop back to the baseline rate at expiry, so the rate recovers even
+   * if no further fixes arrive.
+   */
+  setBurstUntil(untilMs: number): void {
+    if (untilMs === this.burstUntil) return;
+    this.burstUntil = untilMs;
+    if (this.burstTimer) clearTimeout(this.burstTimer);
+    this.burstTimer = null;
+    const remaining = untilMs - Date.now();
+    if (remaining > 0) {
+      this.burstTimer = setTimeout(() => {
+        this.burstTimer = null;
+        this.apply();
+      }, remaining + 250);
+    }
+    this.apply();
   }
 
   /** Subscribe to event sources and apply the initial (visible) state. */
@@ -165,6 +199,7 @@ export class GpsPowerManager {
       recording: this.recorder.isRecording(),
       idle: this.idle.isIdle(),
       eink: getSettings().displayTheme === "eink",
+      burst: Date.now() < this.burstUntil,
     };
     const decision = decideGpsPower(inputs, this.config);
 

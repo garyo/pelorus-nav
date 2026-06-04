@@ -44,7 +44,10 @@ import {
   WebSerialNMEAProvider,
 } from "./navigation";
 import { ActiveNavigationManager } from "./navigation/ActiveNavigation";
-import { CourseSmoothing } from "./navigation/CourseSmoothing";
+import {
+  CourseSmoothing,
+  einkBufferWindowMs,
+} from "./navigation/CourseSmoothing";
 import { gpsDiagLog } from "./navigation/GPSDiagnosticLog";
 import { GpsPowerManager } from "./navigation/GpsPowerManager";
 import { RegionAutoSwitch } from "./navigation/RegionAutoSwitch";
@@ -427,6 +430,10 @@ recenterBtn.setEnabled(false); // until first GPS fix arrives
 // Course line (projected COG line)
 const courseLine = new CourseLine(chartManager.map);
 
+// Native GPS power manager — created later (after the recorder exists);
+// declared here so the nav subscription below can forward burst windows.
+let gpsPowerManager: GpsPowerManager | null = null;
+
 // Wire navigation data to vessel layer and feed course smoother
 let lastNavData: NavigationData | null = null;
 navManager.subscribe((data) => {
@@ -450,11 +457,13 @@ navManager.subscribe((data) => {
     gpsDiagLog.logSmoothed(smoothedSnap.sog, smoothedSnap.cog);
   }
   gpsDiagLog.commit();
-  // On e-ink, scale smoothing window with the adaptive interval
+  // On e-ink, scale the smoothing window with the adaptive interval
+  // (clamped — see einkBufferWindowMs) and forward the maneuver/stop burst
+  // window to the native power manager so the chip speeds up too.
   if (getSettings().displayTheme === "eink") {
-    courseSmoother.setBufferWindow(
-      navManager.getAdaptiveState().intervalMs * 5,
-    );
+    const adaptive = navManager.getAdaptiveState();
+    courseSmoother.setBufferWindow(einkBufferWindowMs(adaptive.intervalMs));
+    gpsPowerManager?.setBurstUntil(adaptive.burstUntilMs);
   }
   chartManager.map.triggerRepaint();
 
@@ -573,7 +582,7 @@ function applyGpsRateForTheme(theme: string): void {
   navManager.forceFastRate = !isEink;
   if (isEink) {
     const intervalMs = navManager.getAdaptiveState().intervalMs;
-    courseSmoother.setBufferWindow(intervalMs * 5);
+    courseSmoother.setBufferWindow(einkBufferWindowMs(intervalMs));
   } else {
     // Non-e-ink: clear any explicit override so the quality-driven default
     // (5s at q=0 → 25s at q=1) applies.
@@ -669,7 +678,8 @@ const TRACK_REPAIR_FLAG = "pelorus-nav-track-counts-repaired-v1";
 
 // Native GPS power management (visibility / recording / idle / theme driven).
 if (capacitorGPS) {
-  new GpsPowerManager(capacitorGPS, trackRecorder).start();
+  gpsPowerManager = new GpsPowerManager(capacitorGPS, trackRecorder);
+  gpsPowerManager.start();
 }
 
 // Auto-dim the window when the user has been idle for a while. Per-window
