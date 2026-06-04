@@ -724,6 +724,10 @@ const routeEditor = new RouteEditor(chartManager.map, routeLayer);
 routeEditor.setSearchEntriesProvider(getSearchEntries);
 const routePanel = new RouteManagerPanel(routeLayer, routeEditor);
 idleCloseables.push(routePanel);
+routePanel.setOnPreviewRoute((route) => {
+  routePanel.hide();
+  trackViewer.openRoute(route);
+});
 
 // --- Waypoints + Active Navigation ---
 const activeNav = new ActiveNavigationManager(navManager);

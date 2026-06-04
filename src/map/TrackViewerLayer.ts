@@ -80,6 +80,11 @@ export class TrackViewerLayer {
     if (this.analysis) this.setup();
   }
 
+  /** Center the map on the cursor (follow-cursor playback). */
+  centerOn(cursor: TrackCursor): void {
+    this.map.jumpTo({ center: [cursor.lon, cursor.lat] });
+  }
+
   /** Move the scrub cursor. */
   setCursor(cursor: TrackCursor): void {
     this.cursor = cursor;

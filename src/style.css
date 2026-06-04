@@ -1652,7 +1652,8 @@ body {
   white-space: nowrap;
 }
 
-.track-viewer-play {
+.track-viewer-play,
+.track-viewer-follow {
   background: none;
   border: none;
   color: inherit;
@@ -1667,9 +1668,37 @@ body {
   cursor: default;
 }
 
-.track-viewer-play svg {
+.track-viewer-play svg,
+.track-viewer-follow svg {
   width: 20px;
   height: 20px;
+}
+
+.track-viewer-follow {
+  opacity: 0.5;
+}
+
+.track-viewer-follow.active {
+  opacity: 1;
+  color: #4488cc;
+}
+
+/* Planning-speed input — only shown for route previews */
+.track-viewer-plan {
+  display: flex;
+  align-items: center;
+  white-space: nowrap;
+}
+
+.track-viewer-plan input {
+  width: 44px;
+  margin: 0 2px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid #556;
+  border-radius: 4px;
+  color: inherit;
+  font-size: 11px;
+  padding: 2px 4px;
 }
 
 /* Narrow phones (portrait): full width, tighter spacing */

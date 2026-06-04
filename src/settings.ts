@@ -54,6 +54,8 @@ export interface Settings {
   symbologyScheme: SymbologyScheme;
   /** Arrival radius in NM — auto-advance route legs when closer than this. */
   arrivalRadiusNM: number;
+  /** Planning speed (knots) for route pre-visualization ETAs. */
+  routePlanSpeedKn: number;
   /** Display bearings as true or magnetic. */
   bearingMode: BearingMode;
   /** Show OSM raster tiles underneath S-57 vector charts for land context. */
@@ -115,6 +117,7 @@ const DEFAULTS: Settings = {
   activeRegion: "northern-new-england",
   courseLineDuration: 0,
   arrivalRadiusNM: 0.1,
+  routePlanSpeedKn: 5,
   simulatorSpeed: 1,
   displayTheme: "day",
   symbologyScheme: "iho-s52",

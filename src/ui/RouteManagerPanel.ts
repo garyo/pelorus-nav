@@ -18,6 +18,7 @@ import type { ActiveNavigationManager } from "../navigation/ActiveNavigation";
 import { getSettings } from "../settings";
 import { haversineDistanceNM } from "../utils/coordinates";
 import {
+  iconActivity,
   iconEdit,
   iconExport,
   iconEye,
@@ -38,6 +39,7 @@ export class RouteManagerPanel {
   private readonly editor: RouteEditor;
   private readonly detailPanel: RouteDetailPanel;
   private waypointLayer: WaypointLayer | null = null;
+  private onPreviewRoute?: (route: Route) => void;
   private activeNav: ActiveNavigationManager | null = null;
   private selectedRouteId: string | null = null;
 
@@ -137,6 +139,11 @@ export class RouteManagerPanel {
   setActiveNav(activeNav: ActiveNavigationManager): void {
     this.activeNav = activeNav;
     this.detailPanel.setActiveNav(activeNav);
+  }
+
+  /** Register the route pre-visualization entry point (wired in main.ts). */
+  setOnPreviewRoute(cb: (route: Route) => void): void {
+    this.onPreviewRoute = cb;
   }
 
   /** Show the detail panel for the currently navigated route (if any). */
@@ -305,6 +312,12 @@ export class RouteManagerPanel {
       }
     });
 
+    const previewBtn = document.createElement("button");
+    previewBtn.className = "manager-item-btn";
+    setIcon(previewBtn, iconActivity);
+    previewBtn.title = "Preview route";
+    previewBtn.addEventListener("click", () => this.onPreviewRoute?.(route));
+
     const exportBtn = document.createElement("button");
     exportBtn.className = "manager-item-btn";
     setIcon(exportBtn, iconExport);
@@ -365,7 +378,14 @@ export class RouteManagerPanel {
       })().catch(console.error);
     });
 
-    actions.append(navBtn, exportBtn, editBtn, toggleBtn, deleteBtn);
+    actions.append(
+      navBtn,
+      previewBtn,
+      exportBtn,
+      editBtn,
+      toggleBtn,
+      deleteBtn,
+    );
     item.append(color, info, actions);
     return item;
   }

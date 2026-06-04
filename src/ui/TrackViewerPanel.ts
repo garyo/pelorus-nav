@@ -11,6 +11,8 @@
  */
 
 import { getTrackPoints } from "../data/db";
+import type { Route } from "../data/Route";
+import { routeToTrackPoints } from "../data/route-preview";
 import type { TrackMeta } from "../data/Track";
 import {
   analyzeTrack,
@@ -18,8 +20,10 @@ import {
   cursorAtFraction,
   detectManeuvers,
   detectStops,
+  type Maneuver,
   movingStats,
   rampColor,
+  type StopInterval,
   speedToColor,
   type TrackAnalysis,
   type TrackColorMode,
@@ -31,7 +35,7 @@ import { getSettings, updateSettings } from "../settings";
 import { formatDistanceShort, formatDurationShort } from "../utils/format";
 import { formatBearing } from "../utils/magnetic";
 import { convertSpeed, speedUnitLabel } from "../utils/units";
-import { iconPause, iconPlay, iconX, setIcon } from "./icons";
+import { iconCrosshair, iconPause, iconPlay, iconX, setIcon } from "./icons";
 import { SpeedProfileChart } from "./SpeedProfileChart";
 
 const SLIDER_MAX = 1000;
@@ -59,9 +63,16 @@ export class TrackViewerPanel {
   private readonly slider: HTMLInputElement;
   private readonly playBtn: HTMLButtonElement;
   private readonly rateSelect: HTMLSelectElement;
+  private readonly followBtn: HTMLButtonElement;
+  private readonly planWrap: HTMLLabelElement;
+  private readonly planInput: HTMLInputElement;
   private readonly readouts: Record<string, HTMLSpanElement>;
   private analysis: TrackAnalysis | null = null;
+  /** Set while pre-visualizing a route rather than viewing a track. */
+  private previewRoute: Route | null = null;
   private cursorFrac = 0;
+  /** Keep the map centered on the cursor while scrubbing/playing. */
+  private followCursor = false;
   /** Instruments were on when the viewer opened — restore them on close. */
   private hudWasOn = false;
   private playing = false;
@@ -87,6 +98,8 @@ export class TrackViewerPanel {
       '<option value="course">Course</option>' +
       '<option value="time">Time</option>' +
       "</select>" +
+      '<label class="track-viewer-plan">@&nbsp;' +
+      '<input type="number" min="0.5" max="50" step="0.5"> kn</label>' +
       '<span class="track-viewer-legend-min"></span>' +
       '<div class="track-viewer-ramp"></div>' +
       '<span class="track-viewer-legend-max"></span>' +
@@ -95,6 +108,7 @@ export class TrackViewerPanel {
       '<div class="track-viewer-controls">' +
       '<button class="track-viewer-play" title="Play"></button>' +
       '<select class="track-viewer-rate" title="Playback speed"></select>' +
+      '<button class="track-viewer-follow" title="Keep cursor centered"></button>' +
       '<span data-ro="time"></span>' +
       '<span data-ro="sog"></span>' +
       '<span data-ro="cog"></span>' +
@@ -104,6 +118,8 @@ export class TrackViewerPanel {
 
     this.nameEl = this.q(".track-viewer-name");
     this.statsEl = this.q(".track-viewer-stats");
+    this.planWrap = this.q<HTMLLabelElement>(".track-viewer-plan");
+    this.planInput = this.planWrap.querySelector("input") as HTMLInputElement;
     this.colorSelect = this.q<HTMLSelectElement>(".track-viewer-colorby");
     this.legendMinEl = this.q(".track-viewer-legend-min");
     this.legendMaxEl = this.q(".track-viewer-legend-max");
@@ -111,6 +127,7 @@ export class TrackViewerPanel {
     this.slider = this.q<HTMLInputElement>(".track-viewer-slider");
     this.playBtn = this.q<HTMLButtonElement>(".track-viewer-play");
     this.rateSelect = this.q<HTMLSelectElement>(".track-viewer-rate");
+    this.followBtn = this.q<HTMLButtonElement>(".track-viewer-follow");
     this.readouts = Object.fromEntries(
       Array.from(this.el.querySelectorAll<HTMLSpanElement>("[data-ro]")).map(
         (s) => [s.dataset.ro as string, s],
@@ -148,6 +165,24 @@ export class TrackViewerPanel {
       this.playRate = Number(this.rateSelect.value);
     });
 
+    setIcon(this.followBtn, iconCrosshair);
+    this.followBtn.addEventListener("click", () => {
+      this.followCursor = !this.followCursor;
+      this.followBtn.classList.toggle("active", this.followCursor);
+      if (this.followCursor) this.setFraction(this.cursorFrac); // snap now
+    });
+
+    // Re-synthesize the route preview when the planning speed changes
+    this.planInput.addEventListener("change", () => {
+      const route = this.previewRoute;
+      const speed = Number(this.planInput.value);
+      if (!route || !(speed > 0)) return;
+      updateSettings({ routePlanSpeedKn: speed });
+      const frac = this.cursorFrac;
+      this.openRoute(route);
+      this.setFraction(frac);
+    });
+
     // Tapping a maneuver marker on the map jumps the cursor there
     this.layer.onManeuverClick((timestamp) => {
       const a = this.analysis;
@@ -175,28 +210,61 @@ export class TrackViewerPanel {
     const analysis = analyzeTrack(points);
     if (!analysis) return; // nothing viewable
 
-    this.stopPlayback();
-    this.analysis = analysis;
     const stops = detectStops(analysis);
     const maneuvers = detectManeuvers(analysis);
-
-    this.nameEl.textContent = meta.name;
+    this.previewRoute = null;
     this.statsEl.textContent = this.formatStats(
       analysis,
       stops,
       maneuvers.length,
     );
-    this.colorSelect.value = "speed";
-    this.layer.setColorMode("speed");
-    this.renderLegend(analysis, "speed");
+    this.openAnalysis(meta.name, analysis, stops, maneuvers, "speed");
+  }
+
+  /** Pre-visualize a route at the planning speed (ETAs from now). */
+  openRoute(route: Route): void {
+    const speed = getSettings().routePlanSpeedKn;
+    const analysis = analyzeTrack(routeToTrackPoints(route, speed, Date.now()));
+    if (!analysis) return; // < 2 waypoints
+
+    this.previewRoute = route;
+    this.planInput.value = String(speed);
+    const { speedUnit } = getSettings();
+    this.statsEl.textContent =
+      `${formatDistanceShort(analysis.totalNM)} · ` +
+      `${formatDurationShort(analysis.durationMs)} @ ` +
+      `${convertSpeed(speed, speedUnit).toFixed(1)} ${speedUnitLabel(speedUnit)} · ` +
+      `${route.waypoints.length} waypoints`;
+    // Time coloring: speed is constant by construction, but the time ramp
+    // makes scrub progress and ETA bands legible at a glance.
+    this.openAnalysis(`${route.name} (preview)`, analysis, [], [], "time");
+  }
+
+  private openAnalysis(
+    title: string,
+    analysis: TrackAnalysis,
+    stops: StopInterval[],
+    maneuvers: Maneuver[],
+    colorMode: TrackColorMode,
+  ): void {
+    this.stopPlayback();
+    this.analysis = analysis;
+    this.nameEl.textContent = title;
+    this.planWrap.style.display = this.previewRoute ? "" : "none";
+    this.colorSelect.value = colorMode;
+    this.layer.setColorMode(colorMode);
+    this.renderLegend(analysis, colorMode);
     this.playBtn.disabled = !analysis.hasTime;
     this.rateSelect.disabled = !analysis.hasTime;
 
     // Turn the instrument HUD off — live nav readouts are noise while
     // reviewing, and switching the real setting returns its space to the
-    // map (which then resizes before the fit below).
-    this.hudWasOn = getSettings().showInstrumentHUD;
-    if (this.hudWasOn) updateSettings({ showInstrumentHUD: false });
+    // map (which then resizes before the fit below). Skip when already
+    // open (e.g. planning-speed change re-synthesis).
+    if (!this.isOpen()) {
+      this.hudWasOn = getSettings().showInstrumentHUD;
+      if (this.hudWasOn) updateSettings({ showInstrumentHUD: false });
+    }
 
     // Open before sizing the chart (a hidden canvas has no width) and
     // before showing the layer, whose fit pads for the panel's height.
@@ -217,6 +285,9 @@ export class TrackViewerPanel {
       updateSettings({ showInstrumentHUD: true });
     }
     this.analysis = null;
+    this.previewRoute = null;
+    this.followCursor = false;
+    this.followBtn.classList.remove("active");
     this.layer.hide();
     setMode("query");
     this.hooks.onClose?.();
@@ -236,6 +307,7 @@ export class TrackViewerPanel {
     this.chart.setCursor(this.cursorFrac);
     const c = cursorAtFraction(a, this.cursorFrac);
     this.layer.setCursor(c);
+    if (this.followCursor) this.layer.centerOn(c);
     this.updateReadouts(a, c);
   }
 
