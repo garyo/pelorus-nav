@@ -163,6 +163,17 @@ class BackgroundTrackService : Service() {
 
     override fun onCreate() {
         super.onCreate()
+        // Satisfy the startForegroundService() deadline as the very first
+        // thing: at cold boot the main looper is saturated with WebView
+        // init, and waiting for onStartCommand to post the notification
+        // has blown the ~10 s window and killed the whole app
+        // (ForegroundServiceDidNotStartInTimeException, BIGME 2026-06-04).
+        try {
+            createNotificationChannel()
+            startForeground(NOTIFICATION_ID, buildNotification())
+        } catch (e: Exception) {
+            Log.e(TAG, "startForeground in onCreate failed", e)
+        }
         fusedClient = LocationServices.getFusedLocationProviderClient(this)
         trackDb = TrackDatabase(this)
         alarmManager = getSystemService(Context.ALARM_SERVICE) as AlarmManager
