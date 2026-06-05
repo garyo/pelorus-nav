@@ -1,4 +1,5 @@
 import { execSync } from "node:child_process";
+import { readFileSync } from "node:fs";
 import { defineConfig } from "vite";
 import { VitePWA } from "vite-plugin-pwa";
 import pkg from "./package.json" with { type: "json" };
@@ -6,12 +7,25 @@ import pkg from "./package.json" with { type: "json" };
 const gitSha = execSync("git rev-parse --short HEAD").toString().trim();
 const buildTime = new Date().toISOString().replace(/:\d{2}\.\d+Z$/, "Z"); // drop seconds
 
+// Crawl date of the bundled NOAA tide/current harmonics (shown in About)
+const tidesDataDate = (() => {
+  try {
+    const bundle = JSON.parse(
+      readFileSync("./public/tides-stations.json", "utf8"),
+    ) as { generated?: string };
+    return bundle.generated ?? "unknown";
+  } catch {
+    return "unknown";
+  }
+})();
+
 const isCapacitor = !!process.env.CAPACITOR;
 
 export default defineConfig({
   define: {
     __APP_VERSION__: JSON.stringify(pkg.version),
     __BUILD_ID__: JSON.stringify(`${buildTime} ${gitSha}`),
+    __TIDES_DATA_DATE__: JSON.stringify(tidesDataDate),
   },
   build: {
     target: "es2022",

@@ -4,6 +4,7 @@
 
 declare const __APP_VERSION__: string;
 declare const __BUILD_ID__: string;
+declare const __TIDES_DATA_DATE__: string;
 
 const REPO_URL = "https://github.com/garyo/pelorus-nav";
 
@@ -32,6 +33,16 @@ const CREDITS: { name: string; url: string; desc: string }[] = [
     name: "PMTiles / Protomaps",
     url: "https://protomaps.com/docs/pmtiles",
     desc: "Tile archive format",
+  },
+  {
+    name: "NOAA CO-OPS",
+    url: "https://tidesandcurrents.noaa.gov",
+    desc: "Tide & current harmonic data",
+  },
+  {
+    name: "Neaps tide-predictor",
+    url: "https://github.com/openwatersio/neaps",
+    desc: "Harmonic prediction engine (MIT)",
   },
   {
     name: "World Magnetic Model",
@@ -118,6 +129,11 @@ export class AboutDialog {
     buildId.className = "about-build-id";
     buildId.textContent = `Build: ${__BUILD_ID__}`;
 
+    // Tide/current harmonics crawl date — refresh with `bun run tides:build`
+    const tidesDate = document.createElement("div");
+    tidesDate.className = "about-build-id";
+    tidesDate.textContent = `Tide & current data: ${__TIDES_DATA_DATE__}`;
+
     // Clear cache button
     const clearBtn = document.createElement("button");
     clearBtn.className = "about-clear-cache";
@@ -148,6 +164,7 @@ export class AboutDialog {
       creditsHeading,
       creditsList,
       buildId,
+      tidesDate,
       clearBtn,
     );
     this.overlay.appendChild(card);
