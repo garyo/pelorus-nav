@@ -32,11 +32,16 @@ export interface TideNow {
   /** Instantaneous height (m MLLW); null for subordinate stations. */
   heightMeters: number | null;
   trend: "rising" | "falling";
+  /**
+   * Position of the current height within this cycle's range:
+   * 0 = at the surrounding low, 1 = at the surrounding high.
+   * Null for subordinate stations (no continuous curve).
+   */
+  fraction: number | null;
 }
 
 /**
- * Lightweight now-state for map display: height + trend only.
- * Reference stations skip the (relatively) expensive extremes search.
+ * Lightweight now-state for map display: height, trend, and cycle fraction.
  */
 export function tideNow(
   station: TideStation,
@@ -55,14 +60,29 @@ export function tideNow(
     const soon = p.getWaterLevelAtTime({
       time: new Date(at.getTime() + TREND_SAMPLE_MS),
     }).level;
+    // Cycle range from the extremes bracketing now (±12 h)
+    const extremes = p.getExtremesPrediction({
+      start: new Date(at.getTime() - 12 * HOUR_MS),
+      end: new Date(at.getTime() + 12 * HOUR_MS),
+    });
+    let fraction: number | null = null;
+    if (extremes.length >= 2) {
+      const levels = extremes.map((e) => e.level);
+      const lo = Math.min(...levels);
+      const hi = Math.max(...levels);
+      if (hi > lo) {
+        fraction = Math.min(1, Math.max(0, (level - lo) / (hi - lo)));
+      }
+    }
     return {
       heightMeters: level,
       trend: soon >= level ? "rising" : "falling",
+      fraction,
     };
   }
   // Subordinate: trend from the next offset event (height has no curve).
   const state = tideState(station, index, at, 15);
-  return state && { heightMeters: null, trend: state.trend };
+  return state && { heightMeters: null, trend: state.trend, fraction: null };
 }
 
 /**

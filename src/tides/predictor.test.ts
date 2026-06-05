@@ -4,7 +4,7 @@ import bostonHourly from "./__fixtures__/boston-noaa-hourly.json";
 import hullHilo from "./__fixtures__/hull-noaa-hilo.json";
 import miniBundle from "./__fixtures__/mini-bundle.json";
 import { buildIndex } from "./bundle";
-import { tideState } from "./predictor";
+import { tideNow, tideState } from "./predictor";
 import type { TidesBundle } from "./schema";
 
 const index = buildIndex(miniBundle as TidesBundle);
@@ -76,6 +76,17 @@ describe("tideState — reference station (Boston 8443970)", () => {
     const falling = tideState(boston, index, new Date("2026-06-05T10:00:00Z"));
     expect(rising?.trend).toBe("rising");
     expect(falling?.trend).toBe("falling");
+  });
+
+  it("reports the cycle fraction near 1 at high and near 0 at low", () => {
+    // Published: H 07:02Z (2.957 m), L 13:28Z (0.245 m) on 2026-06-05
+    const atHigh = tideNow(boston, index, new Date("2026-06-05T07:02:00Z"));
+    const atLow = tideNow(boston, index, new Date("2026-06-05T13:28:00Z"));
+    const mid = tideNow(boston, index, new Date("2026-06-05T04:00:00Z"));
+    expect(atHigh?.fraction).toBeGreaterThan(0.9);
+    expect(atLow?.fraction).toBeLessThan(0.1);
+    expect(mid?.fraction).toBeGreaterThan(0.2);
+    expect(mid?.fraction).toBeLessThan(0.8);
   });
 });
 

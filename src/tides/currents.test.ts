@@ -86,6 +86,15 @@ describe("currentState — reference station (BOS1111)", () => {
     expect(s?.state).toBe("slack");
   });
 
+  it("reports the cycle max near the published peak speed", () => {
+    // Published peaks in window: flood 57.6 cm/s (~1.12 kt)
+    const s = currentState(bos1111, index, gmt("2026-06-05 03:22"));
+    expect(s?.cycleMaxKn).toBeGreaterThan(1.0);
+    expect(s?.cycleMaxKn).toBeLessThan(1.35);
+    // At max flood the instantaneous speed is ~the cycle max
+    expect((s?.speedKn ?? 0) / (s?.cycleMaxKn ?? 1)).toBeGreaterThan(0.85);
+  });
+
   it("is ebbing toward meanEbbDir at published max ebb", () => {
     // Published: ebb 2026-06-05 10:38Z at −55.8 cm/s
     const s = currentState(bos1111, index, gmt("2026-06-05 10:38"));

@@ -36,6 +36,8 @@ export interface CurrentState {
   /** Set (degrees true): floodDir or ebbDir according to state. */
   dir: number;
   state: "flood" | "ebb" | "slack";
+  /** Largest event speed in this cycle's window — reference for "% of max". */
+  cycleMaxKn: number;
   /** Upcoming events within the requested window, soonest first. */
   events: CurrentEvent[];
 }
@@ -238,10 +240,15 @@ export function currentState(
         : station.floodDir;
 
   const end = new Date(at.getTime() + windowHrs * HOUR_MS);
+  const cycleMaxKn = Math.max(
+    Math.abs(signedKn),
+    ...allEvents.map((e) => e.speedKn),
+  );
   return {
     speedKn: Math.abs(signedKn),
     dir,
     state,
+    cycleMaxKn,
     events: allEvents.filter((e) => e.time >= at && e.time <= end),
   };
 }

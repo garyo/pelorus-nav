@@ -1,11 +1,11 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <?xml-stylesheet href="daySvgStyle.css" type="text/css"?>
 <svg xmlns="http://www.w3.org/2000/svg" version="1.2" baseProfile="tiny" xml:space="preserve" shape-rendering="geometricPrecision" fill-rule="evenodd" width="3.8mm" height="8.4mm" viewBox="-1.9 -4.2 3.8 8.4">
-  <title>PELCUR01</title>
-  <desc>tidal current arrow filled to 0% of cycle max (Pelorus custom, not IHO)</desc>
+  <title>PELCUR04</title>
+  <desc>tidal current arrow filled to 75% of cycle max (Pelorus custom, not IHO)</desc>
   <defs><clipPath id="a"><path d="M 0,-4 L 1.6,-1.2 L 0.6,-1.2 L 0.6,4 L -0.6,4 L -0.6,-1.2 L -1.6,-1.2 Z"/></clipPath></defs>
   <path d="M 0,-4 L 1.6,-1.2 L 0.6,-1.2 L 0.6,4 L -0.6,4 L -0.6,-1.2 L -1.6,-1.2 Z" class="fCHWHT"/>
-  <rect x="-1.7" y="3.1" width="3.4" height="0.9" class="fCURSR" clip-path="url(#a)"/>
+  <rect x="-1.7" y="-2" width="3.4" height="6" class="fCURSR" clip-path="url(#a)"/>
   <path d="M 0,-4 L 1.6,-1.2 L 0.6,-1.2 L 0.6,4 L -0.6,4 L -0.6,-1.2 L -1.6,-1.2 Z" class="sl f0 sCHBLK" fill="none" stroke-width="0.25"/>
   <circle class="pivotPoint layout" fill="none" cx="0" cy="0" r="1"/>
 </svg>

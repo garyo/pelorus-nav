@@ -54,18 +54,43 @@ const REFRESH_EINK_MS = 15 * 60 * 1000;
 /** Hours of upcoming events to list in the station popup. */
 const POPUP_WINDOW_HRS = 26;
 
-/** Sprite names per symbology scheme (must exist in the active sheet). */
-const SPRITES: Record<SymbologyScheme, { tide: string; arrow: string }> = {
-  "pelorus-standard": {
-    tide: "ecdis-tide-station",
-    arrow: "ecdis-current-arrow",
-  },
-  "simplified-minimal": {
-    tide: "ecdis-tide-station",
-    arrow: "ecdis-current-arrow",
-  },
-  "iho-s52": { tide: "PELTID01", arrow: "PELCUR01" },
+/**
+ * Sprite names per symbology scheme (must exist in the active sheet).
+ * `tideGauge` and `arrow` are fill-state series indexed by the feature's
+ * `_fill` bucket (0–4 = 0–100% of the station's cycle range/max).
+ */
+interface SpriteSet {
+  /** Neutral waves icon for subordinate tide stations (no height curve). */
+  tideNeutral: string;
+  tideGauge: string[];
+  arrow: string[];
+}
+
+const NAUTICAL_SPRITES: SpriteSet = {
+  tideNeutral: "ecdis-tide-station",
+  tideGauge: [0, 1, 2, 3, 4].map((i) => `ecdis-tide-gauge-${i}`),
+  arrow: [0, 1, 2, 3, 4].map((i) => `ecdis-current-arrow-${i}`),
 };
+
+const SPRITES: Record<SymbologyScheme, SpriteSet> = {
+  "pelorus-standard": NAUTICAL_SPRITES,
+  "simplified-minimal": NAUTICAL_SPRITES,
+  "iho-s52": {
+    tideNeutral: "PELTID01",
+    tideGauge: [0, 1, 2, 3, 4].map((i) => `PELTIDG${i}`),
+    arrow: [1, 2, 3, 4, 5].map((i) => `PELCUR0${i}`),
+  },
+};
+
+/** Build an icon-image expression mapping the `_fill` bucket to a sprite. */
+function fillIconExpr(series: string[], fallback: string): unknown {
+  const expr: unknown[] = ["match", ["get", "_fill"]];
+  for (const [bucket, name] of series.entries()) {
+    expr.push(bucket, name);
+  }
+  expr.push(fallback);
+  return expr;
+}
 
 interface NowProps {
   bucket: number;
@@ -103,6 +128,7 @@ export class TidesCurrentsLayer {
 
     let currentTheme = getSettings().displayTheme;
     let currentScheme = getSettings().symbologyScheme;
+    let currentDetail = getSettings().detailLevel;
     let currentUnits = `${getSettings().depthUnit}/${getSettings().speedUnit}`;
     onSettingsChange((s) => {
       // Unit changes invalidate cached station labels
@@ -123,14 +149,16 @@ export class TidesCurrentsLayer {
         }
         this.updateRefreshTimer();
       }
-      // Theme/scheme switches load a different sprite sheet; re-add layers
-      // so icon names and colours match it.
+      // Theme/scheme switches load a different sprite sheet, and detail
+      // level moves the arrow min zoom; re-add layers to match.
       if (
         s.displayTheme !== currentTheme ||
-        s.symbologyScheme !== currentScheme
+        s.symbologyScheme !== currentScheme ||
+        s.detailLevel !== currentDetail
       ) {
         currentTheme = s.displayTheme;
         currentScheme = s.symbologyScheme;
+        currentDetail = s.detailLevel;
         if (this.map.isStyleLoaded()) {
           this.addSourceAndLayers();
           if (this.enabled) this.rebuild();
@@ -178,8 +206,12 @@ export class TidesCurrentsLayer {
       data: { type: "FeatureCollection", features: [] },
     });
 
-    const { symbologyScheme, iconScale, textScale } = getSettings();
+    const { symbologyScheme, iconScale, textScale, detailLevel } =
+      getSettings();
     const sprites = SPRITES[symbologyScheme] ?? SPRITES["pelorus-standard"];
+    // Currents appear later than tide icons; their speed labels later still.
+    // Above-standard detail brings both in one zoom level earlier.
+    const arrowMinZoom = detailLevel >= 1 ? 10 : 11;
     const labelPaint = {
       "text-color": s52Colour("CHBLK"),
       "text-halo-color": s52Colour("CHWHT"),
@@ -193,7 +225,10 @@ export class TidesCurrentsLayer {
       minzoom: MIN_ZOOM,
       filter: ["==", ["get", "_kind"], "tide"],
       layout: {
-        "icon-image": sprites.tide,
+        "icon-image": fillIconExpr(
+          sprites.tideGauge,
+          sprites.tideNeutral,
+        ) as never,
         "icon-size": 0.9 * iconScale,
         "icon-allow-overlap": true,
         "text-field": ["get", "_label"],
@@ -210,14 +245,14 @@ export class TidesCurrentsLayer {
       id: LAYER_CURRENT,
       type: "symbol",
       source: SOURCE_ID,
-      minzoom: MIN_ZOOM,
+      minzoom: arrowMinZoom,
       filter: [
         "all",
         ["==", ["get", "_kind"], "current"],
         ["!=", ["get", "_state"], "slack"],
       ],
       layout: {
-        "icon-image": sprites.arrow,
+        "icon-image": fillIconExpr(sprites.arrow, sprites.arrow[2]) as never,
         // Arrow length tracks drift: weak currents draw small, 3+ kt large.
         "icon-size": [
           "*",
@@ -228,7 +263,14 @@ export class TidesCurrentsLayer {
         // Rotate with the map so arrows show true set in course-up mode.
         "icon-rotation-alignment": "map",
         "icon-allow-overlap": true,
-        "text-field": ["get", "_label"],
+        // Speed labels appear one zoom level after the arrows themselves.
+        "text-field": [
+          "step",
+          ["zoom"],
+          "",
+          arrowMinZoom + 1,
+          ["get", "_label"],
+        ],
         "text-font": ["Noto Sans Regular"],
         "text-size": 11 * textScale,
         "text-anchor": "top",
@@ -243,7 +285,7 @@ export class TidesCurrentsLayer {
       id: LAYER_SLACK,
       type: "circle",
       source: SOURCE_ID,
-      minzoom: MIN_ZOOM,
+      minzoom: arrowMinZoom,
       filter: [
         "all",
         ["==", ["get", "_kind"], "current"],
@@ -337,7 +379,13 @@ export class TidesCurrentsLayer {
       state.heightMeters != null
         ? `${formatDepth(state.heightMeters, getSettings().depthUnit)} ${arrow}`
         : arrow;
-    const props = { _kind: "tide", _id: station.id, _label: label };
+    const props = {
+      _kind: "tide",
+      _id: station.id,
+      _label: label,
+      // Gauge bucket 0–4; -1 selects the neutral icon (subordinates)
+      _fill: state.fraction != null ? Math.round(state.fraction * 4) : -1,
+    };
     this.nowCache.set(key, { bucket, props });
     return props;
   }
@@ -360,6 +408,11 @@ export class TidesCurrentsLayer {
       _state: state.state,
       _setDeg: Math.round(state.dir),
       _driftKn: Number(state.speedKn.toFixed(2)),
+      // Arrow fill bucket 0–4: speed relative to this cycle's max
+      _fill:
+        state.cycleMaxKn > 0
+          ? Math.min(4, Math.round((state.speedKn / state.cycleMaxKn) * 4))
+          : 0,
       _label:
         state.state === "slack"
           ? "slack"
