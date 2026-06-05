@@ -7,7 +7,6 @@ import { Capacitor } from "@capacitor/core";
 import { CapacitorGPSProvider } from "../navigation/CapacitorGPSProvider";
 import {
   type BearingMode,
-  type ChartMode,
   type CourseLineDuration,
   convertDepth,
   type DepthUnit,
@@ -484,7 +483,7 @@ function buildNavigationTab(
     ),
   );
 
-  // Simulator speed (only meaningful when the simulator is the GPS source)
+  // Simulator speed (shown only when the simulator is the GPS source)
   const SIM_SPEED_OPTIONS = [
     { value: "1", label: "1x" },
     { value: "10", label: "10x" },
@@ -498,14 +497,10 @@ function buildNavigationTab(
     String(settings.simulatorSpeed),
     (v) => updateSettings({ simulatorSpeed: Number(v) }),
   );
-  const setSimSpeedEnabled = (gpsSource: string) => {
-    const enabled = gpsSource === "simulator";
-    simSpeedRow.classList.toggle("settings-row-disabled", !enabled);
-    const select = simSpeedRow.querySelector("select");
-    if (select) select.disabled = !enabled;
-  };
-  setSimSpeedEnabled(settings.gpsSource);
-  onSettingsChange((s) => setSimSpeedEnabled(s.gpsSource));
+  simSpeedRow.style.display = settings.gpsSource === "simulator" ? "" : "none";
+  onSettingsChange((s) => {
+    simSpeedRow.style.display = s.gpsSource === "simulator" ? "" : "none";
+  });
   tab.appendChild(simSpeedRow);
 
   // GPS rate mode
@@ -561,24 +556,11 @@ function buildNavigationTab(
     ),
   );
 
-  // ── Chart & course ──────────────────────────────────────────────
-  tab.appendChild(buildSectionHeader("Chart & course"));
+  // Chart mode intentionally has no settings row — the recenter button
+  // (bottom-left) cycles modes and persists them itself.
 
-  const CHART_MODES = [
-    { value: "follow", label: "Follow" },
-    { value: "course-up", label: "Course Up" },
-    { value: "north-up", label: "North Up" },
-    { value: "free", label: "Free" },
-  ];
-  tab.appendChild(
-    buildSelectRow(
-      "Chart mode",
-      "settings-chart-mode",
-      CHART_MODES,
-      settings.chartMode,
-      (v) => updateSettings({ chartMode: v as ChartMode }),
-    ),
-  );
+  // ── Course ──────────────────────────────────────────────────────
+  tab.appendChild(buildSectionHeader("Course"));
 
   // Course line duration
   const COURSE_LINE_OPTIONS = [

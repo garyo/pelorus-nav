@@ -176,10 +176,6 @@ body {
   white-space: nowrap;
 }
 
-.settings-row-disabled {
-  opacity: 0.45;
-}
-
 .settings-section-header {
   font-size: 10px;
   font-weight: 600;
