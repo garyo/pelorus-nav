@@ -152,6 +152,10 @@ export class RouteLayer {
       filter: ["==", "$type", "Point"],
       layout: {
         "text-field": ["get", "label"],
+        // Only Noto Sans is bundled — omitting text-font falls back to
+        // MapLibre's default stack, whose glyph fetch 200s into index.html
+        // (SPA fallback) and fails to parse.
+        "text-font": ["Noto Sans Regular"],
         "text-size": 11,
         "text-offset": [0, -1.5],
         "text-allow-overlap": true,

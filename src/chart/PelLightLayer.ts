@@ -393,6 +393,8 @@ export class PelLightLayer {
       "icon-allow-overlap": true,
       "icon-ignore-placement": true,
       "text-field": lightLabelTextField(s.depthUnit),
+      // Bundled stack — see RouteLayer label layer for why this is required
+      "text-font": ["Noto Sans Regular"],
       "text-size": 10 * textScale,
       "text-offset": [0, -1.5],
       "text-allow-overlap": false,
@@ -429,6 +431,8 @@ export class PelLightLayer {
         ] as unknown as ExpressionSpecification,
         ...VARIABLE_ANCHOR_LAYOUT,
         "symbol-sort-key": SORT_KEY_LANDMARK,
+        // Bundled stack — see RouteLayer label layer for why this is required
+        "text-font": ["Noto Sans Italic"],
         "text-size": 11 * textScale,
         // Parent names are often long wrapped blocks; give them a bit
         // more breathing room than the shared default so they don't

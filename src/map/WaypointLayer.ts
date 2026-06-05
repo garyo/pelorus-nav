@@ -98,6 +98,8 @@ export class WaypointLayer {
       source: SOURCE_ID,
       layout: {
         "text-field": ["get", "name"],
+        // Bundled stack — see RouteLayer label layer for why this is required
+        "text-font": ["Noto Sans Regular"],
         "text-size": 11,
         "text-offset": [0, -1.5],
         "text-allow-overlap": false,
