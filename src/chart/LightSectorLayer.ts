@@ -494,6 +494,10 @@ export class LightSectorLayer {
 
   private rebuild(): void {
     if (!this.map.getSource(SOURCE_ID)) {
+      // Mid-setStyle the new style fires sourcedata before it can accept
+      // sources ("Style is not done loading"); style.load's setup() will
+      // re-add everything and rebuild, so just skip this round.
+      if (!this.map.isStyleLoaded()) return;
       this.addSourceAndLayers();
     }
     if (this.map.getZoom() < MIN_ZOOM) {
