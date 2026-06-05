@@ -22,7 +22,6 @@ import {
   LAYER_GROUP_LABELS,
   onSettingsChange,
   type SpeedUnit,
-  type SymbologyScheme,
   updateSettings,
   type WakeLockMode,
 } from "../settings";
@@ -225,22 +224,6 @@ function buildAppearanceTab(
     ),
   );
 
-  // Symbology scheme
-  const SYMBOLOGY_OPTIONS = [
-    { value: "pelorus-standard", label: "Pelorus Standard" },
-    { value: "iho-s52", label: "IHO S-52" },
-    { value: "simplified-minimal", label: "Minimal" },
-  ];
-  tab.appendChild(
-    buildSelectRow(
-      "Symbology",
-      "settings-symbology",
-      SYMBOLOGY_OPTIONS,
-      settings.symbologyScheme,
-      (v) => updateSettings({ symbologyScheme: v as SymbologyScheme }),
-    ),
-  );
-
   // ── Chart display ───────────────────────────────────────────────
 
   // Detail level slider
@@ -283,16 +266,6 @@ function buildAppearanceTab(
       format: (v) => `${Math.round(v * 100)}%`,
       commit: (v) => updateSettings({ iconScale: v }),
     }),
-  );
-
-  // OSM underlay (only useful with vector charts)
-  tab.appendChild(
-    buildCheckboxRow(
-      "OSM map under vector charts",
-      "settings-osm-underlay",
-      settings.showOSMUnderlay,
-      (v) => updateSettings({ showOSMUnderlay: v }),
-    ),
   );
 
   // Instrument layout (affects landscape phones; portrait/desktop unchanged)
@@ -442,6 +415,16 @@ function buildLayersTab(
     ),
   );
 
+  // OSM underlay (only useful with vector charts)
+  tab.appendChild(
+    buildCheckboxRow(
+      "OSM map under vector charts",
+      "settings-osm-underlay",
+      settings.showOSMUnderlay,
+      (v) => updateSettings({ showOSMUnderlay: v }),
+    ),
+  );
+
   for (const [groupId, label] of Object.entries(LAYER_GROUP_LABELS)) {
     const checked = settings.layerGroups[groupId] !== false;
     tab.appendChild(
@@ -498,22 +481,29 @@ function buildNavigationTab(
     ),
   );
 
-  // Simulator speed
+  // Simulator speed (only meaningful when the simulator is the GPS source)
   const SIM_SPEED_OPTIONS = [
     { value: "1", label: "1x" },
     { value: "10", label: "10x" },
     { value: "50", label: "50x" },
     { value: "100", label: "100x" },
   ];
-  tab.appendChild(
-    buildSelectRow(
-      "Sim speed",
-      "settings-sim-speed",
-      SIM_SPEED_OPTIONS,
-      String(settings.simulatorSpeed),
-      (v) => updateSettings({ simulatorSpeed: Number(v) }),
-    ),
+  const simSpeedRow = buildSelectRow(
+    "Sim speed",
+    "settings-sim-speed",
+    SIM_SPEED_OPTIONS,
+    String(settings.simulatorSpeed),
+    (v) => updateSettings({ simulatorSpeed: Number(v) }),
   );
+  const setSimSpeedEnabled = (gpsSource: string) => {
+    const enabled = gpsSource === "simulator";
+    simSpeedRow.classList.toggle("settings-row-disabled", !enabled);
+    const select = simSpeedRow.querySelector("select");
+    if (select) select.disabled = !enabled;
+  };
+  setSimSpeedEnabled(settings.gpsSource);
+  onSettingsChange((s) => setSimSpeedEnabled(s.gpsSource));
+  tab.appendChild(simSpeedRow);
 
   // Course line duration
   const COURSE_LINE_OPTIONS = [

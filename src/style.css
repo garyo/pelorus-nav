@@ -176,6 +176,10 @@ body {
   white-space: nowrap;
 }
 
+.settings-row-disabled {
+  opacity: 0.45;
+}
+
 .settings-row select {
   padding: 2px 6px;
   font-size: 13px;

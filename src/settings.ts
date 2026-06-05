@@ -30,6 +30,8 @@ export type WakeLockMode = "off" | "when-nav" | "always";
 export type InstrumentLayout = "standard" | "side";
 
 export interface Settings {
+  /** Bumped when stored settings need a one-time migration on load. */
+  settingsVersion: number;
   depthUnit: DepthUnit;
   speedUnit: SpeedUnit;
   chartMode: ChartMode;
@@ -100,7 +102,10 @@ const DEFAULT_LAYER_GROUPS: Record<string, boolean> = {
   tidesCurrents: false,
 };
 
+const SETTINGS_VERSION = 2;
+
 const DEFAULTS: Settings = {
+  settingsVersion: SETTINGS_VERSION,
   depthUnit: "feet",
   speedUnit: "knots",
   chartMode: "north-up",
@@ -124,7 +129,7 @@ const DEFAULTS: Settings = {
   displayTheme: "day",
   symbologyScheme: "iho-s52",
   bearingMode: "magnetic",
-  showOSMUnderlay: false,
+  showOSMUnderlay: true,
   shallowDepth: 1.83,
   safetyDepth: 6.1,
   deepDepth: 15.24,
@@ -145,12 +150,13 @@ function load(): Settings {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (raw) {
       const parsed = JSON.parse(raw) as Partial<Settings>;
-      // Migrate old scheme names
-      if (parsed.symbologyScheme === ("ecdis-simplified" as string)) {
-        parsed.symbologyScheme = "pelorus-standard";
-      } else if (parsed.symbologyScheme === ("int-paper" as string)) {
-        parsed.symbologyScheme = "iho-s52";
+      // Only IHO S-52 symbology is supported (the chooser was removed)
+      parsed.symbologyScheme = "iho-s52";
+      // v2: OSM underlay became on-by-default
+      if ((parsed.settingsVersion ?? 1) < 2) {
+        parsed.showOSMUnderlay = true;
       }
+      parsed.settingsVersion = SETTINGS_VERSION;
       // Migrate old updateRateHz → gpsRateMode + manualUpdateIntervalMs
       const legacy = parsed as Record<string, unknown>;
       if ("updateRateHz" in legacy) {

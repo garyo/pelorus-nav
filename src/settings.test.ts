@@ -1,10 +1,43 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   convertDepth,
   depthConversionFactor,
   depthUnitLabel,
   formatDepth,
 } from "./settings";
+
+describe("settings migration", () => {
+  it("forces S-52 symbology and turns the OSM underlay on once (v2)", async () => {
+    const stored = {
+      symbologyScheme: "pelorus-standard",
+      showOSMUnderlay: false,
+    };
+    vi.stubGlobal("localStorage", {
+      getItem: () => JSON.stringify(stored),
+      setItem: () => {},
+    });
+    vi.resetModules();
+    const { getSettings } = await import("./settings");
+    expect(getSettings().symbologyScheme).toBe("iho-s52");
+    expect(getSettings().showOSMUnderlay).toBe(true);
+    expect(getSettings().settingsVersion).toBe(2);
+    vi.unstubAllGlobals();
+    vi.resetModules();
+  });
+
+  it("respects a v2 user's choice to turn the OSM underlay off", async () => {
+    const stored = { settingsVersion: 2, showOSMUnderlay: false };
+    vi.stubGlobal("localStorage", {
+      getItem: () => JSON.stringify(stored),
+      setItem: () => {},
+    });
+    vi.resetModules();
+    const { getSettings } = await import("./settings");
+    expect(getSettings().showOSMUnderlay).toBe(false);
+    vi.unstubAllGlobals();
+    vi.resetModules();
+  });
+});
 
 describe("depth conversion", () => {
   it("meters factor is 1", () => {
