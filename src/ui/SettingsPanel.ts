@@ -202,10 +202,20 @@ function buildTabbedPanel(
 
 // --- Tab builders ---
 
+/** Small muted section heading within a settings tab. */
+function buildSectionHeader(text: string): HTMLElement {
+  const h = document.createElement("div");
+  h.className = "settings-section-header";
+  h.textContent = text;
+  return h;
+}
+
 function buildAppearanceTab(
   settings: ReturnType<typeof getSettings>,
 ): HTMLElement {
   const tab = document.createElement("div");
+
+  tab.appendChild(buildSectionHeader("Display"));
 
   // Display theme
   const DISPLAY_THEMES = [
@@ -284,6 +294,7 @@ function buildAppearanceTab(
   );
 
   // ── Units & measurement ─────────────────────────────────────────
+  tab.appendChild(buildSectionHeader("Units"));
 
   // Bearings (true/magnetic)
   const BEARING_MODES = [
@@ -327,10 +338,12 @@ function buildAppearanceTab(
     ),
   );
 
-  // Depth threshold sliders
+  // ── Depth shading thresholds ────────────────────────────────────
+  tab.appendChild(buildSectionHeader("Depth shading"));
   tab.appendChild(buildDepthThresholdSliders());
 
-  // ── Overlays ────────────────────────────────────────────────────
+  // ── Vessel ──────────────────────────────────────────────────────
+  tab.appendChild(buildSectionHeader("Vessel"));
 
   // Accuracy circle
   tab.appendChild(
@@ -343,6 +356,7 @@ function buildAppearanceTab(
   );
 
   // ── Screen ──────────────────────────────────────────────────────
+  tab.appendChild(buildSectionHeader("Screen & power"));
 
   // Wake lock (keep screen on)
   const WAKE_LOCK_OPTIONS = [
@@ -405,6 +419,8 @@ function buildLayersTab(
 ): HTMLElement {
   const tab = document.createElement("div");
 
+  tab.appendChild(buildSectionHeader("Chart"));
+
   tab.appendChild(
     buildSelectRow(
       "Chart source",
@@ -425,6 +441,8 @@ function buildLayersTab(
     ),
   );
 
+  tab.appendChild(buildSectionHeader("Layers"));
+
   for (const [groupId, label] of Object.entries(LAYER_GROUP_LABELS)) {
     const checked = settings.layerGroups[groupId] !== false;
     tab.appendChild(
@@ -442,6 +460,8 @@ function buildNavigationTab(
   settings: ReturnType<typeof getSettings>,
 ): HTMLElement {
   const tab = document.createElement("div");
+
+  tab.appendChild(buildSectionHeader("GPS"));
 
   // GPS source — "Device GPS" auto-selects native Capacitor or browser geolocation
   const deviceGpsValue = CapacitorGPSProvider.isAvailable()
@@ -461,23 +481,6 @@ function buildNavigationTab(
       GPS_SOURCES,
       settings.gpsSource,
       (v) => updateSettings({ gpsSource: v }),
-    ),
-  );
-
-  // Chart mode
-  const CHART_MODES = [
-    { value: "follow", label: "Follow" },
-    { value: "course-up", label: "Course Up" },
-    { value: "north-up", label: "North Up" },
-    { value: "free", label: "Free" },
-  ];
-  tab.appendChild(
-    buildSelectRow(
-      "Chart mode",
-      "settings-chart-mode",
-      CHART_MODES,
-      settings.chartMode,
-      (v) => updateSettings({ chartMode: v as ChartMode }),
     ),
   );
 
@@ -504,29 +507,6 @@ function buildNavigationTab(
   setSimSpeedEnabled(settings.gpsSource);
   onSettingsChange((s) => setSimSpeedEnabled(s.gpsSource));
   tab.appendChild(simSpeedRow);
-
-  // Course line duration
-  const COURSE_LINE_OPTIONS = [
-    { value: "0", label: "Off" },
-    { value: "auto", label: "Auto" },
-    { value: "5", label: "5 min" },
-    { value: "15", label: "15 min" },
-    { value: "30", label: "30 min" },
-    { value: "60", label: "1 hour" },
-  ];
-  tab.appendChild(
-    buildSelectRow(
-      "Course line",
-      "settings-course-line",
-      COURSE_LINE_OPTIONS,
-      String(settings.courseLineDuration),
-      (v) =>
-        updateSettings({
-          courseLineDuration:
-            v === "auto" ? "auto" : (Number(v) as CourseLineDuration),
-        }),
-    ),
-  );
 
   // GPS rate mode
   const GPS_RATE_MODES = [
@@ -578,6 +558,48 @@ function buildNavigationTab(
       GPS_FILTER_MODES,
       settings.gpsFilterMode,
       (v) => updateSettings({ gpsFilterMode: v as GpsFilterMode }),
+    ),
+  );
+
+  // ── Chart & course ──────────────────────────────────────────────
+  tab.appendChild(buildSectionHeader("Chart & course"));
+
+  const CHART_MODES = [
+    { value: "follow", label: "Follow" },
+    { value: "course-up", label: "Course Up" },
+    { value: "north-up", label: "North Up" },
+    { value: "free", label: "Free" },
+  ];
+  tab.appendChild(
+    buildSelectRow(
+      "Chart mode",
+      "settings-chart-mode",
+      CHART_MODES,
+      settings.chartMode,
+      (v) => updateSettings({ chartMode: v as ChartMode }),
+    ),
+  );
+
+  // Course line duration
+  const COURSE_LINE_OPTIONS = [
+    { value: "0", label: "Off" },
+    { value: "auto", label: "Auto" },
+    { value: "5", label: "5 min" },
+    { value: "15", label: "15 min" },
+    { value: "30", label: "30 min" },
+    { value: "60", label: "1 hour" },
+  ];
+  tab.appendChild(
+    buildSelectRow(
+      "Course line",
+      "settings-course-line",
+      COURSE_LINE_OPTIONS,
+      String(settings.courseLineDuration),
+      (v) =>
+        updateSettings({
+          courseLineDuration:
+            v === "auto" ? "auto" : (Number(v) as CourseLineDuration),
+        }),
     ),
   );
 

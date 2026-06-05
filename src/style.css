@@ -180,6 +180,19 @@ body {
   opacity: 0.45;
 }
 
+.settings-section-header {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #7d8799;
+  margin: 10px 0 1px;
+}
+
+.settings-section-header:first-child {
+  margin-top: 2px;
+}
+
 .settings-row select {
   padding: 2px 6px;
   font-size: 13px;
