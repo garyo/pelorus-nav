@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="20" height="40" viewBox="0 0 20 40">
+<svg xmlns="http://www.w3.org/2000/svg" width="40" height="80" viewBox="0 0 20 40">
   <!-- Tidal current arrow, filled to 0% of cycle max; points up, rotated to set -->
   <defs><clipPath id="a"><path d="M 10,2 L 18,16 L 13,16 L 13,38 L 7,38 L 7,16 L 2,16 Z"/></clipPath></defs>
   <path d="M 10,2 L 18,16 L 13,16 L 13,38 L 7,38 L 7,16 L 2,16 Z" fill="#FFF3E8" fill-opacity="0.8"/>

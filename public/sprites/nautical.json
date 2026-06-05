@@ -3,532 +3,532 @@
     "height": 32,
     "pixelRatio": 1,
     "width": 32,
-    "x": 0,
-    "y": 96
+    "x": 64,
+    "y": 208
   },
   "ecdis-beacon-default": {
-    "height": 32,
-    "pixelRatio": 1,
-    "width": 32,
-    "x": 24,
-    "y": 48
-  },
-  "ecdis-beacon-green": {
-    "height": 32,
-    "pixelRatio": 1,
-    "width": 32,
-    "x": 48,
-    "y": 0
-  },
-  "ecdis-beacon-red": {
-    "height": 32,
-    "pixelRatio": 1,
-    "width": 32,
-    "x": 0,
-    "y": 128
-  },
-  "ecdis-beacon-special": {
-    "height": 32,
-    "pixelRatio": 1,
-    "width": 32,
-    "x": 0,
-    "y": 160
-  },
-  "ecdis-bridge-symbol": {
-    "height": 32,
-    "pixelRatio": 1,
-    "width": 32,
-    "x": 0,
-    "y": 192
-  },
-  "ecdis-buoy-can-gr": {
-    "height": 32,
-    "pixelRatio": 1,
-    "width": 32,
-    "x": 0,
-    "y": 224
-  },
-  "ecdis-buoy-can-green": {
-    "height": 32,
-    "pixelRatio": 1,
-    "width": 32,
-    "x": 32,
-    "y": 80
-  },
-  "ecdis-buoy-can-red": {
-    "height": 32,
-    "pixelRatio": 1,
-    "width": 32,
-    "x": 56,
-    "y": 32
-  },
-  "ecdis-buoy-can-rg": {
     "height": 32,
     "pixelRatio": 1,
     "width": 32,
     "x": 80,
     "y": 0
   },
-  "ecdis-buoy-cardinal-e": {
+  "ecdis-beacon-green": {
     "height": 32,
     "pixelRatio": 1,
     "width": 32,
-    "x": 32,
-    "y": 112
+    "x": 80,
+    "y": 32
   },
-  "ecdis-buoy-cardinal-n": {
+  "ecdis-beacon-red": {
     "height": 32,
     "pixelRatio": 1,
     "width": 32,
-    "x": 32,
-    "y": 144
-  },
-  "ecdis-buoy-cardinal-s": {
-    "height": 32,
-    "pixelRatio": 1,
-    "width": 32,
-    "x": 32,
-    "y": 176
-  },
-  "ecdis-buoy-cardinal-w": {
-    "height": 32,
-    "pixelRatio": 1,
-    "width": 32,
-    "x": 32,
-    "y": 208
-  },
-  "ecdis-buoy-conical-green": {
-    "height": 32,
-    "pixelRatio": 1,
-    "width": 32,
-    "x": 64,
+    "x": 80,
     "y": 64
   },
-  "ecdis-buoy-conical-red": {
+  "ecdis-beacon-special": {
+    "height": 32,
+    "pixelRatio": 1,
+    "width": 32,
+    "x": 80,
+    "y": 96
+  },
+  "ecdis-bridge-symbol": {
+    "height": 32,
+    "pixelRatio": 1,
+    "width": 32,
+    "x": 80,
+    "y": 128
+  },
+  "ecdis-buoy-can-gr": {
     "height": 32,
     "pixelRatio": 1,
     "width": 32,
     "x": 88,
-    "y": 32
+    "y": 160
   },
-  "ecdis-buoy-default": {
+  "ecdis-buoy-can-green": {
+    "height": 32,
+    "pixelRatio": 1,
+    "width": 32,
+    "x": 96,
+    "y": 192
+  },
+  "ecdis-buoy-can-red": {
+    "height": 32,
+    "pixelRatio": 1,
+    "width": 32,
+    "x": 96,
+    "y": 224
+  },
+  "ecdis-buoy-can-rg": {
     "height": 32,
     "pixelRatio": 1,
     "width": 32,
     "x": 112,
     "y": 0
   },
-  "ecdis-buoy-isolated-danger": {
+  "ecdis-buoy-cardinal-e": {
     "height": 32,
     "pixelRatio": 1,
     "width": 32,
-    "x": 64,
-    "y": 96
+    "x": 112,
+    "y": 32
   },
-  "ecdis-buoy-pillar-green": {
+  "ecdis-buoy-cardinal-n": {
     "height": 32,
     "pixelRatio": 1,
     "width": 32,
-    "x": 64,
-    "y": 128
-  },
-  "ecdis-buoy-pillar-red": {
-    "height": 32,
-    "pixelRatio": 1,
-    "width": 32,
-    "x": 64,
-    "y": 160
-  },
-  "ecdis-buoy-pillar-wo": {
-    "height": 32,
-    "pixelRatio": 1,
-    "width": 32,
-    "x": 64,
-    "y": 192
-  },
-  "ecdis-buoy-pillar-yellow": {
-    "height": 32,
-    "pixelRatio": 1,
-    "width": 32,
-    "x": 64,
-    "y": 224
-  },
-  "ecdis-buoy-spar-green": {
-    "height": 32,
-    "pixelRatio": 1,
-    "width": 32,
-    "x": 96,
+    "x": 112,
     "y": 64
   },
-  "ecdis-buoy-spar-red": {
+  "ecdis-buoy-cardinal-s": {
+    "height": 32,
+    "pixelRatio": 1,
+    "width": 32,
+    "x": 112,
+    "y": 96
+  },
+  "ecdis-buoy-cardinal-w": {
+    "height": 32,
+    "pixelRatio": 1,
+    "width": 32,
+    "x": 112,
+    "y": 128
+  },
+  "ecdis-buoy-conical-green": {
     "height": 32,
     "pixelRatio": 1,
     "width": 32,
     "x": 120,
-    "y": 32
+    "y": 160
   },
-  "ecdis-buoy-spherical-rw": {
+  "ecdis-buoy-conical-red": {
+    "height": 32,
+    "pixelRatio": 1,
+    "width": 32,
+    "x": 128,
+    "y": 192
+  },
+  "ecdis-buoy-default": {
+    "height": 32,
+    "pixelRatio": 1,
+    "width": 32,
+    "x": 128,
+    "y": 224
+  },
+  "ecdis-buoy-isolated-danger": {
     "height": 32,
     "pixelRatio": 1,
     "width": 32,
     "x": 144,
     "y": 0
   },
-  "ecdis-ctnare": {
-    "height": 24,
-    "pixelRatio": 1,
-    "width": 24,
-    "x": 256,
-    "y": 104
-  },
-  "ecdis-current-arrow-0": {
-    "height": 40,
-    "pixelRatio": 1,
-    "width": 20,
-    "x": 224,
-    "y": 160
-  },
-  "ecdis-current-arrow-1": {
-    "height": 40,
-    "pixelRatio": 1,
-    "width": 20,
-    "x": 224,
-    "y": 200
-  },
-  "ecdis-current-arrow-2": {
-    "height": 40,
-    "pixelRatio": 1,
-    "width": 20,
-    "x": 244,
-    "y": 160
-  },
-  "ecdis-current-arrow-3": {
-    "height": 40,
-    "pixelRatio": 1,
-    "width": 20,
-    "x": 244,
-    "y": 200
-  },
-  "ecdis-current-arrow-4": {
-    "height": 40,
-    "pixelRatio": 1,
-    "width": 20,
-    "x": 256,
-    "y": 64
-  },
-  "ecdis-daymark-square-green": {
+  "ecdis-buoy-pillar-green": {
     "height": 32,
     "pixelRatio": 1,
     "width": 32,
-    "x": 96,
+    "x": 144,
+    "y": 32
+  },
+  "ecdis-buoy-pillar-red": {
+    "height": 32,
+    "pixelRatio": 1,
+    "width": 32,
+    "x": 144,
+    "y": 64
+  },
+  "ecdis-buoy-pillar-wo": {
+    "height": 32,
+    "pixelRatio": 1,
+    "width": 32,
+    "x": 144,
     "y": 96
   },
-  "ecdis-daymark-square-red": {
+  "ecdis-buoy-pillar-yellow": {
     "height": 32,
     "pixelRatio": 1,
     "width": 32,
-    "x": 96,
+    "x": 144,
     "y": 128
   },
-  "ecdis-daymark-triangle-green": {
-    "height": 32,
-    "pixelRatio": 1,
-    "width": 32,
-    "x": 96,
-    "y": 160
-  },
-  "ecdis-daymark-triangle-red": {
-    "height": 32,
-    "pixelRatio": 1,
-    "width": 32,
-    "x": 96,
-    "y": 192
-  },
-  "ecdis-fogsig": {
-    "height": 32,
-    "pixelRatio": 1,
-    "width": 32,
-    "x": 96,
-    "y": 224
-  },
-  "ecdis-foular": {
-    "height": 24,
-    "pixelRatio": 1,
-    "width": 24,
-    "x": 256,
-    "y": 128
-  },
-  "ecdis-harbor": {
-    "height": 32,
-    "pixelRatio": 1,
-    "width": 32,
-    "x": 128,
-    "y": 64
-  },
-  "ecdis-isolated-danger": {
+  "ecdis-buoy-spar-green": {
     "height": 32,
     "pixelRatio": 1,
     "width": 32,
     "x": 152,
-    "y": 32
+    "y": 160
   },
-  "ecdis-landmark-chimney": {
+  "ecdis-buoy-spar-red": {
+    "height": 32,
+    "pixelRatio": 1,
+    "width": 32,
+    "x": 160,
+    "y": 192
+  },
+  "ecdis-buoy-spherical-rw": {
+    "height": 32,
+    "pixelRatio": 1,
+    "width": 32,
+    "x": 160,
+    "y": 224
+  },
+  "ecdis-ctnare": {
+    "height": 24,
+    "pixelRatio": 1,
+    "width": 24,
+    "x": 336,
+    "y": 0
+  },
+  "ecdis-current-arrow-0": {
+    "height": 80,
+    "pixelRatio": 1,
+    "width": 40,
+    "x": 0,
+    "y": 0
+  },
+  "ecdis-current-arrow-1": {
+    "height": 80,
+    "pixelRatio": 1,
+    "width": 40,
+    "x": 0,
+    "y": 80
+  },
+  "ecdis-current-arrow-2": {
+    "height": 80,
+    "pixelRatio": 1,
+    "width": 40,
+    "x": 0,
+    "y": 160
+  },
+  "ecdis-current-arrow-3": {
+    "height": 80,
+    "pixelRatio": 1,
+    "width": 40,
+    "x": 40,
+    "y": 0
+  },
+  "ecdis-current-arrow-4": {
+    "height": 80,
+    "pixelRatio": 1,
+    "width": 40,
+    "x": 40,
+    "y": 80
+  },
+  "ecdis-daymark-square-green": {
     "height": 32,
     "pixelRatio": 1,
     "width": 32,
     "x": 176,
     "y": 0
   },
-  "ecdis-landmark-default": {
+  "ecdis-daymark-square-red": {
     "height": 32,
     "pixelRatio": 1,
     "width": 32,
-    "x": 128,
-    "y": 96
+    "x": 176,
+    "y": 32
   },
-  "ecdis-landmark-flagstaff": {
+  "ecdis-daymark-triangle-green": {
     "height": 32,
     "pixelRatio": 1,
     "width": 32,
-    "x": 128,
-    "y": 128
-  },
-  "ecdis-landmark-monument": {
-    "height": 32,
-    "pixelRatio": 1,
-    "width": 32,
-    "x": 128,
-    "y": 160
-  },
-  "ecdis-landmark-tower": {
-    "height": 32,
-    "pixelRatio": 1,
-    "width": 32,
-    "x": 128,
-    "y": 192
-  },
-  "ecdis-landmark-windmill": {
-    "height": 32,
-    "pixelRatio": 1,
-    "width": 32,
-    "x": 128,
-    "y": 224
-  },
-  "ecdis-landmark-windmotor": {
-    "height": 32,
-    "pixelRatio": 1,
-    "width": 32,
-    "x": 160,
+    "x": 176,
     "y": 64
   },
-  "ecdis-light-major": {
+  "ecdis-daymark-triangle-red": {
+    "height": 32,
+    "pixelRatio": 1,
+    "width": 32,
+    "x": 176,
+    "y": 96
+  },
+  "ecdis-fogsig": {
+    "height": 32,
+    "pixelRatio": 1,
+    "width": 32,
+    "x": 176,
+    "y": 128
+  },
+  "ecdis-foular": {
+    "height": 24,
+    "pixelRatio": 1,
+    "width": 24,
+    "x": 336,
+    "y": 24
+  },
+  "ecdis-harbor": {
     "height": 32,
     "pixelRatio": 1,
     "width": 32,
     "x": 184,
-    "y": 32
+    "y": 160
   },
-  "ecdis-light-minor": {
+  "ecdis-isolated-danger": {
+    "height": 32,
+    "pixelRatio": 1,
+    "width": 32,
+    "x": 192,
+    "y": 192
+  },
+  "ecdis-landmark-chimney": {
+    "height": 32,
+    "pixelRatio": 1,
+    "width": 32,
+    "x": 192,
+    "y": 224
+  },
+  "ecdis-landmark-default": {
     "height": 32,
     "pixelRatio": 1,
     "width": 32,
     "x": 208,
     "y": 0
   },
-  "ecdis-marshes": {
-    "height": 48,
-    "pixelRatio": 1,
-    "width": 48,
-    "x": 0,
-    "y": 0
-  },
-  "ecdis-mooring": {
+  "ecdis-landmark-flagstaff": {
     "height": 32,
     "pixelRatio": 1,
     "width": 32,
-    "x": 160,
-    "y": 96
+    "x": 208,
+    "y": 32
   },
-  "ecdis-nodata03": {
-    "height": 16,
-    "pixelRatio": 1,
-    "width": 16,
-    "x": 32,
-    "y": 240
-  },
-  "ecdis-obstruction": {
+  "ecdis-landmark-monument": {
     "height": 32,
     "pixelRatio": 1,
     "width": 32,
-    "x": 160,
-    "y": 128
-  },
-  "ecdis-obstruction-foul": {
-    "height": 32,
-    "pixelRatio": 1,
-    "width": 32,
-    "x": 160,
-    "y": 160
-  },
-  "ecdis-piling": {
-    "height": 32,
-    "pixelRatio": 1,
-    "width": 32,
-    "x": 160,
-    "y": 192
-  },
-  "ecdis-platform": {
-    "height": 32,
-    "pixelRatio": 1,
-    "width": 32,
-    "x": 160,
-    "y": 224
-  },
-  "ecdis-rock-above": {
-    "height": 32,
-    "pixelRatio": 1,
-    "width": 32,
-    "x": 192,
+    "x": 208,
     "y": 64
   },
-  "ecdis-rock-awash": {
+  "ecdis-landmark-tower": {
+    "height": 32,
+    "pixelRatio": 1,
+    "width": 32,
+    "x": 208,
+    "y": 96
+  },
+  "ecdis-landmark-windmill": {
+    "height": 32,
+    "pixelRatio": 1,
+    "width": 32,
+    "x": 208,
+    "y": 128
+  },
+  "ecdis-landmark-windmotor": {
     "height": 32,
     "pixelRatio": 1,
     "width": 32,
     "x": 216,
-    "y": 32
+    "y": 160
   },
-  "ecdis-rock-underwater": {
+  "ecdis-light-major": {
+    "height": 32,
+    "pixelRatio": 1,
+    "width": 32,
+    "x": 224,
+    "y": 192
+  },
+  "ecdis-light-minor": {
+    "height": 32,
+    "pixelRatio": 1,
+    "width": 32,
+    "x": 224,
+    "y": 224
+  },
+  "ecdis-marshes": {
+    "height": 48,
+    "pixelRatio": 1,
+    "width": 48,
+    "x": 40,
+    "y": 160
+  },
+  "ecdis-mooring": {
     "height": 32,
     "pixelRatio": 1,
     "width": 32,
     "x": 240,
     "y": 0
   },
-  "ecdis-tank": {
+  "ecdis-nodata03": {
+    "height": 16,
+    "pixelRatio": 1,
+    "width": 16,
+    "x": 64,
+    "y": 240
+  },
+  "ecdis-obstruction": {
     "height": 32,
     "pixelRatio": 1,
     "width": 32,
-    "x": 192,
-    "y": 96
-  },
-  "ecdis-tide-gauge-0": {
-    "height": 24,
-    "pixelRatio": 1,
-    "width": 24,
-    "x": 276,
-    "y": 64
-  },
-  "ecdis-tide-gauge-1": {
-    "height": 24,
-    "pixelRatio": 1,
-    "width": 24,
-    "x": 280,
+    "x": 240,
     "y": 32
   },
-  "ecdis-tide-gauge-2": {
-    "height": 24,
-    "pixelRatio": 1,
-    "width": 24,
-    "x": 264,
-    "y": 152
-  },
-  "ecdis-tide-gauge-3": {
-    "height": 24,
-    "pixelRatio": 1,
-    "width": 24,
-    "x": 280,
-    "y": 88
-  },
-  "ecdis-tide-gauge-4": {
-    "height": 24,
-    "pixelRatio": 1,
-    "width": 24,
-    "x": 300,
-    "y": 56
-  },
-  "ecdis-tide-station": {
-    "height": 24,
-    "pixelRatio": 1,
-    "width": 24,
-    "x": 280,
-    "y": 112
-  },
-  "ecdis-topmark-2cones-down": {
+  "ecdis-obstruction-foul": {
     "height": 32,
     "pixelRatio": 1,
     "width": 32,
-    "x": 192,
-    "y": 128
-  },
-  "ecdis-topmark-2cones-up": {
-    "height": 32,
-    "pixelRatio": 1,
-    "width": 32,
-    "x": 192,
-    "y": 160
-  },
-  "ecdis-topmark-cone-down": {
-    "height": 32,
-    "pixelRatio": 1,
-    "width": 32,
-    "x": 192,
-    "y": 192
-  },
-  "ecdis-topmark-cone-up": {
-    "height": 32,
-    "pixelRatio": 1,
-    "width": 32,
-    "x": 192,
-    "y": 224
-  },
-  "ecdis-topmark-sphere": {
-    "height": 32,
-    "pixelRatio": 1,
-    "width": 32,
-    "x": 224,
+    "x": 240,
     "y": 64
   },
-  "ecdis-topmark-x": {
+  "ecdis-piling": {
+    "height": 32,
+    "pixelRatio": 1,
+    "width": 32,
+    "x": 240,
+    "y": 96
+  },
+  "ecdis-platform": {
+    "height": 32,
+    "pixelRatio": 1,
+    "width": 32,
+    "x": 240,
+    "y": 128
+  },
+  "ecdis-rock-above": {
     "height": 32,
     "pixelRatio": 1,
     "width": 32,
     "x": 248,
-    "y": 32
+    "y": 160
   },
-  "ecdis-tss-arrow": {
-    "height": 48,
+  "ecdis-rock-awash": {
+    "height": 32,
     "pixelRatio": 1,
-    "width": 24,
-    "x": 0,
-    "y": 48
+    "width": 32,
+    "x": 256,
+    "y": 192
   },
-  "ecdis-wattur": {
-    "height": 16,
+  "ecdis-rock-underwater": {
+    "height": 32,
     "pixelRatio": 1,
-    "width": 48,
-    "x": 224,
-    "y": 240
+    "width": 32,
+    "x": 256,
+    "y": 224
   },
-  "ecdis-wreck-dangerous": {
+  "ecdis-tank": {
     "height": 32,
     "pixelRatio": 1,
     "width": 32,
     "x": 272,
     "y": 0
   },
+  "ecdis-tide-gauge-0": {
+    "height": 24,
+    "pixelRatio": 1,
+    "width": 24,
+    "x": 304,
+    "y": 80
+  },
+  "ecdis-tide-gauge-1": {
+    "height": 24,
+    "pixelRatio": 1,
+    "width": 24,
+    "x": 304,
+    "y": 104
+  },
+  "ecdis-tide-gauge-2": {
+    "height": 24,
+    "pixelRatio": 1,
+    "width": 24,
+    "x": 304,
+    "y": 128
+  },
+  "ecdis-tide-gauge-3": {
+    "height": 24,
+    "pixelRatio": 1,
+    "width": 24,
+    "x": 312,
+    "y": 152
+  },
+  "ecdis-tide-gauge-4": {
+    "height": 24,
+    "pixelRatio": 1,
+    "width": 24,
+    "x": 328,
+    "y": 80
+  },
+  "ecdis-tide-station": {
+    "height": 24,
+    "pixelRatio": 1,
+    "width": 24,
+    "x": 328,
+    "y": 104
+  },
+  "ecdis-topmark-2cones-down": {
+    "height": 32,
+    "pixelRatio": 1,
+    "width": 32,
+    "x": 272,
+    "y": 32
+  },
+  "ecdis-topmark-2cones-up": {
+    "height": 32,
+    "pixelRatio": 1,
+    "width": 32,
+    "x": 272,
+    "y": 64
+  },
+  "ecdis-topmark-cone-down": {
+    "height": 32,
+    "pixelRatio": 1,
+    "width": 32,
+    "x": 272,
+    "y": 96
+  },
+  "ecdis-topmark-cone-up": {
+    "height": 32,
+    "pixelRatio": 1,
+    "width": 32,
+    "x": 272,
+    "y": 128
+  },
+  "ecdis-topmark-sphere": {
+    "height": 32,
+    "pixelRatio": 1,
+    "width": 32,
+    "x": 280,
+    "y": 160
+  },
+  "ecdis-topmark-x": {
+    "height": 32,
+    "pixelRatio": 1,
+    "width": 32,
+    "x": 288,
+    "y": 192
+  },
+  "ecdis-tss-arrow": {
+    "height": 48,
+    "pixelRatio": 1,
+    "width": 24,
+    "x": 40,
+    "y": 208
+  },
+  "ecdis-wattur": {
+    "height": 16,
+    "pixelRatio": 1,
+    "width": 48,
+    "x": 304,
+    "y": 64
+  },
+  "ecdis-wreck-dangerous": {
+    "height": 32,
+    "pixelRatio": 1,
+    "width": 32,
+    "x": 288,
+    "y": 224
+  },
   "ecdis-wreck-mast": {
     "height": 32,
     "pixelRatio": 1,
     "width": 32,
-    "x": 224,
-    "y": 96
+    "x": 304,
+    "y": 0
   },
   "ecdis-wreck-nondangerous": {
     "height": 32,
     "pixelRatio": 1,
     "width": 32,
-    "x": 224,
-    "y": 128
+    "x": 304,
+    "y": 32
   }
 }

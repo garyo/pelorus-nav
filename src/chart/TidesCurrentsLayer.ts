@@ -255,9 +255,11 @@ export class TidesCurrentsLayer {
       layout: {
         "icon-image": fillIconExpr(sprites.arrow, sprites.arrow[2]) as never,
         // Arrow length tracks drift: weak currents draw small, 3+ kt large.
+        // Arrow sprites are rendered at 2× and drawn at half scale so the
+        // largest arrows are still downsampled (sharp), never upsampled.
         "icon-size": [
           "*",
-          iconScale,
+          iconScale * 0.5,
           ["interpolate", ["linear"], ["get", "_driftKn"], 0, 0.5, 3, 1.4],
         ],
         "icon-rotate": ["get", "_setDeg"],
