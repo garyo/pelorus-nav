@@ -210,9 +210,10 @@ export class TidesCurrentsLayer {
     const { symbologyScheme, iconScale, textScale, detailLevel } =
       getSettings();
     const sprites = SPRITES[symbologyScheme] ?? SPRITES["pelorus-standard"];
-    // Currents appear later than tide icons; their speed labels later still.
-    // Above-standard detail brings both in one zoom level earlier.
-    const arrowMinZoom = detailLevel >= 1 ? 10 : 11;
+    // Current arrows appear one zoom level after tide icons; their speed
+    // labels one level later still. Above-standard detail brings both in
+    // one zoom level earlier.
+    const arrowMinZoom = detailLevel >= 1 ? 9 : 10;
     const labelPaint = {
       "text-color": s52Colour("CHBLK"),
       "text-halo-color": s52Colour("CHWHT"),
@@ -242,46 +243,57 @@ export class TidesCurrentsLayer {
       paint: labelPaint,
     });
 
-    this.map.addLayer({
-      id: LAYER_CURRENT,
-      type: "symbol",
-      source: SOURCE_ID,
-      minzoom: arrowMinZoom,
-      filter: [
-        "all",
-        ["==", ["get", "_kind"], "current"],
-        ["!=", ["get", "_state"], "slack"],
-      ],
-      layout: {
-        "icon-image": fillIconExpr(sprites.arrow, sprites.arrow[2]) as never,
-        // Arrow length tracks drift: weak currents draw small, 3+ kt large.
-        // Arrow sprites are rendered at 2× and drawn at half scale so the
-        // largest arrows are still downsampled (sharp), never upsampled.
-        "icon-size": [
-          "*",
-          iconScale * 0.5,
-          ["interpolate", ["linear"], ["get", "_driftKn"], 0, 0.5, 3, 1.4],
+    // Arrows are LOW priority: drawn beneath all chart symbol layers and
+    // excluded from symbol collision (ignore-placement + allow-overlap), so
+    // buoys, soundings, and labels always draw over them and are never
+    // displaced by them. Density is handled by grid thinning in rebuild().
+    const firstSymbolLayer = this.map
+      .getStyle()
+      .layers?.find((l: { type: string }) => l.type === "symbol")?.id;
+    this.map.addLayer(
+      {
+        id: LAYER_CURRENT,
+        type: "symbol",
+        source: SOURCE_ID,
+        minzoom: arrowMinZoom,
+        filter: [
+          "all",
+          ["==", ["get", "_kind"], "current"],
+          ["!=", ["get", "_state"], "slack"],
         ],
-        "icon-rotate": ["get", "_setDeg"],
-        // Rotate with the map so arrows show true set in course-up mode.
-        "icon-rotation-alignment": "map",
-        "icon-allow-overlap": true,
-        // Speed labels appear one zoom level after the arrows themselves.
-        "text-field": [
-          "step",
-          ["zoom"],
-          "",
-          arrowMinZoom + 1,
-          ["get", "_label"],
-        ],
-        "text-font": ["Noto Sans Regular"],
-        "text-size": 11 * textScale,
-        "text-anchor": "top",
-        "text-offset": [0, 1.4],
-        "text-optional": true,
+        layout: {
+          "icon-image": fillIconExpr(sprites.arrow, sprites.arrow[2]) as never,
+          // Arrow length tracks drift: weak currents draw small, 3+ kt large.
+          // Arrow sprites are rendered at 2× and drawn at half scale so the
+          // largest arrows are still downsampled (sharp), never upsampled.
+          "icon-size": [
+            "*",
+            iconScale * 0.5,
+            ["interpolate", ["linear"], ["get", "_driftKn"], 0, 0.5, 3, 1.4],
+          ],
+          "icon-rotate": ["get", "_setDeg"],
+          // Rotate with the map so arrows show true set in course-up mode.
+          "icon-rotation-alignment": "map",
+          "icon-allow-overlap": true,
+          "icon-ignore-placement": true,
+          // Speed labels appear one zoom level after the arrows themselves.
+          "text-field": [
+            "step",
+            ["zoom"],
+            "",
+            arrowMinZoom + 1,
+            ["get", "_label"],
+          ],
+          "text-font": ["Noto Sans Regular"],
+          "text-size": 11 * textScale,
+          "text-anchor": "top",
+          "text-offset": [0, 1.4],
+          "text-optional": true,
+        },
+        paint: labelPaint,
       },
-      paint: labelPaint,
-    });
+      firstSymbolLayer,
+    );
 
     // Slack stations: a small open circle instead of a direction arrow.
     this.map.addLayer({
@@ -352,9 +364,12 @@ export class TidesCurrentsLayer {
       const props = this.tideProps(s, index, now, bucket);
       if (props) features.push(pointFeature(s.lng, s.lat, props));
     }
-    for (const s of currents) {
+    const currentFeats = currents.flatMap((s) => {
       const props = this.currentProps(s, index, now, bucket);
-      if (props) features.push(pointFeature(s.lng, s.lat, props));
+      return props ? [{ station: s, props }] : [];
+    });
+    for (const { station, props } of this.thinCurrents(currentFeats)) {
+      features.push(pointFeature(station.lng, station.lat, props));
     }
 
     const fc: FeatureCollection = { type: "FeatureCollection", features };
@@ -363,6 +378,30 @@ export class TidesCurrentsLayer {
     if (json === this.lastDataJson) return;
     this.lastDataJson = json;
     (this.map.getSource(SOURCE_ID) as maplibregl.GeoJSONSource)?.setData(fc);
+  }
+
+  /**
+   * Declutter current stations: keep at most one per screen-space grid
+   * cell, preferring the fastest. Dense clusters (Boston Harbor) thin to
+   * the strongest stations; isolated stations always survive.
+   */
+  private thinCurrents<
+    T extends {
+      station: CurrentStation;
+      props: Record<string, string | number>;
+    },
+  >(feats: T[]): T[] {
+    const CELL_PX = 72;
+    const best = new Map<string, T>();
+    for (const f of feats) {
+      const p = this.map.project([f.station.lng, f.station.lat]);
+      const cell = `${Math.floor(p.x / CELL_PX)},${Math.floor(p.y / CELL_PX)}`;
+      const prev = best.get(cell);
+      if (!prev || Number(f.props._driftKn) > Number(prev.props._driftKn)) {
+        best.set(cell, f);
+      }
+    }
+    return [...best.values()];
   }
 
   private tideProps(
