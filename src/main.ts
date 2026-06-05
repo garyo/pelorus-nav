@@ -15,6 +15,7 @@ import {
 import { LightSectorLayer } from "./chart/LightSectorLayer";
 import { PelLightLayer } from "./chart/PelLightLayer";
 import { SafetyContour } from "./chart/SafetyContour";
+import { TidesCurrentsLayer } from "./chart/TidesCurrentsLayer";
 import {
   getStreamingVersions,
   refreshStreamingVersions,
@@ -323,6 +324,11 @@ new LightSectorLayer(chartManager.map);
 // filters duplicate labels, shows parent OBJNAM at high zoom).
 new PelLightLayer(chartManager.map);
 
+// Tides & currents overlay (offline harmonic predictions from bundled
+// NOAA station data). Its station popup dismisses the chart feature popup.
+const tidesCurrentsLayer = new TidesCurrentsLayer(chartManager.map);
+tidesCurrentsLayer.onShowInfo = () => featureQueryHandler.hide();
+
 // Settings gear in top bar menu
 const topbarMenu = document.getElementById("topbar-menu");
 const topbarActions = document.getElementById("topbar-actions");
@@ -345,6 +351,7 @@ const idleCloseables: Array<{ hide(): void }> = [];
 if (settingsHandle) idleCloseables.push(settingsHandle);
 // The chart feature-info popup counts as a dialog for auto-return too
 idleCloseables.push(featureQueryHandler);
+idleCloseables.push(tidesCurrentsLayer);
 
 // Hamburger toggle for mobile
 const hamburgerBtn = document.getElementById("hamburger-btn");

@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<?xml-stylesheet href="daySvgStyle.css" type="text/css"?>
+<svg xmlns="http://www.w3.org/2000/svg" version="1.2" baseProfile="tiny" xml:space="preserve" shape-rendering="geometricPrecision" fill-rule="evenodd" width="5.2mm" height="5.2mm" viewBox="-2.6 -2.6 5.2 5.2">
+  <title>PELTID01</title>
+  <desc>tide station (Pelorus custom, not IHO)</desc>
+  <rect class="symbolBox layout" fill="none" x="-2.45" y="-2.45" height="4.9" width="4.9"/>
+  <rect class="svgBox layout" fill="none" x="-2.45" y="-2.45" height="4.9" width="4.9"/>
+  <circle class="fCHWHT" cx="0" cy="0" r="2.25"/>
+  <circle class="sl f0 sCHBLK" fill="none" cx="0" cy="0" r="2.25" stroke-width="0.4"/>
+  <path d="M -1.4,-0.45 q 0.7,-0.75 1.4,0 t 1.4,0" class="sl f0 sCHBLK" fill="none" stroke-width="0.35"/>
+  <path d="M -1.4,0.75 q 0.7,-0.75 1.4,0 t 1.4,0" class="sl f0 sCHBLK" fill="none" stroke-width="0.35"/>
+  <circle class="pivotPoint layout" fill="none" cx="0" cy="0" r="1"/>
+</svg>

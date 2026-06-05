@@ -139,6 +139,27 @@ The workflow requirements, worth knowing if it ever breaks:
   restricted to `v*` tag refs so PR workflows can't access them. PKCS12 keystore → store password and
   key password are the same value.
 
+## Tides & Currents
+Fully-offline tide and tidal-current predictions, computed client-side with
+`@neaps/tide-predictor` from NOAA harmonic constituents bundled in
+`public/tides-stations.json`. Overlay: `src/chart/TidesCurrentsLayer.ts`;
+prediction core: `src/tides/` (schema, bundle loader, tide/current predictors,
+formatters). Toggled by the "Tides & Currents" layer group (default off).
+
+- `bun run tides:build` — regenerate the bundle by crawling NOAA MDAPI
+  (~9k calls, ~25 min cold; responses cached in `tools/tides/.cache/` so
+  re-runs take seconds). The bundle is committed to git; constituents change
+  rarely (regenerate roughly yearly, or when NOAA adds stations).
+- `bun tools/tides/make-fixture.ts` — re-extract the unit-test mini-bundle
+  (`src/tides/__fixtures__/mini-bundle.json`) after regenerating the bundle.
+- Model: reference stations carry harmonic constituents (tides: heights about
+  MLLW via per-station datum offset; currents: signed major-axis velocity,
+  + = flood toward `floodDir`, − = ebb toward `ebbDir`, zero crossing = slack).
+  Subordinate stations apply NOAA time/height(/speed) offsets to their
+  reference's events and get events-only predictions (no continuous curve).
+- The trend arrows (↑/↓) in tide labels need glyph range `8448-8703.pbf`
+  (bundled for Noto Sans Regular).
+
 ## Sprites
 The app uses **two separate sprite systems** — both must be updated when adding a new symbol:
 

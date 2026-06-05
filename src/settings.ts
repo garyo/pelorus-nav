@@ -91,11 +91,13 @@ export const LAYER_GROUP_LABELS: Record<string, string> = {
   seabed: "Seabed",
   daymarksTopmarks: "Daymarks & Topmarks",
   lightSectors: "Light Sectors",
+  tidesCurrents: "Tides & Currents",
 };
 
 const DEFAULT_LAYER_GROUPS: Record<string, boolean> = {
   ...Object.fromEntries(Object.keys(LAYER_GROUP_LABELS).map((k) => [k, true])),
   lightSectors: false,
+  tidesCurrents: false,
 };
 
 const DEFAULTS: Settings = {

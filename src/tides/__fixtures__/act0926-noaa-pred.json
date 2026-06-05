@@ -1,0 +1,151 @@
+{
+  "current_predictions": {
+    "units": "meters, cm/s",
+    "cp": [
+      {
+        "Type": "slack",
+        "meanFloodDir": 259,
+        "Bin": "1",
+        "meanEbbDir": 66,
+        "Time": "2026-06-05 00:40",
+        "Depth": "3",
+        "Velocity_Major": 0
+      },
+      {
+        "Type": "flood",
+        "meanFloodDir": 259,
+        "Bin": "1",
+        "meanEbbDir": 66,
+        "Time": "2026-06-05 04:47",
+        "Depth": "3",
+        "Velocity_Major": 34.5
+      },
+      {
+        "Type": "slack",
+        "meanFloodDir": 259,
+        "Bin": "1",
+        "meanEbbDir": 66,
+        "Time": "2026-06-05 07:46",
+        "Depth": "3",
+        "Velocity_Major": 0
+      },
+      {
+        "Type": "ebb",
+        "meanFloodDir": 259,
+        "Bin": "1",
+        "meanEbbDir": 66,
+        "Time": "2026-06-05 10:12",
+        "Depth": "3",
+        "Velocity_Major": -33.5
+      },
+      {
+        "Type": "slack",
+        "meanFloodDir": 259,
+        "Bin": "1",
+        "meanEbbDir": 66,
+        "Time": "2026-06-05 13:14",
+        "Depth": "3",
+        "Velocity_Major": 0
+      },
+      {
+        "Type": "flood",
+        "meanFloodDir": 259,
+        "Bin": "1",
+        "meanEbbDir": 66,
+        "Time": "2026-06-05 17:22",
+        "Depth": "3",
+        "Velocity_Major": 33.5
+      },
+      {
+        "Type": "slack",
+        "meanFloodDir": 259,
+        "Bin": "1",
+        "meanEbbDir": 66,
+        "Time": "2026-06-05 20:29",
+        "Depth": "3",
+        "Velocity_Major": 0
+      },
+      {
+        "Type": "ebb",
+        "meanFloodDir": 259,
+        "Bin": "1",
+        "meanEbbDir": 66,
+        "Time": "2026-06-05 22:33",
+        "Depth": "3",
+        "Velocity_Major": -31.1
+      },
+      {
+        "Type": "slack",
+        "meanFloodDir": 259,
+        "Bin": "1",
+        "meanEbbDir": 66,
+        "Time": "2026-06-06 01:24",
+        "Depth": "3",
+        "Velocity_Major": 0
+      },
+      {
+        "Type": "flood",
+        "meanFloodDir": 259,
+        "Bin": "1",
+        "meanEbbDir": 66,
+        "Time": "2026-06-06 05:25",
+        "Depth": "3",
+        "Velocity_Major": 32.9
+      },
+      {
+        "Type": "slack",
+        "meanFloodDir": 259,
+        "Bin": "1",
+        "meanEbbDir": 66,
+        "Time": "2026-06-06 08:30",
+        "Depth": "3",
+        "Velocity_Major": 0
+      },
+      {
+        "Type": "ebb",
+        "meanFloodDir": 259,
+        "Bin": "1",
+        "meanEbbDir": 66,
+        "Time": "2026-06-06 10:59",
+        "Depth": "3",
+        "Velocity_Major": -32.4
+      },
+      {
+        "Type": "slack",
+        "meanFloodDir": 259,
+        "Bin": "1",
+        "meanEbbDir": 66,
+        "Time": "2026-06-06 13:54",
+        "Depth": "3",
+        "Velocity_Major": 0
+      },
+      {
+        "Type": "flood",
+        "meanFloodDir": 259,
+        "Bin": "1",
+        "meanEbbDir": 66,
+        "Time": "2026-06-06 18:01",
+        "Depth": "3",
+        "Velocity_Major": 32.4
+      },
+      {
+        "Type": "slack",
+        "meanFloodDir": 259,
+        "Bin": "1",
+        "meanEbbDir": 66,
+        "Time": "2026-06-06 21:14",
+        "Depth": "3",
+        "Velocity_Major": 0
+      },
+      {
+        "Type": "ebb",
+        "meanFloodDir": 259,
+        "Bin": "1",
+        "meanEbbDir": 66,
+        "Time": "2026-06-06 23:27",
+        "Depth": "3",
+        "Velocity_Major": -30.7
+      }
+    ]
+  }
+}

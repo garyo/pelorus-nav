@@ -178,8 +178,15 @@
     "height": 24,
     "pixelRatio": 1,
     "width": 24,
+    "x": 244,
+    "y": 160
+  },
+  "ecdis-current-arrow": {
+    "height": 40,
+    "pixelRatio": 1,
+    "width": 20,
     "x": 224,
-    "y": 176
+    "y": 160
   },
   "ecdis-daymark-square-green": {
     "height": 32,
@@ -221,7 +228,7 @@
     "pixelRatio": 1,
     "width": 24,
     "x": 224,
-    "y": 200
+    "y": 216
   },
   "ecdis-harbor": {
     "height": 32,
@@ -377,6 +384,13 @@
     "x": 192,
     "y": 96
   },
+  "ecdis-tide-station": {
+    "height": 24,
+    "pixelRatio": 1,
+    "width": 24,
+    "x": 248,
+    "y": 216
+  },
   "ecdis-topmark-2cones-down": {
     "height": 32,
     "pixelRatio": 1,
@@ -431,7 +445,7 @@
     "pixelRatio": 1,
     "width": 48,
     "x": 224,
-    "y": 160
+    "y": 200
   },
   "ecdis-wreck-dangerous": {
     "height": 32,

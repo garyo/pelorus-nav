@@ -10,6 +10,7 @@
         "@capacitor/filesystem": "^8.1.2",
         "@capacitor/share": "^8.0.1",
         "@maplibre/maplibre-gl-style-spec": "24.8.1",
+        "@neaps/tide-predictor": "^0.9.0",
         "magvar": "^2.0.1",
         "maplibre-gl": "5.24.0",
         "pmtiles": "^4.4.0",
@@ -526,6 +527,8 @@
     "@maplibre/mlt": ["@maplibre/mlt@1.1.9", "", { "dependencies": { "@mapbox/point-geometry": "^1.1.0" } }, "sha512-g/tD8EYJB97udq33ipuJ9a4Q7fcbZnTEnUrgnEc/tLMmEL+zaCbR+X5fkDBO2dgpaAMsLH179qE3UXg2N0Nc/g=="],
 
     "@maplibre/vt-pbf": ["@maplibre/vt-pbf@4.3.0", "", { "dependencies": { "@mapbox/point-geometry": "^1.1.0", "@mapbox/vector-tile": "^2.0.4", "@maplibre/geojson-vt": "^5.0.4", "@types/geojson": "^7946.0.16", "@types/supercluster": "^7.1.3", "pbf": "^4.0.1", "supercluster": "^8.0.1" } }, "sha512-jIvp8F5hQCcreqOOpEt42TJMUlsrEcpf/kI1T2v85YrQRV6PPXUcEXUg5karKtH6oh47XJZ4kHu56pUkOuqA7w=="],
+
+    "@neaps/tide-predictor": ["@neaps/tide-predictor@0.9.0", "", {}, "sha512-gyIbs2GWDDmqViQOFZFCjcqBpRS0TnGIAHxDUVZmawadkoVswY5Dwop8AklXA+Sv2tT8k3PwbLWZoqCXMoxj4g=="],
 
     "@playwright/test": ["@playwright/test@1.58.2", "", { "dependencies": { "playwright": "1.58.2" }, "bin": { "playwright": "cli.js" } }, "sha512-akea+6bHYBBfA9uQqSYmlJXn61cTa+jbO87xVLCWbTqbWadRVmhxlXATaOjOgcBaWU4ePo0wB41KMFv3o35IXA=="],
 

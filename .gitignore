@@ -18,6 +18,9 @@ coverage/
 .env
 .env.*
 
+# Tides crawler response cache (regenerated from NOAA MDAPI)
+tools/tides/.cache/
+
 # Tile pipeline data (large ENC files and generated tiles)
 tile-data/
 tools/s57-pipeline/data
