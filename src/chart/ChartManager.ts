@@ -59,6 +59,9 @@ export class ChartManager {
       center: options.center,
       zoom: options.zoom,
       attributionControl: false,
+      // No label cross-fade: a chartplotter wants labels immediately, and
+      // every fade frame is a full (~1 s) panel refresh on e-ink.
+      fadeDuration: 0,
     });
 
     this.activeProviderId = initialId;

@@ -238,11 +238,22 @@ const thermalMonitor = createThermalMonitor();
 const FRAME_INTERVAL_EINK = 250;
 const FRAME_INTERVAL_HOT = 200;
 const FRAME_INTERVAL_STEADY = 100;
+/**
+ * E-ink, while tiles/style are still streaming in after a move or settings
+ * change: every rendered frame is a full (~1 s) panel refresh, and MapLibre
+ * paints each intermediate loading state — the chart visibly redraws 10+
+ * times, gaining a few features per flash. Stretching the frame spacing
+ * collapses the storm into 2–3 refreshes; loading still progresses each
+ * frame, and the moment everything is loaded the normal interval resumes,
+ * so the final complete state renders promptly.
+ */
+const FRAME_INTERVAL_EINK_SETTLING = 1500;
 {
   const map = chartManager.map;
   const originalTriggerRepaint = map.triggerRepaint.bind(map);
   let lastFrameTime = 0;
   let pendingFrame: ReturnType<typeof setTimeout> | null = null;
+  let pendingDeadline = 0;
 
   const throttledRepaint = () => {
     // During gestures (pinch/pan/rotate) and the inertia that follows,
@@ -260,23 +271,44 @@ const FRAME_INTERVAL_STEADY = 100;
     }
     const thermalState = thermalMonitor.getState();
     const isHot = thermalState === "serious" || thermalState === "critical";
+    // Note: not isStyleLoaded() — the vessel/course-line setData updates
+    // keep the style perpetually "dirty", so that flag never settles here.
+    const settling = !map.areTilesLoaded();
     const interval =
       getSettings().displayTheme === "eink"
-        ? FRAME_INTERVAL_EINK
+        ? settling
+          ? FRAME_INTERVAL_EINK_SETTLING
+          : FRAME_INTERVAL_EINK
         : isHot
           ? FRAME_INTERVAL_HOT
           : FRAME_INTERVAL_STEADY;
     const now = performance.now();
-    const elapsed = now - lastFrameTime;
-    if (elapsed >= interval) {
+    const deadline = lastFrameTime + interval;
+    if (now >= deadline) {
+      if (pendingFrame) {
+        clearTimeout(pendingFrame);
+        pendingFrame = null;
+      }
       lastFrameTime = now;
       originalTriggerRepaint();
-    } else if (!pendingFrame) {
-      pendingFrame = setTimeout(() => {
-        pendingFrame = null;
-        lastFrameTime = performance.now();
-        originalTriggerRepaint();
-      }, interval - elapsed);
+      return;
+    }
+    // A shorter deadline supersedes a pending longer one (e.g. the last
+    // tile just loaded — render the final state now, not in 1.5 s).
+    if (pendingFrame && deadline < pendingDeadline) {
+      clearTimeout(pendingFrame);
+      pendingFrame = null;
+    }
+    if (!pendingFrame) {
+      pendingDeadline = deadline;
+      pendingFrame = setTimeout(
+        () => {
+          pendingFrame = null;
+          lastFrameTime = performance.now();
+          originalTriggerRepaint();
+        },
+        Math.max(0, deadline - now),
+      );
     }
   };
   map.triggerRepaint = throttledRepaint;
