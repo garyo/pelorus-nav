@@ -314,7 +314,7 @@ const FRAME_INTERVAL_EINK_SETTLING = 1500;
   map.triggerRepaint = throttledRepaint;
 }
 
-new FeatureQueryHandler(chartManager);
+const featureQueryHandler = new FeatureQueryHandler(chartManager);
 
 // Light sector arcs and range circles (client-side generated from LIGHTS data)
 new LightSectorLayer(chartManager.map);
@@ -343,6 +343,8 @@ const settingsHandle = topbarMenu
 // creation site below; the idle handler reads the populated list when it fires.
 const idleCloseables: Array<{ hide(): void }> = [];
 if (settingsHandle) idleCloseables.push(settingsHandle);
+// The chart feature-info popup counts as a dialog for auto-return too
+idleCloseables.push(featureQueryHandler);
 
 // Hamburger toggle for mobile
 const hamburgerBtn = document.getElementById("hamburger-btn");

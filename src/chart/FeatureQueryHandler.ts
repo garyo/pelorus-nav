@@ -489,6 +489,11 @@ export class FeatureQueryHandler {
     this.clearHighlight();
   }
 
+  /** Close the info panel and its highlight (e.g. on idle auto-return). */
+  hide(): void {
+    this.dismiss();
+  }
+
   /**
    * Reset highlight layers on style reload.
    */
