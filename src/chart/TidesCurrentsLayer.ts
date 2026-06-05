@@ -246,7 +246,7 @@ export class TidesCurrentsLayer {
     // Arrows are LOW priority: drawn beneath all chart symbol layers and
     // excluded from symbol collision (ignore-placement + allow-overlap), so
     // buoys, soundings, and labels always draw over them and are never
-    // displaced by them. Density is handled by grid thinning in rebuild().
+    // displaced by them.
     const firstSymbolLayer = this.map
       .getStyle()
       .layers?.find((l: { type: string }) => l.type === "symbol")?.id;
@@ -364,12 +364,9 @@ export class TidesCurrentsLayer {
       const props = this.tideProps(s, index, now, bucket);
       if (props) features.push(pointFeature(s.lng, s.lat, props));
     }
-    const currentFeats = currents.flatMap((s) => {
+    for (const s of currents) {
       const props = this.currentProps(s, index, now, bucket);
-      return props ? [{ station: s, props }] : [];
-    });
-    for (const { station, props } of this.thinCurrents(currentFeats)) {
-      features.push(pointFeature(station.lng, station.lat, props));
+      if (props) features.push(pointFeature(s.lng, s.lat, props));
     }
 
     const fc: FeatureCollection = { type: "FeatureCollection", features };
@@ -378,30 +375,6 @@ export class TidesCurrentsLayer {
     if (json === this.lastDataJson) return;
     this.lastDataJson = json;
     (this.map.getSource(SOURCE_ID) as maplibregl.GeoJSONSource)?.setData(fc);
-  }
-
-  /**
-   * Declutter current stations: keep at most one per screen-space grid
-   * cell, preferring the fastest. Dense clusters (Boston Harbor) thin to
-   * the strongest stations; isolated stations always survive.
-   */
-  private thinCurrents<
-    T extends {
-      station: CurrentStation;
-      props: Record<string, string | number>;
-    },
-  >(feats: T[]): T[] {
-    const CELL_PX = 72;
-    const best = new Map<string, T>();
-    for (const f of feats) {
-      const p = this.map.project([f.station.lng, f.station.lat]);
-      const cell = `${Math.floor(p.x / CELL_PX)},${Math.floor(p.y / CELL_PX)}`;
-      const prev = best.get(cell);
-      if (!prev || Number(f.props._driftKn) > Number(prev.props._driftKn)) {
-        best.set(cell, f);
-      }
-    }
-    return [...best.values()];
   }
 
   private tideProps(
