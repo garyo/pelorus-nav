@@ -4,6 +4,7 @@ import {
   formatEventTime,
   formatSpeed,
   formatTideEvent,
+  formatTideHeight,
 } from "./format";
 
 describe("formatEventTime", () => {
@@ -30,17 +31,18 @@ describe("formatEventTime", () => {
   });
 });
 
-describe("formatTideEvent", () => {
-  it("formats highs and lows in the depth unit", () => {
+describe("formatTideEvent / formatTideHeight", () => {
+  it("formats highs and lows with one decimal in the depth unit", () => {
     const high = {
       time: new Date(),
       type: "high" as const,
       heightMeters: 2.957,
     };
-    expect(formatTideEvent(high, "feet")).toBe("High 10ft");
+    expect(formatTideEvent(high, "feet")).toBe("High 9.7ft");
     expect(
       formatTideEvent({ ...high, type: "low", heightMeters: 0.245 }, "meters"),
     ).toBe("Low 0.2m");
+    expect(formatTideHeight(2.957, "feet")).toBe("9.7ft");
   });
 });
 

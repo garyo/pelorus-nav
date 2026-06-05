@@ -32,6 +32,7 @@ import {
   formatEventTime,
   formatSpeed,
   formatTideEvent,
+  formatTideHeight,
 } from "../tides/format";
 import { tideNow, tideState } from "../tides/predictor";
 import { FeatureInfoPanel } from "./FeatureInfoPanel";
@@ -470,7 +471,7 @@ export class TidesCurrentsLayer {
     if (state.heightMeters != null) {
       details.push({
         label: "Now",
-        value: `${formatDepth(state.heightMeters, depthUnit)} (${state.trend})`,
+        value: `${formatTideHeight(state.heightMeters, depthUnit)} (${state.trend})`,
       });
     } else {
       details.push({ label: "Now", value: state.trend });
@@ -481,7 +482,6 @@ export class TidesCurrentsLayer {
         value: formatTideEvent(ev, depthUnit),
       });
     }
-    details.push(this.provenanceRow(index));
     return { type: "Tide Station", name: station.name, details };
   }
 
@@ -513,15 +513,7 @@ export class TidesCurrentsLayer {
         value: formatCurrentEvent(ev, speedUnit),
       });
     }
-    details.push(this.provenanceRow(index));
     return { type: "Current Station", name: station.name, details };
-  }
-
-  private provenanceRow(index: TidesIndex): { label: string; value: string } {
-    return {
-      label: "Predictions",
-      value: `NOAA harmonics ${index.bundle.generated}`,
-    };
   }
 }
 

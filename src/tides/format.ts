@@ -3,7 +3,12 @@
  * conversions so the map layer and popup stay thin.
  */
 
-import { type DepthUnit, formatDepth, type SpeedUnit } from "../settings";
+import {
+  convertDepth,
+  type DepthUnit,
+  depthUnitLabel,
+  type SpeedUnit,
+} from "../settings";
 import { convertSpeed, speedUnitLabel } from "../utils/units";
 import type { CurrentEvent } from "./currents";
 import type { TideEvent } from "./predictor";
@@ -19,10 +24,15 @@ export function formatEventTime(time: Date, now: Date): string {
   return `${day} ${clock}`;
 }
 
+/** Tide height with one decimal in the user's depth unit ("9.7ft"). */
+export function formatTideHeight(meters: number, unit: DepthUnit): string {
+  return `${convertDepth(meters, unit).toFixed(1)}${depthUnitLabel(unit)}`;
+}
+
 /** "High 9.7ft" */
 export function formatTideEvent(e: TideEvent, unit: DepthUnit): string {
   const label = e.type === "high" ? "High" : "Low";
-  return `${label} ${formatDepth(e.heightMeters, unit)}`;
+  return `${label} ${formatTideHeight(e.heightMeters, unit)}`;
 }
 
 /** "1.8 Kt" */
