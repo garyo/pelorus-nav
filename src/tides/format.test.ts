@@ -5,6 +5,7 @@ import {
   formatSpeed,
   formatTideEvent,
   formatTideHeight,
+  formatTimeUntil,
 } from "./format";
 
 describe("formatEventTime", () => {
@@ -28,6 +29,16 @@ describe("formatEventTime", () => {
     expect(text).toContain(
       tomorrow.toLocaleDateString(undefined, { weekday: "short" }),
     );
+  });
+});
+
+describe("formatTimeUntil", () => {
+  it("formats the gap until an event compactly", () => {
+    const now = new Date(2026, 5, 5, 10, 0);
+    expect(formatTimeUntil(new Date(2026, 5, 5, 11, 30), now)).toBe(
+      "(+1h 30m)",
+    );
+    expect(formatTimeUntil(new Date(2026, 5, 5, 10, 12), now)).toBe("(+12m)");
   });
 });
 

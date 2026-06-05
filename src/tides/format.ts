@@ -9,9 +9,15 @@ import {
   depthUnitLabel,
   type SpeedUnit,
 } from "../settings";
+import { formatDurationShort } from "../utils/format";
 import { convertSpeed, speedUnitLabel } from "../utils/units";
 import type { CurrentEvent } from "./currents";
 import type { TideEvent } from "./predictor";
+
+/** "(+1h 30m)" — how soon `time` arrives; for the next-event row. */
+export function formatTimeUntil(time: Date, now: Date): string {
+  return `(+${formatDurationShort(time.getTime() - now.getTime())})`;
+}
 
 /** "2:32 PM" if `time` falls on `now`'s local date, else "Tue 2:32 AM". */
 export function formatEventTime(time: Date, now: Date): string {

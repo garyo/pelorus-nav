@@ -33,6 +33,7 @@ import {
   formatSpeed,
   formatTideEvent,
   formatTideHeight,
+  formatTimeUntil,
 } from "../tides/format";
 import { tideNow, tideState } from "../tides/predictor";
 import { FeatureInfoPanel } from "./FeatureInfoPanel";
@@ -501,12 +502,16 @@ export class TidesCurrentsLayer {
     } else {
       details.push({ label: "Now", value: state.trend });
     }
-    for (const ev of state.events) {
+    state.events.forEach((ev, i) => {
       details.push({
-        label: formatEventTime(ev.time, now),
+        // Next change gets a relative time for glanceability
+        label:
+          i === 0
+            ? `${formatEventTime(ev.time, now)} ${formatTimeUntil(ev.time, now)}`
+            : formatEventTime(ev.time, now),
         value: formatTideEvent(ev, depthUnit),
       });
-    }
+    });
     return { type: "Tide Station", name: station.name, details };
   }
 
@@ -532,12 +537,16 @@ export class TidesCurrentsLayer {
         value: `${Math.round(station.floodDir)}° / ${Math.round(station.ebbDir)}°`,
       },
     ];
-    for (const ev of state.events) {
+    state.events.forEach((ev, i) => {
       details.push({
-        label: formatEventTime(ev.time, now),
+        // Next change gets a relative time for glanceability
+        label:
+          i === 0
+            ? `${formatEventTime(ev.time, now)} ${formatTimeUntil(ev.time, now)}`
+            : formatEventTime(ev.time, now),
         value: formatCurrentEvent(ev, speedUnit),
       });
-    }
+    });
     return { type: "Current Station", name: station.name, details };
   }
 }
