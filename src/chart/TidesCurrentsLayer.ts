@@ -243,13 +243,24 @@ export class TidesCurrentsLayer {
       paint: labelPaint,
     });
 
-    // Arrows are LOW priority: drawn beneath all chart symbol layers and
-    // excluded from symbol collision (ignore-placement + allow-overlap), so
-    // buoys, soundings, and labels always draw over them and are never
-    // displaced by them.
-    const firstSymbolLayer = this.map
-      .getStyle()
-      .layers?.find((l: { type: string }) => l.type === "symbol")?.id;
+    // Arrows are LOW priority: drawn above the soundings (so wall-to-wall
+    // depth digits don't bury them) but beneath buoys, lights, and labels,
+    // and excluded from symbol collision (ignore-placement + allow-overlap)
+    // so they never displace chart symbols. Falls back to the bottom of the
+    // symbol stack when no soundings layer exists (raster charts).
+    const styleLayers: { id: string; type: string }[] =
+      this.map.getStyle().layers ?? [];
+    let lastSoundg = -1;
+    for (let i = styleLayers.length - 1; i >= 0; i--) {
+      if (styleLayers[i].id.endsWith("-soundg")) {
+        lastSoundg = i;
+        break;
+      }
+    }
+    const firstSymbolLayer =
+      lastSoundg >= 0
+        ? styleLayers[lastSoundg + 1]?.id
+        : styleLayers.find((l) => l.type === "symbol")?.id;
     this.map.addLayer(
       {
         id: LAYER_CURRENT,
