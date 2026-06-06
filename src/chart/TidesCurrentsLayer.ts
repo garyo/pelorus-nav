@@ -534,10 +534,6 @@ export class TidesCurrentsLayer {
             value: `${capitalize(state.state)} ${formatSpeed(state.speedKn, speedUnit)} ${Math.round(state.dir)}°`,
             dir: state.dir,
           },
-      {
-        label: "Flood / Ebb set",
-        value: `${Math.round(station.floodDir)}° / ${Math.round(station.ebbDir)}°`,
-      },
     ];
     state.events.forEach((ev, i) => {
       details.push({
