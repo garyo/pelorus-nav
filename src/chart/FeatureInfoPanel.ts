@@ -82,10 +82,13 @@ export class FeatureInfoPanel {
 
     // Body: property rows
     this.body.innerHTML = "";
-    for (const { label, value } of info.details) {
+    for (const { label, value, dir } of info.details) {
       const row = document.createElement("div");
       row.className = "feature-info-row";
       row.innerHTML = `<span class="feature-info-label">${escapeHtml(label)}</span><span class="feature-info-value">${escapeHtml(value)}</span>`;
+      if (dir != null) {
+        row.querySelector(".feature-info-value")?.appendChild(dirArrow(dir));
+      }
       this.body.appendChild(row);
     }
 
@@ -140,4 +143,16 @@ function escapeHtml(text: string): string {
   const div = document.createElement("div");
   div.textContent = text;
   return div.innerHTML;
+}
+
+/** Font-sized north-up arrow rotated to a true bearing (0° = up). */
+function dirArrow(deg: number): HTMLElement {
+  const span = document.createElement("span");
+  span.className = "feature-info-dir";
+  span.title = `${Math.round(deg)}°`;
+  // Static markup, rotated as a whole; uses currentColor so it follows
+  // the panel text colour in every theme.
+  span.innerHTML = `<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M 8,1.5 L 12,9 L 8.9,7.8 L 8.9,14.5 L 7.1,14.5 L 7.1,7.8 L 4,9 Z" fill="currentColor"/></svg>`;
+  span.style.transform = `rotate(${deg}deg)`;
+  return span;
 }

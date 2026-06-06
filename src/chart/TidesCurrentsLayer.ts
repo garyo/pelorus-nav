@@ -526,14 +526,14 @@ export class TidesCurrentsLayer {
     if (!state) return null;
 
     const { speedUnit } = getSettings();
-    const details: { label: string; value: string }[] = [
-      {
-        label: "Now",
-        value:
-          state.state === "slack"
-            ? "Slack"
-            : `${capitalize(state.state)} ${formatSpeed(state.speedKn, speedUnit)} → ${Math.round(state.dir)}°`,
-      },
+    const details: FeatureInfo["details"] = [
+      state.state === "slack"
+        ? { label: "Now", value: "Slack" }
+        : {
+            label: "Now",
+            value: `${capitalize(state.state)} ${formatSpeed(state.speedKn, speedUnit)} ${Math.round(state.dir)}°`,
+            dir: state.dir,
+          },
       {
         label: "Flood / Ebb set",
         value: `${Math.round(station.floodDir)}° / ${Math.round(station.ebbDir)}°`,
@@ -547,6 +547,12 @@ export class TidesCurrentsLayer {
             ? `${formatEventTime(ev.time, now)} ${formatTimeUntil(ev.time, now)}`
             : formatEventTime(ev.time, now),
         value: formatCurrentEvent(ev, speedUnit),
+        // Set arrows on the peaks; slack has no direction
+        ...(ev.type === "maxFlood"
+          ? { dir: station.floodDir }
+          : ev.type === "maxEbb"
+            ? { dir: station.ebbDir }
+            : {}),
       });
     });
     return { type: "Current Station", name: station.name, details };

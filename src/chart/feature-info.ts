@@ -9,7 +9,8 @@ import { formatLatLon } from "../utils/coordinates";
 export interface FeatureInfo {
   type: string;
   name?: string;
-  details: { label: string; value: string }[];
+  /** `dir` (degrees true) renders a small north-up arrow after the value. */
+  details: { label: string; value: string; dir?: number }[];
   /** Child features grouped under this parent (e.g. lights on a buoy). */
   children?: FeatureInfo[];
 }
