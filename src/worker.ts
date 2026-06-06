@@ -161,6 +161,21 @@ export default {
       return handleTilesRequest(request, env, key);
     }
 
-    return env.ASSETS.fetch(request);
+    const response = await env.ASSETS.fetch(request);
+
+    // The assets binding's SPA fallback returns 200 index.html for ANY
+    // missing path. For asset-like paths (anything with a file extension
+    // other than .html) that turns a missing file into HTML that clients
+    // try to parse as data — e.g. MapLibre glyph PBFs. Return an honest
+    // 404 instead; the SPA fallback stays for extensionless app routes.
+    const isAssetPath = /\.(?!html?$)[a-z0-9]+$/i.test(url.pathname);
+    if (
+      isAssetPath &&
+      response.headers.get("content-type")?.includes("text/html")
+    ) {
+      return new Response("Not found", { status: 404 });
+    }
+
+    return response;
   },
 } satisfies ExportedHandler<Env>;

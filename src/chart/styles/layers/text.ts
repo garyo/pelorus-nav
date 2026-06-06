@@ -225,6 +225,7 @@ export function getTextLayers(ctx: StyleContext): LayerSpecification[] {
       minzoom: ctx.detailMinzoom(13),
       filter: ["has", "OBJNAM"],
       layout: {
+        "text-font": ["Noto Sans Regular"],
         ...VARIABLE_ANCHOR_LAYOUT,
         "symbol-sort-key": SORT_KEY_FACILITY,
         "text-field": ["get", "OBJNAM"],
@@ -247,6 +248,7 @@ export function getTextLayers(ctx: StyleContext): LayerSpecification[] {
       minzoom: ctx.detailMinzoom(13),
       filter: ["has", "OBJNAM"],
       layout: {
+        "text-font": ["Noto Sans Regular"],
         "symbol-placement": "line",
         "text-field": ["get", "OBJNAM"],
         "text-size": scaledTextSize(10, ctx),
@@ -268,6 +270,7 @@ export function getTextLayers(ctx: StyleContext): LayerSpecification[] {
       minzoom: ctx.detailMinzoom(14),
       filter: ["has", "OBJNAM"],
       layout: {
+        "text-font": ["Noto Sans Regular"],
         ...VARIABLE_ANCHOR_LAYOUT,
         "symbol-sort-key": SORT_KEY_FACILITY,
         "text-field": ["get", "OBJNAM"],
@@ -334,6 +337,7 @@ export function getTextLayers(ctx: StyleContext): LayerSpecification[] {
       minzoom: ctx.detailMinzoom(12),
       filter: ["has", "OBJNAM"],
       layout: {
+        "text-font": ["Noto Sans Regular"],
         ...VARIABLE_ANCHOR_LAYOUT,
         "symbol-sort-key": SORT_KEY_FACILITY,
         "text-field": ["get", "OBJNAM"],
@@ -359,6 +363,7 @@ export function getTextLayers(ctx: StyleContext): LayerSpecification[] {
         "source-layer": "LNDMRK",
         minzoom: ctx.detailMinzoom(12),
         layout: {
+          "text-font": ["Noto Sans Regular"],
           ...VARIABLE_ANCHOR_LAYOUT,
           "symbol-sort-key": SORT_KEY_LANDMARK,
           // LNDMRK has a sizeable icon; push labels a bit further out.

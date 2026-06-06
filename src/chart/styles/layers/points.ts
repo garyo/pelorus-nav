@@ -55,6 +55,7 @@ export function getNavAidLayers(ctx: StyleContext): LayerSpecification[] {
       source: ctx.sourceId,
       "source-layer": "SOUNDG",
       layout: {
+        "text-font": ["Noto Sans Regular"],
         "text-field": depthTextField(ctx.depthUnit),
         "text-size": scaledTextSize(10, ctx),
         "text-allow-overlap": false,
@@ -127,6 +128,7 @@ export function getBuoyBeaconLayers(ctx: StyleContext): LayerSpecification[] {
       minzoom: 6,
       layout: withOffset(
         {
+          "text-font": ["Noto Sans Regular"],
           "symbol-sort-key": SORT_KEY_LIGHT_CHAR,
           "icon-image": lights.iconExpr,
           "icon-size": scaledSize(0.7, ctx),
@@ -180,6 +182,7 @@ export function getBuoyBeaconLayers(ctx: StyleContext): LayerSpecification[] {
       minzoom: 8,
       layout: withOffset(
         {
+          "text-font": ["Noto Sans Regular"],
           "symbol-sort-key": SORT_KEY_NAVAID,
           "icon-image": boylat.iconExpr,
           "icon-size": scaledSize(0.75, ctx),
@@ -209,6 +212,7 @@ export function getBuoyBeaconLayers(ctx: StyleContext): LayerSpecification[] {
       minzoom: 8,
       layout: withOffset(
         {
+          "text-font": ["Noto Sans Regular"],
           "symbol-sort-key": SORT_KEY_NAVAID,
           "icon-image": boycar.iconExpr,
           "icon-size": scaledSize(0.75, ctx),
@@ -238,6 +242,7 @@ export function getBuoyBeaconLayers(ctx: StyleContext): LayerSpecification[] {
       minzoom: 8,
       layout: withOffset(
         {
+          "text-font": ["Noto Sans Regular"],
           "symbol-sort-key": SORT_KEY_NAVAID,
           "icon-image": boysaw.iconExpr,
           "icon-size": scaledSize(0.75, ctx),
@@ -267,6 +272,7 @@ export function getBuoyBeaconLayers(ctx: StyleContext): LayerSpecification[] {
       minzoom: 8,
       layout: withOffset(
         {
+          "text-font": ["Noto Sans Regular"],
           "symbol-sort-key": SORT_KEY_NAVAID,
           "icon-image": boyspp.iconExpr,
           "icon-size": scaledSize(0.7, ctx),
@@ -296,6 +302,7 @@ export function getBuoyBeaconLayers(ctx: StyleContext): LayerSpecification[] {
       minzoom: 6,
       layout: withOffset(
         {
+          "text-font": ["Noto Sans Regular"],
           "symbol-sort-key": SORT_KEY_NAVAID,
           "icon-image": boyisd.iconExpr,
           "icon-size": scaledSize(0.75, ctx),
@@ -325,6 +332,7 @@ export function getBuoyBeaconLayers(ctx: StyleContext): LayerSpecification[] {
       minzoom: 8,
       layout: withOffset(
         {
+          "text-font": ["Noto Sans Regular"],
           "symbol-sort-key": SORT_KEY_NAVAID,
           "icon-image": bcnlat.iconExpr,
           "icon-size": scaledSize(0.7, ctx),
@@ -354,6 +362,7 @@ export function getBuoyBeaconLayers(ctx: StyleContext): LayerSpecification[] {
       minzoom: 8,
       layout: withOffset(
         {
+          "text-font": ["Noto Sans Regular"],
           "symbol-sort-key": SORT_KEY_NAVAID,
           "icon-image": bcncar.iconExpr,
           "icon-size": scaledSize(0.7, ctx),
@@ -383,6 +392,7 @@ export function getBuoyBeaconLayers(ctx: StyleContext): LayerSpecification[] {
       minzoom: 8,
       layout: withOffset(
         {
+          "text-font": ["Noto Sans Regular"],
           "symbol-sort-key": SORT_KEY_NAVAID,
           "icon-image": bcnisd.iconExpr,
           "icon-size": scaledSize(0.7, ctx),
@@ -411,6 +421,7 @@ export function getBuoyBeaconLayers(ctx: StyleContext): LayerSpecification[] {
       minzoom: 8,
       layout: withOffset(
         {
+          "text-font": ["Noto Sans Regular"],
           "symbol-sort-key": SORT_KEY_NAVAID,
           "icon-image": bcnsaw.iconExpr,
           "icon-size": scaledSize(0.7, ctx),
@@ -626,6 +637,7 @@ export function getHazardLayers(ctx: StyleContext): LayerSpecification[] {
         ["has", "VALSOU"],
       ] as unknown as ExpressionSpecification,
       layout: {
+        "text-font": ["Noto Sans Regular"],
         "text-field": valsouTextField(ctx.depthUnit),
         "text-size": scaledTextSize(11, ctx),
         "text-allow-overlap": true,
@@ -691,6 +703,7 @@ export function getHazardLayers(ctx: StyleContext): LayerSpecification[] {
         ["has", "VALSOU"],
       ] as unknown as ExpressionSpecification,
       layout: {
+        "text-font": ["Noto Sans Regular"],
         "text-field": valsouTextField(ctx.depthUnit),
         "text-size": scaledTextSize(11, ctx),
         "text-allow-overlap": true,
@@ -1042,6 +1055,7 @@ export function getOtherNavAidLayers(ctx: StyleContext): LayerSpecification[] {
       minzoom: 8,
       layout: withOffset(
         {
+          "text-font": ["Noto Sans Regular"],
           "symbol-sort-key": SORT_KEY_NAVAID,
           "icon-image": bcnspp.iconExpr,
           "icon-size": scaledSize(0.7, ctx),
@@ -1196,6 +1210,7 @@ export function getOtherPointLayers(ctx: StyleContext): LayerSpecification[] {
       minzoom: ctx.detailMinzoom(13),
       layout: withOffset(
         {
+          "text-font": ["Noto Sans Regular"],
           ...VARIABLE_ANCHOR_LAYOUT,
           "symbol-sort-key": SORT_KEY_FACILITY,
           "icon-image": hrbfac.iconExpr,
@@ -1287,6 +1302,7 @@ export function getAdditionalPointLayers(
         "Polygon",
       ] as unknown as ExpressionSpecification,
       layout: {
+        "text-font": ["Noto Sans Regular"],
         ...VARIABLE_ANCHOR_LAYOUT,
         "symbol-sort-key": SORT_KEY_FACILITY,
         "text-field": [
@@ -1318,6 +1334,7 @@ export function getAdditionalPointLayers(
       ] as unknown as ExpressionSpecification,
       layout: withOffset(
         {
+          "text-font": ["Noto Sans Regular"],
           ...VARIABLE_ANCHOR_LAYOUT,
           "symbol-sort-key": SORT_KEY_FACILITY,
           "icon-image": pilbop.iconExpr,
@@ -1442,6 +1459,7 @@ export function getAdditionalPointLayers(
       "source-layer": "CGUSTA",
       minzoom: ctx.detailMinzoom(12),
       layout: {
+        "text-font": ["Noto Sans Regular"],
         ...VARIABLE_ANCHOR_LAYOUT,
         "symbol-sort-key": SORT_KEY_FACILITY,
         "text-field": ["get", "OBJNAM"] as unknown as ExpressionSpecification,
