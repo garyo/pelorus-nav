@@ -94,7 +94,6 @@ describe("tideState — subordinate station (Hull 8444351)", () => {
   it("matches NOAA published events via reference + offsets", () => {
     const state = tideState(hull, index, START, 48);
     if (!state) throw new Error("no state");
-    expect(state.heightMeters).toBeNull();
     compareEvents(hullHilo as NoaaHilo, state.events, 8, 0.06);
   });
 
@@ -102,6 +101,26 @@ describe("tideState — subordinate station (Hull 8444351)", () => {
     // Hull published: L 01:00Z, H 07:07Z on 2026-06-05
     const rising = tideState(hull, index, new Date("2026-06-05T04:00:00Z"));
     expect(rising?.trend).toBe("rising");
+  });
+
+  it("interpolates an approximate height consistent with its events", () => {
+    // Hull published: L 01:00Z 0.56 m, H 07:07Z 2.868 m on 2026-06-05
+    const atHigh = tideNow(hull, index, new Date("2026-06-05T07:07:00Z"));
+    expect(atHigh?.approximate).toBe(true);
+    expect(atHigh?.heightMeters).toBeGreaterThan(2.868 - 0.15);
+    expect(atHigh?.heightMeters).toBeLessThan(2.868 + 0.15);
+    expect(atHigh?.fraction).toBeGreaterThan(0.85);
+
+    const atLow = tideNow(hull, index, new Date("2026-06-05T01:00:00Z"));
+    expect(atLow?.heightMeters).toBeGreaterThan(0.56 - 0.15);
+    expect(atLow?.heightMeters).toBeLessThan(0.56 + 0.15);
+    expect(atLow?.fraction).toBeLessThan(0.15);
+
+    // Mid-rise: between the bracketing event heights, rising
+    const mid = tideNow(hull, index, new Date("2026-06-05T04:00:00Z"));
+    expect(mid?.heightMeters).toBeGreaterThan(0.56);
+    expect(mid?.heightMeters).toBeLessThan(2.868);
+    expect(mid?.trend).toBe("rising");
   });
 
   it("only returns events inside the window", () => {

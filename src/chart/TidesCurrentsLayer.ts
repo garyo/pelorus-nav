@@ -402,9 +402,10 @@ export class TidesCurrentsLayer {
     const state = tideNow(station, index, now);
     if (!state) return null;
     const arrow = state.trend === "rising" ? "↑" : "↓";
+    // "~" marks subordinate stations' interpolated (approximate) heights
     const label =
       state.heightMeters != null
-        ? `${formatDepth(state.heightMeters, getSettings().depthUnit)} ${arrow}`
+        ? `${state.approximate ? "~" : ""}${formatDepth(state.heightMeters, getSettings().depthUnit)} ${arrow}`
         : arrow;
     const props = {
       _kind: "tide",
@@ -495,9 +496,10 @@ export class TidesCurrentsLayer {
     const { depthUnit } = getSettings();
     const details: { label: string; value: string }[] = [];
     if (state.heightMeters != null) {
+      const approx = state.approximate ? "≈" : "";
       details.push({
         label: "Now",
-        value: `${formatTideHeight(state.heightMeters, depthUnit)} (${state.trend})`,
+        value: `${approx}${formatTideHeight(state.heightMeters, depthUnit)} (${state.trend})`,
       });
     } else {
       details.push({ label: "Now", value: state.trend });
