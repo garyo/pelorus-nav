@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<?xml-stylesheet href="daySvgStyle.css" type="text/css"?>
+<svg xmlns="http://www.w3.org/2000/svg" version="1.2" baseProfile="tiny" xml:space="preserve" shape-rendering="geometricPrecision" fill-rule="evenodd" width="7.6mm" height="8.8mm" viewBox="-1.9 -2.3 3.8 4.4">
+  <title>PELSLK01</title>
+  <desc>slack-water arrow, half length (Pelorus custom, not IHO); points up, rotated to set</desc>
+  <path d="M 0,-2 L 1.6,0.8 L 0.6,0.8 L 0.6,1.9 L -0.6,1.9 L -0.6,0.8 L -1.6,0.8 Z" class="fCHWHT"/>
+  <path d="M 0,-2 L 1.6,0.8 L 0.6,0.8 L 0.6,1.9 L -0.6,1.9 L -0.6,0.8 L -1.6,0.8 Z" class="sl f0 sCHBLK" fill="none" stroke-width="0.25"/>
+  <circle class="pivotPoint layout" fill="none" cx="0" cy="0" r="1"/>
+</svg>

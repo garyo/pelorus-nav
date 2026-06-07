@@ -67,12 +67,15 @@ interface SpriteSet {
   tideNeutral: string;
   tideGauge: string[];
   arrow: string[];
+  /** Half-length outline arrow for the slack double-arrow marker. */
+  slackArrow: string;
 }
 
 const NAUTICAL_SPRITES: SpriteSet = {
   tideNeutral: "ecdis-tide-station",
   tideGauge: [0, 1, 2, 3, 4].map((i) => `ecdis-tide-gauge-${i}`),
   arrow: [0, 1, 2, 3, 4].map((i) => `ecdis-current-arrow-${i}`),
+  slackArrow: "ecdis-slack-arrow",
 };
 
 const SPRITES: Record<SymbologyScheme, SpriteSet> = {
@@ -82,6 +85,7 @@ const SPRITES: Record<SymbologyScheme, SpriteSet> = {
     tideNeutral: "PELTID01",
     tideGauge: [0, 1, 2, 3, 4].map((i) => `PELTIDG${i}`),
     arrow: [1, 2, 3, 4, 5].map((i) => `PELCUR0${i}`),
+    slackArrow: "PELSLK01",
   },
 };
 
@@ -333,7 +337,7 @@ export class TidesCurrentsLayer {
             ["==", ["get", "_state"], "slack"],
           ],
           layout: {
-            "icon-image": sprites.arrow[0],
+            "icon-image": sprites.slackArrow,
             "icon-size": 0.5 * 0.55 * iconScale,
             "icon-rotate": ["get", dirProp],
             "icon-rotation-alignment": "map",
