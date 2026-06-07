@@ -168,3 +168,26 @@ describe("replayPosition", () => {
     expect(replayPosition(TRACK, 0).lat).toBeCloseTo(42.0, 6);
   });
 });
+
+describe("replayPosition SOG continuity", () => {
+  // Two segments with different speeds: 111 m/60 s then ~222 m/60 s
+  const VARYING: [number, number, number][] = [
+    [0, 42.0, -71.0],
+    [60, 42.001, -71.0],
+    [120, 42.003, -71.0],
+  ];
+
+  it("is continuous across segment boundaries", () => {
+    const before = replayPosition(VARYING, 59.5).sogKn;
+    const after = replayPosition(VARYING, 60.5).sogKn;
+    // Raw segment speeds differ ~2x (3.6 vs 7.2 kt); the blended value
+    // must not step across the boundary
+    expect(Math.abs(after - before)).toBeLessThan(0.25);
+  });
+
+  it("still reflects the overall speed change mid-segment", () => {
+    expect(replayPosition(VARYING, 20).sogKn).toBeLessThan(
+      replayPosition(VARYING, 100).sogKn,
+    );
+  });
+});

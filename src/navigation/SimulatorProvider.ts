@@ -95,8 +95,11 @@ const M_PER_DEG = 111_111;
 
 /**
  * Position/course along a recorded track at `elapsedSec` (looped).
- * COG/SOG are derived from the bracketing segment so the reported values
+ * COG/SOG are derived from the bracketing segments so the reported values
  * stay consistent with the interpolated motion at any time multiplier.
+ * SOG blends across segment boundaries: raw per-segment speeds carry the
+ * recording's GPS position noise, and the resulting stair-steps would be
+ * amplified by the time multiplier into visible jumps.
  */
 export function replayPosition(
   track: [number, number, number][],
@@ -118,12 +121,23 @@ export function replayPosition(
   const dt = t1 - t0;
   const f = dt > 0 ? (t - t0) / dt : 0;
 
-  const segNM = haversineDistanceNM(lat0, lon0, lat1, lon1);
+  // Speed at a track point = mean of its adjacent segments' speeds;
+  // linear blend between the bracketing points' speeds.
+  const segSpeed = (i: number): number => {
+    const [ta, la, na] = track[i];
+    const [tb, lb, nb] = track[i + 1];
+    const d = tb - ta;
+    return d > 0 ? (haversineDistanceNM(la, na, lb, nb) / d) * 3600 : 0;
+  };
+  const cur = segSpeed(lo);
+  const atStart = lo > 0 ? (segSpeed(lo - 1) + cur) / 2 : cur;
+  const atEnd = lo + 2 < track.length ? (cur + segSpeed(lo + 1)) / 2 : cur;
+
   return {
     lat: lat0 + (lat1 - lat0) * f,
     lon: lon0 + (lon1 - lon0) * f,
     cog: initialBearingDeg(lat0, lon0, lat1, lon1),
-    sogKn: dt > 0 ? (segNM / dt) * 3600 : 0,
+    sogKn: atStart + (atEnd - atStart) * f,
   };
 }
 
