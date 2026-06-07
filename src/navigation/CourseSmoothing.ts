@@ -14,15 +14,16 @@ const DEFAULT_BUFFER_WINDOW_MS = 5_000;
 
 /**
  * Cap for the e-ink smoothing window, which scales with the adaptive GPS
- * interval (×5 to hold ~5 samples). Uncapped, the slow tier (10 s) produced
- * a 50 s window — the displayed vessel lagged reality by the better part of
- * a minute and made the GPS feel far slower than it is.
+ * interval (×3 to hold ~3 samples). The window's mean lags reality by about
+ * half its width, and field testing (2026-06) found the original ×5/25 s
+ * made the course line noticeably laggy through turns; ×3/12 s trades a
+ * little steadiness for ~6 s of lag instead of ~12 s.
  */
-export const EINK_BUFFER_WINDOW_MAX_MS = 25_000;
+export const EINK_BUFFER_WINDOW_MAX_MS = 12_000;
 
 /** E-ink smoothing window for a given adaptive GPS interval. */
 export function einkBufferWindowMs(intervalMs: number): number {
-  return Math.min(intervalMs * 5, EINK_BUFFER_WINDOW_MAX_MS);
+  return Math.min(intervalMs * 3, EINK_BUFFER_WINDOW_MAX_MS);
 }
 
 /** Buffer window at quality score q=1 (jittery GPS — wider average). */

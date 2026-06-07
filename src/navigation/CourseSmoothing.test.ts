@@ -15,10 +15,11 @@ function cogOf(r: SmoothedCourse | null): number {
 }
 
 describe("einkBufferWindowMs", () => {
-  it("holds ~5 samples at fast rates but clamps at the cap", () => {
-    expect(einkBufferWindowMs(2000)).toBe(10_000);
-    expect(einkBufferWindowMs(5000)).toBe(EINK_BUFFER_WINDOW_MAX_MS);
-    // Slow tier (10 s) used to produce a 50 s window — must clamp
+  it("holds ~3 samples at fast rates but clamps at the cap", () => {
+    expect(einkBufferWindowMs(2000)).toBe(6_000);
+    expect(einkBufferWindowMs(4000)).toBe(EINK_BUFFER_WINDOW_MAX_MS);
+    // Slow tier (10 s) must clamp — an uncapped window lagged by ~half
+    // its width and made the course line feel sluggish through turns
     expect(einkBufferWindowMs(10_000)).toBe(EINK_BUFFER_WINDOW_MAX_MS);
   });
 });

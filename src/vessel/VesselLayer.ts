@@ -56,24 +56,31 @@ export class VesselLayer {
   }
 
   private createVesselIcon(): void {
+    // E-ink: larger and black-outlined — blue renders as a mid grey there,
+    // and shadows just ghost, so contrast comes from a heavy dark edge.
+    const isEink = getSettings().displayTheme === "eink";
+    const scale = isEink ? 1.4 : 1;
+
     const canvas = document.createElement("canvas");
     const ratio = window.devicePixelRatio || 1;
-    const px = Math.round(CANVAS_SIZE * ratio);
+    const px = Math.round(CANVAS_SIZE * scale * ratio);
     canvas.width = px;
     canvas.height = px;
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
-    ctx.scale(ratio, ratio);
+    ctx.scale(ratio * scale, ratio * scale);
     // Offset drawing so the icon is centered with padding for shadow
     ctx.translate(SHADOW_PAD, SHADOW_PAD);
     const cx = ICON_SIZE / 2;
 
-    // Drop shadow for contrast against busy charts (DEBUG: exaggerated)
-    ctx.shadowColor = "rgba(0, 0, 0, 1)";
-    ctx.shadowBlur = 6;
-    ctx.shadowOffsetX = 0;
-    ctx.shadowOffsetY = 0;
+    if (!isEink) {
+      // Drop shadow for contrast against busy charts
+      ctx.shadowColor = "rgba(0, 0, 0, 1)";
+      ctx.shadowBlur = 6;
+      ctx.shadowOffsetX = 0;
+      ctx.shadowOffsetY = 0;
+    }
 
     // Draw a vessel triangle pointing up (north)
     ctx.beginPath();
@@ -85,9 +92,20 @@ export class VesselLayer {
 
     ctx.fillStyle = "#2266dd";
     ctx.fill();
-    ctx.strokeStyle = "#ffffff";
-    ctx.lineWidth = 1.5;
-    ctx.stroke();
+    if (isEink) {
+      // White casing then black edge: separates the icon from chart
+      // linework on a greyscale panel.
+      ctx.strokeStyle = "#ffffff";
+      ctx.lineWidth = 4;
+      ctx.stroke();
+      ctx.strokeStyle = "#000000";
+      ctx.lineWidth = 2;
+      ctx.stroke();
+    } else {
+      ctx.strokeStyle = "#ffffff";
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+    }
 
     if (this.map.hasImage(VESSEL_ICON)) {
       this.map.removeImage(VESSEL_ICON);
