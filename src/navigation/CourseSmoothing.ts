@@ -9,8 +9,15 @@
 
 import { toRadians } from "../utils/coordinates";
 
-/** Default circular buffer window in milliseconds. */
-const DEFAULT_BUFFER_WINDOW_MS = 5_000;
+/**
+ * Default circular buffer window in milliseconds.
+ *
+ * 2026-06 field tuning: this smoother consumes COG/SOG that the GPS Kalman
+ * filter has already smoothed, so a wide window double-counted — through a
+ * measured 109° tack, window 5 s + tau 2 s added ~6 s on top of the
+ * Kalman's ~4 s. Halving both cut total course-line slew from ~10 s to ~7 s.
+ */
+const DEFAULT_BUFFER_WINDOW_MS = 2_500;
 
 /**
  * Cap for the e-ink smoothing window, which scales with the adaptive GPS
@@ -33,7 +40,7 @@ const BAD_BUFFER_WINDOW_MS = 25_000;
 const MIN_SAMPLES = 2;
 
 /** Exponential smoothing time constant for COG/SOG in seconds (q=0). */
-const TAU_S = 2;
+const TAU_S = 1;
 /**
  * Tau at q=1 — heavier smoothing when GPS is known-bad. Halved from 8 s
  * (2026-06 field tuning): the course line slewed too slowly to the real
