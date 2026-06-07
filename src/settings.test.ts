@@ -7,7 +7,7 @@ import {
 } from "./settings";
 
 describe("settings migration", () => {
-  it("forces S-52 symbology and turns the OSM underlay on once (v2)", async () => {
+  it("forces S-52 symbology and turns the street underlay on once (v2)", async () => {
     const stored = {
       symbologyScheme: "pelorus-standard",
       showOSMUnderlay: false,
@@ -19,13 +19,13 @@ describe("settings migration", () => {
     vi.resetModules();
     const { getSettings } = await import("./settings");
     expect(getSettings().symbologyScheme).toBe("iho-s52");
-    expect(getSettings().showOSMUnderlay).toBe(true);
+    expect(getSettings().streetUnderlay).toBe("auto");
     expect(getSettings().settingsVersion).toBe(2);
     vi.unstubAllGlobals();
     vi.resetModules();
   });
 
-  it("respects a v2 user's choice to turn the OSM underlay off", async () => {
+  it("migrates a v2 user's choice to turn the OSM underlay off", async () => {
     const stored = { settingsVersion: 2, showOSMUnderlay: false };
     vi.stubGlobal("localStorage", {
       getItem: () => JSON.stringify(stored),
@@ -33,7 +33,24 @@ describe("settings migration", () => {
     });
     vi.resetModules();
     const { getSettings } = await import("./settings");
-    expect(getSettings().showOSMUnderlay).toBe(false);
+    expect(getSettings().streetUnderlay).toBe("off");
+    vi.unstubAllGlobals();
+    vi.resetModules();
+  });
+
+  it("keeps an explicit streetUnderlay mode over the legacy boolean", async () => {
+    const stored = {
+      settingsVersion: 2,
+      showOSMUnderlay: false,
+      streetUnderlay: "osm",
+    };
+    vi.stubGlobal("localStorage", {
+      getItem: () => JSON.stringify(stored),
+      setItem: () => {},
+    });
+    vi.resetModules();
+    const { getSettings } = await import("./settings");
+    expect(getSettings().streetUnderlay).toBe("osm");
     vi.unstubAllGlobals();
     vi.resetModules();
   });

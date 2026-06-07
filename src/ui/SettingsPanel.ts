@@ -21,6 +21,7 @@ import {
   LAYER_GROUP_LABELS,
   onSettingsChange,
   type SpeedUnit,
+  type StreetUnderlayMode,
   updateSettings,
   type WakeLockMode,
 } from "../settings";
@@ -430,13 +431,18 @@ function buildLayersTab(
     ),
   );
 
-  // OSM underlay (only useful with vector charts)
+  // Street underlay (only useful with vector charts)
   tab.appendChild(
-    buildCheckboxRow(
-      "OSM map under vector charts",
-      "settings-osm-underlay",
-      settings.showOSMUnderlay,
-      (v) => updateSettings({ showOSMUnderlay: v }),
+    buildSelectRow(
+      "Street map under charts",
+      "settings-street-underlay",
+      [
+        { value: "auto", label: "Offline basemap (OSM if not downloaded)" },
+        { value: "osm", label: "OSM (online only)" },
+        { value: "off", label: "Off" },
+      ],
+      settings.streetUnderlay,
+      (v) => updateSettings({ streetUnderlay: v as StreetUnderlayMode }),
     ),
   );
 

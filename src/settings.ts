@@ -10,6 +10,7 @@ export type DetailLevel = -1 | 0 | 1 | 2;
 export type CourseLineDuration = 0 | "auto" | 5 | 15 | 30 | 60;
 export type DisplayTheme = "day" | "dusk" | "night" | "eink";
 export type BearingMode = "true" | "magnetic";
+export type StreetUnderlayMode = "auto" | "osm" | "off";
 export type SymbologyScheme =
   | "pelorus-standard"
   | "iho-s52"
@@ -60,8 +61,12 @@ export interface Settings {
   routePlanSpeedKn: number;
   /** Display bearings as true or magnetic. */
   bearingMode: BearingMode;
-  /** Show OSM raster tiles underneath S-57 vector charts for land context. */
-  showOSMUnderlay: boolean;
+  /**
+   * Street map underneath S-57 vector charts for land context.
+   * "auto" = offline vector basemap when downloaded, else OSM raster;
+   * "osm" = always OSM raster; "off" = chart only.
+   */
+  streetUnderlay: StreetUnderlayMode;
   /** Shallow water threshold in meters (areas < this get DEPVS color). */
   shallowDepth: number;
   /** Safety depth in meters — soundings ≤ this are shown in high-contrast (SNDG2). */
@@ -129,7 +134,7 @@ const DEFAULTS: Settings = {
   displayTheme: "day",
   symbologyScheme: "iho-s52",
   bearingMode: "magnetic",
-  showOSMUnderlay: true,
+  streetUnderlay: "auto",
   shallowDepth: 1.83,
   safetyDepth: 6.1,
   deepDepth: 15.24,
@@ -152,13 +157,18 @@ function load(): Settings {
       const parsed = JSON.parse(raw) as Partial<Settings>;
       // Only IHO S-52 symbology is supported (the chooser was removed)
       parsed.symbologyScheme = "iho-s52";
-      // v2: OSM underlay became on-by-default
+      const legacy = parsed as Record<string, unknown>;
+      // v2: street underlay became on-by-default
       if ((parsed.settingsVersion ?? 1) < 2) {
-        parsed.showOSMUnderlay = true;
+        legacy.showOSMUnderlay = true;
       }
       parsed.settingsVersion = SETTINGS_VERSION;
+      // Migrate boolean showOSMUnderlay → streetUnderlay mode
+      if (!parsed.streetUnderlay && "showOSMUnderlay" in legacy) {
+        parsed.streetUnderlay = legacy.showOSMUnderlay ? "auto" : "off";
+      }
+      delete legacy.showOSMUnderlay;
       // Migrate old updateRateHz → gpsRateMode + manualUpdateIntervalMs
-      const legacy = parsed as Record<string, unknown>;
       if ("updateRateHz" in legacy) {
         if (!parsed.gpsRateMode) {
           parsed.gpsRateMode = "adaptive";

@@ -3,6 +3,7 @@ import type {
   DepthUnit,
   DetailLevel,
   DisplayTheme,
+  StreetUnderlayMode,
   SymbologyScheme,
 } from "../settings";
 import { getSettings, onSettingsChange } from "../settings";
@@ -43,7 +44,7 @@ export class ChartManager {
   private prevLayerGroups: Record<string, boolean>;
   private prevDisplayTheme: DisplayTheme;
   private prevSymbology: SymbologyScheme;
-  private prevShowOSMUnderlay: boolean;
+  private prevStreetUnderlay: StreetUnderlayMode;
   private prevActiveRegion: string;
   private prevShallowDepth: number;
   private prevDeepDepth: number;
@@ -92,7 +93,7 @@ export class ChartManager {
     this.prevLayerGroups = { ...initial.layerGroups };
     this.prevDisplayTheme = initial.displayTheme;
     this.prevSymbology = initial.symbologyScheme;
-    this.prevShowOSMUnderlay = initial.showOSMUnderlay;
+    this.prevStreetUnderlay = initial.streetUnderlay;
     this.prevActiveRegion = initial.activeRegion;
     this.prevShallowDepth = initial.shallowDepth;
     this.prevDeepDepth = initial.deepDepth;
@@ -109,7 +110,7 @@ export class ChartManager {
         s.detailLevel !== this.prevDetailLevel ||
         s.displayTheme !== this.prevDisplayTheme ||
         s.symbologyScheme !== this.prevSymbology ||
-        s.showOSMUnderlay !== this.prevShowOSMUnderlay ||
+        s.streetUnderlay !== this.prevStreetUnderlay ||
         s.activeRegion !== this.prevActiveRegion ||
         s.shallowDepth !== this.prevShallowDepth ||
         s.deepDepth !== this.prevDeepDepth ||
@@ -122,7 +123,7 @@ export class ChartManager {
         this.prevLayerGroups = { ...s.layerGroups };
         this.prevDisplayTheme = s.displayTheme;
         this.prevSymbology = s.symbologyScheme;
-        this.prevShowOSMUnderlay = s.showOSMUnderlay;
+        this.prevStreetUnderlay = s.streetUnderlay;
         this.prevActiveRegion = s.activeRegion;
         this.prevShallowDepth = s.shallowDepth;
         this.prevDeepDepth = s.deepDepth;
@@ -263,10 +264,14 @@ export class ChartManager {
     };
     let layers = provider.getLayers();
 
-    // Merge street underlay for vector chart providers: the active region's
-    // offline vector basemap when downloaded, else network OSM raster tiles.
-    if (settings.showOSMUnderlay && provider.type === "vector") {
-      if (hasStoredBasemap(settings.activeRegion)) {
+    // Merge street underlay for vector chart providers. "auto" prefers the
+    // active region's offline vector basemap when downloaded; "osm" forces
+    // the network OSM raster tiles.
+    if (settings.streetUnderlay !== "off" && provider.type === "vector") {
+      if (
+        settings.streetUnderlay === "auto" &&
+        hasStoredBasemap(settings.activeRegion)
+      ) {
         sources = {
           ...sources,
           [BASEMAP_SOURCE_ID]: getBasemapSource(settings.activeRegion),
