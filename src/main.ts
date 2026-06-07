@@ -13,6 +13,7 @@ import {
   VectorChartProvider,
 } from "./chart";
 import { LightSectorLayer } from "./chart/LightSectorLayer";
+import { registerOSMTileProtocol } from "./chart/osm-tile-cache";
 import { PelLightLayer } from "./chart/PelLightLayer";
 import { SafetyContour } from "./chart/SafetyContour";
 import { TidesCurrentsLayer } from "./chart/TidesCurrentsLayer";
@@ -124,6 +125,9 @@ startAppUpdateNotifier();
 // Register PMTiles protocol for vector tile sources
 const protocol = new Protocol({ metadata: true });
 addProtocol("pmtiles", protocol.tilev4);
+
+// Register the cached OSM tile protocol (offline-capable raster underlay)
+registerOSMTileProtocol();
 
 // Load any offline PMTiles from OPFS before creating the map
 try {

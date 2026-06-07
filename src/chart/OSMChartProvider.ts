@@ -1,5 +1,6 @@
 import type { LayerSpecification, SourceSpecification } from "maplibre-gl";
 import type { ChartProvider } from "./ChartProvider";
+import { OSM_TILE_URL_TEMPLATE } from "./osm-tile-cache";
 
 const SOURCE_ID = "osm";
 
@@ -14,7 +15,7 @@ export class OSMChartProvider implements ChartProvider {
     return {
       [SOURCE_ID]: {
         type: "raster",
-        tiles: ["https://tile.openstreetmap.org/{z}/{x}/{y}.png"],
+        tiles: [OSM_TILE_URL_TEMPLATE],
         tileSize: 256,
         attribution: this.getAttribution(),
         minzoom: this.minZoom,

@@ -8,6 +8,7 @@ import type {
   LayerSpecification,
 } from "@maplibre/maplibre-gl-style-spec";
 import type { DisplayTheme } from "../settings";
+import { OSM_TILE_URL_TEMPLATE } from "./osm-tile-cache";
 
 const OSM_SOURCE_ID = "osm-underlay";
 
@@ -25,7 +26,7 @@ export function getOSMUnderlaySource(): {
     id: OSM_SOURCE_ID,
     source: {
       type: "raster",
-      tiles: ["https://tile.openstreetmap.org/{z}/{x}/{y}.png"],
+      tiles: [OSM_TILE_URL_TEMPLATE],
       tileSize: 256,
       attribution:
         '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
@@ -56,7 +57,10 @@ const WATER_FILL_SUFFIXES = ["-drgare", "-lakare", "-rivers"];
 
 /**
  * Merge OSM underlay into S-57 layers.
- * - Inserts an OSM raster layer at position 0 (below everything)
+ * - Inserts full-opacity copies of the background and land layers at the
+ *   bottom, so missing OSM tiles (offline, fetch failure) degrade to the
+ *   normal no-underlay chart instead of a blank canvas
+ * - Inserts the OSM raster layer above those fallback copies
  * - Makes the background layer transparent (DEPARE + water fills cover water)
  * - Makes water-area fills fully opaque to hide OSM on water
  * - Reduces land area opacity so OSM shows through
@@ -77,6 +81,14 @@ export function applyOSMUnderlay(
       "raster-brightness-max": osmBrightness(theme),
     },
   };
+
+  const fallback: LayerSpecification[] = s57Layers
+    .filter(
+      (layer) =>
+        layer.type === "background" ||
+        (layer.type === "fill" && layer.id.endsWith("-lndare")),
+    )
+    .map((layer) => ({ ...layer, id: `${layer.id}-osm-fallback` }));
 
   const adjusted = s57Layers.map((layer): LayerSpecification => {
     if (layer.type === "background") {
@@ -108,5 +120,5 @@ export function applyOSMUnderlay(
     return layer;
   });
 
-  return [osmLayer, ...adjusted];
+  return [...fallback, osmLayer, ...adjusted];
 }

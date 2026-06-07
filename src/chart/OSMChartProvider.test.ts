@@ -10,11 +10,11 @@ describe("OSMChartProvider", () => {
     expect(provider.type).toBe("raster");
   });
 
-  it("returns a raster source with OSM URL", () => {
+  it("returns a raster source using the cached OSM tile protocol", () => {
     const source = provider.getSources()[Object.keys(provider.getSources())[0]];
     expect(source.type).toBe("raster");
     if (source.type === "raster") {
-      expect(source.tiles?.[0]).toContain("openstreetmap.org");
+      expect(source.tiles?.[0]).toBe("osmtiles://{z}/{x}/{y}");
     }
   });
 
