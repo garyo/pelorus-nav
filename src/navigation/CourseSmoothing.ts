@@ -34,8 +34,12 @@ const MIN_SAMPLES = 2;
 
 /** Exponential smoothing time constant for COG/SOG in seconds (q=0). */
 const TAU_S = 2;
-/** Tau at q=1 — heavier smoothing when GPS is known-bad. */
-const TAU_BAD_S = 8;
+/**
+ * Tau at q=1 — heavier smoothing when GPS is known-bad. Halved from 8 s
+ * (2026-06 field tuning): the course line slewed too slowly to the real
+ * heading, especially resuming after inactivity.
+ */
+const TAU_BAD_S = 4;
 
 /** Exponential smoothing time constant for position in seconds (q=0). */
 const TAU_POS_S = 0.5;
