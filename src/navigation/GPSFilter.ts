@@ -64,7 +64,13 @@ export interface GPSFilterConfig {
 }
 
 export const DEFAULT_GPS_FILTER_CONFIG: Readonly<GPSFilterConfig> = {
-  processNoiseAccel: 5e-6,
+  // 2026-06 field tuning: at 5e-6 the constant-velocity model attributed
+  // real turns to measurement noise — COG took ~10 s to come around after
+  // a tack (the dominant course-line lag). 2e-5 converges in ~3-5 s on a
+  // clean 90° turn at the cost of ~3× the phantom motion at anchor
+  // (synthetic worst case; real GPS noise is correlated and COG is gated
+  // by minimum SOG).
+  processNoiseAccel: 2e-5,
   defaultAccuracyM: 10,
   staleGapMs: 30_000,
   weakGpsStaleGapMs: 120_000,
