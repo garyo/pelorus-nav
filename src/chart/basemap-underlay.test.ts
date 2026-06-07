@@ -96,8 +96,26 @@ describe("getBasemapLayers", () => {
     expect(JSON.stringify(night)).not.toEqual(JSON.stringify(layers));
   });
 
-  it("shows minor street names from z13", () => {
+  it("shows minor street names from z13, smaller and denser", () => {
     const minor = layers.find((l) => l.id === "basemap-roads_labels_minor");
     expect(minor?.minzoom).toBe(13);
+    if (minor?.type !== "symbol") throw new Error("expected symbol layer");
+    expect(minor.layout?.["symbol-spacing"]).toBe(150);
+    expect(JSON.stringify(minor.layout?.["text-size"])).toContain("zoom");
+  });
+
+  it("shows POI names one zoom earlier than stock", () => {
+    const pois = layers.find((l) => l.id === "basemap-pois");
+    if (pois?.type !== "symbol") throw new Error("expected symbol layer");
+    expect(JSON.stringify(pois.filter)).toContain(
+      '[">=",["zoom"],["+",["get","min_zoom"],-1]]',
+    );
+  });
+
+  it("places POIs below street labels so streets win collisions", () => {
+    const ids = layers.map((l) => l.id);
+    expect(ids.indexOf("basemap-pois")).toBeLessThan(
+      ids.indexOf("basemap-roads_labels_minor"),
+    );
   });
 });

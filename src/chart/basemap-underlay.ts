@@ -10,7 +10,11 @@
  * fallback copies.
  */
 import { namedFlavor, layers as protomapsLayers } from "@protomaps/basemaps";
-import type { LayerSpecification, SourceSpecification } from "maplibre-gl";
+import type {
+  FilterSpecification,
+  LayerSpecification,
+  SourceSpecification,
+} from "maplibre-gl";
 import { chartAssetBase } from "../data/remote-url";
 import type { DisplayTheme } from "../settings";
 
@@ -79,7 +83,9 @@ const MINZOOM_OVERRIDES: Record<string, number> = {
  * - no background layer (empty tiles must fall through to the chart fallback)
  * - no icon symbols (POIs, highway shields — sprites aren't bundled)
  * - text-font remapped to the bundled Noto Sans glyph stacks
- * - minor street names shown from z13 (the stock style waits until z15)
+ * - denser labels than stock to match raster OSM: minor street names from
+ *   z13 in a smaller, tighter-spaced font; POI names (marinas, landmarks)
+ *   one zoom earlier; street names placed before POIs so they win collisions
  */
 export function getBasemapLayers(theme: DisplayTheme): LayerSpecification[] {
   const flavor = namedFlavor(flavorName(theme));
@@ -99,16 +105,70 @@ export function getBasemapLayers(theme: DisplayTheme): LayerSpecification[] {
       if (layout["text-font"]) {
         layout["text-font"] = remapFonts(layout["text-font"] as string[]);
       }
+      let filter = layer.filter;
+      if (layer.id === "roads_labels_minor") {
+        // Smaller, denser street names — short downtown blocks can't fit
+        // the stock 12px labels until far too deep a zoom
+        layout["text-size"] = [
+          "interpolate",
+          ["linear"],
+          ["zoom"],
+          13,
+          9,
+          17,
+          12,
+        ];
+        layout["symbol-spacing"] = 150;
+      }
+      if (layer.id === "pois") {
+        filter = offsetFeatureMinZoom(filter, -1);
+      }
       result.push({
         ...layer,
         id: `basemap-${layer.id}`,
         layout,
+        ...(filter !== undefined && { filter }),
       });
       continue;
     }
     result.push({ ...layer, id: `basemap-${layer.id}` });
   }
+  // Symbol placement priority is topmost-first: keep POIs below the street
+  // label layers so street names win collisions in dense areas.
+  const poiIdx = result.findIndex((l) => l.id === "basemap-pois");
+  const minorIdx = result.findIndex(
+    (l) => l.id === "basemap-roads_labels_minor",
+  );
+  if (minorIdx >= 0 && poiIdx > minorIdx) {
+    const [poi] = result.splice(poiIdx, 1);
+    result.splice(minorIdx, 0, poi);
+  }
   return result;
+}
+
+/**
+ * Protomaps gates POI visibility per-feature via a
+ * `[">=", ["zoom"], ["+", ["get", "min_zoom"], 0]]` filter clause.
+ * Rewrite the offset so features appear `offset` zoom levels earlier —
+ * the same idea as the chart pipeline's zoom-shift.
+ */
+function offsetFeatureMinZoom(
+  filter: unknown,
+  offset: number,
+): FilterSpecification {
+  const walk = (node: unknown): unknown => {
+    if (!Array.isArray(node)) return node;
+    if (
+      node[0] === ">=" &&
+      JSON.stringify(node[1]) === '["zoom"]' &&
+      Array.isArray(node[2]) &&
+      node[2][0] === "+"
+    ) {
+      return [">=", ["zoom"], ["+", node[2][1], offset]];
+    }
+    return node.map(walk);
+  };
+  return walk(filter) as FilterSpecification;
 }
 
 /**
