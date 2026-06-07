@@ -437,8 +437,8 @@ function buildLayersTab(
       "Street map under charts",
       "settings-street-underlay",
       [
-        { value: "auto", label: "Offline basemap (OSM if not downloaded)" },
-        { value: "osm", label: "OSM (online only)" },
+        { value: "auto", label: "Offline basemap" },
+        { value: "osm", label: "OSM (online)" },
         { value: "off", label: "Off" },
       ],
       settings.streetUnderlay,
