@@ -95,4 +95,9 @@ describe("getBasemapLayers", () => {
     const night = getBasemapLayers("night");
     expect(JSON.stringify(night)).not.toEqual(JSON.stringify(layers));
   });
+
+  it("shows minor street names from z13", () => {
+    const minor = layers.find((l) => l.id === "basemap-roads_labels_minor");
+    expect(minor?.minzoom).toBe(13);
+  });
 });

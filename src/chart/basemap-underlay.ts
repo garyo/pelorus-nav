@@ -67,10 +67,19 @@ function flavorName(theme: DisplayTheme): string {
 }
 
 /**
+ * Stock Protomaps gates some labels later than raster OSM shows them; pull
+ * them earlier so street names appear at approach/docking zooms.
+ */
+const MINZOOM_OVERRIDES: Record<string, number> = {
+  roads_labels_minor: 13,
+};
+
+/**
  * Themed, trimmed Protomaps layer set for the underlay:
  * - no background layer (empty tiles must fall through to the chart fallback)
  * - no icon symbols (POIs, highway shields — sprites aren't bundled)
  * - text-font remapped to the bundled Noto Sans glyph stacks
+ * - minor street names shown from z13 (the stock style waits until z15)
  */
 export function getBasemapLayers(theme: DisplayTheme): LayerSpecification[] {
   const flavor = namedFlavor(flavorName(theme));
@@ -79,6 +88,8 @@ export function getBasemapLayers(theme: DisplayTheme): LayerSpecification[] {
     lang: "en",
   })) {
     if (layer.type === "background") continue;
+    const minzoom = MINZOOM_OVERRIDES[layer.id];
+    if (minzoom !== undefined) layer.minzoom = minzoom;
     if (layer.type === "symbol") {
       const layout = { ...layer.layout };
       if (layout["icon-image"]) {
