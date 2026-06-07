@@ -105,7 +105,7 @@ export class ChartCachePanel {
 
     this.body.innerHTML = "";
 
-    // Region list — one row per catalog region
+    // Region list — one row per catalog region (+ basemap sub-row if built)
     for (const region of CHART_REGIONS) {
       const stored = storedMap.get(region.filename);
       this.body.appendChild(
@@ -115,11 +115,23 @@ export class ChartCachePanel {
           region.id === activeRegion,
         ),
       );
+      if (region.basemapFilename) {
+        this.body.appendChild(
+          this.createBasemapItem(
+            region,
+            storedMap.get(region.basemapFilename) ?? null,
+          ),
+        );
+      }
     }
 
     // Any downloaded files not in catalog (e.g. manually imported)
     for (const chart of storedCharts) {
-      if (!CHART_REGIONS.some((r) => r.filename === chart.filename)) {
+      const inCatalog = CHART_REGIONS.some(
+        (r) =>
+          r.filename === chart.filename || r.basemapFilename === chart.filename,
+      );
+      if (!inCatalog) {
         this.body.appendChild(this.createImportedItem(chart));
       }
     }
@@ -158,19 +170,28 @@ export class ChartCachePanel {
    */
   private checkForUpdates(token: number, stored: StoredChartInfo[]): void {
     const storedByFile = new Map(stored.map((c) => [c.filename, c]));
-    for (const region of CHART_REGIONS) {
-      const info = storedByFile.get(region.filename);
-      if (!info) continue;
-      fetchRemoteChartMeta(`${chartAssetBase()}/${region.filename}`)
+    const check = (
+      filename: string | undefined,
+      onUpdate: () => void,
+    ): void => {
+      const info = filename ? storedByFile.get(filename) : undefined;
+      if (!info || !filename) return;
+      fetchRemoteChartMeta(`${chartAssetBase()}/${filename}`)
         .then((remote) => {
           if (token !== this.refreshToken) return; // panel re-rendered
           if (remote && isUpdateAvailable(info, remote)) {
-            this.markUpdateAvailable(region);
+            onUpdate();
           }
         })
         .catch(() => {
           // offline / HEAD unsupported — leave the row as-is
         });
+    };
+    for (const region of CHART_REGIONS) {
+      check(region.filename, () => this.markUpdateAvailable(region));
+      check(region.basemapFilename, () =>
+        this.markBasemapUpdateAvailable(region),
+      );
     }
   }
 
@@ -196,6 +217,34 @@ export class ChartCachePanel {
       setIcon(updateBtn, iconRefresh);
       updateBtn.title = `Update ${region.name} to the latest charts`;
       updateBtn.addEventListener("click", () => this.startDownload(region));
+      actions.prepend(updateBtn);
+    }
+  }
+
+  /** Flag a downloaded basemap's row as having an update. */
+  private markBasemapUpdateAvailable(region: ChartRegion): void {
+    const item = this.body.querySelector<HTMLElement>(
+      `[data-basemap-id="${region.id}"]`,
+    );
+    if (!item || item.querySelector(".chart-region-update")) return;
+
+    const detail = item.querySelector<HTMLElement>(".manager-item-detail");
+    if (detail) {
+      detail.classList.add("manager-item-detail--update");
+      const badge = document.createElement("span");
+      badge.textContent = "Update available · ";
+      detail.prepend(badge);
+    }
+
+    const actions = item.querySelector<HTMLElement>(".manager-item-actions");
+    if (actions) {
+      const updateBtn = document.createElement("button");
+      updateBtn.className = "manager-item-btn chart-region-update";
+      setIcon(updateBtn, iconRefresh);
+      updateBtn.title = `Update ${region.name} basemap`;
+      updateBtn.addEventListener("click", () => {
+        this.startBasemapDownload(region);
+      });
       actions.prepend(updateBtn);
     }
   }
@@ -275,6 +324,142 @@ export class ChartCachePanel {
 
     item.append(radio, info, actions);
     return item;
+  }
+
+  /** Create the street-basemap sub-row shown under a region that has one. */
+  private createBasemapItem(
+    region: ChartRegion,
+    stored: StoredChartInfo | null,
+  ): HTMLDivElement {
+    const item = document.createElement("div");
+    item.className = "manager-item manager-item--sub";
+    item.dataset.basemapId = region.id;
+
+    const info = document.createElement("div");
+    info.className = "manager-item-info";
+
+    const name = document.createElement("div");
+    name.className = "manager-item-name";
+    name.textContent = "Street basemap";
+
+    const detail = document.createElement("div");
+    detail.className = "manager-item-detail";
+    if (stored) {
+      const date = new Date(stored.downloadedAt).toLocaleDateString();
+      detail.innerHTML = `${iconCloudOff} Offline · ${formatBytes(stored.sizeBytes)} · ${date}`;
+    } else {
+      detail.textContent = `Not downloaded · ~${formatBytes(region.basemapSizeEstimate ?? 0)}`;
+    }
+
+    info.append(name, detail);
+
+    const actions = document.createElement("div");
+    actions.className = "manager-item-actions";
+
+    if (stored) {
+      const deleteBtn = document.createElement("button");
+      deleteBtn.className = "manager-item-btn";
+      setIcon(deleteBtn, iconTrash);
+      deleteBtn.title = "Remove offline basemap";
+      deleteBtn.addEventListener("click", () => {
+        if (!confirm(`Remove offline basemap for "${region.name}"?`)) return;
+        (async () => {
+          await deleteChart(stored.filename);
+          this.onChartsChanged?.();
+          await this.refresh();
+        })().catch(console.error);
+      });
+      actions.appendChild(deleteBtn);
+    } else {
+      const dlBtn = document.createElement("button");
+      dlBtn.className = "manager-item-btn";
+      setIcon(dlBtn, iconDownload);
+      dlBtn.title =
+        "Download street basemap (roads, place names) for offline use";
+      dlBtn.addEventListener("click", () => {
+        this.startBasemapDownload(region);
+      });
+      actions.appendChild(dlBtn);
+    }
+
+    item.append(info, actions);
+    return item;
+  }
+
+  private async startBasemapDownload(region: ChartRegion): Promise<void> {
+    const filename = region.basemapFilename;
+    if (!filename) return;
+    await this.downloadWithProgress(
+      `${region.name} basemap`,
+      `${chartAssetBase()}/${filename}`,
+      filename,
+    );
+  }
+
+  /** Single-file download with the panel's progress UI, then refresh. */
+  private async downloadWithProgress(
+    label: string,
+    url: string,
+    filename: string,
+  ): Promise<void> {
+    this.body.innerHTML = "";
+
+    const progressContainer = document.createElement("div");
+    progressContainer.className = "chart-cache-progress";
+
+    const labelDiv = document.createElement("div");
+    labelDiv.className = "chart-cache-progress-label";
+    labelDiv.textContent = `Downloading ${label}...`;
+
+    const barOuter = document.createElement("div");
+    barOuter.className = "chart-cache-progress-bar";
+    const barInner = document.createElement("div");
+    barInner.className = "chart-cache-progress-fill";
+    barOuter.appendChild(barInner);
+
+    const stats = document.createElement("div");
+    stats.className = "chart-cache-progress-stats";
+    stats.textContent = "0 MB / ? MB";
+
+    const cancelBtn = document.createElement("button");
+    cancelBtn.className = "chart-cache-btn chart-cache-btn--danger";
+    cancelBtn.textContent = "Cancel";
+
+    this.downloadController = new AbortController();
+    cancelBtn.addEventListener("click", () => {
+      this.downloadController?.abort();
+    });
+
+    progressContainer.append(labelDiv, barOuter, stats, cancelBtn);
+    this.body.appendChild(progressContainer);
+
+    try {
+      await downloadChart(
+        url,
+        filename,
+        (loaded, total) => {
+          const pct = total > 0 ? (loaded / total) * 100 : 0;
+          barInner.style.width = `${pct}%`;
+          stats.textContent = `${formatBytes(loaded)} / ${total > 0 ? formatBytes(total) : "?"}`;
+        },
+        this.downloadController.signal,
+      );
+      this.onChartsChanged?.();
+    } catch (err) {
+      if (err instanceof DOMException && err.name === "AbortError") {
+        // User cancelled
+      } else {
+        const errorDiv = document.createElement("div");
+        errorDiv.className = "chart-cache-error";
+        errorDiv.textContent = `Download failed: ${err instanceof Error ? err.message : "Unknown error"}`;
+        this.body.appendChild(errorDiv);
+        return;
+      }
+    } finally {
+      this.downloadController = null;
+    }
+
+    await this.refresh();
   }
 
   /** Create a row for a manually imported file not in the catalog. */

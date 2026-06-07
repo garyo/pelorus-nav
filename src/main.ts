@@ -12,6 +12,10 @@ import {
   OSMChartProvider,
   VectorChartProvider,
 } from "./chart";
+import {
+  basemapRegionsFromFilenames,
+  setStoredBasemaps,
+} from "./chart/basemap-underlay";
 import { LightSectorLayer } from "./chart/LightSectorLayer";
 import { registerOSMTileProtocol } from "./chart/osm-tile-cache";
 import { PelLightLayer } from "./chart/PelLightLayer";
@@ -140,6 +144,9 @@ try {
       protocol.add(new PMTiles(source));
     }
   }
+  setStoredBasemaps(
+    basemapRegionsFromFilenames(storedCharts.map((c) => c.filename)),
+  );
 } catch {
   // OPFS not available or no stored charts — fall back to remote
 }
@@ -989,6 +996,9 @@ if (topbarMenu) {
             protocol.add(new PMTiles(source));
           }
         }
+        setStoredBasemaps(
+          basemapRegionsFromFilenames(charts.map((c) => c.filename)),
+        );
         await vectorProvider.loadAllOfflineCoverage();
         // The downloaded set changed, so re-derive which regions stream
         vectorProvider.setStreamingVersions(await getStreamingVersions());

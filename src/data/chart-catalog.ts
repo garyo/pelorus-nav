@@ -22,6 +22,10 @@ export interface ChartRegion {
   coverageFilename: string;
   /** Approximate file size in bytes (for UI display before download) */
   sizeEstimate: number;
+  /** Offline street basemap PMTiles filename (only for regions with one built) */
+  basemapFilename?: string;
+  /** Approximate basemap size in bytes */
+  basemapSizeEstimate?: number;
   /** Default map center [lon, lat] */
   center: [number, number];
   /** Default zoom level */
@@ -32,6 +36,8 @@ export interface ChartRegion {
 
 interface DisplayMeta {
   sizeEstimate: number;
+  /** Set once the region's street basemap has been built and uploaded. */
+  basemapSizeEstimate?: number;
   center: [number, number];
   defaultZoom: number;
 }
@@ -40,6 +46,7 @@ interface DisplayMeta {
 const DISPLAY: Record<string, DisplayMeta> = {
   "northern-new-england": {
     sizeEstimate: 150 * 1024 * 1024,
+    basemapSizeEstimate: 250 * 1024 * 1024,
     center: [-71.01, 42.34],
     defaultZoom: 12,
   },
@@ -143,6 +150,10 @@ export const CHART_REGIONS: ChartRegion[] = (regionsJson as RegionJsonEntry[])
       filename: `nautical-${r.id}.pmtiles`,
       coverageFilename: `nautical-${r.id}.coverage.geojson`,
       sizeEstimate: meta.sizeEstimate,
+      ...(meta.basemapSizeEstimate && {
+        basemapFilename: `basemap-${r.id}.pmtiles`,
+        basemapSizeEstimate: meta.basemapSizeEstimate,
+      }),
       center: meta.center,
       defaultZoom: meta.defaultZoom,
       bbox: r.bbox,

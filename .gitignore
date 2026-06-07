@@ -31,6 +31,7 @@ tools/s57-pipeline/.venv/
 public/nautical*.pmtiles
 public/nautical*.coverage.geojson
 public/nautical*.search.json
+public/basemap-*.pmtiles
 public/.uploaded-*
 *.pmtiles.uploaded
 

@@ -56,17 +56,7 @@ function osmBrightness(theme: DisplayTheme): number {
 const WATER_FILL_SUFFIXES = ["-drgare", "-lakare", "-rivers"];
 
 /**
- * Merge OSM underlay into S-57 layers.
- * - Inserts full-opacity copies of the background and land layers at the
- *   bottom, so missing OSM tiles (offline, fetch failure) degrade to the
- *   normal no-underlay chart instead of a blank canvas
- * - Inserts the OSM raster layer above those fallback copies
- * - Makes the background layer transparent (DEPARE + water fills cover water)
- * - Makes water-area fills fully opaque to hide OSM on water
- * - Reduces land area opacity so OSM shows through
- *
- * Uses suffix matching so this works with multi-region prefixed layer IDs
- * (e.g. s57-northern-new-england-lndare, s57-usvi-lndare).
+ * Merge OSM raster underlay into S-57 layers (see applyUnderlay).
  */
 export function applyOSMUnderlay(
   s57Layers: LayerSpecification[],
@@ -81,7 +71,28 @@ export function applyOSMUnderlay(
       "raster-brightness-max": osmBrightness(theme),
     },
   };
+  return applyUnderlay(s57Layers, [osmLayer], landOpacity);
+}
 
+/**
+ * Merge underlay layers (OSM raster or a vector street basemap) into S-57
+ * layers.
+ * - Inserts full-opacity copies of the background and land layers at the
+ *   bottom, so missing underlay tiles (offline, fetch failure) degrade to the
+ *   normal no-underlay chart instead of a blank canvas
+ * - Inserts the underlay layers above those fallback copies
+ * - Makes the background layer transparent (DEPARE + water fills cover water)
+ * - Makes water-area fills fully opaque to hide the underlay on water
+ * - Reduces land area opacity so the underlay shows through
+ *
+ * Uses suffix matching so this works with multi-region prefixed layer IDs
+ * (e.g. s57-northern-new-england-lndare, s57-usvi-lndare).
+ */
+export function applyUnderlay(
+  s57Layers: LayerSpecification[],
+  underlayLayers: LayerSpecification[],
+  landOpacity: number,
+): LayerSpecification[] {
   const fallback: LayerSpecification[] = s57Layers
     .filter(
       (layer) =>
@@ -120,5 +131,5 @@ export function applyOSMUnderlay(
     return layer;
   });
 
-  return [...fallback, osmLayer, ...adjusted];
+  return [...fallback, ...underlayLayers, ...adjusted];
 }

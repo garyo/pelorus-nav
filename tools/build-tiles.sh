@@ -7,6 +7,8 @@
 #   --check           Check NOAA for ENC updates (report only)
 #   --download        Download ENC cells
 #   --build           Convert + tile + composite regions
+#   --basemap         Build offline street basemap(s) from the Protomaps daily
+#                     build (needs the region's charts built first)
 #   --upload          Upload PMTiles + coverage to R2
 #   --update          Shorthand for --check --download --build --upload
 #   --composite-only  Re-composite only (skip convert/tile)
@@ -64,6 +66,7 @@ EAST_COAST_REGIONS=(southern-new-england northern-new-england new-york mid-atlan
 OP_CHECK=false
 OP_DOWNLOAD=false
 OP_BUILD=false
+OP_BASEMAP=false
 OP_UPLOAD=false
 COMPOSITE_ONLY=false
 FORCE=false
@@ -77,6 +80,7 @@ while [[ $# -gt 0 ]]; do
     --check)      OP_CHECK=true ;;
     --download)   OP_DOWNLOAD=true ;;
     --build)      OP_BUILD=true ;;
+    --basemap)    OP_BASEMAP=true ;;
     --upload)     OP_UPLOAD=true ;;
     --update)     OP_CHECK=true; OP_DOWNLOAD=true; OP_BUILD=true; OP_UPLOAD=true ;;
     --composite-only) COMPOSITE_ONLY=true ;;
@@ -99,7 +103,7 @@ while [[ $# -gt 0 ]]; do
 done
 
 # Default operation: --check
-if ! $OP_CHECK && ! $OP_DOWNLOAD && ! $OP_BUILD && ! $OP_UPLOAD; then
+if ! $OP_CHECK && ! $OP_DOWNLOAD && ! $OP_BUILD && ! $OP_BASEMAP && ! $OP_UPLOAD; then
   OP_CHECK=true
 fi
 
@@ -256,6 +260,15 @@ do_build() {
   echo "Build $region: $(format_elapsed $elapsed), output: $size"
 }
 
+do_basemap() {
+  local region="$1"
+  echo "--- Building basemap $region ---"
+  local start=$SECONDS
+  uv run "$SCRIPT_DIR/basemap/build-basemap.py" --region "$region"
+  local elapsed=$((SECONDS - start))
+  echo "Basemap $region: $(format_elapsed $elapsed)"
+}
+
 # Upload a single file to R2, honouring the stamp-based skip (unless --force).
 do_upload_file() {
   local file="$1"
@@ -283,6 +296,7 @@ do_upload_region() {
   do_upload_file "$OUTPUT_DIR/nautical-${region}.pmtiles"
   do_upload_file "$OUTPUT_DIR/nautical-${region}.coverage.geojson"
   do_upload_file "$OUTPUT_DIR/nautical-${region}.search.json"
+  do_upload_file "$OUTPUT_DIR/basemap-${region}.pmtiles"
   echo ""
 }
 
@@ -290,7 +304,7 @@ do_upload() {
   echo "=== Uploading to R2 ==="
   local start=$SECONDS
 
-  for file in "$OUTPUT_DIR"/nautical-*.pmtiles "$OUTPUT_DIR"/nautical-*.coverage.geojson "$OUTPUT_DIR"/nautical-*.search.json; do
+  for file in "$OUTPUT_DIR"/nautical-*.pmtiles "$OUTPUT_DIR"/nautical-*.coverage.geojson "$OUTPUT_DIR"/nautical-*.search.json "$OUTPUT_DIR"/basemap-*.pmtiles; do
     do_upload_file "$file"
   done
 
@@ -382,6 +396,20 @@ if $OP_BUILD; then
     unify_coverage
     echo ""
   fi
+fi
+
+# Step 3b: Basemap (if requested). Independent of ENC change detection —
+# basemaps change when the Protomaps source or band definitions do, so this
+# always runs for the selected regions.
+if $OP_BASEMAP; then
+  echo "=== Building basemaps ==="
+  for region in "${REGIONS[@]}"; do
+    do_basemap "$region"
+    if $OP_UPLOAD; then
+      do_upload_file "$OUTPUT_DIR/basemap-${region}.pmtiles"
+    fi
+    echo ""
+  done
 fi
 
 # Step 4: Upload (if requested). After an interleaved build the per-region

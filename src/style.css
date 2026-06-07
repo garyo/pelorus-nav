@@ -1230,6 +1230,12 @@ body {
   border-bottom: none;
 }
 
+/* Indented sub-row (e.g. a region's street basemap) */
+.manager-item--sub {
+  padding-left: 36px;
+  background: rgba(255, 255, 255, 0.03);
+}
+
 .manager-item.selected {
   background: rgba(100, 130, 200, 0.25);
 }

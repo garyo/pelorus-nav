@@ -41,6 +41,7 @@
     "@capacitor/share": "^8.0.1",
     "@maplibre/maplibre-gl-style-spec": "24.8.1",
     "@neaps/tide-predictor": "^0.9.0",
+    "@protomaps/basemaps": "^5.7.2",
     "magvar": "^2.0.1",
     "maplibre-gl": "5.24.0",
     "pmtiles": "^4.4.0"

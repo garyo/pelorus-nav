@@ -92,6 +92,12 @@ All tile workflows go through `tools/build-tiles.sh` (run `--help` for full usag
   - Regions: `southern-new-england`, `northern-new-england`, `new-york`, `mid-atlantic`, `south-atlantic`, `usvi`, `boston-test`
   - `--force` rebuilds all cells; `--download` downloads ENCs first; `--composite-only` re-composites only
   - Output goes to `public/nautical-<region>.pmtiles`
+- `tools/build-tiles.sh --basemap --region <name>` — build the offline street basemap
+  (`public/basemap-<region>.pmtiles`) from the Protomaps daily build: z0–13 over a
+  10 nm coastal band + z14–15 around US5/US6 harbor cells (takes minutes, no ENC build).
+  Needs the region's charts built first, plus `pmtiles` + `tippecanoe` (brew).
+  New regions also need a `basemapSizeEstimate` in `src/data/chart-catalog.ts`
+  before the basemap download appears in the app's Chart Regions panel.
 
 ### Low-level pipeline commands
 - `cd tools/s57-pipeline && uv run python -m s57_pipeline download --region <region>` — download ENC cells

@@ -6,8 +6,18 @@ import type {
   SymbologyScheme,
 } from "../settings";
 import { getSettings, onSettingsChange } from "../settings";
+import {
+  BASEMAP_SOURCE_ID,
+  getBasemapLayers,
+  getBasemapSource,
+  hasStoredBasemap,
+} from "./basemap-underlay";
 import type { ChartProvider } from "./ChartProvider";
-import { applyOSMUnderlay, getOSMUnderlaySource } from "./osm-underlay";
+import {
+  applyOSMUnderlay,
+  applyUnderlay,
+  getOSMUnderlaySource,
+} from "./osm-underlay";
 import { getIconScheme } from "./styles/icon-sets";
 
 export interface ChartManagerOptions {
@@ -34,6 +44,7 @@ export class ChartManager {
   private prevDisplayTheme: DisplayTheme;
   private prevSymbology: SymbologyScheme;
   private prevShowOSMUnderlay: boolean;
+  private prevActiveRegion: string;
   private prevShallowDepth: number;
   private prevDeepDepth: number;
   private prevTextScale: number;
@@ -82,6 +93,7 @@ export class ChartManager {
     this.prevDisplayTheme = initial.displayTheme;
     this.prevSymbology = initial.symbologyScheme;
     this.prevShowOSMUnderlay = initial.showOSMUnderlay;
+    this.prevActiveRegion = initial.activeRegion;
     this.prevShallowDepth = initial.shallowDepth;
     this.prevDeepDepth = initial.deepDepth;
     this.prevTextScale = initial.textScale;
@@ -98,6 +110,7 @@ export class ChartManager {
         s.displayTheme !== this.prevDisplayTheme ||
         s.symbologyScheme !== this.prevSymbology ||
         s.showOSMUnderlay !== this.prevShowOSMUnderlay ||
+        s.activeRegion !== this.prevActiveRegion ||
         s.shallowDepth !== this.prevShallowDepth ||
         s.deepDepth !== this.prevDeepDepth ||
         s.textScale !== this.prevTextScale ||
@@ -110,6 +123,7 @@ export class ChartManager {
         this.prevDisplayTheme = s.displayTheme;
         this.prevSymbology = s.symbologyScheme;
         this.prevShowOSMUnderlay = s.showOSMUnderlay;
+        this.prevActiveRegion = s.activeRegion;
         this.prevShallowDepth = s.shallowDepth;
         this.prevDeepDepth = s.deepDepth;
         this.prevTextScale = s.textScale;
@@ -249,11 +263,24 @@ export class ChartManager {
     };
     let layers = provider.getLayers();
 
-    // Merge OSM underlay for vector chart providers
+    // Merge street underlay for vector chart providers: the active region's
+    // offline vector basemap when downloaded, else network OSM raster tiles.
     if (settings.showOSMUnderlay && provider.type === "vector") {
-      const osm = getOSMUnderlaySource();
-      sources = { ...sources, [osm.id]: osm.source };
-      layers = applyOSMUnderlay(layers, 0.3, settings.displayTheme);
+      if (hasStoredBasemap(settings.activeRegion)) {
+        sources = {
+          ...sources,
+          [BASEMAP_SOURCE_ID]: getBasemapSource(settings.activeRegion),
+        };
+        layers = applyUnderlay(
+          layers,
+          getBasemapLayers(settings.displayTheme),
+          0.3,
+        );
+      } else {
+        const osm = getOSMUnderlaySource();
+        sources = { ...sources, [osm.id]: osm.source };
+        layers = applyOSMUnderlay(layers, 0.3, settings.displayTheme);
+      }
     }
 
     return {
