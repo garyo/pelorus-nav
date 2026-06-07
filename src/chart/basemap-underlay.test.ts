@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
+  BASEMAP_LABEL_SOURCE_ID,
+  BASEMAP_SOURCE_ID,
   basemapFilename,
   basemapRegionsFromFilenames,
   getBasemapLayers,
-  getBasemapSource,
+  getBasemapSources,
   hasStoredBasemap,
   setStoredBasemaps,
 } from "./basemap-underlay";
@@ -38,14 +40,25 @@ describe("stored basemap registry", () => {
   });
 });
 
-describe("getBasemapSource", () => {
+describe("getBasemapSources", () => {
+  const sources = getBasemapSources("usvi");
+
   it("returns a pmtiles vector source to z15", () => {
-    const source = getBasemapSource("usvi");
+    const source = sources[BASEMAP_SOURCE_ID];
     expect(source.type).toBe("vector");
     if (source.type === "vector") {
       expect(source.tiles?.[0]).toContain("pmtiles://");
       expect(source.tiles?.[0]).toContain("basemap-usvi.pmtiles");
       expect(source.maxzoom).toBe(15);
+    }
+  });
+
+  it("returns an overscaled label source scoped to z13-14", () => {
+    const source = sources[BASEMAP_LABEL_SOURCE_ID];
+    expect(source.type).toBe("vector");
+    if (source.type === "vector") {
+      expect(source.minzoom).toBe(13);
+      expect(source.maxzoom).toBe(14);
     }
   });
 });
@@ -102,6 +115,8 @@ describe("getBasemapLayers", () => {
     if (minor?.type !== "symbol") throw new Error("expected symbol layer");
     expect(minor.layout?.["symbol-spacing"]).toBe(150);
     expect(JSON.stringify(minor.layout?.["text-size"])).toContain("zoom");
+    // Laid out against the overscaled source so line-fit succeeds a zoom early
+    expect(minor.source).toBe(BASEMAP_LABEL_SOURCE_ID);
   });
 
   it("shows POI names one zoom earlier than stock", () => {

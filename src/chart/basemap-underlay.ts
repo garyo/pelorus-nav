@@ -19,6 +19,14 @@ import { chartAssetBase } from "../data/remote-url";
 import type { DisplayTheme } from "../settings";
 
 export const BASEMAP_SOURCE_ID = "basemap-underlay";
+/**
+ * Second view of the same tiles, capped at z14 so street-name layers lay
+ * out against overscaled tiles one level early. MapLibre decides line-label
+ * fit per tile pyramid level (in tile units), so labels that need z16-scale
+ * geometry to fit appear a full zoom earlier when their source overscales
+ * from z14. Scoped to z13-14 so the duplicate tile parsing stays small.
+ */
+export const BASEMAP_LABEL_SOURCE_ID = "basemap-underlay-labels";
 
 /** Basemap PMTiles filename for a region. */
 export function basemapFilename(regionId: string): string {
@@ -46,15 +54,27 @@ export function basemapRegionsFromFilenames(filenames: string[]): Set<string> {
   return ids;
 }
 
-export function getBasemapSource(regionId: string): SourceSpecification {
+export function getBasemapSources(
+  regionId: string,
+): Record<string, SourceSpecification> {
   const url = `${chartAssetBase()}/${basemapFilename(regionId)}`;
+  const tiles = [`pmtiles://${url}/{z}/{x}/{y}`];
+  const attribution =
+    '<a href="https://protomaps.com">Protomaps</a> &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>';
   return {
-    type: "vector",
-    tiles: [`pmtiles://${url}/{z}/{x}/{y}`],
-    minzoom: 0,
-    maxzoom: 15,
-    attribution:
-      '<a href="https://protomaps.com">Protomaps</a> &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+    [BASEMAP_SOURCE_ID]: {
+      type: "vector",
+      tiles,
+      minzoom: 0,
+      maxzoom: 15,
+      attribution,
+    },
+    [BASEMAP_LABEL_SOURCE_ID]: {
+      type: "vector",
+      tiles,
+      minzoom: 13,
+      maxzoom: 14,
+    },
   };
 }
 
@@ -106,9 +126,11 @@ export function getBasemapLayers(theme: DisplayTheme): LayerSpecification[] {
         layout["text-font"] = remapFonts(layout["text-font"] as string[]);
       }
       let filter = layer.filter;
+      let source = layer.source;
       if (layer.id === "roads_labels_minor") {
         // Smaller, denser street names — short downtown blocks can't fit
-        // the stock 12px labels until far too deep a zoom
+        // the stock 12px labels until far too deep a zoom — laid out
+        // against the overscaled label source so fit succeeds a zoom early
         layout["text-size"] = [
           "interpolate",
           ["linear"],
@@ -119,6 +141,7 @@ export function getBasemapLayers(theme: DisplayTheme): LayerSpecification[] {
           12,
         ];
         layout["symbol-spacing"] = 150;
+        source = BASEMAP_LABEL_SOURCE_ID;
       }
       if (layer.id === "pois") {
         filter = offsetFeatureMinZoom(filter, -1);
@@ -126,6 +149,7 @@ export function getBasemapLayers(theme: DisplayTheme): LayerSpecification[] {
       result.push({
         ...layer,
         id: `basemap-${layer.id}`,
+        source,
         layout,
         ...(filter !== undefined && { filter }),
       });

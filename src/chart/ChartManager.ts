@@ -8,9 +8,8 @@ import type {
 } from "../settings";
 import { getSettings, onSettingsChange } from "../settings";
 import {
-  BASEMAP_SOURCE_ID,
   getBasemapLayers,
-  getBasemapSource,
+  getBasemapSources,
   hasStoredBasemap,
 } from "./basemap-underlay";
 import type { ChartProvider } from "./ChartProvider";
@@ -274,7 +273,7 @@ export class ChartManager {
       ) {
         sources = {
           ...sources,
-          [BASEMAP_SOURCE_ID]: getBasemapSource(settings.activeRegion),
+          ...getBasemapSources(settings.activeRegion),
         };
         layers = applyUnderlay(
           layers,
