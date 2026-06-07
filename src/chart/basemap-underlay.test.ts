@@ -119,6 +119,18 @@ describe("getBasemapLayers", () => {
     expect(minor.source).toBe(BASEMAP_LABEL_SOURCE_ID);
   });
 
+  it("ramps both road label sizes up at dock zooms", () => {
+    const sizes = ["minor", "major"].map((k) => {
+      const layer = layers.find((l) => l.id === `basemap-roads_labels_${k}`);
+      if (layer?.type !== "symbol") throw new Error("expected symbol layer");
+      return JSON.stringify(layer.layout?.["text-size"]);
+    });
+    for (const size of sizes) {
+      expect(size).toContain("interpolate");
+      expect(size).toContain("18,16"); // both reach 16px at z18
+    }
+  });
+
   it("shows POI names one zoom earlier than stock", () => {
     const pois = layers.find((l) => l.id === "basemap-pois");
     if (pois?.type !== "symbol") throw new Error("expected symbol layer");

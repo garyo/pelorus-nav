@@ -130,18 +130,33 @@ export function getBasemapLayers(theme: DisplayTheme): LayerSpecification[] {
       if (layer.id === "roads_labels_minor") {
         // Smaller, denser street names — short downtown blocks can't fit
         // the stock 12px labels until far too deep a zoom — laid out
-        // against the overscaled label source so fit succeeds a zoom early
+        // against the overscaled label source so fit succeeds a zoom early.
+        // Grows visibly past z16 for cockpit glanceability when docking.
         layout["text-size"] = [
           "interpolate",
           ["linear"],
           ["zoom"],
           13,
           9,
-          17,
+          16,
           12,
+          18,
+          16,
         ];
         layout["symbol-spacing"] = 150;
         source = BASEMAP_LABEL_SOURCE_ID;
+      }
+      if (layer.id === "roads_labels_major") {
+        // Grows in step with the minors, staying a notch bigger
+        layout["text-size"] = [
+          "interpolate",
+          ["linear"],
+          ["zoom"],
+          15,
+          12,
+          18,
+          16,
+        ];
       }
       if (layer.id === "pois") {
         filter = offsetFeatureMinZoom(filter, -1);
