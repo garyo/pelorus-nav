@@ -43,7 +43,8 @@ import { s52Colour } from "./s52-colours";
 const SOURCE_ID = "_tides-currents";
 const LAYER_TIDE = "_tide-stations";
 const LAYER_CURRENT = "_current-arrows";
-const LAYER_SLACK = "_current-slack";
+const LAYER_SLACK_FLOOD = "_current-slack-flood";
+const LAYER_SLACK_EBB = "_current-slack-ebb";
 
 const MIN_ZOOM = 9;
 /** Cap on stations rendered at once; harmonic stations win when over. */
@@ -193,7 +194,12 @@ export class TidesCurrentsLayer {
   }
 
   private removeLayers(): void {
-    for (const id of [LAYER_TIDE, LAYER_CURRENT, LAYER_SLACK]) {
+    for (const id of [
+      LAYER_TIDE,
+      LAYER_CURRENT,
+      LAYER_SLACK_FLOOD,
+      LAYER_SLACK_EBB,
+    ]) {
       if (this.map.getLayer(id)) this.map.removeLayer(id);
     }
     if (this.map.getSource(SOURCE_ID)) this.map.removeSource(SOURCE_ID);
@@ -238,7 +244,7 @@ export class TidesCurrentsLayer {
         "text-font": ["Noto Sans Regular"],
         "text-size": 11 * textScale,
         "text-anchor": "top",
-        "text-offset": [0, 1.1],
+        "text-offset": [0, 0.85],
         "text-optional": true,
       },
       paint: labelPaint,
@@ -299,7 +305,7 @@ export class TidesCurrentsLayer {
           "text-font": ["Noto Sans Regular"],
           "text-size": 11 * textScale,
           "text-anchor": "top",
-          "text-offset": [0, 1.4],
+          "text-offset": [0, 1.1],
           "text-optional": true,
         },
         paint: labelPaint,
@@ -307,24 +313,38 @@ export class TidesCurrentsLayer {
       firstSymbolLayer,
     );
 
-    // Slack stations: a small open circle instead of a direction arrow.
-    this.map.addLayer({
-      id: LAYER_SLACK,
-      type: "circle",
-      source: SOURCE_ID,
-      minzoom: arrowMinZoom,
-      filter: [
-        "all",
-        ["==", ["get", "_kind"], "current"],
-        ["==", ["get", "_state"], "slack"],
-      ],
-      paint: {
-        "circle-radius": 5 * iconScale,
-        "circle-color": "transparent",
-        "circle-stroke-color": s52Colour("CURSR"),
-        "circle-stroke-width": 2,
-      },
-    });
+    // Slack stations: two small tail-anchored arrows radiating in the
+    // station's flood and ebb sets (which are often NOT 180° apart) — a
+    // "double-ended arrow" at a fixed minimum size, replacing the open
+    // circle that field testing showed users didn't read as slack.
+    for (const [id, dirProp] of [
+      [LAYER_SLACK_FLOOD, "_floodDeg"],
+      [LAYER_SLACK_EBB, "_ebbDeg"],
+    ] as const) {
+      this.map.addLayer(
+        {
+          id,
+          type: "symbol",
+          source: SOURCE_ID,
+          minzoom: arrowMinZoom,
+          filter: [
+            "all",
+            ["==", ["get", "_kind"], "current"],
+            ["==", ["get", "_state"], "slack"],
+          ],
+          layout: {
+            "icon-image": sprites.arrow[0],
+            "icon-size": 0.5 * 0.55 * iconScale,
+            "icon-rotate": ["get", dirProp],
+            "icon-rotation-alignment": "map",
+            "icon-anchor": "bottom",
+            "icon-allow-overlap": true,
+            "icon-ignore-placement": true,
+          },
+        },
+        firstSymbolLayer,
+      );
+    }
   }
 
   private debouncedRebuild(): void {
@@ -435,6 +455,9 @@ export class TidesCurrentsLayer {
       _id: station.id,
       _state: state.state,
       _setDeg: Math.round(state.dir),
+      // Slack double-arrows point along the station's flood and ebb sets
+      _floodDeg: Math.round(station.floodDir),
+      _ebbDeg: Math.round(station.ebbDir),
       _driftKn: Number(state.speedKn.toFixed(2)),
       // Arrow fill bucket 0–4: speed relative to this cycle's max
       _fill:
@@ -469,7 +492,7 @@ export class TidesCurrentsLayer {
       [e.point.x + 10, e.point.y + 10],
     ];
     const hits = this.map.queryRenderedFeatures(bbox, {
-      layers: [LAYER_TIDE, LAYER_CURRENT, LAYER_SLACK],
+      layers: [LAYER_TIDE, LAYER_CURRENT, LAYER_SLACK_FLOOD, LAYER_SLACK_EBB],
     });
     const hit = hits[0];
     if (!hit) {
