@@ -51,9 +51,11 @@ export type SimulatorErrorMode =
   | { kind: "dropout"; rate: number };
 
 export interface SimulatorOptions {
-  mode: "route" | "circular" | "static";
+  mode: "route" | "circular" | "static" | "replay";
   /** Waypoints for route mode: [lat, lng][] */
   waypoints?: [number, number][];
+  /** Recorded track for replay mode: [tSec, lat, lng][] (looped). */
+  track?: [number, number, number][];
   /** Speed in knots for route/circular modes */
   speed?: number;
   /** Center for circular mode: [lat, lng] */
@@ -90,6 +92,40 @@ export const BOSTON_HARBOR_ROUTE: [number, number][] = [
 const DEFAULT_SPEED_KN = 6;
 const DEFAULT_INTERVAL_MS = 1000;
 const M_PER_DEG = 111_111;
+
+/**
+ * Position/course along a recorded track at `elapsedSec` (looped).
+ * COG/SOG are derived from the bracketing segment so the reported values
+ * stay consistent with the interpolated motion at any time multiplier.
+ */
+export function replayPosition(
+  track: [number, number, number][],
+  elapsedSec: number,
+): { lat: number; lon: number; cog: number; sogKn: number } {
+  const duration = track[track.length - 1][0];
+  const t = duration > 0 ? elapsedSec % duration : 0;
+
+  // Binary search for the segment containing t
+  let lo = 0;
+  let hi = track.length - 2;
+  while (lo < hi) {
+    const mid = (lo + hi + 1) >> 1;
+    if (track[mid][0] <= t) lo = mid;
+    else hi = mid - 1;
+  }
+  const [t0, lat0, lon0] = track[lo];
+  const [t1, lat1, lon1] = track[lo + 1];
+  const dt = t1 - t0;
+  const f = dt > 0 ? (t - t0) / dt : 0;
+
+  const segNM = haversineDistanceNM(lat0, lon0, lat1, lon1);
+  return {
+    lat: lat0 + (lat1 - lat0) * f,
+    lon: lon0 + (lon1 - lon0) * f,
+    cog: initialBearingDeg(lat0, lon0, lat1, lon1),
+    sogKn: dt > 0 ? (segNM / dt) * 3600 : 0,
+  };
+}
 
 /**
  * Deterministic small-state RNG (mulberry32). Used by error modes so
@@ -166,6 +202,7 @@ export class SimulatorProvider implements NavigationDataProvider {
     this.opts = {
       mode: options?.mode ?? "route",
       waypoints: options?.waypoints ?? BOSTON_HARBOR_ROUTE,
+      track: options?.track,
       speed: options?.speed ?? DEFAULT_SPEED_KN,
       center: options?.center ?? [42.35, -71.04],
       radius: options?.radius ?? 0.5,
@@ -236,6 +273,9 @@ export class SimulatorProvider implements NavigationDataProvider {
     switch (this.opts.mode) {
       case "route":
         data = this.computeRoute(elapsed);
+        break;
+      case "replay":
+        data = this.computeReplay(elapsed);
         break;
       case "circular":
         data = this.computeCircular(elapsed);
@@ -353,6 +393,24 @@ export class SimulatorProvider implements NavigationDataProvider {
       sog: effectiveSpeed,
       heading: cog,
       accuracy: 5,
+      timestamp: Date.now(),
+      source: "simulator",
+    };
+  }
+
+  private computeReplay(elapsedSec: number): NavigationData {
+    const track = this.opts.track;
+    if (!track || track.length < 2) return this.computeStatic();
+    const p = replayPosition(track, elapsedSec);
+    return {
+      latitude: p.lat,
+      longitude: p.lon,
+      cog: p.cog,
+      // Replayed motion is time-compressed by the multiplier, so the
+      // reported SOG scales with it (consistent with position deltas).
+      sog: p.sogKn * this.opts.speedMultiplier,
+      heading: p.cog,
+      accuracy: 6,
       timestamp: Date.now(),
       source: "simulator",
     };

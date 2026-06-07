@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { NavigationData } from "./NavigationData";
-import { SimulatorProvider } from "./SimulatorProvider";
+import { replayPosition, SimulatorProvider } from "./SimulatorProvider";
 
 describe("SimulatorProvider", () => {
   afterEach(() => {
@@ -130,5 +130,41 @@ describe("SimulatorProvider", () => {
     expect(received[0].cog).not.toBeNull();
 
     sim.disconnect();
+  });
+});
+
+// Simple L-shaped track: 60 s north, then 60 s east, ~111 m legs
+const TRACK: [number, number, number][] = [
+  [0, 42.0, -71.0],
+  [60, 42.001, -71.0],
+  [120, 42.001, -70.99865],
+];
+
+describe("replayPosition", () => {
+  it("interpolates position within a segment", () => {
+    const p = replayPosition(TRACK, 30);
+    expect(p.lat).toBeCloseTo(42.0005, 6);
+    expect(p.lon).toBeCloseTo(-71.0, 6);
+  });
+
+  it("derives COG from the active segment", () => {
+    expect(replayPosition(TRACK, 30).cog).toBeCloseTo(0, 0); // northbound
+    expect(replayPosition(TRACK, 90).cog).toBeCloseTo(90, 0); // eastbound
+  });
+
+  it("derives SOG from segment distance over time", () => {
+    // 0.001° lat ≈ 111 m in 60 s ≈ 3.6 kt
+    expect(replayPosition(TRACK, 30).sogKn).toBeGreaterThan(3.4);
+    expect(replayPosition(TRACK, 30).sogKn).toBeLessThan(3.8);
+  });
+
+  it("loops past the end of the track", () => {
+    const p = replayPosition(TRACK, 120 + 30); // wraps to t=30
+    expect(p.lat).toBeCloseTo(42.0005, 6);
+  });
+
+  it("handles exact endpoint times", () => {
+    expect(replayPosition(TRACK, 60).lat).toBeCloseTo(42.001, 6);
+    expect(replayPosition(TRACK, 0).lat).toBeCloseTo(42.0, 6);
   });
 });
