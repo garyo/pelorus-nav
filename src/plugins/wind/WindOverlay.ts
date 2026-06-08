@@ -50,7 +50,9 @@ interface BarbImg {
  * feathers on the left. White fill/stroke over a black halo for visibility.
  */
 function barbImage(speed: number): BarbImg {
-  const s = 34;
+  // Tile is larger than the barb so feathers + halo never clip at the edges;
+  // on-screen size is set by icon-size, not by `s`.
+  const s = 40;
   const px = 2;
   const canvas = document.createElement("canvas");
   canvas.width = s * px;
