@@ -29,8 +29,41 @@ const REFRESH_MS = 15 * 60 * 1000;
  * "expensive" — backing off keeps us from hammering an exhausted quota.
  */
 const RATE_LIMIT_BACKOFF_MS = 5 * 60 * 1000;
+/**
+ * Coarse-snap cache: don't re-fetch until the map centre has moved more than
+ * this fraction of the viewport (or the zoom bucket changed). Small pans reuse
+ * the existing barbs — they're still valid wind data at their locations — so a
+ * user lingering over a harbour spends one fetch, not one per nudge. The grid
+ * density (and so on-screen barb spacing) is unchanged.
+ */
+const SNAP_FRACTION = 0.4;
 
 type WindStatus = "ok" | "loading" | "rate-limited" | "no-data" | "off";
+
+interface FetchAnchor {
+  lng: number;
+  lat: number;
+  zoomBucket: number;
+}
+
+/**
+ * Whether a fetch can be skipped because the view hasn't moved enough to need
+ * fresh barbs. Pure so it's unit-testable without a live map.
+ */
+export function canReuseGrid(
+  prev: FetchAnchor | null,
+  cur: FetchAnchor,
+  viewportDeg: { width: number; height: number },
+  hasData: boolean,
+  snapFraction = SNAP_FRACTION,
+): boolean {
+  if (!hasData || !prev) return false;
+  if (prev.zoomBucket !== cur.zoomBucket) return false;
+  return (
+    Math.abs(cur.lng - prev.lng) < viewportDeg.width * snapFraction &&
+    Math.abs(cur.lat - prev.lat) < viewportDeg.height * snapFraction
+  );
+}
 
 /**
  * Barb images are pre-rendered at 5 kt increments up to this cap. 70 kt covers
@@ -155,7 +188,8 @@ export class WindOverlay implements MapOverlay {
   private readonly barbs = new Map<number, BarbImg>();
   private enabled: boolean;
   private debounce: ReturnType<typeof setTimeout> | null = null;
-  private lastFetchKey = "";
+  /** Centre + zoom bucket of the last successful fetch (coarse-snap cache). */
+  private lastAnchor: FetchAnchor | null = null;
   /** Last successful grid, re-applied instantly when the style rebuilds (which
    * wipes the source) so barbs don't blink out on every layer/settings toggle. */
   private lastData: FeatureCollection = {
@@ -251,7 +285,7 @@ export class WindOverlay implements MapOverlay {
   }
 
   private clear(): void {
-    this.lastFetchKey = "";
+    this.lastAnchor = null;
     this.lastData = { type: "FeatureCollection", features: [] };
     const src = this.pmap?.raw.getSource(SOURCE_ID) as
       | maplibregl.GeoJSONSource
@@ -290,15 +324,39 @@ export class WindOverlay implements MapOverlay {
       this.setStatus("off");
       return;
     }
-    if (Date.now() < this.rateLimitUntil) {
-      this.setStatus("rate-limited");
-      return; // still backing off; keep last-known barbs
-    }
     const b = map.getBounds();
     const w = b.getWest();
     const e = b.getEast();
     const s = b.getSouth();
     const n = b.getNorth();
+
+    // Coarse-snap cache: reuse the current barbs for small pans / zoom nudges so
+    // we don't spend an API call per move. Also makes style rebuilds (layer
+    // toggles) free, since the centre hasn't moved. Checked before the backoff
+    // so nudging around existing barbs never flips the status to "rate-limited".
+    const center = map.getCenter();
+    const anchor: FetchAnchor = {
+      lng: center.lng,
+      lat: center.lat,
+      zoomBucket: Math.round(map.getZoom()),
+    };
+    if (
+      !force &&
+      canReuseGrid(
+        this.lastAnchor,
+        anchor,
+        { width: e - w, height: n - s },
+        this.lastData.features.length > 0,
+      )
+    ) {
+      return;
+    }
+
+    if (Date.now() < this.rateLimitUntil) {
+      this.setStatus("rate-limited");
+      return; // still backing off; keep last-known barbs
+    }
+
     const dx = (e - w) / COLS;
     const dy = (n - s) / ROWS;
     const lats: number[] = [];
@@ -309,14 +367,6 @@ export class WindOverlay implements MapOverlay {
         lons.push(Number((w + dx * (c + 0.5)).toFixed(2)));
       }
     }
-    const key = `${lats[0]},${lons[0]},${lats[lats.length - 1]},${lons[lons.length - 1]}`;
-    // Skip an unchanged viewport only when we already have barbs for it — this
-    // is what stops style rebuilds (every layer toggle) from re-fetching, while
-    // still retrying if a prior fetch for this viewport came back empty.
-    if (!force && key === this.lastFetchKey && this.lastData.features.length) {
-      return;
-    }
-
     if (!this.lastData.features.length) this.setStatus("loading");
 
     const url =
@@ -344,7 +394,7 @@ export class WindOverlay implements MapOverlay {
       this.setStatus("rate-limited");
       return;
     }
-    this.lastFetchKey = key;
+    this.lastAnchor = anchor;
     const grid = data as Array<{
       current?: { wind_speed_10m?: number; wind_direction_10m?: number };
     }>;
