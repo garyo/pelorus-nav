@@ -147,6 +147,9 @@ export interface PickingRegistrar {
 export interface UiRegistrar {
   /** Show/replace this plugin's map legend, or remove it with `null`. */
   setLegend(spec: LegendSpec | null): void;
+  /** Show/replace a one-line status chip (e.g. "loading", "rate-limited"), or
+   * clear it with `null`. For transient overlay state the user should see. */
+  setStatus(text: string | null): void;
 }
 
 export interface HostEvents {

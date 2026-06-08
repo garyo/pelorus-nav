@@ -216,6 +216,9 @@ export function activatePlugin(plugin: Plugin, deps: HostDeps): ActivePlugin {
       setLegend(spec) {
         deps.legends.set(manifest.id, spec);
       },
+      setStatus(text) {
+        deps.legends.setStatus(manifest.id, text);
+      },
     },
 
     events: {
@@ -287,6 +290,7 @@ export function activatePlugin(plugin: Plugin, deps: HostDeps): ActivePlugin {
       for (const c of cleanups) c();
       hostMap.teardown();
       deps.legends.set(manifest.id, null);
+      deps.legends.setStatus(manifest.id, null);
     },
   };
 }

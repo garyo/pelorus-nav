@@ -26,9 +26,38 @@ export class LegendHost {
   private readonly mapContainer: HTMLElement;
   private container: HTMLElement | null = null;
   private readonly legends = new Map<string, HTMLElement>();
+  private readonly statuses = new Map<string, HTMLElement>();
 
   constructor(mapContainer: HTMLElement) {
     this.mapContainer = mapContainer;
+  }
+
+  /** Show/replace (text) or remove (null) a plugin's one-line status chip. */
+  setStatus(pluginId: string, text: string | null): void {
+    if (!text) {
+      this.statuses.get(pluginId)?.remove();
+      this.statuses.delete(pluginId);
+      this.cleanupContainer();
+      return;
+    }
+    const host = this.ensureContainer();
+    let el = this.statuses.get(pluginId);
+    if (!el) {
+      el = document.createElement("div");
+      el.className = "plugin-status";
+      Object.assign(el.style, {
+        background: "rgba(0,0,0,0.6)",
+        color: "#fff",
+        font: "11px/1.2 system-ui, sans-serif",
+        padding: "4px 7px",
+        borderRadius: "4px",
+        pointerEvents: "none",
+        whiteSpace: "nowrap",
+      } satisfies Partial<CSSStyleDeclaration>);
+      host.appendChild(el);
+      this.statuses.set(pluginId, el);
+    }
+    el.textContent = text;
   }
 
   /** Show/replace (spec) or remove (null) a plugin's legend. */
@@ -59,7 +88,11 @@ export class LegendHost {
   private remove(pluginId: string): void {
     this.legends.get(pluginId)?.remove();
     this.legends.delete(pluginId);
-    if (this.legends.size === 0) {
+    this.cleanupContainer();
+  }
+
+  private cleanupContainer(): void {
+    if (this.legends.size === 0 && this.statuses.size === 0) {
       this.container?.remove();
       this.container = null;
     }

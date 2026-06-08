@@ -6,11 +6,10 @@
 
 import { tidesPlugin } from "./tides";
 import type { Plugin } from "./types";
-import { weatherPlugin } from "./weather";
 import { windPlugin } from "./wind";
 
-export const BUILTIN_PLUGINS: Plugin[] = [
-  tidesPlugin,
-  weatherPlugin,
-  windPlugin,
-];
+// The OpenWeatherMap raster weather plugin (src/plugins/weather/) is kept in the
+// tree but excluded from the build: its translucent color-wash tiles add little
+// over the Open-Meteo wind barbs and aren't worth the API-key UX. Re-add
+// `weatherPlugin` from "./weather" here to ship it again.
+export const BUILTIN_PLUGINS: Plugin[] = [tidesPlugin, windPlugin];

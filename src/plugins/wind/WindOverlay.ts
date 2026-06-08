@@ -23,6 +23,14 @@ const ROWS = 7;
 const MIN_ZOOM = 4;
 /** Refresh cadence — wind changes slowly, and the API is rate-limited. */
 const REFRESH_MS = 15 * 60 * 1000;
+/**
+ * After a rate-limit (HTTP 429 / error body) back off this long before trying
+ * again. Open-Meteo weights each request by location count, so the grid is
+ * "expensive" — backing off keeps us from hammering an exhausted quota.
+ */
+const RATE_LIMIT_BACKOFF_MS = 5 * 60 * 1000;
+
+type WindStatus = "ok" | "loading" | "rate-limited" | "no-data" | "off";
 
 /**
  * Barb images are pre-rendered at 5 kt increments up to this cap. 70 kt covers
@@ -148,6 +156,15 @@ export class WindOverlay implements MapOverlay {
   private enabled: boolean;
   private debounce: ReturnType<typeof setTimeout> | null = null;
   private lastFetchKey = "";
+  /** Last successful grid, re-applied instantly when the style rebuilds (which
+   * wipes the source) so barbs don't blink out on every layer/settings toggle. */
+  private lastData: FeatureCollection = {
+    type: "FeatureCollection",
+    features: [],
+  };
+  /** Epoch ms before which we won't hit the API again (rate-limit backoff). */
+  private rateLimitUntil = 0;
+  private status: WindStatus = "off";
 
   constructor(host: PluginHost) {
     this.host = host;
@@ -167,8 +184,12 @@ export class WindOverlay implements MapOverlay {
       if (now !== this.enabled) {
         this.enabled = now;
         this.applyVisibility();
-        if (now) this.fetchGrid();
-        else this.clear();
+        if (now) {
+          this.fetchGrid();
+        } else {
+          this.clear();
+          this.refreshStatus(); // remove the status chip
+        }
       }
     });
   }
@@ -185,10 +206,9 @@ export class WindOverlay implements MapOverlay {
         );
       }
     }
-    map.addSource(SOURCE_ID, {
-      type: "geojson",
-      data: { type: "FeatureCollection", features: [] },
-    });
+    // Seed with the last good grid so barbs reappear immediately after a style
+    // rebuild instead of blinking out until the next fetch returns.
+    map.addSource(SOURCE_ID, { type: "geojson", data: this.lastData });
     map.addLayer(
       {
         id: LAYER_ID,
@@ -207,13 +227,16 @@ export class WindOverlay implements MapOverlay {
       },
       "overlay-data",
     );
-    this.lastFetchKey = "";
+    // Keep lastFetchKey across rebuilds: with the cached grid re-seeded above,
+    // the post-setup update() must NOT re-fetch an unchanged viewport (that's
+    // what was burning the API quota on every layer toggle).
   }
 
   update(): void {
     this.enabled = this.host.settings.isLayerGroupEnabled(WIND_LAYER_GROUP);
     this.applyVisibility();
     if (this.enabled) this.fetchGrid();
+    else this.refreshStatus();
   }
 
   private applyVisibility(): void {
@@ -229,10 +252,29 @@ export class WindOverlay implements MapOverlay {
 
   private clear(): void {
     this.lastFetchKey = "";
+    this.lastData = { type: "FeatureCollection", features: [] };
     const src = this.pmap?.raw.getSource(SOURCE_ID) as
       | maplibregl.GeoJSONSource
       | undefined;
-    src?.setData({ type: "FeatureCollection", features: [] });
+    src?.setData(this.lastData);
+  }
+
+  /** Map current state to the host-rendered status chip (cleared when fine). */
+  private setStatus(status: WindStatus): void {
+    this.status = status;
+    this.refreshStatus();
+  }
+
+  private refreshStatus(): void {
+    let text: string | null = null;
+    if (this.enabled) {
+      if (this.status === "loading") text = "Wind: loading…";
+      else if (this.status === "rate-limited")
+        text = "Wind: rate-limited — retrying soon";
+      else if (this.status === "no-data") text = "Wind: no data here";
+      // "ok" / "off" → no chip; the barbs (or their absence) speak for themselves.
+    }
+    this.host.ui.setStatus(text);
   }
 
   private fetchGrid(force = false): void {
@@ -245,7 +287,12 @@ export class WindOverlay implements MapOverlay {
     if (!map || !this.enabled) return;
     if (map.getZoom() < MIN_ZOOM) {
       this.clear();
+      this.setStatus("off");
       return;
+    }
+    if (Date.now() < this.rateLimitUntil) {
+      this.setStatus("rate-limited");
+      return; // still backing off; keep last-known barbs
     }
     const b = map.getBounds();
     const w = b.getWest();
@@ -263,29 +310,48 @@ export class WindOverlay implements MapOverlay {
       }
     }
     const key = `${lats[0]},${lons[0]},${lats[lats.length - 1]},${lons[lons.length - 1]}`;
-    if (!force && key === this.lastFetchKey) return;
-    this.lastFetchKey = key;
+    // Skip an unchanged viewport only when we already have barbs for it — this
+    // is what stops style rebuilds (every layer toggle) from re-fetching, while
+    // still retrying if a prior fetch for this viewport came back empty.
+    if (!force && key === this.lastFetchKey && this.lastData.features.length) {
+      return;
+    }
+
+    if (!this.lastData.features.length) this.setStatus("loading");
 
     const url =
       "https://api.open-meteo.com/v1/forecast" +
       `?latitude=${lats.join(",")}&longitude=${lons.join(",")}` +
       "&current=wind_speed_10m,wind_direction_10m&wind_speed_unit=kn";
-    let data: Array<{
-      current?: { wind_speed_10m?: number; wind_direction_10m?: number };
-    }>;
+    let data: unknown;
     try {
       const resp = await fetch(url);
+      // 429 (and Open-Meteo's quota errors) → back off and tell the user, rather
+      // than silently retrying an exhausted quota on every pan.
+      if (resp.status === 429) throw new Error("rate-limited");
       if (!resp.ok) throw new Error(`Open-Meteo HTTP ${resp.status}`);
       data = await resp.json();
     } catch (err) {
+      this.rateLimitUntil = Date.now() + RATE_LIMIT_BACKOFF_MS;
+      this.setStatus("rate-limited");
       console.warn("wind fetch failed:", err);
       return; // keep last-known barbs
     }
-    if (!Array.isArray(data)) return;
+    // A non-array body is Open-Meteo's `{error:true,reason}` (e.g. quota) — also
+    // a reason to back off.
+    if (!Array.isArray(data)) {
+      this.rateLimitUntil = Date.now() + RATE_LIMIT_BACKOFF_MS;
+      this.setStatus("rate-limited");
+      return;
+    }
+    this.lastFetchKey = key;
+    const grid = data as Array<{
+      current?: { wind_speed_10m?: number; wind_direction_10m?: number };
+    }>;
 
     const features: Feature[] = [];
-    for (let i = 0; i < data.length; i++) {
-      const cur = data[i]?.current;
+    for (let i = 0; i < grid.length; i++) {
+      const cur = grid[i]?.current;
       if (
         !cur ||
         cur.wind_speed_10m == null ||
@@ -303,9 +369,11 @@ export class WindOverlay implements MapOverlay {
       });
     }
     const fc: FeatureCollection = { type: "FeatureCollection", features };
+    this.lastData = fc;
     const src = map.getSource(SOURCE_ID) as
       | maplibregl.GeoJSONSource
       | undefined;
     src?.setData(fc);
+    this.setStatus(features.length ? "ok" : "no-data");
   }
 }
