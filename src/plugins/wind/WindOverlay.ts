@@ -75,24 +75,25 @@ function barbImage(speed: number): BarbImg {
   rem %= 10;
   const halfN = rem >= 5 ? 1 : 0;
 
-  // Feathers sit at the upwind tip and trail downwind (toward the station),
-  // so the barb reads like an arrow pointing into the wind.
-  let y = topY; // outermost feather at the upwind tip
+  // Feathers sit at the upwind tip and point away from the station (toward the
+  // wind source). The staff points the way the wind comes from; the station dot
+  // is the downwind end. (North wind ⇒ feathers on top, dot on the bottom.)
+  let y = topY + 2; // first feather just inside the tip
   for (; flagN > 0; flagN--) {
     flags.push([
       [0, y],
-      [-12, y + 4],
-      [0, y + 8],
+      [-12, y - 3],
+      [0, y + 5],
     ]);
-    y += 9;
+    y += 8;
   }
   // A lone half-barb is set in from the tip per convention.
-  if (fullN === 0 && halfN === 1 && flags.length === 0) y += 5;
+  if (fullN === 0 && halfN === 1 && flags.length === 0) y += 4;
   for (; fullN > 0; fullN--) {
-    lines.push([0, y, -11, y + 5]);
+    lines.push([0, y, -11, y - 5]);
     y += 5;
   }
-  if (halfN) lines.push([0, y, -6, y + 2.5]);
+  if (halfN) lines.push([0, y, -6, y - 2.5]);
   lines.push([0, botY, 0, topY]); // staff
 
   const pass = (lw: number, color: string, fill: boolean, dotR: number) => {
