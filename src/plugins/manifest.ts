@@ -6,5 +6,6 @@
 
 import { tidesPlugin } from "./tides";
 import type { Plugin } from "./types";
+import { weatherPlugin } from "./weather";
 
-export const BUILTIN_PLUGINS: Plugin[] = [tidesPlugin];
+export const BUILTIN_PLUGINS: Plugin[] = [tidesPlugin, weatherPlugin];

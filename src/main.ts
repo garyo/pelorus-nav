@@ -346,6 +346,24 @@ new LightSectorLayer(chartManager.map);
 // filters duplicate labels, shows parent OBJNAM at high zoom).
 new PelLightLayer(chartManager.map);
 
+// Navigation manager — created here (providers registered further below) so a
+// plugin may contribute nav providers, and so plugins activate before the
+// settings panel is built.
+const navManager = new NavigationDataManager();
+
+// Activate build-time plugins (Tides & Currents, Weather, …) through the plugin
+// host: they register overlays, layer-group toggles, settings controls, data
+// assets, and pickables. Must run BEFORE the settings panel is built so those
+// plugin contributions appear in it.
+const pluginManager = new PluginManager({
+  map: chartManager.map,
+  chartManager,
+  navManager,
+  picks: pickRegistry,
+});
+for (const plugin of BUILTIN_PLUGINS) pluginManager.register(plugin);
+pluginManager.activateAll();
+
 // Settings gear in top bar menu
 const topbarMenu = document.getElementById("topbar-menu");
 const topbarActions = document.getElementById("topbar-actions");
@@ -391,7 +409,6 @@ if (hamburgerBtn && topbarMenu) {
 }
 
 // --- Navigation system ---
-const navManager = new NavigationDataManager();
 
 /**
  * Parse a `?simStart=lat,lon` URL query and, if present, prepend that
@@ -450,17 +467,6 @@ if (WebSerialNMEAProvider.isAvailable()) {
   navManager.registerProvider(new WebSerialNMEAProvider());
 }
 navManager.registerProvider(new SignalKProvider());
-
-// Activate build-time plugins (Tides & Currents, …) through the plugin host.
-// They register overlays, layer-group toggles, data assets, and pickables.
-const pluginManager = new PluginManager({
-  map: chartManager.map,
-  chartManager,
-  navManager,
-  picks: pickRegistry,
-});
-for (const plugin of BUILTIN_PLUGINS) pluginManager.register(plugin);
-pluginManager.activateAll();
 
 // Vessel display layer
 const vesselLayer = new VesselLayer(chartManager.map);

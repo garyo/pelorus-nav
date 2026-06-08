@@ -13,14 +13,18 @@ import { type DataAsset, registerDataAsset } from "../data/chart-catalog";
 import type { NavigationDataProvider } from "../navigation/NavigationData";
 import type { NavigationDataManager } from "../navigation/NavigationDataManager";
 import {
+  getPluginSetting,
   getSettings,
   isLayerGroupEnabled,
   onSettingsChange,
   registerLayerGroup,
+  registerPluginSettingsSchema,
   type Settings,
+  setPluginSetting,
 } from "../settings";
 import type { PickContributor, PickRegistry } from "./picking";
 import { slotBeforeId } from "./slots";
+import { createTileCacheProtocol } from "./tile-cache";
 import type {
   Capability,
   MapOverlay,
@@ -110,6 +114,13 @@ export function activatePlugin(plugin: Plugin, deps: HostDeps): ActivePlugin {
   // Declarative manifest contributions, registered before activate runs.
   for (const lg of manifest.layerGroups ?? []) registerLayerGroup(lg);
   for (const asset of manifest.dataAssets ?? []) registerDataAsset(asset);
+  if (manifest.settingsSchema) {
+    registerPluginSettingsSchema(
+      manifest.id,
+      manifest.name,
+      manifest.settingsSchema,
+    );
+  }
 
   const require = (cap: Capability): void => {
     if (!granted.has(cap)) {
@@ -157,6 +168,12 @@ export function activatePlugin(plugin: Plugin, deps: HostDeps): ActivePlugin {
     data: {
       register(asset: DataAsset) {
         registerDataAsset(asset);
+      },
+      registerTileCache(opts) {
+        require("data.network");
+        const handle = createTileCacheProtocol(opts);
+        cleanups.push(() => handle.dispose());
+        return handle;
       },
     },
 
@@ -229,6 +246,20 @@ export function activatePlugin(plugin: Plugin, deps: HostDeps): ActivePlugin {
       },
       isLayerGroupEnabled(groupId: string) {
         return isLayerGroupEnabled(groupId);
+      },
+      getOwn<T = unknown>(key: string): T | undefined {
+        const stored = getPluginSetting<T>(manifest.id, key);
+        if (stored !== undefined) return stored;
+        const ctrl = manifest.settingsSchema?.find((c) => c.key === key);
+        return ctrl?.default as T | undefined;
+      },
+      setOwn(key: string, value: unknown) {
+        setPluginSetting(manifest.id, key, value);
+      },
+      onOwnChange(fn: () => void) {
+        const off = onSettingsChange(() => fn());
+        cleanups.push(off);
+        return off;
       },
     },
 

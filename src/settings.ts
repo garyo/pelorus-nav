@@ -83,6 +83,8 @@ export interface Settings {
   textScale: number;
   /** Scale factor for chart icons (1 = default, multiplied with scheme/theme scale). */
   iconScale: number;
+  /** Per-plugin settings namespace, keyed by plugin id. */
+  plugins?: Record<string, Record<string, unknown>>;
 }
 
 const STORAGE_KEY = "pelorus-nav-settings";
@@ -139,6 +141,74 @@ export function isLayerGroupEnabled(groupId: string): boolean {
   const reg = pluginLayerGroups.find((g) => g.id === groupId);
   if (reg) return reg.default;
   return DEFAULT_LAYER_GROUPS[groupId] ?? true;
+}
+
+// ── Plugin-owned settings (a per-plugin namespace + declarative UI schema) ──
+
+/** A single control a plugin contributes to its settings section. */
+export interface SettingControl {
+  key: string;
+  label: string;
+  type: "slider" | "select" | "toggle" | "text";
+  default?: unknown;
+  /** slider */
+  min?: number;
+  max?: number;
+  step?: number;
+  /** slider value formatter */
+  format?: (v: number) => string;
+  /** select */
+  options?: { value: string; label: string }[];
+  /** text */
+  placeholder?: string;
+  /** text — render as a password field (e.g. API keys) */
+  secret?: boolean;
+}
+
+export type SettingsSchema = SettingControl[];
+
+/** Read a plugin's stored setting (no default applied — callers fall back). */
+export function getPluginSetting<T = unknown>(
+  pluginId: string,
+  key: string,
+): T | undefined {
+  return current.plugins?.[pluginId]?.[key] as T | undefined;
+}
+
+/** Persist a plugin setting and notify listeners. */
+export function setPluginSetting(
+  pluginId: string,
+  key: string,
+  value: unknown,
+): void {
+  const plugins = { ...(current.plugins ?? {}) };
+  plugins[pluginId] = { ...(plugins[pluginId] ?? {}), [key]: value };
+  current = { ...current, plugins };
+  save();
+  notify();
+}
+
+interface PluginSettingsSection {
+  pluginId: string;
+  name: string;
+  schema: SettingsSchema;
+}
+
+const pluginSettingsSchemas: PluginSettingsSection[] = [];
+
+/** Register a plugin's settings UI schema (rendered in the Layers tab). */
+export function registerPluginSettingsSchema(
+  pluginId: string,
+  name: string,
+  schema: SettingsSchema,
+): void {
+  if (!pluginSettingsSchemas.some((s) => s.pluginId === pluginId)) {
+    pluginSettingsSchemas.push({ pluginId, name, schema });
+  }
+}
+
+export function getPluginSettingsSchemas(): readonly PluginSettingsSection[] {
+  return pluginSettingsSchemas;
 }
 
 const SETTINGS_VERSION = 2;

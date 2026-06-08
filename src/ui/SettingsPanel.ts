@@ -17,12 +17,16 @@ import {
   type GpsFilterMode,
   type GpsRateMode,
   getLayerGroups,
+  getPluginSetting,
+  getPluginSettingsSchemas,
   getSettings,
   type InstrumentLayout,
   isLayerGroupEnabled,
   onSettingsChange,
+  type SettingControl,
   type SpeedUnit,
   type StreetUnderlayMode,
+  setPluginSetting,
   updateSettings,
   type WakeLockMode,
 } from "../settings";
@@ -460,7 +464,84 @@ function buildLayersTab(
     );
   }
 
+  // Per-plugin settings sections, rendered from each plugin's declared schema.
+  for (const section of getPluginSettingsSchemas()) {
+    tab.appendChild(buildSectionHeader(section.name));
+    for (const ctrl of section.schema) {
+      tab.appendChild(buildPluginControl(section.pluginId, ctrl));
+    }
+  }
+
   return tab;
+}
+
+/** Render one plugin settings control from its declarative schema entry. */
+function buildPluginControl(
+  pluginId: string,
+  ctrl: SettingControl,
+): HTMLElement {
+  const id = `settings-plugin-${pluginId}-${ctrl.key}`;
+  const stored = getPluginSetting(pluginId, ctrl.key);
+  const value = stored !== undefined ? stored : ctrl.default;
+  const commit = (v: unknown) => setPluginSetting(pluginId, ctrl.key, v);
+
+  switch (ctrl.type) {
+    case "toggle":
+      return buildCheckboxRow(ctrl.label, id, value === true, commit);
+    case "select":
+      return buildSelectRow(
+        ctrl.label,
+        id,
+        ctrl.options ?? [],
+        String(value ?? ""),
+        commit,
+      );
+    case "text":
+      return buildTextRow(ctrl.label, id, String(value ?? ""), commit, {
+        placeholder: ctrl.placeholder,
+        secret: ctrl.secret,
+      });
+    default:
+      return buildSliderRow({
+        id,
+        label: ctrl.label,
+        min: ctrl.min ?? 0,
+        max: ctrl.max ?? 1,
+        step: ctrl.step ?? 0.05,
+        value: typeof value === "number" ? value : (ctrl.min ?? 0),
+        format: ctrl.format ?? ((v) => String(v)),
+        commit,
+      });
+  }
+}
+
+function buildTextRow(
+  labelText: string,
+  id: string,
+  value: string,
+  onCommit: (value: string) => void,
+  opts: { placeholder?: string; secret?: boolean } = {},
+): HTMLElement {
+  const row = document.createElement("div");
+  row.className = "settings-row";
+
+  const label = document.createElement("label");
+  label.htmlFor = id;
+  label.textContent = labelText;
+  row.appendChild(label);
+
+  const input = document.createElement("input");
+  input.id = id;
+  input.type = opts.secret ? "password" : "text";
+  input.autocomplete = "off";
+  if (opts.placeholder) input.placeholder = opts.placeholder;
+  input.value = value;
+  // Commit on blur/Enter so we don't persist every keystroke.
+  const commit = () => onCommit(input.value.trim());
+  input.addEventListener("change", commit);
+  input.addEventListener("blur", commit);
+  row.appendChild(input);
+  return row;
 }
 
 function buildNavigationTab(

@@ -14,7 +14,8 @@ import type { ChartProvider } from "../chart/ChartProvider";
 import type { FeatureInfo } from "../chart/feature-info";
 import type { DataAsset } from "../data/chart-catalog";
 import type { NavigationDataProvider } from "../navigation/NavigationData";
-import type { LayerGroupDecl, Settings } from "../settings";
+import type { LayerGroupDecl, Settings, SettingsSchema } from "../settings";
+import type { TileCacheHandle, TileCacheOptions } from "./tile-cache";
 
 /** SDK version. Bump the major on any breaking change to this contract. */
 export const PLUGIN_API_VERSION = "1.0.0";
@@ -56,6 +57,8 @@ export interface PluginManifest {
   layerGroups?: LayerGroupDecl[];
   /** Downloadable data assets surfaced in the Chart Regions panel. */
   dataAssets?: DataAsset[];
+  /** Declarative settings controls the host renders for this plugin. */
+  settingsSchema?: SettingsSchema;
 }
 
 export interface Plugin {
@@ -118,6 +121,8 @@ export interface NavRegistrar {
 
 export interface DataRegistrar {
   register(asset: DataAsset): void;
+  /** Register a cached XYZ-tile protocol (offline tile caching). */
+  registerTileCache(opts: TileCacheOptions): TileCacheHandle;
 }
 
 /**
@@ -151,6 +156,12 @@ export interface PluginSettings {
   onChange(fn: (s: Readonly<Settings>) => void): () => void;
   /** Whether a layer-group toggle (core or plugin-registered) is enabled. */
   isLayerGroupEnabled(groupId: string): boolean;
+  /** Read this plugin's own setting, falling back to its schema default. */
+  getOwn<T = unknown>(key: string): T | undefined;
+  /** Persist one of this plugin's own settings. */
+  setOwn(key: string, value: unknown): void;
+  /** Subscribe to changes (fires on any settings change; re-read with getOwn). */
+  onOwnChange(fn: () => void): () => void;
 }
 
 /** The scoped API surface handed to a plugin's `activate`. */
