@@ -9,7 +9,6 @@
  */
 
 import type { RasterTileSource } from "maplibre-gl";
-import { convertSpeed, MS_TO_KNOTS, speedUnitLabel } from "../../utils/units";
 import type { LegendSpec } from "../legend";
 import type { MapOverlay, PluginHost, PluginMap } from "../types";
 
@@ -28,9 +27,8 @@ const RASTER_SATURATION = 0.7;
 const RASTER_CONTRAST = 0.3;
 const DEFAULT_OPACITY = 0.7;
 
-/** Display key → OpenWeatherMap layer id. */
+/** Display key → OpenWeatherMap layer id. (Wind is a separate plugin.) */
 const OWM_LAYERS: Record<string, string> = {
-  wind: "wind_new",
   temp: "temp_new",
   precipitation: "precipitation_new",
   clouds: "clouds_new",
@@ -53,20 +51,6 @@ const LEGENDS: Record<string, (host: PluginHost) => LegendSpec> = {
       { color: "rgb(252,128,20)", label: "86" }, //  30°C
     ],
   }),
-  wind: (host) => {
-    const unit = host.settings.get().speedUnit;
-    const kt = (ms: number) =>
-      String(Math.round(convertSpeed(ms * MS_TO_KNOTS, unit)));
-    return {
-      title: `Wind (${speedUnitLabel(unit)})`,
-      stops: [
-        { color: "rgba(238,206,206,0.5)", label: kt(5) },
-        { color: "rgba(179,100,188,0.8)", label: kt(15) },
-        { color: "rgba(63,33,59,0.9)", label: kt(25) },
-        { color: "rgba(116,76,172,1)", label: kt(50) },
-      ],
-    };
-  },
   precipitation: () => ({
     title: "Precip (mm)",
     stops: [
@@ -143,11 +127,11 @@ export class WeatherOverlay implements MapOverlay {
   }
 
   private selectedKey(): string {
-    return this.host.settings.getOwn<string>("layer") ?? "wind";
+    return this.host.settings.getOwn<string>("layer") ?? "temp";
   }
 
   private owmLayer(): string {
-    return OWM_LAYERS[this.selectedKey()] ?? OWM_LAYERS.wind;
+    return OWM_LAYERS[this.selectedKey()] ?? OWM_LAYERS.temp;
   }
 
   /** Show the active layer's color legend, or clear it when disabled. */
@@ -156,7 +140,7 @@ export class WeatherOverlay implements MapOverlay {
       this.host.ui.setLegend(null);
       return;
     }
-    const build = LEGENDS[this.selectedKey()] ?? LEGENDS.wind;
+    const build = LEGENDS[this.selectedKey()] ?? LEGENDS.temp;
     this.host.ui.setLegend(build(this.host));
   }
 

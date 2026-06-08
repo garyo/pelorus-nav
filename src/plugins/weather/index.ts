@@ -30,12 +30,12 @@ export const weatherPlugin: Plugin = {
         placeholder: "OpenWeatherMap API key",
       },
       {
+        // Wind has its own plugin (Open-Meteo barbs); OWM covers the rest.
         key: "layer",
         label: "Layer",
         type: "select",
-        default: "wind",
+        default: "temp",
         options: [
-          { value: "wind", label: "Wind" },
           { value: "temp", label: "Temperature" },
           { value: "precipitation", label: "Precipitation" },
           { value: "clouds", label: "Clouds" },
