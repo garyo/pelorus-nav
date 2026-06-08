@@ -15,6 +15,17 @@ const SOURCE_ID = "_wx-owm";
 const LAYER_ID = "_wx-owm-layer";
 export const WEATHER_LAYER_GROUP = "weather";
 
+/**
+ * OWM's free (1.0) tiles are translucent and low-saturation by design, so they
+ * wash out over the busy nautical chart. Boost saturation/contrast so the field
+ * reads clearly; opacity (user-tunable) balances visibility against seeing the
+ * chart through it. Richer rendering (bold fill, wind arrows) needs OWM's paid
+ * 2.0 Maps API.
+ */
+const RASTER_SATURATION = 0.7;
+const RASTER_CONTRAST = 0.3;
+const DEFAULT_OPACITY = 0.7;
+
 /** Display key → OpenWeatherMap layer id. */
 const OWM_LAYERS: Record<string, string> = {
   wind: "wind_new",
@@ -76,7 +87,7 @@ export class WeatherOverlay implements MapOverlay {
 
   private opacity(): number {
     const o = this.host.settings.getOwn<number>("opacity");
-    return typeof o === "number" ? o : 0.8;
+    return typeof o === "number" ? o : DEFAULT_OPACITY;
   }
 
   private template(): string {
@@ -97,7 +108,11 @@ export class WeatherOverlay implements MapOverlay {
         type: "raster",
         source: SOURCE_ID,
         layout: { visibility: this.enabled ? "visible" : "none" },
-        paint: { "raster-opacity": this.lastOpacity },
+        paint: {
+          "raster-opacity": this.lastOpacity,
+          "raster-saturation": RASTER_SATURATION,
+          "raster-contrast": RASTER_CONTRAST,
+        },
       },
       "overlay-data",
     );

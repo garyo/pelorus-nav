@@ -46,7 +46,7 @@ export const weatherPlugin: Plugin = {
         key: "opacity",
         label: "Opacity",
         type: "slider",
-        default: 0.8,
+        default: 0.7,
         min: 0,
         max: 1,
         step: 0.05,
