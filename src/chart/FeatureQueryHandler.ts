@@ -1,6 +1,7 @@
 import type maplibregl from "maplibre-gl";
 import { getVectorSourceIds } from "../data/chart-catalog";
-import { getMode } from "../map/InteractionMode";
+import { PICK_PRIORITY } from "../plugins/PickingManager";
+import type { MapPicker } from "../plugins/types";
 import type { ChartManager } from "./ChartManager";
 import { FeatureInfoPanel } from "./FeatureInfoPanel";
 import { formatFeatureInfo } from "./feature-info";
@@ -281,7 +282,10 @@ interface QueriedFeature {
  * Handles click/tap on map features and displays info in a panel.
  * Also manages hover cursor and feature highlighting.
  */
-export class FeatureQueryHandler {
+export class FeatureQueryHandler implements MapPicker {
+  /** Lowest priority: chart features lose to overlay popups in the same spot. */
+  readonly priority = PICK_PRIORITY.chart;
+
   private readonly panel: FeatureInfoPanel;
   private readonly map: maplibregl.Map;
   private currentFeatures: QueriedFeature[] = [];
@@ -299,9 +303,8 @@ export class FeatureQueryHandler {
     this.panel.onCyclePrev = () => this.cyclePrev();
     this.panel.onClose = () => this.dismiss();
 
-    this.map.on("click", (e: maplibregl.MapMouseEvent) => this.handleClick(e));
-
-    // Set up highlight layers after each style load and invalidate layer cache
+    // Click dispatch is owned by the PickingManager (see tryPick); this handler
+    // only keeps highlight layers fresh across style reloads.
     this.map.on("style.load", () => {
       this.cachedInteractiveLayers = null;
       this.setupHighlightLayers();
@@ -325,14 +328,14 @@ export class FeatureQueryHandler {
     return ids;
   }
 
-  private handleClick(e: maplibregl.MapMouseEvent): void {
-    if (getMode() !== "query") return;
-
+  /**
+   * MapPicker entry point. Returns true if a chart feature was found and shown.
+   * The PickingManager gates on query mode and dismisses losing pickers, so
+   * this no longer self-dismisses on a miss.
+   */
+  tryPick(e: maplibregl.MapMouseEvent): boolean {
     const layers = this.getVisibleInteractiveLayers();
-    if (layers.length === 0) {
-      this.dismiss();
-      return;
-    }
+    if (layers.length === 0) return false;
 
     // Query with a bbox to catch small icons, thin lines, and labels
     // that are hard to tap precisely.
@@ -343,10 +346,7 @@ export class FeatureQueryHandler {
     const raw = this.map.queryRenderedFeatures(bbox, { layers });
 
     const features = deduplicateFeatures(raw);
-    if (features.length === 0) {
-      this.dismiss();
-      return;
-    }
+    if (features.length === 0) return false;
 
     // Pull in any LNAM-referenced features that queryRenderedFeatures missed
     // because a style filter hid them (e.g. PEL light children suppressed by
@@ -364,10 +364,12 @@ export class FeatureQueryHandler {
 
     // Group child features (lights, fog signals, topmarks) under their parents
     const grouped = groupChildFeatures(features);
+    if (grouped.length === 0) return false;
 
     this.currentFeatures = grouped;
     this.currentIndex = 0;
     this.showCurrent();
+    return true;
   }
 
   /**
@@ -482,7 +484,8 @@ export class FeatureQueryHandler {
     this.showCurrent();
   }
 
-  private dismiss(): void {
+  /** Hide the panel and clear highlight (MapPicker / idle auto-return). */
+  dismiss(): void {
     this.panel.hide();
     this.currentFeatures = [];
     this.currentIndex = 0;

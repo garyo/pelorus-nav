@@ -1,4 +1,5 @@
 import maplibregl from "maplibre-gl";
+import { applySlotAnchors } from "../plugins/slots";
 import type {
   DepthUnit,
   DetailLevel,
@@ -292,7 +293,17 @@ export class ChartManager {
       sprite: `${window.location.origin}/sprites/${sprite}`,
       glyphs: `${window.location.origin}/fonts/{fontstack}/{range}.pbf`,
       sources,
-      layers,
+      // Invisible anchor layers demarcate the z-order bands plugin overlays
+      // place into (see src/plugins/slots.ts).
+      layers: applySlotAnchors(layers),
     };
+  }
+
+  /**
+   * Register an additional chart provider at runtime (e.g. from a plugin).
+   * Does not change the active provider; it becomes selectable in the UI.
+   */
+  registerProvider(provider: ChartProvider): void {
+    this.providers.set(provider.id, provider);
   }
 }

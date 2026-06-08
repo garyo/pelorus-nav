@@ -1,0 +1,262 @@
+/**
+ * PluginHost implementation: the scoped, capability-gated API surface handed
+ * to each plugin's `activate`. Wraps the MapLibre map (namespaced + slot-aware
+ * + tracked), bridges core settings/events, and routes overlay layers, chart/
+ * nav providers, data assets, and pickables into the app's registries.
+ */
+
+import type maplibregl from "maplibre-gl";
+import type { ChartManager } from "../chart/ChartManager";
+import type { ChartProvider } from "../chart/ChartProvider";
+import { FeatureInfoPanel } from "../chart/FeatureInfoPanel";
+import type { FeatureInfo } from "../chart/feature-info";
+import { type DataAsset, registerDataAsset } from "../data/chart-catalog";
+import type { NavigationDataProvider } from "../navigation/NavigationData";
+import type { NavigationDataManager } from "../navigation/NavigationDataManager";
+import {
+  getSettings,
+  isLayerGroupEnabled,
+  onSettingsChange,
+  registerLayerGroup,
+  type Settings,
+} from "../settings";
+import type { PickingManager } from "./PickingManager";
+import { PICK_PRIORITY } from "./PickingManager";
+import { slotBeforeId } from "./slots";
+import type {
+  Capability,
+  MapOverlay,
+  MapPicker,
+  PickableRegistration,
+  Plugin,
+  PluginHost,
+  PluginInstance,
+  PluginMap,
+  Slot,
+} from "./types";
+
+export interface HostDeps {
+  map: maplibregl.Map;
+  chartManager: ChartManager;
+  navManager: NavigationDataManager;
+  pickingManager: PickingManager;
+}
+
+/** Per-plugin teardown handle returned by `createHost`. */
+export interface ActivePlugin {
+  instance: PluginInstance | void;
+  deactivate(): void;
+}
+
+/** Namespaced, slot-aware, tracked wrapper over the MapLibre map. */
+class HostMap implements PluginMap {
+  readonly raw: maplibregl.Map;
+  private readonly sourceIds = new Set<string>();
+  private readonly layerIds = new Set<string>();
+
+  constructor(raw: maplibregl.Map) {
+    this.raw = raw;
+  }
+
+  /** Forget tracked ids after a style rebuild wiped them (before re-setup). */
+  beginSetup(): void {
+    this.sourceIds.clear();
+    this.layerIds.clear();
+  }
+
+  addSource(id: string, source: maplibregl.SourceSpecification): void {
+    if (!this.raw.getSource(id)) this.raw.addSource(id, source);
+    this.sourceIds.add(id);
+  }
+
+  addLayer(layer: maplibregl.LayerSpecification, slot: Slot): void {
+    if (this.raw.getLayer(layer.id)) this.raw.removeLayer(layer.id);
+    const before = slotBeforeId(slot);
+    this.raw.addLayer(layer, this.raw.getLayer(before) ? before : undefined);
+    this.layerIds.add(layer.id);
+  }
+
+  removeLayer(id: string): void {
+    if (this.raw.getLayer(id)) this.raw.removeLayer(id);
+    this.layerIds.delete(id);
+  }
+
+  removeSource(id: string): void {
+    if (this.raw.getSource(id)) this.raw.removeSource(id);
+    this.sourceIds.delete(id);
+  }
+
+  hasSource(id: string): boolean {
+    return !!this.raw.getSource(id);
+  }
+
+  /** Remove everything this plugin added (on deactivate). */
+  teardown(): void {
+    for (const id of this.layerIds) {
+      if (this.raw.getLayer(id)) this.raw.removeLayer(id);
+    }
+    for (const id of this.sourceIds) {
+      if (this.raw.getSource(id)) this.raw.removeSource(id);
+    }
+    this.layerIds.clear();
+    this.sourceIds.clear();
+  }
+}
+
+/** Activate one plugin, building its capability-scoped host. */
+export function activatePlugin(plugin: Plugin, deps: HostDeps): ActivePlugin {
+  const { manifest } = plugin;
+  const granted = new Set<Capability>(manifest.capabilities);
+  const cleanups: Array<() => void> = [];
+  const hostMap = new HostMap(deps.map);
+
+  // Declarative manifest contributions, registered before activate runs.
+  for (const lg of manifest.layerGroups ?? []) registerLayerGroup(lg);
+  for (const asset of manifest.dataAssets ?? []) registerDataAsset(asset);
+
+  const require = (cap: Capability): void => {
+    if (!granted.has(cap)) {
+      throw new Error(
+        `Plugin "${manifest.id}" used capability "${cap}" it did not declare`,
+      );
+    }
+  };
+
+  // Shared popup panel for this plugin's pickables.
+  let panel: FeatureInfoPanel | null = null;
+  const getPanel = (): FeatureInfoPanel => {
+    if (!panel) {
+      panel = new FeatureInfoPanel(deps.map.getContainer());
+      panel.onClose = () => panel?.hide();
+    }
+    return panel;
+  };
+
+  const host: PluginHost = {
+    manifest,
+    map: hostMap,
+
+    overlays: {
+      register(overlay: MapOverlay) {
+        require("map.overlay");
+        const runSetup = () => {
+          hostMap.beginSetup();
+          overlay.setup(hostMap);
+          overlay.update?.();
+        };
+        deps.map.on("style.load", runSetup);
+        cleanups.push(() => {
+          deps.map.off("style.load", runSetup);
+          overlay.destroy?.();
+        });
+        if (deps.map.isStyleLoaded()) runSetup();
+      },
+    },
+
+    charts: {
+      register(provider: ChartProvider) {
+        require("chart.provider");
+        deps.chartManager.registerProvider(provider);
+      },
+    },
+
+    nav: {
+      register(provider: NavigationDataProvider) {
+        require("nav.provider");
+        deps.navManager.registerProvider(provider);
+      },
+    },
+
+    data: {
+      register(asset: DataAsset) {
+        registerDataAsset(asset);
+      },
+    },
+
+    picking: {
+      register(reg: PickableRegistration) {
+        require("map.overlay");
+        const picker: MapPicker = {
+          priority: PICK_PRIORITY.overlay,
+          tryPick(e) {
+            const live = reg.layers.filter((id) => deps.map.getLayer(id));
+            if (live.length === 0) return false;
+            const bbox: [maplibregl.PointLike, maplibregl.PointLike] = [
+              [e.point.x - 10, e.point.y - 10],
+              [e.point.x + 10, e.point.y + 10],
+            ];
+            const hit = deps.map.queryRenderedFeatures(bbox, {
+              layers: live,
+            })[0];
+            if (!hit) return false;
+            const info: FeatureInfo | null = reg.resolve(hit);
+            if (!info) return false;
+            getPanel().show(info, 0, 1);
+            return true;
+          },
+          dismiss() {
+            panel?.hide();
+          },
+        };
+        deps.pickingManager.register(picker);
+      },
+    },
+
+    events: {
+      onMapMove(fn, debounceMs = 0) {
+        let timer: ReturnType<typeof setTimeout> | null = null;
+        const handler = () => {
+          if (debounceMs <= 0) {
+            fn();
+            return;
+          }
+          if (timer) clearTimeout(timer);
+          timer = setTimeout(fn, debounceMs);
+        };
+        deps.map.on("moveend", handler);
+        const off = () => {
+          if (timer) clearTimeout(timer);
+          deps.map.off("moveend", handler);
+        };
+        cleanups.push(off);
+        return off;
+      },
+      onTimeTick(fn, intervalMs) {
+        const id = setInterval(fn, intervalMs);
+        const off = () => clearInterval(id);
+        cleanups.push(off);
+        return off;
+      },
+    },
+
+    settings: {
+      get(): Readonly<Settings> {
+        return getSettings();
+      },
+      onChange(fn) {
+        const off = onSettingsChange(fn);
+        cleanups.push(off);
+        return off;
+      },
+      isLayerGroupEnabled(groupId: string) {
+        return isLayerGroupEnabled(groupId);
+      },
+    },
+
+    log(msg: string) {
+      console.info(`[plugin ${manifest.id}] ${msg}`);
+    },
+  };
+
+  const instance = plugin.activate(host);
+
+  return {
+    instance,
+    deactivate() {
+      (instance as PluginInstance | undefined)?.deactivate?.();
+      for (const c of cleanups) c();
+      hostMap.teardown();
+      panel?.hide();
+    },
+  };
+}

@@ -16,9 +16,10 @@ import {
   depthUnitLabel,
   type GpsFilterMode,
   type GpsRateMode,
+  getLayerGroups,
   getSettings,
   type InstrumentLayout,
-  LAYER_GROUP_LABELS,
+  isLayerGroupEnabled,
   onSettingsChange,
   type SpeedUnit,
   type StreetUnderlayMode,
@@ -448,11 +449,12 @@ function buildLayersTab(
 
   tab.appendChild(buildSectionHeader("Layers"));
 
-  for (const [groupId, label] of Object.entries(LAYER_GROUP_LABELS)) {
-    const checked = settings.layerGroups[groupId] !== false;
+  // Core S-57 groups plus any plugin-registered layer-group toggles.
+  for (const { id, label } of getLayerGroups()) {
+    const checked = isLayerGroupEnabled(id);
     tab.appendChild(
-      buildCheckboxRow(label, `settings-group-${groupId}`, checked, (v) => {
-        const groups = { ...getSettings().layerGroups, [groupId]: v };
+      buildCheckboxRow(label, `settings-group-${id}`, checked, (v) => {
+        const groups = { ...getSettings().layerGroups, [id]: v };
         updateSettings({ layerGroups: groups });
       }),
     );

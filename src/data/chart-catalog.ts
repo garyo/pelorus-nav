@@ -202,3 +202,33 @@ export function findRegionForPosition(
     return lon >= west && lon <= east && lat >= south && lat <= north;
   });
 }
+
+/**
+ * A downloadable data asset contributed by a plugin (e.g. the tides bundle,
+ * a weather cache). Surfaced alongside chart regions in the download UI.
+ * Distinct from `ChartRegion`, which the vector chart provider special-cases.
+ */
+export interface DataAsset {
+  /** Unique id, e.g. "tides-bundle". */
+  id: string;
+  /** Display name in the download UI. */
+  label: string;
+  /** Source URL (relative to origin, served same-origin when bundled). */
+  url: string;
+  /** OPFS filename for the offline copy. */
+  filename: string;
+  /** Approximate size in bytes for the UI. */
+  sizeEstimate: number;
+}
+
+const dataAssets: DataAsset[] = [];
+
+/** Register a plugin data asset; appears in the Chart Regions download panel. */
+export function registerDataAsset(asset: DataAsset): void {
+  if (!dataAssets.some((a) => a.id === asset.id)) dataAssets.push(asset);
+}
+
+/** All plugin-registered downloadable data assets. */
+export function getDataAssets(): readonly DataAsset[] {
+  return dataAssets;
+}

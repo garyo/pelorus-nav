@@ -98,14 +98,48 @@ export const LAYER_GROUP_LABELS: Record<string, string> = {
   seabed: "Seabed",
   daymarksTopmarks: "Daymarks & Topmarks",
   lightSectors: "Light Sectors",
-  tidesCurrents: "Tides & Currents",
 };
 
 const DEFAULT_LAYER_GROUPS: Record<string, boolean> = {
   ...Object.fromEntries(Object.keys(LAYER_GROUP_LABELS).map((k) => [k, true])),
   lightSectors: false,
-  tidesCurrents: false,
 };
+
+/** A toggleable layer group contributed by a plugin (see `registerLayerGroup`). */
+export interface LayerGroupDecl {
+  id: string;
+  label: string;
+  /** Enabled state used when the user has no stored preference. */
+  default: boolean;
+}
+
+const pluginLayerGroups: LayerGroupDecl[] = [];
+
+/** Register a plugin layer-group toggle; appears in the Layers settings tab. */
+export function registerLayerGroup(decl: LayerGroupDecl): void {
+  if (!pluginLayerGroups.some((g) => g.id === decl.id)) {
+    pluginLayerGroups.push(decl);
+  }
+}
+
+/** Core + plugin-registered layer groups, in display order. */
+export function getLayerGroups(): LayerGroupDecl[] {
+  const core = Object.entries(LAYER_GROUP_LABELS).map(([id, label]) => ({
+    id,
+    label,
+    default: DEFAULT_LAYER_GROUPS[id] ?? true,
+  }));
+  return [...core, ...pluginLayerGroups];
+}
+
+/** Whether a layer group (core or plugin) is currently enabled. */
+export function isLayerGroupEnabled(groupId: string): boolean {
+  const stored = current.layerGroups[groupId];
+  if (typeof stored === "boolean") return stored;
+  const reg = pluginLayerGroups.find((g) => g.id === groupId);
+  if (reg) return reg.default;
+  return DEFAULT_LAYER_GROUPS[groupId] ?? true;
+}
 
 const SETTINGS_VERSION = 2;
 

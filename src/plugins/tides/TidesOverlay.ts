@@ -1,22 +1,22 @@
 /**
- * Tides & currents overlay — fully offline.
+ * Tides & currents map overlay (a MapOverlay plugin).
  *
- * Draws tide-station icons (with height + rising/falling label) and
- * current arrows (rotated to set, scaled by drift) from the bundled NOAA
- * station data, computing harmonic predictions client-side. Clicking a
- * station shows upcoming events (high/low, max flood/slack/max ebb) in a
- * FeatureInfoPanel.
+ * Draws tide-station icons (height + rising/falling) and current arrows
+ * (rotated to set, scaled by drift) from the bundled NOAA station data,
+ * computing harmonic predictions client-side. Layers are placed into z-order
+ * slots — tide gauges in `overlay-data` (above chart symbols), current arrows
+ * in `overlay-low` (above soundings, below buoys/lights/labels). Picking and
+ * the station popup go through the host's central dispatcher.
+ *
+ * Adapted from the former src/chart/TidesCurrentsLayer.ts; the prediction core
+ * in src/tides/ is unchanged.
  */
 
 import type { Feature, FeatureCollection } from "geojson";
 import type maplibregl from "maplibre-gl";
-import { getMode } from "../map/InteractionMode";
-import {
-  formatDepth,
-  getSettings,
-  onSettingsChange,
-  type SymbologyScheme,
-} from "../settings";
+import type { FeatureInfo } from "../../chart/feature-info";
+import { s52Colour } from "../../chart/s52-colours";
+import { formatDepth, type SymbologyScheme } from "../../settings";
 import {
   type CurrentStation,
   isCurrentRef,
@@ -25,8 +25,8 @@ import {
   stationsInBounds,
   type TideStation,
   type TidesIndex,
-} from "../tides/bundle";
-import { currentState } from "../tides/currents";
+} from "../../tides/bundle";
+import { currentState } from "../../tides/currents";
 import {
   formatCurrentEvent,
   formatEventTime,
@@ -34,17 +34,25 @@ import {
   formatTideEvent,
   formatTideHeight,
   formatTimeUntil,
-} from "../tides/format";
-import { tideNow, tideState } from "../tides/predictor";
-import { FeatureInfoPanel } from "./FeatureInfoPanel";
-import type { FeatureInfo } from "./feature-info";
-import { s52Colour } from "./s52-colours";
+} from "../../tides/format";
+import { tideNow, tideState } from "../../tides/predictor";
+import type { MapOverlay, PluginHost, PluginMap } from "../types";
+
+export const TIDES_LAYER_GROUP = "tidesCurrents";
 
 const SOURCE_ID = "_tides-currents";
 const LAYER_TIDE = "_tide-stations";
 const LAYER_CURRENT = "_current-arrows";
 const LAYER_SLACK_FLOOD = "_current-slack-flood";
 const LAYER_SLACK_EBB = "_current-slack-ebb";
+
+/** All pickable tide/current layers, in priority order. */
+export const TIDES_PICK_LAYERS = [
+  LAYER_TIDE,
+  LAYER_CURRENT,
+  LAYER_SLACK_FLOOD,
+  LAYER_SLACK_EBB,
+];
 
 const MIN_ZOOM = 9;
 /** Cap on stations rendered at once; harmonic stations win when over. */
@@ -57,17 +65,10 @@ const REFRESH_EINK_MS = 15 * 60 * 1000;
 /** Hours of upcoming events to list in the station popup. */
 const POPUP_WINDOW_HRS = 26;
 
-/**
- * Sprite names per symbology scheme (must exist in the active sheet).
- * `tideGauge` and `arrow` are fill-state series indexed by the feature's
- * `_fill` bucket (0–4 = 0–100% of the station's cycle range/max).
- */
 interface SpriteSet {
-  /** Neutral waves icon for subordinate tide stations (no height curve). */
   tideNeutral: string;
   tideGauge: string[];
   arrow: string[];
-  /** Half-length outline arrow for the slack double-arrow marker. */
   slackArrow: string;
 }
 
@@ -104,175 +105,94 @@ interface NowProps {
   props: Record<string, string | number>;
 }
 
-export class TidesCurrentsLayer {
-  private readonly map: maplibregl.Map;
-  private readonly panel: FeatureInfoPanel;
-  private enabled = false;
+export class TidesOverlay implements MapOverlay {
+  readonly id = "tides-currents";
+
+  private readonly host: PluginHost;
+  private pmap: PluginMap | null = null;
   private index: TidesIndex | null = null;
+  private enabled = false;
   private debounceTimer: ReturnType<typeof setTimeout> | null = null;
-  private refreshTimer: ReturnType<typeof setInterval> | null = null;
+  private timerOff: (() => void) | null = null;
   /** Per-station display props, valid for one refresh bucket. */
   private readonly nowCache = new Map<string, NowProps>();
   private lastDataJson = "";
 
-  /** Called when this layer opens its popup (so other popups can close). */
-  onShowInfo?: () => void;
+  constructor(host: PluginHost) {
+    this.host = host;
+    this.enabled = host.settings.isLayerGroupEnabled(TIDES_LAYER_GROUP);
 
-  constructor(map: maplibregl.Map) {
-    this.map = map;
-    this.enabled = getSettings().layerGroups.tidesCurrents ?? false;
+    // Map moves refresh the in-bounds station set (debounced by the host).
+    host.events.onMapMove(() => {
+      if (this.enabled) this.rebuild();
+    }, 150);
 
-    this.panel = new FeatureInfoPanel(map.getContainer());
-    this.panel.onClose = () => this.panel.hide();
-
-    map.on("style.load", () => this.setup());
-    if (map.isStyleLoaded()) this.setup();
-
-    map.on("moveend", () => {
-      if (this.enabled) this.debouncedRebuild();
-    });
-    map.on("click", (e) => this.handleClick(e));
-
-    let currentTheme = getSettings().displayTheme;
-    let currentScheme = getSettings().symbologyScheme;
-    let currentDetail = getSettings().detailLevel;
-    let currentUnits = `${getSettings().depthUnit}/${getSettings().speedUnit}`;
-    onSettingsChange((s) => {
-      // Unit changes invalidate cached station labels
-      const units = `${s.depthUnit}/${s.speedUnit}`;
-      if (units !== currentUnits) {
-        currentUnits = units;
+    // Unit changes don't rebuild the chart style, so handle them here.
+    let units = unitKey(host);
+    host.settings.onChange(() => {
+      const next = unitKey(host);
+      if (next !== units) {
+        units = next;
         this.nowCache.clear();
         if (this.enabled) this.debouncedRebuild();
       }
-      const nowEnabled = s.layerGroups.tidesCurrents ?? false;
-      if (nowEnabled !== this.enabled) {
-        this.enabled = nowEnabled;
-        if (this.enabled) {
-          this.rebuild();
-        } else {
-          this.clear();
-          this.panel.hide();
-        }
-        this.updateRefreshTimer();
-      }
-      // Theme/scheme switches load a different sprite sheet, and detail
-      // level moves the arrow min zoom; re-add layers to match.
-      if (
-        s.displayTheme !== currentTheme ||
-        s.symbologyScheme !== currentScheme ||
-        s.detailLevel !== currentDetail
-      ) {
-        currentTheme = s.displayTheme;
-        currentScheme = s.symbologyScheme;
-        currentDetail = s.detailLevel;
-        if (this.map.isStyleLoaded()) {
-          this.addSourceAndLayers();
-          if (this.enabled) this.rebuild();
-        }
-        this.updateRefreshTimer();
-      }
     });
-    this.updateRefreshTimer();
   }
 
-  /** Close the station popup (e.g. on idle auto-return). */
-  hide(): void {
-    this.panel.hide();
-  }
-
-  private setup(): void {
-    this.addSourceAndLayers();
-    if (this.enabled) this.rebuild();
-  }
-
-  private updateRefreshTimer(): void {
-    if (this.refreshTimer) {
-      clearInterval(this.refreshTimer);
-      this.refreshTimer = null;
-    }
-    if (!this.enabled) return;
-    const interval =
-      getSettings().displayTheme === "eink" ? REFRESH_EINK_MS : REFRESH_MS;
-    this.refreshTimer = setInterval(() => this.rebuild(), interval);
-  }
-
-  private removeLayers(): void {
-    for (const id of [
-      LAYER_TIDE,
-      LAYER_CURRENT,
-      LAYER_SLACK_FLOOD,
-      LAYER_SLACK_EBB,
-    ]) {
-      if (this.map.getLayer(id)) this.map.removeLayer(id);
-    }
-    if (this.map.getSource(SOURCE_ID)) this.map.removeSource(SOURCE_ID);
-  }
-
-  private addSourceAndLayers(): void {
-    this.removeLayers();
+  /** (Re-)add source and layers; called on every style load by the host. */
+  setup(map: PluginMap): void {
+    this.pmap = map;
     this.lastDataJson = "";
 
-    this.map.addSource(SOURCE_ID, {
+    map.addSource(SOURCE_ID, {
       type: "geojson",
       data: { type: "FeatureCollection", features: [] },
     });
 
-    const { symbologyScheme, iconScale, textScale, detailLevel } =
-      getSettings();
-    const sprites = SPRITES[symbologyScheme] ?? SPRITES["pelorus-standard"];
-    // Current arrows appear one zoom level after tide icons; their speed
-    // labels one level later still. Above-standard detail brings both in
-    // one zoom level earlier.
-    const arrowMinZoom = detailLevel >= 1 ? 9 : 10;
+    const s = this.host.settings.get();
+    const sprites = SPRITES[s.symbologyScheme] ?? SPRITES["pelorus-standard"];
+    const iconScale = s.iconScale;
+    const textScale = s.textScale;
+    // Arrows appear one zoom after tide icons; speed labels one later still.
+    // Above-standard detail brings both in one zoom level earlier.
+    const arrowMinZoom = s.detailLevel >= 1 ? 9 : 10;
     const labelPaint = {
       "text-color": s52Colour("CHBLK"),
       "text-halo-color": s52Colour("CHWHT"),
       "text-halo-width": 1.2,
     };
 
-    this.map.addLayer({
-      id: LAYER_TIDE,
-      type: "symbol",
-      source: SOURCE_ID,
-      minzoom: MIN_ZOOM,
-      filter: ["==", ["get", "_kind"], "tide"],
-      layout: {
-        "icon-image": fillIconExpr(
-          sprites.tideGauge,
-          sprites.tideNeutral,
-        ) as never,
-        "icon-size": 0.9 * iconScale,
-        "icon-allow-overlap": true,
-        "text-field": ["get", "_label"],
-        "text-font": ["Noto Sans Regular"],
-        "text-size": 11 * textScale,
-        "text-anchor": "top",
-        "text-offset": [0, 0.85],
-        "text-optional": true,
+    // Tide gauges sit above chart symbols (overlay-data).
+    map.addLayer(
+      {
+        id: LAYER_TIDE,
+        type: "symbol",
+        source: SOURCE_ID,
+        minzoom: MIN_ZOOM,
+        filter: ["==", ["get", "_kind"], "tide"],
+        layout: {
+          "icon-image": fillIconExpr(
+            sprites.tideGauge,
+            sprites.tideNeutral,
+          ) as never,
+          "icon-size": 0.9 * iconScale,
+          "icon-allow-overlap": true,
+          "text-field": ["get", "_label"],
+          "text-font": ["Noto Sans Regular"],
+          "text-size": 11 * textScale,
+          "text-anchor": "top",
+          "text-offset": [0, 0.85],
+          "text-optional": true,
+        },
+        paint: labelPaint,
       },
-      paint: labelPaint,
-    });
+      "overlay-data",
+    );
 
-    // Arrows are LOW priority: drawn above the soundings (so wall-to-wall
-    // depth digits don't bury them) but beneath buoys, lights, and labels,
-    // and excluded from symbol collision (ignore-placement + allow-overlap)
-    // so they never displace chart symbols. Falls back to the bottom of the
-    // symbol stack when no soundings layer exists (raster charts).
-    const styleLayers: { id: string; type: string }[] =
-      this.map.getStyle().layers ?? [];
-    let lastSoundg = -1;
-    for (let i = styleLayers.length - 1; i >= 0; i--) {
-      if (styleLayers[i].id.endsWith("-soundg")) {
-        lastSoundg = i;
-        break;
-      }
-    }
-    const firstSymbolLayer =
-      lastSoundg >= 0
-        ? styleLayers[lastSoundg + 1]?.id
-        : styleLayers.find((l) => l.type === "symbol")?.id;
-    this.map.addLayer(
+    // Current arrows are LOW priority: above soundings, below buoys/lights/
+    // labels, and excluded from symbol collision so they never displace chart
+    // symbols. The `overlay-low` slot anchors them just above soundings.
+    map.addLayer(
       {
         id: LAYER_CURRENT,
         type: "symbol",
@@ -285,20 +205,17 @@ export class TidesCurrentsLayer {
         ],
         layout: {
           "icon-image": fillIconExpr(sprites.arrow, sprites.arrow[2]) as never,
-          // Arrow length tracks drift: weak currents draw small, 3+ kt large.
-          // Arrow sprites are rendered at 2× and drawn at half scale so the
-          // largest arrows are still downsampled (sharp), never upsampled.
+          // Arrow length tracks drift; sprites rendered 2× and drawn at half
+          // scale so the largest arrows are downsampled (sharp), never upsampled.
           "icon-size": [
             "*",
             iconScale * 0.5,
             ["interpolate", ["linear"], ["get", "_driftKn"], 0, 0.5, 3, 1.4],
           ],
           "icon-rotate": ["get", "_setDeg"],
-          // Rotate with the map so arrows show true set in course-up mode.
           "icon-rotation-alignment": "map",
           "icon-allow-overlap": true,
           "icon-ignore-placement": true,
-          // Speed labels appear one zoom level after the arrows themselves.
           "text-field": [
             "step",
             ["zoom"],
@@ -314,18 +231,16 @@ export class TidesCurrentsLayer {
         },
         paint: labelPaint,
       },
-      firstSymbolLayer,
+      "overlay-low",
     );
 
-    // Slack stations: two small tail-anchored arrows radiating in the
-    // station's flood and ebb sets (which are often NOT 180° apart) — a
-    // "double-ended arrow" at a fixed minimum size, replacing the open
-    // circle that field testing showed users didn't read as slack.
+    // Slack stations: two tail-anchored arrows radiating in the station's
+    // flood and ebb sets (often not 180° apart) — a fixed-size double-arrow.
     for (const [id, dirProp] of [
       [LAYER_SLACK_FLOOD, "_floodDeg"],
       [LAYER_SLACK_EBB, "_ebbDeg"],
     ] as const) {
-      this.map.addLayer(
+      map.addLayer(
         {
           id,
           type: "symbol",
@@ -346,9 +261,37 @@ export class TidesCurrentsLayer {
             "icon-ignore-placement": true,
           },
         },
-        firstSymbolLayer,
+        "overlay-low",
       );
     }
+  }
+
+  /** Re-evaluate enabled state, refresh timer, and station data. */
+  update(): void {
+    this.enabled = this.host.settings.isLayerGroupEnabled(TIDES_LAYER_GROUP);
+    this.updateRefreshTimer();
+    if (this.enabled) {
+      this.rebuild();
+    } else {
+      this.clear();
+    }
+  }
+
+  destroy(): void {
+    this.timerOff?.();
+    this.timerOff = null;
+    if (this.debounceTimer) clearTimeout(this.debounceTimer);
+  }
+
+  private updateRefreshTimer(): void {
+    this.timerOff?.();
+    this.timerOff = null;
+    if (!this.enabled) return;
+    const interval =
+      this.host.settings.get().displayTheme === "eink"
+        ? REFRESH_EINK_MS
+        : REFRESH_MS;
+    this.timerOff = this.host.events.onTimeTick(() => this.rebuild(), interval);
   }
 
   private debouncedRebuild(): void {
@@ -367,19 +310,21 @@ export class TidesCurrentsLayer {
   }
 
   private async rebuild(): Promise<void> {
-    if (!this.enabled) return;
-    if (!this.map.getSource(SOURCE_ID)) {
-      if (!this.map.isStyleLoaded()) return;
-      this.addSourceAndLayers();
+    const pmap = this.pmap;
+    if (!this.enabled || !pmap) return;
+    const map = pmap.raw;
+    if (!pmap.hasSource(SOURCE_ID)) {
+      if (!map.isStyleLoaded()) return;
+      this.setup(pmap);
     }
-    if (this.map.getZoom() < MIN_ZOOM) {
+    if (map.getZoom() < MIN_ZOOM) {
       this.clear();
       return;
     }
     const index = await this.ensureIndex();
     if (!index) return;
 
-    const b = this.map.getBounds();
+    const b = map.getBounds();
     const box = {
       west: b.getWest(),
       south: b.getSouth(),
@@ -406,11 +351,10 @@ export class TidesCurrentsLayer {
     }
 
     const fc: FeatureCollection = { type: "FeatureCollection", features };
-    // Skip the repaint when nothing visible changed (kind to e-ink).
     const json = JSON.stringify(fc);
     if (json === this.lastDataJson) return;
     this.lastDataJson = json;
-    (this.map.getSource(SOURCE_ID) as maplibregl.GeoJSONSource)?.setData(fc);
+    (map.getSource(SOURCE_ID) as maplibregl.GeoJSONSource)?.setData(fc);
   }
 
   private tideProps(
@@ -426,16 +370,15 @@ export class TidesCurrentsLayer {
     const state = tideNow(station, index, now);
     if (!state) return null;
     const arrow = state.trend === "rising" ? "↑" : "↓";
-    // "~" marks subordinate stations' interpolated (approximate) heights
+    const unit = this.host.settings.get().depthUnit;
     const label =
       state.heightMeters != null
-        ? `${state.approximate ? "~" : ""}${formatDepth(state.heightMeters, getSettings().depthUnit)} ${arrow}`
+        ? `${state.approximate ? "~" : ""}${formatDepth(state.heightMeters, unit)} ${arrow}`
         : arrow;
     const props = {
       _kind: "tide",
       _id: station.id,
       _label: label,
-      // Gauge bucket 0–4; -1 selects the neutral icon (subordinates)
       _fill: state.fraction != null ? Math.round(state.fraction * 4) : -1,
     };
     this.nowCache.set(key, { bucket, props });
@@ -459,11 +402,9 @@ export class TidesCurrentsLayer {
       _id: station.id,
       _state: state.state,
       _setDeg: Math.round(state.dir),
-      // Slack double-arrows point along the station's flood and ebb sets
       _floodDeg: Math.round(station.floodDir),
       _ebbDeg: Math.round(station.ebbDir),
       _driftKn: Number(state.speedKn.toFixed(2)),
-      // Arrow fill bucket 0–4: speed relative to this cycle's max
       _fill:
         state.cycleMaxKn > 0
           ? Math.min(4, Math.round((state.speedKn / state.cycleMaxKn) * 4))
@@ -471,7 +412,7 @@ export class TidesCurrentsLayer {
       _label:
         state.state === "slack"
           ? "slack"
-          : formatSpeed(state.speedKn, getSettings().speedUnit),
+          : formatSpeed(state.speedKn, this.host.settings.get().speedUnit),
     };
     this.nowCache.set(key, { bucket, props });
     return props;
@@ -479,37 +420,17 @@ export class TidesCurrentsLayer {
 
   private clear(): void {
     this.lastDataJson = "";
-    const src = this.map.getSource(SOURCE_ID) as
+    const src = this.pmap?.raw.getSource(SOURCE_ID) as
       | maplibregl.GeoJSONSource
       | undefined;
     src?.setData({ type: "FeatureCollection", features: [] });
   }
 
-  // ── Click → upcoming-events popup ───────────────────────────────────
-
-  private handleClick(e: maplibregl.MapMouseEvent): void {
-    if (!this.enabled || getMode() !== "query") return;
-    if (!this.map.getLayer(LAYER_TIDE)) return;
-
-    const bbox: [maplibregl.PointLike, maplibregl.PointLike] = [
-      [e.point.x - 10, e.point.y - 10],
-      [e.point.x + 10, e.point.y + 10],
-    ];
-    const hits = this.map.queryRenderedFeatures(bbox, {
-      layers: [LAYER_TIDE, LAYER_CURRENT, LAYER_SLACK_FLOOD, LAYER_SLACK_EBB],
-    });
-    const hit = hits[0];
-    if (!hit) {
-      this.panel.hide();
-      return;
-    }
-
-    const id = hit.properties._id as string;
-    const kind = hit.properties._kind as string;
-    const info = kind === "tide" ? this.tideInfo(id) : this.currentInfo(id);
-    if (!info) return;
-    this.onShowInfo?.();
-    this.panel.show(info, 0, 1);
+  /** Map a clicked station feature to an upcoming-events popup. */
+  resolveInfo(feature: maplibregl.MapGeoJSONFeature): FeatureInfo | null {
+    const id = feature.properties._id as string;
+    const kind = feature.properties._kind as string;
+    return kind === "tide" ? this.tideInfo(id) : this.currentInfo(id);
   }
 
   private tideInfo(id: string): FeatureInfo | null {
@@ -520,7 +441,7 @@ export class TidesCurrentsLayer {
     const state = tideState(station, index, now, POPUP_WINDOW_HRS);
     if (!state) return null;
 
-    const { depthUnit } = getSettings();
+    const { depthUnit } = this.host.settings.get();
     const details: { label: string; value: string }[] = [];
     if (state.heightMeters != null) {
       const approx = state.approximate ? "≈" : "";
@@ -533,7 +454,6 @@ export class TidesCurrentsLayer {
     }
     state.events.forEach((ev, i) => {
       details.push({
-        // Next change gets a relative time for glanceability
         label:
           i === 0
             ? `${formatEventTime(ev.time, now)} ${formatTimeUntil(ev.time, now)}`
@@ -552,7 +472,7 @@ export class TidesCurrentsLayer {
     const state = currentState(station, index, now, POPUP_WINDOW_HRS);
     if (!state) return null;
 
-    const { speedUnit } = getSettings();
+    const { speedUnit } = this.host.settings.get();
     const details: FeatureInfo["details"] = [
       state.state === "slack"
         ? { label: "Now", value: "Slack" }
@@ -564,13 +484,11 @@ export class TidesCurrentsLayer {
     ];
     state.events.forEach((ev, i) => {
       details.push({
-        // Next change gets a relative time for glanceability
         label:
           i === 0
             ? `${formatEventTime(ev.time, now)} ${formatTimeUntil(ev.time, now)}`
             : formatEventTime(ev.time, now),
         value: formatCurrentEvent(ev, speedUnit),
-        // Set arrows on the peaks; slack has no direction
         ...(ev.type === "maxFlood"
           ? { dir: station.floodDir }
           : ev.type === "maxEbb"
@@ -580,6 +498,11 @@ export class TidesCurrentsLayer {
     });
     return { type: "Current Station", name: station.name, details };
   }
+}
+
+function unitKey(host: PluginHost): string {
+  const s = host.settings.get();
+  return `${s.depthUnit}/${s.speedUnit}`;
 }
 
 function pointFeature(

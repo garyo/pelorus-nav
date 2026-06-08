@@ -20,7 +20,6 @@ import { LightSectorLayer } from "./chart/LightSectorLayer";
 import { registerOSMTileProtocol } from "./chart/osm-tile-cache";
 import { PelLightLayer } from "./chart/PelLightLayer";
 import { SafetyContour } from "./chart/SafetyContour";
-import { TidesCurrentsLayer } from "./chart/TidesCurrentsLayer";
 import {
   getStreamingVersions,
   refreshStreamingVersions,
@@ -62,6 +61,9 @@ import {
   BOSTON_HARBOR_ROUTE,
   type SimulatorOptions,
 } from "./navigation/SimulatorProvider";
+import { BUILTIN_PLUGINS } from "./plugins/manifest";
+import { PickingManager } from "./plugins/PickingManager";
+import { PluginManager } from "./plugins/PluginManager";
 import { getSettings, onSettingsChange, updateSettings } from "./settings";
 import { AboutDialog } from "./ui/AboutDialog";
 import { startAppUpdateNotifier } from "./ui/AppUpdateNotifier";
@@ -330,7 +332,12 @@ const FRAME_INTERVAL_EINK_SETTLING = 1500;
   map.triggerRepaint = throttledRepaint;
 }
 
+// Central click dispatcher: one map-click handler runs registered pickers in
+// z-order (overlays above chart), shows one popup at a time. The chart feature
+// picker and plugin overlays (tides, …) all register with it.
+const pickingManager = new PickingManager(chartManager.map);
 const featureQueryHandler = new FeatureQueryHandler(chartManager);
+pickingManager.register(featureQueryHandler);
 
 // Light sector arcs and range circles (client-side generated from LIGHTS data)
 new LightSectorLayer(chartManager.map);
@@ -338,11 +345,6 @@ new LightSectorLayer(chartManager.map);
 // PEL / directional light cluster rendering (fans stacked teardrops,
 // filters duplicate labels, shows parent OBJNAM at high zoom).
 new PelLightLayer(chartManager.map);
-
-// Tides & currents overlay (offline harmonic predictions from bundled
-// NOAA station data). Its station popup dismisses the chart feature popup.
-const tidesCurrentsLayer = new TidesCurrentsLayer(chartManager.map);
-tidesCurrentsLayer.onShowInfo = () => featureQueryHandler.hide();
 
 // Settings gear in top bar menu
 const topbarMenu = document.getElementById("topbar-menu");
@@ -364,9 +366,9 @@ const settingsHandle = topbarMenu
 // creation site below; the idle handler reads the populated list when it fires.
 const idleCloseables: Array<{ hide(): void }> = [];
 if (settingsHandle) idleCloseables.push(settingsHandle);
-// The chart feature-info popup counts as a dialog for auto-return too
-idleCloseables.push(featureQueryHandler);
-idleCloseables.push(tidesCurrentsLayer);
+// Feature-info popups (chart + plugin overlays) count as dialogs for
+// auto-return; the picking dispatcher dismisses them all.
+idleCloseables.push({ hide: () => pickingManager.hideAll() });
 
 // Hamburger toggle for mobile
 const hamburgerBtn = document.getElementById("hamburger-btn");
@@ -448,6 +450,17 @@ if (WebSerialNMEAProvider.isAvailable()) {
   navManager.registerProvider(new WebSerialNMEAProvider());
 }
 navManager.registerProvider(new SignalKProvider());
+
+// Activate build-time plugins (Tides & Currents, …) through the plugin host.
+// They register overlays, layer-group toggles, data assets, and pickables.
+const pluginManager = new PluginManager({
+  map: chartManager.map,
+  chartManager,
+  navManager,
+  pickingManager,
+});
+for (const plugin of BUILTIN_PLUGINS) pluginManager.register(plugin);
+pluginManager.activateAll();
 
 // Vessel display layer
 const vesselLayer = new VesselLayer(chartManager.map);
