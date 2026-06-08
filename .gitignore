@@ -32,6 +32,8 @@ public/nautical*.pmtiles
 public/nautical*.coverage.geojson
 public/nautical*.search.json
 public/basemap-*.pmtiles
+public/rnc-*.pmtiles
+public/rnc-*.coverage.geojson
 public/.uploaded-*
 *.pmtiles.uploaded
 

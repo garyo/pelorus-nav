@@ -7,6 +7,7 @@ import { Capacitor } from "@capacitor/core";
 import { CapacitorGPSProvider } from "../navigation/CapacitorGPSProvider";
 import {
   type BearingMode,
+  type ChartBlend,
   type CourseLineDuration,
   convertDepth,
   type DepthUnit,
@@ -448,6 +449,21 @@ function buildLayersTab(
       ],
       settings.streetUnderlay,
       (v) => updateSettings({ streetUnderlay: v as StreetUnderlayMode }),
+    ),
+  );
+
+  // Raster chart (RNC) blend with the vector ENC.
+  tab.appendChild(
+    buildSelectRow(
+      "Raster charts (RNC)",
+      "settings-chart-blend",
+      [
+        { value: "auto", label: "Auto (fill ENC gaps)" },
+        { value: "raster", label: "Prefer raster" },
+        { value: "vector", label: "Vector only" },
+      ],
+      settings.chartBlend,
+      (v) => updateSettings({ chartBlend: v as ChartBlend }),
     ),
   );
 

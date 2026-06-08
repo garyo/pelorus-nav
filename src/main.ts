@@ -19,6 +19,10 @@ import {
 import { LightSectorLayer } from "./chart/LightSectorLayer";
 import { registerOSMTileProtocol } from "./chart/osm-tile-cache";
 import { PelLightLayer } from "./chart/PelLightLayer";
+import {
+  rasterChartsFromFilenames,
+  setStoredRasterCharts,
+} from "./chart/raster-charts";
 import { SafetyContour } from "./chart/SafetyContour";
 import {
   getStreamingVersions,
@@ -71,6 +75,7 @@ import { startAppUpdateNotifier } from "./ui/AppUpdateNotifier";
 import { CancelNavButton } from "./ui/CancelNavButton";
 import { CenterCrosshair } from "./ui/CenterCrosshair";
 import { ChartCachePanel } from "./ui/ChartCachePanel";
+import { ChartInUseReadout } from "./ui/ChartInUseReadout";
 import { startChartUpdateNotifier } from "./ui/ChartUpdateNotifier";
 import { createContextMenu } from "./ui/ContextMenu";
 import { createIdleDetector } from "./ui/IdleDetector";
@@ -150,6 +155,9 @@ try {
   setStoredBasemaps(
     basemapRegionsFromFilenames(storedCharts.map((c) => c.filename)),
   );
+  setStoredRasterCharts(
+    rasterChartsFromFilenames(storedCharts.map((c) => c.filename)),
+  );
 } catch {
   // OPFS not available or no stored charts — fall back to remote
 }
@@ -222,6 +230,9 @@ applyStreamingVersions().catch(() => {
 
 // Safety contour — bolds the shallowest depth contour >= safetyDepth
 new SafetyContour(chartManager.map);
+
+// "Chart in use" readout + overscale badge for the vector/raster quilt.
+new ChartInUseReadout(chartManager.map);
 
 // Dev-only: expose the map for browser-harness probes (no-op in prod build).
 if (import.meta.env.DEV) {
@@ -1019,6 +1030,9 @@ if (topbarMenu) {
         }
         setStoredBasemaps(
           basemapRegionsFromFilenames(charts.map((c) => c.filename)),
+        );
+        setStoredRasterCharts(
+          rasterChartsFromFilenames(charts.map((c) => c.filename)),
         );
         await vectorProvider.loadAllOfflineCoverage();
         // The downloaded set changed, so re-derive which regions stream

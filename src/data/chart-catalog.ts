@@ -221,6 +221,44 @@ export interface DataAsset {
   sizeEstimate: number;
 }
 
+/**
+ * A raster chart (NOAA RNC, converted to raster PMTiles by tools/rnc-pipeline).
+ * Composited beneath the vector ENC (vector-preferred quilting); fills areas the
+ * vector charts don't cover (e.g. the BVI, which NOAA never vectorised).
+ */
+export interface RasterChart {
+  id: string;
+  name: string;
+  filename: string; // rnc-<id>.pmtiles
+  coverageFilename: string; // rnc-<id>.coverage.geojson (chart footprint)
+  sizeEstimate: number;
+  /** Compilation scale, e.g. 100000 for 1:100k. */
+  scale: number;
+  /** Slippy zoom where the chart is "native"; past it the display is overscale. */
+  nativeZoom: number;
+  /** Tile zoom range in the PMTiles. */
+  minZoom: number;
+  maxZoom: number;
+  center: [number, number];
+  bbox: [number, number, number, number]; // [west, south, east, north]
+}
+
+export const RASTER_CHARTS: RasterChart[] = [
+  {
+    id: "bvi",
+    name: "British Virgin Islands (NOAA 25641)",
+    filename: "rnc-bvi.pmtiles",
+    coverageFilename: "rnc-bvi.coverage.geojson",
+    sizeEstimate: 32 * 1024 * 1024,
+    scale: 100000,
+    nativeZoom: 13,
+    minZoom: 8,
+    maxZoom: 14,
+    center: [-64.62, 18.42],
+    bbox: [-65.11, 17.582, -64.366, 18.548],
+  },
+];
+
 const dataAssets: DataAsset[] = [];
 
 /** Register a plugin data asset; appears in the Chart Regions download panel. */

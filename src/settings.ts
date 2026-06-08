@@ -11,6 +11,12 @@ export type CourseLineDuration = 0 | "auto" | 5 | 15 | 30 | 60;
 export type DisplayTheme = "day" | "dusk" | "night" | "eink";
 export type BearingMode = "true" | "magnetic";
 export type StreetUnderlayMode = "auto" | "osm" | "off";
+/**
+ * How raster charts (RNC) blend with vector ENC:
+ * "auto" = vector-preferred quilt (ENC where it has cells, raster fills gaps);
+ * "vector" = hide raster entirely; "raster" = raster on top of ENC.
+ */
+export type ChartBlend = "auto" | "vector" | "raster";
 export type SymbologyScheme =
   | "pelorus-standard"
   | "iho-s52"
@@ -67,6 +73,8 @@ export interface Settings {
    * "osm" = always OSM raster; "off" = chart only.
    */
   streetUnderlay: StreetUnderlayMode;
+  /** How raster charts (RNC) blend with the vector ENC. */
+  chartBlend: ChartBlend;
   /** Shallow water threshold in meters (areas < this get DEPVS color). */
   shallowDepth: number;
   /** Safety depth in meters — soundings ≤ this are shown in high-contrast (SNDG2). */
@@ -242,6 +250,7 @@ const DEFAULTS: Settings = {
   symbologyScheme: "iho-s52",
   bearingMode: "magnetic",
   streetUnderlay: "auto",
+  chartBlend: "auto",
   shallowDepth: 1.83,
   safetyDepth: 6.1,
   deepDepth: 15.24,

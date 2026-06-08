@@ -1,6 +1,7 @@
 import maplibregl from "maplibre-gl";
 import { applySlotAnchors } from "../plugins/slots";
 import type {
+  ChartBlend,
   DepthUnit,
   DetailLevel,
   DisplayTheme,
@@ -19,6 +20,7 @@ import {
   applyUnderlay,
   getOSMUnderlaySource,
 } from "./osm-underlay";
+import { getRasterChartLayers, getRasterChartSources } from "./raster-charts";
 import { getIconScheme } from "./styles/icon-sets";
 
 export interface ChartManagerOptions {
@@ -45,6 +47,7 @@ export class ChartManager {
   private prevDisplayTheme: DisplayTheme;
   private prevSymbology: SymbologyScheme;
   private prevStreetUnderlay: StreetUnderlayMode;
+  private prevChartBlend: ChartBlend;
   private prevActiveRegion: string;
   private prevShallowDepth: number;
   private prevDeepDepth: number;
@@ -94,6 +97,7 @@ export class ChartManager {
     this.prevDisplayTheme = initial.displayTheme;
     this.prevSymbology = initial.symbologyScheme;
     this.prevStreetUnderlay = initial.streetUnderlay;
+    this.prevChartBlend = initial.chartBlend;
     this.prevActiveRegion = initial.activeRegion;
     this.prevShallowDepth = initial.shallowDepth;
     this.prevDeepDepth = initial.deepDepth;
@@ -111,6 +115,7 @@ export class ChartManager {
         s.displayTheme !== this.prevDisplayTheme ||
         s.symbologyScheme !== this.prevSymbology ||
         s.streetUnderlay !== this.prevStreetUnderlay ||
+        s.chartBlend !== this.prevChartBlend ||
         s.activeRegion !== this.prevActiveRegion ||
         s.shallowDepth !== this.prevShallowDepth ||
         s.deepDepth !== this.prevDeepDepth ||
@@ -124,6 +129,7 @@ export class ChartManager {
         this.prevDisplayTheme = s.displayTheme;
         this.prevSymbology = s.symbologyScheme;
         this.prevStreetUnderlay = s.streetUnderlay;
+        this.prevChartBlend = s.chartBlend;
         this.prevActiveRegion = s.activeRegion;
         this.prevShallowDepth = s.shallowDepth;
         this.prevDeepDepth = s.deepDepth;
@@ -263,6 +269,32 @@ export class ChartManager {
       ...provider.getSources(),
     };
     let layers = provider.getLayers();
+
+    // Composite raster charts (RNC) for vector providers — vector-preferred
+    // quilt: the raster sits below the ENC area fills (so ENC wins where it has
+    // cells) and shows through where ENC has no data (e.g. the BVI). The no-data
+    // hatch is moved below the raster so it only shows where NEITHER covers.
+    // "raster" blend puts the raster on top instead; "vector" hides it.
+    if (provider.type === "vector" && settings.chartBlend !== "vector") {
+      const rasterLayers = getRasterChartLayers();
+      if (rasterLayers.length > 0) {
+        sources = { ...sources, ...getRasterChartSources() };
+        if (settings.chartBlend === "raster") {
+          layers = [...layers, ...rasterLayers];
+        } else {
+          const hatch = layers.filter((l) => l.id === "s57-no-coverage");
+          const rest = layers.filter((l) => l.id !== "s57-no-coverage");
+          const bgIdx = rest.findIndex((l) => l.type === "background");
+          const at = bgIdx >= 0 ? bgIdx + 1 : 0;
+          layers = [
+            ...rest.slice(0, at),
+            ...hatch,
+            ...rasterLayers,
+            ...rest.slice(at),
+          ];
+        }
+      }
+    }
 
     // Merge street underlay for vector chart providers. "auto" prefers the
     // active region's offline vector basemap when downloaded; "osm" forces

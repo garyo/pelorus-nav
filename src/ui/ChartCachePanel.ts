@@ -9,7 +9,12 @@
  */
 
 import { UNIFIED_COVERAGE_FILENAME } from "../chart/VectorChartProvider";
-import { CHART_REGIONS, type ChartRegion } from "../data/chart-catalog";
+import {
+  CHART_REGIONS,
+  type ChartRegion,
+  RASTER_CHARTS,
+  type RasterChart,
+} from "../data/chart-catalog";
 import { chartAssetBase } from "../data/remote-url";
 import type { StoredChartInfo } from "../data/tile-store";
 import {
@@ -125,12 +130,24 @@ export class ChartCachePanel {
       }
     }
 
+    // Raster charts (RNC) — fill ENC gaps (e.g. the BVI); auto-quilted
+    for (const chart of RASTER_CHARTS) {
+      this.body.appendChild(
+        this.createRasterChartItem(
+          chart,
+          storedMap.get(chart.filename) ?? null,
+        ),
+      );
+    }
+
     // Any downloaded files not in catalog (e.g. manually imported)
     for (const chart of storedCharts) {
-      const inCatalog = CHART_REGIONS.some(
-        (r) =>
-          r.filename === chart.filename || r.basemapFilename === chart.filename,
-      );
+      const inCatalog =
+        CHART_REGIONS.some(
+          (r) =>
+            r.filename === chart.filename ||
+            r.basemapFilename === chart.filename,
+        ) || RASTER_CHARTS.some((rc) => rc.filename === chart.filename);
       if (!inCatalog) {
         this.body.appendChild(this.createImportedItem(chart));
       }
@@ -396,11 +413,92 @@ export class ChartCachePanel {
     );
   }
 
+  /** Create a row for a raster chart (RNC) — auto-quilted to fill ENC gaps. */
+  private createRasterChartItem(
+    chart: RasterChart,
+    stored: StoredChartInfo | null,
+  ): HTMLDivElement {
+    const item = document.createElement("div");
+    item.className = "manager-item";
+    item.dataset.rasterId = chart.id;
+
+    const info = document.createElement("div");
+    info.className = "manager-item-info";
+
+    const name = document.createElement("div");
+    name.className = "manager-item-name";
+    name.textContent = chart.name;
+
+    const detail = document.createElement("div");
+    detail.className = "manager-item-detail";
+    if (stored) {
+      const date = new Date(stored.downloadedAt).toLocaleDateString();
+      detail.innerHTML = `${iconCloudOff} Offline · ${formatBytes(stored.sizeBytes)} · ${date}`;
+    } else {
+      detail.textContent = `Streaming · ~${formatBytes(chart.sizeEstimate)}`;
+    }
+
+    info.append(name, detail);
+
+    const actions = document.createElement("div");
+    actions.className = "manager-item-actions";
+
+    if (stored) {
+      const deleteBtn = document.createElement("button");
+      deleteBtn.className = "manager-item-btn";
+      setIcon(deleteBtn, iconTrash);
+      deleteBtn.title = "Remove offline copy";
+      deleteBtn.addEventListener("click", () => {
+        if (!confirm(`Remove offline copy of "${chart.name}"?`)) return;
+        (async () => {
+          await deleteChart(stored.filename);
+          await deleteAuxFile(chart.coverageFilename);
+          this.onChartsChanged?.();
+          await this.refresh();
+        })().catch(console.error);
+      });
+      actions.appendChild(deleteBtn);
+    } else {
+      const dlBtn = document.createElement("button");
+      dlBtn.className = "manager-item-btn";
+      setIcon(dlBtn, iconDownload);
+      dlBtn.title = "Download for offline use";
+      dlBtn.addEventListener("click", () => {
+        this.startRasterDownload(chart);
+      });
+      actions.appendChild(dlBtn);
+    }
+
+    item.append(info, actions);
+    return item;
+  }
+
+  private async startRasterDownload(chart: RasterChart): Promise<void> {
+    await this.downloadWithProgress(
+      chart.name,
+      `${chartAssetBase()}/${chart.filename}`,
+      chart.filename,
+      async (signal) => {
+        // Coverage footprint for the chart-in-use readout (non-fatal if absent).
+        try {
+          await downloadAuxFile(
+            `${chartAssetBase()}/${chart.coverageFilename}`,
+            chart.coverageFilename,
+            signal,
+          );
+        } catch {
+          // Coverage is optional — quilting falls back to the catalog bbox.
+        }
+      },
+    );
+  }
+
   /** Single-file download with the panel's progress UI, then refresh. */
   private async downloadWithProgress(
     label: string,
     url: string,
     filename: string,
+    downloadAux?: (signal: AbortSignal) => Promise<void>,
   ): Promise<void> {
     this.body.innerHTML = "";
 
@@ -444,6 +542,7 @@ export class ChartCachePanel {
         },
         this.downloadController.signal,
       );
+      await downloadAux?.(this.downloadController.signal);
       this.onChartsChanged?.();
     } catch (err) {
       if (err instanceof DOMException && err.name === "AbortError") {
