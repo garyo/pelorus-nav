@@ -9,11 +9,7 @@
  * `PLUGIN_API_VERSION` (see `isApiCompatible`).
  */
 
-import type {
-  LayerSpecification,
-  MapMouseEvent,
-  SourceSpecification,
-} from "maplibre-gl";
+import type { LayerSpecification, SourceSpecification } from "maplibre-gl";
 import type { ChartProvider } from "../chart/ChartProvider";
 import type { FeatureInfo } from "../chart/feature-info";
 import type { DataAsset } from "../data/chart-catalog";
@@ -124,7 +120,12 @@ export interface DataRegistrar {
   register(asset: DataAsset): void;
 }
 
-/** A pickable contribution: the host runs one ordered click dispatch. */
+/**
+ * A pickable contribution. The host hit-tests these layers at a clicked point
+ * and merges the resolved infos into the chart query handler's single cyclable
+ * feature-info list — so an overlay station never "eats" the click; the user
+ * can scroll through it and any co-located chart feature.
+ */
 export interface PickableRegistration {
   /** Layer ids (as added via PluginMap) to hit-test. */
   layers: string[];
@@ -164,22 +165,6 @@ export interface PluginHost {
   readonly events: HostEvents;
   readonly settings: PluginSettings;
   log(msg: string): void;
-}
-
-// ── Internal picking contract (used by the host + core chart picker) ──────
-
-/**
- * A single click responder. The PickingManager queries responders in
- * descending priority and lets the first that handles the click win,
- * dismissing the rest — guaranteeing one popup at a time.
- */
-export interface MapPicker {
-  /** Higher = checked first. Overlays above the chart use higher values. */
-  readonly priority: number;
-  /** Returns true if it showed something for this click. */
-  tryPick(e: MapMouseEvent): boolean;
-  /** Hide its popup / highlight. */
-  dismiss(): void;
 }
 
 /** Compatible if the plugin's targeted major version matches the host's. */

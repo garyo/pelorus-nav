@@ -28,7 +28,7 @@ function makeDeps(): {
     map,
     chartManager: { registerProvider: (p: ChartProvider) => charts.push(p.id) },
     navManager: { registerProvider: (p: { id: string }) => navs.push(p.id) },
-    pickingManager: { register: () => {}, hideAll: () => {} },
+    picks: { register: () => () => {} },
   } as unknown as HostDeps;
   return { deps, charts, navs };
 }

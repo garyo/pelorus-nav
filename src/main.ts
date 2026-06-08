@@ -62,8 +62,8 @@ import {
   type SimulatorOptions,
 } from "./navigation/SimulatorProvider";
 import { BUILTIN_PLUGINS } from "./plugins/manifest";
-import { PickingManager } from "./plugins/PickingManager";
 import { PluginManager } from "./plugins/PluginManager";
+import { PickRegistry } from "./plugins/picking";
 import { getSettings, onSettingsChange, updateSettings } from "./settings";
 import { AboutDialog } from "./ui/AboutDialog";
 import { startAppUpdateNotifier } from "./ui/AppUpdateNotifier";
@@ -332,12 +332,12 @@ const FRAME_INTERVAL_EINK_SETTLING = 1500;
   map.triggerRepaint = throttledRepaint;
 }
 
-// Central click dispatcher: one map-click handler runs registered pickers in
-// z-order (overlays above chart), shows one popup at a time. The chart feature
-// picker and plugin overlays (tides, …) all register with it.
-const pickingManager = new PickingManager(chartManager.map);
-const featureQueryHandler = new FeatureQueryHandler(chartManager);
-pickingManager.register(featureQueryHandler);
+// Feature picking: the chart query handler owns the single click handler and a
+// unified, cyclable feature-info list. Plugin overlays (tides, …) contribute
+// candidates into the same list via this registry, so co-located picks (a tide
+// station and a nearby light/buoy) are all reachable with prev/next.
+const pickRegistry = new PickRegistry();
+const featureQueryHandler = new FeatureQueryHandler(chartManager, pickRegistry);
 
 // Light sector arcs and range circles (client-side generated from LIGHTS data)
 new LightSectorLayer(chartManager.map);
@@ -366,9 +366,9 @@ const settingsHandle = topbarMenu
 // creation site below; the idle handler reads the populated list when it fires.
 const idleCloseables: Array<{ hide(): void }> = [];
 if (settingsHandle) idleCloseables.push(settingsHandle);
-// Feature-info popups (chart + plugin overlays) count as dialogs for
-// auto-return; the picking dispatcher dismisses them all.
-idleCloseables.push({ hide: () => pickingManager.hideAll() });
+// The feature-info popup (chart + merged plugin candidates) counts as a
+// dialog for auto-return.
+idleCloseables.push(featureQueryHandler);
 
 // Hamburger toggle for mobile
 const hamburgerBtn = document.getElementById("hamburger-btn");
@@ -457,7 +457,7 @@ const pluginManager = new PluginManager({
   map: chartManager.map,
   chartManager,
   navManager,
-  pickingManager,
+  picks: pickRegistry,
 });
 for (const plugin of BUILTIN_PLUGINS) pluginManager.register(plugin);
 pluginManager.activateAll();

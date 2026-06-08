@@ -1,9 +1,10 @@
 import type maplibregl from "maplibre-gl";
 import { getVectorSourceIds } from "../data/chart-catalog";
-import { PICK_PRIORITY } from "../plugins/PickingManager";
-import type { MapPicker } from "../plugins/types";
+import { getMode } from "../map/InteractionMode";
+import type { PickRegistry } from "../plugins/picking";
 import type { ChartManager } from "./ChartManager";
 import { FeatureInfoPanel } from "./FeatureInfoPanel";
+import type { FeatureInfo } from "./feature-info";
 import { formatFeatureInfo } from "./feature-info";
 
 /** Polygon source layers that commonly span tile boundaries.
@@ -278,23 +279,29 @@ interface QueriedFeature {
   children?: QueriedFeature[];
 }
 
-/**
- * Handles click/tap on map features and displays info in a panel.
- * Also manages hover cursor and feature highlighting.
- */
-export class FeatureQueryHandler implements MapPicker {
-  /** Lowest priority: chart features lose to overlay popups in the same spot. */
-  readonly priority = PICK_PRIORITY.chart;
+/** One entry in the unified pick list: a chart feature or a plugin info. */
+type PickItem =
+  | { kind: "chart"; feature: QueriedFeature }
+  | { kind: "info"; info: FeatureInfo };
 
+/**
+ * Owns the single map click handler and the unified feature-info list.
+ * Chart features and plugin-overlay candidates (tides, currents, …) are merged
+ * into one cyclable list, so co-located picks are all reachable via prev/next.
+ * Also manages feature highlighting for chart features.
+ */
+export class FeatureQueryHandler {
   private readonly panel: FeatureInfoPanel;
   private readonly map: maplibregl.Map;
-  private currentFeatures: QueriedFeature[] = [];
+  private readonly picks: PickRegistry;
+  private currentItems: PickItem[] = [];
   private currentIndex = 0;
   /** Track highlight layer IDs we've added so we can update/remove filters. */
   private highlightLayerIds: string[] = [];
 
-  constructor(chartManager: ChartManager) {
+  constructor(chartManager: ChartManager, picks: PickRegistry) {
     this.map = chartManager.map;
+    this.picks = picks;
 
     // Create panel in map container
     const container = this.map.getContainer();
@@ -303,8 +310,9 @@ export class FeatureQueryHandler implements MapPicker {
     this.panel.onCyclePrev = () => this.cyclePrev();
     this.panel.onClose = () => this.dismiss();
 
-    // Click dispatch is owned by the PickingManager (see tryPick); this handler
-    // only keeps highlight layers fresh across style reloads.
+    this.map.on("click", (e: maplibregl.MapMouseEvent) => this.handleClick(e));
+
+    // Keep highlight layers fresh and invalidate the layer cache on reload.
     this.map.on("style.load", () => {
       this.cachedInteractiveLayers = null;
       this.setupHighlightLayers();
@@ -328,48 +336,57 @@ export class FeatureQueryHandler implements MapPicker {
     return ids;
   }
 
-  /**
-   * MapPicker entry point. Returns true if a chart feature was found and shown.
-   * The PickingManager gates on query mode and dismisses losing pickers, so
-   * this no longer self-dismisses on a miss.
-   */
-  tryPick(e: maplibregl.MapMouseEvent): boolean {
+  private handleClick(e: maplibregl.MapMouseEvent): void {
+    if (getMode() !== "query") return;
+
+    // Plugin overlay candidates first — they render on top, so the symbol the
+    // user tapped leads the list, with chart features reachable via next.
+    const pluginInfos = this.picks.collectAll({ x: e.point.x, y: e.point.y });
+    const items: PickItem[] = pluginInfos.map((info) => ({
+      kind: "info",
+      info,
+    }));
+
+    // Chart features, in their existing safety/relevance order.
     const layers = this.getVisibleInteractiveLayers();
-    if (layers.length === 0) return false;
+    if (layers.length > 0) {
+      // Query with a bbox to catch small icons, thin lines, and labels
+      // that are hard to tap precisely.
+      const bbox: [maplibregl.PointLike, maplibregl.PointLike] = [
+        [e.point.x - 10, e.point.y - 10],
+        [e.point.x + 10, e.point.y + 10],
+      ];
+      const features = deduplicateFeatures(
+        this.map.queryRenderedFeatures(bbox, { layers }),
+      );
+      if (features.length > 0) {
+        // Pull in any LNAM-referenced features that queryRenderedFeatures missed
+        // because a style filter hid them (e.g. PEL light children suppressed by
+        // PelLightLayer). querySourceFeatures ignores style filters.
+        this.augmentFromLnamRefs(features);
 
-    // Query with a bbox to catch small icons, thin lines, and labels
-    // that are hard to tap precisely.
-    const bbox: [maplibregl.PointLike, maplibregl.PointLike] = [
-      [e.point.x - 10, e.point.y - 10],
-      [e.point.x + 10, e.point.y + 10],
-    ];
-    const raw = this.map.queryRenderedFeatures(bbox, { layers });
+        const lngLat = { lng: e.lngLat.lng, lat: e.lngLat.lat };
+        for (const f of features) {
+          f.lngLat = lngLat;
+        }
 
-    const features = deduplicateFeatures(raw);
-    if (features.length === 0) return false;
+        // Transfer LNDMRK names to co-located LIGHTS that lack OBJNAM
+        correlateLandmarkNames(features);
 
-    // Pull in any LNAM-referenced features that queryRenderedFeatures missed
-    // because a style filter hid them (e.g. PEL light children suppressed by
-    // PelLightLayer). querySourceFeatures ignores style filters.
-    this.augmentFromLnamRefs(features);
-
-    // Attach click coordinates to each feature
-    const lngLat = { lng: e.lngLat.lng, lat: e.lngLat.lat };
-    for (const f of features) {
-      f.lngLat = lngLat;
+        // Group child features (lights, fog signals, topmarks) under parents
+        for (const f of groupChildFeatures(features)) {
+          items.push({ kind: "chart", feature: f });
+        }
+      }
     }
 
-    // Transfer LNDMRK names to co-located LIGHTS that lack OBJNAM
-    correlateLandmarkNames(features);
-
-    // Group child features (lights, fog signals, topmarks) under their parents
-    const grouped = groupChildFeatures(features);
-    if (grouped.length === 0) return false;
-
-    this.currentFeatures = grouped;
+    if (items.length === 0) {
+      this.dismiss();
+      return;
+    }
+    this.currentItems = items;
     this.currentIndex = 0;
     this.showCurrent();
-    return true;
   }
 
   /**
@@ -433,8 +450,18 @@ export class FeatureQueryHandler implements MapPicker {
   // any cursor changes, so querying features on every mouse move was wasted work.
 
   private showCurrent(): void {
-    const feature = this.currentFeatures[this.currentIndex];
-    if (!feature) return;
+    const item = this.currentItems[this.currentIndex];
+    if (!item) return;
+
+    // Plugin overlay candidates carry their own formatted info and have no
+    // chart highlight; chart features are formatted here and highlighted.
+    if (item.kind === "info") {
+      this.clearHighlight();
+      this.panel.show(item.info, this.currentIndex, this.currentItems.length);
+      return;
+    }
+
+    const feature = item.feature;
     const info = formatFeatureInfo(
       feature.sourceLayer,
       feature.properties,
@@ -468,12 +495,12 @@ export class FeatureQueryHandler implements MapPicker {
         }
       }
     }
-    this.panel.show(info, this.currentIndex, this.currentFeatures.length);
+    this.panel.show(info, this.currentIndex, this.currentItems.length);
     this.highlightFeature(feature);
   }
 
   private cycleNext(): void {
-    if (this.currentIndex >= this.currentFeatures.length - 1) return;
+    if (this.currentIndex >= this.currentItems.length - 1) return;
     this.currentIndex++;
     this.showCurrent();
   }
@@ -484,10 +511,10 @@ export class FeatureQueryHandler implements MapPicker {
     this.showCurrent();
   }
 
-  /** Hide the panel and clear highlight (MapPicker / idle auto-return). */
+  /** Hide the panel and clear highlight (e.g. on idle auto-return). */
   dismiss(): void {
     this.panel.hide();
-    this.currentFeatures = [];
+    this.currentItems = [];
     this.currentIndex = 0;
     this.clearHighlight();
   }

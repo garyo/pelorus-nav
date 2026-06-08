@@ -8,7 +8,6 @@
 import type maplibregl from "maplibre-gl";
 import type { ChartManager } from "../chart/ChartManager";
 import type { ChartProvider } from "../chart/ChartProvider";
-import { FeatureInfoPanel } from "../chart/FeatureInfoPanel";
 import type { FeatureInfo } from "../chart/feature-info";
 import { type DataAsset, registerDataAsset } from "../data/chart-catalog";
 import type { NavigationDataProvider } from "../navigation/NavigationData";
@@ -20,13 +19,11 @@ import {
   registerLayerGroup,
   type Settings,
 } from "../settings";
-import type { PickingManager } from "./PickingManager";
-import { PICK_PRIORITY } from "./PickingManager";
+import type { PickContributor, PickRegistry } from "./picking";
 import { slotBeforeId } from "./slots";
 import type {
   Capability,
   MapOverlay,
-  MapPicker,
   PickableRegistration,
   Plugin,
   PluginHost,
@@ -39,7 +36,7 @@ export interface HostDeps {
   map: maplibregl.Map;
   chartManager: ChartManager;
   navManager: NavigationDataManager;
-  pickingManager: PickingManager;
+  picks: PickRegistry;
 }
 
 /** Per-plugin teardown handle returned by `createHost`. */
@@ -122,16 +119,6 @@ export function activatePlugin(plugin: Plugin, deps: HostDeps): ActivePlugin {
     }
   };
 
-  // Shared popup panel for this plugin's pickables.
-  let panel: FeatureInfoPanel | null = null;
-  const getPanel = (): FeatureInfoPanel => {
-    if (!panel) {
-      panel = new FeatureInfoPanel(deps.map.getContainer());
-      panel.onClose = () => panel?.hide();
-    }
-    return panel;
-  };
-
   const host: PluginHost = {
     manifest,
     map: hostMap,
@@ -176,29 +163,31 @@ export function activatePlugin(plugin: Plugin, deps: HostDeps): ActivePlugin {
     picking: {
       register(reg: PickableRegistration) {
         require("map.overlay");
-        const picker: MapPicker = {
-          priority: PICK_PRIORITY.overlay,
-          tryPick(e) {
+        // Contribute candidates into the unified pick list; the chart query
+        // handler merges and cycles through them with chart features.
+        const contributor: PickContributor = {
+          collect(point) {
             const live = reg.layers.filter((id) => deps.map.getLayer(id));
-            if (live.length === 0) return false;
+            if (live.length === 0) return [];
             const bbox: [maplibregl.PointLike, maplibregl.PointLike] = [
-              [e.point.x - 10, e.point.y - 10],
-              [e.point.x + 10, e.point.y + 10],
+              [point.x - 10, point.y - 10],
+              [point.x + 10, point.y + 10],
             ];
-            const hit = deps.map.queryRenderedFeatures(bbox, {
-              layers: live,
-            })[0];
-            if (!hit) return false;
-            const info: FeatureInfo | null = reg.resolve(hit);
-            if (!info) return false;
-            getPanel().show(info, 0, 1);
-            return true;
-          },
-          dismiss() {
-            panel?.hide();
+            const hits = deps.map.queryRenderedFeatures(bbox, { layers: live });
+            const infos: FeatureInfo[] = [];
+            const seen = new Set<string>();
+            for (const hit of hits) {
+              const info = reg.resolve(hit);
+              if (!info) continue;
+              const key = `${info.type}:${info.name ?? ""}`;
+              if (seen.has(key)) continue;
+              seen.add(key);
+              infos.push(info);
+            }
+            return infos;
           },
         };
-        deps.pickingManager.register(picker);
+        cleanups.push(deps.picks.register(contributor));
       },
     },
 
@@ -256,7 +245,6 @@ export function activatePlugin(plugin: Plugin, deps: HostDeps): ActivePlugin {
       (instance as PluginInstance | undefined)?.deactivate?.();
       for (const c of cleanups) c();
       hostMap.teardown();
-      panel?.hide();
     },
   };
 }
