@@ -46,13 +46,14 @@ interface BarbImg {
 }
 
 /**
- * Draw a wind barb for `speed` kt, staff pointing up (north = wind from north),
- * feathers on the left. White fill/stroke over a black halo for visibility.
+ * Draw a wind barb for `speed` kt. The station (plot point) is at the tile
+ * centre — MapLibre's default rotation anchor — so the barb pivots about the
+ * station, with the staff extending up (toward the wind source) and feathers at
+ * the upwind end. White fill/stroke over a black halo for visibility. The tile
+ * is sized so feathers + halo never clip; on-screen size is set by icon-size.
  */
 function barbImage(speed: number): BarbImg {
-  // Tile is larger than the barb so feathers + halo never clip at the edges;
-  // on-screen size is set by icon-size, not by `s`.
-  const s = 40;
+  const s = 64;
   const px = 2;
   const canvas = document.createElement("canvas");
   canvas.width = s * px;
@@ -61,10 +62,10 @@ function barbImage(speed: number): BarbImg {
   if (!ctx)
     return { width: 1, height: 1, data: new Uint8Array(4), pixelRatio: 1 };
   ctx.scale(px, px);
-  ctx.translate(s / 2, s / 2);
+  ctx.translate(s / 2, s / 2); // origin = station = rotation anchor
 
-  const topY = -13; // upwind end (where feathers sit)
-  const botY = 13; // station end
+  const botY = 0; // station end (pivot)
+  const topY = -26; // upwind tip
   const lines: [number, number, number, number][] = [];
   const flags: Array<[number, number][]> = [];
 
@@ -74,25 +75,25 @@ function barbImage(speed: number): BarbImg {
   rem %= 10;
   const halfN = rem >= 5 ? 1 : 0;
 
-  let y = topY;
+  let y = topY + 2; // first feather just inside the tip (staff extends past it)
   for (; flagN > 0; flagN--) {
     flags.push([
       [0, y],
-      [-11, y + 2],
-      [0, y + 7],
+      [-12, y - 3],
+      [0, y + 5],
     ]);
     y += 8;
   }
   // A lone half-barb is set in from the tip per convention.
   if (fullN === 0 && halfN === 1 && flags.length === 0) y += 4;
   for (; fullN > 0; fullN--) {
-    lines.push([0, y, -10, y - 4]);
-    y += 4;
+    lines.push([0, y, -11, y - 5]);
+    y += 5;
   }
-  if (halfN) lines.push([0, y, -5, y - 2]);
+  if (halfN) lines.push([0, y, -6, y - 2.5]);
   lines.push([0, botY, 0, topY]); // staff
 
-  const pass = (lw: number, color: string, fillFlags: boolean) => {
+  const pass = (lw: number, color: string, fill: boolean, dotR: number) => {
     ctx.strokeStyle = color;
     ctx.fillStyle = color;
     ctx.lineWidth = lw;
@@ -110,12 +111,15 @@ function barbImage(speed: number): BarbImg {
       ctx.lineTo(tri[1][0], tri[1][1]);
       ctx.lineTo(tri[2][0], tri[2][1]);
       ctx.closePath();
-      if (fillFlags) ctx.fill();
+      if (fill) ctx.fill();
       else ctx.stroke();
     }
+    ctx.beginPath();
+    ctx.arc(0, 0, dotR, 0, Math.PI * 2);
+    ctx.fill();
   };
-  pass(3.4, "rgba(0,0,0,0.85)", false); // black halo
-  pass(1.5, "#ffffff", true); // white barb
+  pass(3.4, "rgba(0,0,0,0.85)", false, 2.6); // black halo + station dot
+  pass(1.5, "#ffffff", true, 1.4); // white barb + station dot
 
   const img = ctx.getImageData(0, 0, s * px, s * px);
   return {
