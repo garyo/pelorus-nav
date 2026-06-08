@@ -1,17 +1,16 @@
 /**
  * Wind overlay — Open-Meteo wind barbs.
  *
- * Renders wind as colored direction arrows on a grid covering the visible map.
- * Direction comes from rotation (arrows point downwind, the way the wind
- * blows); speed is colored on a blue→green→yellow→red ramp capped at 30 kt
- * (anything faster is bright red). Data is fetched keyless from Open-Meteo
- * (best-match of GFS/HRRR/ECMWF/ICON), already in knots. A matching legend is
- * shown via the host's legend facet.
+ * Renders standard meteorological wind barbs on a grid covering the visible
+ * map: the staff points toward the wind source (the "from" direction), and
+ * feathers encode speed (half-barb 5 kt, full barb 10 kt, pennant 50 kt). Barbs
+ * are drawn white with a black halo so they stay visible over a busy chart in
+ * any theme. Data is fetched keyless from Open-Meteo (best-match of
+ * GFS/HRRR/ECMWF/ICON), already in knots.
  */
 
 import type { Feature, FeatureCollection } from "geojson";
 import type maplibregl from "maplibre-gl";
-import type { LegendSpec } from "../legend";
 import type { MapOverlay, PluginHost, PluginMap } from "../types";
 
 const SOURCE_ID = "_wind-om";
@@ -25,32 +24,33 @@ const MIN_ZOOM = 4;
 /** Refresh cadence — wind changes slowly, and the API is rate-limited. */
 const REFRESH_MS = 15 * 60 * 1000;
 
-/** Speed buckets (kt) → blue→green→yellow→red ramp; last bucket (≥30) is red. */
-const BUCKETS = [5, 10, 15, 20, 25, 30];
-const COLORS = [
-  "#4a90e2", // 0–5  blue
-  "#45c4b0", // 5–10 teal
-  "#5fd35f", // 10–15 green
-  "#c9e34b", // 15–20 lime
-  "#ffd23f", // 20–25 yellow
-  "#ff8c42", // 25–30 orange
-  "#ff3b30", // ≥30  red
-];
+/** Barb images are pre-rendered at 5 kt increments up to this cap. */
+const MAX_BARB_KT = 50;
+const BARB_STEP_KT = 5;
 
-interface ArrowImg {
+function imageId(kt: number): string {
+  return `_wind-barb-${kt}`;
+}
+
+/** Round a speed to the nearest pre-rendered barb bucket. */
+function barbBucket(kt: number): number {
+  const r = Math.round(kt / BARB_STEP_KT) * BARB_STEP_KT;
+  return Math.max(0, Math.min(MAX_BARB_KT, r));
+}
+
+interface BarbImg {
   width: number;
   height: number;
   data: Uint8Array;
   pixelRatio: number;
 }
 
-function imageId(i: number): string {
-  return `_wind-arrow-${i}`;
-}
-
-/** Draw an upward-pointing filled arrow of the given color as an ImageData. */
-function arrowImage(color: string): ArrowImg {
-  const s = 28;
+/**
+ * Draw a wind barb for `speed` kt, staff pointing up (north = wind from north),
+ * feathers on the left. White fill/stroke over a black halo for visibility.
+ */
+function barbImage(speed: number): BarbImg {
+  const s = 34;
   const px = 2;
   const canvas = document.createElement("canvas");
   canvas.width = s * px;
@@ -60,21 +60,61 @@ function arrowImage(color: string): ArrowImg {
     return { width: 1, height: 1, data: new Uint8Array(4), pixelRatio: 1 };
   ctx.scale(px, px);
   ctx.translate(s / 2, s / 2);
-  ctx.fillStyle = color;
-  ctx.strokeStyle = "rgba(0,0,0,0.55)";
-  ctx.lineWidth = 0.75;
-  ctx.lineJoin = "round";
-  ctx.beginPath();
-  ctx.moveTo(0, -12); // tip (north)
-  ctx.lineTo(6, -3);
-  ctx.lineTo(2, -3);
-  ctx.lineTo(2, 11);
-  ctx.lineTo(-2, 11);
-  ctx.lineTo(-2, -3);
-  ctx.lineTo(-6, -3);
-  ctx.closePath();
-  ctx.fill();
-  ctx.stroke();
+
+  const topY = -13; // upwind end (where feathers sit)
+  const botY = 13; // station end
+  const lines: [number, number, number, number][] = [];
+  const flags: Array<[number, number][]> = [];
+
+  let flagN = Math.floor(speed / 50);
+  let rem = speed % 50;
+  let fullN = Math.floor(rem / 10);
+  rem %= 10;
+  const halfN = rem >= 5 ? 1 : 0;
+
+  let y = topY;
+  for (; flagN > 0; flagN--) {
+    flags.push([
+      [0, y],
+      [-11, y + 2],
+      [0, y + 7],
+    ]);
+    y += 8;
+  }
+  // A lone half-barb is set in from the tip per convention.
+  if (fullN === 0 && halfN === 1 && flags.length === 0) y += 4;
+  for (; fullN > 0; fullN--) {
+    lines.push([0, y, -10, y - 4]);
+    y += 4;
+  }
+  if (halfN) lines.push([0, y, -5, y - 2]);
+  lines.push([0, botY, 0, topY]); // staff
+
+  const pass = (lw: number, color: string, fillFlags: boolean) => {
+    ctx.strokeStyle = color;
+    ctx.fillStyle = color;
+    ctx.lineWidth = lw;
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+    for (const [x1, y1, x2, y2] of lines) {
+      ctx.beginPath();
+      ctx.moveTo(x1, y1);
+      ctx.lineTo(x2, y2);
+      ctx.stroke();
+    }
+    for (const tri of flags) {
+      ctx.beginPath();
+      ctx.moveTo(tri[0][0], tri[0][1]);
+      ctx.lineTo(tri[1][0], tri[1][1]);
+      ctx.lineTo(tri[2][0], tri[2][1]);
+      ctx.closePath();
+      if (fillFlags) ctx.fill();
+      else ctx.stroke();
+    }
+  };
+  pass(3.4, "rgba(0,0,0,0.85)", false); // black halo
+  pass(1.5, "#ffffff", true); // white barb
+
   const img = ctx.getImageData(0, 0, s * px, s * px);
   return {
     width: img.width,
@@ -84,28 +124,22 @@ function arrowImage(color: string): ArrowImg {
   };
 }
 
-/** icon-image step expression: pick the arrow color by speed bucket. */
-function iconExpr(): unknown {
-  const expr: unknown[] = ["step", ["get", "speed"], imageId(0)];
-  BUCKETS.forEach((b, i) => {
-    expr.push(b, imageId(i + 1));
-  });
-  return expr;
-}
-
 export class WindOverlay implements MapOverlay {
   readonly id = "wind";
 
   private readonly host: PluginHost;
   private pmap: PluginMap | null = null;
-  private readonly arrows: ArrowImg[];
+  /** Pre-rendered barb images keyed by bucket speed (0,5,…,MAX). */
+  private readonly barbs = new Map<number, BarbImg>();
   private enabled: boolean;
   private debounce: ReturnType<typeof setTimeout> | null = null;
   private lastFetchKey = "";
 
   constructor(host: PluginHost) {
     this.host = host;
-    this.arrows = COLORS.map(arrowImage);
+    for (let kt = 0; kt <= MAX_BARB_KT; kt += BARB_STEP_KT) {
+      this.barbs.set(kt, barbImage(kt));
+    }
     this.enabled = host.settings.isLayerGroupEnabled(WIND_LAYER_GROUP);
 
     host.events.onMapMove(() => {
@@ -119,7 +153,6 @@ export class WindOverlay implements MapOverlay {
       if (now !== this.enabled) {
         this.enabled = now;
         this.applyVisibility();
-        this.updateLegend();
         if (now) this.fetchGrid();
         else this.clear();
       }
@@ -128,14 +161,13 @@ export class WindOverlay implements MapOverlay {
 
   setup(map: PluginMap): void {
     this.pmap = map;
-    for (let i = 0; i < this.arrows.length; i++) {
-      const id = imageId(i);
+    for (const [kt, b] of this.barbs) {
+      const id = imageId(kt);
       if (!map.raw.hasImage(id)) {
-        const a = this.arrows[i];
         map.raw.addImage(
           id,
-          { width: a.width, height: a.height, data: a.data },
-          { pixelRatio: a.pixelRatio },
+          { width: b.width, height: b.height, data: b.data },
+          { pixelRatio: b.pixelRatio },
         );
       }
     }
@@ -151,12 +183,12 @@ export class WindOverlay implements MapOverlay {
         minzoom: MIN_ZOOM,
         layout: {
           visibility: this.enabled ? "visible" : "none",
-          "icon-image": iconExpr() as never,
-          "icon-rotate": ["get", "bearing"],
+          "icon-image": ["get", "barb"],
+          "icon-rotate": ["get", "dir"], // staff toward the "from" direction
           "icon-rotation-alignment": "map",
           "icon-allow-overlap": true,
           "icon-ignore-placement": true,
-          "icon-size": 1,
+          "icon-size": 0.9,
         },
       },
       "overlay-data",
@@ -167,7 +199,6 @@ export class WindOverlay implements MapOverlay {
   update(): void {
     this.enabled = this.host.settings.isLayerGroupEnabled(WIND_LAYER_GROUP);
     this.applyVisibility();
-    this.updateLegend();
     if (this.enabled) this.fetchGrid();
   }
 
@@ -207,7 +238,6 @@ export class WindOverlay implements MapOverlay {
     const e = b.getEast();
     const s = b.getSouth();
     const n = b.getNorth();
-    // Inset slightly so arrows aren't clipped at the edges.
     const dx = (e - w) / COLS;
     const dy = (n - s) / ROWS;
     const lats: number[] = [];
@@ -218,7 +248,6 @@ export class WindOverlay implements MapOverlay {
         lons.push(Number((w + dx * (c + 0.5)).toFixed(2)));
       }
     }
-    // Skip refetch if the grid (rounded) hasn't changed and not forced.
     const key = `${lats[0]},${lons[0]},${lats[lats.length - 1]},${lons[lons.length - 1]}`;
     if (!force && key === this.lastFetchKey) return;
     this.lastFetchKey = key;
@@ -236,7 +265,7 @@ export class WindOverlay implements MapOverlay {
       data = await resp.json();
     } catch (err) {
       console.warn("wind fetch failed:", err);
-      return; // keep last-known arrows
+      return; // keep last-known barbs
     }
     if (!Array.isArray(data)) return;
 
@@ -254,9 +283,8 @@ export class WindOverlay implements MapOverlay {
         type: "Feature",
         geometry: { type: "Point", coordinates: [lons[i], lats[i]] },
         properties: {
-          speed: Number(cur.wind_speed_10m.toFixed(1)),
-          // Arrow points downwind (the way the wind blows). API gives "from".
-          bearing: Math.round((cur.wind_direction_10m + 180) % 360),
+          barb: imageId(barbBucket(cur.wind_speed_10m)),
+          dir: Math.round(cur.wind_direction_10m),
         },
       });
     }
@@ -265,18 +293,5 @@ export class WindOverlay implements MapOverlay {
       | maplibregl.GeoJSONSource
       | undefined;
     src?.setData(fc);
-  }
-
-  private updateLegend(): void {
-    if (!this.enabled) {
-      this.host.ui.setLegend(null);
-      return;
-    }
-    const labels = ["0", "5", "10", "15", "20", "25", "30+"];
-    const spec: LegendSpec = {
-      title: "Wind (kt)",
-      stops: COLORS.map((color, i) => ({ color, label: labels[i] })),
-    };
-    this.host.ui.setLegend(spec);
   }
 }

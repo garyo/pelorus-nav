@@ -192,6 +192,8 @@ interface PluginSettingsSection {
   pluginId: string;
   name: string;
   schema: SettingsSchema;
+  /** Layer-group id that gates this section's visibility (hidden when off). */
+  gate?: string;
 }
 
 const pluginSettingsSchemas: PluginSettingsSection[] = [];
@@ -201,9 +203,10 @@ export function registerPluginSettingsSchema(
   pluginId: string,
   name: string,
   schema: SettingsSchema,
+  gate?: string,
 ): void {
   if (!pluginSettingsSchemas.some((s) => s.pluginId === pluginId)) {
-    pluginSettingsSchemas.push({ pluginId, name, schema });
+    pluginSettingsSchemas.push({ pluginId, name, schema, gate });
   }
 }
 

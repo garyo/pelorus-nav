@@ -465,10 +465,22 @@ function buildLayersTab(
   }
 
   // Per-plugin settings sections, rendered from each plugin's declared schema.
+  // A section is hidden while its gating layer group is off.
   for (const section of getPluginSettingsSchemas()) {
-    tab.appendChild(buildSectionHeader(section.name));
+    const box = document.createElement("div");
+    box.appendChild(buildSectionHeader(section.name));
     for (const ctrl of section.schema) {
-      tab.appendChild(buildPluginControl(section.pluginId, ctrl));
+      box.appendChild(buildPluginControl(section.pluginId, ctrl));
+    }
+    tab.appendChild(box);
+
+    const gate = section.gate;
+    if (gate) {
+      const apply = () => {
+        box.style.display = isLayerGroupEnabled(gate) ? "" : "none";
+      };
+      apply();
+      onSettingsChange(apply);
     }
   }
 

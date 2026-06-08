@@ -121,6 +121,8 @@ export function activatePlugin(plugin: Plugin, deps: HostDeps): ActivePlugin {
       manifest.id,
       manifest.name,
       manifest.settingsSchema,
+      // Hide the settings section when the plugin's layer group is off.
+      manifest.layerGroups?.[0]?.id,
     );
   }
 
