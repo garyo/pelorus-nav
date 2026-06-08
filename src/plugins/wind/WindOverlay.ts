@@ -24,8 +24,12 @@ const MIN_ZOOM = 4;
 /** Refresh cadence — wind changes slowly, and the API is rate-limited. */
 const REFRESH_MS = 15 * 60 * 1000;
 
-/** Barb images are pre-rendered at 5 kt increments up to this cap. */
-const MAX_BARB_KT = 50;
+/**
+ * Barb images are pre-rendered at 5 kt increments up to this cap. 70 kt covers
+ * realistic marine winds with a pennant (50) plus barbs (e.g. 65 = pennant +
+ * full + half); stronger winds clamp to this.
+ */
+const MAX_BARB_KT = 70;
 const BARB_STEP_KT = 5;
 
 function imageId(kt: number): string {
