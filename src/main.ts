@@ -61,6 +61,7 @@ import {
   BOSTON_HARBOR_ROUTE,
   type SimulatorOptions,
 } from "./navigation/SimulatorProvider";
+import { LegendHost } from "./plugins/legend";
 import { BUILTIN_PLUGINS } from "./plugins/manifest";
 import { PluginManager } from "./plugins/PluginManager";
 import { PickRegistry } from "./plugins/picking";
@@ -360,6 +361,7 @@ const pluginManager = new PluginManager({
   chartManager,
   navManager,
   picks: pickRegistry,
+  legends: new LegendHost(chartManager.map.getContainer()),
 });
 for (const plugin of BUILTIN_PLUGINS) pluginManager.register(plugin);
 pluginManager.activateAll();

@@ -22,6 +22,7 @@ import {
   type Settings,
   setPluginSetting,
 } from "../settings";
+import type { LegendHost } from "./legend";
 import type { PickContributor, PickRegistry } from "./picking";
 import { slotBeforeId } from "./slots";
 import { createTileCacheProtocol } from "./tile-cache";
@@ -41,6 +42,7 @@ export interface HostDeps {
   chartManager: ChartManager;
   navManager: NavigationDataManager;
   picks: PickRegistry;
+  legends: LegendHost;
 }
 
 /** Per-plugin teardown handle returned by `createHost`. */
@@ -208,6 +210,12 @@ export function activatePlugin(plugin: Plugin, deps: HostDeps): ActivePlugin {
       },
     },
 
+    ui: {
+      setLegend(spec) {
+        deps.legends.set(manifest.id, spec);
+      },
+    },
+
     events: {
       onMapMove(fn, debounceMs = 0) {
         let timer: ReturnType<typeof setTimeout> | null = null;
@@ -276,6 +284,7 @@ export function activatePlugin(plugin: Plugin, deps: HostDeps): ActivePlugin {
       (instance as PluginInstance | undefined)?.deactivate?.();
       for (const c of cleanups) c();
       hostMap.teardown();
+      deps.legends.set(manifest.id, null);
     },
   };
 }

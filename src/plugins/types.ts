@@ -15,6 +15,7 @@ import type { FeatureInfo } from "../chart/feature-info";
 import type { DataAsset } from "../data/chart-catalog";
 import type { NavigationDataProvider } from "../navigation/NavigationData";
 import type { LayerGroupDecl, Settings, SettingsSchema } from "../settings";
+import type { LegendSpec } from "./legend";
 import type { TileCacheHandle, TileCacheOptions } from "./tile-cache";
 
 /** SDK version. Bump the major on any breaking change to this contract. */
@@ -142,6 +143,12 @@ export interface PickingRegistrar {
   register(reg: PickableRegistration): void;
 }
 
+/** On-map chrome the host renders on the plugin's behalf (DOM-free plugins). */
+export interface UiRegistrar {
+  /** Show/replace this plugin's map legend, or remove it with `null`. */
+  setLegend(spec: LegendSpec | null): void;
+}
+
 export interface HostEvents {
   /** Debounced map-move (moveend) subscription. Returns an unsubscribe fn. */
   onMapMove(fn: () => void, debounceMs?: number): () => void;
@@ -173,6 +180,7 @@ export interface PluginHost {
   readonly nav: NavRegistrar;
   readonly data: DataRegistrar;
   readonly picking: PickingRegistrar;
+  readonly ui: UiRegistrar;
   readonly events: HostEvents;
   readonly settings: PluginSettings;
   log(msg: string): void;
