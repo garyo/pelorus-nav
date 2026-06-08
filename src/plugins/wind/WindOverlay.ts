@@ -12,58 +12,32 @@
 import type { Feature, FeatureCollection } from "geojson";
 import type maplibregl from "maplibre-gl";
 import type { MapOverlay, PluginHost, PluginMap } from "../types";
+import {
+  type LatticePoint,
+  latticePointsInBounds,
+  WindCache,
+  type WindSample,
+} from "./wind-cache";
 
 const SOURCE_ID = "_wind-om";
 const LAYER_ID = "_wind-om-layer";
 export const WIND_LAYER_GROUP = "wind";
 
-/** Grid density over the viewport (cols × rows); kept small to fit one request. */
-const COLS = 10;
-const ROWS = 7;
 const MIN_ZOOM = 4;
-/** Refresh cadence — wind changes slowly, and the API is rate-limited. */
-const REFRESH_MS = 15 * 60 * 1000;
+/** How often to re-evaluate the view and refresh any TTL-stale visible barbs. */
+const REFRESH_MS = 5 * 60 * 1000;
+/** Samples older than this are refetched; revisits within it are free. */
+const CACHE_TTL_MS = 30 * 60 * 1000;
+/** Bounded cache — plenty for many viewports of lattice points. */
+const CACHE_MAX = 4000;
 /**
  * After a rate-limit (HTTP 429 / error body) back off this long before trying
- * again. Open-Meteo weights each request by location count, so the grid is
+ * again. Open-Meteo weights each request by location count, so a request is
  * "expensive" — backing off keeps us from hammering an exhausted quota.
  */
 const RATE_LIMIT_BACKOFF_MS = 5 * 60 * 1000;
-/**
- * Coarse-snap cache: don't re-fetch until the map centre has moved more than
- * this fraction of the viewport (or the zoom bucket changed). Small pans reuse
- * the existing barbs — they're still valid wind data at their locations — so a
- * user lingering over a harbour spends one fetch, not one per nudge. The grid
- * density (and so on-screen barb spacing) is unchanged.
- */
-const SNAP_FRACTION = 0.4;
 
 type WindStatus = "ok" | "loading" | "rate-limited" | "no-data" | "off";
-
-interface FetchAnchor {
-  lng: number;
-  lat: number;
-  zoomBucket: number;
-}
-
-/**
- * Whether a fetch can be skipped because the view hasn't moved enough to need
- * fresh barbs. Pure so it's unit-testable without a live map.
- */
-export function canReuseGrid(
-  prev: FetchAnchor | null,
-  cur: FetchAnchor,
-  viewportDeg: { width: number; height: number },
-  hasData: boolean,
-  snapFraction = SNAP_FRACTION,
-): boolean {
-  if (!hasData || !prev) return false;
-  if (prev.zoomBucket !== cur.zoomBucket) return false;
-  return (
-    Math.abs(cur.lng - prev.lng) < viewportDeg.width * snapFraction &&
-    Math.abs(cur.lat - prev.lat) < viewportDeg.height * snapFraction
-  );
-}
 
 /**
  * Barb images are pre-rendered at 5 kt increments up to this cap. 70 kt covers
@@ -188,14 +162,8 @@ export class WindOverlay implements MapOverlay {
   private readonly barbs = new Map<number, BarbImg>();
   private enabled: boolean;
   private debounce: ReturnType<typeof setTimeout> | null = null;
-  /** Centre + zoom bucket of the last successful fetch (coarse-snap cache). */
-  private lastAnchor: FetchAnchor | null = null;
-  /** Last successful grid, re-applied instantly when the style rebuilds (which
-   * wipes the source) so barbs don't blink out on every layer/settings toggle. */
-  private lastData: FeatureCollection = {
-    type: "FeatureCollection",
-    features: [],
-  };
+  /** Wind samples pinned to a fixed geographic lattice, with per-sample TTL. */
+  private readonly cache = new WindCache(CACHE_TTL_MS, CACHE_MAX);
   /** Epoch ms before which we won't hit the API again (rate-limit backoff). */
   private rateLimitUntil = 0;
   private status: WindStatus = "off";
@@ -208,10 +176,10 @@ export class WindOverlay implements MapOverlay {
     this.enabled = host.settings.isLayerGroupEnabled(WIND_LAYER_GROUP);
 
     host.events.onMapMove(() => {
-      if (this.enabled) this.fetchGrid();
+      if (this.enabled) this.scheduleRefresh();
     }, 500);
     host.events.onTimeTick(() => {
-      if (this.enabled) this.fetchGrid(true);
+      if (this.enabled) this.scheduleRefresh();
     }, REFRESH_MS);
     host.settings.onChange(() => {
       const now = host.settings.isLayerGroupEnabled(WIND_LAYER_GROUP);
@@ -219,10 +187,9 @@ export class WindOverlay implements MapOverlay {
         this.enabled = now;
         this.applyVisibility();
         if (now) {
-          this.fetchGrid();
+          this.scheduleRefresh();
         } else {
-          this.clear();
-          this.refreshStatus(); // remove the status chip
+          this.refreshStatus(); // remove the status chip; cache is kept
         }
       }
     });
@@ -240,9 +207,10 @@ export class WindOverlay implements MapOverlay {
         );
       }
     }
-    // Seed with the last good grid so barbs reappear immediately after a style
-    // rebuild instead of blinking out until the next fetch returns.
-    map.addSource(SOURCE_ID, { type: "geojson", data: this.lastData });
+    map.addSource(SOURCE_ID, {
+      type: "geojson",
+      data: { type: "FeatureCollection", features: [] },
+    });
     map.addLayer(
       {
         id: LAYER_ID,
@@ -261,15 +229,12 @@ export class WindOverlay implements MapOverlay {
       },
       "overlay-data",
     );
-    // Keep lastFetchKey across rebuilds: with the cached grid re-seeded above,
-    // the post-setup update() must NOT re-fetch an unchanged viewport (that's
-    // what was burning the API quota on every layer toggle).
   }
 
   update(): void {
     this.enabled = this.host.settings.isLayerGroupEnabled(WIND_LAYER_GROUP);
     this.applyVisibility();
-    if (this.enabled) this.fetchGrid();
+    if (this.enabled) this.scheduleRefresh();
     else this.refreshStatus();
   }
 
@@ -284,13 +249,11 @@ export class WindOverlay implements MapOverlay {
     }
   }
 
-  private clear(): void {
-    this.lastAnchor = null;
-    this.lastData = { type: "FeatureCollection", features: [] };
+  private setData(fc: FeatureCollection): void {
     const src = this.pmap?.raw.getSource(SOURCE_ID) as
       | maplibregl.GeoJSONSource
       | undefined;
-    src?.setData(this.lastData);
+    src?.setData(fc);
   }
 
   /** Map current state to the host-rendered status chip (cleared when fine). */
@@ -311,73 +274,96 @@ export class WindOverlay implements MapOverlay {
     this.host.ui.setStatus(text);
   }
 
-  private fetchGrid(force = false): void {
+  private scheduleRefresh(): void {
     if (this.debounce) clearTimeout(this.debounce);
-    this.debounce = setTimeout(() => void this.doFetch(force), 150);
+    this.debounce = setTimeout(() => void this.refresh(), 150);
   }
 
-  private async doFetch(force: boolean): Promise<void> {
+  /**
+   * Re-evaluate the visible lattice: render whatever we already have (so a
+   * revisit shows barbs instantly), then fetch only the points that are missing
+   * or stale — reusing the cache everywhere else.
+   */
+  private async refresh(): Promise<void> {
     const map = this.pmap?.raw;
     if (!map || !this.enabled) return;
     if (map.getZoom() < MIN_ZOOM) {
-      this.clear();
+      this.setData({ type: "FeatureCollection", features: [] });
       this.setStatus("off");
       return;
     }
     const b = map.getBounds();
-    const w = b.getWest();
-    const e = b.getEast();
-    const s = b.getSouth();
-    const n = b.getNorth();
+    const zoom = Math.round(map.getZoom());
+    const now = Date.now();
+    const points = latticePointsInBounds(
+      b.getWest(),
+      b.getEast(),
+      b.getSouth(),
+      b.getNorth(),
+      zoom,
+    );
 
-    // Coarse-snap cache: reuse the current barbs for small pans / zoom nudges so
-    // we don't spend an API call per move. Also makes style rebuilds (layer
-    // toggles) free, since the centre hasn't moved. Checked before the backoff
-    // so nudging around existing barbs never flips the status to "rate-limited".
-    const center = map.getCenter();
-    const anchor: FetchAnchor = {
-      lng: center.lng,
-      lat: center.lat,
-      zoomBucket: Math.round(map.getZoom()),
-    };
-    if (
-      !force &&
-      canReuseGrid(
-        this.lastAnchor,
-        anchor,
-        { width: e - w, height: n - s },
-        this.lastData.features.length > 0,
-      )
-    ) {
+    // Paint cached barbs (fresh or stale) right away — no blink on revisit.
+    const { need, have } = this.cache.partition(points, now);
+    this.setData(this.toFeatures(have));
+
+    if (need.length === 0) {
+      this.setStatus(have.length ? "ok" : "no-data");
       return;
     }
-
-    if (Date.now() < this.rateLimitUntil) {
-      this.setStatus("rate-limited");
-      return; // still backing off; keep last-known barbs
+    if (now < this.rateLimitUntil) {
+      // Can't fetch the new points yet; keep the cached barbs we just drew.
+      this.setStatus(have.length ? "ok" : "rate-limited");
+      return;
     }
+    if (have.length === 0) this.setStatus("loading");
 
-    const dx = (e - w) / COLS;
-    const dy = (n - s) / ROWS;
-    const lats: number[] = [];
-    const lons: number[] = [];
-    for (let r = 0; r < ROWS; r++) {
-      for (let c = 0; c < COLS; c++) {
-        lats.push(Number((s + dy * (r + 0.5)).toFixed(2)));
-        lons.push(Number((w + dx * (c + 0.5)).toFixed(2)));
-      }
+    const samples = await this.fetchPoints(need);
+    if (!samples) return; // fetch failed; backoff + status already set
+    for (const { point, sample } of samples) {
+      this.cache.put(point.key, point.lon, point.lat, sample, Date.now());
     }
-    if (!this.lastData.features.length) this.setStatus("loading");
+    this.cache.prune(Date.now());
 
+    // Re-partition (the view may have moved during the await) and repaint.
+    const after = this.cache.partition(points, Date.now());
+    this.setData(this.toFeatures(after.have));
+    this.setStatus(after.have.length ? "ok" : "no-data");
+  }
+
+  private toFeatures(
+    have: Array<LatticePoint & { speed: number; dir: number }>,
+  ): FeatureCollection {
+    const features: Feature[] = have.map((p) => ({
+      type: "Feature",
+      geometry: { type: "Point", coordinates: [p.lon, p.lat] },
+      properties: {
+        barb: imageId(barbBucket(p.speed)),
+        dir: Math.round(p.dir),
+      },
+    }));
+    return { type: "FeatureCollection", features };
+  }
+
+  /**
+   * Fetch wind for exactly the given lattice points in one Open-Meteo request.
+   * Returns the parsed samples, or null on a rate-limit/error (after arming the
+   * backoff + status). Open-Meteo returns an object for one point, an array for
+   * many; both are normalised here.
+   */
+  private async fetchPoints(
+    points: LatticePoint[],
+  ): Promise<Array<{ point: LatticePoint; sample: WindSample }> | null> {
+    const lats = points.map((p) => p.lat.toFixed(3)).join(",");
+    const lons = points.map((p) => p.lon.toFixed(3)).join(",");
     const url =
       "https://api.open-meteo.com/v1/forecast" +
-      `?latitude=${lats.join(",")}&longitude=${lons.join(",")}` +
+      `?latitude=${lats}&longitude=${lons}` +
       "&current=wind_speed_10m,wind_direction_10m&wind_speed_unit=kn";
     let data: unknown;
     try {
       const resp = await fetch(url);
-      // 429 (and Open-Meteo's quota errors) → back off and tell the user, rather
-      // than silently retrying an exhausted quota on every pan.
+      // 429 (and Open-Meteo's quota errors) → back off and tell the user.
       if (resp.status === 429) throw new Error("rate-limited");
       if (!resp.ok) throw new Error(`Open-Meteo HTTP ${resp.status}`);
       data = await resp.json();
@@ -385,45 +371,34 @@ export class WindOverlay implements MapOverlay {
       this.rateLimitUntil = Date.now() + RATE_LIMIT_BACKOFF_MS;
       this.setStatus("rate-limited");
       console.warn("wind fetch failed:", err);
-      return; // keep last-known barbs
+      return null;
     }
-    // A non-array body is Open-Meteo's `{error:true,reason}` (e.g. quota) — also
-    // a reason to back off.
-    if (!Array.isArray(data)) {
+    if (data && typeof data === "object" && "error" in data) {
+      // `{error:true,reason}` — quota or bad request; back off.
       this.rateLimitUntil = Date.now() + RATE_LIMIT_BACKOFF_MS;
       this.setStatus("rate-limited");
-      return;
+      return null;
     }
-    this.lastAnchor = anchor;
-    const grid = data as Array<{
-      current?: { wind_speed_10m?: number; wind_direction_10m?: number };
-    }>;
-
-    const features: Feature[] = [];
-    for (let i = 0; i < grid.length; i++) {
-      const cur = grid[i]?.current;
-      if (
-        !cur ||
-        cur.wind_speed_10m == null ||
-        cur.wind_direction_10m == null
-      ) {
-        continue;
+    const list = Array.isArray(data) ? data : [data];
+    const out: Array<{ point: LatticePoint; sample: WindSample }> = [];
+    for (let i = 0; i < points.length; i++) {
+      const cur = (
+        list[i] as
+          | {
+              current?: {
+                wind_speed_10m?: number;
+                wind_direction_10m?: number;
+              };
+            }
+          | undefined
+      )?.current;
+      if (cur?.wind_speed_10m != null && cur.wind_direction_10m != null) {
+        out.push({
+          point: points[i],
+          sample: { speed: cur.wind_speed_10m, dir: cur.wind_direction_10m },
+        });
       }
-      features.push({
-        type: "Feature",
-        geometry: { type: "Point", coordinates: [lons[i], lats[i]] },
-        properties: {
-          barb: imageId(barbBucket(cur.wind_speed_10m)),
-          dir: Math.round(cur.wind_direction_10m),
-        },
-      });
     }
-    const fc: FeatureCollection = { type: "FeatureCollection", features };
-    this.lastData = fc;
-    const src = map.getSource(SOURCE_ID) as
-      | maplibregl.GeoJSONSource
-      | undefined;
-    src?.setData(fc);
-    this.setStatus(features.length ? "ok" : "no-data");
+    return out;
   }
 }
