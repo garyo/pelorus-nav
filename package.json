@@ -26,6 +26,7 @@
     "tiles:build:fresh": "tools/build-tiles.sh --download --build",
     "tiles:check": "tools/build-tiles.sh --check",
     "tiles:upload": "tools/build-tiles.sh --upload",
+    "tiles:check-assets": "bun tools/check-remote-assets.ts",
     "tiles:update": "tools/build-tiles.sh --update",
     "deploy": "bun run build && wrangler deploy",
     "cap:sync": "CAPACITOR=1 bun run build && bunx cap sync android",

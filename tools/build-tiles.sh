@@ -304,12 +304,17 @@ do_upload() {
   echo "=== Uploading to R2 ==="
   local start=$SECONDS
 
-  for file in "$OUTPUT_DIR"/nautical-*.pmtiles "$OUTPUT_DIR"/nautical-*.coverage.geojson "$OUTPUT_DIR"/nautical-*.search.json "$OUTPUT_DIR"/basemap-*.pmtiles; do
+  for file in "$OUTPUT_DIR"/nautical-*.pmtiles "$OUTPUT_DIR"/nautical-*.coverage.geojson "$OUTPUT_DIR"/nautical-*.search.json "$OUTPUT_DIR"/basemap-*.pmtiles "$OUTPUT_DIR"/rnc-*.pmtiles "$OUTPUT_DIR"/rnc-*.coverage.geojson; do
     do_upload_file "$file"
   done
 
   local elapsed=$((SECONDS - start))
   echo "Upload complete in $(format_elapsed $elapsed)"
+  echo ""
+
+  echo "=== Verifying catalog assets on remote ==="
+  bun "$PROJECT_DIR/tools/check-remote-assets.ts" \
+    || echo "⚠ Some required catalog assets are missing on the remote (see above)."
   echo ""
 }
 
