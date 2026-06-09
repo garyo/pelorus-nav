@@ -15,8 +15,12 @@ export interface ChartProvider {
 
   /** All MapLibre sources for this provider, keyed by source ID. */
   getSources(): Record<string, SourceSpecification>;
-  /** MapLibre layer specifications to render this source. */
-  getLayers(): LayerSpecification[];
+  /**
+   * MapLibre layer specifications to render this source. `visibleRegionIds`, if
+   * given, limits multi-region providers to those regions' layers (the rest are
+   * omitted to keep the style small); omit it to include everything.
+   */
+  getLayers(visibleRegionIds?: string[]): LayerSpecification[];
   /** Attribution HTML string. */
   getAttribution(): string;
 }

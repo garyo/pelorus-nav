@@ -96,7 +96,7 @@ export class VectorChartProvider implements ChartProvider {
     return sources;
   }
 
-  getLayers(): LayerSpecification[] {
+  getLayers(visibleRegionIds?: string[]): LayerSpecification[] {
     const {
       depthUnit,
       detailLevel,
@@ -112,8 +112,15 @@ export class VectorChartProvider implements ChartProvider {
 
     const allLayers: LayerSpecification[] = [];
 
-    for (let i = 0; i < CHART_REGIONS.length; i++) {
-      const region = CHART_REGIONS[i];
+    // Only build layers for the regions actually in view (active + viewport
+    // overlaps). Generating all ~16 regions' full S-52 sets is the dominant
+    // cost of every style rebuild; this keeps it to a handful.
+    const regions = visibleRegionIds
+      ? CHART_REGIONS.filter((r) => visibleRegionIds.includes(r.id))
+      : CHART_REGIONS;
+
+    for (let i = 0; i < regions.length; i++) {
+      const region = regions[i];
       const sourceId = this.sourceIdFor(region.id);
 
       // No per-region coverage source — we use a single unified one

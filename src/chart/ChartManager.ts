@@ -1,4 +1,5 @@
 import maplibregl from "maplibre-gl";
+import { regionsInView } from "../data/chart-catalog";
 import { applySlotAnchors } from "../plugins/slots";
 import type {
   ChartBlend,
@@ -53,6 +54,8 @@ export class ChartManager {
   private prevDeepDepth: number;
   private prevTextScale: number;
   private prevIconScale: number;
+  /** Region ids whose layers are in the style as of the last build. */
+  private lastRegionIds: string[] = [];
 
   constructor(options: ChartManagerOptions) {
     if (options.providers.length === 0) {
@@ -90,6 +93,20 @@ export class ChartManager {
     // Detect sprite loading failures and warn the user
     this.setupSpriteWarning();
 
+    // When panning/zooming brings a different set of regions into view, rebuild
+    // so their layers appear (and out-of-view ones drop). Cheap now that the
+    // style only carries in-view regions; the set rarely changes, so most
+    // moveends are a no-op equality check.
+    this.map.on("moveend", () => {
+      const ids = regionsInView(
+        this.viewportBounds(),
+        getSettings().activeRegion,
+      );
+      if (ids.join(",") !== this.lastRegionIds.join(",")) {
+        this.throttledRefreshStyle();
+      }
+    });
+
     const initial = getSettings();
     this.prevDepthUnit = initial.depthUnit;
     this.prevDetailLevel = initial.detailLevel;
@@ -104,12 +121,12 @@ export class ChartManager {
     this.prevTextScale = initial.textScale;
     this.prevIconScale = initial.iconScale;
 
-    // Re-apply style only when chart-relevant settings change
+    // Re-apply style only when chart-relevant settings change. Structural
+    // changes (which layers exist, their geometry/colours) need a style rebuild;
+    // a layer-group toggle alone only flips visibility, which is ~1000× cheaper.
     onSettingsChange(() => {
       const s = getSettings();
-      const layersChanged =
-        JSON.stringify(s.layerGroups) !== JSON.stringify(this.prevLayerGroups);
-      if (
+      const structuralChanged =
         s.depthUnit !== this.prevDepthUnit ||
         s.detailLevel !== this.prevDetailLevel ||
         s.displayTheme !== this.prevDisplayTheme ||
@@ -120,9 +137,11 @@ export class ChartManager {
         s.shallowDepth !== this.prevShallowDepth ||
         s.deepDepth !== this.prevDeepDepth ||
         s.textScale !== this.prevTextScale ||
-        s.iconScale !== this.prevIconScale ||
-        layersChanged
-      ) {
+        s.iconScale !== this.prevIconScale;
+      const layersChanged =
+        JSON.stringify(s.layerGroups) !== JSON.stringify(this.prevLayerGroups);
+
+      if (structuralChanged) {
         this.prevDepthUnit = s.depthUnit;
         this.prevDetailLevel = s.detailLevel;
         this.prevLayerGroups = { ...s.layerGroups };
@@ -135,9 +154,41 @@ export class ChartManager {
         this.prevDeepDepth = s.deepDepth;
         this.prevTextScale = s.textScale;
         this.prevIconScale = s.iconScale;
+        // A rebuild re-applies layer-group visibility too, so it subsumes
+        // layersChanged.
         this.throttledRefreshStyle();
+      } else if (layersChanged) {
+        this.applyLayerGroupVisibility(this.prevLayerGroups, s.layerGroups);
+        this.prevLayerGroups = { ...s.layerGroups };
       }
     });
+  }
+
+  /**
+   * Flip `visibility` on the layers of any layer group whose toggle changed,
+   * instead of rebuilding the whole style. Layers carry their group in
+   * `metadata.group` (set by getNauticalLayers). Plugin overlays manage their
+   * own group visibility, so their groups simply match no chart layers here.
+   */
+  private applyLayerGroupVisibility(
+    prev: Record<string, boolean>,
+    next: Record<string, boolean>,
+  ): void {
+    const changed = new Set<string>();
+    for (const [group, on] of Object.entries(next)) {
+      if (prev[group] !== on) changed.add(group);
+    }
+    if (changed.size === 0) return;
+    for (const layer of this.map.getStyle().layers) {
+      const group = (layer.metadata as { group?: string } | undefined)?.group;
+      if (group && changed.has(group)) {
+        this.map.setLayoutProperty(
+          layer.id,
+          "visibility",
+          next[group] === false ? "none" : "visible",
+        );
+      }
+    }
   }
 
   private refreshPending = false;
@@ -166,6 +217,12 @@ export class ChartManager {
     if (provider) {
       this.map.setStyle(this.buildStyle(provider), { diff: true });
     }
+  }
+
+  /** Current map viewport as [west, south, east, north]. */
+  private viewportBounds(): [number, number, number, number] {
+    const b = this.map.getBounds();
+    return [b.getWest(), b.getSouth(), b.getEast(), b.getNorth()];
   }
 
   /** Get the currently active provider, or null if none. */
@@ -268,7 +325,15 @@ export class ChartManager {
     let sources: Record<string, maplibregl.SourceSpecification> = {
       ...provider.getSources(),
     };
-    let layers = provider.getLayers();
+    // Limit chart layers to the regions in view (active + viewport overlaps).
+    // `this.map` is undefined during the initial build (it's the `style` arg of
+    // the Map constructor) → no bounds → active region only.
+    const regionIds = regionsInView(
+      this.map ? this.viewportBounds() : null,
+      settings.activeRegion,
+    );
+    this.lastRegionIds = regionIds;
+    let layers = provider.getLayers(regionIds);
 
     // Composite raster charts (RNC) for vector providers — vector-preferred
     // quilt: the raster sits below the ENC area fills (so ENC wins where it has

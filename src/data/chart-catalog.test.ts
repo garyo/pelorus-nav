@@ -1,5 +1,54 @@
 import { describe, expect, it } from "vitest";
-import { findRegionForPosition, getRegion } from "./chart-catalog";
+import {
+  bboxIntersects,
+  findRegionForPosition,
+  getRegion,
+  regionsInView,
+} from "./chart-catalog";
+
+describe("bboxIntersects", () => {
+  const a: [number, number, number, number] = [-71, 42, -70, 43];
+  it("true for overlapping boxes", () => {
+    expect(bboxIntersects(a, [-70.5, 42.5, -69, 44])).toBe(true);
+  });
+  it("true when one contains the other", () => {
+    expect(bboxIntersects(a, [-72, 41, -69, 44])).toBe(true);
+  });
+  it("false for disjoint boxes (east of)", () => {
+    expect(bboxIntersects(a, [-69, 42, -68, 43])).toBe(false);
+  });
+  it("false for disjoint boxes (north of)", () => {
+    expect(bboxIntersects(a, [-71, 44, -70, 45])).toBe(false);
+  });
+});
+
+describe("regionsInView", () => {
+  it("returns only the active region when bounds is null", () => {
+    expect(regionsInView(null, "usvi")).toEqual(["usvi"]);
+  });
+  it("always includes the active region even if its bbox is out of view", () => {
+    // bounds in the mid-Pacific, far from USVI
+    expect(regionsInView([-150, -10, -140, 0], "usvi")).toEqual(["usvi"]);
+  });
+  it("includes a region whose bbox overlaps the viewport", () => {
+    // Boston-area viewport → northern-new-england (the active region here too)
+    const ids = regionsInView(
+      [-71.1, 42.3, -70.9, 42.4],
+      "northern-new-england",
+    );
+    expect(ids).toContain("northern-new-england");
+  });
+  it("brings in a neighbor when the viewport spans a boundary", () => {
+    // A viewport spanning the NNE/SNE latitude boundary (~42°N) includes both,
+    // even though only one is active.
+    const ids = regionsInView(
+      [-71.5, 41.5, -71.0, 42.5],
+      "northern-new-england",
+    );
+    expect(ids).toContain("northern-new-england");
+    expect(ids).toContain("southern-new-england");
+  });
+});
 
 describe("findRegionForPosition", () => {
   it("returns southern-new-england for Narragansett Bay", () => {

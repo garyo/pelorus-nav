@@ -177,6 +177,32 @@ if (import.meta.env.DEV) {
   });
 }
 
+/** AABB overlap test for [west, south, east, north] boxes (quick-reject). */
+export function bboxIntersects(
+  a: [number, number, number, number],
+  b: [number, number, number, number],
+): boolean {
+  return !(a[2] < b[0] || a[0] > b[2] || a[3] < b[1] || a[1] > b[3]);
+}
+
+/**
+ * Region ids whose layers should be present for the current view: the active
+ * region (always) plus any region whose bbox overlaps the viewport. This keeps
+ * the chart style to a handful of regions instead of all ~16, without the user
+ * ever seeing a boundary. `bounds` null (e.g. before the map exists) → active
+ * region only.
+ */
+export function regionsInView(
+  bounds: [number, number, number, number] | null,
+  activeRegion: string,
+): string[] {
+  return CHART_REGIONS.filter(
+    (r) =>
+      r.id === activeRegion ||
+      (bounds !== null && bboxIntersects(r.bbox, bounds)),
+  ).map((r) => r.id);
+}
+
 /** MapLibre vector source IDs for all regions. */
 export function getVectorSourceIds(): string[] {
   return CHART_REGIONS.map((r) => `s57-vector-${r.id}`);

@@ -1161,10 +1161,22 @@ function buildSliderRow(opts: {
     valueLabel.textContent = opts.format(v);
     if (commitNow) opts.commit(v);
   };
-  slider.addEventListener("input", () =>
-    apply(current(), !deferSliderCommits()),
-  );
-  slider.addEventListener("change", () => apply(current(), true));
+  // Debounce live commits while dragging: the label updates every tick, but the
+  // (rebuild-triggering) commit fires at most every 120 ms, with a guaranteed
+  // final commit on release. E-ink defers entirely to release.
+  let commitTimer: ReturnType<typeof setTimeout> | null = null;
+  const SLIDER_COMMIT_DEBOUNCE_MS = 120;
+  slider.addEventListener("input", () => {
+    const v = current();
+    valueLabel.textContent = opts.format(v);
+    if (deferSliderCommits()) return;
+    if (commitTimer) clearTimeout(commitTimer);
+    commitTimer = setTimeout(() => opts.commit(v), SLIDER_COMMIT_DEBOUNCE_MS);
+  });
+  slider.addEventListener("change", () => {
+    if (commitTimer) clearTimeout(commitTimer);
+    apply(current(), true);
+  });
 
   const stepBy = (dir: -1 | 1) => {
     // Snap to the step grid and trim float dust (0.05 steps)

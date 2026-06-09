@@ -434,11 +434,10 @@ export function getNauticalLayers(
     ...getBuoyBeaconLayers(ctx),
   ];
 
-  // Apply display category and layer group filtering
-  return layers.filter((layer) => {
+  // Apply display-category (detail level) filtering. This is structural — it
+  // changes which layers exist — so it stays a filter.
+  const filtered = layers.filter((layer) => {
     const cat = LAYER_CATEGORIES[layer.id];
-    const group = LAYER_GROUPS[layer.id];
-    if (group !== undefined && layerGroups[group] === false) return false;
 
     // OTHER layers at Standard detail: include only if they have a
     // high-zoom override, and raise their minzoom accordingly.
@@ -460,4 +459,22 @@ export function getNauticalLayers(
     }
     return true;
   });
+
+  // Layer-group membership is applied as `visibility`, not by removing the
+  // layer, and tagged in `metadata.group`. That lets ChartManager toggle a
+  // group with a cheap setLayoutProperty instead of a full style rebuild.
+  for (const layer of filtered) {
+    const group = LAYER_GROUPS[layer.id];
+    if (group === undefined) continue;
+    const l = layer as {
+      layout?: Record<string, unknown>;
+      metadata?: Record<string, unknown>;
+    };
+    l.metadata = { ...(l.metadata ?? {}), group };
+    l.layout = {
+      ...(l.layout ?? {}),
+      visibility: layerGroups[group] === false ? "none" : "visible",
+    };
+  }
+  return filtered;
 }
