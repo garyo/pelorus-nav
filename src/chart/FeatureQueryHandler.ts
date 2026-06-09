@@ -299,6 +299,9 @@ export class FeatureQueryHandler {
   /** Track highlight layer IDs we've added so we can update/remove filters. */
   private highlightLayerIds: string[] = [];
 
+  /** Predicates that, when any is true, make a map click dismiss-only (no pick). */
+  private readonly pickSuppressors: Array<() => boolean> = [];
+
   constructor(chartManager: ChartManager, picks: PickRegistry) {
     this.map = chartManager.map;
     this.picks = picks;
@@ -336,8 +339,23 @@ export class FeatureQueryHandler {
     return ids;
   }
 
+  /**
+   * Register a predicate checked on every map click; while any returns true, a
+   * click is treated as dismiss-only and does NOT register a pick. Used for
+   * panels that close on outside click (e.g. Settings) — that closing click is
+   * almost never meant as a chart pick.
+   */
+  addPickSuppressor(fn: () => boolean): void {
+    this.pickSuppressors.push(fn);
+  }
+
   private handleClick(e: maplibregl.MapMouseEvent): void {
     if (getMode() !== "query") return;
+
+    // The map's click handler fires before a panel's outside-click close handler
+    // (event bubbles canvas → document), so an open dismissable panel is still
+    // open here: skip the pick and let the same click close the panel.
+    if (this.pickSuppressors.some((fn) => fn())) return;
 
     // Plugin overlay candidates first — they render on top, so the symbol the
     // user tapped leads the list, with chart features reachable via next.
