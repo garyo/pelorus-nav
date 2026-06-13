@@ -457,7 +457,9 @@ export class TidesOverlay implements MapOverlay {
     const index = this.index;
     const station = index?.tideStations.find((s) => s.id === id);
     if (!index || !station) return null;
-    const now = this.host.time.now();
+    // The popup is a "now and upcoming" detail view — always real now, not the
+    // time-bar offset (the offset only shifts the at-a-glance map icons).
+    const now = new Date();
     const state = tideState(station, index, now, POPUP_WINDOW_HRS);
     if (!state) return null;
 
@@ -493,7 +495,8 @@ export class TidesOverlay implements MapOverlay {
     const index = this.index;
     const station = index?.currentStations.find((s) => s.id === id);
     if (!index || !station) return null;
-    const now = this.host.time.now();
+    // Always real now — see tideInfo.
+    const now = new Date();
     const state = currentState(station, index, now, POPUP_WINDOW_HRS);
     if (!state) return null;
 
