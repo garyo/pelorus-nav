@@ -82,7 +82,7 @@ while [[ $# -gt 0 ]]; do
     --build)      OP_BUILD=true ;;
     --basemap)    OP_BASEMAP=true ;;
     --upload)     OP_UPLOAD=true ;;
-    --update)     OP_CHECK=true; OP_DOWNLOAD=true; OP_BUILD=true; OP_UPLOAD=true ;;
+    --update)     OP_CHECK=true; OP_DOWNLOAD=true; OP_BUILD=true; OP_UPLOAD=true; OP_BASEMAP=true ;;
     --composite-only) COMPOSITE_ONLY=true ;;
     --force)          FORCE=true ;;
     --force-download) FORCE_DOWNLOAD=true ;;
@@ -121,6 +121,15 @@ fi
 format_elapsed() {
   local secs=$1
   printf "%dm%02ds" $((secs / 60)) $((secs % 60))
+}
+
+# True if $1 is present in the remaining args. Used to decide whether a region
+# was (re)built this run. Safe with an empty list.
+_in_list() {
+  local needle="$1"; shift
+  local x
+  for x in "$@"; do [[ "$x" == "$needle" ]] && return 0; done
+  return 1
 }
 
 # --- Operations ---
@@ -264,7 +273,9 @@ do_basemap() {
   local region="$1"
   echo "--- Building basemap $region ---"
   local start=$SECONDS
-  uv run "$SCRIPT_DIR/basemap/build-basemap.py" --region "$region"
+  # Return the build's real exit status (the caller guards on it); a bare call
+  # here would be masked to 0 by the trailing echo when invoked in an `if`.
+  uv run "$SCRIPT_DIR/basemap/build-basemap.py" --region "$region" || return 1
   local elapsed=$((SECONDS - start))
   echo "Basemap $region: $(format_elapsed $elapsed)"
 }
@@ -403,15 +414,36 @@ if $OP_BUILD; then
   fi
 fi
 
-# Step 3b: Basemap (if requested). Independent of ENC change detection —
-# basemaps change when the Protomaps source or band definitions do, so this
-# always runs for the selected regions.
+# Step 3b: Basemap (if requested). --update enables this so the nightly keeps
+# basemaps in step with the charts: it (re)builds a region's basemap when that
+# region's charts were rebuilt this run, and self-heals any missing basemap,
+# while skipping regions without charts. An explicit --basemap builds the
+# selected regions outright.
 if $OP_BASEMAP; then
   echo "=== Building basemaps ==="
   for region in "${REGIONS[@]}"; do
-    do_basemap "$region"
-    if $OP_UPLOAD; then
-      do_upload_file "$OUTPUT_DIR/basemap-${region}.pmtiles"
+    # Basemaps require the region's nautical charts — skip regions without them
+    # (test regions, or regions not built on this host).
+    if [[ ! -f "$OUTPUT_DIR/nautical-${region}.pmtiles" ]]; then
+      continue
+    fi
+    # Build when forced, when the basemap is missing, or when this region's
+    # charts were (re)built this run. So an explicit --basemap rebuilds the
+    # selected regions, while the nightly --update stays light — it only
+    # touches changed regions, but still self-heals any missing basemap.
+    if ! $FORCE \
+      && [[ -f "$OUTPUT_DIR/basemap-${region}.pmtiles" ]] \
+      && ! _in_list "$region" ${BUILD_REGIONS[@]+"${BUILD_REGIONS[@]}"}; then
+      echo "--- Basemap $region up to date, skipping ---"
+      continue
+    fi
+    # A single region's basemap failure must never abort the nautical update.
+    if do_basemap "$region"; then
+      if $OP_UPLOAD; then
+        do_upload_file "$OUTPUT_DIR/basemap-${region}.pmtiles"
+      fi
+    else
+      echo "!!! Basemap $region failed — continuing"
     fi
     echo ""
   done
