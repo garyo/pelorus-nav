@@ -22,6 +22,11 @@ import {
   type Settings,
   setPluginSetting,
 } from "../settings";
+import {
+  displayTime,
+  getOffsetMs,
+  onChange as onDisplayTimeChange,
+} from "../state/displayTime";
 import type { LegendHost } from "./legend";
 import type { PickContributor, PickRegistry } from "./picking";
 import { slotBeforeId } from "./slots";
@@ -267,6 +272,16 @@ export function activatePlugin(plugin: Plugin, deps: HostDeps): ActivePlugin {
       onTimeTick(fn, intervalMs) {
         const id = setInterval(fn, intervalMs);
         const off = () => clearInterval(id);
+        cleanups.push(off);
+        return off;
+      },
+    },
+
+    time: {
+      now: () => displayTime(),
+      offsetMs: () => getOffsetMs(),
+      onChange(fn) {
+        const off = onDisplayTimeChange(fn);
         cleanups.push(off);
         return off;
       },

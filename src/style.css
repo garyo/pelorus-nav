@@ -1656,6 +1656,68 @@ body {
 
 /* ── Track viewer ─────────────────────────────────────────────────── */
 
+/* Time forecast bar — bottom-of-screen slider (shown/hidden via inline display). */
+.time-bar {
+  position: fixed;
+  bottom: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(94vw, 560px);
+  background: rgba(30, 30, 50, 0.92);
+  color: #fff;
+  padding: 8px 12px;
+  border-radius: 8px;
+  z-index: 10000;
+  font:
+    13px system-ui,
+    -apple-system,
+    sans-serif;
+  align-items: center;
+  gap: 10px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+.time-bar-slider {
+  flex: 1;
+  min-width: 0;
+}
+
+.time-bar-readout {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  min-width: 10em;
+  text-align: right;
+}
+
+.time-bar-now {
+  background: rgba(255, 255, 255, 0.12);
+  color: inherit;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 5px;
+  padding: 3px 9px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.time-bar-now:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.time-bar-close {
+  background: none;
+  border: none;
+  color: inherit;
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0 2px;
+  opacity: 0.7;
+}
+
+.time-bar-close:hover {
+  opacity: 1;
+}
+
 .track-viewer-panel {
   position: fixed;
   bottom: 12px;
@@ -2192,7 +2254,8 @@ body {
   color: #cc3333;
 }
 
-[data-theme="night"] .track-viewer-panel {
+[data-theme="night"] .track-viewer-panel,
+[data-theme="night"] .time-bar {
   background: rgba(26, 10, 10, 0.95);
   color: #cc3333;
 }
@@ -2208,7 +2271,8 @@ body {
   border-color: #442222;
 }
 
-[data-theme="eink"] .track-viewer-panel {
+[data-theme="eink"] .track-viewer-panel,
+[data-theme="eink"] .time-bar {
   background: #ffffff;
   border: 2px solid #000000;
   border-radius: 0;

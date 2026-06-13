@@ -4,8 +4,22 @@ import {
   latStep,
   latticePointsInBounds,
   lonStep,
+  sampleAt,
   WindCache,
+  type WindSample,
 } from "./wind-cache";
+
+const HOUR = 3_600_000;
+/** Build an hourly series starting at `baseMs`. */
+const series = (
+  baseMs: number,
+  speed: number[],
+  dir: number[],
+): WindSample => ({
+  baseMs,
+  speed,
+  dir,
+});
 
 describe("lattice spacing", () => {
   it("halves per zoom level", () => {
@@ -41,19 +55,39 @@ describe("latticePointsInBounds", () => {
   });
 });
 
+describe("sampleAt", () => {
+  const s = series(1_000_000, [10, 12, 14], [90, 100, 110]);
+
+  it("returns the hour at baseMs (index 0)", () => {
+    expect(sampleAt(s, 1_000_000)).toEqual({ speed: 10, dir: 90 });
+  });
+
+  it("indexes whole hours after baseMs", () => {
+    expect(sampleAt(s, 1_000_000 + HOUR)).toEqual({ speed: 12, dir: 100 });
+    expect(sampleAt(s, 1_000_000 + 2 * HOUR)).toEqual({ speed: 14, dir: 110 });
+  });
+
+  it("rounds to the nearest hour", () => {
+    expect(sampleAt(s, 1_000_000 + 0.4 * HOUR)).toEqual({ speed: 10, dir: 90 });
+    expect(sampleAt(s, 1_000_000 + 0.6 * HOUR)).toEqual({
+      speed: 12,
+      dir: 100,
+    });
+  });
+
+  it("returns null outside the series window", () => {
+    expect(sampleAt(s, 1_000_000 - HOUR)).toBeNull(); // before
+    expect(sampleAt(s, 1_000_000 + 3 * HOUR)).toBeNull(); // past the end
+  });
+});
+
 describe("WindCache", () => {
   const ttl = 1000;
 
-  it("stores and retrieves samples; isFresh respects the TTL", () => {
+  it("stores and retrieves the series; isFresh respects the TTL", () => {
     const c = new WindCache(ttl, 100);
-    c.put("k", -70, 42, { speed: 12, dir: 270 }, 0);
-    expect(c.get("k")).toEqual({
-      speed: 12,
-      dir: 270,
-      lon: -70,
-      lat: 42,
-      t: 0,
-    });
+    c.put("k", -70, 42, series(0, [12], [270]), 0);
+    expect(c.get("k")).toEqual({ baseMs: 0, speed: [12], dir: [270] });
     expect(c.isFresh("k", 500)).toBe(true);
     expect(c.isFresh("k", 1500)).toBe(false); // older than TTL
     expect(c.isFresh("missing", 0)).toBe(false);
@@ -61,9 +95,9 @@ describe("WindCache", () => {
 
   it("evicts the oldest entry past the cap", () => {
     const c = new WindCache(ttl, 2);
-    c.put("a", 0, 0, { speed: 1, dir: 0 }, 0);
-    c.put("b", 0, 0, { speed: 2, dir: 0 }, 1);
-    c.put("c", 0, 0, { speed: 3, dir: 0 }, 2); // evicts "a"
+    c.put("a", 0, 0, series(0, [1], [0]), 0);
+    c.put("b", 0, 0, series(0, [2], [0]), 1);
+    c.put("c", 0, 0, series(0, [3], [0]), 2); // evicts "a"
     expect(c.get("a")).toBeUndefined();
     expect(c.get("b")).toBeDefined();
     expect(c.get("c")).toBeDefined();
@@ -72,8 +106,8 @@ describe("WindCache", () => {
 
   it("prune drops only stale entries", () => {
     const c = new WindCache(ttl, 100);
-    c.put("old", 0, 0, { speed: 1, dir: 0 }, 0);
-    c.put("new", 0, 0, { speed: 2, dir: 0 }, 900);
+    c.put("old", 0, 0, series(0, [1], [0]), 0);
+    c.put("new", 0, 0, series(0, [2], [0]), 900);
     c.prune(1200); // "old" is 1200ms (stale), "new" is 300ms (fresh)
     expect(c.get("old")).toBeUndefined();
     expect(c.get("new")).toBeDefined();
@@ -84,8 +118,8 @@ describe("WindCache", () => {
     const pts = latticePointsInBounds(-71, -70, 42, 43, 10);
     expect(pts.length).toBeGreaterThan(2);
     // Cache the first point fresh, the second stale, leave the rest missing.
-    c.put(pts[0].key, pts[0].lon, pts[0].lat, { speed: 10, dir: 90 }, 950);
-    c.put(pts[1].key, pts[1].lon, pts[1].lat, { speed: 20, dir: 180 }, 0);
+    c.put(pts[0].key, pts[0].lon, pts[0].lat, series(0, [10], [90]), 950);
+    c.put(pts[1].key, pts[1].lon, pts[1].lat, series(0, [20], [180]), 0);
     const { need, have } = c.partition(pts, 1000);
 
     // Fresh point is not re-fetched; stale + missing are.
@@ -94,8 +128,12 @@ describe("WindCache", () => {
     expect(need.length).toBe(pts.length - 1);
 
     // Both cached points (fresh and stale) are render-ready immediately.
-    expect(have.some((p) => p.key === pts[0].key && p.speed === 10)).toBe(true);
-    expect(have.some((p) => p.key === pts[1].key && p.speed === 20)).toBe(true);
+    expect(
+      have.some((p) => p.key === pts[0].key && p.sample.speed[0] === 10),
+    ).toBe(true);
+    expect(
+      have.some((p) => p.key === pts[1].key && p.sample.speed[0] === 20),
+    ).toBe(true);
   });
 
   it("needs everything when the cache is empty", () => {

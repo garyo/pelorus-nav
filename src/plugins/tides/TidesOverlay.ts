@@ -128,6 +128,11 @@ export class TidesOverlay implements MapOverlay {
       if (this.enabled) this.rebuild();
     }, 150);
 
+    // Time-bar offset changes re-render predictions for the new time.
+    host.time.onChange(() => {
+      if (this.enabled) this.debouncedRebuild();
+    });
+
     // Unit changes don't rebuild the chart style, so handle them here.
     let units = unitKey(host);
     host.settings.onChange(() => {
@@ -347,7 +352,10 @@ export class TidesOverlay implements MapOverlay {
       currents = currents.filter(isCurrentRef);
     }
 
-    const now = new Date();
+    // Display time (now + the time-bar offset), so the overlay shows the
+    // forecast state. The bucket key then encodes the shifted time, which
+    // invalidates nowCache correctly when the offset changes.
+    const now = this.host.time.now();
     const bucket = Math.floor(now.getTime() / REFRESH_MS);
     const features: Feature[] = [];
     for (const s of tides) {
@@ -449,7 +457,7 @@ export class TidesOverlay implements MapOverlay {
     const index = this.index;
     const station = index?.tideStations.find((s) => s.id === id);
     if (!index || !station) return null;
-    const now = new Date();
+    const now = this.host.time.now();
     const state = tideState(station, index, now, POPUP_WINDOW_HRS);
     if (!state) return null;
 
@@ -485,7 +493,7 @@ export class TidesOverlay implements MapOverlay {
     const index = this.index;
     const station = index?.currentStations.find((s) => s.id === id);
     if (!index || !station) return null;
-    const now = new Date();
+    const now = this.host.time.now();
     const state = currentState(station, index, now, POPUP_WINDOW_HRS);
     if (!state) return null;
 

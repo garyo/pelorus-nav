@@ -172,6 +172,11 @@ export const iconSun = svg(
     '<path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/>',
 );
 
+/** Clock — time / forecast scrubbing. */
+export const iconClock = svg(
+  '<circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>',
+);
+
 /** Cloud with slash / offline. */
 export const iconCloudOff = svg(
   '<path d="M22.61 16.95A5 5 0 0 0 18 10h-1.26a8 8 0 0 0-7.05-6"/>' +

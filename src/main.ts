@@ -82,6 +82,7 @@ import { createContextMenu } from "./ui/ContextMenu";
 import { createIdleDetector } from "./ui/IdleDetector";
 import { createInstrumentHUD, INSTRUMENTS } from "./ui/InstrumentHUD";
 import {
+  iconClock,
   iconGauge,
   iconGlobe,
   iconInfo,
@@ -102,6 +103,7 @@ import { RouteManagerPanel } from "./ui/RouteManagerPanel";
 import { maybeShowScreenTimeoutWarning } from "./ui/ScreenTimeoutDialog";
 import { SearchDialog } from "./ui/SearchDialog";
 import { createSettingsPanel } from "./ui/SettingsPanel";
+import { TimeBar } from "./ui/TimeBar";
 import { TrackManagerPanel } from "./ui/TrackManagerPanel";
 import { TrackViewerPanel } from "./ui/TrackViewerPanel";
 import { buildTopbarAction } from "./ui/topbarButton";
@@ -1107,6 +1109,22 @@ if (topbarMenu) {
     closeHamburger();
   });
   topbarMenu.insertBefore(searchBtn, settingsWrapper);
+
+  // Time forecast bar — scrubs the global display-time offset so tide/current/
+  // wind overlays show future conditions. Closing it (or idle auto-return)
+  // resets to now.
+  const timeBar = new TimeBar();
+  idleCloseables.push(timeBar);
+  const timeBtn = buildTopbarAction(iconClock, "TIME", "Time forecast", {
+    fullLabel: "Time forecast",
+  });
+  timeBtn.addEventListener("click", () => {
+    timeBar.toggle();
+    closeHamburger();
+  });
+  timeBar.onVisibilityChange = (open) =>
+    timeBtn.classList.toggle("active", open);
+  topbarMenu.insertBefore(timeBtn, settingsWrapper);
 
   // Close manager panels when settings opens
   settingsHandle?.onOpen(() => {

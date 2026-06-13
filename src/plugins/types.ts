@@ -194,6 +194,20 @@ export interface HostEvents {
   onTimeTick(fn: () => void, intervalMs: number): () => void;
 }
 
+/**
+ * The global display time. Prediction overlays should render for `now()`
+ * (= real now + the time-bar offset) rather than `new Date()`, and re-render
+ * on `onChange`. The offset is transient (resets on reload) and never negative.
+ */
+export interface HostTime {
+  /** Display time = real now + the current forward offset. */
+  now(): Date;
+  /** The forward offset in ms (0 when showing live conditions). */
+  offsetMs(): number;
+  /** Subscribe to offset changes. Returns an unsubscribe fn. */
+  onChange(fn: () => void): () => void;
+}
+
 export interface PluginSettings {
   /** Read core app settings (units, theme, symbology, scales, …). */
   get(): Readonly<Settings>;
@@ -220,6 +234,7 @@ export interface PluginHost {
   readonly picking: PickingRegistrar;
   readonly ui: UiRegistrar;
   readonly events: HostEvents;
+  readonly time: HostTime;
   readonly settings: PluginSettings;
   log(msg: string): void;
 }

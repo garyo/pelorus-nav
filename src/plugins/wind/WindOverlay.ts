@@ -15,6 +15,7 @@ import type { MapOverlay, PluginHost, PluginMap } from "../types";
 import {
   type LatticePoint,
   latticePointsInBounds,
+  sampleAt,
   WindCache,
   type WindSample,
 } from "./wind-cache";
@@ -28,8 +29,12 @@ const MIN_ZOOM = 4;
 const REFRESH_MS = 5 * 60 * 1000;
 /** Samples older than this are refetched; revisits within it are free. */
 const CACHE_TTL_MS = 30 * 60 * 1000;
-/** Bounded cache — plenty for many viewports of lattice points. */
-const CACHE_MAX = 4000;
+/**
+ * Bounded cache. Each entry now holds a multi-day hourly series (one fetch
+ * serves every time-bar offset), so far fewer entries are needed than when
+ * each held a single snapshot.
+ */
+const CACHE_MAX = 1500;
 /**
  * After a rate-limit (HTTP 429 / error body) back off this long before trying
  * again. Open-Meteo weights each request by location count, so a request is
@@ -181,6 +186,11 @@ export class WindOverlay implements MapOverlay {
     host.events.onTimeTick(() => {
       if (this.enabled) this.scheduleRefresh();
     }, REFRESH_MS);
+    // Time-bar offset changes: re-pick the forecast hour from cached series and
+    // repaint — no refetch (the series already spans the whole window).
+    host.time.onChange(() => {
+      if (this.enabled) this.reindex();
+    });
     host.settings.onChange(() => {
       const now = host.settings.isLayerGroupEnabled(WIND_LAYER_GROUP);
       if (now !== this.enabled) {
@@ -305,7 +315,8 @@ export class WindOverlay implements MapOverlay {
 
     // Paint cached barbs (fresh or stale) right away — no blink on revisit.
     const { need, have } = this.cache.partition(points, now);
-    this.setData(this.toFeatures(have));
+    const atMs = this.host.time.now().getTime();
+    this.setData(this.toFeatures(have, atMs));
 
     if (need.length === 0) {
       this.setStatus(have.length ? "ok" : "no-data");
@@ -327,21 +338,47 @@ export class WindOverlay implements MapOverlay {
 
     // Re-partition (the view may have moved during the await) and repaint.
     const after = this.cache.partition(points, Date.now());
-    this.setData(this.toFeatures(after.have));
+    this.setData(this.toFeatures(after.have, this.host.time.now().getTime()));
     this.setStatus(after.have.length ? "ok" : "no-data");
   }
 
+  /**
+   * Re-pick the forecast hour for the current display time from cached series
+   * and repaint, without any network fetch. Used when the time-bar offset moves.
+   */
+  private reindex(): void {
+    const map = this.pmap?.raw;
+    if (!map || !this.enabled || map.getZoom() < MIN_ZOOM) return;
+    const b = map.getBounds();
+    const zoom = Math.round(map.getZoom());
+    const points = latticePointsInBounds(
+      b.getWest(),
+      b.getEast(),
+      b.getSouth(),
+      b.getNorth(),
+      zoom,
+    );
+    const { have } = this.cache.partition(points, Date.now());
+    this.setData(this.toFeatures(have, this.host.time.now().getTime()));
+  }
+
   private toFeatures(
-    have: Array<LatticePoint & { speed: number; dir: number }>,
+    have: Array<LatticePoint & { sample: WindSample }>,
+    atMs: number,
   ): FeatureCollection {
-    const features: Feature[] = have.map((p) => ({
-      type: "Feature",
-      geometry: { type: "Point", coordinates: [p.lon, p.lat] },
-      properties: {
-        barb: imageId(barbBucket(p.speed)),
-        dir: Math.round(p.dir),
-      },
-    }));
+    const features: Feature[] = [];
+    for (const p of have) {
+      const s = sampleAt(p.sample, atMs);
+      if (!s) continue; // outside the forecast window — skip
+      features.push({
+        type: "Feature",
+        geometry: { type: "Point", coordinates: [p.lon, p.lat] },
+        properties: {
+          barb: imageId(barbBucket(s.speed)),
+          dir: Math.round(s.dir),
+        },
+      });
+    }
     return { type: "FeatureCollection", features };
   }
 
@@ -356,10 +393,15 @@ export class WindOverlay implements MapOverlay {
   ): Promise<Array<{ point: LatticePoint; sample: WindSample }> | null> {
     const lats = points.map((p) => p.lat.toFixed(3)).join(",");
     const lons = points.map((p) => p.lon.toFixed(3)).join(",");
+    // Hourly series (not just `current`) so a single fetch covers every
+    // time-bar offset. forecast_days=3 = 72 hourly slots from 00:00 UTC today,
+    // which always spans now…now+48h (current UTC hour ≤ 23, +48 ≤ 71).
+    // unixtime gives epoch seconds directly (no timezone parsing).
     const url =
       "https://api.open-meteo.com/v1/forecast" +
       `?latitude=${lats}&longitude=${lons}` +
-      "&current=wind_speed_10m,wind_direction_10m&wind_speed_unit=kn";
+      "&hourly=wind_speed_10m,wind_direction_10m&wind_speed_unit=kn" +
+      "&forecast_days=3&timeformat=unixtime";
     let data: unknown;
     try {
       const resp = await fetch(url);
@@ -382,20 +424,29 @@ export class WindOverlay implements MapOverlay {
     const list = Array.isArray(data) ? data : [data];
     const out: Array<{ point: LatticePoint; sample: WindSample }> = [];
     for (let i = 0; i < points.length; i++) {
-      const cur = (
+      const hourly = (
         list[i] as
           | {
-              current?: {
-                wind_speed_10m?: number;
-                wind_direction_10m?: number;
+              hourly?: {
+                time?: number[];
+                wind_speed_10m?: number[];
+                wind_direction_10m?: number[];
               };
             }
           | undefined
-      )?.current;
-      if (cur?.wind_speed_10m != null && cur.wind_direction_10m != null) {
+      )?.hourly;
+      if (
+        hourly?.time?.length &&
+        hourly.wind_speed_10m &&
+        hourly.wind_direction_10m
+      ) {
         out.push({
           point: points[i],
-          sample: { speed: cur.wind_speed_10m, dir: cur.wind_direction_10m },
+          sample: {
+            baseMs: hourly.time[0] * 1000,
+            speed: hourly.wind_speed_10m,
+            dir: hourly.wind_direction_10m,
+          },
         });
       }
     }

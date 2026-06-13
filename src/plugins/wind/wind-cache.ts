@@ -11,15 +11,42 @@
  * The cache is bounded (oldest-out) so it can't grow without limit.
  */
 
+/**
+ * Hourly wind forecast series for one lattice point. One entry covers the whole
+ * forecast window, so a single fetch serves every time-bar offset; `sampleAt`
+ * picks the hour for the current display time.
+ */
 export interface WindSample {
-  speed: number; // knots
-  dir: number; // degrees the wind comes FROM
+  /** Epoch ms of hourly[0] (top of the run's first hour). */
+  baseMs: number;
+  /** Wind speed (knots) per hour; index = whole hours after `baseMs`. */
+  speed: number[];
+  /** Direction (degrees the wind comes FROM) per hour, parallel to `speed`. */
+  dir: number[];
 }
 
-interface CacheEntry extends WindSample {
+interface CacheEntry {
+  sample: WindSample;
   lon: number;
   lat: number;
   t: number; // epoch ms when fetched
+}
+
+const HOUR_MS = 3_600_000;
+
+/**
+ * Resolve an hourly series to a single (speed, dir) at `atMs`, choosing the
+ * nearest hour. Returns null when `atMs` is outside the series window. Picks the
+ * nearest hour rather than interpolating — direction wraps at 360° and barbs are
+ * quantized to 5 kt buckets anyway, so sub-hour blending buys nothing.
+ */
+export function sampleAt(
+  s: WindSample,
+  atMs: number,
+): { speed: number; dir: number } | null {
+  const h = Math.round((atMs - s.baseMs) / HOUR_MS);
+  if (h < 0 || h >= s.speed.length) return null;
+  return { speed: s.speed[h], dir: s.dir[h] };
 }
 
 export interface LatticePoint {
@@ -84,9 +111,9 @@ export class WindCache {
     this.maxEntries = maxEntries;
   }
 
-  /** A sample for this key (any age), or undefined. */
+  /** The series for this key (any age), or undefined. */
   get(key: string): WindSample | undefined {
-    return this.entries.get(key);
+    return this.entries.get(key)?.sample;
   }
 
   /** Whether a non-stale sample exists for this key. */
@@ -104,7 +131,7 @@ export class WindCache {
     now: number,
   ): void {
     this.entries.delete(key);
-    this.entries.set(key, { ...sample, lon, lat, t: now });
+    this.entries.set(key, { sample, lon, lat, t: now });
     if (this.entries.size > this.maxEntries) {
       // Map preserves insertion order; oldest put is first.
       const oldest = this.entries.keys().next().value;
@@ -129,14 +156,14 @@ export class WindCache {
     now: number,
   ): {
     need: LatticePoint[];
-    have: Array<LatticePoint & WindSample>;
+    have: Array<LatticePoint & { sample: WindSample }>;
   } {
     const need: LatticePoint[] = [];
-    const have: Array<LatticePoint & WindSample> = [];
+    const have: Array<LatticePoint & { sample: WindSample }> = [];
     for (const p of points) {
-      const sample = this.entries.get(p.key);
-      if (sample) have.push({ ...p, speed: sample.speed, dir: sample.dir });
-      if (!sample || now - sample.t >= this.ttlMs) need.push(p);
+      const e = this.entries.get(p.key);
+      if (e) have.push({ ...p, sample: e.sample });
+      if (!e || now - e.t >= this.ttlMs) need.push(p);
     }
     return { need, have };
   }
