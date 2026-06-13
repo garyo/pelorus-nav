@@ -14,6 +14,7 @@
 import type { PluginListenerHandle } from "@capacitor/core";
 import { Capacitor } from "@capacitor/core";
 import { BackgroundGPS, type TrackPointNative } from "../plugins/BackgroundGPS";
+import { diag } from "../utils/diag";
 import { MS_TO_KNOTS } from "../utils/units";
 import type {
   NavigationData,
@@ -115,6 +116,23 @@ export class CapacitorGPSProvider implements NavigationDataProvider {
     // we don't want a fresh connect() to replay stale fixes through the
     // filter as if they were live.
     this.lastSeenTimestamp = Date.now();
+
+    // Measure what this prune throws away. On a clean launch the buffer is
+    // empty; a non-trivial, *recent* span here means a mid-trip WebView/
+    // process reload left an un-drained backlog that we're about to lose —
+    // the signal that decides whether a recovery path is worth building.
+    const existing = await BackgroundGPS.getRecordedPoints({
+      sinceTimestamp: 0,
+    }).catch(() => ({ points: [] as TrackPointNative[] }));
+    if (existing.points.length > 0) {
+      const oldest = existing.points[0].timestamp;
+      const newest = existing.points[existing.points.length - 1].timestamp;
+      diag(
+        "drain",
+        `connect discard n=${existing.points.length} ageMs=${Date.now() - newest} spanMs=${newest - oldest}`,
+      );
+    }
+
     await BackgroundGPS.pruneRecordedPoints({
       beforeTimestamp: this.lastSeenTimestamp,
     }).catch(console.error);
@@ -178,6 +196,14 @@ export class CapacitorGPSProvider implements NavigationDataProvider {
         // Native already returns ASC by timestamp, but defend against
         // out-of-order writes by sorting here too — cheap insurance.
         points.sort((a, b) => a.timestamp - b.timestamp);
+
+        // One line per drain batch: size + how far behind real time the
+        // oldest buffered fix is. A large backlog/lag means the SQLite→
+        // IndexedDB drain is falling behind (slow device, passive recovery).
+        diag(
+          "drain",
+          `n=${points.length} lagMs=${Date.now() - points[0].timestamp}`,
+        );
 
         for (const pt of points) {
           this.emit(pt);

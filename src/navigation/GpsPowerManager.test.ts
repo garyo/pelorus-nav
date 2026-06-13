@@ -3,6 +3,7 @@ import {
   DEFAULT_GPS_POWER_CONFIG as CFG,
   decideGpsPower,
   type GpsPowerInputs,
+  needsResume,
   powerDecisionKey,
 } from "./GpsPowerManager";
 
@@ -130,5 +131,54 @@ describe("powerDecisionKey (coalescing identity)", () => {
       decideGpsPower({ ...base, idle: true, eink: true }),
     );
     expect(idleEink).not.toBe(normal);
+  });
+});
+
+describe("needsResume (avoid redundant native restarts)", () => {
+  const active = (intervalMs: number) =>
+    powerDecisionKey({ mode: "active", intervalMs });
+
+  it("resumes on first apply (no prior decision)", () => {
+    expect(needsResume(null, { mode: "active", intervalMs: 1000 })).toBe(true);
+  });
+
+  it("resumes when coming back from stopped (service was killed)", () => {
+    expect(needsResume("stopped", { mode: "active", intervalMs: 1000 })).toBe(
+      true,
+    );
+  });
+
+  it("does NOT resume on an active→active rate change (burst toggle)", () => {
+    // The 2000↔5000 ms burst flips must not restart the foreground service.
+    expect(
+      needsResume(active(5000), { mode: "active", intervalMs: 2000 }),
+    ).toBe(false);
+  });
+
+  it("does NOT resume on passive→active (service was never stopped)", () => {
+    expect(
+      needsResume(
+        powerDecisionKey({
+          mode: "passive",
+          intervalMs: 15000,
+          graceMs: 20000,
+        }),
+        {
+          mode: "active",
+          intervalMs: 1000,
+        },
+      ),
+    ).toBe(false);
+  });
+
+  it("is irrelevant for non-active decisions", () => {
+    expect(
+      needsResume("stopped", {
+        mode: "passive",
+        intervalMs: 15000,
+        graceMs: 0,
+      }),
+    ).toBe(false);
+    expect(needsResume(active(1000), { mode: "stopped" })).toBe(false);
   });
 });
