@@ -60,6 +60,14 @@ const MAX_ACCURACY_M = 30;
  * (its fixes were arriving fine) is *not* rejected. A 4 kn sailboat
  * with a 79 s gap and a 17 kn implied speed *is* — the matching
  * real-world incident: Track 2026-05-22 13_14.gpx, idx 2760.
+ *
+ * The detector targets a *single* outlier, so the caller passes
+ * `alreadyRejected` to cap it at one rejection per gap (see onNavData): a
+ * genuine glitch snaps back within one fix, so a second fix still displaced
+ * from the held anchor is real movement and must be accepted. Without this,
+ * a fast vessel with sparse fixes (passive mode, a 30 kn ferry) poisons the
+ * anchor and every following fix is mis-flagged — the track dies at the first
+ * gap and never recovers until the vessel slows below SUSPICIOUS_SPEED_KN.
  */
 const MAX_GAP_FOR_HIGH_SPEED_MS = 30_000;
 const SUSPICIOUS_SPEED_KN = 15;
@@ -77,9 +85,13 @@ export function isGapGlitch(
   newLat: number,
   newLon: number,
   newTimestampMs: number,
+  alreadyRejected = false,
   maxGapMs = MAX_GAP_FOR_HIGH_SPEED_MS,
   maxSpeedKn = SUSPICIOUS_SPEED_KN,
 ): boolean {
+  // Reject at most one fix per gap: a real glitch returns to the track within
+  // one fix, so a second still-displaced fix is the vessel actually moving.
+  if (alreadyRejected) return false;
   const dtMs = newTimestampMs - prevTimestampMs;
   if (dtMs <= maxGapMs) return false;
   const distNM = haversineDistanceNM(prevLat, prevLon, newLat, newLon);
@@ -104,6 +116,8 @@ export class TrackRecorder {
   private lastRecordedTime = 0;
   private lastLat = 0;
   private lastLon = 0;
+  /** True when the previous fix was rejected as a gap-glitch (caps it at one). */
+  private glitchRejectedSinceAccept = false;
   private listeners: RecorderListener[] = [];
   private navCallback: ((data: NavigationData) => void) | null = null;
   /**
@@ -167,6 +181,7 @@ export class TrackRecorder {
     this.currentTrack = null;
     this.trackPersisted = false;
     this.lastRecordedTime = 0;
+    this.glitchRejectedSinceAccept = false;
     this.resumePromise = null;
     localStorage.removeItem(ACTIVE_TRACK_KEY);
     this.updateNativeNotification("Navigating");
@@ -291,18 +306,28 @@ export class TrackRecorder {
     // signals a "GPS came back online in the wrong place" fix. Drop it;
     // we leave lastLat/lastLon/lastRecordedTime untouched so the *next*
     // good fix is compared against the previous good fix, not the glitch.
-    if (
-      this.lastRecordedTime > 0 &&
-      isGapGlitch(
-        this.lastLat,
-        this.lastLon,
-        this.lastRecordedTime,
-        data.latitude,
-        data.longitude,
-        now,
-      )
-    ) {
-      return;
+    // Capped at one rejection per gap (glitchRejectedSinceAccept) so a fast
+    // vessel with sparse fixes isn't cascaded into a dead track.
+    if (this.lastRecordedTime > 0) {
+      if (
+        isGapGlitch(
+          this.lastLat,
+          this.lastLon,
+          this.lastRecordedTime,
+          data.latitude,
+          data.longitude,
+          now,
+          this.glitchRejectedSinceAccept,
+        )
+      ) {
+        diag(
+          "rec",
+          `glitch drop gap=${Math.round((now - this.lastRecordedTime) / 1000)}s`,
+        );
+        this.glitchRejectedSinceAccept = true;
+        return;
+      }
+      this.glitchRejectedSinceAccept = false;
     }
 
     // Check for time gap → start new track

@@ -14,6 +14,7 @@
 import type { PluginListenerHandle } from "@capacitor/core";
 import { Capacitor } from "@capacitor/core";
 import { BackgroundGPS, type TrackPointNative } from "../plugins/BackgroundGPS";
+import { diag } from "../utils/diag";
 import { MS_TO_KNOTS } from "../utils/units";
 import type {
   NavigationData,
@@ -178,6 +179,14 @@ export class CapacitorGPSProvider implements NavigationDataProvider {
         // Native already returns ASC by timestamp, but defend against
         // out-of-order writes by sorting here too — cheap insurance.
         points.sort((a, b) => a.timestamp - b.timestamp);
+
+        // One line per drain batch: size + how far behind real time the
+        // oldest buffered fix is. A large backlog/lag means the SQLite→
+        // IndexedDB drain is falling behind (slow device, passive recovery).
+        diag(
+          "drain",
+          `n=${points.length} lagMs=${Date.now() - points[0].timestamp}`,
+        );
 
         for (const pt of points) {
           this.emit(pt);

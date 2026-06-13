@@ -111,6 +111,21 @@ export function powerDecisionKey(d: GpsPowerDecision): string {
   }
 }
 
+/**
+ * Whether an "active" decision needs a native (re)start. The service is only
+ * ever stopped by the hidden+!recording "stopped" branch, so resuming is
+ * needed solely when coming from there (or the initial apply). Active→active
+ * rate changes (the burst 2000↔5000 ms flip) and passive→active must NOT
+ * restart the foreground service — that churn re-issues a startForegroundService
+ * and re-installs the bridge on every burst toggle.
+ */
+export function needsResume(
+  prevKey: string | null,
+  next: GpsPowerDecision,
+): boolean {
+  return next.mode === "active" && (prevKey === null || prevKey === "stopped");
+}
+
 /** Native GPS provider surface the manager drives. */
 export interface GpsPowerSink {
   resumeTracking(): void;
@@ -209,6 +224,7 @@ export class GpsPowerManager {
     // act when the resolved native command actually changes.
     const key = powerDecisionKey(decision);
     if (key === this.lastAppliedKey) return;
+    const prevKey = this.lastAppliedKey;
     this.lastAppliedKey = key;
 
     diag(
@@ -217,9 +233,10 @@ export class GpsPowerManager {
     );
     switch (decision.mode) {
       case "active":
-        // resumeTracking is idempotent when already running; it restarts the
-        // native service if the hidden+!recording branch had stopped it.
-        this.gps.resumeTracking();
+        // Only restart the native service when it was actually stopped (the
+        // hidden+!recording branch). Skipping this on rate changes avoids a
+        // redundant startForegroundService on every burst toggle.
+        if (needsResume(prevKey, decision)) this.gps.resumeTracking();
         this.gps.setPowerMode("active", decision.intervalMs);
         break;
       case "passive":
