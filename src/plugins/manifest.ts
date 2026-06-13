@@ -4,6 +4,7 @@
  * same PluginManager.
  */
 
+import { sunPlugin } from "./sun";
 import { tidesPlugin } from "./tides";
 import type { Plugin } from "./types";
 import { windPlugin } from "./wind";
@@ -12,4 +13,4 @@ import { windPlugin } from "./wind";
 // tree but excluded from the build: its translucent color-wash tiles add little
 // over the Open-Meteo wind barbs and aren't worth the API-key UX. Re-add
 // `weatherPlugin` from "./weather" here to ship it again.
-export const BUILTIN_PLUGINS: Plugin[] = [tidesPlugin, windPlugin];
+export const BUILTIN_PLUGINS: Plugin[] = [tidesPlugin, windPlugin, sunPlugin];

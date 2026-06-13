@@ -31,11 +31,21 @@ import type {
   MapOverlay,
   PickableRegistration,
   Plugin,
+  PluginAction,
+  PluginActionHandle,
   PluginHost,
   PluginInstance,
   PluginMap,
   Slot,
 } from "./types";
+
+/**
+ * Host-side sink for plugin top-bar actions. Implemented by the app shell
+ * (main.ts), which renders each action as a top-bar button.
+ */
+export interface TopbarRegistrar {
+  register(action: PluginAction): PluginActionHandle;
+}
 
 export interface HostDeps {
   map: maplibregl.Map;
@@ -43,6 +53,7 @@ export interface HostDeps {
   navManager: NavigationDataManager;
   picks: PickRegistry;
   legends: LegendHost;
+  topbar: TopbarRegistrar;
 }
 
 /** Per-plugin teardown handle returned by `createHost`. */
@@ -218,6 +229,14 @@ export function activatePlugin(plugin: Plugin, deps: HostDeps): ActivePlugin {
       },
       setStatus(text) {
         deps.legends.setStatus(manifest.id, text);
+      },
+      registerAction(action) {
+        const handle = deps.topbar.register({
+          ...action,
+          id: `${manifest.id}:${action.id}`,
+        });
+        cleanups.push(() => handle.remove());
+        return handle;
       },
     },
 

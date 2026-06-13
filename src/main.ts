@@ -65,6 +65,7 @@ import {
   BOSTON_HARBOR_ROUTE,
   type SimulatorOptions,
 } from "./navigation/SimulatorProvider";
+import type { TopbarRegistrar } from "./plugins/host";
 import { LegendHost } from "./plugins/legend";
 import { BUILTIN_PLUGINS } from "./plugins/manifest";
 import { PluginManager } from "./plugins/PluginManager";
@@ -367,12 +368,30 @@ const navManager = new NavigationDataManager();
 // host: they register overlays, layer-group toggles, settings controls, data
 // assets, and pickables. Must run BEFORE the settings panel is built so those
 // plugin contributions appear in it.
+// Lets plugins add a top-bar action button (e.g. the Sun plugin's popup)
+// without owning any persistent map real estate. Buttons land in the same
+// #topbar-actions cluster as the core actions.
+const pluginTopbar: TopbarRegistrar = {
+  register(action) {
+    const btn = buildTopbarAction(action.icon, action.label, action.title, {
+      fullLabel: action.fullLabel,
+    });
+    btn.addEventListener("click", () => action.onSelect());
+    document.getElementById("topbar-actions")?.appendChild(btn);
+    return {
+      setActive: (active) => btn.classList.toggle("active", active),
+      remove: () => btn.remove(),
+    };
+  },
+};
+
 const pluginManager = new PluginManager({
   map: chartManager.map,
   chartManager,
   navManager,
   picks: pickRegistry,
   legends: new LegendHost(chartManager.map.getContainer()),
+  topbar: pluginTopbar,
 });
 for (const plugin of BUILTIN_PLUGINS) pluginManager.register(plugin);
 pluginManager.activateAll();

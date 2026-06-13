@@ -144,12 +144,41 @@ export interface PickingRegistrar {
 }
 
 /** On-map chrome the host renders on the plugin's behalf (DOM-free plugins). */
+/**
+ * A top-bar action button contributed by a plugin — an icon + short label that
+ * runs `onSelect` when tapped. Lets a plugin add an on-demand entry point (a
+ * popup, a panel, a toggle) without owning any persistent map real estate.
+ */
+export interface PluginAction {
+  /** Stable id, unique within the plugin (the host namespaces it). */
+  id: string;
+  /** Inline SVG markup for the icon (e.g. an export from `src/ui/icons`). */
+  icon: string;
+  /** Short uppercase label shown under the icon (e.g. "SUN"). */
+  label: string;
+  /** Tooltip / accessible name. */
+  title: string;
+  /** Longer descriptive label shown in the mobile overflow menu. */
+  fullLabel?: string;
+  /** Invoked when the button is activated. */
+  onSelect(): void;
+}
+
+export interface PluginActionHandle {
+  /** Toggle pressed/active styling (e.g. while the action's popup is open). */
+  setActive(active: boolean): void;
+  /** Remove the button. Also done automatically when the plugin deactivates. */
+  remove(): void;
+}
+
 export interface UiRegistrar {
   /** Show/replace this plugin's map legend, or remove it with `null`. */
   setLegend(spec: LegendSpec | null): void;
   /** Show/replace a one-line status chip (e.g. "loading", "rate-limited"), or
    * clear it with `null`. For transient overlay state the user should see. */
   setStatus(text: string | null): void;
+  /** Add a top-bar action button; the returned handle updates/removes it. */
+  registerAction(action: PluginAction): PluginActionHandle;
 }
 
 export interface HostEvents {

@@ -476,6 +476,62 @@ body {
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
 }
 
+/* Sun-times popup (Sun plugin) — anchored under the top bar, on demand. */
+.sun-popup {
+  position: fixed;
+  top: calc(var(--topbar-bottom) + 6px);
+  right: 8px;
+  background: rgba(30, 30, 50, 0.95);
+  border: 1px solid #555;
+  border-radius: 6px;
+  padding: 10px 12px;
+  z-index: 10000;
+  font:
+    13px system-ui,
+    -apple-system,
+    sans-serif;
+  color: #e0e0e0;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+}
+
+.sun-popup-title {
+  font-weight: 600;
+  margin-bottom: 6px;
+  white-space: nowrap;
+}
+
+.sun-table {
+  border-collapse: collapse;
+}
+
+.sun-table th,
+.sun-table td {
+  padding: 2px 8px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.sun-table thead th {
+  font-weight: 600;
+  opacity: 0.7;
+  font-size: 11px;
+}
+
+.sun-table th[scope="row"] {
+  text-align: left;
+  font-weight: 400;
+}
+
+.sun-table td.twilight {
+  opacity: 0.55;
+}
+
+.sun-popup-note {
+  margin-top: 6px;
+  font-size: 11px;
+  opacity: 0.6;
+}
+
 .map-context-item {
   padding: 6px 14px;
   cursor: pointer;
@@ -2123,7 +2179,8 @@ body {
 }
 
 [data-theme="night"] .map-context-menu,
-[data-theme="night"] .map-context-submenu {
+[data-theme="night"] .map-context-submenu,
+[data-theme="night"] .sun-popup {
   background: rgba(26, 10, 10, 0.95);
   border-color: #442222;
   color: #cc3333;
@@ -2345,7 +2402,8 @@ body {
 }
 
 [data-theme="eink"] .map-context-menu,
-[data-theme="eink"] .map-context-submenu {
+[data-theme="eink"] .map-context-submenu,
+[data-theme="eink"] .sun-popup {
   background: #ffffff;
   border: 2px solid #000000;
   border-radius: 0;
