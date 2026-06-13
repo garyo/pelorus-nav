@@ -371,9 +371,12 @@ export class TidesOverlay implements MapOverlay {
     if (!state) return null;
     const arrow = state.trend === "rising" ? "↑" : "↓";
     const unit = this.host.settings.get().depthUnit;
+    // Secondary (subordinate) stations have approximate heights; that's shown
+    // in the popup, not flagged on the cramped icon label (a "~" there reads
+    // as a minus sign at small sizes).
     const label =
       state.heightMeters != null
-        ? `${state.approximate ? "~" : ""}${formatDepth(state.heightMeters, unit)} ${arrow}`
+        ? `${formatDepth(state.heightMeters, unit)} ${arrow}`
         : arrow;
     const props = {
       _kind: "tide",
@@ -444,10 +447,9 @@ export class TidesOverlay implements MapOverlay {
     const { depthUnit } = this.host.settings.get();
     const details: { label: string; value: string }[] = [];
     if (state.heightMeters != null) {
-      const approx = state.approximate ? "≈" : "";
       details.push({
         label: "Now",
-        value: `${approx}${formatTideHeight(state.heightMeters, depthUnit)} (${state.trend})`,
+        value: `${formatTideHeight(state.heightMeters, depthUnit)} (${state.trend})`,
       });
     } else {
       details.push({ label: "Now", value: state.trend });
@@ -461,7 +463,11 @@ export class TidesOverlay implements MapOverlay {
         value: formatTideEvent(ev, depthUnit),
       });
     });
-    return { type: "Tide Station", name: station.name, details };
+    // Subordinate stations carry NOAA offset-derived (approximate) predictions.
+    const type = state.approximate
+      ? "Tide Station (secondary)"
+      : "Tide Station";
+    return { type, name: station.name, details };
   }
 
   private currentInfo(id: string): FeatureInfo | null {
