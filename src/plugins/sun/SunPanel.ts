@@ -32,6 +32,10 @@ export class SunPanel {
     this.host = host;
   }
 
+  isOpen(): boolean {
+    return this.el !== null;
+  }
+
   toggle(): void {
     if (this.el) this.close();
     else this.open();
@@ -49,9 +53,11 @@ export class SunPanel {
     this.onKey = (e) => {
       if (e.key === "Escape") this.close();
     };
-    // Defer: the click that opened the popup is still bubbling.
+    // Close on `click` (not pointerdown) so it bubbles *after* the map's click
+    // handler — which, via the registered pick suppressor, skips the pick
+    // while we're open. Defer past the click that opened the popup.
     setTimeout(() => {
-      document.addEventListener("pointerdown", this.outside as EventListener);
+      document.addEventListener("click", this.outside as EventListener);
       document.addEventListener("keydown", this.onKey as EventListener);
     }, 0);
     this.onVisibilityChange?.(true);
@@ -60,10 +66,7 @@ export class SunPanel {
   close(): void {
     if (!this.el) return;
     if (this.outside) {
-      document.removeEventListener(
-        "pointerdown",
-        this.outside as EventListener,
-      );
+      document.removeEventListener("click", this.outside as EventListener);
     }
     if (this.onKey) {
       document.removeEventListener("keydown", this.onKey as EventListener);

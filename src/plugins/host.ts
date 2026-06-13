@@ -54,6 +54,8 @@ export interface HostDeps {
   picks: PickRegistry;
   legends: LegendHost;
   topbar: TopbarRegistrar;
+  /** Register a predicate that suppresses chart picks while it returns true. */
+  suppressPick: (active: () => boolean) => void;
 }
 
 /** Per-plugin teardown handle returned by `createHost`. */
@@ -220,6 +222,9 @@ export function activatePlugin(plugin: Plugin, deps: HostDeps): ActivePlugin {
           },
         };
         cleanups.push(deps.picks.register(contributor));
+      },
+      suppressWhile(active) {
+        deps.suppressPick(active);
       },
     },
 

@@ -25,6 +25,8 @@ export const sunPlugin: Plugin = {
 
   activate(host) {
     const panel = new SunPanel(host);
+    // The click that dismisses the popup shouldn't also register a chart pick.
+    host.picking.suppressWhile(() => panel.isOpen());
     const action = host.ui.registerAction({
       id: "sun-times",
       icon: iconSun,

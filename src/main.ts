@@ -395,6 +395,7 @@ const pluginManager = new PluginManager({
   picks: pickRegistry,
   legends: new LegendHost(chartManager.map.getContainer()),
   topbar: pluginTopbar,
+  suppressPick: (fn) => featureQueryHandler.addPickSuppressor(fn),
 });
 for (const plugin of BUILTIN_PLUGINS) pluginManager.register(plugin);
 pluginManager.activateAll();

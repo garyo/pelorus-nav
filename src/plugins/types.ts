@@ -141,6 +141,12 @@ export interface PickableRegistration {
 
 export interface PickingRegistrar {
   register(reg: PickableRegistration): void;
+  /**
+   * While `active()` returns true, a map click is treated as dismiss-only and
+   * does NOT register a feature pick. For plugin popups/panels that close on
+   * an outside click, so the dismissing click isn't also read as a chart pick.
+   */
+  suppressWhile(active: () => boolean): void;
 }
 
 /** On-map chrome the host renders on the plugin's behalf (DOM-free plugins). */
