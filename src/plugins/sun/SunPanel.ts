@@ -6,6 +6,7 @@
 
 import { sunTimes } from "../../astro/sun";
 import { formatLatLon } from "../../utils/coordinates";
+import { shortTimeZone } from "../../utils/timezone";
 import type { PluginHost } from "../types";
 
 const DAYS = 7;
@@ -137,7 +138,8 @@ export class SunPanel {
 
     const note = document.createElement("div");
     note.className = "sun-popup-note";
-    note.textContent = "Local time · dawn/dusk = civil twilight";
+    const tz = shortTimeZone();
+    note.textContent = `Local time${tz ? ` (${tz})` : ""} · dawn/dusk = civil twilight`;
     root.appendChild(note);
     return root;
   }

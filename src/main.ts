@@ -369,15 +369,18 @@ const navManager = new NavigationDataManager();
 // assets, and pickables. Must run BEFORE the settings panel is built so those
 // plugin contributions appear in it.
 // Lets plugins add a top-bar action button (e.g. the Sun plugin's popup)
-// without owning any persistent map real estate. Buttons land in the same
-// #topbar-actions cluster as the core actions.
+// without owning any persistent map real estate. Buttons join the hamburger
+// menu group (collapses on mobile) and are repositioned just before the
+// trailing Full/Info actions once those exist (see below).
 const pluginTopbar: TopbarRegistrar = {
   register(action) {
     const btn = buildTopbarAction(action.icon, action.label, action.title, {
       fullLabel: action.fullLabel,
+      extraClass: "topbar-plugin-action",
     });
     btn.addEventListener("click", () => action.onSelect());
-    document.getElementById("topbar-actions")?.appendChild(btn);
+    const menu = document.getElementById("topbar-menu");
+    menu?.insertBefore(btn, menu.querySelector(".settings-wrapper"));
     return {
       setActive: (active) => btn.classList.toggle("active", active),
       remove: () => btn.remove(),
@@ -1164,6 +1167,12 @@ if (topbarMenu) {
     closeHamburger();
   });
   topbarMenu.insertBefore(aboutBtn, settingsWrapper);
+
+  // Plugin-contributed actions (e.g. Sun) sit just before the trailing
+  // Full/Info group rather than at the front of the menu.
+  topbarMenu.querySelectorAll(".topbar-plugin-action").forEach((b) => {
+    topbarMenu.insertBefore(b, fullscreenBtn);
+  });
 }
 
 // Warn the user once if the OS screen-off timeout is too short for marine

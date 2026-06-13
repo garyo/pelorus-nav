@@ -36,6 +36,7 @@ import {
   formatTimeUntil,
 } from "../../tides/format";
 import { tideNow, tideState } from "../../tides/predictor";
+import { shortTimeZone } from "../../utils/timezone";
 import type { MapOverlay, PluginHost, PluginMap } from "../types";
 
 export const TIDES_LAYER_GROUP = "tidesCurrents";
@@ -453,14 +454,16 @@ export class TidesOverlay implements MapOverlay {
     if (!state) return null;
 
     const { depthUnit } = this.host.settings.get();
+    const tz = shortTimeZone();
+    const nowLabel = tz ? `Now (${tz})` : "Now";
     const details: { label: string; value: string }[] = [];
     if (state.heightMeters != null) {
       details.push({
-        label: "Now",
+        label: nowLabel,
         value: `${formatTideHeight(state.heightMeters, depthUnit)} (${state.trend})`,
       });
     } else {
-      details.push({ label: "Now", value: state.trend });
+      details.push({ label: nowLabel, value: state.trend });
     }
     state.events.forEach((ev, i) => {
       details.push({
@@ -487,11 +490,13 @@ export class TidesOverlay implements MapOverlay {
     if (!state) return null;
 
     const { speedUnit } = this.host.settings.get();
+    const tz = shortTimeZone();
+    const nowLabel = tz ? `Now (${tz})` : "Now";
     const details: FeatureInfo["details"] = [
       state.state === "slack"
-        ? { label: "Now", value: "Slack" }
+        ? { label: nowLabel, value: "Slack" }
         : {
-            label: "Now",
+            label: nowLabel,
             value: `${capitalize(state.state)} ${formatSpeed(state.speedKn, speedUnit)} ${Math.round(state.dir)}°`,
             dir: state.dir,
           },
