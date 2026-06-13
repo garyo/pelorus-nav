@@ -116,6 +116,23 @@ export class CapacitorGPSProvider implements NavigationDataProvider {
     // we don't want a fresh connect() to replay stale fixes through the
     // filter as if they were live.
     this.lastSeenTimestamp = Date.now();
+
+    // Measure what this prune throws away. On a clean launch the buffer is
+    // empty; a non-trivial, *recent* span here means a mid-trip WebView/
+    // process reload left an un-drained backlog that we're about to lose —
+    // the signal that decides whether a recovery path is worth building.
+    const existing = await BackgroundGPS.getRecordedPoints({
+      sinceTimestamp: 0,
+    }).catch(() => ({ points: [] as TrackPointNative[] }));
+    if (existing.points.length > 0) {
+      const oldest = existing.points[0].timestamp;
+      const newest = existing.points[existing.points.length - 1].timestamp;
+      diag(
+        "drain",
+        `connect discard n=${existing.points.length} ageMs=${Date.now() - newest} spanMs=${newest - oldest}`,
+      );
+    }
+
     await BackgroundGPS.pruneRecordedPoints({
       beforeTimestamp: this.lastSeenTimestamp,
     }).catch(console.error);
