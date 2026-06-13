@@ -82,6 +82,8 @@ const INTERACTIVE_SUFFIXES = [
   "-lndare-point",
   "-lndare",
   "-soundg",
+  "-slcons",
+  "-slcons-submerged",
   "-slcons-label",
   "-buisgl-label",
   "-smcfac-label",
