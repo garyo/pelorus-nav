@@ -32,6 +32,25 @@ function depthContourLabel(ctx: StyleContext): ExpressionSpecification {
   ];
 }
 
+/**
+ * Shoreline-construction line width by CATSLC: breakwater (1) and seawall (3)
+ * are heaviest; everything else (wharf/quay, jetty, groin, …) was previously
+ * a near-invisible 1 px — bumped so structures like a submerged breakwater
+ * actually read on the chart.
+ */
+const SLCONS_WIDTH = [
+  "match",
+  ["coalesce", ["get", "CATSLC"], 0],
+  1,
+  2.5, // breakwater
+  3,
+  2.5, // seawall
+  1.6,
+] as unknown as ExpressionSpecification;
+
+/** WATLEV codes drawn dashed (submerged / covers-and-uncovers), per S-52. */
+const SLCONS_SUBMERGED = [3, 4];
+
 export function getLineLayers(ctx: StyleContext): LayerSpecification[] {
   const layers: LayerSpecification[] = [
     {
@@ -83,19 +102,40 @@ export function getLineLayers(ctx: StyleContext): LayerSpecification[] {
       type: "line",
       source: ctx.sourceId,
       "source-layer": "SLCONS",
+      // Above-water structures: solid line. Submerged / intertidal ones are
+      // drawn dashed by s57-slcons-submerged below.
+      filter: [
+        "match",
+        ["coalesce", ["get", "WATLEV"], 0],
+        SLCONS_SUBMERGED,
+        false,
+        true,
+      ],
       layout: { "line-sort-key": SCALE_SORT_KEY },
       paint: {
         "line-color": ctx.colour("CHGRF"),
-        // Breakwater/seawall (CATSLC=1,3) thicker; wharf (4) normal
-        "line-width": [
-          "match",
-          ["coalesce", ["get", "CATSLC"], 0],
-          1,
-          2.5, // breakwater
-          3,
-          2.5, // seawall
-          1,
-        ] as unknown as ExpressionSpecification,
+        "line-width": SLCONS_WIDTH,
+      },
+    },
+    {
+      id: "s57-slcons-submerged",
+      type: "line",
+      source: ctx.sourceId,
+      "source-layer": "SLCONS",
+      // Submerged or covers-and-uncovers shoreline construction (e.g. a
+      // submerged breakwater, WATLEV 3/4): dashed, per S-52 portrayal.
+      filter: [
+        "match",
+        ["coalesce", ["get", "WATLEV"], 0],
+        SLCONS_SUBMERGED,
+        true,
+        false,
+      ],
+      layout: { "line-sort-key": SCALE_SORT_KEY },
+      paint: {
+        "line-color": ctx.colour("CHGRF"),
+        "line-width": SLCONS_WIDTH,
+        "line-dasharray": [3, 2] as number[],
       },
     },
     {
