@@ -130,6 +130,14 @@ export class TidesOverlay implements MapOverlay {
     // Unit changes don't rebuild the chart style, so handle them here.
     let units = unitKey(host);
     host.settings.onChange(() => {
+      // React to this overlay's layer group being toggled on/off (settings
+      // changes don't reload the style, so nothing else clears our icons).
+      if (
+        host.settings.isLayerGroupEnabled(TIDES_LAYER_GROUP) !== this.enabled
+      ) {
+        this.update();
+      }
+
       const next = unitKey(host);
       if (next !== units) {
         units = next;
