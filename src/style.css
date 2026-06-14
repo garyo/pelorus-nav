@@ -1689,7 +1689,8 @@ body {
   text-align: right;
 }
 
-.time-bar-now {
+.time-bar-now,
+.time-bar-step {
   background: rgba(255, 255, 255, 0.12);
   color: inherit;
   border: 1px solid rgba(255, 255, 255, 0.3);
@@ -1699,7 +1700,14 @@ body {
   white-space: nowrap;
 }
 
-.time-bar-now:hover {
+.time-bar-step {
+  font-variant-numeric: tabular-nums;
+  /* Roomier tap target on small touch displays. */
+  padding: 4px 10px;
+}
+
+.time-bar-now:hover,
+.time-bar-step:hover {
   background: rgba(255, 255, 255, 0.2);
 }
 

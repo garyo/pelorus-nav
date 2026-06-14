@@ -45,6 +45,19 @@ export class TimeBar {
     nowBtn.title = "Back to current conditions";
     nowBtn.addEventListener("click", () => setOffsetMs(0));
 
+    // ±1 h step buttons — precise nudges the coarse slider can't give on a
+    // small touch display. setOffsetMs clamps to [0, MAX], so the ends no-op.
+    const stepBtn = (label: string, title: string, deltaMs: number) => {
+      const b = document.createElement("button");
+      b.className = "time-bar-step";
+      b.textContent = label;
+      b.title = title;
+      b.addEventListener("click", () => setOffsetMs(getOffsetMs() + deltaMs));
+      return b;
+    };
+    const minusBtn = stepBtn("−1h", "1 hour earlier", -HOUR_MS);
+    const plusBtn = stepBtn("+1h", "1 hour later", HOUR_MS);
+
     this.slider = document.createElement("input");
     this.slider.type = "range";
     this.slider.className = "time-bar-slider";
@@ -72,7 +85,14 @@ export class TimeBar {
     closeBtn.textContent = "×";
     closeBtn.addEventListener("click", () => this.hide());
 
-    this.el.append(nowBtn, this.slider, this.readout, closeBtn);
+    this.el.append(
+      nowBtn,
+      minusBtn,
+      this.slider,
+      plusBtn,
+      this.readout,
+      closeBtn,
+    );
     document.body.appendChild(this.el);
 
     // Keep slider + readout in sync if the offset changes elsewhere (e.g. the
