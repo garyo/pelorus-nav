@@ -365,7 +365,9 @@ export class ChartCachePanel {
       const date = new Date(stored.downloadedAt).toLocaleDateString();
       detail.innerHTML = `${iconCloudOff} Offline · ${formatBytes(stored.sizeBytes)} · ${date}`;
     } else {
-      detail.textContent = `Streaming · ~${formatBytes(region.basemapSizeEstimate ?? 0)}`;
+      const streaming = getSettings().streetUnderlay !== "off";
+      const label = streaming ? "Streaming" : "Not downloaded";
+      detail.textContent = `${label} · ~${formatBytes(region.basemapSizeEstimate ?? 0)}`;
     }
 
     info.append(name, detail);
