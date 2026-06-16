@@ -956,7 +956,7 @@ INSTRUMENTS.set("vmg", {
 INSTRUMENTS.set("steer", {
   id: "steer",
   label: "Steer",
-  shortLabel: "STEER",
+  shortLabel: "STR",
   format() {
     const info = activeNav.getInfo();
     if (!info || info.steerDeg == null) return { value: "--", unit: "" };
@@ -964,8 +964,8 @@ INSTRUMENTS.set("steer", {
     if (Math.abs(d) < 1) return { value: "0\u00b0", unit: "" };
     const mag = Math.round(Math.abs(d));
     return d < 0
-      ? { value: `\u2190 ${mag}\u00b0`, unit: "" }
-      : { value: `${mag}\u00b0 \u2192`, unit: "" };
+      ? { value: `\u2190${mag}\u00b0`, unit: "" }
+      : { value: `${mag}\u00b0\u2192`, unit: "" };
   },
 });
 

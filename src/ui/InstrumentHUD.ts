@@ -229,17 +229,8 @@ function buildCell(
 
   const label = document.createElement("span");
   label.className = "instrument-label";
-  if (def.shortLabel) {
-    const full = document.createElement("span");
-    full.className = "instrument-label-full";
-    full.textContent = def.label;
-    const short = document.createElement("span");
-    short.className = "instrument-label-short";
-    short.textContent = def.shortLabel;
-    label.append(full, short);
-  } else {
-    label.textContent = def.label;
-  }
+  label.title = def.label;
+  label.textContent = def.shortLabel ?? def.label;
 
   const valueRow = document.createElement("div");
   valueRow.className = "instrument-value-row";
@@ -254,7 +245,12 @@ function buildCell(
   unitEl.className = "instrument-unit";
   unitEl.textContent = formatted.unit;
 
-  valueRow.append(valuEl, unitEl);
-  cell.append(label, valueRow);
+  // Meta column to the right of the digits: label on top, unit on bottom.
+  const meta = document.createElement("div");
+  meta.className = "instrument-meta";
+  meta.append(label, unitEl);
+
+  valueRow.append(valuEl, meta);
+  cell.append(valueRow);
   return { cell, valuEl, unitEl };
 }

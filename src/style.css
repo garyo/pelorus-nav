@@ -1064,13 +1064,10 @@ body {
   border-left: 1px solid #ccc;
 }
 
-/* Tiny corner label — Maptattoo-style. Top-right so the big digits can
-   sweep across the full cell width. Forced short label on all sizes since
-   the long form (e.g. "Speed over Ground") is too big at this scale. */
+/* Small label stacked just right of the digits — close to the value even on
+   wide cells. The short label is used at all sizes; the full name (e.g.
+   "Speed over Ground") is too big at this scale and lives in the tooltip. */
 .instrument-label {
-  position: absolute;
-  top: 4px;
-  right: 12px;
   font-size: 11px;
   font-weight: 600;
   letter-spacing: 0.06em;
@@ -1079,23 +1076,25 @@ body {
   line-height: 1;
 }
 
-.instrument-label-full {
-  display: none;
-}
-
-.instrument-label-short {
-  display: inline;
-}
-
 .instrument-value-row {
   display: flex;
-  align-items: baseline;
-  gap: 6px;
+  flex-direction: row;
+  align-items: stretch;
+  gap: 8px;
+}
+
+/* Label (top) over unit (bottom), spanning the height of the digits. */
+.instrument-meta {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  align-items: flex-start;
+  padding: 4px 0;
 }
 
 .instrument-value {
   /* clamp so we get big digits on wide screens but never overflow narrow
-     ones. Bigger now that the label sits in the top-right corner. */
+     ones. */
   font-size: clamp(56px, 16vw, 96px);
   font-weight: 800;
   color: #000;
@@ -1144,10 +1143,19 @@ body {
   font-size: 13px;
 }
 
+/* Nav cells share the standard label-over-unit layout, just smaller and with
+   tighter spacing so 4 cells fit beside their digits on a narrow phone. */
+.instrument-cell--nav .instrument-value-row {
+  gap: 2px;
+}
+
 .instrument-cell--nav .instrument-label {
   font-size: 10px;
-  top: 2px;
-  right: 4px;
+  letter-spacing: 0;
+}
+
+.instrument-cell--nav .instrument-meta {
+  padding: 1px 0;
 }
 
 @media (max-width: 600px) {
@@ -1155,8 +1163,10 @@ body {
     height: 38px;
   }
 
+  /* Sized so value + stacked label/unit fit 4-across down to ~360 px,
+     including a 3-digit steer correction with its direction arrow. */
   .instrument-cell--nav .instrument-value {
-    font-size: clamp(22px, 6vw, 32px);
+    font-size: clamp(18px, 5vw, 32px);
   }
 }
 
