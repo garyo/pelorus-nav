@@ -12,6 +12,7 @@ const ALLOWED_ORIGINS = [
   "https://pelorus-nav.com",
   "https://pelorus-nav.pages.dev",
   "https://localhost", // Capacitor Android WebView
+  "capacitor://localhost", // Capacitor iOS WKWebView
   "http://localhost",
   "http://127.0.0.1",
 ];
