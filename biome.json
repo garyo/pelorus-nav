@@ -11,7 +11,9 @@
       "**",
       "!tools/sprites/s52",
       "!public/tides-stations.json",
-      "!src/tides/__fixtures__"
+      "!src/tides/__fixtures__",
+      "!ios",
+      "!android"
     ]
   },
   "formatter": {

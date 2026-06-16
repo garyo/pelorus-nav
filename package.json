@@ -32,7 +32,10 @@
     "cap:sync": "CAPACITOR=1 bun run build && bunx cap sync android",
     "cap:run": "CAPACITOR=1 bun run build && bunx cap sync android && bunx cap run android",
     "cap:build": "CAPACITOR=1 bun run build && bunx cap sync android && cd android && ./gradlew clean assembleRelease",
-    "cap:build:debug": "CAPACITOR=1 bun run build && bunx cap sync android && cd android && ./gradlew clean assembleDebug"
+    "cap:build:debug": "CAPACITOR=1 bun run build && bunx cap sync android && cd android && ./gradlew clean assembleDebug",
+    "cap:sync:ios": "CAPACITOR=1 bun run build && bunx cap sync ios",
+    "cap:run:ios": "CAPACITOR=1 bun run build && bunx cap sync ios && bunx cap run ios",
+    "cap:build:ios": "CAPACITOR=1 bun run build && bunx cap sync ios && cd ios/App && xcodebuild -project App.xcodeproj -scheme App -configuration Release -archivePath build/App.xcarchive archive"
   },
   "license": "MIT",
   "dependencies": {
@@ -53,6 +56,7 @@
     "@biomejs/biome": "2.4.8",
     "@capacitor/android": "^8.2.0",
     "@capacitor/cli": "^8.2.0",
+    "@capacitor/ios": "8.2.0",
     "@cloudflare/workers-types": "^4.20260305.1",
     "@playwright/test": "^1.58.2",
     "@vitest/coverage-v8": "^4.0.18",
