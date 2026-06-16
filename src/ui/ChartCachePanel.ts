@@ -366,7 +366,7 @@ export class ChartCachePanel {
       detail.innerHTML = `${iconCloudOff} Offline · ${formatBytes(stored.sizeBytes)} · ${date}`;
     } else {
       const streaming = getSettings().streetUnderlay !== "off";
-      const label = streaming ? "Streaming" : "Not downloaded";
+      const label = streaming ? "Streaming (OSM)" : "Not downloaded";
       detail.textContent = `${label} · ~${formatBytes(region.basemapSizeEstimate ?? 0)}`;
     }
 
@@ -394,7 +394,7 @@ export class ChartCachePanel {
       dlBtn.className = "manager-item-btn";
       setIcon(dlBtn, iconDownload);
       dlBtn.title =
-        "Download street basemap (roads, place names) for offline use";
+        "Download offline street basemap — crisper themed vector maps that work without a connection. Otherwise streams online OSM raster tiles.";
       dlBtn.addEventListener("click", () => {
         this.startBasemapDownload(region);
       });
