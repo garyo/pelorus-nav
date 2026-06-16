@@ -315,6 +315,7 @@ body {
 /* Ensure SVG icons in buttons align properly */
 .topbar-action svg,
 .manager-close svg,
+.manager-info svg,
 .manager-item-btn svg,
 .feature-info-close svg,
 .feature-info-nav-btn svg {
@@ -834,6 +835,13 @@ body {
   font-family: monospace;
 }
 
+.about-info-body {
+  font-size: 13px;
+  color: #ccc;
+  line-height: 1.5;
+  margin-bottom: 12px;
+}
+
 /* Screen-timeout warning dialog (reuses .about-overlay / .about-card). */
 .screen-timeout-card {
   width: 420px;
@@ -1259,13 +1267,18 @@ body {
   flex: 1;
 }
 
-.manager-close {
+.manager-close,
+.manager-info {
   background: none;
   border: none;
   color: #aaa;
   font-size: 18px;
   cursor: pointer;
   padding: 0 4px;
+}
+
+.manager-info:hover {
+  color: #fff;
 }
 
 .manager-body {

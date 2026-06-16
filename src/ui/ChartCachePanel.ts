@@ -34,6 +34,7 @@ import {
   iconCloudOff,
   iconDownload,
   iconFolderOpen,
+  iconInfo,
   iconRefresh,
   iconTrash,
   iconX,
@@ -64,6 +65,7 @@ export class ChartCachePanel {
     this.el.innerHTML =
       '<div class="manager-header">' +
       "<span>Chart Regions</span>" +
+      '<button class="manager-info" title="About offline charts & basemaps"></button>' +
       '<button class="manager-close"></button>' +
       "</div>" +
       '<div class="manager-body"></div>' +
@@ -75,9 +77,73 @@ export class ChartCachePanel {
       ".chart-cache-footer",
     ) as HTMLDivElement;
 
+    const infoBtn = this.el.querySelector(".manager-info") as HTMLElement;
+    setIcon(infoBtn, iconInfo);
+    infoBtn.addEventListener("click", () => this.showInfo());
+
     const closeBtn = this.el.querySelector(".manager-close") as HTMLElement;
     setIcon(closeBtn, iconX);
     closeBtn.addEventListener("click", () => this.hide());
+  }
+
+  /** Lazily-built "About offline charts & basemaps" info overlay. */
+  private infoOverlay: HTMLDivElement | null = null;
+
+  private showInfo(): void {
+    if (!this.infoOverlay) this.infoOverlay = this.buildInfoOverlay();
+    this.infoOverlay.style.display = "flex";
+  }
+
+  private buildInfoOverlay(): HTMLDivElement {
+    const overlay = document.createElement("div");
+    overlay.className = "about-overlay";
+
+    const card = document.createElement("div");
+    card.className = "about-card";
+
+    const title = document.createElement("div");
+    title.className = "about-title";
+    title.textContent = "Offline charts & basemaps";
+
+    const sections: { heading: string; body: string }[] = [
+      {
+        heading: "Streaming vs. offline",
+        body: "Each region's nautical charts stream over the network by default. Download a region to store its chart tiles on this device so they work with no connection.",
+      },
+      {
+        heading: "Street basemap",
+        body: "The optional street basemap adds roads and place names under the charts. Without a download it streams as online OSM raster tiles; downloading it gives crisper, themed vector maps (day/dusk/night) that also work offline.",
+      },
+      {
+        heading: "Going offline saves battery",
+        body: "Once your region's charts and basemap are downloaded, the app runs fully offline. Switch the device to airplane mode while navigating — the chartplotter keeps working from GPS alone, and disabling the cellular/Wi-Fi radios meaningfully extends battery life on a long passage.",
+      },
+    ];
+
+    card.append(title);
+    for (const s of sections) {
+      const heading = document.createElement("div");
+      heading.className = "about-credits-heading";
+      heading.textContent = s.heading;
+      const body = document.createElement("div");
+      body.className = "about-info-body";
+      body.textContent = s.body;
+      card.append(heading, body);
+    }
+
+    overlay.appendChild(card);
+    document.body.appendChild(overlay);
+
+    overlay.addEventListener("mousedown", (e) => {
+      if (e.target === overlay) overlay.style.display = "none";
+    });
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "Escape" && overlay.style.display === "flex") {
+        overlay.style.display = "none";
+      }
+    });
+
+    return overlay;
   }
 
   /** Register a callback when charts are added/removed (for reloading PMTiles). */
@@ -365,8 +431,10 @@ export class ChartCachePanel {
       const date = new Date(stored.downloadedAt).toLocaleDateString();
       detail.innerHTML = `${iconCloudOff} Offline · ${formatBytes(stored.sizeBytes)} · ${date}`;
     } else {
-      const streaming = getSettings().streetUnderlay !== "off";
-      const label = streaming ? "Streaming (OSM)" : "Not downloaded";
+      const label =
+        getSettings().streetUnderlay === "off"
+          ? "Underlay off"
+          : "Streaming (OSM)";
       detail.textContent = `${label} · ~${formatBytes(region.basemapSizeEstimate ?? 0)}`;
     }
 
