@@ -88,7 +88,6 @@
 				D66D31B59B4E8527BF2895AF /* TrackDatabase.swift */,
 				90F9B257E4C899CDDA8E6EFF /* BackgroundGPSPlugin.swift */,
 			);
-			name = BackgroundGPS;
 			path = BackgroundGPS;
 			sourceTree = "<group>";
 		};
