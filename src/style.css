@@ -1030,7 +1030,10 @@ body {
 
 .instrument-cell {
   position: relative;
-  flex: 1 1 auto;
+  /* flex-basis 0 (not auto) so the primary cells share one row and shrink to
+     fit instead of wrapping the big digits onto a second line on narrow
+     phones (e.g. iPhone SE 375 px). */
+  flex: 1 1 0;
   display: flex;
   flex-direction: column;
   justify-content: center;
@@ -1079,17 +1082,18 @@ body {
 .instrument-value-row {
   display: flex;
   flex-direction: row;
-  align-items: stretch;
+  /* Align the meta column by its last baseline (the unit) so the unit sits on
+     the digits' baseline and the label stacks just above — no ascender gap. */
+  align-items: last baseline;
   gap: 8px;
 }
 
-/* Label (top) over unit (bottom), spanning the height of the digits. */
+/* Label (top) over unit (bottom), beside the digits. */
 .instrument-meta {
   display: flex;
   flex-direction: column;
-  justify-content: space-between;
   align-items: flex-start;
-  padding: 4px 0;
+  gap: 2px;
 }
 
 .instrument-value {
@@ -1154,10 +1158,6 @@ body {
   letter-spacing: 0;
 }
 
-.instrument-cell--nav .instrument-meta {
-  padding: 1px 0;
-}
-
 @media (max-width: 600px) {
   .instrument-cell--nav {
     height: 38px;
@@ -1167,6 +1167,17 @@ body {
      including a 3-digit steer correction with its direction arrow. */
   .instrument-cell--nav .instrument-value {
     font-size: clamp(18px, 5vw, 32px);
+  }
+
+  /* Tighten the primary cells so a 3-digit value plus its label/unit stack
+     stays inside the cell once it narrows on a phone (the 16 px desktop
+     padding clips it well before 600 px). Digits keep their size. */
+  .instrument-cell:not(.instrument-cell--nav) {
+    padding: 4px 2px;
+  }
+
+  .instrument-cell:not(.instrument-cell--nav) .instrument-value-row {
+    gap: 4px;
   }
 }
 
