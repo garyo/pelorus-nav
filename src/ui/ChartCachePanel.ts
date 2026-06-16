@@ -365,7 +365,7 @@ export class ChartCachePanel {
       const date = new Date(stored.downloadedAt).toLocaleDateString();
       detail.innerHTML = `${iconCloudOff} Offline · ${formatBytes(stored.sizeBytes)} · ${date}`;
     } else {
-      detail.textContent = `Not downloaded · ~${formatBytes(region.basemapSizeEstimate ?? 0)}`;
+      detail.textContent = `Streaming · ~${formatBytes(region.basemapSizeEstimate ?? 0)}`;
     }
 
     info.append(name, detail);
