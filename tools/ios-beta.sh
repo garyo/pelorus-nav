@@ -17,7 +17,8 @@
 #       ASC_ISSUER_ID=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
 #       ASC_KEY_PATH=/absolute/path/to/AuthKey_XXXXXXXXXX.p8
 #       ASC_TEAM_ID=XXXXXXXXXX     # the paid team that owns the App Store Connect app
-# 3. The App Store Connect app record (bundle id nav.pelorus.app) must exist.
+# 3. The App Store Connect app record (bundle id com.darkstarsystems.pelorus.app)
+#    must exist under the darkstar team.
 #
 set -euo pipefail
 cd "$(dirname "$0")/.."

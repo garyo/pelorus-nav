@@ -3,6 +3,10 @@ import type { CapacitorConfig } from "@capacitor/cli";
 const DEV_SERVER = process.env.CAP_DEV_SERVER;
 
 const config: CapacitorConfig = {
+  // Android applicationId (kept stable so existing installs upgrade in place).
+  // iOS uses a different bundle id — com.darkstarsystems.pelorus.app, set in the
+  // Xcode project — because nav.pelorus.app wasn't available under the darkstar
+  // App Store team. The two stores are independent, so the ids may differ.
   appId: "nav.pelorus.app",
   appName: "Pelorus Nav",
   webDir: "dist",
