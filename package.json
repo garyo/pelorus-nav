@@ -33,9 +33,10 @@
     "cap:run": "CAPACITOR=1 bun run build && bunx cap sync android && bunx cap run android",
     "cap:build": "CAPACITOR=1 bun run build && bunx cap sync android && cd android && ./gradlew clean assembleRelease",
     "cap:build:debug": "CAPACITOR=1 bun run build && bunx cap sync android && cd android && ./gradlew clean assembleDebug",
-    "cap:sync:ios": "CAPACITOR=1 bun run build && bunx cap sync ios",
-    "cap:run:ios": "CAPACITOR=1 bun run build && bunx cap sync ios && bunx cap run ios",
-    "cap:build:ios": "CAPACITOR=1 bun run build && bunx cap sync ios && cd ios/App && xcodebuild -project App.xcodeproj -scheme App -configuration Release -archivePath build/App.xcarchive archive",
+    "ios:version": "bun tools/sync-ios-version.ts",
+    "cap:sync:ios": "bun run ios:version && CAPACITOR=1 bun run build && bunx cap sync ios",
+    "cap:run:ios": "bun run ios:version && CAPACITOR=1 bun run build && bunx cap sync ios && bunx cap run ios",
+    "cap:build:ios": "bun run ios:version && CAPACITOR=1 bun run build && bunx cap sync ios && cd ios/App && xcodebuild -project App.xcodeproj -scheme App -configuration Release -archivePath build/App.xcarchive archive",
     "ios:beta": "tools/ios-beta.sh"
   },
   "license": "MIT",
@@ -67,5 +68,6 @@
     "vite-plugin-pwa": "^1.2.0",
     "vitest": "^4.0.18",
     "wrangler": "^4.70.0"
-  }
+  },
+  "packageManager": "yarn@1.22.19+sha1.4ba7fc5c6e704fce2066ecbfb0b0d8976fe62447"
 }
