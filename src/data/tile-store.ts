@@ -5,7 +5,12 @@
  * reliable offline access. Metadata stored as a JSON sidecar file.
  *
  * Gracefully degrades when OPFS is unavailable (insecure context / old browser).
+ *
+ * All writes are delegated to the OPFS write worker (createSyncAccessHandle),
+ * since iOS WKWebView has no main-thread OPFS write API. See opfs-writer.ts.
  */
+
+import { opfsFetchWrite, opfsWriteBlob, opfsWriteText } from "./opfs-writer";
 
 const META_FILENAME = "_charts-meta.json";
 
@@ -43,12 +48,8 @@ async function readMeta(): Promise<StoredChartInfo[]> {
 
 /** Write metadata sidecar to OPFS. */
 async function writeMeta(charts: StoredChartInfo[]): Promise<void> {
-  const root = await getRoot();
-  if (!root) return;
-  const handle = await root.getFileHandle(META_FILENAME, { create: true });
-  const writable = await handle.createWritable();
-  await writable.write(JSON.stringify(charts, null, 2));
-  await writable.close();
+  if (!(await getRoot())) return;
+  await opfsWriteText(META_FILENAME, JSON.stringify(charts, null, 2));
 }
 
 /** List all stored chart files. */
@@ -123,8 +124,11 @@ export function isUpdateAvailable(
 
 /**
  * Download a PMTiles file to OPFS with progress reporting.
- * Uses streaming to avoid holding the entire file in memory.
- * Writes to a temp file, then renames atomically on completion.
+ *
+ * The actual fetch + write streams inside the OPFS write worker
+ * (createSyncAccessHandle) so it works on iOS WKWebView, which has no
+ * main-thread OPFS write API. The worker writes directly to `filename` and
+ * removes the partial file if the download fails or is aborted.
  */
 export async function downloadChart(
   url: string,
@@ -132,95 +136,23 @@ export async function downloadChart(
   onProgress: (loaded: number, total: number) => void,
   signal?: AbortSignal,
 ): Promise<void> {
-  const root = await getRoot();
-  if (!root) throw new Error("Offline storage is not available (OPFS)");
-
-  // no-store: an update re-download must not be satisfied by a stale HTTP cache
-  const response = await fetch(url, { cache: "no-store", signal });
-  if (!response.ok) {
-    throw new Error(
-      `Download failed: ${response.status} ${response.statusText}`,
-    );
+  if (!(await getRoot())) {
+    throw new Error("Offline storage is not available (OPFS)");
   }
 
-  const total = Number(response.headers.get("content-length") || 0);
-  const etag = response.headers.get("etag") ?? undefined;
-
-  const tempName = `${filename}.downloading`;
-
-  // Try streaming write (not available in Safari <17)
-  const tempHandle = await root.getFileHandle(tempName, { create: true });
-
-  let supportsCreateWritable = true;
-  try {
-    // Test if createWritable is available
-    const testWritable = await tempHandle.createWritable();
-    await testWritable.close();
-  } catch {
-    supportsCreateWritable = false;
-  }
-
-  if (supportsCreateWritable && response.body) {
-    // Streaming write — memory-efficient
-    const writable = await tempHandle.createWritable();
-    const reader = response.body.getReader();
-    let loaded = 0;
-
-    try {
-      for (;;) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        await writable.write(value);
-        loaded += value.byteLength;
-        onProgress(loaded, total);
-      }
-      await writable.close();
-    } catch (err) {
-      await writable.abort();
-      // Clean up temp file
-      try {
-        await root.removeEntry(tempName);
-      } catch {
-        // ignore cleanup errors
-      }
-      throw err;
-    }
-  } else {
-    // Fallback: read entire blob then write at once (Safari <17)
-    const blob = await response.blob();
-    onProgress(blob.size, blob.size);
-    const writable = await tempHandle.createWritable();
-    await writable.write(blob);
-    await writable.close();
-  }
-
-  // "Rename": copy temp to final, then remove temp.
-  // OPFS doesn't have a rename API on FileSystemFileHandle in all browsers,
-  // so we read the temp file and write it to the final name.
-  // The temp file is already fully written, so this is safe.
-  try {
-    await root.removeEntry(filename);
-  } catch {
-    // file didn't exist
-  }
-  const finalHandle = await root.getFileHandle(filename, { create: true });
-  const tempFile = await tempHandle.getFile();
-  const finalWritable = await finalHandle.createWritable();
-  await finalWritable.write(tempFile);
-  await finalWritable.close();
-  try {
-    await root.removeEntry(tempName);
-  } catch {
-    // ignore
-  }
+  const { size, etag } = await opfsFetchWrite(
+    url,
+    filename,
+    onProgress,
+    signal,
+  );
 
   // Update metadata
   const region = filename.replace(/\.pmtiles$/, "");
-  const file = await (await root.getFileHandle(filename)).getFile();
   const info: StoredChartInfo = {
     filename,
     region,
-    sizeBytes: file.size,
+    sizeBytes: size,
     downloadedAt: new Date().toISOString(),
     etag,
   };
@@ -239,12 +171,10 @@ export async function downloadChart(
  * Import a PMTiles file from a user-selected File object.
  */
 export async function importChart(file: File): Promise<void> {
-  const root = await getRoot();
-  if (!root) throw new Error("Offline storage is not available (OPFS)");
-  const handle = await root.getFileHandle(file.name, { create: true });
-  const writable = await handle.createWritable();
-  await writable.write(file);
-  await writable.close();
+  if (!(await getRoot())) {
+    throw new Error("Offline storage is not available (OPFS)");
+  }
+  await opfsWriteBlob(file.name, file);
 
   const region = file.name.replace(/\.pmtiles$/, "");
   const info: StoredChartInfo = {
@@ -321,19 +251,10 @@ export async function downloadAuxFile(
   filename: string,
   signal?: AbortSignal,
 ): Promise<void> {
-  const root = await getRoot();
-  if (!root) throw new Error("Offline storage is not available (OPFS)");
-  const response = await fetch(url, { cache: "no-store", signal });
-  if (!response.ok) {
-    throw new Error(
-      `Download failed: ${response.status} ${response.statusText}`,
-    );
+  if (!(await getRoot())) {
+    throw new Error("Offline storage is not available (OPFS)");
   }
-  const blob = await response.blob();
-  const handle = await root.getFileHandle(filename, { create: true });
-  const writable = await handle.createWritable();
-  await writable.write(blob);
-  await writable.close();
+  await opfsFetchWrite(url, filename, undefined, signal);
 }
 
 /**
