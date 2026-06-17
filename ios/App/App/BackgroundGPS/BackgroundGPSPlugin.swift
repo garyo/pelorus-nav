@@ -204,6 +204,9 @@ public class BackgroundGPSPlugin: CAPPlugin, CAPBridgedPlugin, CLLocationManager
         accuracy: loc.horizontalAccuracy >= 0 ? loc.horizontalAccuracy : -1
       )
       db.insert(point)
+      DiagLog.append(
+        tag: "fix",
+        message: "ok acc=\(String(format: "%.1f", loc.horizontalAccuracy)) passive=\(passive)")
 
       // Active mode: wake the JS drain. Passive stays silent (parity with the
       // Android service clearing its listener); JS drains on visibilitychange.
