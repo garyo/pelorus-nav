@@ -30,6 +30,7 @@ import {
   listStoredCharts,
 } from "../data/tile-store";
 import { getSettings, updateSettings } from "../settings";
+import { diag } from "../utils/diag";
 import {
   iconCloudOff,
   iconDownload,
@@ -618,9 +619,14 @@ export class ChartCachePanel {
       if (err instanceof DOMException && err.name === "AbortError") {
         // User cancelled
       } else {
+        const msg = err instanceof Error ? err.message : "Unknown error";
+        diag(
+          "download",
+          `${filename} failed: ${err instanceof Error ? err.name : "?"}: ${msg}`,
+        );
         const errorDiv = document.createElement("div");
         errorDiv.className = "chart-cache-error";
-        errorDiv.textContent = `Download failed: ${err instanceof Error ? err.message : "Unknown error"}`;
+        errorDiv.textContent = `Download failed: ${msg}`;
         this.body.appendChild(errorDiv);
         return;
       }
@@ -751,9 +757,14 @@ export class ChartCachePanel {
       if (err instanceof DOMException && err.name === "AbortError") {
         // User cancelled
       } else {
+        const msg = err instanceof Error ? err.message : "Unknown error";
+        diag(
+          "download",
+          `region=${region.id} failed: ${err instanceof Error ? err.name : "?"}: ${msg}`,
+        );
         const errorDiv = document.createElement("div");
         errorDiv.className = "chart-cache-error";
-        errorDiv.textContent = `Download failed: ${err instanceof Error ? err.message : "Unknown error"}`;
+        errorDiv.textContent = `Download failed: ${msg}`;
         this.body.appendChild(errorDiv);
         return;
       }
