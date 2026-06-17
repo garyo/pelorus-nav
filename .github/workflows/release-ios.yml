@@ -1,0 +1,120 @@
+name: iOS TestFlight
+
+# Build a signed iOS app and upload it to TestFlight.
+#
+# Triggers: manually (workflow_dispatch) for ad-hoc betas, or on a v* release
+# tag (ships iOS alongside the Android release.yml).
+#
+# Signing is handcrafted (no fastlane/match): the Apple Distribution cert +
+# private key are imported from a base64 secret into a temp keychain, and an
+# App Store Connect API key drives both provisioning-profile updates
+# (-allowProvisioningUpdates) and the upload.
+#
+# Required repository secrets (Settings → Secrets → Actions, "release" env):
+#   IOS_DIST_CERT_P12      base64 of the Apple Distribution cert exported from
+#                          Keychain Access as .p12 (include the private key)
+#   IOS_DIST_CERT_PASSWORD the password set when exporting that .p12
+#   ASC_API_KEY_P8         base64 of the App Store Connect API key AuthKey_*.p8
+#   ASC_KEY_ID             API key id (e.g. 2X9ABC1DEF)
+#   ASC_ISSUER_ID          API issuer id (uuid)
+#   KEYCHAIN_PASSWORD      any value (unlocks the temp keychain)
+
+on:
+  workflow_dispatch:
+  push:
+    tags: ["v*"]
+
+env:
+  TEAM_ID: "4LRRTL3H3R" # darkstar (App Store team); not secret
+  BUNDLE_ID: "com.darkstarsystems.pelorus.app"
+
+jobs:
+  testflight:
+    runs-on: macos-15
+    environment: release
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0 # full history → build number from commit count
+
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: latest
+
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: "22"
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Import Apple Distribution certificate
+        env:
+          CERT_P12: ${{ secrets.IOS_DIST_CERT_P12 }}
+          CERT_PW: ${{ secrets.IOS_DIST_CERT_PASSWORD }}
+          KEYCHAIN_PW: ${{ secrets.KEYCHAIN_PASSWORD }}
+        run: |
+          CERT="$RUNNER_TEMP/dist.p12"
+          KEYCHAIN="$RUNNER_TEMP/build.keychain-db"
+          echo -n "$CERT_P12" | base64 --decode > "$CERT"
+          security create-keychain -p "$KEYCHAIN_PW" "$KEYCHAIN"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN"
+          security unlock-keychain -p "$KEYCHAIN_PW" "$KEYCHAIN"
+          security import "$CERT" -P "$CERT_PW" -A -t cert -f pkcs12 \
+            -T /usr/bin/codesign -k "$KEYCHAIN"
+          # Make the new keychain part of the search list so xcodebuild finds the cert.
+          security list-keychains -d user -s "$KEYCHAIN" $(security list-keychains -d user | tr -d '"')
+          # Allow codesign to use the imported key without an interactive prompt.
+          security set-key-partition-list -S apple-tool:,apple: -k "$KEYCHAIN_PW" "$KEYCHAIN" >/dev/null
+          echo "BUILD_KEYCHAIN=$KEYCHAIN" >> "$GITHUB_ENV"
+
+      - name: Place App Store Connect API key
+        env:
+          ASC_API_KEY_P8: ${{ secrets.ASC_API_KEY_P8 }}
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+        run: |
+          DIR="$HOME/.appstoreconnect/private_keys"
+          mkdir -p "$DIR"
+          echo -n "$ASC_API_KEY_P8" | base64 --decode > "$DIR/AuthKey_${ASC_KEY_ID}.p8"
+          echo "ASC_KEY_PATH=$DIR/AuthKey_${ASC_KEY_ID}.p8" >> "$GITHUB_ENV"
+
+      - name: Build web + sync iOS
+        run: |
+          CAPACITOR=1 bun run build
+          bunx cap sync ios
+
+      - name: Archive, export, and upload to TestFlight
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          KEYCHAIN_PW: ${{ secrets.KEYCHAIN_PASSWORD }}
+        run: |
+          set -euo pipefail
+          BUILD_NUMBER="$(git rev-list --count HEAD)"
+          MARKETING_VERSION="$(node -p "require('./package.json').version")"
+          echo "Building $MARKETING_VERSION ($BUILD_NUMBER)"
+          security unlock-keychain -p "$KEYCHAIN_PW" "$BUILD_KEYCHAIN"
+
+          cd ios/App
+          # ExportOptions.plist is committed alongside the project (teamID 4LRRTL3H3R).
+
+          AUTH=(
+            -allowProvisioningUpdates
+            -authenticationKeyPath "$ASC_KEY_PATH"
+            -authenticationKeyID "$ASC_KEY_ID"
+            -authenticationKeyIssuerID "$ASC_ISSUER_ID"
+          )
+
+          xcodebuild -project App.xcodeproj -scheme App -configuration Release \
+            -archivePath build/App.xcarchive -destination 'generic/platform=iOS' \
+            DEVELOPMENT_TEAM="$TEAM_ID" \
+            MARKETING_VERSION="$MARKETING_VERSION" \
+            CURRENT_PROJECT_VERSION="$BUILD_NUMBER" \
+            OTHER_CODE_SIGN_FLAGS="--keychain $BUILD_KEYCHAIN" \
+            "${AUTH[@]}" archive
+
+          xcodebuild -exportArchive -archivePath build/App.xcarchive \
+            -exportPath build/export -exportOptionsPlist ExportOptions.plist "${AUTH[@]}"
+
+          xcrun altool --upload-app -f build/export/*.ipa -t ios \
+            --apiKey "$ASC_KEY_ID" --apiIssuer "$ASC_ISSUER_ID"

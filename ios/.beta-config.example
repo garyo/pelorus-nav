@@ -1,0 +1,12 @@
+# Config for `bun run ios:beta` (the local TestFlight build/upload script).
+# Copy this to ios/.beta-config (gitignored) and fill in your App Store Connect
+# API key values. ASC_TEAM_ID is the darkstar paid team that owns the app.
+#
+# Create the API key at: App Store Connect → Users and Access → Integrations →
+# App Store Connect API → (+) → role "App Manager". Download the AuthKey_*.p8
+# (one-time download) and note the Key ID and Issuer ID.
+
+ASC_KEY_ID=XXXXXXXXXX
+ASC_ISSUER_ID=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
+ASC_KEY_PATH=/Users/garyo/keys/AuthKey_XXXXXXXXXX.p8
+ASC_TEAM_ID=4LRRTL3H3R
