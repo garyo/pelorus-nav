@@ -30,12 +30,19 @@ env:
 
 jobs:
   testflight:
-    runs-on: macos-15
+    runs-on: macos-26 # Xcode 26 — Apple requires the iOS 26 SDK for uploads
     environment: release
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           fetch-depth: 0 # full history → build number from commit count
+
+      - name: Select latest Xcode
+        run: |
+          LATEST="$(ls -d /Applications/Xcode_*.app 2>/dev/null | sort -V | tail -1)"
+          echo "Using $LATEST"
+          sudo xcode-select -s "$LATEST"
+          xcodebuild -version
 
       - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
         with:
