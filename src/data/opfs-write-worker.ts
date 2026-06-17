@@ -62,7 +62,15 @@ async function fetchWrite(
   try {
     const resp = await fetch(url, { cache: "no-store", signal: ac.signal });
     if (!resp.ok || !resp.body) {
-      throw new Error(`Download failed: ${resp.status} ${resp.statusText}`);
+      throw new Error(`HTTP ${resp.status} ${resp.statusText}`);
+    }
+    // Guard against an HTML response masquerading as a chart — a captive
+    // portal, an error page, or a dev-server SPA fallback for a missing file.
+    // Real charts/aux files are octet-stream or JSON, never text/html.
+    if ((resp.headers.get("content-type") ?? "").includes("text/html")) {
+      throw new Error(
+        "server returned a web page, not a chart file (offline or captive portal?)",
+      );
     }
     const total = Number(resp.headers.get("content-length") || 0);
     const etag = resp.headers.get("etag") ?? undefined;
