@@ -72,3 +72,7 @@ refs/
 
 # Claude
 .claude/
+
+# iOS TestFlight beta secrets
+ios/.beta-config
+*.p8
