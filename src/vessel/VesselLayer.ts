@@ -42,7 +42,13 @@ export class VesselLayer {
 
   update(data: NavigationData, smoothed?: SmoothedCourse | null): void {
     this.lastData = data;
-    this.lastSmoothed = smoothed ?? null;
+    // Only adopt a new smoothed course when one is supplied. A raw-fix update
+    // (called with no smoothed arg) refreshes position but keeps the previous
+    // smoothed rotation, so the icon doesn't jerk to the unsmoothed COG and
+    // back on every fix — rotation stays driven by the per-frame smoothed value.
+    if (smoothed !== undefined) {
+      this.lastSmoothed = smoothed;
+    }
     this.updatePosition();
   }
 

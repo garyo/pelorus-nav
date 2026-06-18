@@ -1,6 +1,7 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   CourseSmoothing,
+  circularDistanceDeg,
   circularInterpolate,
   circularMeanDeg,
   EINK_BUFFER_WINDOW_MAX_MS,
@@ -30,6 +31,40 @@ describe("circular helpers", () => {
   });
   it("circularInterpolate takes the short arc", () => {
     expect(circularInterpolate(350, 10, 0.5)).toBeCloseTo(0, 1);
+  });
+  it("circularDistanceDeg is the short-arc magnitude", () => {
+    expect(circularDistanceDeg(350, 10)).toBeCloseTo(20, 1);
+    expect(circularDistanceDeg(10, 190)).toBeCloseTo(180, 1);
+    expect(circularDistanceDeg(90, 90)).toBe(0);
+  });
+});
+
+describe("CourseSmoothing max-error guard", () => {
+  it("snaps and warns when smoothed COG falls past the guard", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const cs = new CourseSmoothing();
+    cs.addSample(10, 5, 0, 0, 1000);
+    cs.smooth(1000); // initialise at 10
+    cs.smooth(1016); // tiny frame, still ~10
+    // Target jumps to a near-reversal (~190) while smoothed is stuck at 10
+    // (e.g. a render stall froze it); a small-dt frame would normally ease.
+    cs.addSample(190, 5, 0.1, 0.1, 3000);
+    cs.addSample(190, 5, 0.1, 0.1, 5000);
+    const cog = cogOf(cs.smooth(1032)); // 16 ms frame, but ~180° error → snap
+    expect(circularDistanceDeg(cog, 190)).toBeLessThan(1);
+    expect(warn).toHaveBeenCalledOnce();
+    warn.mockRestore();
+  });
+
+  it("eases (does not snap) for an in-range course change", () => {
+    const cs = new CourseSmoothing();
+    cs.addSample(0, 5, 0, 0, 1000);
+    cs.smooth(1000); // initialise at 0
+    cs.addSample(80, 5, 0.1, 0.1, 3000);
+    cs.addSample(80, 5, 0.1, 0.1, 5000); // target → 80 (error < 120° guard)
+    const cog = cogOf(cs.smooth(1100)); // dt 0.1 → partial ease, not a snap
+    expect(cog).toBeGreaterThan(0);
+    expect(cog).toBeLessThan(80);
   });
 });
 

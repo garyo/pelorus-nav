@@ -53,6 +53,15 @@ const TAU_POS_S = 0.5;
 /** Position tau at q=1. */
 const TAU_POS_BAD_S = 3;
 
+/**
+ * Max-error snap guard. If the smoothed COG ever falls more than this far
+ * behind the target — e.g. a render stall froze it while the true course kept
+ * turning — snap to the target instead of slewing slowly across a near
+ * reversal. Bounds the worst-case displayed heading error to a single frame.
+ * Set well above any plausible per-step turn so normal maneuvers still ease.
+ */
+const MAX_COG_ERROR_SNAP_DEG = 120;
+
 interface Sample {
   cog: number;
   sog: number;
@@ -73,6 +82,12 @@ export function circularMeanDeg(angles: number[]): number {
   }
   const meanRad = Math.atan2(sinSum, cosSum);
   return ((meanRad * 180) / Math.PI + 360) % 360;
+}
+
+/** Shortest angular distance between two bearings (degrees), in [0, 180]. */
+export function circularDistanceDeg(a: number, b: number): number {
+  const d = Math.abs(a - b) % 360;
+  return d > 180 ? 360 - d : d;
 }
 
 /**
@@ -245,11 +260,25 @@ export class CourseSmoothing {
           const tau = TAU_S + this.quality * (TAU_BAD_S - TAU_S);
           const tauPos = TAU_POS_S + this.quality * (TAU_POS_BAD_S - TAU_POS_S);
           const alpha = 1 - Math.exp(-dt / tau);
-          this.smoothedCog = circularInterpolate(
+          const cogError = circularDistanceDeg(
             this.smoothedCog,
             this.targetCog,
-            alpha,
           );
+          if (cogError > MAX_COG_ERROR_SNAP_DEG) {
+            // Fell too far behind to ease across — snap and flag it. Should be
+            // rare; if the diag log shows this firing in the field, the render
+            // loop is stalling and the cause is worth chasing.
+            console.warn(
+              `CourseSmoothing: COG error ${cogError.toFixed(0)}° > ${MAX_COG_ERROR_SNAP_DEG}° guard — snapping (smoothed ${this.smoothedCog.toFixed(0)}° → target ${this.targetCog.toFixed(0)}°)`,
+            );
+            this.smoothedCog = this.targetCog;
+          } else {
+            this.smoothedCog = circularInterpolate(
+              this.smoothedCog,
+              this.targetCog,
+              alpha,
+            );
+          }
           this.smoothedSog += alpha * (this.targetSog - this.smoothedSog);
 
           // Position smoothing (shorter time constant)
