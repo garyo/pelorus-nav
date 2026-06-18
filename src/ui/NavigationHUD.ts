@@ -38,6 +38,8 @@ function shortSource(source: string): string {
       return "\uD83D\uDCCD"; // 📍
     case "web-serial":
       return "USB";
+    case "ble-nmea":
+      return "BLE";
     case "signalk":
       return "\u2693SK"; // ⚓SK
     default:

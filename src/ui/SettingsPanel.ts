@@ -588,6 +588,7 @@ function buildNavigationTab(
     { value: "simulator", label: "Simulator" },
     { value: deviceGpsValue, label: "Device GPS" },
     { value: "web-serial", label: "USB GPS (Serial)" },
+    { value: "ble-nmea", label: "Bluetooth GPS (BLE)" },
     { value: "signalk", label: "Signal K" },
   ];
   tab.appendChild(

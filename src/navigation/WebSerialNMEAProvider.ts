@@ -4,11 +4,10 @@
  */
 
 import type {
-  NavigationData,
   NavigationDataCallback,
   NavigationDataProvider,
 } from "./NavigationData";
-import { parseNMEA } from "./nmea-parser";
+import { NMEAStream } from "./nmea-stream";
 
 // Extend Navigator type for Web Serial API
 interface SerialPort {
@@ -36,11 +35,13 @@ export class WebSerialNMEAProvider implements NavigationDataProvider {
   private reader: ReadableStreamDefaultReader<string> | null = null;
   private connected = false;
   private baudRate: number;
-  private lastCog: number | null = null;
-  private lastSog: number | null = null;
+  private readonly stream: NMEAStream;
 
   constructor(baudRate = 4800) {
     this.baudRate = baudRate;
+    this.stream = new NMEAStream("web-serial", (data) => {
+      for (const fn of this.listeners) fn(data);
+    });
   }
 
   static isAvailable(): boolean {
@@ -93,51 +94,16 @@ export class WebSerialNMEAProvider implements NavigationDataProvider {
         .catch(() => {});
 
       this.reader = textDecoder.readable.getReader();
-      let buffer = "";
+      this.stream.reset();
 
       while (this.connected) {
         const { value, done } = await this.reader.read();
         if (done) break;
-        if (!value) continue;
-
-        buffer += value;
-        const lines = buffer.split("\n");
-        buffer = lines.pop() ?? "";
-
-        for (const line of lines) {
-          this.processLine(line.trim());
-        }
+        if (value) this.stream.push(value);
       }
     } catch (err) {
       console.warn("Web Serial error:", err);
       this.connected = false;
-    }
-  }
-
-  private processLine(line: string): void {
-    if (!line.startsWith("$")) return;
-
-    const parsed = parseNMEA(line);
-    if (!parsed) return;
-
-    // RMC provides COG/SOG, GGA provides altitude/accuracy
-    // Track last known COG/SOG for merging
-    if (parsed.cog !== null) this.lastCog = parsed.cog;
-    if (parsed.sog !== null) this.lastSog = parsed.sog;
-
-    const data: NavigationData = {
-      latitude: parsed.latitude,
-      longitude: parsed.longitude,
-      cog: parsed.cog ?? this.lastCog,
-      sog: parsed.sog ?? this.lastSog,
-      heading: null,
-      accuracy: parsed.accuracy,
-      timestamp: parsed.timestamp,
-      source: "web-serial",
-    };
-
-    for (const fn of this.listeners) {
-      fn(data);
     }
   }
 }

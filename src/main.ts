@@ -44,6 +44,7 @@ import { TrackRecorder } from "./map/TrackRecorder";
 import { TrackViewerLayer } from "./map/TrackViewerLayer";
 import { WaypointLayer } from "./map/WaypointLayer";
 import {
+  BLENMEAProvider,
   BrowserGeolocationProvider,
   CapacitorGPSProvider,
   type NavigationData,
@@ -515,6 +516,9 @@ if (CapacitorGPSProvider.isAvailable()) {
 navManager.registerProvider(new BrowserGeolocationProvider());
 if (WebSerialNMEAProvider.isAvailable()) {
   navManager.registerProvider(new WebSerialNMEAProvider());
+}
+if (BLENMEAProvider.isAvailable()) {
+  navManager.registerProvider(new BLENMEAProvider());
 }
 const signalK = new SignalKProvider(getSettings().signalkUrl);
 navManager.registerProvider(signalK);
