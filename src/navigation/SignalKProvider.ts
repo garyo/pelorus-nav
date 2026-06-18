@@ -90,6 +90,7 @@ export class SignalKProvider implements NavigationDataProvider {
   }
 
   setUrl(url: string): void {
+    if (url === this.url) return;
     const wasConnected = this.isConnected();
     this.disconnect();
     this.url = url;

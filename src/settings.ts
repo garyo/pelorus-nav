@@ -43,6 +43,8 @@ export interface Settings {
   speedUnit: SpeedUnit;
   chartMode: ChartMode;
   gpsSource: string;
+  /** WebSocket URL of the Signal K server (used when gpsSource is "signalk"). */
+  signalkUrl: string;
   gpsRateMode: GpsRateMode;
   manualUpdateIntervalMs: number;
   /** Adaptive filter strength — auto-detect jittery GPS, or force. */
@@ -230,6 +232,7 @@ const DEFAULTS: Settings = {
   speedUnit: "knots",
   chartMode: "north-up",
   gpsSource: Capacitor.isNativePlatform() ? "capacitor-gps" : "none",
+  signalkUrl: "ws://localhost:3000/signalk/v1/stream?subscribe=none",
   gpsRateMode: "adaptive",
   manualUpdateIntervalMs: 2000,
   gpsFilterMode: "auto",

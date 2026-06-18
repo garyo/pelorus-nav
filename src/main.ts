@@ -516,7 +516,8 @@ navManager.registerProvider(new BrowserGeolocationProvider());
 if (WebSerialNMEAProvider.isAvailable()) {
   navManager.registerProvider(new WebSerialNMEAProvider());
 }
-navManager.registerProvider(new SignalKProvider());
+const signalK = new SignalKProvider(getSettings().signalkUrl);
+navManager.registerProvider(signalK);
 
 // Vessel display layer
 const vesselLayer = new VesselLayer(chartManager.map);
@@ -634,6 +635,7 @@ onSettingsChange((s) => {
     navManager.setActiveProvider(s.gpsSource);
   }
   simulator.setSpeedMultiplier(s.simulatorSpeed);
+  signalK.setUrl(s.signalkUrl);
   navManager.setRateMode(s.gpsRateMode, s.manualUpdateIntervalMs);
   navManager.setFilterMode(s.gpsFilterMode);
   applyGpsRateForTheme(s.displayTheme);

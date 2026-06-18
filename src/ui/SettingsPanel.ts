@@ -620,6 +620,20 @@ function buildNavigationTab(
   });
   tab.appendChild(simSpeedRow);
 
+  // Signal K server URL (shown only when Signal K is the GPS source)
+  const signalkRow = buildTextRow(
+    "Signal K URL",
+    "settings-signalk-url",
+    settings.signalkUrl,
+    (v) => updateSettings({ signalkUrl: v }),
+    { placeholder: "ws://192.168.1.50:3000/signalk/v1/stream" },
+  );
+  signalkRow.style.display = settings.gpsSource === "signalk" ? "" : "none";
+  onSettingsChange((s) => {
+    signalkRow.style.display = s.gpsSource === "signalk" ? "" : "none";
+  });
+  tab.appendChild(signalkRow);
+
   // GPS rate mode
   const GPS_RATE_MODES = [
     { value: "adaptive", label: "Adaptive" },
