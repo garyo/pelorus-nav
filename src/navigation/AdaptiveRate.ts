@@ -36,7 +36,10 @@ export const DEFAULT_ADAPTIVE_CONFIG: AdaptiveRateConfig = {
   drErrorThresholdNM: 0.02,
   steadySamplesRequired: 15,
   fastIntervalMs: 2000,
-  mediumIntervalMs: 5000,
+  // Medium/slow tiers only apply on e-ink (non-e-ink forces the fast tier), so
+  // these set the e-ink steady/idle cadence. 3 s steady keeps the chart lively
+  // there without much extra refresh cost given the atomic per-fix update.
+  mediumIntervalMs: 3000,
   slowIntervalMs: 10000,
   staleGapMs: 30000,
   burstMs: 20000,

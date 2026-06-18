@@ -573,12 +573,6 @@ let gpsPowerManager: GpsPowerManager | null = null;
 let lastNavData: NavigationData | null = null;
 navManager.subscribe((data) => {
   lastNavData = data;
-  vesselLayer.update(data); // initial position update; smoothed rotation applied per-frame
-  // Also feed chartMode every fix (not just when smoothed is available),
-  // so it has a last-known position to centre on when the user is
-  // stationary — otherwise tapping the mode-toggle button does nothing
-  // until COG/SOG become valid.
-  chartMode.update(data);
   courseSmoother.addSample(
     data.cog,
     data.sog,
@@ -586,20 +580,43 @@ navManager.subscribe((data) => {
     data.longitude,
     data.timestamp,
   );
-  // Diagnostic: log the smoothed values then commit the entry
-  const smoothedSnap = courseSmoother.smooth(performance.now());
-  if (smoothedSnap) {
-    gpsDiagLog.logSmoothed(smoothedSnap.sog, smoothedSnap.cog);
-  }
-  gpsDiagLog.commit();
-  // On e-ink, scale the smoothing window with the adaptive interval
-  // (clamped — see einkBufferWindowMs) and forward the maneuver/stop burst
-  // window to the native power manager so the chip speeds up too.
-  if (getSettings().displayTheme === "eink") {
+
+  const isEink = getSettings().displayTheme === "eink";
+  if (isEink) {
+    // E-ink: no per-frame animation — snap the smoother, and scale its window
+    // (clamped — see einkBufferWindowMs) and the native maneuver/stop burst to
+    // the adaptive interval.
+    courseSmoother.snapToTarget();
     const adaptive = navManager.getAdaptiveState();
     courseSmoother.setBufferWindow(einkBufferWindowMs(adaptive.intervalMs));
     gpsPowerManager?.setBurstUntil(adaptive.burstUntilMs);
   }
+
+  // Diagnostic: log the smoothed values then commit the entry.
+  const smoothed = courseSmoother.smooth(performance.now());
+  if (smoothed) {
+    gpsDiagLog.logSmoothed(smoothed.sog, smoothed.cog);
+  }
+  gpsDiagLog.commit();
+
+  if (isEink && smoothed) {
+    // One atomic update per fix so e-ink does a SINGLE panel refresh: the boat
+    // moves and rotates together (and the course line redraws), instead of a
+    // position refresh followed a refresh later by the rotation. The render
+    // handler is a no-op on e-ink (see below).
+    vesselLayer.update(data, smoothed);
+    chartMode.update(data, smoothed);
+    courseLine.update(data, smoothed);
+  } else {
+    // Smooth displays (and e-ink before a course exists): update position now;
+    // the render loop eases the smoothed rotation/centre per frame. chartMode
+    // is fed every fix so it has a last-known position to centre on even while
+    // stationary (otherwise the mode-toggle button does nothing until COG/SOG
+    // become valid).
+    vesselLayer.update(data);
+    chartMode.update(data);
+  }
+
   chartManager.map.triggerRepaint();
 
   // First fix arrived → recenter button can do its job.
@@ -612,25 +629,23 @@ let prevLat = -999;
 let prevLon = -999;
 chartManager.map.on("render", () => {
   if (!lastNavData) return;
-  const isEink = getSettings().displayTheme === "eink";
-  // E-ink: snap to target in one frame (no multi-frame animation)
-  if (isEink) {
-    courseSmoother.snapToTarget();
-  }
+  // E-ink updates atomically once per fix (in the subscribe handler above), so
+  // each GPS tick is a single panel refresh — nothing to animate here.
+  if (getSettings().displayTheme === "eink") return;
   const smoothed = courseSmoother.smooth(performance.now());
   if (!smoothed) return;
   // Always update position/bearing (needed for recentering on straight courses)
   vesselLayer.update(lastNavData, smoothed);
   chartMode.update(lastNavData, smoothed);
   courseLine.update(lastNavData, smoothed);
-  // Keep animating while values are still converging (not on e-ink)
+  // Keep animating while values are still converging.
   const cogDelta = Math.abs(smoothed.cog - prevCog);
   const posDelta =
     Math.abs(smoothed.lat - prevLat) + Math.abs(smoothed.lon - prevLon);
   prevCog = smoothed.cog;
   prevLat = smoothed.lat;
   prevLon = smoothed.lon;
-  if (!isEink && (cogDelta >= 0.01 || posDelta >= 1e-7)) {
+  if (cogDelta >= 0.01 || posDelta >= 1e-7) {
     chartManager.map.triggerRepaint();
   }
 });
