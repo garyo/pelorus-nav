@@ -41,6 +41,7 @@
   },
   "license": "MIT",
   "dependencies": {
+    "@capacitor-community/bluetooth-le": "^8.2.0",
     "@capacitor/app": "^8.0.1",
     "@capacitor/core": "^8.2.0",
     "@capacitor/filesystem": "^8.1.2",

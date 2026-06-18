@@ -46,6 +46,7 @@ import { WaypointLayer } from "./map/WaypointLayer";
 import {
   BLENMEAProvider,
   BrowserGeolocationProvider,
+  CapacitorBLENMEAProvider,
   CapacitorGPSProvider,
   type NavigationData,
   NavigationDataManager,
@@ -517,7 +518,11 @@ navManager.registerProvider(new BrowserGeolocationProvider());
 if (WebSerialNMEAProvider.isAvailable()) {
   navManager.registerProvider(new WebSerialNMEAProvider());
 }
-if (BLENMEAProvider.isAvailable()) {
+// BLE NUS GPS pod ("ble-nmea"): native builds use the Capacitor plugin (the
+// Android WebView has no Web Bluetooth); the web/PWA uses Web Bluetooth.
+if (Capacitor.isNativePlatform()) {
+  navManager.registerProvider(new CapacitorBLENMEAProvider());
+} else if (BLENMEAProvider.isAvailable()) {
   navManager.registerProvider(new BLENMEAProvider());
 }
 const signalK = new SignalKProvider(getSettings().signalkUrl);
