@@ -242,7 +242,7 @@ const DEFAULTS: Settings = {
   trackRecordingEnabled: false,
   activeTrackColor: "#ff4444",
   activeRegion: "northern-new-england",
-  courseLineDuration: 0,
+  courseLineDuration: "auto",
   arrivalRadiusNM: 0.1,
   routePlanSpeedKn: 5,
   simulatorSpeed: 1,

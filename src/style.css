@@ -1760,6 +1760,22 @@ body {
   opacity: 1;
 }
 
+/* Narrow phones: the controls (Now / ±1h / slider / ×) crowd the slider when
+   the readout's 10em sits inline. Wrap the readout onto its own full-width line
+   below so the slider keeps a usable width. */
+@media (max-width: 480px) {
+  .time-bar {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .time-bar-readout {
+    order: 1;
+    flex-basis: 100%;
+    min-width: 0;
+    text-align: center;
+  }
+}
+
 .track-viewer-panel {
   position: fixed;
   bottom: 12px;
@@ -2822,11 +2838,12 @@ body {
   }
 }
 
-/* ── Landscape instrument layouts (phones only) ──────────────────────
-   Activated by body[data-instrument-layout] + a short landscape viewport.
-   Portrait and desktop keep the default top-bar layout regardless of the
-   setting. "standard" needs no rules. */
-@media (orientation: landscape) and (max-height: 600px) {
+/* ── Landscape instrument layouts ────────────────────────────────────
+   Activated by body[data-instrument-layout] in any landscape viewport — the
+   setting decides side column vs top bar, on every device. Portrait keeps the
+   default top-bar layout (this is a landscape-only setting). "standard" needs
+   no rules. */
+@media (orientation: landscape) {
   /* Approach A — side column: instruments down the left edge, map fills the
      rest. The HUD is positioned absolutely (rather than via flex-wrap, which
      would collapse the map's height), and the map is inset by the same width
@@ -2867,10 +2884,31 @@ body {
     border-top: 1px solid #ccc;
   }
 
-  /* Big, bold primary values — sized to the column height (vh), not the wide
-     landscape width. */
+  /* Big, bold primary values. Scale to the column height (vh) on short phone
+     viewports, but also cap by width (vw) and an absolute max so a 3-digit
+     heading ("359°") never overflows the fixed-width column on tall tablets. */
   body[data-instrument-layout="side"] .instrument-value {
-    font-size: clamp(40px, 11vh, 68px);
+    font-size: clamp(40px, min(11vh, 8.5vw), 56px);
+  }
+
+  /* The narrow column has no room for the label/unit beside the big primary
+     value, so stack them centered below it (vertical room is plentiful here).
+     Nav cells keep their inline label/unit. */
+  body[data-instrument-layout="side"] .instrument-cell:not(
+      .instrument-cell--nav
+    )
+    .instrument-value-row {
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+  }
+
+  body[data-instrument-layout="side"]
+    .instrument-cell:not(.instrument-cell--nav)
+    .instrument-meta {
+    flex-direction: row;
+    align-items: baseline;
+    gap: 5px;
   }
 
   body[data-instrument-layout="side"] .instrument-nav-group {
