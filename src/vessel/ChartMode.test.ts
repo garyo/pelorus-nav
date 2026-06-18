@@ -4,6 +4,9 @@ import type { NavigationData } from "../navigation/NavigationData";
 import {
   ChartModeController,
   computeLookAheadPadding,
+  EINK_RECENTER_DRIFT_FRACTION,
+  EINK_RECENTER_INTERVAL_MS,
+  isEinkRecenterDue,
   LOOK_AHEAD_FRACTION,
 } from "./ChartMode";
 
@@ -231,6 +234,27 @@ describe("ChartModeController", () => {
     const call = mockMap.jumpTo.mock.calls.at(-1)?.[0];
     expect(call?.padding?.bottom).toBeCloseTo(2 * LOOK_AHEAD_FRACTION * 800, 5);
     expect(call?.padding?.top).toBeCloseTo(0, 5);
+  });
+});
+
+describe("isEinkRecenterDue", () => {
+  const minDim = 800;
+
+  it("is due once the hold interval elapses, even with zero drift", () => {
+    expect(isEinkRecenterDue(EINK_RECENTER_INTERVAL_MS, 0, minDim)).toBe(true);
+    expect(isEinkRecenterDue(EINK_RECENTER_INTERVAL_MS - 1, 0, minDim)).toBe(
+      false,
+    );
+  });
+
+  it("is due early when the boat drifts past the screen fraction", () => {
+    const threshold = EINK_RECENTER_DRIFT_FRACTION * minDim;
+    expect(isEinkRecenterDue(0, threshold, minDim)).toBe(true);
+    expect(isEinkRecenterDue(0, threshold - 1, minDim)).toBe(false);
+  });
+
+  it("holds (not due) within both the interval and the drift bound", () => {
+    expect(isEinkRecenterDue(5_000, 50, minDim)).toBe(false);
   });
 });
 

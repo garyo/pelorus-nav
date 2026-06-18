@@ -20,6 +20,15 @@ const LOOK_AHEAD_MAX_SPEED_KT = 3;
  */
 export const LOOK_AHEAD_FRACTION = 0.35;
 
+/** E-ink: hold the camera fixed at least this long between recenters. */
+export const EINK_RECENTER_INTERVAL_MS = 30_000;
+/**
+ * E-ink: recenter early (full refresh) once the boat drifts more than this
+ * fraction of the shorter screen dimension since the last recenter — keeps a
+ * fast straight course from running off-screen before the interval elapses.
+ */
+export const EINK_RECENTER_DRIFT_FRACTION = 0.3;
+
 export interface PaddingOptions {
   top: number;
   bottom: number;
@@ -101,6 +110,20 @@ export function computeLookAheadPadding(
   };
 }
 
+/**
+ * Decide whether an e-ink recenter (a full-screen refresh) is due: either the
+ * hold interval has elapsed, or the boat has drifted too far across the now
+ * static map. Pure so it can be unit-tested without a live map.
+ */
+export function isEinkRecenterDue(
+  elapsedMs: number,
+  driftPx: number,
+  minScreenDim: number,
+): boolean {
+  if (elapsedMs >= EINK_RECENTER_INTERVAL_MS) return true;
+  return driftPx >= EINK_RECENTER_DRIFT_FRACTION * minScreenDim;
+}
+
 export type ChartModeListener = (mode: ChartModeType) => void;
 
 type JumpToArgs = {
@@ -126,6 +149,9 @@ export class ChartModeController {
    * from us — currently just on mode transitions.
    */
   private lastApplied: JumpToArgs | null = null;
+  /** When we last recentered (full refresh) and on what center — e-ink gating. */
+  private lastRecenterMs = 0;
+  private lastRecenterCenter: [number, number] | null = null;
 
   constructor(map: maplibregl.Map) {
     this.map = map;
@@ -186,8 +212,10 @@ export class ChartModeController {
 
     // Any mode transition (or even re-asserting the same mode) means the
     // map state may have diverged from our cache — most commonly the user
-    // panned the map (→ free) and is now coming back.
+    // panned the map (→ free) and is now coming back. Recenter immediately
+    // (clear the e-ink hold) so the boat snaps back to its proper place.
     this.lastApplied = null;
+    this.lastRecenterCenter = null;
 
     // When switching to north-up, reset bearing
     if (mode === "north-up" && this.map.getBearing() !== 0) {
@@ -287,8 +315,43 @@ export class ChartModeController {
     // After the CourseSmoothing converges, args becomes bit-identical
     // between frames — skip the jumpTo to save the per-frame work.
     if (sameJumpToArgs(this.lastApplied, args)) return;
+
+    // E-ink: a recenter repaints the whole screen (a full refresh). In the
+    // fixed-bearing auto modes, hold the camera and let the boat drift across
+    // the screen (cheap partial refreshes), recentering only when due — far
+    // less flashing and battery on a tight, constantly-moving course.
+    // (course-up is excluded: its bearing tracks the course, so holding would
+    // leave the map orientation stale between refreshes.)
+    const deferrable = this.mode === "follow" || this.mode === "north-up";
+    if (
+      deferrable &&
+      getSettings().displayTheme === "eink" &&
+      !this.recenterDue(args.center)
+    ) {
+      return;
+    }
+
     this.lastApplied = args;
     this.map.jumpTo(args);
+    this.lastRecenterMs = performance.now();
+    this.lastRecenterCenter = args.center;
+  }
+
+  /** Whether enough time or on-screen drift has accrued for an e-ink recenter. */
+  private recenterDue(center: [number, number]): boolean {
+    if (this.lastRecenterCenter === null) return true;
+    // The camera hasn't moved since the last recenter, so projecting both
+    // centers onto it yields the boat's on-screen drift.
+    const from = this.map.project(this.lastRecenterCenter);
+    const to = this.map.project(center);
+    const drift = Math.hypot(from.x - to.x, from.y - to.y);
+    const container = this.map.getContainer();
+    const minDim = Math.min(container.clientWidth, container.clientHeight);
+    return isEinkRecenterDue(
+      performance.now() - this.lastRecenterMs,
+      drift,
+      minDim,
+    );
   }
 }
 
