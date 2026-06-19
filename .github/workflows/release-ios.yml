@@ -100,6 +100,7 @@ jobs:
           BUILD_NUMBER="$(git rev-list --count HEAD)"
           MARKETING_VERSION="$(node -p "require('./package.json').version")"
           echo "Building $MARKETING_VERSION ($BUILD_NUMBER)"
+          echo "BUILD_NUMBER=$BUILD_NUMBER" >> "$GITHUB_ENV"
           security unlock-keychain -p "$KEYCHAIN_PW" "$BUILD_KEYCHAIN"
 
           cd ios/App
@@ -125,3 +126,19 @@ jobs:
 
           xcrun altool --upload-app -f build/export/*.ipa -t ios \
             --apiKey "$ASC_KEY_ID" --apiIssuer "$ASC_ISSUER_ID"
+
+      # altool only uploads — it never assigns the build to a TestFlight group
+      # or submits it, so every build otherwise lands "Ready to Submit" and
+      # needs a manual add-to-group + Submit-for-Review. Do that here via the
+      # App Store Connect API (same key). Fail-soft: a distribution hiccup logs
+      # a warning but never fails an otherwise-successful upload.
+      #
+      # One-time setup in App Store Connect or the auto-submit is rejected: fill
+      # Beta App Review Information + the group's "What to Test".
+      - name: Distribute to external testers + submit for Beta App Review
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          # ASC_KEY_PATH, BUNDLE_ID, BUILD_NUMBER come from $GITHUB_ENV / env.
+          BETA_GROUP: "Beta Testers"
+        run: node tools/ios/testflight-submit.mjs
