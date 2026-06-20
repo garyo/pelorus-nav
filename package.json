@@ -62,13 +62,15 @@
     "@capacitor/ios": "8.2.0",
     "@cloudflare/workers-types": "^4.20260305.1",
     "@playwright/test": "^1.58.2",
+    "@types/ws": "7.4.7",
     "@vitest/coverage-v8": "^4.0.18",
     "jsdom": "^29.0.2",
     "typescript": "^5.9.3",
     "vite": "^7.3.1",
     "vite-plugin-pwa": "^1.2.0",
     "vitest": "^4.0.18",
-    "wrangler": "^4.70.0"
+    "wrangler": "^4.70.0",
+    "ws": "8.18.0"
   },
   "packageManager": "yarn@1.22.19+sha1.4ba7fc5c6e704fce2066ecbfb0b0d8976fe62447"
 }
