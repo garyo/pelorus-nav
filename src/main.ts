@@ -417,6 +417,7 @@ const settingsHandle = topbarMenu
         getActiveId: () => chartManager.getActiveProvider()?.id ?? "",
         setActive: (id) => chartManager.setActiveProvider(id),
       },
+      reconnectGps: () => navManager.reconnectActiveProvider(),
     })
   : null;
 

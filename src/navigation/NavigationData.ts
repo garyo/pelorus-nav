@@ -30,10 +30,18 @@ export interface NavigationDataProvider {
   readonly name: string;
   /** Whether the provider is currently connected/active */
   isConnected(): boolean;
+  /** Optional: whether the provider is mid-(re)connect (for a "trying" UI state). */
+  isReconnecting?(): boolean;
   /** Start providing data */
   connect(): void;
   /** Stop providing data */
   disconnect(): void;
+  /**
+   * Optional: force an immediate (re)connect attempt — a manual UI trigger for
+   * transports that can drop and don't always self-heal (e.g. BLE). Reuses the
+   * already-chosen device where possible, so no device picker.
+   */
+  reconnect?(): void;
   /** Subscribe to navigation data updates */
   subscribe(callback: NavigationDataCallback): void;
   /** Unsubscribe from updates */

@@ -160,4 +160,61 @@ describe("BLENMEAProvider auto-reconnect", () => {
     expect(device.gatt.connect).toHaveBeenCalledTimes(0);
     expect(provider.isConnected()).toBe(false);
   });
+
+  it("reconnect() retries immediately without re-prompting", async () => {
+    const provider = new BLENMEAProvider();
+    provider.connect();
+    await flush();
+
+    device.drop(); // schedules a backoff reconnect ~1s out
+    expect(device.gatt.connect).toHaveBeenCalledTimes(1);
+
+    provider.reconnect(); // manual button — retry now, don't wait for backoff
+    await flush();
+
+    expect(device.gatt.connect).toHaveBeenCalledTimes(2);
+    expect(requestDevice).toHaveBeenCalledTimes(1); // reused device, no chooser
+    expect(provider.isConnected()).toBe(true);
+
+    await vi.advanceTimersByTimeAsync(5000); // the cancelled backoff must not fire
+    expect(device.gatt.connect).toHaveBeenCalledTimes(2);
+  });
+
+  it("reconnect() opens the picker when no device is chosen yet", async () => {
+    const provider = new BLENMEAProvider();
+    await provider.reconnect(); // never connected — behaves like connect()
+    await flush();
+
+    expect(requestDevice).toHaveBeenCalledTimes(1);
+    expect(provider.isConnected()).toBe(true);
+  });
+
+  it("reconnect() falls back to the picker when device reuse fails", async () => {
+    const provider = new BLENMEAProvider();
+    provider.connect();
+    await flush();
+    expect(requestDevice).toHaveBeenCalledTimes(1);
+
+    device.gatt.failTimes = 1; // silent reuse of the chosen device will fail
+    await provider.reconnect();
+    await flush();
+
+    expect(requestDevice).toHaveBeenCalledTimes(2); // fell back to the chooser
+    expect(provider.isConnected()).toBe(true);
+  });
+
+  it("reports isReconnecting() between a drop and recovery", async () => {
+    const provider = new BLENMEAProvider();
+    provider.connect();
+    await flush();
+    expect(provider.isReconnecting()).toBe(false);
+
+    device.gatt.failTimes = 1; // keep the next reconnect from succeeding
+    device.drop();
+    expect(provider.isConnected()).toBe(false);
+    expect(provider.isReconnecting()).toBe(true); // wants to be connected, isn't
+
+    await vi.advanceTimersByTimeAsync(1000); // attempt fails → still trying
+    expect(provider.isReconnecting()).toBe(true);
+  });
 });

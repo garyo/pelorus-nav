@@ -69,6 +69,11 @@ export class NavigationHUD {
   private readonly cursorLine: HTMLDivElement;
   private readonly cogSogLine: HTMLDivElement;
   private readonly gpsLine: HTMLDivElement;
+  private readonly gpsPosSpan: HTMLSpanElement;
+  private readonly gpsSourceSpan: HTMLSpanElement;
+  private readonly gpsAgeSpan: HTMLSpanElement;
+  private readonly navManager: NavigationDataManager;
+  private lastFixMs = 0;
   private readonly thermalBadge: HTMLSpanElement;
 
   constructor(
@@ -125,8 +130,16 @@ export class NavigationHUD {
 
     this.cogSogLine = document.createElement("div");
     this.cogSogLine.textContent = "COG --  SOG --";
+    this.navManager = navManager;
     this.gpsLine = document.createElement("div");
-    this.gpsLine.textContent = "GPS: --";
+    this.gpsPosSpan = document.createElement("span");
+    this.gpsPosSpan.textContent = "GPS: --";
+    // Connection indicator: green = connected + fresh fix, amber = connected
+    // but stale / reconnecting, red = disconnected. Coloured via data-conn.
+    this.gpsSourceSpan = document.createElement("span");
+    this.gpsSourceSpan.className = "nav-hud-conn";
+    this.gpsAgeSpan = document.createElement("span");
+    this.gpsLine.append(this.gpsPosSpan, this.gpsSourceSpan, this.gpsAgeSpan);
 
     this.container.append(
       toggleBtn,
@@ -193,8 +206,42 @@ export class NavigationHUD {
         navManager.getRateMode() === "adaptive"
           ? ` ${formatRateIndicator(adaptiveState.tier, adaptiveState.intervalMs)}`
           : "";
-      this.gpsLine.textContent = `GPS: ${formatLatLon(data.latitude, "lat")} ${formatLatLon(data.longitude, "lon")} [${shortSource(data.source)}]${rateText}`;
+      this.gpsPosSpan.textContent = `GPS: ${formatLatLon(data.latitude, "lat")} ${formatLatLon(data.longitude, "lon")} `;
+      this.gpsSourceSpan.textContent = `[${shortSource(data.source)}]`;
+      this.gpsAgeSpan.textContent = rateText;
+      this.lastFixMs = performance.now();
+      this.updateConnIndicator();
+      this.blinkFix();
     });
+
+    // Keep the connection colour current even when no fixes arrive (a dropped
+    // link goes red/amber here rather than freezing on the last green).
+    window.setInterval(() => this.updateConnIndicator(), 1000);
+  }
+
+  /** Colour the source tag from link state + fix freshness. */
+  private updateConnIndicator(): void {
+    const provider = this.navManager.getActiveProvider();
+    const connected = provider?.isConnected() ?? false;
+    const reconnecting = provider?.isReconnecting?.() ?? false;
+    const intervalMs = this.navManager.getAdaptiveState().intervalMs;
+    const staleMs = Math.max(4000, intervalMs * 2.5);
+    const fresh = performance.now() - this.lastFixMs < staleMs;
+    this.gpsSourceSpan.dataset.conn = connected
+      ? fresh
+        ? "ok"
+        : "warn"
+      : reconnecting
+        ? "warn"
+        : "bad";
+  }
+
+  /** Pulse the rate/age tag once per received fix — a live "data flowing" cue. */
+  private blinkFix(): void {
+    const el = this.gpsAgeSpan;
+    el.classList.remove("nav-hud-fix-blink");
+    void el.offsetWidth; // force reflow so the animation restarts each fix
+    el.classList.add("nav-hud-fix-blink");
   }
 
   getElement(): HTMLDivElement {

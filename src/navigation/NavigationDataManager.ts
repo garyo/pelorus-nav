@@ -212,6 +212,11 @@ export class NavigationDataManager {
     return this.activeProvider;
   }
 
+  /** Force a manual reconnect on the active provider, if it supports one. */
+  reconnectActiveProvider(): void {
+    this.activeProvider?.reconnect?.();
+  }
+
   getLastData(): NavigationData | null {
     return this.lastData;
   }

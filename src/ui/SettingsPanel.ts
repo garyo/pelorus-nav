@@ -70,6 +70,8 @@ export interface ChartProvidersOpt {
 
 export interface CreateSettingsPanelOpts {
   chartProviders: ChartProvidersOpt;
+  /** Force a reconnect on the active GPS provider (used by the BLE button). */
+  reconnectGps: () => void;
 }
 
 export interface SettingsPanelHandle {
@@ -183,7 +185,7 @@ function buildTabbedPanel(
 
   tabBodies.set("appearance", buildAppearanceTab(settings));
   tabBodies.set("layers", buildLayersTab(settings, opts.chartProviders));
-  tabBodies.set("navigation", buildNavigationTab(settings));
+  tabBodies.set("navigation", buildNavigationTab(settings, opts.reconnectGps));
 
   for (const [id, body] of tabBodies) {
     body.className = "settings-tab-body";
@@ -574,6 +576,7 @@ function buildTextRow(
 
 function buildNavigationTab(
   settings: ReturnType<typeof getSettings>,
+  reconnectGps: () => void,
 ): HTMLElement {
   const tab = document.createElement("div");
 
@@ -600,6 +603,21 @@ function buildNavigationTab(
       (v) => updateSettings({ gpsSource: v }),
     ),
   );
+
+  // Reconnect button — shown for Bluetooth GPS, which can drop and (on desktop
+  // Chrome) not always self-heal. One click beats toggling the source off/on.
+  const reconnectRow = buildActionRow(
+    "BLE link",
+    "settings-gps-reconnect",
+    "Reconnect",
+    () => reconnectGps(),
+  );
+  const updateReconnectRow = (src: string) => {
+    reconnectRow.style.display = src === "ble-nmea" ? "" : "none";
+  };
+  updateReconnectRow(settings.gpsSource);
+  onSettingsChange((s) => updateReconnectRow(s.gpsSource));
+  tab.appendChild(reconnectRow);
 
   // Simulator speed (shown only when the simulator is the GPS source)
   const SIM_SPEED_OPTIONS = [

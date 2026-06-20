@@ -101,6 +101,10 @@ export class BLENMEAProvider implements NavigationDataProvider {
     return this.connected;
   }
 
+  isReconnecting(): boolean {
+    return this.wantConnected && !this.connected;
+  }
+
   connect(): void {
     if (this.wantConnected) return;
     this.wantConnected = true;
@@ -123,6 +127,36 @@ export class BLENMEAProvider implements NavigationDataProvider {
     this.device = null;
     this.characteristic = null;
     this.stream.reset();
+  }
+
+  /**
+   * Manual reconnect (UI button). Tries the already-chosen device first (no
+   * picker); if that fails — e.g. the device has left Chrome's range cache —
+   * falls back to the chooser while the click's activation is still valid, so
+   * the button always gets you connected.
+   */
+  async reconnect(): Promise<void> {
+    this.clearReconnect();
+    if (this.device) {
+      this.wantConnected = true;
+      this.connected = false;
+      try {
+        await this.establish(); // reuse the chosen device — no chooser
+        return;
+      } catch (err) {
+        console.warn(
+          "BLE GPS manual reconnect: reuse failed, re-picking:",
+          err,
+        );
+        this.device.removeEventListener(
+          "gattserverdisconnected",
+          this.onDisconnect,
+        );
+        this.device = null;
+      }
+    }
+    this.wantConnected = true;
+    await this.pickAndConnect(); // shows the chooser (device is pre-listed)
   }
 
   subscribe(callback: NavigationDataCallback): void {
@@ -171,6 +205,11 @@ export class BLENMEAProvider implements NavigationDataProvider {
   private async establish(): Promise<void> {
     const gatt = this.device?.gatt;
     if (!gatt) throw new Error("no GATT server");
+    // Drop any prior characteristic listener before re-subscribing on reconnect.
+    this.characteristic?.removeEventListener(
+      "characteristicvaluechanged",
+      this.onNotify,
+    );
     const server = await gatt.connect();
     const service = await server.getPrimaryService(NUS_SERVICE);
     this.characteristic = await service.getCharacteristic(NUS_TX);
@@ -192,11 +231,11 @@ export class BLENMEAProvider implements NavigationDataProvider {
       : BLENMEAProvider.RECONNECT_MIN_MS;
     this.reconnectTimer = setTimeout(() => {
       this.reconnectTimer = null;
-      void this.reconnect();
+      void this.retryConnect();
     }, this.reconnectDelayMs);
   }
 
-  private async reconnect(): Promise<void> {
+  private async retryConnect(): Promise<void> {
     if (!this.wantConnected || !this.device) return;
     try {
       await this.establish();
@@ -224,7 +263,7 @@ export class BLENMEAProvider implements NavigationDataProvider {
     const controller = new AbortController();
     const onAdvertisement = (): void => {
       stop();
-      void this.reconnect(); // device is back in range — connect should work now
+      void this.retryConnect(); // back in range — connect should work now
     };
     const stop = (): void => {
       device.removeEventListener("advertisementreceived", onAdvertisement);

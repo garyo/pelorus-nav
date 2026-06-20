@@ -47,6 +47,10 @@ export class CapacitorBLENMEAProvider implements NavigationDataProvider {
     return this.connected;
   }
 
+  isReconnecting(): boolean {
+    return this.wantConnected && !this.connected;
+  }
+
   connect(): void {
     if (this.wantConnected) return;
     this.wantConnected = true;
@@ -64,6 +68,31 @@ export class CapacitorBLENMEAProvider implements NavigationDataProvider {
       BleClient.stopNotifications(id, NUS_SERVICE, NUS_TX).catch(() => {});
       BleClient.disconnect(id).catch(() => {});
     }
+  }
+
+  /**
+   * Manual reconnect (UI button). With a device already chosen, cancel any
+   * pending backoff and retry immediately — no picker. With no device, fall
+   * back to the normal connect, which shows the native picker.
+   */
+  async reconnect(): Promise<void> {
+    this.clearReconnect();
+    if (this.device) {
+      this.wantConnected = true;
+      this.connected = false;
+      try {
+        await this.establish(); // reuse the chosen device — no picker
+        return;
+      } catch (err) {
+        console.warn(
+          "Capacitor BLE GPS manual reconnect: reuse failed, re-picking:",
+          err,
+        );
+        this.device = null;
+      }
+    }
+    this.wantConnected = true;
+    await this.pickAndConnect(); // shows the native picker
   }
 
   subscribe(callback: NavigationDataCallback): void {
@@ -129,11 +158,11 @@ export class CapacitorBLENMEAProvider implements NavigationDataProvider {
       : CapacitorBLENMEAProvider.RECONNECT_MIN_MS;
     this.reconnectTimer = setTimeout(() => {
       this.reconnectTimer = null;
-      void this.reconnect();
+      void this.retryConnect();
     }, this.reconnectDelayMs);
   }
 
-  private async reconnect(): Promise<void> {
+  private async retryConnect(): Promise<void> {
     if (!this.wantConnected || !this.device) return;
     try {
       await this.establish();

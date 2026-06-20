@@ -663,6 +663,39 @@ body {
   filter: hue-rotate(-40deg) saturate(2) brightness(1.2);
 }
 
+/* GPS connection indicator on the source tag ([BLE], etc.) */
+.nav-hud-conn[data-conn="ok"] {
+  color: #4caf50; /* green — connected, fresh fix */
+}
+.nav-hud-conn[data-conn="warn"] {
+  color: #e6b800; /* amber — connected but stale, or reconnecting */
+}
+.nav-hud-conn[data-conn="bad"] {
+  color: #e53935; /* red — disconnected */
+}
+
+/* One quick dip on each received fix — a live "data flowing" pulse. */
+@keyframes nav-hud-fix-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  40% {
+    opacity: 0.2;
+  }
+}
+.nav-hud-fix-blink {
+  animation: nav-hud-fix-pulse 0.45s ease-out;
+}
+
+/* e-ink: no flashing (forces full-screen refreshes) and no faint colour tints. */
+[data-theme="eink"] .nav-hud-fix-blink {
+  animation: none;
+}
+[data-theme="eink"] .nav-hud-conn[data-conn] {
+  color: inherit;
+}
+
 /* Go-To coordinate dialog */
 .goto-overlay {
   display: none;

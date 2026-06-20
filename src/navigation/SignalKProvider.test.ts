@@ -12,8 +12,8 @@ const WebSocketServer: typeof WS.Server =
 
 // End-to-end test of the Signal K data path: the real SignalKProvider connects
 // (via the node global WebSocket) to a mock Signal K server emitting the same
-// delta wire-format as the ESP32 bring-up firmware
-// (hardware-planning/esp32-signalk). Guards the contract the device must satisfy.
+// delta wire-format as the ESP32 bring-up firmware (esp32-signalk, kept in the
+// separate pelorus-nav-hw repo). Guards the contract the device must satisfy.
 
 // Mirrors the synthetic circle in esp32-signalk.ino.
 const CENTER_LAT = 42.338;
