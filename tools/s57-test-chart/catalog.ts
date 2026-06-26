@@ -625,7 +625,25 @@ const SPECS: Spec[] = [
   {
     cls: "RDOCAL",
     geoms: ["Point"],
-    profiles: one({ OBJNAM: "Calling-in Point", ORIENT: 90 }),
+    profiles: [
+      // one-way traffic → RDOCAL02, rotated by ORIENT
+      {
+        name: "one-way",
+        props: {
+          OBJNAM: "Calling-in Point",
+          TRAFIC: 3,
+          ORIENT: 90,
+          COMCHA: "16",
+        },
+      },
+      // two-way traffic → RDOCAL03, rotated by ORIENT
+      {
+        name: "two-way",
+        props: { OBJNAM: "Two-way Point", TRAFIC: 4, ORIENT: 45 },
+      },
+      // direction unknown (no TRAFIC) → RCLDEF01
+      { name: "default", props: { OBJNAM: "Reporting Point" } },
+    ],
   },
   {
     cls: "RSCSTA",

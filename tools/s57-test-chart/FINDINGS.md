@@ -25,14 +25,22 @@ deliverables, all on branch `test/s57-feature-coverage`; `bun run check` green
    revive the pelorus-standard chooser, or delete that scheme + its `ecdis-*`
    sprite pipeline as dead weight.
 
-3. **One genuine point-render gap in the live (iho-s52) scheme: `RDOCAL`**
-   (radio calling-in point) renders *nothing* at its location. Worth a style fix.
+3. **`RDOCAL` (radio calling-in point) — FIXED.** The layer hard-coded
+   `RDOCAL02` with no rotation. Re-implemented per the S-52/S-101
+   `RadioCallingInPoint` rule: a known traffic direction (ORIENT + TRAFIC 1–4)
+   draws the directional symbol rotated to the flow — `RDOCAL03` for two-way
+   (TRAFIC 4), `RDOCAL02` otherwise; without a direction it falls back to the
+   "direction unknown" `RCLDEF01`. Added the `RDOCAL03` + `RCLDEF01` S-52
+   sprites (they were missing from the sheet). All three render verified
+   visually (see catalog's one-way/two-way/default RDOCAL profiles).
 
-4. **Possible shared-fallback icon — verify.** In the icon-usage table, several
-   unrelated minor point classes (`CURENT`, `NEWOBJ`, `RSCSTA`, `SISTAT`) all
-   report the same resolved icon `RDOCAL02`. Either the icon expression funnels
-   them to one fallback symbol, or it's a report sampling artifact — check
-   `icon-sets.ts` for these classes.
+4. **No shared-fallback icon — was a report artifact.** `CURENT`, `RSCSTA`,
+   `SISTAT` each have their own distinct, correct S-52 symbol present in the
+   sheet (`CURENT01`, `RSCSTA02`, `SISTAT03`) and a dedicated layer that
+   references it statically; `NEWOBJ` has no point symbol by design. The
+   render-report "resolved icon" column was unreliable (it reported the same
+   `RDOCAL02` for all of them in one pass and different icons in another) —
+   nothing actually funnels to a shared fallback.
 
 5. **Click output is solid.** `formatFeatureInfo()` never leaks a raw S-57 code,
    always produces a human display name, and decodes attributes well (e.g.
@@ -58,8 +66,11 @@ deliverables, all on branch `test/s57-feature-coverage`; `bun run check` green
   Expected — they exist in the catalog for completeness.
 
 ## Harness notes
-- `?testChart=1[&scheme=iho-s52|pelorus-standard]` (dev only) overlays the test
-  chart through the real styles. Tree-shaken from production.
+- `?testChart=1` (dev only) overlays the test chart through the real iho-s52
+  styles. Tree-shaken from production.
 - `preserveDrawingBuffer` is enabled only in DEV (`canvasContextAttributes`).
-- iho-s52 is screenshotted programmatically; pelorus-standard has full PNGs +
-  `out/renders/contact-pelorus-standard.png`.
+- Renders go to `out/renders/iho-s52/` + `out/renders/contact-iho-s52.png`.
+  The per-variant canvas screenshots are a secondary artifact and can be
+  unreliable (the capture sometimes races symbol placement, yielding identical
+  frames across variants) — trust the `styleimagemissing` count and a targeted
+  re-screenshot over the contact sheet for fine detail.

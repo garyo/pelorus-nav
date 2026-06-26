@@ -830,7 +830,10 @@ export function getHazardLayers(ctx: StyleContext): LayerSpecification[] {
       },
       paint: {},
     },
-    // Radio calling-in point — RDOCAL
+    // Radio calling-in point — RDOCAL (S-52 RadioCallingInPoint rule):
+    // a known traffic direction (ORIENT + TRAFIC 1–4) draws the directional
+    // symbol rotated to the traffic flow — RDOCAL03 for two-way (TRAFIC 4),
+    // RDOCAL02 otherwise; without a direction it falls back to RCLDEF01.
     {
       id: "s57-rdocal",
       type: "symbol",
@@ -838,7 +841,22 @@ export function getHazardLayers(ctx: StyleContext): LayerSpecification[] {
       "source-layer": "RDOCAL",
       minzoom: 10,
       layout: {
-        "icon-image": "RDOCAL02",
+        "icon-image": [
+          "case",
+          ["all", ["has", "ORIENT"], ["==", ["get", "TRAFIC"], 4]],
+          "RDOCAL03",
+          ["all", ["has", "ORIENT"], ["has", "TRAFIC"]],
+          "RDOCAL02",
+          "RCLDEF01",
+        ] as unknown as ExpressionSpecification,
+        // Rotate only the directional symbols; RCLDEF01 stays upright.
+        "icon-rotate": [
+          "case",
+          ["all", ["has", "ORIENT"], ["has", "TRAFIC"]],
+          ["to-number", ["get", "ORIENT"], 0],
+          0,
+        ] as unknown as ExpressionSpecification,
+        "icon-rotation-alignment": "map",
         "icon-size": 0.7,
         "icon-allow-overlap": true,
       },

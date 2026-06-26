@@ -174,7 +174,7 @@ describe("S-57 click-output coverage", () => {
     }
   });
 
-  it("never throws and always yields a non-empty type + details array for all 262 variants", () => {
+  it("never throws and always yields a non-empty type + details array for all variants", () => {
     for (const r of rows) {
       expect(r.info.type, r.id).toBeTruthy();
       expect(Array.isArray(r.info.details), r.id).toBe(true);
