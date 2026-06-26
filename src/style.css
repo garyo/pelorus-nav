@@ -1061,6 +1061,59 @@ body {
   border-bottom: 1px solid #ccc;
 }
 
+/* GPS status badge in the corner of the instrument panel. Dot pings on each
+   fix; flips to "NO GPS" when fixes stop. Text + glyph (not just colour)
+   carry the state so it reads on e-ink too. */
+.instrument-gps {
+  position: absolute;
+  top: 2px;
+  right: 6px;
+  z-index: 11;
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: 0.02em;
+  pointer-events: none;
+}
+.instrument-gps-dot {
+  font-size: 12px;
+}
+.instrument-gps[data-conn="ok"] {
+  color: #4caf50; /* green — receiving fixes */
+}
+.instrument-gps[data-conn="bad"] {
+  color: #e53935; /* red — no GPS */
+}
+
+/* One quick pulse on each received fix. */
+@keyframes instrument-gps-ping {
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  45% {
+    transform: scale(1.7);
+    opacity: 0.45;
+  }
+}
+.instrument-gps-ping {
+  display: inline-block;
+  animation: instrument-gps-ping 0.5s ease-out;
+}
+
+/* e-ink: no animation (forces full refreshes) and no colour — the ●/✕ glyph
+   and GPS/NO GPS text carry the state. */
+[data-theme="eink"] .instrument-gps-ping {
+  animation: none;
+}
+[data-theme="eink"] .instrument-gps[data-conn] {
+  color: inherit;
+}
+
 .instrument-cell {
   position: relative;
   /* flex-basis 0 (not auto) so the primary cells share one row and shrink to

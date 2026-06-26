@@ -32,11 +32,26 @@ const FAST_HW_SAMPLING_MS = 1000;
 /** Quality score above which we boost hardware polling in "auto" mode. */
 const HW_BOOST_QUALITY_THRESHOLD = 0.3;
 
+/** Floor for the staleness threshold so slow broadcast rates still flag a
+ *  dropped link within a few seconds. */
+export const GPS_STALE_FLOOR_MS = 4000;
+
+/**
+ * A fix is "stale" once its age exceeds 2.5 broadcast intervals (floored at
+ * {@link GPS_STALE_FLOOR_MS}). Past this, live motion values (SOG/COG) are no
+ * longer trustworthy — the HUDs blank them and show a "no GPS" indicator.
+ */
+export function gpsStaleThresholdMs(broadcastIntervalMs: number): number {
+  return Math.max(GPS_STALE_FLOOR_MS, broadcastIntervalMs * 2.5);
+}
+
 export class NavigationDataManager {
   private providers: NavigationDataProvider[] = [];
   private activeProvider: NavigationDataProvider | null = null;
   private listeners: NavigationDataCallback[] = [];
   private lastData: NavigationData | null = null;
+  /** Wall-clock time of the last broadcast; drives fix-staleness detection. */
+  private lastBroadcastWallMs = Number.NEGATIVE_INFINITY;
 
   // GPS position filter (Kalman)
   private gpsFilter = new GPSFilter();
@@ -140,6 +155,7 @@ export class NavigationDataManager {
 
   private broadcast(data: NavigationData): void {
     this.clearDeferredTimer();
+    this.lastBroadcastWallMs = Date.now();
     for (const fn of this.listeners) {
       fn(data);
     }
@@ -221,6 +237,22 @@ export class NavigationDataManager {
     return this.lastData;
   }
 
+  /** Wall-clock ms since the last fix was broadcast (Infinity before any fix
+   *  or after a provider switch / disconnect). */
+  getFixAgeMs(): number {
+    return Date.now() - this.lastBroadcastWallMs;
+  }
+
+  /** True when no fix has arrived recently enough to trust live motion data.
+   *  The HUDs use this to blank SOG/COG and flag GPS loss. */
+  isFixStale(): boolean {
+    const intervalMs =
+      this.rateMode === "adaptive"
+        ? this.adaptiveCtrl.getState().intervalMs
+        : this.manualIntervalMs;
+    return this.getFixAgeMs() >= gpsStaleThresholdMs(intervalMs);
+  }
+
   setActiveProvider(id: string): void {
     if (this.activeProvider) {
       this.activeProvider.unsubscribe(this.onData);
@@ -228,6 +260,7 @@ export class NavigationDataManager {
     }
 
     this.lastData = null;
+    this.lastBroadcastWallMs = Number.NEGATIVE_INFINITY;
     this.clearDeferredTimer();
     this.gpsFilter.reset();
     this.qualityDetector.reset();
@@ -319,5 +352,6 @@ export class NavigationDataManager {
     this.clearDeferredTimer();
     this.listeners.length = 0;
     this.lastData = null;
+    this.lastBroadcastWallMs = Number.NEGATIVE_INFINITY;
   }
 }

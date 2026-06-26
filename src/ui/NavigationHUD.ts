@@ -6,6 +6,7 @@
 import type maplibregl from "maplibre-gl";
 import type { WaypointLayer } from "../map/WaypointLayer";
 import type { AdaptiveTier } from "../navigation/AdaptiveRate";
+import type { NavigationData } from "../navigation/NavigationData";
 import type { NavigationDataManager } from "../navigation/NavigationDataManager";
 import type { SpeedUnit } from "../settings";
 import { getSettings } from "../settings";
@@ -73,7 +74,7 @@ export class NavigationHUD {
   private readonly gpsSourceSpan: HTMLSpanElement;
   private readonly gpsAgeSpan: HTMLSpanElement;
   private readonly navManager: NavigationDataManager;
-  private lastFixMs = 0;
+  private lastNavData: NavigationData | null = null;
   private readonly thermalBadge: HTMLSpanElement;
 
   constructor(
@@ -195,12 +196,8 @@ export class NavigationHUD {
 
     // GPS data
     navManager.subscribe((data) => {
-      const settings = getSettings();
-      const varText =
-        settings.bearingMode === "magnetic"
-          ? `  ${formatDeclination(data.latitude, data.longitude)}`
-          : "";
-      this.cogSogLine.textContent = `COG ${formatCOG(data.cog, data.latitude, data.longitude)}  SOG ${formatSpeed(data.sog, settings.speedUnit)}${varText}`;
+      this.lastNavData = data;
+      this.renderCogSog();
       const adaptiveState = navManager.getAdaptiveState();
       const rateText =
         navManager.getRateMode() === "adaptive"
@@ -209,14 +206,32 @@ export class NavigationHUD {
       this.gpsPosSpan.textContent = `GPS: ${formatLatLon(data.latitude, "lat")} ${formatLatLon(data.longitude, "lon")} `;
       this.gpsSourceSpan.textContent = `[${shortSource(data.source)}]`;
       this.gpsAgeSpan.textContent = rateText;
-      this.lastFixMs = performance.now();
       this.updateConnIndicator();
       this.blinkFix();
     });
 
-    // Keep the connection colour current even when no fixes arrive (a dropped
-    // link goes red/amber here rather than freezing on the last green).
-    window.setInterval(() => this.updateConnIndicator(), 1000);
+    // Keep the connection colour and COG/SOG current even when no fixes arrive
+    // (a dropped link goes amber/red and blanks the readout rather than
+    // freezing on the last value).
+    window.setInterval(() => {
+      this.updateConnIndicator();
+      this.renderCogSog();
+    }, 1000);
+  }
+
+  /** Render COG/SOG from the last fix, blanked to "--" when the fix is stale. */
+  private renderCogSog(): void {
+    const data = this.lastNavData;
+    if (!data || this.navManager.isFixStale()) {
+      this.cogSogLine.textContent = "COG --  SOG --";
+      return;
+    }
+    const settings = getSettings();
+    const varText =
+      settings.bearingMode === "magnetic"
+        ? `  ${formatDeclination(data.latitude, data.longitude)}`
+        : "";
+    this.cogSogLine.textContent = `COG ${formatCOG(data.cog, data.latitude, data.longitude)}  SOG ${formatSpeed(data.sog, settings.speedUnit)}${varText}`;
   }
 
   /** Colour the source tag from link state + fix freshness. */
@@ -224,9 +239,7 @@ export class NavigationHUD {
     const provider = this.navManager.getActiveProvider();
     const connected = provider?.isConnected() ?? false;
     const reconnecting = provider?.isReconnecting?.() ?? false;
-    const intervalMs = this.navManager.getAdaptiveState().intervalMs;
-    const staleMs = Math.max(4000, intervalMs * 2.5);
-    const fresh = performance.now() - this.lastFixMs < staleMs;
+    const fresh = !this.navManager.isFixStale();
     this.gpsSourceSpan.dataset.conn = connected
       ? fresh
         ? "ok"

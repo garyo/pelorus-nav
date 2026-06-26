@@ -85,9 +85,33 @@ export function createInstrumentHUD(
   const container = document.createElement("div");
   container.className = "instrument-hud";
 
+  // GPS status badge (corner): a dot that pings on each fix, flips to a clear
+  // "NO GPS" state when fixes stop arriving (signal loss). Lives in the corner
+  // of the instrument panel so it's visible on every theme, e-ink included.
+  const gpsBadge = document.createElement("div");
+  gpsBadge.className = "instrument-gps";
+  const gpsDot = document.createElement("span");
+  gpsDot.className = "instrument-gps-dot";
+  const gpsText = document.createElement("span");
+  gpsText.className = "instrument-gps-text";
+  gpsBadge.append(gpsDot, gpsText);
+
   let lastData: NavigationData | null = null;
   let navActive = false;
   let navCellClickCallback: (() => void) | null = null;
+
+  const updateGpsStatus = (stale: boolean) => {
+    gpsBadge.dataset.conn = stale ? "bad" : "ok";
+    gpsDot.textContent = stale ? "✕" : "●"; // ✕ / ●
+    gpsText.textContent = stale ? "NO GPS" : "GPS";
+  };
+
+  /** Brief pulse on the dot for each received fix — a live "fix" cue. */
+  const pingFix = () => {
+    gpsDot.classList.remove("instrument-gps-ping");
+    void gpsDot.offsetWidth; // restart the animation
+    gpsDot.classList.add("instrument-gps-ping");
+  };
 
   // Persistent cell references — update text instead of rebuilding DOM
   type CellRef = {
@@ -146,18 +170,27 @@ export function createInstrumentHUD(
       navGroup.appendChild(navRow);
       container.appendChild(navGroup);
     }
+    // Re-attach the GPS badge (innerHTML reset above removed it) and refresh
+    // the freshly-built cells for the current freshness state.
+    container.appendChild(gpsBadge);
+    updateGpsStatus(navManager.isFixStale());
+    updateValues();
   };
 
   /** Update just the text content of existing cells (cheap, no DOM rebuild). */
   const updateValues = () => {
     const s = getSettings();
+    // On GPS signal loss, fixes stop arriving and the last one would otherwise
+    // linger forever (e.g. frozen at 40 kn in a tunnel). Treat a stale fix as
+    // no data so every motion/nav cell reads "--".
+    const data = navManager.isFixStale() ? null : lastData;
     for (const c of baseCells) {
-      const f = c.def.format(lastData, s);
+      const f = c.def.format(data, s);
       c.valuEl.textContent = f.value;
       c.unitEl.textContent = f.unit;
     }
     for (const c of navCells) {
-      const f = c.def.format(lastData, s);
+      const f = c.def.format(data, s);
       c.valuEl.textContent = f.value;
       c.unitEl.textContent = f.unit;
     }
@@ -176,7 +209,17 @@ export function createInstrumentHUD(
   navManager.subscribe((data) => {
     lastData = data;
     updateValues();
+    updateGpsStatus(false);
+    pingFix();
   });
+
+  // Re-evaluate freshness even when no fixes arrive, so a dropped link flips
+  // the badge to "NO GPS" and blanks the motion cells rather than freezing.
+  window.setInterval(() => {
+    const stale = navManager.isFixStale();
+    updateGpsStatus(stale);
+    if (stale) updateValues();
+  }, 1000);
 
   const applyVisibility = (s: Settings) => {
     container.style.display = s.showInstrumentHUD ? "flex" : "none";
