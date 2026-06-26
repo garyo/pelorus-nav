@@ -24,6 +24,8 @@ import {
   setStoredRasterCharts,
 } from "./chart/raster-charts";
 import { SafetyContour } from "./chart/SafetyContour";
+import { getNauticalLayers } from "./chart/styles";
+import { getIconScheme } from "./chart/styles/icon-sets";
 import {
   getStreamingVersions,
   refreshStreamingVersions,
@@ -72,7 +74,12 @@ import { LegendHost } from "./plugins/legend";
 import { BUILTIN_PLUGINS } from "./plugins/manifest";
 import { PluginManager } from "./plugins/PluginManager";
 import { PickRegistry } from "./plugins/picking";
-import { getSettings, onSettingsChange, updateSettings } from "./settings";
+import {
+  getSettings,
+  onSettingsChange,
+  type SymbologyScheme,
+  updateSettings,
+} from "./settings";
 import { AboutDialog } from "./ui/AboutDialog";
 import { startAppUpdateNotifier } from "./ui/AppUpdateNotifier";
 import { CancelNavButton } from "./ui/CancelNavButton";
@@ -242,6 +249,104 @@ new ChartInUseReadout(chartManager.map);
 // Dev-only: expose the map for browser-harness probes (no-op in prod build).
 if (import.meta.env.DEV) {
   (window as unknown as { __map: unknown }).__map = chartManager.map;
+}
+
+// Dev-only render harness: with `?testChart=1`, overlay the synthetic S-57 test
+// chart (public/test-chart.pmtiles, one MVT source-layer per S-57 class) and
+// render it through the REAL nautical styles, so a headless spec can verify
+// every feature class produces decent iconography + text. `?scheme=` selects
+// the symbology (pelorus-standard | iho-s52, default pelorus-standard).
+//
+// The test layers are added ON TOP of the live style, tagged with a `test-`
+// id prefix and their own `s57-test` source, so a spec can isolate them via
+// queryRenderedFeatures(...).filter(f => f.source === "s57-test"). ChartManager
+// rebuilds the style (setStyle) on every region-in-view change and on the
+// startup streaming-version refresh — which strips anything not in the
+// provider's style — so we re-apply on `styledata` (idempotently). We also pin
+// the sprite to the requested scheme's sheet: the app forces `iho-s52`
+// symbology (settings.load), so a pelorus-standard run would otherwise load the
+// s52 sprite and every `ecdis-*` icon would be missing. No effect on production
+// (gated behind import.meta.env.DEV and the URL param).
+if (import.meta.env.DEV) {
+  const testParams = new URLSearchParams(window.location.search);
+  if (testParams.get("testChart") === "1") {
+    const scheme: SymbologyScheme =
+      testParams.get("scheme") === "iho-s52" ? "iho-s52" : "pelorus-standard";
+    const TEST_SOURCE_ID = "s57-test";
+    const testWindow = window as unknown as { __missingIcons?: string[] };
+    testWindow.__missingIcons ??= [];
+    const missingIcons = testWindow.__missingIcons;
+    chartManager.map.on("styleimagemissing", (e) => {
+      missingIcons.push(e.id);
+    });
+
+    const ensureTestChart = (): void => {
+      const map = chartManager.map;
+      let style: ReturnType<typeof map.getStyle>;
+      try {
+        style = map.getStyle();
+      } catch {
+        return; // style not ready yet
+      }
+      if (!style?.layers) return;
+
+      // Pin the sprite to the requested scheme's sheet. ChartManager rebuilds
+      // the style (reverting the sprite) on region-in-view changes, so re-pin on
+      // each rebuild. The `!== wantSpriteUrl` guard makes it a no-op once
+      // applied (getStyle().sprite updates synchronously), so this doesn't loop.
+      // The app forces iho-s52 symbology (settings.load), so a pelorus-standard
+      // run swaps in the `nautical` sprite here.
+      const wantSprite = getIconScheme(
+        scheme,
+        getSettings().displayTheme,
+      ).sprite;
+      const wantSpriteUrl = `${window.location.origin}/sprites/${wantSprite}`;
+      if (typeof style.sprite === "string" && style.sprite !== wantSpriteUrl) {
+        map.setSprite(wantSpriteUrl);
+      }
+
+      if (!map.getSource(TEST_SOURCE_ID)) {
+        map.addSource(TEST_SOURCE_ID, {
+          type: "vector",
+          tiles: [
+            `pmtiles://${window.location.origin}/test-chart.pmtiles/{z}/{x}/{y}`,
+          ],
+          minzoom: 0,
+          maxzoom: 16,
+        });
+      }
+      const s = getSettings();
+      // detailOffset 2 → showStandard + showOther so EVERY class's layers build.
+      const layers = getNauticalLayers(
+        TEST_SOURCE_ID,
+        s.depthUnit,
+        2,
+        s.layerGroups,
+        undefined,
+        s.displayTheme,
+        scheme,
+        s.shallowDepth,
+        s.safetyDepth,
+        s.deepDepth,
+        s.textScale,
+        s.iconScale,
+      );
+      for (const layer of layers) {
+        // Skip the shared background (its id collides with the live style's).
+        if (layer.type === "background") continue;
+        const testLayer = { ...layer, id: `test-${layer.id}` };
+        if (!map.getLayer(testLayer.id)) map.addLayer(testLayer);
+      }
+      (window as unknown as { __testChartReady: boolean }).__testChartReady =
+        true;
+    };
+
+    // `styledata` fires after the initial load AND after every setStyle rebuild
+    // (incl. diff:true updates that drop our layers). Idempotent guards above
+    // make the re-entrant pass a no-op, so it converges.
+    chartManager.map.on("styledata", ensureTestChart);
+    ensureTestChart();
+  }
 }
 
 // Persist map position on every move so refresh restores it

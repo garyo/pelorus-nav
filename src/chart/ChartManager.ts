@@ -80,6 +80,12 @@ export class ChartManager {
       // No label cross-fade: a chartplotter wants labels immediately, and
       // every fade frame is a full (~1 s) panel refresh on e-ink.
       fadeDuration: 0,
+      // Dev only: keep the WebGL backbuffer readable so headless render
+      // harnesses can capture the chart via getCanvas().toDataURL(). Disabled
+      // in prod — preserving the buffer costs a copy each frame.
+      canvasContextAttributes: import.meta.env.DEV
+        ? { preserveDrawingBuffer: true }
+        : undefined,
     });
 
     this.activeProviderId = initialId;
