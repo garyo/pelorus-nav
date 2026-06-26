@@ -4,6 +4,7 @@
  * high-frequency updates aren't needed.
  */
 
+import { diag } from "../utils/diag";
 import { AdaptiveRateController, type AdaptiveRateState } from "./AdaptiveRate";
 import { gpsDiagLog } from "./GPSDiagnosticLog";
 import { GPSFilter } from "./GPSFilter";
@@ -32,6 +33,12 @@ const FAST_HW_SAMPLING_MS = 1000;
 /** Quality score above which we boost hardware polling in "auto" mode. */
 const HW_BOOST_QUALITY_THRESHOLD = 0.3;
 
+/** Diagnostic build: per-fix GPS trace to the native diag.log (pull via adb).
+ *  Flip off (or delete the diag calls) once the walk-test is analysed. */
+const GPS_TRACE = true;
+const tr = (n: number | null): string =>
+  n === null ? "-" : (Math.round(n * 100) / 100).toString();
+
 /** Floor for the staleness threshold so slow broadcast rates still flag a
  *  dropped link within a few seconds. */
 export const GPS_STALE_FLOOR_MS = 4000;
@@ -52,6 +59,8 @@ export class NavigationDataManager {
   private lastData: NavigationData | null = null;
   /** Wall-clock time of the last broadcast; drives fix-staleness detection. */
   private lastBroadcastWallMs = Number.NEGATIVE_INFINITY;
+  /** Wall-clock of last RAW fix into onData — GPS_TRACE inter-fix interval. */
+  private lastRawWallMs = 0;
 
   // GPS position filter (Kalman)
   private gpsFilter = new GPSFilter();
@@ -90,6 +99,19 @@ export class NavigationDataManager {
 
     const data = this.gpsFilter.filter(raw, q);
     this.lastData = data;
+
+    if (GPS_TRACE) {
+      const nowMs = Date.now();
+      const dt = this.lastRawWallMs ? nowMs - this.lastRawWallMs : 0;
+      this.lastRawWallMs = nowMs;
+      // raw_sog = module Doppler; filt_sog = Kalman-derived (what the UI shows).
+      diag(
+        "gps",
+        `fix dt=${dt} raw_sog=${tr(raw.sog)} raw_cog=${tr(raw.cog)} ` +
+          `filt_sog=${tr(data.sog)} filt_cog=${tr(data.cog)} acc=${tr(raw.accuracy)} ` +
+          `q=${tr(q)} tier=${this.adaptiveCtrl.getState().tier}`,
+      );
+    }
 
     // Notify quality listeners (main.ts feeds this into CourseSmoothing)
     for (const fn of this.qualityListeners) fn(q);
@@ -155,6 +177,15 @@ export class NavigationDataManager {
 
   private broadcast(data: NavigationData): void {
     this.clearDeferredTimer();
+    if (GPS_TRACE) {
+      const since = Number.isFinite(this.lastBroadcastWallMs)
+        ? Date.now() - this.lastBroadcastWallMs
+        : 0;
+      diag(
+        "gps",
+        `bcast dt=${since} sog=${tr(data.sog)} tier=${this.adaptiveCtrl.getState().tier}`,
+      );
+    }
     this.lastBroadcastWallMs = Date.now();
     for (const fn of this.listeners) {
       fn(data);

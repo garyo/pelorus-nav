@@ -411,6 +411,13 @@ export class TrackRecorder {
     await appendTrackPoint(this.currentTrack.id, point);
     this.currentTrack.pointCount++;
 
+    // Diagnostic build: trace each recorded point to compare the recorder's
+    // rate against the raw-fix / broadcast rate in the GPS_TRACE lines.
+    diag(
+      "rec",
+      `pt n=${this.currentTrack.pointCount} seg_m=${Math.round(segmentNM * 1852)} sog=${data.sog === null ? "-" : Math.round(data.sog * 100) / 100}`,
+    );
+
     // Persist meta only after the first point is in the store, so a meta
     // record always corresponds to ≥ 1 stored point.
     if (!this.trackPersisted) {
