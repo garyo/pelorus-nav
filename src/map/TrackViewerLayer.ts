@@ -169,11 +169,14 @@ export class TrackViewerLayer {
     if (lineSrc) {
       lineSrc.setData(line);
     } else {
-      // lineMetrics is required for line-gradient / line-progress
+      // lineMetrics is required for line-gradient / line-progress.
+      // tolerance:0 disables MapLibre's default tile-space simplification,
+      // which would otherwise decimate a track confined to a small area.
       this.map.addSource(SRC_LINE, {
         type: "geojson",
         data: line,
         lineMetrics: true,
+        tolerance: 0,
       });
     }
 

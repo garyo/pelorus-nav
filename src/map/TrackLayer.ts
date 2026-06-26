@@ -28,72 +28,8 @@ interface DisplayPoint {
 /** Minimum interval between display buffer points (ms). */
 const DISPLAY_INTERVAL_MS = 5000;
 
-/** Max points in display buffer before simplification is forced. */
+/** Max points in display buffer before the oldest are dropped. */
 const MAX_DISPLAY_POINTS = 6000;
-
-/** How often to run line simplification (every N points added). */
-const SIMPLIFY_EVERY = 50;
-
-/**
- * Perpendicular distance from point C to line A→B, in approximate meters.
- * Uses equirectangular approximation (fine for short distances).
- */
-function perpendicularDistMeters(
-  a: DisplayPoint,
-  b: DisplayPoint,
-  c: DisplayPoint,
-): number {
-  const cosLat = Math.cos((c.lat * Math.PI) / 180);
-  // Convert to approximate meters
-  const ax = a.lon * cosLat;
-  const ay = a.lat;
-  const bx = b.lon * cosLat;
-  const by = b.lat;
-  const cx = c.lon * cosLat;
-  const cy = c.lat;
-
-  const dx = bx - ax;
-  const dy = by - ay;
-  const lenSq = dx * dx + dy * dy;
-  if (lenSq === 0) {
-    // A and B are the same point
-    const ex = cx - ax;
-    const ey = cy - ay;
-    return Math.sqrt(ex * ex + ey * ey) * 111_320;
-  }
-
-  // Project C onto line AB, clamp to segment
-  const t = Math.max(0, Math.min(1, ((cx - ax) * dx + (cy - ay) * dy) / lenSq));
-  const px = ax + t * dx;
-  const py = ay + t * dy;
-  const ex = cx - px;
-  const ey = cy - py;
-  return Math.sqrt(ex * ex + ey * ey) * 111_320; // degrees to meters
-}
-
-/**
- * In-place line simplification: removes interior points whose perpendicular
- * distance to the segment formed by their neighbors is below threshold.
- * Single pass, O(n). Preserves first and last points.
- */
-function simplifyLine(points: DisplayPoint[], toleranceMeters: number): void {
-  if (points.length <= 3) return;
-
-  let write = 1; // index to write next kept point (0 is always kept)
-  for (let i = 1; i < points.length - 1; i++) {
-    const a = points[write - 1]; // last kept point
-    const b = points[i + 1]; // next point (always exists since i < length-1)
-    const c = points[i]; // candidate
-
-    if (perpendicularDistMeters(a, b, c) >= toleranceMeters) {
-      points[write] = points[i];
-      write++;
-    }
-  }
-  // Keep last point
-  points[write] = points[points.length - 1];
-  points.length = write + 1;
-}
 
 function sourceId(trackId: string): string {
   return `_track-${trackId}`;
@@ -109,7 +45,6 @@ export class TrackLayer {
   private loadedTracks = new Map<string, TrackMeta>();
   private activePoints: DisplayPoint[] = [];
   private lastDisplayTime = 0;
-  private addCounter = 0;
 
   constructor(
     map: maplibregl.Map,
@@ -131,7 +66,6 @@ export class TrackLayer {
         // Save final state and reload
         this.activePoints = [];
         this.lastDisplayTime = 0;
-        this.addCounter = 0;
         this.reloadAll();
       }
     });
@@ -199,6 +133,10 @@ export class TrackLayer {
     this.map.addSource(sid, {
       type: "geojson",
       data: this.lineGeoJSON(coords),
+      // Render the track faithfully — MapLibre's default 0.375 tile-space
+      // simplification decimates a track sitting in a small area down to a
+      // handful of points. We keep our own (already sparse) buffer instead.
+      tolerance: 0,
     });
 
     this.map.addLayer({
@@ -358,14 +296,10 @@ export class TrackLayer {
       lat: data.latitude,
       timestamp: now,
     });
-    this.addCounter++;
 
-    // Periodically simplify: remove near-collinear points (5m tolerance)
-    if (this.addCounter % SIMPLIFY_EVERY === 0) {
-      simplifyLine(this.activePoints, 5);
-    }
-
-    // Hard cap: drop oldest points if still over budget after simplification
+    // Memory bound only — drop oldest points past the cap. No live
+    // simplification: the buffer is already sparse (≤1 point / 5 s) and a
+    // modern device renders thousands of line vertices without trouble.
     while (this.activePoints.length > MAX_DISPLAY_POINTS) {
       this.activePoints.shift();
     }

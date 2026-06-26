@@ -31,8 +31,14 @@ const M_PER_DEG = 111_111;
 const KN_PER_DEG_S = (M_PER_DEG * 3600) / 1852;
 
 export interface RTSConfig {
-  /** Process-noise acceleration (deg/s²). Same default as GPSFilter. */
+  /** Process-noise acceleration (deg/s²) for the final output smooth. Kept in
+   *  sync with GPSFilter so real manoeuvres stay crisp. */
   processNoiseAccel: number;
+  /** Process-noise acceleration (deg/s²) for the outlier-detection passes. A
+   *  spike is flagged by how far the smoothed path pulls away from it, so
+   *  detection needs a *heavier* (lower) value than the output smooth — at the
+   *  output value the smoothed path chases the spike and it goes unflagged. */
+  outlierProcessNoiseAccel: number;
   /** Measurement-noise standard deviation (m) when accuracy is unknown. */
   defaultAccuracyM: number;
   /** Floor for measurement noise (m); prevents over-trust of optimistic fixes. */
@@ -46,7 +52,13 @@ export interface RTSConfig {
 }
 
 export const DEFAULT_RTS_CONFIG: Readonly<RTSConfig> = {
-  processNoiseAccel: 5e-6,
+  // Output smooth matches GPSFilter (2e-5). At 5e-6 the smoother over-trusted
+  // the constant-velocity model and rounded real corners on good GPS; 2e-5
+  // tracks the measurements closely (corners stay sharp) while the backward
+  // RTS pass still removes jitter. Detection runs separately at the heavier
+  // 5e-6 so genuine spikes still stand out — see outlierProcessNoiseAccel.
+  processNoiseAccel: 2e-5,
+  outlierProcessNoiseAccel: 5e-6,
   defaultAccuracyM: 10,
   minAccuracyM: 3,
   outlierFloorM: 20,
@@ -88,10 +100,18 @@ export function smoothTrack(
     };
   }
 
+  // Outlier detection runs with the heavier detection Q so spikes produce a
+  // large raw→smoothed shift; the final output smooth (below) uses the lighter
+  // cfg.processNoiseAccel so real manoeuvres keep their corners.
+  const detCfg: RTSConfig = {
+    ...cfg,
+    processNoiseAccel: cfg.outlierProcessNoiseAccel,
+  };
+
   // First-pass shifts and threshold are kept for telemetry (so callers
   // can see what the smoother thought of the raw track without iteration
   // muddying the picture).
-  const firstPass = runForwardBackward(points, cfg);
+  const firstPass = runForwardBackward(points, detCfg);
   const firstShifts = firstPass.smoothed.map((s, i) =>
     metresBetween(points[i].lat, points[i].lon, s.lat, s.lon),
   );
@@ -105,12 +125,11 @@ export function smoothTrack(
   const working = points.map((p) => ({ ...p }));
   const workingOrigIdx = points.map((_, i) => i);
   const outlierOrigIndices: number[] = [];
-  let lastPass = firstPass;
   // Hard cap to keep this bounded if something unexpected happens.
   const maxDrops = Math.floor(points.length / 5);
   for (let iter = 0; iter < maxDrops; iter++) {
     if (working.length < cfg.minPointsForSmoothing) break;
-    const pass = runForwardBackward(working, cfg);
+    const pass = runForwardBackward(working, detCfg);
     const shifts = pass.smoothed.map((s, i) =>
       metresBetween(working[i].lat, working[i].lon, s.lat, s.lon),
     );
@@ -123,21 +142,18 @@ export function smoothTrack(
         worst = i;
       }
     }
-    if (worst === -1) {
-      lastPass = pass;
-      break;
-    }
+    if (worst === -1) break;
     outlierOrigIndices.push(workingOrigIdx[worst]);
     working.splice(worst, 1);
     workingOrigIdx.splice(worst, 1);
-    lastPass = pass; // note: this still includes the just-dropped point
   }
   outlierOrigIndices.sort((a, b) => a - b);
 
-  // Final smooth without the outliers, then map back to original indices.
+  // Final smooth (without the outliers) at the lighter output Q, then map
+  // back to original indices. Outliers keep their raw lat/lon.
   let finalSmoothed: TrackPoint[];
   if (outlierOrigIndices.length === 0) {
-    finalSmoothed = lastPass.smoothed;
+    finalSmoothed = runForwardBackward(points, cfg).smoothed;
   } else {
     const finalPass =
       working.length >= cfg.minPointsForSmoothing

@@ -42,7 +42,65 @@ function p95(xs: number[]): number {
   return s[Math.floor(s.length * 0.95)];
 }
 
+/** L-shaped track: `half` points east, then `half` points north, sharing the
+ *  apex vertex at index `half - 1`. Used to test corner preservation. */
+function lTrack(
+  half = 15,
+  startLat = 42.0,
+  startLon = -71.0,
+  stepM = 5,
+  intervalMs = 5000,
+): TrackPoint[] {
+  const cosLat = Math.cos((startLat * Math.PI) / 180);
+  const lonStep = stepM / (M_PER_DEG * cosLat);
+  const latStep = stepM / M_PER_DEG;
+  const apexLon = startLon + (half - 1) * lonStep;
+  const pts: TrackPoint[] = [];
+  for (let i = 0; i < half; i++) {
+    pts.push({
+      lat: startLat,
+      lon: startLon + i * lonStep,
+      timestamp: pts.length * intervalMs,
+      sog: null,
+      cog: null,
+    });
+  }
+  for (let i = 1; i < half; i++) {
+    pts.push({
+      lat: startLat + i * latStep,
+      lon: apexLon,
+      timestamp: pts.length * intervalMs,
+      sog: null,
+      cog: null,
+    });
+  }
+  return pts;
+}
+
 describe("smoothTrack — synthetic", () => {
+  it("preserves a sharp corner with the light output Q", () => {
+    const pts = lTrack(15);
+    const apex = 14; // last east-going point, where the 90° bend happens
+    const light = smoothTrack(pts); // default output Q = 2e-5
+    const heavy = smoothTrack(pts, { processNoiseAccel: 5e-6 });
+
+    // A clean track — neither pass should flag the corner as an outlier.
+    expect(light.outliers).toEqual([]);
+    expect(heavy.outliers).toEqual([]);
+
+    const apexShift = (r: ReturnType<typeof smoothTrack>) =>
+      M_PER_DEG *
+      Math.hypot(
+        r.smoothed[apex].lat - pts[apex].lat,
+        (r.smoothed[apex].lon - pts[apex].lon) *
+          Math.cos((pts[apex].lat * Math.PI) / 180),
+      );
+
+    // The light output Q rounds the corner far less than the old heavy value.
+    expect(apexShift(light)).toBeLessThan(apexShift(heavy));
+    expect(apexShift(light)).toBeLessThan(2); // apex stays within ~2 m of raw
+  });
+
   it("returns a clean straight line essentially unchanged", () => {
     const pts = straightLine(20);
     const r = smoothTrack(pts);
