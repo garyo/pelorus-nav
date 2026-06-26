@@ -7,7 +7,7 @@
  */
 
 import { describe, expect, it } from "vitest";
-import { IHO_S52, PELORUS_STANDARD, SIMPLIFIED_MINIMAL } from "./icon-sets";
+import { IHO_S52 } from "./icon-sets";
 import { resolveIcon } from "./test-helpers";
 
 // ── Icon set completeness ──────────────────────────────────────────────
@@ -57,11 +57,7 @@ const REQUIRED_KEYS = [
 ];
 
 describe("icon set completeness", () => {
-  for (const [name, set] of [
-    ["PELORUS_STANDARD", PELORUS_STANDARD],
-    ["IHO_S52", IHO_S52],
-    ["SIMPLIFIED_MINIMAL", SIMPLIFIED_MINIMAL],
-  ] as const) {
+  for (const [name, set] of [["IHO_S52", IHO_S52]] as const) {
     describe(name, () => {
       for (const key of REQUIRED_KEYS) {
         it(`has "${key}"`, () => {
@@ -268,25 +264,6 @@ describe("LIGHTS icon resolution", () => {
     expect(green).not.toBe(white);
     expect(red).not.toBe(white);
   });
-
-  // Pelorus set differentiates major/minor
-  it("Pelorus: high VALNMR (>=10) → major light", () => {
-    const icon = resolveIcon(
-      "LIGHTS",
-      { COLOUR: "3", VALNMR: 15 },
-      PELORUS_STANDARD,
-    );
-    expect(icon).toContain("major");
-  });
-
-  it("Pelorus: low VALNMR (<10) → minor light", () => {
-    const icon = resolveIcon(
-      "LIGHTS",
-      { COLOUR: "3", VALNMR: 5 },
-      PELORUS_STANDARD,
-    );
-    expect(icon).toContain("minor");
-  });
 });
 
 // ── Colour padding correctness ─────────────────────────────────────────
@@ -325,33 +302,5 @@ describe("colour expression correctness", () => {
     expect(iconBoth).toBe("BOYSPP35"); // special-wo
     expect(iconWhiteOnly).not.toBe("BOYSPP35");
     expect(iconOrangeOnly).not.toBe("BOYSPP35");
-  });
-});
-
-// ── Pelorus Standard consistency ───────────────────────────────────────
-
-describe("Pelorus Standard icon set", () => {
-  it("can and conical port buoys have different sprites", () => {
-    expect(PELORUS_STANDARD["lateral-port-can"]).not.toBe(
-      PELORUS_STANDARD["lateral-port-conical"],
-    );
-  });
-
-  it("can and conical stbd buoys have different sprites", () => {
-    expect(PELORUS_STANDARD["lateral-stbd-can"]).not.toBe(
-      PELORUS_STANDARD["lateral-stbd-conical"],
-    );
-  });
-
-  it("port and stbd buoys have different sprites (can)", () => {
-    expect(PELORUS_STANDARD["lateral-port-can"]).not.toBe(
-      PELORUS_STANDARD["lateral-stbd-can"],
-    );
-  });
-
-  it("port and stbd buoys have different sprites (conical)", () => {
-    expect(PELORUS_STANDARD["lateral-port-conical"]).not.toBe(
-      PELORUS_STANDARD["lateral-stbd-conical"],
-    );
   });
 });

@@ -25,7 +25,6 @@ import {
 } from "./chart/raster-charts";
 import { SafetyContour } from "./chart/SafetyContour";
 import { getNauticalLayers } from "./chart/styles";
-import { getIconScheme } from "./chart/styles/icon-sets";
 import {
   getStreamingVersions,
   refreshStreamingVersions,
@@ -74,12 +73,7 @@ import { LegendHost } from "./plugins/legend";
 import { BUILTIN_PLUGINS } from "./plugins/manifest";
 import { PluginManager } from "./plugins/PluginManager";
 import { PickRegistry } from "./plugins/picking";
-import {
-  getSettings,
-  onSettingsChange,
-  type SymbologyScheme,
-  updateSettings,
-} from "./settings";
+import { getSettings, onSettingsChange, updateSettings } from "./settings";
 import { AboutDialog } from "./ui/AboutDialog";
 import { startAppUpdateNotifier } from "./ui/AppUpdateNotifier";
 import { CancelNavButton } from "./ui/CancelNavButton";
@@ -254,24 +248,19 @@ if (import.meta.env.DEV) {
 // Dev-only render harness: with `?testChart=1`, overlay the synthetic S-57 test
 // chart (public/test-chart.pmtiles, one MVT source-layer per S-57 class) and
 // render it through the REAL nautical styles, so a headless spec can verify
-// every feature class produces decent iconography + text. `?scheme=` selects
-// the symbology (pelorus-standard | iho-s52, default pelorus-standard).
+// every feature class produces decent iconography + text.
 //
 // The test layers are added ON TOP of the live style, tagged with a `test-`
 // id prefix and their own `s57-test` source, so a spec can isolate them via
 // queryRenderedFeatures(...).filter(f => f.source === "s57-test"). ChartManager
 // rebuilds the style (setStyle) on every region-in-view change and on the
 // startup streaming-version refresh — which strips anything not in the
-// provider's style — so we re-apply on `styledata` (idempotently). We also pin
-// the sprite to the requested scheme's sheet: the app forces `iho-s52`
-// symbology (settings.load), so a pelorus-standard run would otherwise load the
-// s52 sprite and every `ecdis-*` icon would be missing. No effect on production
-// (gated behind import.meta.env.DEV and the URL param).
+// provider's style — so we re-apply on `styledata` (idempotently). The app
+// always uses iho-s52 symbology, so the live sprite already matches the test
+// layers. No effect on production (gated behind import.meta.env.DEV + URL param).
 if (import.meta.env.DEV) {
   const testParams = new URLSearchParams(window.location.search);
   if (testParams.get("testChart") === "1") {
-    const scheme: SymbologyScheme =
-      testParams.get("scheme") === "iho-s52" ? "iho-s52" : "pelorus-standard";
     const TEST_SOURCE_ID = "s57-test";
     const testWindow = window as unknown as { __missingIcons?: string[] };
     testWindow.__missingIcons ??= [];
@@ -289,21 +278,6 @@ if (import.meta.env.DEV) {
         return; // style not ready yet
       }
       if (!style?.layers) return;
-
-      // Pin the sprite to the requested scheme's sheet. ChartManager rebuilds
-      // the style (reverting the sprite) on region-in-view changes, so re-pin on
-      // each rebuild. The `!== wantSpriteUrl` guard makes it a no-op once
-      // applied (getStyle().sprite updates synchronously), so this doesn't loop.
-      // The app forces iho-s52 symbology (settings.load), so a pelorus-standard
-      // run swaps in the `nautical` sprite here.
-      const wantSprite = getIconScheme(
-        scheme,
-        getSettings().displayTheme,
-      ).sprite;
-      const wantSpriteUrl = `${window.location.origin}/sprites/${wantSprite}`;
-      if (typeof style.sprite === "string" && style.sprite !== wantSpriteUrl) {
-        map.setSprite(wantSpriteUrl);
-      }
 
       if (!map.getSource(TEST_SOURCE_ID)) {
         map.addSource(TEST_SOURCE_ID, {
@@ -324,7 +298,7 @@ if (import.meta.env.DEV) {
         s.layerGroups,
         undefined,
         s.displayTheme,
-        scheme,
+        "iho-s52",
         s.shallowDepth,
         s.safetyDepth,
         s.deepDepth,

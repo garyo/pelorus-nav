@@ -9,139 +9,6 @@ import type { DisplayTheme, SymbologyScheme } from "../../settings";
  * sprite sheet — no tile regeneration needed.
  */
 
-/** Pelorus Standard symbol set (hand-drawn ECDIS-style icons). */
-export const PELORUS_STANDARD: Record<string, string> = {
-  // Lateral buoys
-  "lateral-port-conical": "ecdis-buoy-conical-green",
-  "lateral-stbd-conical": "ecdis-buoy-conical-red",
-  "lateral-port-can": "ecdis-buoy-can-green",
-  "lateral-stbd-can": "ecdis-buoy-can-red",
-  "lateral-port-pillar": "ecdis-buoy-pillar-green",
-  "lateral-stbd-pillar": "ecdis-buoy-pillar-red",
-  "lateral-port-spar": "ecdis-buoy-spar-green",
-  "lateral-stbd-spar": "ecdis-buoy-spar-red",
-  "lateral-port-spherical": "ecdis-buoy-spherical-rw",
-  "lateral-stbd-spherical": "ecdis-buoy-spherical-rw",
-
-  // Preferred channel (banded) buoys
-  "preferred-port": "ecdis-buoy-can-rg",
-  "preferred-stbd": "ecdis-buoy-can-gr",
-
-  // Special buoys (shape-specific)
-  safewater: "ecdis-buoy-spherical-rw",
-  special: "ecdis-buoy-pillar-yellow",
-  "special-conical": "ecdis-buoy-pillar-yellow",
-  "special-can": "ecdis-buoy-pillar-yellow",
-  "special-pillar": "ecdis-buoy-pillar-yellow",
-  "special-wo": "ecdis-buoy-pillar-wo",
-  "special-spar": "ecdis-buoy-pillar-yellow",
-  "lateral-spar": "ecdis-buoy-default",
-  superbuoy: "ecdis-buoy-pillar-yellow",
-  "isolated-danger": "ecdis-buoy-isolated-danger",
-
-  // Cardinal buoys
-  "cardinal-n": "ecdis-buoy-cardinal-n",
-  "cardinal-s": "ecdis-buoy-cardinal-s",
-  "cardinal-e": "ecdis-buoy-cardinal-e",
-  "cardinal-w": "ecdis-buoy-cardinal-w",
-
-  // Beacons
-  "beacon-port": "ecdis-beacon-green",
-  "beacon-stbd": "ecdis-beacon-red",
-  "beacon-cardinal": "ecdis-beacon-cardinal",
-  "beacon-cardinal-n": "ecdis-beacon-cardinal",
-  "beacon-cardinal-s": "ecdis-beacon-cardinal",
-  "beacon-cardinal-e": "ecdis-beacon-cardinal",
-  "beacon-cardinal-w": "ecdis-beacon-cardinal",
-  "beacon-default": "ecdis-beacon-default",
-
-  // Lights (color-specific; Pelorus Standard uses same icon for all colors)
-  "light-major-red": "ecdis-light-major",
-  "light-major-green": "ecdis-light-major",
-  "light-major-white": "ecdis-light-major",
-  "light-minor-red": "ecdis-light-minor",
-  "light-minor-green": "ecdis-light-minor",
-  "light-minor-white": "ecdis-light-minor",
-
-  // Isolated danger overlay (S-52 UDWHAZ05)
-  "isolated-danger-symbol": "ecdis-isolated-danger",
-
-  // Hazards
-  "wreck-dangerous": "ecdis-wreck-dangerous",
-  "wreck-nondangerous": "ecdis-wreck-nondangerous",
-  "wreck-mast": "ecdis-wreck-mast",
-  obstruction: "ecdis-obstruction",
-  "obstruction-foul": "ecdis-obstruction-foul",
-  "rock-underwater": "ecdis-rock-underwater",
-  "rock-awash": "ecdis-rock-awash",
-  "rock-above": "ecdis-rock-above",
-
-  // Hazard areas
-  "water-turbulence": "ecdis-wattur",
-
-  // Traffic separation
-  "tss-arrow": "ecdis-tss-arrow",
-
-  // Caution
-  "caution-area": "ecdis-ctnare",
-
-  // Area patterns
-  "nodata-pattern": "ecdis-nodata03",
-  "marsh-pattern": "ecdis-marshes",
-  "foul-pattern": "ecdis-foular",
-
-  // Other
-  fogsig: "ecdis-fogsig",
-  mooring: "ecdis-mooring",
-  piling: "ecdis-piling",
-  "bridge-symbol": "ecdis-bridge-symbol",
-
-  // Special beacons
-  "beacon-special": "ecdis-beacon-special",
-
-  // Daymarks
-  "daymark-square-red": "ecdis-daymark-square-red",
-  "daymark-square-green": "ecdis-daymark-square-green",
-  "daymark-triangle-red": "ecdis-daymark-triangle-red",
-  "daymark-triangle-green": "ecdis-daymark-triangle-green",
-
-  // Topmarks
-  "topmark-cone-up": "ecdis-topmark-cone-up",
-  "topmark-cone-down": "ecdis-topmark-cone-down",
-  "topmark-2cones-up": "ecdis-topmark-2cones-up",
-  "topmark-2cones-down": "ecdis-topmark-2cones-down",
-  "topmark-2cones-base-to-base": "ecdis-topmark-2cones-up",
-  "topmark-2cones-point-to-point": "ecdis-topmark-2cones-down",
-  "topmark-sphere": "ecdis-topmark-sphere",
-  "topmark-2spheres": "ecdis-topmark-sphere",
-  "topmark-cylinder": "ecdis-topmark-sphere",
-  "topmark-board": "ecdis-topmark-sphere",
-  "topmark-x": "ecdis-topmark-x",
-  "topmark-flag": "ecdis-topmark-sphere",
-  "topmark-t-shape": "ecdis-topmark-sphere",
-
-  // Infrastructure
-  harbor: "ecdis-harbor",
-  platform: "ecdis-platform",
-  tank: "ecdis-tank",
-
-  // Landmarks
-  "landmark-tower": "ecdis-landmark-tower",
-  "landmark-chimney": "ecdis-landmark-chimney",
-  "landmark-windmotor": "ecdis-landmark-windmotor",
-  "landmark-windmill": "ecdis-landmark-windmill",
-  "landmark-monument": "ecdis-landmark-monument",
-  "landmark-flagstaff": "ecdis-landmark-flagstaff",
-  "landmark-dome": "ecdis-landmark-default",
-  "landmark-dish-aerial": "ecdis-landmark-default",
-  "landmark-flare-stack": "ecdis-landmark-default",
-  "landmark-mosque": "ecdis-landmark-default",
-  "landmark-church": "ecdis-landmark-default",
-  "landmark-cairn": "ecdis-landmark-default",
-  "landmark-radar-scanner": "ecdis-landmark-default",
-  "landmark-default": "ecdis-landmark-default",
-};
-
 /**
  * IHO S-52 symbol set — official symbols from the IHO S-101 Portrayal Catalogue.
  * Maps semantic SYMBOL names to S-52 sprite names (from s52-{theme} sprite sheets).
@@ -330,15 +197,6 @@ export const IHO_S52: Record<string, string> = {
 };
 
 /**
- * Simplified minimal symbol set — reduced set for e-ink / low-detail displays.
- * Uses the same sprite names as Pelorus Standard for now;
- * future sprite sheets will provide minimal, high-contrast symbols.
- */
-export const SIMPLIFIED_MINIMAL: Record<string, string> = {
-  ...PELORUS_STANDARD,
-};
-
-/**
  * Per-symbol icon-offset data for S-52 symbols (from symbols.json).
  * Values represent the shift needed to align the symbol's pivot point
  * with the geographic location. Format: [dx, dy] in pixels.
@@ -485,13 +343,6 @@ interface SchemeConfig {
 
 /** Map scheme ID to the icon set mapping and sprite sheet prefix. */
 const SCHEME_MAP: Record<SymbologyScheme, SchemeConfig> = {
-  "pelorus-standard": {
-    icons: PELORUS_STANDARD,
-    sprite: "nautical",
-    fallback: "ecdis-buoy-default",
-    iconSizeScale: { eink: 1.5 },
-    hasOffsets: false,
-  },
   "iho-s52": {
     icons: IHO_S52,
     sprite: {
@@ -503,13 +354,6 @@ const SCHEME_MAP: Record<SymbologyScheme, SchemeConfig> = {
     fallback: "BCNGEN01",
     iconSizeScale: { eink: 1.5 },
     hasOffsets: true,
-  },
-  "simplified-minimal": {
-    icons: SIMPLIFIED_MINIMAL,
-    sprite: "nautical",
-    fallback: "ecdis-buoy-default",
-    iconSizeScale: { eink: 1.5 },
-    hasOffsets: false,
   },
 };
 

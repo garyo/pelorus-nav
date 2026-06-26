@@ -73,16 +73,7 @@ interface SpriteSet {
   slackArrow: string;
 }
 
-const NAUTICAL_SPRITES: SpriteSet = {
-  tideNeutral: "ecdis-tide-station",
-  tideGauge: [0, 1, 2, 3, 4].map((i) => `ecdis-tide-gauge-${i}`),
-  arrow: [0, 1, 2, 3, 4].map((i) => `ecdis-current-arrow-${i}`),
-  slackArrow: "ecdis-slack-arrow",
-};
-
 const SPRITES: Record<SymbologyScheme, SpriteSet> = {
-  "pelorus-standard": NAUTICAL_SPRITES,
-  "simplified-minimal": NAUTICAL_SPRITES,
   "iho-s52": {
     tideNeutral: "PELTID01",
     tideGauge: [0, 1, 2, 3, 4].map((i) => `PELTIDG${i}`),
@@ -164,7 +155,7 @@ export class TidesOverlay implements MapOverlay {
     });
 
     const s = this.host.settings.get();
-    const sprites = SPRITES[s.symbologyScheme] ?? SPRITES["pelorus-standard"];
+    const sprites = SPRITES[s.symbologyScheme] ?? SPRITES["iho-s52"];
     const iconScale = s.iconScale;
     const textScale = s.textScale;
     // Arrows appear one zoom after tide icons; speed labels one later still.

@@ -18,7 +18,7 @@
     "format": "biome format --write .",
     "typecheck": "tsc --noEmit && tsc -p tsconfig.worker.json --noEmit",
     "check": "bun run typecheck && bun run lint && bun run test",
-    "sprites": "spreet tools/sprites/svg public/sprites/nautical && spreet --retina tools/sprites/svg public/sprites/nautical@2x && printf '\\n' >> public/sprites/nautical.json && printf '\\n' >> public/sprites/nautical@2x.json && bun tools/sprites/build-s52-sprites.ts",
+    "sprites": "bun tools/sprites/build-s52-sprites.ts",
     "sprites:catalog": "uv run --with reportlab --with svglib python tools/sprites/render-sprite-catalog.py",
     "tides:build": "bun tools/tides/build-bundle.ts",
     "tiles": "tools/build-tiles.sh --build --region boston-test",

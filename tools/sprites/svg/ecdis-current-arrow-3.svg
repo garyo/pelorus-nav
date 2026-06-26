@@ -1,7 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="40" height="80" viewBox="0 0 20 40">
-  <!-- Tidal current arrow, filled to 75% of cycle max; points up, rotated to set -->
-  <defs><clipPath id="a"><path d="M 10,2 L 18,16 L 13,16 L 13,38 L 7,38 L 7,16 L 2,16 Z"/></clipPath></defs>
-  <path d="M 10,2 L 18,16 L 13,16 L 13,38 L 7,38 L 7,16 L 2,16 Z" fill="#FFF3E8" fill-opacity="0.8"/>
-  <rect x="0" y="11" width="20" height="27" fill="#E38039" clip-path="url(#a)"/>
-  <path d="M 10,2 L 18,16 L 13,16 L 13,38 L 7,38 L 7,16 L 2,16 Z" fill="none" stroke="#5A3208" stroke-width="1.2" stroke-linejoin="round"/>
-</svg>

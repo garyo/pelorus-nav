@@ -333,7 +333,7 @@ export function getNauticalLayers(
   layerGroups: Record<string, boolean> = {},
   coverageSourceId?: string,
   theme: DisplayTheme = "day",
-  symbology: SymbologyScheme = "pelorus-standard",
+  symbology: SymbologyScheme = "iho-s52",
   shallowDepth = 5,
   safetyDepth = 5,
   deepDepth = 20,

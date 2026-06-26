@@ -17,10 +17,7 @@ export type StreetUnderlayMode = "auto" | "osm" | "off";
  * "vector" = hide raster entirely; "raster" = raster on top of ENC.
  */
 export type ChartBlend = "auto" | "vector" | "raster";
-export type SymbologyScheme =
-  | "pelorus-standard"
-  | "iho-s52"
-  | "simplified-minimal";
+export type SymbologyScheme = "iho-s52";
 export type GpsRateMode = "adaptive" | "manual";
 /**
  * "auto" detects jittery hardware and smooths harder only when needed.
@@ -274,7 +271,8 @@ function load(): Settings {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (raw) {
       const parsed = JSON.parse(raw) as Partial<Settings>;
-      // Only IHO S-52 symbology is supported (the chooser was removed)
+      // Only IHO S-52 symbology is supported. Coerce any stored value
+      // (incl. legacy "pelorus-standard"/"simplified-minimal") to the one scheme.
       parsed.symbologyScheme = "iho-s52";
       const legacy = parsed as Record<string, unknown>;
       // v2: street underlay became on-by-default

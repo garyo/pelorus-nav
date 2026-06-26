@@ -167,20 +167,18 @@ formatters). Toggled by the "Tides & Currents" layer group (default off).
   (bundled for Noto Sans Regular).
 
 ## Sprites
-The app uses **two separate sprite systems** — both must be updated when adding a new symbol:
+The app uses a single sprite system: **IHO S-52** (the only symbology scheme).
 
-1. **Nautical sprites** (`tools/sprites/svg/`) — used by Pelorus Standard and Minimal symbology.
-   SVGs go in `tools/sprites/svg/`, use hardcoded colors, named `ecdis-*.svg`.
-
-2. **S-52 sprites** (`tools/sprites/s52/source/`) — used by IHO S-52 symbology.
-   SVGs go in `tools/sprites/s52/source/`, use CSS color classes (`fCHBLK`, `sCHMGD`, `fISDNG`, etc.)
-   that are replaced per-theme (day/dusk/night/eink). Named with S-52 symbol codes (e.g., `ISODGR01.svg`).
-   Color class reference: `tools/sprites/s52/daySvgStyle.css` and `tools/sprites/s52/colours.json`.
+**S-52 sprites** (`tools/sprites/s52/source/`) — SVGs go in `tools/sprites/s52/source/`, use CSS
+color classes (`fCHBLK`, `sCHMGD`, `fISDNG`, etc.) that are replaced per-theme (day/dusk/night/eink).
+Named with S-52 symbol codes (e.g., `ISODGR01.svg`). Built into per-theme sheets
+(`public/sprites/s52-{day,dusk,night,eink}.{json,png}` + `@2x`).
+Color class reference: `tools/sprites/s52/daySvgStyle.css` and `tools/sprites/s52/colours.json`.
 
 **Rebuild sprites** after any change: `bun run sprites`
 
-The active symbology scheme determines which sprite sheet MapLibre loads. If a symbol is referenced in a
-layer's `icon-image` but only exists in the wrong sprite sheet, MapLibre will log
+The active display theme selects which S-52 sheet MapLibre loads. If a symbol is referenced in a
+layer's `icon-image` but missing from the sprite sheet, MapLibre will log
 "Image could not be loaded" and show nothing.
 
 ## Fonts / glyphs

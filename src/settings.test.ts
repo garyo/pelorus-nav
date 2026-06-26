@@ -25,6 +25,22 @@ describe("settings migration", () => {
     vi.resetModules();
   });
 
+  it("coerces a legacy simplified-minimal symbology to iho-s52", async () => {
+    const stored = {
+      settingsVersion: 2,
+      symbologyScheme: "simplified-minimal",
+    };
+    vi.stubGlobal("localStorage", {
+      getItem: () => JSON.stringify(stored),
+      setItem: () => {},
+    });
+    vi.resetModules();
+    const { getSettings } = await import("./settings");
+    expect(getSettings().symbologyScheme).toBe("iho-s52");
+    vi.unstubAllGlobals();
+    vi.resetModules();
+  });
+
   it("migrates a v2 user's choice to turn the OSM underlay off", async () => {
     const stored = { settingsVersion: 2, showOSMUnderlay: false };
     vi.stubGlobal("localStorage", {

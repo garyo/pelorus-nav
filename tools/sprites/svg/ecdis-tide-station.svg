@@ -1,6 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24">
-  <!-- Tide station: circled water-level waves -->
-  <circle cx="12" cy="12" r="10" fill="#FFFFFF" fill-opacity="0.85" stroke="#0066CC" stroke-width="2"/>
-  <path d="M 5,10 q 3.5,-3 7,0 t 7,0" fill="none" stroke="#0066CC" stroke-width="1.8" stroke-linecap="round"/>
-  <path d="M 5,15 q 3.5,-3 7,0 t 7,0" fill="none" stroke="#0066CC" stroke-width="1.8" stroke-linecap="round"/>
-</svg>

@@ -19,8 +19,7 @@ import { test } from "@playwright/test";
  *   renders/contact-<scheme>.png       montage (if ImageMagick is present)
  *
  * Primary value is the programmatic report (missing icons + blank POINT
- * classes); screenshots are secondary. Full screenshots are captured for
- * pelorus-standard; iho-s52 collects programmatic data only (sampled shots).
+ * classes); per-variant screenshots are captured as a secondary artifact.
  */
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -64,7 +63,7 @@ const manifest: Manifest = JSON.parse(
   readFileSync(join(OUT, "manifest.json"), "utf8"),
 );
 
-const SCHEMES = ["pelorus-standard", "iho-s52"] as const;
+const SCHEMES = ["iho-s52"] as const;
 type Scheme = (typeof SCHEMES)[number];
 
 // The probe runs inside the page; types here mirror the shape we use.
@@ -85,11 +84,9 @@ test("S-57 test-chart render coverage", async ({ page }) => {
   test.setTimeout(40 * 60 * 1000);
 
   const results: Record<Scheme, VariantResult[]> = {
-    "pelorus-standard": [],
     "iho-s52": [],
   };
   const missingBySchemeSet: Record<Scheme, Set<string>> = {
-    "pelorus-standard": new Set(),
     "iho-s52": new Set(),
   };
 
@@ -99,8 +96,6 @@ test("S-57 test-chart render coverage", async ({ page }) => {
   ];
 
   for (const scheme of SCHEMES) {
-    const captureShots = scheme === "pelorus-standard";
-
     // Seed settings before boot: day theme, no GPS, no network underlays, the
     // chosen symbology (so the sprite sheet the style loads matches the layers
     // the test hook builds).
@@ -239,16 +234,14 @@ test("S-57 test-chart render coverage", async ({ page }) => {
         ...probe,
       });
 
-      if (captureShots) {
-        const dataUrl = await page.evaluate(() => {
-          const m = (window as unknown as { __map: ProbeMap }).__map;
-          return m.getCanvas().toDataURL("image/png");
-        });
-        const b64 = dataUrl.replace(/^data:image\/png;base64,/, "");
-        const dir = join(RENDERS, scheme);
-        if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
-        writeFileSync(join(dir, `${v.id}.png`), Buffer.from(b64, "base64"));
-      }
+      const dataUrl = await page.evaluate(() => {
+        const m = (window as unknown as { __map: ProbeMap }).__map;
+        return m.getCanvas().toDataURL("image/png");
+      });
+      const b64 = dataUrl.replace(/^data:image\/png;base64,/, "");
+      const dir = join(RENDERS, scheme);
+      if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
+      writeFileSync(join(dir, `${v.id}.png`), Buffer.from(b64, "base64"));
     }
 
     const missing = await page.evaluate(

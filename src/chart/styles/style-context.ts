@@ -339,7 +339,7 @@ export function createStyleContext(
   layerGroups: Record<string, boolean>,
   theme: DisplayTheme,
   coverageSourceId?: string,
-  symbology: SymbologyScheme = "pelorus-standard",
+  symbology: SymbologyScheme = "iho-s52",
   shallowDepth = 5,
   safetyDepth = 5,
   deepDepth = 20,
