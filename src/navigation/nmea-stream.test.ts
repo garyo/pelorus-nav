@@ -9,12 +9,19 @@ function withChecksum(body: string): string {
   return `$${body}*${cs.toString(16).toUpperCase().padStart(2, "0")}`;
 }
 
-const RMC = withChecksum(
-  "GPRMC,123519,A,4807.038,N,01131.000,E,022.4,084.4,230394,,",
-);
-const GGA = withChecksum(
-  "GPGGA,123520,4807.500,N,01131.200,E,1,08,0.9,545.4,M,46.9,M,,",
-);
+/** RMC at a given time-of-fix (carries SOG/COG, no accuracy). */
+function rmc(time: string, sog = "022.4", cog = "084.4"): string {
+  return withChecksum(
+    `GPRMC,${time},A,4807.038,N,01131.000,E,${sog},${cog},230394,,`,
+  );
+}
+
+/** GGA at a given time-of-fix (carries accuracy via HDOP, no SOG/COG). */
+function gga(time: string): string {
+  return withChecksum(
+    `GPGGA,${time},4807.038,N,01131.000,E,1,08,0.9,545.4,M,46.9,M,,`,
+  );
+}
 
 function collect(): { stream: NMEAStream; fixes: NavigationData[] } {
   const fixes: NavigationData[] = [];
@@ -23,43 +30,73 @@ function collect(): { stream: NMEAStream; fixes: NavigationData[] } {
 }
 
 describe("NMEAStream", () => {
-  it("parses a complete RMC line into a fix", () => {
+  it("coalesces the RMC+GGA of one epoch into a single fix", () => {
     const { stream, fixes } = collect();
-    stream.push(`${RMC}\r\n`);
+    stream.push(`${rmc("123519")}\r\n${gga("123519")}\r\n`);
     expect(fixes).toHaveLength(1);
     expect(fixes[0].latitude).toBeCloseTo(48.1173, 3);
     expect(fixes[0].longitude).toBeCloseTo(11.5167, 3);
-    expect(fixes[0].cog).toBeCloseTo(84.4, 1);
-    expect(fixes[0].sog).toBeCloseTo(22.4, 1);
+    expect(fixes[0].cog).toBeCloseTo(84.4, 1); // from RMC
+    expect(fixes[0].sog).toBeCloseTo(22.4, 1); // from RMC
+    expect(fixes[0].accuracy).not.toBeNull(); // from GGA's HDOP
     expect(fixes[0].source).toBe("test");
+  });
+
+  it("merges regardless of arrival order (GGA before RMC)", () => {
+    const { stream, fixes } = collect();
+    stream.push(`${gga("123519")}\r\n${rmc("123519")}\r\n`);
+    expect(fixes).toHaveLength(1);
+    expect(fixes[0].sog).toBeCloseTo(22.4, 1);
+    expect(fixes[0].accuracy).not.toBeNull();
+  });
+
+  it("coalesces sentences that arrive in separate chunks", () => {
+    const { stream, fixes } = collect();
+    stream.push(`${rmc("123519")}\r\n`);
+    expect(fixes).toHaveLength(0); // epoch not complete yet
+    stream.push(`${gga("123519")}\r\n`);
+    expect(fixes).toHaveLength(1);
+    expect(fixes[0].sog).toBeCloseTo(22.4, 1);
+    expect(fixes[0].accuracy).not.toBeNull();
+  });
+
+  it("emits one fix per epoch", () => {
+    const { stream, fixes } = collect();
+    stream.push(
+      `${rmc("123519")}\r\n${gga("123519")}\r\n` +
+        `${rmc("123520")}\r\n${gga("123520")}\r\n`,
+    );
+    expect(fixes).toHaveLength(2);
   });
 
   it("reassembles a sentence split across chunks", () => {
     const { stream, fixes } = collect();
-    const whole = `${RMC}\r\n`;
+    const whole = `${rmc("123519")}\r\n`;
     stream.push(whole.slice(0, 12));
-    stream.push(whole.slice(12, 30));
-    expect(fixes).toHaveLength(0); // nothing emitted until the newline arrives
-    stream.push(whole.slice(30));
+    stream.push(whole.slice(12));
+    stream.push(`${gga("123519")}\r\n`); // completes the epoch
     expect(fixes).toHaveLength(1);
     expect(fixes[0].latitude).toBeCloseTo(48.1173, 3);
   });
 
-  it("handles multiple sentences in one chunk", () => {
+  it("flushes a still-incomplete epoch when the next epoch starts", () => {
     const { stream, fixes } = collect();
-    stream.push(`${RMC}\r\n${RMC}\r\n`);
-    expect(fixes).toHaveLength(2);
+    stream.push(`${rmc("123519")}\r\n`);
+    expect(fixes).toHaveLength(0); // waiting for this epoch's GGA
+    stream.push(`${rmc("123520")}\r\n`); // new time-of-fix flushes 519
+    expect(fixes).toHaveLength(1);
+    expect(fixes[0].sog).toBeCloseTo(22.4, 1);
   });
 
-  it("carries COG/SOG forward to a GGA that lacks them", () => {
+  it("carries COG/SOG forward to a GGA-only epoch", () => {
     const { stream, fixes } = collect();
-    stream.push(`${RMC}\r\n${GGA}\r\n`);
+    stream.push(`${rmc("123519")}\r\n${gga("123519")}\r\n`); // fix 0
+    stream.push(`${gga("123520")}\r\n`); // GGA-only epoch, buffered
+    stream.push(`${rmc("123521")}\r\n`); // new epoch flushes 520
     expect(fixes).toHaveLength(2);
-    // GGA has no COG/SOG, so the RMC values carry forward.
-    expect(fixes[1].cog).toBeCloseTo(84.4, 1);
+    expect(fixes[1].cog).toBeCloseTo(84.4, 1); // carried from epoch 519
     expect(fixes[1].sog).toBeCloseTo(22.4, 1);
-    // GGA supplies accuracy (from HDOP); RMC does not.
-    expect(fixes[1].accuracy).not.toBeNull();
+    expect(fixes[1].accuracy).not.toBeNull(); // epoch 520's own GGA
   });
 
   it("ignores non-NMEA noise and bad checksums", () => {
@@ -71,11 +108,13 @@ describe("NMEAStream", () => {
     expect(fixes).toHaveLength(0);
   });
 
-  it("reset() drops the buffered partial line and carried COG/SOG", () => {
+  it("reset() drops the pending epoch and carried COG/SOG", () => {
     const { stream, fixes } = collect();
-    stream.push(`${RMC}\r\n${"$GPGGA,123520,4807.500"}`); // partial GGA buffered
+    stream.push(`${rmc("123519")}\r\n${gga("123519")}\r\n`); // fix 0
+    stream.push(`${gga("123520")}`); // partial-buffered, not yet processed
     stream.reset();
-    stream.push(`${GGA}\r\n`); // fresh GGA, no prior RMC to borrow from
+    // Fresh GGA-only epoch with no prior RMC to borrow from.
+    stream.push(`${gga("123520")}\r\n${rmc("123521")}\r\n`); // boundary flushes 520
     expect(fixes).toHaveLength(2);
     expect(fixes[1].cog).toBeNull();
     expect(fixes[1].sog).toBeNull();

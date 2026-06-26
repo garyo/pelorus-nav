@@ -40,6 +40,12 @@ const MAX_ACCEL_KN_S = 5;
  */
 const MAX_SPEED_RATIO = 4;
 
+/**
+ * Absolute sanity cap (knots) on the chip's Doppler speed. Anything above this
+ * is treated as a glitch and we fall back to the position-derived velocity.
+ */
+const MAX_DOPPLER_SOG_KN = 200;
+
 /** Number of recent fix intervals to track for GPS quality detection. */
 const QUALITY_WINDOW = 20;
 
@@ -154,10 +160,18 @@ export class GPSFilter {
       }
     }
 
-    // Stale gap or negative dt — reset
-    if (dt <= 0 || dtMs > this.staleGapMs) {
+    // Backward clock or a real gap — reset and pass the fix through untouched.
+    if (dtMs < 0 || dtMs > this.staleGapMs) {
       this.initState(raw);
       return raw;
+    }
+
+    // Two fixes sharing one GPS epoch (dt === 0). A coalesced NMEA stream
+    // shouldn't produce this, but if a source ever emits same-timestamp fixes
+    // don't reset — that would discard all smoothing every duplicate. Re-emit
+    // the current smoothed state with the latest velocity instead.
+    if (dtMs === 0) {
+      return this.buildOutput(raw, q);
     }
 
     // Jump detection (approximate metres)
@@ -203,22 +217,43 @@ export class GPSFilter {
 
     this.state.lastTimestamp = raw.timestamp;
 
-    // Derive filtered outputs
-    const [lat, lon, vLat, vLon] = this.state.x;
-    const sogKn = Math.sqrt(vLat ** 2 + (vLon * cosLat) ** 2) * KN_PER_DEG_S;
+    return this.buildOutput(raw, q);
+  }
+
+  /**
+   * Build the filtered output for a fix. Position is the smoothed Kalman
+   * estimate; SOG/COG prefer the GPS chip's Doppler velocity (raw.sog/raw.cog),
+   * which is far more accurate than differentiating the smoothed position —
+   * that sinks into GPS noise and reads ~0 at walking pace, and lags real
+   * course changes by several seconds. Falls back to the position-derived
+   * velocity for sources that report no speed (e.g. position-only providers).
+   */
+  private buildOutput(raw: NavigationData, q: number): NavigationData {
+    // biome-ignore lint/style/noNonNullAssertion: only called once state exists
+    const [lat, lon, vLat, vLon] = this.state!.x;
+    const cosLat = Math.cos((lat * Math.PI) / 180);
     const cogMinSog =
       COG_MIN_SOG_GOOD + q * (COG_MIN_SOG_BAD - COG_MIN_SOG_GOOD);
-    let cog: number | null = null;
-    if (sogKn >= cogMinSog) {
-      cog = (Math.atan2(vLon * cosLat, vLat) * 180) / Math.PI;
-      if (cog < 0) cog += 360;
+
+    let sog: number;
+    let cog: number | null;
+    if (raw.sog !== null && raw.sog >= 0 && raw.sog <= MAX_DOPPLER_SOG_KN) {
+      sog = raw.sog;
+      cog = raw.cog !== null && sog >= cogMinSog ? raw.cog : null;
+    } else {
+      sog = Math.sqrt(vLat ** 2 + (vLon * cosLat) ** 2) * KN_PER_DEG_S;
+      cog = null;
+      if (sog >= cogMinSog) {
+        cog = (Math.atan2(vLon * cosLat, vLat) * 180) / Math.PI;
+        if (cog < 0) cog += 360;
+      }
     }
 
     return {
       latitude: lat,
       longitude: lon,
       cog,
-      sog: sogKn,
+      sog,
       heading: raw.heading, // pass through unchanged
       accuracy: raw.accuracy,
       timestamp: raw.timestamp,

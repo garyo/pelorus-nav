@@ -364,6 +364,132 @@ describe("GPSFilter", () => {
     expect(out.cog).toBeGreaterThan(45);
     expect(out.cog).toBeLessThan(135);
   });
+
+  it("outputs the chip's Doppler SOG/COG even when position barely moves", () => {
+    const filter = new GPSFilter();
+    // Walking pace: the ~1.4 m/s displacement is buried under ~5 m position
+    // noise, so differentiating the smoothed position would read ~0. The
+    // chip's Doppler SOG is accurate and must come through unchanged.
+    filter.filter(
+      makeFix({
+        latitude: 42.35,
+        longitude: -71.04,
+        sog: 2.3,
+        cog: 270,
+        timestamp: 0,
+      }),
+    );
+    let out: NavigationData | null = null;
+    for (let i = 1; i <= 10; i++) {
+      const noise = (Math.random() - 0.5) * 0.00009; // ~5 m jitter
+      out = filter.filter(
+        makeFix({
+          latitude: 42.35 + noise,
+          longitude: -71.04 + noise,
+          sog: 2.3,
+          cog: 270,
+          timestamp: i * 1000,
+        }),
+      );
+    }
+    expect(out?.sog).toBe(2.3); // Doppler passed through, not ~0
+    expect(out?.cog).toBe(270);
+  });
+
+  it("derives SOG/COG from position when the source reports no speed", () => {
+    const filter = new GPSFilter();
+    const startLat = 42.35;
+    const startLon = -71.04;
+    const cosLat = Math.cos((startLat * Math.PI) / 180);
+    const degPerSecLon = (6 * 1852) / (3600 * 111_111 * cosLat); // 6 kn east
+
+    filter.filter(
+      makeFix({
+        latitude: startLat,
+        longitude: startLon,
+        sog: null,
+        cog: null,
+        timestamp: 0,
+      }),
+    );
+    let out: NavigationData | null = null;
+    for (let i = 1; i <= 20; i++) {
+      out = filter.filter(
+        makeFix({
+          latitude: startLat,
+          longitude: startLon + degPerSecLon * i,
+          sog: null,
+          cog: null,
+          timestamp: i * 1000,
+        }),
+      );
+    }
+    expect(out?.sog).toBeGreaterThan(4);
+    expect(out?.sog).toBeLessThan(8);
+    expect(out?.cog).toBeGreaterThan(45);
+    expect(out?.cog).toBeLessThan(135);
+  });
+
+  it("rejects an out-of-range Doppler speed and falls back to position-derived", () => {
+    const filter = new GPSFilter();
+    filter.filter(
+      makeFix({
+        latitude: 42.35,
+        longitude: -71.04,
+        sog: 0,
+        cog: null,
+        timestamp: 0,
+      }),
+    );
+    // Stationary position but a garbage 9999 kn report → ignore it.
+    const out = filter.filter(
+      makeFix({
+        latitude: 42.35,
+        longitude: -71.04,
+        sog: 9999,
+        cog: 90,
+        timestamp: 1000,
+      }),
+    );
+    expect(out.sog).toBeLessThan(5);
+  });
+
+  it("does not reset on a duplicate-timestamp fix", () => {
+    const filter = new GPSFilter();
+    filter.filter(
+      makeFix({
+        latitude: 42.35,
+        longitude: -71.04,
+        sog: 5,
+        cog: 90,
+        timestamp: 0,
+      }),
+    );
+    for (let i = 1; i <= 5; i++) {
+      filter.filter(
+        makeFix({
+          latitude: 42.35,
+          longitude: -71.04 + 0.00002 * i,
+          sog: 5,
+          cog: 90,
+          timestamp: i * 1000,
+        }),
+      );
+    }
+    // Second sentence of the same epoch: same timestamp, wild raw position.
+    const dup = filter.filter(
+      makeFix({
+        latitude: 42.4,
+        longitude: -71.1,
+        sog: 5,
+        cog: 90,
+        timestamp: 5000,
+      }),
+    );
+    // No reset — the smoothed state stands, not the raw jumped position.
+    expect(dup.latitude).not.toBe(42.4);
+    expect(dup.latitude).toBeCloseTo(42.35, 2);
+  });
 });
 
 function rms(values: number[]): number {
