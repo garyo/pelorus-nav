@@ -71,6 +71,7 @@ interface ProbeMap {
   isStyleLoaded(): boolean;
   areTilesLoaded(): boolean;
   jumpTo(o: { center: [number, number]; zoom: number }): void;
+  once(type: string, listener: () => void): void;
   project(p: [number, number]): { x: number; y: number };
   getCanvas(): HTMLCanvasElement;
   queryRenderedFeatures(geom: [[number, number], [number, number]]): Array<{
@@ -142,47 +143,36 @@ test("S-57 test-chart render coverage", async ({ page }) => {
       .catch(() => {});
 
     for (const v of manifest.variants) {
-      // Move to the variant and let tiles + collision settle.
+      // Move to the variant and wait for the map to reach a steady, fully
+      // PAINTED state before probing or capturing. `areTilesLoaded()` /
+      // queryRenderedFeatures go true as soon as a feature's geometry is in a
+      // loaded tile — but icon/label placement happens a few frames LATER, so
+      // reading the canvas then yields a stale buffer (often the previous
+      // variant's frame, which is why captures used to collide). The `idle`
+      // event fires only after tiles load, symbol placement runs, and fades
+      // finish (fadeDuration is 0 here), so it is the correct capture barrier.
       await page.evaluate(
         ([lng, lat]) => {
           const m = (window as unknown as { __map: ProbeMap }).__map;
-          m.jumpTo({ center: [lng, lat], zoom: 17 });
+          return new Promise<void>((resolve) => {
+            let settled = false;
+            const finish = () => {
+              if (settled) return;
+              settled = true;
+              // Two rAFs ensure the idle frame is actually flushed to the
+              // (preserved) drawing buffer before we read it back.
+              requestAnimationFrame(() =>
+                requestAnimationFrame(() => resolve()),
+              );
+            };
+            m.once("idle", finish);
+            m.jumpTo({ center: [lng, lat], zoom: 17 });
+            // Fallback so a blank/cached variant can't hang the run.
+            setTimeout(finish, 4000);
+          });
         },
         [v.lng, v.lat] as [number, number],
       );
-      await page
-        .waitForFunction(
-          () => {
-            const m = (window as unknown as { __map?: ProbeMap }).__map;
-            return !!m && m.areTilesLoaded();
-          },
-          { timeout: 8000 },
-        )
-        .catch(() => {});
-      // Symbol placement (icons/labels) happens asynchronously a few frames
-      // AFTER tiles load — fills render immediately, symbols don't. Poll the
-      // test-source query at the point until something renders, bounded so a
-      // genuinely-blank variant only costs the timeout. This is what separates
-      // "no symbol yet" (timing) from "renders nothing" (real).
-      await page
-        .waitForFunction(
-          ([lng, lat, srcId]) => {
-            const m = (window as unknown as { __map?: ProbeMap }).__map;
-            if (!m) return false;
-            const p = m.project([lng as number, lat as number]);
-            const box: [[number, number], [number, number]] = [
-              [p.x - 4, p.y - 4],
-              [p.x + 4, p.y + 4],
-            ];
-            return (
-              m.queryRenderedFeatures(box).filter((f) => f.source === srcId)
-                .length > 0
-            );
-          },
-          [v.lng, v.lat, TEST_SOURCE_ID] as [number, number, string],
-          { timeout: 1500, polling: 100 },
-        )
-        .catch(() => {});
 
       const probe = await page.evaluate(
         ([lng, lat, srcId]) => {
