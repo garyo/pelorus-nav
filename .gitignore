@@ -76,3 +76,6 @@ refs/
 # iOS TestFlight beta secrets
 ios/.beta-config
 *.p8
+
+# S-57 test chart (regenerable)
+public/test-chart.pmtiles
