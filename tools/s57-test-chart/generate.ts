@@ -13,7 +13,7 @@ import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { $ } from "bun";
-import { type Geom, type Variant, buildVariants } from "./catalog";
+import { buildVariants, type Geom, type Variant } from "./catalog";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const OUT = join(HERE, "out");
@@ -92,7 +92,10 @@ function main() {
   const namedLayers: string[] = [];
   for (const [cls, features] of byClass) {
     const path = join(GEOJSON_DIR, `${cls}.geojson`);
-    writeFileSync(path, JSON.stringify({ type: "FeatureCollection", features }));
+    writeFileSync(
+      path,
+      JSON.stringify({ type: "FeatureCollection", features }),
+    );
     namedLayers.push(`-L{"file":"${path}","layer":"${cls}"}`);
   }
 
@@ -104,10 +107,22 @@ function main() {
   };
   writeFileSync(
     join(OUT, "manifest.json"),
-    JSON.stringify({ count: variants.length, cols, spacing: SPACING, bbox, variants: manifest }, null, 2),
+    JSON.stringify(
+      {
+        count: variants.length,
+        cols,
+        spacing: SPACING,
+        bbox,
+        variants: manifest,
+      },
+      null,
+      2,
+    ),
   );
 
-  console.log(`Generated ${variants.length} variants across ${byClass.size} S-57 classes.`);
+  console.log(
+    `Generated ${variants.length} variants across ${byClass.size} S-57 classes.`,
+  );
   console.log(`  GeoJSON: ${GEOJSON_DIR}`);
   console.log(`  Manifest: ${join(OUT, "manifest.json")}`);
 
@@ -117,16 +132,29 @@ function main() {
 
 async function buildPmtiles(namedLayers: string[]) {
   const out = join(OUT, "test-chart.pmtiles");
-  const hasTippecanoe = (await $`which tippecanoe`.nothrow().quiet()).exitCode === 0;
+  const hasTippecanoe =
+    (await $`which tippecanoe`.nothrow().quiet()).exitCode === 0;
   if (!hasTippecanoe) {
     console.warn("\n⚠ tippecanoe not found — skipped PMTiles build.");
     console.warn("  Install with `brew install tippecanoe`, then re-run.");
-    console.warn("  (GeoJSON + manifest are still written; renderer needs the PMTiles.)");
+    console.warn(
+      "  (GeoJSON + manifest are still written; renderer needs the PMTiles.)",
+    );
     return;
   }
   // -r1/-pf/-pk: keep every feature at every zoom (no dropping) so the test
   // chart is dense-but-complete; -Z0 -z16 for full zoom coverage.
-  const args = ["-o", out, "-Z0", "-z16", "-r1", "-pf", "-pk", "--force", ...namedLayers];
+  const args = [
+    "-o",
+    out,
+    "-Z0",
+    "-z16",
+    "-r1",
+    "-pf",
+    "-pk",
+    "--force",
+    ...namedLayers,
+  ];
   console.log(`\nBuilding PMTiles: tippecanoe ${args.join(" ")}`);
   const res = await $`tippecanoe ${args}`.nothrow();
   if (res.exitCode !== 0) {
@@ -134,7 +162,10 @@ async function buildPmtiles(namedLayers: string[]) {
     return;
   }
   if (existsSync(out)) {
-    writeFileSync(join(PUBLIC, "test-chart.pmtiles"), await Bun.file(out).bytes());
+    writeFileSync(
+      join(PUBLIC, "test-chart.pmtiles"),
+      await Bun.file(out).bytes(),
+    );
     console.log(`✓ PMTiles: ${out}`);
     console.log(`✓ Copied to public/test-chart.pmtiles (served by dev server)`);
   }
