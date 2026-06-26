@@ -73,7 +73,6 @@ interface ProbeMap {
   jumpTo(o: { center: [number, number]; zoom: number }): void;
   once(type: string, listener: () => void): void;
   project(p: [number, number]): { x: number; y: number };
-  getCanvas(): HTMLCanvasElement;
   queryRenderedFeatures(geom: [[number, number], [number, number]]): Array<{
     source?: string;
     sourceLayer?: string;
@@ -142,36 +141,44 @@ test("S-57 test-chart render coverage", async ({ page }) => {
       )
       .catch(() => {});
 
+    const viewport = page.viewportSize() ?? { width: 1280, height: 720 };
+
     for (const v of manifest.variants) {
+      // Frame each feature so it's actually legible in the capture: a point
+      // symbol is a fixed pixel size regardless of zoom, so we just crop tight
+      // around it; lines/areas span the synthetic cell (±~0.0035°), so we zoom
+      // out enough that the whole cell fits and crop a wider box around it.
+      const isPoint = v.geometry === "Point";
+      const zoom = isPoint ? 18.5 : 16.4;
+      const half = isPoint ? 120 : 240;
+
       // Move to the variant and wait for the map to reach a steady, fully
       // PAINTED state before probing or capturing. `areTilesLoaded()` /
       // queryRenderedFeatures go true as soon as a feature's geometry is in a
-      // loaded tile — but icon/label placement happens a few frames LATER, so
-      // reading the canvas then yields a stale buffer (often the previous
-      // variant's frame, which is why captures used to collide). The `idle`
-      // event fires only after tiles load, symbol placement runs, and fades
-      // finish (fadeDuration is 0 here), so it is the correct capture barrier.
+      // loaded tile — but icon/label placement happens a few frames LATER. The
+      // `idle` event fires only after tiles load, symbol placement runs, and
+      // fades finish (fadeDuration is 0 here), so it is the correct barrier.
       await page.evaluate(
-        ([lng, lat]) => {
+        ([lng, lat, z]) => {
           const m = (window as unknown as { __map: ProbeMap }).__map;
           return new Promise<void>((resolve) => {
             let settled = false;
             const finish = () => {
               if (settled) return;
               settled = true;
-              // Two rAFs ensure the idle frame is actually flushed to the
-              // (preserved) drawing buffer before we read it back.
+              // Two rAFs ensure the idle frame is actually painted before we
+              // read it back via a screenshot.
               requestAnimationFrame(() =>
                 requestAnimationFrame(() => resolve()),
               );
             };
             m.once("idle", finish);
-            m.jumpTo({ center: [lng, lat], zoom: 17 });
+            m.jumpTo({ center: [lng, lat], zoom: z });
             // Fallback so a blank/cached variant can't hang the run.
             setTimeout(finish, 4000);
           });
         },
-        [v.lng, v.lat] as [number, number],
+        [v.lng, v.lat, zoom] as [number, number, number],
       );
 
       const probe = await page.evaluate(
@@ -224,14 +231,28 @@ test("S-57 test-chart render coverage", async ({ page }) => {
         ...probe,
       });
 
-      const dataUrl = await page.evaluate(() => {
-        const m = (window as unknown as { __map: ProbeMap }).__map;
-        return m.getCanvas().toDataURL("image/png");
-      });
-      const b64 = dataUrl.replace(/^data:image\/png;base64,/, "");
+      // Crop tight around the feature's screen position so each per-variant
+      // PNG (and the contact sheet built from them) shows the element large
+      // rather than a speck on a full 1280px frame.
+      const center = await page.evaluate(
+        ([lng, lat]) => {
+          const m = (window as unknown as { __map: ProbeMap }).__map;
+          const p = m.project([lng as number, lat as number]);
+          return { x: p.x, y: p.y };
+        },
+        [v.lng, v.lat] as [number, number],
+      );
+      const x = Math.max(0, Math.round(center.x - half));
+      const y = Math.max(0, Math.round(center.y - half));
+      const clip = {
+        x,
+        y,
+        width: Math.min(2 * half, viewport.width - x),
+        height: Math.min(2 * half, viewport.height - y),
+      };
       const dir = join(RENDERS, scheme);
       if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
-      writeFileSync(join(dir, `${v.id}.png`), Buffer.from(b64, "base64"));
+      await page.screenshot({ path: join(dir, `${v.id}.png`), clip });
     }
 
     const missing = await page.evaluate(
@@ -361,16 +382,21 @@ test("S-57 test-chart render coverage", async ({ page }) => {
     const dir = join(RENDERS, scheme);
     if (!existsSync(dir)) continue;
     try {
+      // Label each tile with its variant id; montage's default light
+      // background + dark label text is readable. (`-background` is avoided —
+      // it misparses on some ImageMagick 7 builds.)
       execFileSync(
         "montage",
         [
+          "-label",
+          "%t",
+          "-pointsize",
+          "8",
           join(dir, "*.png"),
           "-tile",
           "8x",
           "-geometry",
-          "200x150+2+2",
-          "-background",
-          "gray",
+          "200x200+3+3",
           join(RENDERS, `contact-${scheme}.png`),
         ],
         { shell: true, stdio: "ignore" },
