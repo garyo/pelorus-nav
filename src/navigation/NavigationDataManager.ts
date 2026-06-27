@@ -33,9 +33,10 @@ const FAST_HW_SAMPLING_MS = 1000;
 /** Quality score above which we boost hardware polling in "auto" mode. */
 const HW_BOOST_QUALITY_THRESHOLD = 0.3;
 
-/** Diagnostic build: per-fix GPS trace to the native diag.log (pull via adb).
- *  Flip off (or delete the diag calls) once the walk-test is analysed. */
-const GPS_TRACE = true;
+/** Per-fix GPS trace to the native diag.log (pull via adb). Off in shipping
+ *  builds; flip on to debug a new GPS source / hardware iteration — it logs
+ *  raw vs filtered SOG/COG and raw/filtered lat/lon for offline analysis. */
+const GPS_TRACE = false;
 const tr = (n: number | null): string =>
   n === null ? "-" : (Math.round(n * 100) / 100).toString();
 /** ~0.1 m precision — enough to reconstruct the raw track offline. */

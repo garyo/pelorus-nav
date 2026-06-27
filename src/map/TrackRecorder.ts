@@ -31,6 +31,10 @@ import { haversineDistanceNM } from "../utils/coordinates";
 import { diag } from "../utils/diag";
 import { generateUUID } from "../utils/uuid";
 
+/** Trace each recorded point to diag.log. Off in shipping builds; pairs with
+ *  GPS_TRACE in NavigationDataManager when debugging a new GPS source. */
+const REC_TRACE = false;
+
 const MIN_INTERVAL_MS = 1000;
 const MIN_MOVE_NM = 5 / 1852; // 5 meters in NM
 const GAP_THRESHOLD_MS = 30 * 60 * 1000; // 30 minutes
@@ -411,12 +415,14 @@ export class TrackRecorder {
     await appendTrackPoint(this.currentTrack.id, point);
     this.currentTrack.pointCount++;
 
-    // Diagnostic build: trace each recorded point to compare the recorder's
-    // rate against the raw-fix / broadcast rate in the GPS_TRACE lines.
-    diag(
-      "rec",
-      `pt n=${this.currentTrack.pointCount} seg_m=${Math.round(segmentNM * 1852)} sog=${data.sog === null ? "-" : Math.round(data.sog * 100) / 100}`,
-    );
+    // Trace each recorded point to compare the recorder's rate against the
+    // raw-fix / broadcast rate in the GPS_TRACE lines (debug builds only).
+    if (REC_TRACE) {
+      diag(
+        "rec",
+        `pt n=${this.currentTrack.pointCount} seg_m=${Math.round(segmentNM * 1852)} sog=${data.sog === null ? "-" : Math.round(data.sog * 100) / 100}`,
+      );
+    }
 
     // Persist meta only after the first point is in the store, so a meta
     // record always corresponds to ≥ 1 stored point.
