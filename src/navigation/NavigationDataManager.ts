@@ -38,6 +38,8 @@ const HW_BOOST_QUALITY_THRESHOLD = 0.3;
 const GPS_TRACE = true;
 const tr = (n: number | null): string =>
   n === null ? "-" : (Math.round(n * 100) / 100).toString();
+/** ~0.1 m precision — enough to reconstruct the raw track offline. */
+const co = (n: number): string => n.toFixed(6);
 
 /** Floor for the staleness threshold so slow broadcast rates still flag a
  *  dropped link within a few seconds. */
@@ -109,7 +111,9 @@ export class NavigationDataManager {
         "gps",
         `fix dt=${dt} raw_sog=${tr(raw.sog)} raw_cog=${tr(raw.cog)} ` +
           `filt_sog=${tr(data.sog)} filt_cog=${tr(data.cog)} acc=${tr(raw.accuracy)} ` +
-          `q=${tr(q)} tier=${this.adaptiveCtrl.getState().tier}`,
+          `q=${tr(q)} tier=${this.adaptiveCtrl.getState().tier} ` +
+          `raw_lat=${co(raw.latitude)} raw_lon=${co(raw.longitude)} ` +
+          `filt_lat=${co(data.latitude)} filt_lon=${co(data.longitude)}`,
       );
     }
 
