@@ -68,10 +68,20 @@ export interface ChartProvidersOpt {
   setActive: (id: string) => void;
 }
 
+/** Live BLE link state + actions for the Navigation tab's status row. */
+export interface GpsLinkOpt {
+  isConnected: () => boolean;
+  isReconnecting: () => boolean;
+  /** Manual reconnect (reuses the chosen device where possible). */
+  reconnect: () => void;
+  /** Hard reset: full disconnect→connect, to clear a wedged link. */
+  reset: () => void;
+}
+
 export interface CreateSettingsPanelOpts {
   chartProviders: ChartProvidersOpt;
-  /** Force a reconnect on the active GPS provider (used by the BLE button). */
-  reconnectGps: () => void;
+  /** Live BLE link state + reconnect/reset actions. */
+  gpsLink: GpsLinkOpt;
   /** Open the live satellite diagnostics panel for the active provider. */
   openSatelliteDiagnostics: () => void;
 }
@@ -189,11 +199,7 @@ function buildTabbedPanel(
   tabBodies.set("layers", buildLayersTab(settings, opts.chartProviders));
   tabBodies.set(
     "navigation",
-    buildNavigationTab(
-      settings,
-      opts.reconnectGps,
-      opts.openSatelliteDiagnostics,
-    ),
+    buildNavigationTab(settings, opts.gpsLink, opts.openSatelliteDiagnostics),
   );
 
   for (const [id, body] of tabBodies) {
@@ -585,7 +591,7 @@ function buildTextRow(
 
 function buildNavigationTab(
   settings: ReturnType<typeof getSettings>,
-  reconnectGps: () => void,
+  gpsLink: GpsLinkOpt,
   openSatelliteDiagnostics: () => void,
 ): HTMLElement {
   const tab = document.createElement("div");
@@ -614,14 +620,10 @@ function buildNavigationTab(
     ),
   );
 
-  // Reconnect button — shown for Bluetooth GPS, which can drop and (on desktop
-  // Chrome) not always self-heal. One click beats toggling the source off/on.
-  const reconnectRow = buildActionRow(
-    "BLE link",
-    "settings-gps-reconnect",
-    "Reconnect",
-    () => reconnectGps(),
-  );
+  // BLE link status + actions — shown for Bluetooth GPS, which can drop and not
+  // always self-heal. The row shows live connection state, grays out Reconnect
+  // when it would do nothing, and offers Reset when the link is stuck.
+  const linkRow = buildGpsLinkRow(gpsLink);
   // Live satellite diagnostics — only the BLE pod can stream GSV/GSA on request.
   const satRow = buildActionRow(
     "Satellites",
@@ -631,13 +633,16 @@ function buildNavigationTab(
   );
   const updateBleRows = (src: string) => {
     const display = src === "ble-nmea" ? "" : "none";
-    reconnectRow.style.display = display;
+    linkRow.row.style.display = display;
     satRow.style.display = display;
   };
   updateBleRows(settings.gpsSource);
   onSettingsChange((s) => updateBleRows(s.gpsSource));
-  tab.appendChild(reconnectRow);
+  tab.appendChild(linkRow.row);
   tab.appendChild(satRow);
+  // Poll the link state while the panel exists (cheap; the row early-returns when
+  // hidden). 1 Hz is enough to catch drops and the stuck-too-long escalation.
+  setInterval(linkRow.update, 1000);
 
   // Simulator speed (shown only when the simulator is the GPS source)
   const SIM_SPEED_OPTIONS = [
@@ -1298,4 +1303,82 @@ function buildActionRow(
   row.appendChild(btn);
 
   return row;
+}
+
+// Reconnecting longer than this (the provider's watchdog also converts a silent
+// "connected" link into reconnecting) is treated as stuck → offer Reset.
+const GPS_LINK_STUCK_MS = 15000;
+
+/**
+ * BLE link row: live ✓/⟳/✕ status, a Reconnect button greyed out while already
+ * connected, and a Reset button that appears only when the link is stuck. Call
+ * the returned `update` on a timer to refresh state.
+ */
+function buildGpsLinkRow(gpsLink: GpsLinkOpt): {
+  row: HTMLElement;
+  update: () => void;
+} {
+  const row = document.createElement("div");
+  row.className = "settings-row";
+
+  const label = document.createElement("label");
+  label.textContent = "BLE link";
+  row.appendChild(label);
+
+  const controls = document.createElement("div");
+  controls.className = "settings-link-controls";
+
+  const status = document.createElement("span");
+  status.className = "settings-link-status";
+
+  const reconnectBtn = document.createElement("button");
+  reconnectBtn.type = "button";
+  reconnectBtn.className = "settings-action-btn";
+  reconnectBtn.textContent = "Reconnect";
+  reconnectBtn.addEventListener("click", () => gpsLink.reconnect());
+
+  const resetBtn = document.createElement("button");
+  resetBtn.type = "button";
+  resetBtn.className = "settings-action-btn";
+  resetBtn.textContent = "Reset";
+  resetBtn.style.display = "none";
+  resetBtn.addEventListener("click", () => gpsLink.reset());
+
+  controls.append(status, reconnectBtn, resetBtn);
+  row.appendChild(controls);
+
+  let reconnectingSince = 0;
+
+  const update = () => {
+    if (row.style.display === "none") return; // not the BLE source — skip
+    const connected = gpsLink.isConnected();
+    const reconnecting = gpsLink.isReconnecting();
+
+    if (connected) {
+      status.textContent = "✓ Connected";
+      status.className = "settings-link-status settings-link-ok";
+    } else if (reconnecting) {
+      status.textContent = "⟳ Reconnecting…";
+      status.className = "settings-link-status settings-link-warn";
+    } else {
+      status.textContent = "✕ Disconnected";
+      status.className = "settings-link-status settings-link-bad";
+    }
+
+    // Reconnect is a no-op while connected — gray it out for honest feedback.
+    reconnectBtn.disabled = connected;
+
+    if (!connected && reconnecting) {
+      if (!reconnectingSince) reconnectingSince = Date.now();
+    } else {
+      reconnectingSince = 0;
+    }
+    const stuck =
+      reconnectingSince > 0 &&
+      Date.now() - reconnectingSince > GPS_LINK_STUCK_MS;
+    resetBtn.style.display = stuck ? "" : "none";
+  };
+
+  update();
+  return { row, update };
 }

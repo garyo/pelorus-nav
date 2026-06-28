@@ -269,6 +269,18 @@ export class NavigationDataManager {
     this.activeProvider?.reconnect?.();
   }
 
+  /**
+   * Hard-reset the active provider's connection — a full disconnect then
+   * connect, the programmatic equivalent of toggling the GPS source off/on to
+   * clear a wedged link. Subscriptions persist across the cycle.
+   */
+  resetActiveProvider(): void {
+    const provider = this.activeProvider;
+    if (!provider) return;
+    provider.disconnect();
+    provider.connect();
+  }
+
   getLastData(): NavigationData | null {
     return this.lastData;
   }

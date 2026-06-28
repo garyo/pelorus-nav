@@ -499,7 +499,14 @@ const settingsHandle = topbarMenu
         getActiveId: () => chartManager.getActiveProvider()?.id ?? "",
         setActive: (id) => chartManager.setActiveProvider(id),
       },
-      reconnectGps: () => navManager.reconnectActiveProvider(),
+      gpsLink: {
+        isConnected: () =>
+          navManager.getActiveProvider()?.isConnected() ?? false,
+        isReconnecting: () =>
+          navManager.getActiveProvider()?.isReconnecting?.() ?? false,
+        reconnect: () => navManager.reconnectActiveProvider(),
+        reset: () => navManager.resetActiveProvider(),
+      },
       openSatelliteDiagnostics: () => {
         const provider = navManager.getActiveProvider();
         if (provider && hasSatelliteDiagnostics(provider)) {

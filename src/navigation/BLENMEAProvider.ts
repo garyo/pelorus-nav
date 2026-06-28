@@ -33,6 +33,7 @@ interface BluetoothService {
   getCharacteristic(uuid: string): Promise<BluetoothCharacteristic>;
 }
 interface BluetoothGATT {
+  connected?: boolean;
   connect(): Promise<BluetoothGATT>;
   disconnect(): void;
   getPrimaryService(uuid: string): Promise<BluetoothService>;
@@ -65,6 +66,10 @@ export class BLENMEAProvider
   // chooser (reconnecting to an already-chosen device needs no user gesture).
   private static readonly RECONNECT_MIN_MS = 1000;
   private static readonly RECONNECT_MAX_MS = 30000;
+  // A connected link silent for this long is dead (the pod streams ~1 Hz) —
+  // force a clean reconnect rather than trusting the stale "connected" state.
+  private static readonly SILENCE_LIMIT_MS = 8000;
+  private static readonly WATCHDOG_MS = 4000;
 
   private listeners: NavigationDataCallback[] = [];
   private satListeners: SatelliteStatusCallback[] = [];
@@ -74,6 +79,9 @@ export class BLENMEAProvider
   private satWanted = false;
   private connected = false;
   private wantConnected = false;
+  private establishing = false;
+  private lastDataMs = 0;
+  private watchdogTimer: ReturnType<typeof setInterval> | null = null;
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private reconnectDelayMs = 0;
   private adWatchStop: (() => void) | null = null;
@@ -83,10 +91,14 @@ export class BLENMEAProvider
 
   private readonly onNotify = (event: Event): void => {
     const value = (event.target as BluetoothCharacteristic).value;
-    if (value) this.stream.push(this.decoder.decode(value));
+    if (value) {
+      this.lastDataMs = Date.now();
+      this.stream.push(this.decoder.decode(value));
+    }
   };
 
   private readonly onDisconnect = (): void => {
+    if (this.establishing) return; // our own teardown during (re)connect
     this.connected = false;
     this.characteristic?.removeEventListener(
       "characteristicvaluechanged",
@@ -125,12 +137,14 @@ export class BLENMEAProvider
   connect(): void {
     if (this.wantConnected) return;
     this.wantConnected = true;
+    this.startWatchdog();
     void this.pickAndConnect();
   }
 
   disconnect(): void {
     this.wantConnected = false;
     this.clearReconnect();
+    this.stopWatchdog();
     this.connected = false;
     this.characteristic?.removeEventListener(
       "characteristicvaluechanged",
@@ -254,26 +268,61 @@ export class BLENMEAProvider
       "characteristicvaluechanged",
       this.onNotify,
     );
-    const server = await gatt.connect();
-    const service = await server.getPrimaryService(NUS_SERVICE);
-    this.characteristic = await service.getCharacteristic(NUS_TX);
-    this.characteristic.addEventListener(
-      "characteristicvaluechanged",
-      this.onNotify,
-    );
-    await this.characteristic.startNotifications();
-    // RX (write) is optional — older pod firmware has no command channel, so a
-    // missing characteristic just leaves satellite diagnostics unavailable.
+    this.establishing = true;
     try {
-      this.rxCharacteristic = await service.getCharacteristic(NUS_RX);
-    } catch {
-      this.rxCharacteristic = null;
+      // Clear a half-open link so we reconnect from a clean slate (a pod reboot
+      // can leave gatt.connect() resolving on a dead handle). Guarded so the
+      // resulting disconnect event doesn't trigger our reconnect path.
+      if (gatt.connected) gatt.disconnect();
+      const server = await gatt.connect();
+      const service = await server.getPrimaryService(NUS_SERVICE);
+      this.characteristic = await service.getCharacteristic(NUS_TX);
+      this.characteristic.addEventListener(
+        "characteristicvaluechanged",
+        this.onNotify,
+      );
+      await this.characteristic.startNotifications();
+      // RX (write) is optional — older pod firmware has no command channel, so a
+      // missing characteristic just leaves satellite diagnostics unavailable.
+      try {
+        this.rxCharacteristic = await service.getCharacteristic(NUS_RX);
+      } catch {
+        this.rxCharacteristic = null;
+      }
+    } finally {
+      this.establishing = false;
     }
     this.stream.reset();
     this.connected = true;
+    this.lastDataMs = Date.now(); // baseline so the watchdog doesn't fire instantly
     this.reconnectDelayMs = 0; // recovered — reset the backoff
     // Re-arm satellite forwarding if a diagnostics view is open across a reconnect.
     if (this.satWanted) this.sendSatCommand(true);
+  }
+
+  private startWatchdog(): void {
+    if (this.watchdogTimer !== null) return;
+    this.watchdogTimer = setInterval(
+      () => this.checkWatchdog(),
+      BLENMEAProvider.WATCHDOG_MS,
+    );
+  }
+
+  private stopWatchdog(): void {
+    if (this.watchdogTimer !== null) {
+      clearInterval(this.watchdogTimer);
+      this.watchdogTimer = null;
+    }
+  }
+
+  // Detect a "connected" link that has gone silent and force a clean reconnect.
+  private checkWatchdog(): void {
+    if (!this.wantConnected || !this.connected) return;
+    if (Date.now() - this.lastDataMs > BLENMEAProvider.SILENCE_LIMIT_MS) {
+      console.warn("BLE GPS: link silent, forcing reconnect");
+      this.connected = false;
+      void this.retryConnect();
+    }
   }
 
   private scheduleReconnect(): void {

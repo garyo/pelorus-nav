@@ -32,6 +32,11 @@ export class CapacitorBLENMEAProvider
   // picker (reconnecting to an already-chosen deviceId needs no user gesture).
   private static readonly RECONNECT_MIN_MS = 1000;
   private static readonly RECONNECT_MAX_MS = 30000;
+  // The pod streams position at ~1 Hz whenever connected, so a longer gap means
+  // the link is dead even if the stack still reports it up (pod reboot /
+  // half-open) — force a clean reconnect.
+  private static readonly SILENCE_LIMIT_MS = 8000;
+  private static readonly WATCHDOG_MS = 4000;
 
   private listeners: NavigationDataCallback[] = [];
   private satListeners: SatelliteStatusCallback[] = [];
@@ -39,6 +44,9 @@ export class CapacitorBLENMEAProvider
   private satWanted = false;
   private connected = false;
   private wantConnected = false;
+  private establishing = false;
+  private lastDataMs = 0;
+  private watchdogTimer: ReturnType<typeof setInterval> | null = null;
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private reconnectDelayMs = 0;
   private readonly decoder = new TextDecoder();
@@ -68,12 +76,14 @@ export class CapacitorBLENMEAProvider
   connect(): void {
     if (this.wantConnected) return;
     this.wantConnected = true;
+    this.startWatchdog();
     void this.pickAndConnect();
   }
 
   disconnect(): void {
     this.wantConnected = false;
     this.clearReconnect();
+    this.stopWatchdog();
     this.connected = false;
     const id = this.device?.deviceId;
     this.device = null;
@@ -174,20 +184,61 @@ export class CapacitorBLENMEAProvider
   private async establish(): Promise<void> {
     const id = this.device?.deviceId;
     if (!id) throw new Error("no device");
-    await BleClient.connect(id, () => this.onPeripheralDisconnect());
-    await BleClient.startNotifications(id, NUS_SERVICE, NUS_TX, (value) =>
-      this.stream.push(this.decoder.decode(value)),
-    );
+    this.establishing = true;
+    try {
+      // Clear any half-open link first: a pod reboot can leave the stack
+      // believing it's still connected, so connect()/startNotifications()
+      // resolve on a dead handle. A clean disconnect releases the pod's single
+      // client slot — what toggling the GPS source to None does manually.
+      await BleClient.disconnect(id).catch(() => {});
+      await BleClient.connect(id, () => this.onPeripheralDisconnect());
+      await BleClient.startNotifications(id, NUS_SERVICE, NUS_TX, (value) => {
+        this.lastDataMs = Date.now();
+        this.stream.push(this.decoder.decode(value));
+      });
+    } finally {
+      this.establishing = false;
+    }
     this.stream.reset();
     this.connected = true;
+    this.lastDataMs = Date.now(); // baseline so the watchdog doesn't fire instantly
     this.reconnectDelayMs = 0; // recovered — reset the backoff
     // Re-arm satellite forwarding if a diagnostics view is open across a reconnect.
     if (this.satWanted) this.sendSatCommand(true);
   }
 
   private onPeripheralDisconnect(): void {
+    if (this.establishing) return; // our own teardown during (re)connect
     this.connected = false;
     if (this.wantConnected) this.scheduleReconnect();
+  }
+
+  private startWatchdog(): void {
+    if (this.watchdogTimer !== null) return;
+    this.watchdogTimer = setInterval(
+      () => this.checkWatchdog(),
+      CapacitorBLENMEAProvider.WATCHDOG_MS,
+    );
+  }
+
+  private stopWatchdog(): void {
+    if (this.watchdogTimer !== null) {
+      clearInterval(this.watchdogTimer);
+      this.watchdogTimer = null;
+    }
+  }
+
+  // Detect a "connected" link that has gone silent and force a clean reconnect.
+  private checkWatchdog(): void {
+    if (!this.wantConnected || !this.connected) return;
+    if (
+      Date.now() - this.lastDataMs >
+      CapacitorBLENMEAProvider.SILENCE_LIMIT_MS
+    ) {
+      console.warn("Capacitor BLE GPS: link silent, forcing reconnect");
+      this.connected = false;
+      void this.retryConnect();
+    }
   }
 
   private scheduleReconnect(): void {
