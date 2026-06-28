@@ -25,6 +25,12 @@ const POLL_MS = 250;
 // Satellite data is "live" if a burst arrived within this long; past it (while
 // still connected) the pod has timed out the stream and we offer Resume.
 const SAT_LIVE_MS = 3000;
+// Grace after opening before "Waiting…" becomes "No data — tap Resume", so a
+// SAT command that never produces data is recoverable rather than a dead end.
+const SAT_OPEN_GRACE_MS = 6000;
+// Within the grace window, re-arm this often if no data has arrived — the first
+// BLE write after connecting can be dropped, so the initial command self-heals.
+const SAT_RETRY_MS = 2000;
 
 const FIX_LABELS: Record<number, string> = {
   1: "No fix — searching",
@@ -89,6 +95,8 @@ export class SatelliteStatusPanel {
   private manager: NavigationDataManager | null = null;
   private status: SatelliteStatus | null = null;
   private lastSatDataMs = 0;
+  private openedAtMs = 0;
+  private lastSatCmdMs = 0;
   private pollTimer: ReturnType<typeof setInterval> | null = null;
   private rafId: number | null = null;
   // Persistent bar rows keyed by satellite, updated in place (no DOM churn).
@@ -141,9 +149,7 @@ export class SatelliteStatusPanel {
     this.reconnectBtn = this.makeInlineButton("Reconnect", () => {
       this.manager?.reconnectActiveProvider();
     });
-    this.resumeBtn = this.makeInlineButton("Resume", () => {
-      this.provider?.requestSatelliteData(true);
-    });
+    this.resumeBtn = this.makeInlineButton("Resume", () => this.sendSatOn());
     this.rowLink.action.appendChild(this.reconnectBtn);
     this.rowData.action.appendChild(this.resumeBtn);
 
@@ -189,10 +195,13 @@ export class SatelliteStatusPanel {
     this.manager = manager;
     this.status = null;
     this.lastSatDataMs = 0;
+    this.openedAtMs = Date.now();
     this.satRows.clear();
     this.bars.replaceChildren();
+    this.satHeader.textContent = "Satellites";
+    this.constellations.textContent = "";
     provider.subscribeSatelliteStatus(this.onStatus);
-    provider.requestSatelliteData(true);
+    this.sendSatOn();
     this.refresh();
     this.pollTimer = setInterval(() => this.refresh(), POLL_MS);
     this.overlay.style.display = "flex";
@@ -218,6 +227,13 @@ export class SatelliteStatusPanel {
 
   // --- Status rows -------------------------------------------------------
 
+  // Arm satellite forwarding and remember when, so refresh() can re-arm if a
+  // dropped initial command leaves us with no data.
+  private sendSatOn(): void {
+    this.provider?.requestSatelliteData(true);
+    this.lastSatCmdMs = Date.now();
+  }
+
   private refresh(): void {
     const provider = this.provider;
     if (!provider) return;
@@ -228,8 +244,24 @@ export class SatelliteStatusPanel {
       ? Date.now() - this.lastSatDataMs
       : Infinity;
     const satLive = connected && satAge < SAT_LIVE_MS;
-    // Stream was flowing and stopped while still connected → pod auto-reverted.
-    const satTimedOut = connected && this.lastSatDataMs > 0 && !satLive;
+    const hadData = this.lastSatDataMs > 0;
+    const pastGrace = Date.now() - this.openedAtMs > SAT_OPEN_GRACE_MS;
+    // Offer Resume whenever connected but not streaming, once it's clearly not
+    // just initial latency — covers both the pod's auto-revert and a SAT command
+    // that produced nothing.
+    const offerResume = connected && !satLive && (hadData || pastGrace);
+
+    // Self-heal a dropped initial SAT command: re-arm a few times during the
+    // grace window before falling back to the manual Resume. Initial acquisition
+    // only — a real post-data timeout still waits for the manual button.
+    if (
+      connected &&
+      !hadData &&
+      !pastGrace &&
+      Date.now() - this.lastSatCmdMs > SAT_RETRY_MS
+    ) {
+      this.sendSatOn();
+    }
 
     this.set(this.rowSource, "off", provider.name);
 
@@ -250,12 +282,14 @@ export class SatelliteStatusPanel {
         "green",
         `Live · ${(satAge / 1000).toFixed(1)}s ago`,
       );
-    } else if (satTimedOut) {
+    } else if (hadData) {
       this.set(this.rowData, "amber", "Paused — device timeout");
+    } else if (pastGrace) {
+      this.set(this.rowData, "amber", "No data — tap Resume");
     } else {
       this.set(this.rowData, "amber", "Waiting for data…");
     }
-    this.resumeBtn.style.display = satTimedOut ? "" : "none";
+    this.resumeBtn.style.display = offerResume ? "" : "none";
 
     const status = this.status;
     if (status) {
