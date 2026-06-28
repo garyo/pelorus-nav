@@ -11,17 +11,22 @@
 import type {
   NavigationDataCallback,
   NavigationDataProvider,
+  SatelliteDiagnostics,
+  SatelliteStatusCallback,
 } from "./NavigationData";
 import { NMEAStream } from "./nmea-stream";
 
 // Nordic UART Service UUIDs (lowercase, as Web Bluetooth expects).
 const NUS_SERVICE = "6e400001-b5a3-f393-e0a9-e50e24dcca9e";
+const NUS_RX = "6e400002-b5a3-f393-e0a9-e50e24dcca9e"; // central → peripheral (write)
 const NUS_TX = "6e400003-b5a3-f393-e0a9-e50e24dcca9e"; // peripheral → central (notify)
 
 // Minimal Web Bluetooth typings — not in the bundled DOM lib, and we only
 // touch the handful of members below.
 interface BluetoothCharacteristic extends EventTarget {
   startNotifications(): Promise<BluetoothCharacteristic>;
+  writeValueWithResponse?(value: BufferSource): Promise<void>;
+  writeValue?(value: BufferSource): Promise<void>;
   value?: DataView;
 }
 interface BluetoothService {
@@ -50,7 +55,9 @@ declare global {
   }
 }
 
-export class BLENMEAProvider implements NavigationDataProvider {
+export class BLENMEAProvider
+  implements NavigationDataProvider, SatelliteDiagnostics
+{
   readonly id = "ble-nmea";
   readonly name = "Bluetooth GPS (BLE)";
 
@@ -60,14 +67,18 @@ export class BLENMEAProvider implements NavigationDataProvider {
   private static readonly RECONNECT_MAX_MS = 30000;
 
   private listeners: NavigationDataCallback[] = [];
+  private satListeners: SatelliteStatusCallback[] = [];
   private device: BluetoothDevice | null = null;
   private characteristic: BluetoothCharacteristic | null = null;
+  private rxCharacteristic: BluetoothCharacteristic | null = null;
+  private satWanted = false;
   private connected = false;
   private wantConnected = false;
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private reconnectDelayMs = 0;
   private adWatchStop: (() => void) | null = null;
   private readonly decoder = new TextDecoder();
+  private readonly encoder = new TextEncoder();
   private readonly stream: NMEAStream;
 
   private readonly onNotify = (event: Event): void => {
@@ -88,9 +99,15 @@ export class BLENMEAProvider implements NavigationDataProvider {
   };
 
   constructor() {
-    this.stream = new NMEAStream("ble-nmea", (data) => {
-      for (const fn of this.listeners) fn(data);
-    });
+    this.stream = new NMEAStream(
+      "ble-nmea",
+      (data) => {
+        for (const fn of this.listeners) fn(data);
+      },
+      (status) => {
+        for (const fn of this.satListeners) fn(status);
+      },
+    );
   }
 
   static isAvailable(): boolean {
@@ -126,6 +143,7 @@ export class BLENMEAProvider implements NavigationDataProvider {
     this.device?.gatt?.disconnect();
     this.device = null;
     this.characteristic = null;
+    this.rxCharacteristic = null;
     this.stream.reset();
   }
 
@@ -166,6 +184,32 @@ export class BLENMEAProvider implements NavigationDataProvider {
   unsubscribe(callback: NavigationDataCallback): void {
     const idx = this.listeners.indexOf(callback);
     if (idx >= 0) this.listeners.splice(idx, 1);
+  }
+
+  requestSatelliteData(enable: boolean): void {
+    this.satWanted = enable;
+    this.sendSatCommand(enable);
+  }
+
+  subscribeSatelliteStatus(callback: SatelliteStatusCallback): void {
+    this.satListeners.push(callback);
+  }
+
+  unsubscribeSatelliteStatus(callback: SatelliteStatusCallback): void {
+    const idx = this.satListeners.indexOf(callback);
+    if (idx >= 0) this.satListeners.splice(idx, 1);
+  }
+
+  // Tell the pod to start/stop streaming GSV/GSA. No-op (logged) if the link is
+  // down or the firmware has no RX characteristic — the pod also auto-reverts.
+  private sendSatCommand(enable: boolean): void {
+    const c = this.rxCharacteristic;
+    if (!c) return;
+    const data = this.encoder.encode(`SAT ${enable ? 1 : 0}\n`);
+    const write = c.writeValueWithResponse ?? c.writeValue;
+    write?.call(c, data).catch((err) => {
+      console.warn("BLE GPS satellite command failed:", err);
+    });
   }
 
   // First connect: show the chooser (needs the user gesture from selecting this
@@ -218,9 +262,18 @@ export class BLENMEAProvider implements NavigationDataProvider {
       this.onNotify,
     );
     await this.characteristic.startNotifications();
+    // RX (write) is optional — older pod firmware has no command channel, so a
+    // missing characteristic just leaves satellite diagnostics unavailable.
+    try {
+      this.rxCharacteristic = await service.getCharacteristic(NUS_RX);
+    } catch {
+      this.rxCharacteristic = null;
+    }
     this.stream.reset();
     this.connected = true;
     this.reconnectDelayMs = 0; // recovered — reset the backoff
+    // Re-arm satellite forwarding if a diagnostics view is open across a reconnect.
+    if (this.satWanted) this.sendSatCommand(true);
   }
 
   private scheduleReconnect(): void {

@@ -13,7 +13,7 @@ export interface NMEAPosition {
   timestamp: number;
 }
 
-function validateChecksum(sentence: string): boolean {
+export function validateChecksum(sentence: string): boolean {
   const starIdx = sentence.indexOf("*");
   if (starIdx < 0) return false;
 

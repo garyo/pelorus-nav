@@ -6,10 +6,15 @@ export type { GPSFilterConfig } from "./GPSFilter";
 export { GPSFilter } from "./GPSFilter";
 export type { QualitySignals } from "./GPSQualityDetector";
 export { GPSQualityDetector } from "./GPSQualityDetector";
-export type {
-  NavigationData,
-  NavigationDataCallback,
-  NavigationDataProvider,
+export {
+  hasSatelliteDiagnostics,
+  type NavigationData,
+  type NavigationDataCallback,
+  type NavigationDataProvider,
+  type SatelliteDiagnostics,
+  type SatelliteInfo,
+  type SatelliteStatus,
+  type SatelliteStatusCallback,
 } from "./NavigationData";
 export { NavigationDataManager } from "./NavigationDataManager";
 export { SignalKProvider } from "./SignalKProvider";

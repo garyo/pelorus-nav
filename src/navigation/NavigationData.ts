@@ -23,6 +23,64 @@ export interface NavigationData {
 
 export type NavigationDataCallback = (data: NavigationData) => void;
 
+/** One satellite's live signal info, from NMEA GSV (+ GSA for `used`). */
+export interface SatelliteInfo {
+  /** Satellite ID — PRN / slot number within its constellation. */
+  prn: number;
+  /** Elevation above the horizon in degrees (0-90), or null. */
+  elevation: number | null;
+  /** Azimuth in degrees true (0-359), or null. */
+  azimuth: number | null;
+  /** Carrier-to-noise density (C/N0) in dB-Hz, or null if not tracked. */
+  snr: number | null;
+  /** Constellation name (GPS, GLONASS, Galileo, BeiDou, …). */
+  constellation: string;
+  /** True if this satellite is used in the current fix solution (from GSA). */
+  used: boolean;
+}
+
+/** Live receiver/satellite diagnostics, assembled from GSV + GSA sentences. */
+export interface SatelliteStatus {
+  /** Every satellite in view, across all constellations. */
+  satellites: SatelliteInfo[];
+  /** Count of satellites in view. */
+  inView: number;
+  /** Count of satellites used in the fix solution. */
+  used: number;
+  /** Fix type: 1 = no fix, 2 = 2D, 3 = 3D (from GSA). */
+  fixType: number;
+  /** Position / horizontal / vertical dilution of precision, or null. */
+  pdop: number | null;
+  hdop: number | null;
+  vdop: number | null;
+  /** When this snapshot was assembled (ms since epoch). */
+  timestamp: number;
+}
+
+export type SatelliteStatusCallback = (status: SatelliteStatus) => void;
+
+/**
+ * Optional provider capability: live satellite diagnostics on request. A GPS
+ * pod that can stream GSV/GSA (currently the BLE NUS pod) implements this so the
+ * UI can show signal bars / fix quality, while keeping that chatty traffic off
+ * the wire whenever the diagnostics view is closed.
+ */
+export interface SatelliteDiagnostics {
+  /** Ask the device to start (true) or stop (false) sending GSV/GSA. */
+  requestSatelliteData(enable: boolean): void;
+  subscribeSatelliteStatus(callback: SatelliteStatusCallback): void;
+  unsubscribeSatelliteStatus(callback: SatelliteStatusCallback): void;
+}
+
+export function hasSatelliteDiagnostics(
+  provider: NavigationDataProvider,
+): provider is NavigationDataProvider & SatelliteDiagnostics {
+  return (
+    typeof (provider as Partial<SatelliteDiagnostics>).requestSatelliteData ===
+    "function"
+  );
+}
+
 export interface NavigationDataProvider {
   /** Unique identifier */
   readonly id: string;

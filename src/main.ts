@@ -49,6 +49,7 @@ import {
   BrowserGeolocationProvider,
   CapacitorBLENMEAProvider,
   CapacitorGPSProvider,
+  hasSatelliteDiagnostics,
   type NavigationData,
   NavigationDataManager,
   SignalKProvider,
@@ -103,6 +104,7 @@ import { NavigationHUD } from "./ui/NavigationHUD";
 import { trackInstrumentHUD } from "./ui/PanelStack";
 import { RecenterButton } from "./ui/RecenterButton";
 import { RouteManagerPanel } from "./ui/RouteManagerPanel";
+import { SatelliteStatusPanel } from "./ui/SatelliteStatusPanel";
 import { maybeShowScreenTimeoutWarning } from "./ui/ScreenTimeoutDialog";
 import { SearchDialog } from "./ui/SearchDialog";
 import { createSettingsPanel } from "./ui/SettingsPanel";
@@ -486,6 +488,7 @@ pluginManager.activateAll();
 // Settings gear in top bar menu
 const topbarMenu = document.getElementById("topbar-menu");
 const topbarActions = document.getElementById("topbar-actions");
+const satellitePanel = new SatelliteStatusPanel();
 const settingsHandle = topbarMenu
   ? createSettingsPanel(topbarMenu, {
       chartProviders: {
@@ -497,6 +500,12 @@ const settingsHandle = topbarMenu
         setActive: (id) => chartManager.setActiveProvider(id),
       },
       reconnectGps: () => navManager.reconnectActiveProvider(),
+      openSatelliteDiagnostics: () => {
+        const provider = navManager.getActiveProvider();
+        if (provider && hasSatelliteDiagnostics(provider)) {
+          satellitePanel.show(provider, navManager);
+        }
+      },
     })
   : null;
 
@@ -504,6 +513,7 @@ const settingsHandle = topbarMenu
 // creation site below; the idle handler reads the populated list when it fires.
 const idleCloseables: Array<{ hide(): void }> = [];
 if (settingsHandle) idleCloseables.push(settingsHandle);
+idleCloseables.push(satellitePanel);
 // The feature-info popup (chart + merged plugin candidates) counts as a
 // dialog for auto-return.
 idleCloseables.push(featureQueryHandler);

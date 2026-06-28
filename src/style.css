@@ -875,6 +875,130 @@ body {
   margin-bottom: 12px;
 }
 
+/* GPS diagnostics panel (reuses .about-overlay / .about-card). */
+.sat-card {
+  width: 460px;
+}
+
+/* Pipeline status rows: label · value (+ traffic-light dot) · inline action. */
+.sat-status {
+  display: grid;
+  grid-template-columns: 78px 1fr auto;
+  align-items: center;
+  row-gap: 6px;
+  column-gap: 10px;
+  font-size: 13px;
+  margin-bottom: 14px;
+}
+
+.sat-status-label {
+  color: #888;
+}
+
+.sat-status-value {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: #e6e6e6;
+  font-variant-numeric: tabular-nums;
+}
+
+.sat-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex: 0 0 auto;
+  background: #666;
+}
+
+.sat-dot-green {
+  background: #4caf50;
+}
+
+.sat-dot-amber {
+  background: #e0a020;
+}
+
+.sat-dot-red {
+  background: #e05050;
+}
+
+.sat-inline-btn {
+  font-size: 12px;
+  padding: 2px 10px;
+  color: #cfe3ff;
+  background: rgba(80, 130, 200, 0.25);
+  border: 1px solid #4a6da0;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.sat-inline-btn:hover {
+  background: rgba(80, 130, 200, 0.4);
+}
+
+.sat-sec-header {
+  font-size: 11px;
+  color: #999;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 2px;
+}
+
+.sat-constellations {
+  font-size: 12px;
+  color: #9bb;
+  margin-bottom: 8px;
+}
+
+/* Fixed height + scroll so the dialog never resizes as satellites come and go. */
+.sat-bars {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  height: 220px;
+  overflow-y: auto;
+}
+
+.sat-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  opacity: 0.55; /* in view but not used in the solution */
+}
+
+.sat-row-used {
+  opacity: 1;
+}
+
+.sat-label {
+  flex: 0 0 90px;
+  color: #bbb;
+  font-family: monospace;
+}
+
+.sat-track {
+  flex: 1 1 auto;
+  height: 10px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.sat-fill {
+  height: 100%;
+  background: #4caf50;
+  transition: width 0.3s ease;
+}
+
+.sat-value {
+  flex: 0 0 28px;
+  text-align: right;
+  color: #ccc;
+  font-family: monospace;
+}
+
 /* Screen-timeout warning dialog (reuses .about-overlay / .about-card). */
 .screen-timeout-card {
   width: 420px;

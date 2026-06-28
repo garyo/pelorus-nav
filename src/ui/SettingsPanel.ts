@@ -72,6 +72,8 @@ export interface CreateSettingsPanelOpts {
   chartProviders: ChartProvidersOpt;
   /** Force a reconnect on the active GPS provider (used by the BLE button). */
   reconnectGps: () => void;
+  /** Open the live satellite diagnostics panel for the active provider. */
+  openSatelliteDiagnostics: () => void;
 }
 
 export interface SettingsPanelHandle {
@@ -185,7 +187,14 @@ function buildTabbedPanel(
 
   tabBodies.set("appearance", buildAppearanceTab(settings));
   tabBodies.set("layers", buildLayersTab(settings, opts.chartProviders));
-  tabBodies.set("navigation", buildNavigationTab(settings, opts.reconnectGps));
+  tabBodies.set(
+    "navigation",
+    buildNavigationTab(
+      settings,
+      opts.reconnectGps,
+      opts.openSatelliteDiagnostics,
+    ),
+  );
 
   for (const [id, body] of tabBodies) {
     body.className = "settings-tab-body";
@@ -577,6 +586,7 @@ function buildTextRow(
 function buildNavigationTab(
   settings: ReturnType<typeof getSettings>,
   reconnectGps: () => void,
+  openSatelliteDiagnostics: () => void,
 ): HTMLElement {
   const tab = document.createElement("div");
 
@@ -612,12 +622,22 @@ function buildNavigationTab(
     "Reconnect",
     () => reconnectGps(),
   );
-  const updateReconnectRow = (src: string) => {
-    reconnectRow.style.display = src === "ble-nmea" ? "" : "none";
+  // Live satellite diagnostics — only the BLE pod can stream GSV/GSA on request.
+  const satRow = buildActionRow(
+    "Satellites",
+    "settings-gps-satellites",
+    "View",
+    () => openSatelliteDiagnostics(),
+  );
+  const updateBleRows = (src: string) => {
+    const display = src === "ble-nmea" ? "" : "none";
+    reconnectRow.style.display = display;
+    satRow.style.display = display;
   };
-  updateReconnectRow(settings.gpsSource);
-  onSettingsChange((s) => updateReconnectRow(s.gpsSource));
+  updateBleRows(settings.gpsSource);
+  onSettingsChange((s) => updateBleRows(s.gpsSource));
   tab.appendChild(reconnectRow);
+  tab.appendChild(satRow);
 
   // Simulator speed (shown only when the simulator is the GPS source)
   const SIM_SPEED_OPTIONS = [

@@ -12,14 +12,19 @@ import { BleClient, type BleDevice } from "@capacitor-community/bluetooth-le";
 import type {
   NavigationDataCallback,
   NavigationDataProvider,
+  SatelliteDiagnostics,
+  SatelliteStatusCallback,
 } from "./NavigationData";
 import { NMEAStream } from "./nmea-stream";
 
 // Nordic UART Service UUIDs (lowercase, as the plugin expects).
 const NUS_SERVICE = "6e400001-b5a3-f393-e0a9-e50e24dcca9e";
+const NUS_RX = "6e400002-b5a3-f393-e0a9-e50e24dcca9e"; // central → peripheral (write)
 const NUS_TX = "6e400003-b5a3-f393-e0a9-e50e24dcca9e"; // peripheral → central (notify)
 
-export class CapacitorBLENMEAProvider implements NavigationDataProvider {
+export class CapacitorBLENMEAProvider
+  implements NavigationDataProvider, SatelliteDiagnostics
+{
   readonly id = "ble-nmea";
   readonly name = "Bluetooth GPS (BLE)";
 
@@ -29,18 +34,27 @@ export class CapacitorBLENMEAProvider implements NavigationDataProvider {
   private static readonly RECONNECT_MAX_MS = 30000;
 
   private listeners: NavigationDataCallback[] = [];
+  private satListeners: SatelliteStatusCallback[] = [];
   private device: BleDevice | null = null;
+  private satWanted = false;
   private connected = false;
   private wantConnected = false;
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private reconnectDelayMs = 0;
   private readonly decoder = new TextDecoder();
+  private readonly encoder = new TextEncoder();
   private readonly stream: NMEAStream;
 
   constructor() {
-    this.stream = new NMEAStream("ble-nmea", (data) => {
-      for (const fn of this.listeners) fn(data);
-    });
+    this.stream = new NMEAStream(
+      "ble-nmea",
+      (data) => {
+        for (const fn of this.listeners) fn(data);
+      },
+      (status) => {
+        for (const fn of this.satListeners) fn(status);
+      },
+    );
   }
 
   isConnected(): boolean {
@@ -104,6 +118,32 @@ export class CapacitorBLENMEAProvider implements NavigationDataProvider {
     if (idx >= 0) this.listeners.splice(idx, 1);
   }
 
+  requestSatelliteData(enable: boolean): void {
+    this.satWanted = enable;
+    this.sendSatCommand(enable);
+  }
+
+  subscribeSatelliteStatus(callback: SatelliteStatusCallback): void {
+    this.satListeners.push(callback);
+  }
+
+  unsubscribeSatelliteStatus(callback: SatelliteStatusCallback): void {
+    const idx = this.satListeners.indexOf(callback);
+    if (idx >= 0) this.satListeners.splice(idx, 1);
+  }
+
+  // Tell the pod to start/stop streaming GSV/GSA. No-op (logged) if the link is
+  // down; the pod also auto-reverts so a missed "SAT 0" can't strand it on.
+  private sendSatCommand(enable: boolean): void {
+    const id = this.device?.deviceId;
+    if (!id || !this.connected) return;
+    const bytes = this.encoder.encode(`SAT ${enable ? 1 : 0}\n`);
+    const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+    BleClient.write(id, NUS_SERVICE, NUS_RX, view).catch((err) => {
+      console.warn("Capacitor BLE GPS satellite command failed:", err);
+    });
+  }
+
   // First connect: native scan picker (needs the user gesture from selecting
   // this provider). A cancelled/failed picker drops the intent — re-opening it
   // would need a fresh gesture, so we don't auto-retry the picker.
@@ -141,6 +181,8 @@ export class CapacitorBLENMEAProvider implements NavigationDataProvider {
     this.stream.reset();
     this.connected = true;
     this.reconnectDelayMs = 0; // recovered — reset the backoff
+    // Re-arm satellite forwarding if a diagnostics view is open across a reconnect.
+    if (this.satWanted) this.sendSatCommand(true);
   }
 
   private onPeripheralDisconnect(): void {

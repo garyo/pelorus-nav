@@ -13,8 +13,14 @@
  * epoch with only a GGA reuses the most recent values.
  */
 
-import type { NavigationData } from "./NavigationData";
+import type { NavigationData, SatelliteStatusCallback } from "./NavigationData";
 import { parseNMEA } from "./nmea-parser";
+import { SatelliteTracker } from "./satellite-status";
+
+// A receiver's GSV/GSA sentences arrive in a tight burst once per epoch (~1 Hz),
+// then go quiet. Committing the accumulated snapshot after this much silence
+// yields one coherent frame per epoch instead of one per sentence.
+const SAT_BURST_QUIET_MS = 200;
 
 interface PendingFix {
   timestamp: number;
@@ -35,10 +41,21 @@ export class NMEAStream {
   private lastEmittedTimestamp: number | null = null;
   private readonly source: string;
   private readonly onFix: (data: NavigationData) => void;
+  // Satellite-diagnostics path, only assembled when a consumer wants it. GSV/GSA
+  // describe receiver state, not a position fix, so they bypass the epoch merge.
+  private readonly onSatStatus?: SatelliteStatusCallback;
+  private readonly satTracker: SatelliteTracker | null;
+  private satCommitTimer: ReturnType<typeof setTimeout> | null = null;
 
-  constructor(source: string, onFix: (data: NavigationData) => void) {
+  constructor(
+    source: string,
+    onFix: (data: NavigationData) => void,
+    onSatStatus?: SatelliteStatusCallback,
+  ) {
     this.source = source;
     this.onFix = onFix;
+    this.onSatStatus = onSatStatus;
+    this.satTracker = onSatStatus ? new SatelliteTracker() : null;
   }
 
   /** Feed a chunk of decoded text; may contain partial and/or multiple lines. */
@@ -58,10 +75,35 @@ export class NMEAStream {
     this.pendingHasRMC = false;
     this.pendingHasGGA = false;
     this.lastEmittedTimestamp = null;
+    if (this.satCommitTimer !== null) {
+      clearTimeout(this.satCommitTimer);
+      this.satCommitTimer = null;
+    }
+    this.satTracker?.reset();
+  }
+
+  // Restart the quiet-gap timer on each GSV/GSA; when the burst stops arriving,
+  // commit the accumulated epoch and emit a single coherent snapshot.
+  private scheduleSatCommit(): void {
+    if (this.satCommitTimer !== null) clearTimeout(this.satCommitTimer);
+    this.satCommitTimer = setTimeout(() => {
+      this.satCommitTimer = null;
+      const status = this.satTracker?.commitEpoch();
+      if (status) this.onSatStatus?.(status);
+    }, SAT_BURST_QUIET_MS);
   }
 
   private processLine(line: string): void {
     if (!line.startsWith("$")) return;
+
+    if (this.satTracker) {
+      const id = line.split(",")[0];
+      if (id.endsWith("GSV") || id.endsWith("GSA")) {
+        this.satTracker.ingest(line);
+        this.scheduleSatCommit();
+        return;
+      }
+    }
 
     const parsed = parseNMEA(line);
     if (!parsed) return;
