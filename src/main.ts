@@ -868,6 +868,15 @@ wakeLockCtrl.setEinkMode(initGpsSettings.displayTheme === "eink");
 // Activate initial GPS source from settings
 navManager.setActiveProvider(initGpsSettings.gpsSource);
 
+// Disconnect the active GPS source before the page is torn down (reload/close).
+// On native (Capacitor) the BLE plugin outlives a JS reload, so an open link
+// would leak — keeping the pod's single client slot and blocking the reloaded
+// app from rediscovering it. Skip bfcache freezes, where the link should resume.
+window.addEventListener("pagehide", (event) => {
+  if (event.persisted) return;
+  navManager.getActiveProvider()?.disconnect();
+});
+
 // Auto-switch active region based on GPS position
 new RegionAutoSwitch(navManager);
 

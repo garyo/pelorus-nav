@@ -162,6 +162,7 @@ export class CapacitorBLENMEAProvider
     // silently, so drop the intent.
     try {
       await BleClient.initialize();
+      await this.releaseStaleLinks();
       this.device = await BleClient.requestDevice({ services: [NUS_SERVICE] });
     } catch (err) {
       console.warn("Capacitor BLE GPS device not selected:", err);
@@ -176,6 +177,22 @@ export class CapacitorBLENMEAProvider
     } catch (err) {
       console.warn("Capacitor BLE GPS connect failed, retrying:", err);
       this.scheduleReconnect();
+    }
+  }
+
+  // Close any pod link the native layer still holds before scanning. A page
+  // reload (About → "Clear Cache & Reload") tears down the JS context but not
+  // the native BLE plugin, so its BluetoothGatt survives — keeping the pod's
+  // single client slot, so the pod stops advertising and the fresh scan finds
+  // nothing. Disconnecting the leaked link frees the pod to advertise again.
+  private async releaseStaleLinks(): Promise<void> {
+    try {
+      const stale = await BleClient.getConnectedDevices([NUS_SERVICE]);
+      for (const d of stale) {
+        await BleClient.disconnect(d.deviceId).catch(() => {});
+      }
+    } catch (err) {
+      console.warn("Capacitor BLE GPS: stale-link sweep failed:", err);
     }
   }
 
