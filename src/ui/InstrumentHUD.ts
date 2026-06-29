@@ -134,9 +134,6 @@ export function createInstrumentHUD(
     nextWpEl = null;
     const s = getSettings();
     const baseIds = s.instrumentCells;
-    // Landscape top-bar uses this to shrink the primary digits only while the
-    // extra DTW/BRG/VMG/STEER cells share the row; SOG/COG alone stay large.
-    container.classList.toggle("has-nav", navActive);
 
     for (let i = 0; i < baseIds.length; i++) {
       const def = INSTRUMENTS.get(baseIds[i]);

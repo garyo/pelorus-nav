@@ -3285,23 +3285,14 @@ body {
     align-items: stretch;
   }
 
-  /* Flatten the nav group so its caption and cells become row items of the
-     HUD itself (the click handler still works via event bubbling). */
-  body[data-instrument-layout="standard"] .instrument-nav-group {
-    display: contents;
-  }
-
-  /* Equal columns: each base cell = 1 unit, the 4-cell nav row = 4 units. */
+  /* SOG/COG share the first row; the nav group (caption + DTW/BRG/VMG/STEER)
+     wraps to its own row below — the base .instrument-nav-group already spans
+     full width — so the primary digits stay large instead of being squeezed by
+     four more cells into a single cramped row. */
   body[data-instrument-layout="standard"] .instrument-cell {
     flex: 1 1 0;
     height: auto;
     padding: 1px 8px 2px;
-  }
-
-  body[data-instrument-layout="standard"] .instrument-nav-row {
-    flex: 4 1 0;
-    min-width: 0;
-    border-left: 1px solid #ccc;
   }
 
   body[data-instrument-layout="standard"] .instrument-cell--nav {
@@ -3318,13 +3309,6 @@ body {
     .instrument-value {
     font-size: clamp(20px, 3vw, 28px);
   }
-
-  /* Caption drops to its own thin line below the single row. */
-  body[data-instrument-layout="standard"] .instrument-next-wp {
-    order: 1;
-    flex-basis: 100%;
-    padding: 0 0 2px 12px;
-  }
 }
 
 /* ── Large landscape viewports (tablets / e-ink chartplotters) ────────
@@ -3333,26 +3317,28 @@ body {
    dominate. Gate the big sizes behind a tall viewport so only tablets get them.
    On the BOOX (896×674 CSS px) these land at ~80 px digits. */
 @media (orientation: landscape) and (min-height: 540px) {
-  /* Top bar: big primary digits when only SOG/COG share the row. */
+  /* Top bar: big primary digits. SOG/COG sit alone on the first row (the nav
+     group wraps below), so they stay large whether or not we're navigating. */
   body[data-instrument-layout="standard"] .instrument-value {
     font-size: clamp(48px, 9vw, 88px);
   }
 
-  /* While navigating, DTW/BRG/VMG/STEER also sit in the row, narrowing the
-     primary cells — pull the big digits back down so nothing overflows. */
-  body[data-instrument-layout="standard"] .instrument-hud.has-nav
+  /* The nav row is alone on the second row now, so its digits can be bigger
+     than the old cramped one-row size. */
+  body[data-instrument-layout="standard"] .instrument-cell--nav
     .instrument-value {
-    font-size: clamp(28px, 4.5vw, 44px);
+    font-size: clamp(30px, 4vw, 46px);
   }
 
-  /* Side data box: a touch wider so larger digits (incl. a 3-digit heading)
-     fit, and matching big primary values. */
+  /* Side data box: kept narrow to give the chart maximum width. The digits stay
+     clearly readable in the column without driving it wide (a 3-digit heading
+     still fits the capped width). */
   body[data-instrument-layout="side"] {
-    --instr-col-width: clamp(160px, 27vw, 224px);
+    --instr-col-width: clamp(148px, 19vw, 172px);
   }
 
   body[data-instrument-layout="side"] .instrument-value {
-    font-size: clamp(52px, min(12vh, 9.5vw), 80px);
+    font-size: clamp(42px, min(9vh, 7vw), 60px);
   }
 }
 
