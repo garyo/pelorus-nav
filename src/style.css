@@ -3401,6 +3401,32 @@ body {
   }
 }
 
+/* e-ink dividers. The theme block darkens the top bar's border-LEFT dividers,
+   but the side column and the 2×2 nav grid divide with TOP / grid borders that
+   stay #ccc — invisible on e-ink. Darken those too. Placed after the layout
+   rules above so it wins the specificity ties on the grid cells. */
+body[data-theme="eink"][data-instrument-layout="side"]
+.instrument-cell--bordered {
+  border-top-color: #000000;
+}
+
+body[data-theme="eink"][data-instrument-layout="standard"]
+  .instrument-nav-group {
+  border-left-color: #000000;
+}
+
+body[data-theme="eink"][data-instrument-layout="standard"]
+  .instrument-nav-row
+  .instrument-cell--nav:nth-child(2n) {
+  border-left-color: #000000;
+}
+
+body[data-theme="eink"][data-instrument-layout="standard"]
+  .instrument-nav-row
+  .instrument-cell--nav:nth-child(n + 3) {
+  border-top-color: #000000;
+}
+
 /* ── Theme overrides for hamburger menu ──────────────────────────── */
 [data-theme="night"] .hamburger-btn {
   color: #cc3333;
