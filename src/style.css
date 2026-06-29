@@ -3192,31 +3192,33 @@ body {
     --instr-col-width: clamp(120px, 24vw, 168px);
   }
 
+  /* A compact data box pinned to the top-left, sized to its contents — not a
+     full-height column. It floats over the map (which keeps its full width),
+     so there's no empty reserved strip below the readouts. */
   body[data-instrument-layout="side"] .instrument-hud {
     position: absolute;
     top: var(--topbar-bottom);
     left: 0;
-    bottom: 0;
+    bottom: auto;
     width: var(--instr-col-width);
     height: auto;
+    max-height: calc(100vh - var(--topbar-bottom));
     z-index: 20;
     flex-direction: column;
     flex-wrap: nowrap;
-    border-bottom: none;
     border-right: 1px solid #ccc;
+    border-bottom: 1px solid #ccc;
+    border-bottom-right-radius: 8px;
     overflow-y: auto;
   }
 
-  body[data-instrument-layout="side"]:has(.instrument-hud:not([style*="none"]))
-    #map {
-    width: auto;
-    margin-left: var(--instr-col-width);
-  }
-
-  /* Stack cells vertically; turn the left-edge dividers into top dividers. */
+  /* Stack cells vertically, packed at the top (no flex-grow stretching them to
+     fill the box) so there's no dead space between SOG and COG. Turn the
+     left-edge dividers into top dividers. */
   body[data-instrument-layout="side"] .instrument-cell {
+    flex: 0 0 auto;
     height: auto;
-    padding: 3px 8px;
+    padding: 8px 10px;
   }
 
   body[data-instrument-layout="side"] .instrument-cell--bordered {
@@ -3322,6 +3324,35 @@ body {
     order: 1;
     flex-basis: 100%;
     padding: 0 0 2px 12px;
+  }
+}
+
+/* ── Large landscape viewports (tablets / e-ink chartplotters) ────────
+   The compact landscape clamps above keep small landscape phones (handled by
+   the max-height: 500px block) tidy, but on a 7"+ helm display SOG/COG should
+   dominate. Gate the big sizes behind a tall viewport so only tablets get them.
+   On the BOOX (896×674 CSS px) these land at ~80 px digits. */
+@media (orientation: landscape) and (min-height: 540px) {
+  /* Top bar: big primary digits when only SOG/COG share the row. */
+  body[data-instrument-layout="standard"] .instrument-value {
+    font-size: clamp(48px, 9vw, 88px);
+  }
+
+  /* While navigating, DTW/BRG/VMG/STEER also sit in the row, narrowing the
+     primary cells — pull the big digits back down so nothing overflows. */
+  body[data-instrument-layout="standard"] .instrument-hud.has-nav
+    .instrument-value {
+    font-size: clamp(28px, 4.5vw, 44px);
+  }
+
+  /* Side data box: a touch wider so larger digits (incl. a 3-digit heading)
+     fit, and matching big primary values. */
+  body[data-instrument-layout="side"] {
+    --instr-col-width: clamp(160px, 27vw, 224px);
+  }
+
+  body[data-instrument-layout="side"] .instrument-value {
+    font-size: clamp(52px, min(12vh, 9.5vw), 80px);
   }
 }
 
