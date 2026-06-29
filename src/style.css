@@ -3226,11 +3226,13 @@ body {
     border-top: 1px solid #ccc;
   }
 
-  /* Big, bold primary values. Scale to the column height (vh) on short phone
-     viewports, but also cap by width (vw) and an absolute max so a 3-digit
-     heading ("359°") never overflows the fixed-width column on tall tablets. */
+  /* Fill the column WIDTH (the binding constraint in a narrow column) rather
+     than the viewport height — on the BOOX (896×630) the old min(_, vh) term
+     under-sized the digits and left whitespace. Cap by 11vh so a short phone's
+     stacked cells don't overflow vertically. 2.4 leaves room for the widest
+     value, a 3-digit heading like "317°". */
   body[data-instrument-layout="side"] .instrument-value {
-    font-size: clamp(40px, min(11vh, 8.5vw), 56px);
+    font-size: min(calc((var(--instr-col-width) - 20px) / 2.4), 11vh);
   }
 
   /* The narrow column has no room for the label/unit beside the big primary
@@ -3394,10 +3396,6 @@ body {
      still fits the capped width). */
   body[data-instrument-layout="side"] {
     --instr-col-width: clamp(148px, 19vw, 172px);
-  }
-
-  body[data-instrument-layout="side"] .instrument-value {
-    font-size: clamp(42px, min(9vh, 7vw), 60px);
   }
 }
 
