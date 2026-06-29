@@ -3328,15 +3328,16 @@ body {
     padding-right: 46px;
   }
 
+  /* Size the mains to (just) drive the bar height rather than trailing the nav
+     block — so the value row fills the cell instead of floating centered in it
+     with empty space above and below, and the digits get as big as the row
+     allows. With zero vertical padding the cell height equals the value row. */
   body[data-instrument-layout="standard"] .instrument-value {
-    font-size: clamp(52px, 10.5vw, 96px);
+    font-size: clamp(56px, 12vw, 112px);
   }
 
-  /* The mains are stretched to the row height the (taller) nav block sets, so
-     dropping their vertical padding lets the digits grow into that headroom
-     without making the bar any taller. */
   body[data-instrument-layout="standard"]
-  .instrument-cell:not(.instrument-cell--nav) {
+    .instrument-cell:not(.instrument-cell--nav) {
     padding-top: 0;
     padding-bottom: 0;
   }
