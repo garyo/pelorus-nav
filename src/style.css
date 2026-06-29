@@ -3317,17 +3317,66 @@ body {
    dominate. Gate the big sizes behind a tall viewport so only tablets get them.
    On the BOOX (896×674 CSS px) these land at ~80 px digits. */
 @media (orientation: landscape) and (min-height: 540px) {
-  /* Top bar: big primary digits. SOG/COG sit alone on the first row (the nav
-     group wraps below), so they stay large whether or not we're navigating. */
+  /* Standard, navigating: SOG/COG side-by-side on the left; the four nav
+     instruments as a 2×2 block on the right with the "Next:" caption above it —
+     the right block matching the big primary cells' height. (Not navigating
+     there's no nav group, so it's just the two big mains across the bar.) */
+  /* Reserve a strip on the right so the nav grid never sits under the corner
+     "• GPS" badge (absolutely positioned top-right of the bar). */
+  body[data-instrument-layout="standard"] .instrument-hud {
+    flex-wrap: nowrap;
+    padding-right: 46px;
+  }
+
   body[data-instrument-layout="standard"] .instrument-value {
     font-size: clamp(48px, 9vw, 88px);
   }
 
-  /* The nav row is alone on the second row now, so its digits can be bigger
-     than the old cramped one-row size. */
-  body[data-instrument-layout="standard"] .instrument-cell--nav
+  /* Nav group sits to the right of the mains — sized to its content and divided
+     off by a rule, not wrapped onto a full-width second row. */
+  body[data-instrument-layout="standard"] .instrument-nav-group {
+    flex: 0 1 auto;
+    border-top: none;
+    border-left: 1px solid #ccc;
+  }
+
+  body[data-instrument-layout="standard"] .instrument-next-wp {
+    padding: 2px 10px 1px;
+  }
+
+  /* The four nav cells as a 2×2 grid filling the group's height. Wider columns
+     let the values breathe and give the "Next:" caption room for longer names. */
+  body[data-instrument-layout="standard"] .instrument-nav-row {
+    flex: 1;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(132px, 1fr));
+    grid-auto-rows: 1fr;
+  }
+
+  body[data-instrument-layout="standard"]
+    .instrument-cell--nav
     .instrument-value {
-    font-size: clamp(30px, 4vw, 46px);
+    font-size: clamp(28px, 4.2vw, 40px);
+  }
+
+  /* Grid dividers via cell position, replacing the default per-cell left border
+     (which would leave a stray line under the first column). */
+  body[data-instrument-layout="standard"] .instrument-nav-row
+    .instrument-cell--nav {
+    border: none;
+    padding: 3px 14px;
+  }
+
+  body[data-instrument-layout="standard"]
+    .instrument-nav-row
+    .instrument-cell--nav:nth-child(2n) {
+    border-left: 1px solid #ccc;
+  }
+
+  body[data-instrument-layout="standard"]
+    .instrument-nav-row
+    .instrument-cell--nav:nth-child(n + 3) {
+    border-top: 1px solid #ccc;
   }
 
   /* Side data box: kept narrow to give the chart maximum width. The digits stay
