@@ -3329,7 +3329,16 @@ body {
   }
 
   body[data-instrument-layout="standard"] .instrument-value {
-    font-size: clamp(48px, 9vw, 88px);
+    font-size: clamp(52px, 10.5vw, 96px);
+  }
+
+  /* The mains are stretched to the row height the (taller) nav block sets, so
+     dropping their vertical padding lets the digits grow into that headroom
+     without making the bar any taller. */
+  body[data-instrument-layout="standard"]
+  .instrument-cell:not(.instrument-cell--nav) {
+    padding-top: 0;
+    padding-bottom: 0;
   }
 
   /* Nav group sits to the right of the mains — sized to its content and divided
