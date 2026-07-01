@@ -1,7 +1,7 @@
-// OPFS synchronous access handle, used by the OPFS write worker
-// (src/data/opfs-write-worker.ts). Declared here because this project's TS DOM
-// lib version doesn't yet include it. The FileSystemFileHandle augmentation
-// merges with the built-in DOM type to add createSyncAccessHandle.
+// OPFS APIs used by the OPFS write worker (src/data/opfs-write-worker.ts) and
+// tile-store.ts. Declared here because this project's TS DOM lib version
+// doesn't yet include them. These augmentations merge with the built-in DOM
+// types.
 
 interface FileSystemSyncAccessHandle {
   read(
@@ -20,4 +20,17 @@ interface FileSystemSyncAccessHandle {
 
 interface FileSystemFileHandle {
   createSyncAccessHandle(): Promise<FileSystemSyncAccessHandle>;
+}
+
+interface FileSystemHandle {
+  /**
+   * Renames this entry within its parent directory. Optional because it
+   * isn't in every OPFS implementation yet — callers must feature-detect and
+   * fall back to copy+delete.
+   */
+  move?(newName: string): Promise<void>;
+}
+
+interface FileSystemDirectoryHandle {
+  keys(): AsyncIterableIterator<string>;
 }

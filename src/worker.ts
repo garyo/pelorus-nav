@@ -50,6 +50,14 @@ function contentTypeForKey(key: string): string {
   return "application/octet-stream";
 }
 
+// Cross-origin native clients (https://localhost → pelorus-nav.com) can only
+// read CORS-safelisted response headers unless the server explicitly exposes
+// more via this header. etag/last-modified drive update detection and the
+// `?v=` cache-busting query param, so they must be exposed on every branch
+// that serves an R2 object.
+const EXPOSED_HEADERS =
+  "etag, last-modified, content-length, content-range, accept-ranges";
+
 // PMTiles are huge and stable — cache aggressively.
 // Coverage and search metadata are small and get rebuilt on every tile run;
 // revalidate quickly when online, but fall back to the last-known copy when
@@ -103,15 +111,16 @@ async function handleTilesRequest(
         "content-length": String(end - range.offset + 1),
         "accept-ranges": "bytes",
         etag: object.httpEtag,
+        "last-modified": object.uploaded.toUTCString(),
         "cache-control": cacheControlForKey(key),
         ...corsHeaders,
-        "access-control-expose-headers":
-          "content-range, content-length, accept-ranges",
+        "access-control-expose-headers": EXPOSED_HEADERS,
       },
     });
   }
 
-  // Full object request (no Range header)
+  // Full object request (no Range header) — also covers HEAD, since the
+  // Workers runtime strips the body from HEAD responses automatically.
   const object = await env.TILES.get(key);
   if (!object) {
     return new Response("Not found", { status: 404 });
@@ -122,8 +131,10 @@ async function handleTilesRequest(
       "content-length": String(object.size),
       "accept-ranges": "bytes",
       etag: object.httpEtag,
+      "last-modified": object.uploaded.toUTCString(),
       "cache-control": cacheControlForKey(key),
       ...corsHeaders,
+      "access-control-expose-headers": EXPOSED_HEADERS,
     },
   });
 }

@@ -22,11 +22,40 @@ export interface StoredChartInfo {
   etag?: string; // for update detection
 }
 
+let sweptDownloadingFiles = false;
+
+/**
+ * Remove any `*.downloading` temp files left behind by a crash or force-quit
+ * mid-download — the OPFS write worker normally cleans these up itself (see
+ * opfs-write-worker.ts), but a hard kill skips that cleanup entirely. Runs at
+ * most once per session, the first time the OPFS root is opened.
+ */
+async function sweepDownloadingFiles(
+  root: FileSystemDirectoryHandle,
+): Promise<void> {
+  if (sweptDownloadingFiles) return;
+  sweptDownloadingFiles = true;
+  try {
+    for await (const name of root.keys()) {
+      if (!name.endsWith(".downloading")) continue;
+      try {
+        await root.removeEntry(name);
+      } catch {
+        // best-effort cleanup only
+      }
+    }
+  } catch {
+    // root.keys() unsupported or failed — skip cleanup silently
+  }
+}
+
 /** Get OPFS root directory handle (returns null in insecure contexts). */
 async function getRoot(): Promise<FileSystemDirectoryHandle | null> {
   if (!navigator.storage?.getDirectory) return null;
   try {
-    return await navigator.storage.getDirectory();
+    const root = await navigator.storage.getDirectory();
+    await sweepDownloadingFiles(root);
+    return root;
   } catch {
     return null;
   }
@@ -127,8 +156,9 @@ export function isUpdateAvailable(
  *
  * The actual fetch + write streams inside the OPFS write worker
  * (createSyncAccessHandle) so it works on iOS WKWebView, which has no
- * main-thread OPFS write API. The worker writes directly to `filename` and
- * removes the partial file if the download fails or is aborted.
+ * main-thread OPFS write API. The worker streams into a `${filename}.downloading`
+ * temp file and only moves it over `filename` once the download completes, so a
+ * failed or aborted download never disturbs an already-downloaded chart.
  */
 export async function downloadChart(
   url: string,
@@ -234,6 +264,8 @@ export async function deleteAllCharts(): Promise<void> {
     }
   }
   // Also clean up any leftover .downloading files
+  sweptDownloadingFiles = false;
+  await sweepDownloadingFiles(root);
   try {
     await root.removeEntry(META_FILENAME);
   } catch {
