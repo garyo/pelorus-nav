@@ -1115,7 +1115,9 @@ INSTRUMENTS.set("brg", {
     const info = activeNav.getInfo();
     const mode = settings.bearingMode;
     const label = bearingModeLabel(mode);
-    if (!info) return { value: "--", unit: label };
+    // data is null when the fix is stale — info is then computed from a stale
+    // position, so blank like the motion instruments rather than freezing.
+    if (!info || !data) return { value: "--", unit: label };
     const lat = data?.latitude ?? 0;
     const lon = data?.longitude ?? 0;
     const display = applyDeclination(info.bearingDeg, mode, lat, lon);
@@ -1130,9 +1132,10 @@ INSTRUMENTS.set("dtw", {
   id: "dtw",
   label: "Dist to wpt",
   shortLabel: "DTW",
-  format() {
+  format(data) {
     const info = activeNav.getInfo();
-    if (!info) return { value: "--", unit: "NM" };
+    // Blank on a stale fix (data null) — see the BRG formatter.
+    if (!info || !data) return { value: "--", unit: "NM" };
     return {
       value:
         info.distanceNM < 10
@@ -1147,10 +1150,11 @@ INSTRUMENTS.set("vmg", {
   id: "vmg",
   label: "Velocity made good",
   shortLabel: "VMG",
-  format(_data, settings) {
+  format(data, settings) {
     const info = activeNav.getInfo();
     const unit = speedUnitLabel(settings.speedUnit);
-    if (!info || info.vmgKn == null) return { value: "--", unit };
+    // Blank on a stale fix (data null) — see the BRG formatter.
+    if (!info || !data || info.vmgKn == null) return { value: "--", unit };
     const v = info.vmgKn;
     const display =
       v < 0
@@ -1164,9 +1168,11 @@ INSTRUMENTS.set("steer", {
   id: "steer",
   label: "Steer",
   shortLabel: "STR",
-  format() {
+  format(data) {
     const info = activeNav.getInfo();
-    if (!info || info.steerDeg == null) return { value: "--", unit: "" };
+    // Blank on a stale fix (data null) — see the BRG formatter.
+    if (!info || !data || info.steerDeg == null)
+      return { value: "--", unit: "" };
     const d = info.steerDeg;
     if (Math.abs(d) < 1) return { value: "0\u00b0", unit: "" };
     const mag = Math.round(Math.abs(d));
