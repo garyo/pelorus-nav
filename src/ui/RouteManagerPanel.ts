@@ -17,6 +17,7 @@ import type { WaypointLayer } from "../map/WaypointLayer";
 import type { ActiveNavigationManager } from "../navigation/ActiveNavigation";
 import { getSettings } from "../settings";
 import { haversineDistanceNM } from "../utils/coordinates";
+import { openColorPicker } from "./color-picker";
 import {
   iconActivity,
   iconEdit,
@@ -426,29 +427,22 @@ export class RouteManagerPanel {
     });
   }
 
-  private async pickColor(
-    route: Route,
-    colorEl: HTMLDivElement,
-  ): Promise<void> {
-    const input = document.createElement("input");
-    input.type = "color";
-    input.value = route.color;
-    input.style.position = "absolute";
-    input.style.opacity = "0";
-    colorEl.appendChild(input);
-    input.click();
-
-    input.addEventListener("input", () => {
-      route.color = input.value;
-      colorEl.style.backgroundColor = input.value;
-    });
-
-    input.addEventListener("change", async () => {
-      route.color = input.value;
-      await saveRoute(route);
-      await this.routeLayer.reloadAll();
-      input.remove();
-    });
+  private pickColor(route: Route, colorEl: HTMLDivElement): void {
+    openColorPicker(
+      colorEl,
+      route.color,
+      (color) => {
+        route.color = color;
+        colorEl.style.backgroundColor = color;
+      },
+      (color) => {
+        route.color = color;
+        (async () => {
+          await saveRoute(route);
+          await this.routeLayer.reloadAll();
+        })().catch(console.error);
+      },
+    );
   }
   private async exportAll(): Promise<void> {
     const routes = await getAllRoutes();

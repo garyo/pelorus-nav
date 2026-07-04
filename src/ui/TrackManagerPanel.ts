@@ -25,6 +25,7 @@ import type { TrackLayer } from "../map/TrackLayer";
 import type { TrackRecorder } from "../map/TrackRecorder";
 import { updateSettings } from "../settings";
 import { formatDistanceShort, formatDurationShort } from "../utils/format";
+import { openColorPicker } from "./color-picker";
 import {
   iconActivity,
   iconExport,
@@ -478,29 +479,22 @@ export class TrackManagerPanel {
     downloadFile(gpx, "pelorus-tracks.gpx", GPX_MIME);
   }
 
-  private async pickColor(
-    meta: TrackMeta,
-    colorEl: HTMLDivElement,
-  ): Promise<void> {
-    const input = document.createElement("input");
-    input.type = "color";
-    input.value = meta.color;
-    input.style.position = "absolute";
-    input.style.opacity = "0";
-    colorEl.appendChild(input);
-    input.click();
-
-    input.addEventListener("input", () => {
-      meta.color = input.value;
-      colorEl.style.backgroundColor = input.value;
-    });
-
-    input.addEventListener("change", async () => {
-      meta.color = input.value;
-      await saveTrackMeta(meta);
-      await this.trackLayer.reloadAll();
-      input.remove();
-    });
+  private pickColor(meta: TrackMeta, colorEl: HTMLDivElement): void {
+    openColorPicker(
+      colorEl,
+      meta.color,
+      (color) => {
+        meta.color = color;
+        colorEl.style.backgroundColor = color;
+      },
+      (color) => {
+        meta.color = color;
+        (async () => {
+          await saveTrackMeta(meta);
+          await this.trackLayer.reloadAll();
+        })().catch(console.error);
+      },
+    );
   }
 
   private async importGpx(): Promise<void> {
