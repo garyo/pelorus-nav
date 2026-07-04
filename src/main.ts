@@ -127,6 +127,7 @@ import { createThermalMonitor } from "./utils/thermal";
 import { convertSpeed, speedUnitLabel } from "./utils/units";
 import { ChartModeController } from "./vessel/ChartMode";
 import { CourseLine } from "./vessel/CourseLine";
+import { type CourseSnapshot, courseChanged } from "./vessel/course-gate";
 import { VesselLayer } from "./vessel/VesselLayer";
 
 // On Capacitor, unregister any stale service workers left from previous installs.
@@ -812,31 +813,42 @@ navManager.subscribe((data) => {
   recenterBtn.setEnabled(true);
 });
 
-// Per-frame smoothing for fluid course line and map rotation
-let prevCog = -1;
-let prevLat = -999;
-let prevLon = -999;
+// Per-frame smoothing for fluid course line and map rotation.
+// Gated on real change: when the smoothed course has converged (or the fix
+// is stale), skip the updates entirely so no source goes dirty and
+// MapLibre's render loop reaches `idle` and stops — otherwise the per-frame
+// setData calls form a self-sustaining loop that repaints at the throttle
+// cap forever, even anchored or with GPS off.
+let appliedCourse: CourseSnapshot | null = null;
 chartManager.map.on("render", () => {
   if (!lastNavData) return;
   // E-ink updates atomically once per fix (in the subscribe handler above), so
   // each GPS tick is a single panel refresh — nothing to animate here.
   if (getSettings().displayTheme === "eink") return;
+  // Stale fix: freeze the vessel at its last drawn state (the HUD already
+  // blanks). Skipping smooth() leaves lastSmoothTime stale, so resumption
+  // takes the existing dt>=1s snap path in CourseSmoothing.
+  if (navManager.isFixStale()) return;
   const smoothed = courseSmoother.smooth(performance.now());
   if (!smoothed) return;
-  // Always update position/bearing (needed for recentering on straight courses)
+  const next: CourseSnapshot = {
+    lat: smoothed.lat,
+    lon: smoothed.lon,
+    cog: smoothed.cog,
+    sog: smoothed.sog,
+  };
+  if (!courseChanged(appliedCourse, next)) return;
+  appliedCourse = next;
   vesselLayer.update(lastNavData, smoothed);
   chartMode.update(lastNavData, smoothed);
   courseLine.update(lastNavData, smoothed);
   // Keep animating while values are still converging.
-  const cogDelta = Math.abs(smoothed.cog - prevCog);
-  const posDelta =
-    Math.abs(smoothed.lat - prevLat) + Math.abs(smoothed.lon - prevLon);
-  prevCog = smoothed.cog;
-  prevLat = smoothed.lat;
-  prevLon = smoothed.lon;
-  if (cogDelta >= 0.01 || posDelta >= 1e-7) {
-    chartManager.map.triggerRepaint();
-  }
+  chartManager.map.triggerRepaint();
+});
+// Container resize changes look-ahead padding and auto course-line length —
+// invalidate the gate so the next frame re-applies (camera-only change).
+chartManager.map.on("resize", () => {
+  appliedCourse = null;
 });
 
 // React to chart mode changes from settings

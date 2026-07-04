@@ -21,6 +21,20 @@ export class VesselLayer {
   private lastData: NavigationData | null = null;
   private lastSmoothed: SmoothedCourse | null = null;
   private showAccuracy: boolean;
+  // Inputs of the last setData per source — identical inputs skip the write
+  // (a per-frame setData keeps the source dirty and the map repainting).
+  // Null after (re)setup: the recreated sources are empty and must be
+  // repopulated even with unchanged inputs.
+  private lastVesselWritten: {
+    lat: number;
+    lon: number;
+    rotation: number;
+  } | null = null;
+  private lastAccuracyWritten: {
+    lat: number;
+    lon: number;
+    accuracy: number;
+  } | null = null;
 
   constructor(map: maplibregl.Map) {
     this.map = map;
@@ -56,6 +70,8 @@ export class VesselLayer {
     this.createVesselIcon();
     this.addSources();
     this.addLayers();
+    this.lastVesselWritten = null;
+    this.lastAccuracyWritten = null;
     if (this.lastData) {
       this.updatePosition();
     }
@@ -209,31 +225,57 @@ export class VesselLayer {
       | undefined;
     if (vesselSource) {
       const rotation = data.heading ?? this.lastSmoothed?.cog ?? data.cog ?? 0;
-      vesselSource.setData({
-        type: "FeatureCollection",
-        features: [
-          {
-            type: "Feature",
-            properties: { heading: rotation },
-            geometry: {
-              type: "Point",
-              coordinates: [data.longitude, data.latitude],
+      const w = this.lastVesselWritten;
+      if (
+        !w ||
+        w.lat !== data.latitude ||
+        w.lon !== data.longitude ||
+        w.rotation !== rotation
+      ) {
+        this.lastVesselWritten = {
+          lat: data.latitude,
+          lon: data.longitude,
+          rotation,
+        };
+        vesselSource.setData({
+          type: "FeatureCollection",
+          features: [
+            {
+              type: "Feature",
+              properties: { heading: rotation },
+              geometry: {
+                type: "Point",
+                coordinates: [data.longitude, data.latitude],
+              },
             },
-          },
-        ],
-      });
+          ],
+        });
+      }
     }
 
     const accuracySource = this.map.getSource(ACCURACY_SOURCE) as
       | maplibregl.GeoJSONSource
       | undefined;
     if (accuracySource && data.accuracy && data.accuracy > 0) {
-      accuracySource.setData({
-        type: "FeatureCollection",
-        features: [
-          accuracyCircleGeoJSON(data.latitude, data.longitude, data.accuracy),
-        ],
-      });
+      const w = this.lastAccuracyWritten;
+      if (
+        !w ||
+        w.lat !== data.latitude ||
+        w.lon !== data.longitude ||
+        w.accuracy !== data.accuracy
+      ) {
+        this.lastAccuracyWritten = {
+          lat: data.latitude,
+          lon: data.longitude,
+          accuracy: data.accuracy,
+        };
+        accuracySource.setData({
+          type: "FeatureCollection",
+          features: [
+            accuracyCircleGeoJSON(data.latitude, data.longitude, data.accuracy),
+          ],
+        });
+      }
     }
   }
 
