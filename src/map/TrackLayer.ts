@@ -19,7 +19,7 @@ import {
 import type { TrackRecorder } from "./TrackRecorder";
 
 /** Display point with timestamp for the active track buffer. */
-interface DisplayPoint {
+export interface DisplayPoint {
   lon: number;
   lat: number;
   timestamp: number;
@@ -30,6 +30,22 @@ const DISPLAY_INTERVAL_MS = 5000;
 
 /** Max points in display buffer before the oldest are dropped. */
 const MAX_DISPLAY_POINTS = 6000;
+
+/**
+ * Build the live-render buffer from a track's stored points, applying the
+ * same memory bound as live recording. Pure — exported for testing.
+ */
+export function capDisplayPoints(
+  points: TrackPoint[],
+  max: number = MAX_DISPLAY_POINTS,
+): DisplayPoint[] {
+  const kept = points.filter((p) => !p.dropped);
+  return kept.slice(-max).map((p) => ({
+    lon: p.lon,
+    lat: p.lat,
+    timestamp: p.timestamp,
+  }));
+}
 
 function sourceId(trackId: string): string {
   return `_track-${trackId}`;
@@ -67,8 +83,31 @@ export class TrackLayer {
         this.activePoints = [];
         this.lastDisplayTime = 0;
         this.reloadAll();
+        return;
+      }
+      // Resuming an existing recording after a page refresh: reloadAll()
+      // already rendered the full saved history via loadTrack, but
+      // activePoints starts empty — without seeding it here, the next live
+      // fix would replace that history with a single-point line. This also
+      // fires on every point recorded (each one calls the recorder's
+      // notify()), so guard on activePoints still being empty — once seeded
+      // (or once a fresh, non-resumed track gets its first live point),
+      // this is a cheap no-op.
+      const track = recorder.getCurrentTrack();
+      if (track && this.activePoints.length === 0) {
+        this.seedActivePoints(track.id).catch(console.error);
       }
     });
+  }
+
+  /** Seed the live-render buffer from IndexedDB when resuming a recording. */
+  private async seedActivePoints(trackId: string): Promise<void> {
+    const points = await getTrackPoints(trackId);
+    this.activePoints = capDisplayPoints(points);
+    if (this.activePoints.length > 0) {
+      this.lastDisplayTime =
+        this.activePoints[this.activePoints.length - 1].timestamp;
+    }
   }
 
   async reloadAll(): Promise<void> {
