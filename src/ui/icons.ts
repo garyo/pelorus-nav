@@ -177,11 +177,10 @@ export const iconClock = svg(
   '<circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>',
 );
 
-/** Cloud with slash / offline. */
-export const iconCloudOff = svg(
-  '<path d="M22.61 16.95A5 5 0 0 0 18 10h-1.26a8 8 0 0 0-7.05-6"/>' +
-    '<path d="M5 5a8 8 0 0 0 4 15h9a5 5 0 0 0 1.7-.3"/>' +
-    '<line x1="1" y1="1" x2="23" y2="23"/>',
+/** Check in circle — downloaded / available offline. (A slashed cloud read
+ * as "offline access failed" to testers, so the indicator is positive.) */
+export const iconCheckCircle = svg(
+  '<circle cx="12" cy="12" r="10"/><path d="m8.5 12.5 2.5 2.5 5-5.5"/>',
 );
 
 /** Map pin / waypoint marker. */

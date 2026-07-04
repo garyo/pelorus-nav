@@ -80,7 +80,7 @@ export function pickFile(accept: string): Promise<string> {
 
     input.addEventListener("change", () => {
       const file = input.files?.[0];
-      document.body.removeChild(input);
+      input.remove();
       if (!file) {
         reject(new Error("No file selected"));
         return;
@@ -91,18 +91,33 @@ export function pickFile(accept: string): Promise<string> {
       reader.readAsText(file);
     });
 
-    // Handle cancel — the input fires no change event, so we listen for focus return
-    const onFocus = () => {
-      window.removeEventListener("focus", onFocus);
-      // Delay to let the change event fire first if a file was selected
-      setTimeout(() => {
-        if (input.parentNode) {
-          document.body.removeChild(input);
-          reject(new Error("File selection cancelled"));
-        }
-      }, 300);
-    };
-    window.addEventListener("focus", onFocus);
+    // Boolean const rather than an inline `in` test: TS's lib.dom declares
+    // oncancel on all inputs, so a direct narrowing check makes the legacy
+    // branch `never` — but old engines really lack the event.
+    const supportsCancel: boolean = "oncancel" in input;
+    if (supportsCancel) {
+      // Modern engines (iOS WebKit 16.4+, Chrome 113+) fire a real cancel
+      // event on picker dismissal — the reliable path.
+      input.addEventListener("cancel", () => {
+        input.remove();
+        reject(new Error("File selection cancelled"));
+      });
+    } else {
+      // Legacy fallback: infer cancellation from focus returning with no
+      // change event. The grace must be generous — iOS delivers `change`
+      // seconds after focus (the Files sheet copies from the provider first),
+      // and tearing the input down early silently swallows the pick.
+      const onFocus = () => {
+        window.removeEventListener("focus", onFocus);
+        setTimeout(() => {
+          if (input.parentNode) {
+            input.remove();
+            reject(new Error("File selection cancelled"));
+          }
+        }, 5000);
+      };
+      window.addEventListener("focus", onFocus);
+    }
 
     input.click();
   });

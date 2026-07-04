@@ -32,7 +32,7 @@ import {
 import { getSettings, updateSettings } from "../settings";
 import { diag } from "../utils/diag";
 import {
-  iconCloudOff,
+  iconCheckCircle,
   iconDownload,
   iconFolderOpen,
   iconInfo,
@@ -365,7 +365,7 @@ export class ChartCachePanel {
     detail.className = "manager-item-detail";
     if (stored) {
       const date = new Date(stored.downloadedAt).toLocaleDateString();
-      detail.innerHTML = `${iconCloudOff} Offline \u00b7 ${formatBytes(stored.sizeBytes)} \u00b7 ${date}`;
+      detail.innerHTML = `${iconCheckCircle} Downloaded \u00b7 ${formatBytes(stored.sizeBytes)} \u00b7 ${date}`;
     } else {
       detail.textContent = `Streaming \u00b7 ~${formatBytes(region.sizeEstimate)}`;
     }
@@ -430,7 +430,7 @@ export class ChartCachePanel {
     detail.className = "manager-item-detail";
     if (stored) {
       const date = new Date(stored.downloadedAt).toLocaleDateString();
-      detail.innerHTML = `${iconCloudOff} Offline · ${formatBytes(stored.sizeBytes)} · ${date}`;
+      detail.innerHTML = `${iconCheckCircle} Downloaded · ${formatBytes(stored.sizeBytes)} · ${date}`;
     } else {
       const label =
         getSettings().streetUnderlay === "off"
@@ -504,7 +504,7 @@ export class ChartCachePanel {
     detail.className = "manager-item-detail";
     if (stored) {
       const date = new Date(stored.downloadedAt).toLocaleDateString();
-      detail.innerHTML = `${iconCloudOff} Offline · ${formatBytes(stored.sizeBytes)} · ${date}`;
+      detail.innerHTML = `${iconCheckCircle} Downloaded · ${formatBytes(stored.sizeBytes)} · ${date}`;
     } else {
       detail.textContent = `Streaming · ~${formatBytes(chart.sizeEstimate)}`;
     }

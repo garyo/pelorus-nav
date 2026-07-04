@@ -1047,19 +1047,38 @@ if (Capacitor.isNativePlatform()) {
 // Auto-return: after a stretch of no interaction, close any open dialogs and
 // recenter on the vessel so it's back on screen — like a dedicated plotter.
 {
-  const returnDetector = createIdleDetector(60_000);
-  returnDetector.onChange((idle) => {
-    if (!idle || document.visibilityState !== "visible") return;
+  const AUTO_RETURN_IDLE_MS = 60_000;
+  const returnDetector = createIdleDetector(AUTO_RETURN_IDLE_MS);
+  const autoReturnNow = () => {
     if (!getSettings().autoReturnWhenIdle) return;
     // Watching a track replay is not "idle" — don't yank the user out of it
     if (trackViewer.isPlaying()) return;
     for (const c of idleCloseables) c.hide();
     if (chartMode.getMode() === "free") chartMode.recenter();
+  };
+  returnDetector.onChange((idle) => {
+    if (!idle || document.visibilityState !== "visible") return;
+    autoReturnNow();
   });
-  // Mirror the dim detector: treat wake as fresh activity so it doesn't fire
-  // the instant the app is restored from sleep.
+  // Hidden time counts as idle time: pocketing the phone suspends JS timers
+  // (especially on iOS), so the idle timeout never fires while hidden — and
+  // treating wake as fresh activity would strand the user in free mode for
+  // another full window. If the app was hidden long enough, return on wake;
+  // for a short app-switch, grant the usual fresh window.
+  let hiddenSinceMs: number | null = null;
   document.addEventListener("visibilitychange", () => {
-    if (document.visibilityState === "visible") returnDetector.reset();
+    if (document.visibilityState === "hidden") {
+      hiddenSinceMs = Date.now();
+      return;
+    }
+    if (
+      hiddenSinceMs !== null &&
+      Date.now() - hiddenSinceMs >= AUTO_RETURN_IDLE_MS
+    ) {
+      autoReturnNow();
+    }
+    hiddenSinceMs = null;
+    returnDetector.reset();
   });
 }
 
