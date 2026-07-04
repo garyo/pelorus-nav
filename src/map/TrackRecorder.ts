@@ -285,6 +285,10 @@ export class TrackRecorder {
       this.lastRecordedTime = lastPoint.timestamp;
       this.lastLat = lastPoint.lat;
       this.lastLon = lastPoint.lon;
+      // Tell listeners (e.g. TrackLayer) a track is now active, so a
+      // freshly-constructed map layer can seed its live-render buffer from
+      // IndexedDB instead of starting empty.
+      this.notify();
     } catch {
       // Corrupt localStorage entry — ignore
       localStorage.removeItem(ACTIVE_TRACK_KEY);
@@ -346,6 +350,11 @@ export class TrackRecorder {
       }
       this.currentTrack = null;
       this.trackPersisted = false;
+      // Treat the first post-gap fix as a first point: without this, the
+      // segment distance below is computed against the old track's last fix,
+      // and the gap-jump itself (anchored overnight, motored off at dawn)
+      // gets baked into the new track's totalDistanceNM.
+      this.lastRecordedTime = 0;
     }
 
     // Throttle: min 1 second between points
