@@ -29,8 +29,9 @@ import type {
 } from "@maplibre/maplibre-gl-style-spec";
 import type { Feature, FeatureCollection, Point, Position } from "geojson";
 import type maplibregl from "maplibre-gl";
-import { getRegionLayerIds, getVectorSourceIds } from "../data/chart-catalog";
+import { getRegionLayerIds } from "../data/chart-catalog";
 import { getSettings, onSettingsChange } from "../settings";
+import { queryAllLights } from "./lights-query";
 import { s52Colour } from "./s52-colours";
 import { buildLayerExpressions, getIconScheme } from "./styles/icon-sets";
 import {
@@ -39,6 +40,7 @@ import {
   SORT_KEY_LIGHT_CHAR,
   VARIABLE_ANCHOR_LAYOUT,
 } from "./styles/style-context";
+import { type ViewportSig, viewportChangedMaterially } from "./viewport-gate";
 
 const SOURCE_ID = "_pel-lights";
 const LAYER_ICON = "_pel-light-icon";
@@ -283,6 +285,10 @@ export class PelLightLayer {
   private readonly map: maplibregl.Map;
   private debounceTimer: ReturnType<typeof setTimeout> | null = null;
   private suppressedLnams: Set<string> = new Set();
+  /** Viewport at the last real rebuild — gates the moveend trigger. */
+  private lastRebuildViewport: ViewportSig | null = null;
+  /** JSON of the last setData, to skip no-op writes (TidesOverlay pattern). */
+  private lastDataJson = "";
   /** Original filter on each suppressed layer so we can restore it. */
   private originalFilters: Map<string, unknown> = new Map();
 
@@ -299,7 +305,21 @@ export class PelLightLayer {
         this.debouncedRebuild();
       }
     });
-    map.on("moveend", () => this.debouncedRebuild());
+    // moveend fires ~10 Hz underway in follow mode, but it's the only
+    // signal for CACHED tiles re-entering the view (they emit no
+    // sourcedata) — so gate it on material viewport change rather than
+    // dropping it.
+    map.on("moveend", () => {
+      if (
+        viewportChangedMaterially(
+          this.lastRebuildViewport,
+          this.viewportSig(),
+          this.gateOpts(),
+        )
+      ) {
+        this.debouncedRebuild();
+      }
+    });
 
     let currentTheme = getSettings().displayTheme;
     let currentSymbology = getSettings().symbologyScheme;
@@ -333,8 +353,29 @@ export class PelLightLayer {
     // the tracking set so the next rebuild always re-applies our
     // suppression filter, even if the LNAM set hasn't changed.
     this.suppressedLnams = new Set();
+    this.lastRebuildViewport = null;
 
     this.rebuild();
+  }
+
+  private viewportSig(): ViewportSig {
+    const c = this.map.getCenter();
+    return {
+      lng: c.lng,
+      lat: c.lat,
+      zoom: this.map.getZoom(),
+      bearing: this.map.getBearing(),
+    };
+  }
+
+  private gateOpts(): { centerEpsPx: number } {
+    const el = this.map.getContainer();
+    return {
+      centerEpsPx: Math.max(
+        64,
+        0.1 * Math.min(el.clientWidth, el.clientHeight),
+      ),
+    };
   }
 
   /** Concrete region-prefixed style layer IDs we suppress PEL slaves from. */
@@ -363,6 +404,7 @@ export class PelLightLayer {
 
   private addSourceAndLayers(): void {
     this.removeLayers();
+    this.lastDataJson = ""; // source recreated empty — never suppress the refill
 
     this.map.addSource(SOURCE_ID, {
       type: "geojson",
@@ -451,9 +493,15 @@ export class PelLightLayer {
     });
   }
 
+  // Non-re-arming trailing throttle: a re-armed debounce at ~frame spacing
+  // never fires under the 10 Hz moveend firehose (it starves); scheduling
+  // once bounds both the max rate and the max staleness at 300 ms.
   private debouncedRebuild(): void {
-    if (this.debounceTimer) clearTimeout(this.debounceTimer);
-    this.debounceTimer = setTimeout(() => this.rebuild(), 100);
+    if (this.debounceTimer) return;
+    this.debounceTimer = setTimeout(() => {
+      this.debounceTimer = null;
+      this.rebuild();
+    }, 300);
   }
 
   private rebuild(): void {
@@ -465,24 +513,25 @@ export class PelLightLayer {
       this.addSourceAndLayers();
     }
 
-    const allLights: Feature[] = [];
-    for (const srcId of getVectorSourceIds()) {
-      try {
-        const feats = this.map.querySourceFeatures(srcId, {
-          sourceLayer: "LIGHTS",
-        });
-        allLights.push(...(feats as unknown as Feature[]));
-      } catch {
-        // source not loaded yet
-      }
-    }
+    // Below the layer's own minzoom nothing we produce is visible (the
+    // suppressed base layers share the same floor), so skip the whole
+    // query+group pass. Don't record the viewport: zooming back in must
+    // re-trigger via the gate.
+    if (this.map.getZoom() < MIN_ZOOM) return;
+    this.lastRebuildViewport = this.viewportSig();
+
+    const allLights = queryAllLights(this.map);
 
     const s = getSettings();
     const scheme = getIconScheme(s.symbologyScheme, s.displayTheme);
     const { geojson, suppressedLnams } = buildGeoJson(allLights, scheme.sprite);
-    (this.map.getSource(SOURCE_ID) as maplibregl.GeoJSONSource)?.setData(
-      geojson,
-    );
+    const json = JSON.stringify(geojson);
+    if (json !== this.lastDataJson) {
+      this.lastDataJson = json;
+      (this.map.getSource(SOURCE_ID) as maplibregl.GeoJSONSource)?.setData(
+        geojson,
+      );
+    }
     this.applySuppressionFilter(suppressedLnams);
   }
 

@@ -10,9 +10,10 @@
 import type { ExpressionSpecification } from "@maplibre/maplibre-gl-style-spec";
 import type { Feature, FeatureCollection, LineString, Position } from "geojson";
 import type maplibregl from "maplibre-gl";
-import { getVectorSourceIds } from "../data/chart-catalog";
 import { getSettings, onSettingsChange } from "../settings";
+import { queryAllLights } from "./lights-query";
 import { s52Colour } from "./s52-colours";
+import { type ViewportSig, viewportChangedMaterially } from "./viewport-gate";
 
 const SOURCE_ID = "_light-sectors";
 const LAYER_RANGE_FILL = "_light-range";
@@ -312,6 +313,10 @@ export class LightSectorLayer {
   private readonly map: maplibregl.Map;
   private enabled = false;
   private debounceTimer: ReturnType<typeof setTimeout> | null = null;
+  /** Viewport at the last real rebuild — gates the moveend trigger. */
+  private lastRebuildViewport: ViewportSig | null = null;
+  /** JSON of the last setData, to skip no-op writes. */
+  private lastDataJson = "";
 
   constructor(map: maplibregl.Map) {
     this.map = map;
@@ -332,9 +337,20 @@ export class LightSectorLayer {
         this.debouncedRebuild();
       }
     });
-    // Also rebuild on moveend (viewport change exposes new tiles).
+    // Also rebuild on moveend — the only signal for CACHED tiles
+    // re-entering the view (they emit no sourcedata). Gated on material
+    // viewport change: moveend fires ~10 Hz underway in follow mode.
     map.on("moveend", () => {
-      if (this.enabled) this.debouncedRebuild();
+      if (!this.enabled) return;
+      if (
+        viewportChangedMaterially(
+          this.lastRebuildViewport,
+          this.viewportSig(),
+          this.gateOpts(),
+        )
+      ) {
+        this.debouncedRebuild();
+      }
     });
 
     let currentTheme = getSettings().displayTheme;
@@ -380,6 +396,7 @@ export class LightSectorLayer {
 
   private addSourceAndLayers(): void {
     this.removeLayers();
+    this.lastDataJson = ""; // source recreated empty — never suppress the refill
 
     this.map.addSource(SOURCE_ID, {
       type: "geojson",
@@ -487,9 +504,34 @@ export class LightSectorLayer {
     });
   }
 
+  private viewportSig(): ViewportSig {
+    const c = this.map.getCenter();
+    return {
+      lng: c.lng,
+      lat: c.lat,
+      zoom: this.map.getZoom(),
+      bearing: this.map.getBearing(),
+    };
+  }
+
+  private gateOpts(): { centerEpsPx: number } {
+    const el = this.map.getContainer();
+    return {
+      centerEpsPx: Math.max(
+        64,
+        0.1 * Math.min(el.clientWidth, el.clientHeight),
+      ),
+    };
+  }
+
+  // Non-re-arming trailing throttle: a re-armed debounce at ~frame spacing
+  // never fires under the 10 Hz moveend firehose (it starves).
   private debouncedRebuild(): void {
-    if (this.debounceTimer) clearTimeout(this.debounceTimer);
-    this.debounceTimer = setTimeout(() => this.rebuild(), 100);
+    if (this.debounceTimer) return;
+    this.debounceTimer = setTimeout(() => {
+      this.debounceTimer = null;
+      this.rebuild();
+    }, 300);
   }
 
   private rebuild(): void {
@@ -504,28 +546,26 @@ export class LightSectorLayer {
       this.clear();
       return;
     }
+    this.lastRebuildViewport = this.viewportSig();
 
     // Query LIGHTS features from all vector tile sources
-    const allLights: Feature[] = [];
-    for (const srcId of getVectorSourceIds()) {
-      try {
-        const feats = this.map.querySourceFeatures(srcId, {
-          sourceLayer: "LIGHTS",
-        });
-        allLights.push(...(feats as unknown as Feature[]));
-      } catch {
-        // Source may not be loaded yet
-      }
-    }
+    const allLights = queryAllLights(this.map);
 
     const radius = arcRadiusForZoom(this.map.getZoom());
     const geojson = buildFeatures(allLights, radius);
-    (this.map.getSource(SOURCE_ID) as maplibregl.GeoJSONSource)?.setData(
-      geojson,
-    );
+    // The geojson embeds the zoom-dependent radius, so a real zoom change
+    // naturally misses this dedup — intended.
+    const json = JSON.stringify(geojson);
+    if (json !== this.lastDataJson) {
+      this.lastDataJson = json;
+      (this.map.getSource(SOURCE_ID) as maplibregl.GeoJSONSource)?.setData(
+        geojson,
+      );
+    }
   }
 
   private clear(): void {
+    this.lastDataJson = "";
     const src = this.map.getSource(SOURCE_ID) as
       | maplibregl.GeoJSONSource
       | undefined;
