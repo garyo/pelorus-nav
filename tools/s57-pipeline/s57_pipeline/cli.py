@@ -256,11 +256,14 @@ def _process_cell(
     force: bool,
     intu_zoom_ranges: dict[int, tuple[int, int, int]] | None = None,
     progress: PipelineProgress | None = None,
-) -> tuple[list[Path], int]:
+) -> tuple[list[Path], int, int]:
     """Process a single ENC cell: convert → tile.
 
     Returns:
-        Tuple of (list of PMTiles paths, scale_band).
+        Tuple of (list of PMTiles paths, scale_band, failed_layers) —
+        failed_layers counts layers dropped by errors (ogr2ogr failure,
+        corrupt GeoJSON, tippecanoe crash); the caller records the cell
+        as failed so the next incremental run rebuilds it.
     """
     cell_name = enc_path.stem
     cell_dir = work_dir / cell_name
@@ -307,20 +310,37 @@ def _process_cell(
                 p.stem for p in geojson_dir.glob("*.geojson")
             } if geojson_dir.exists() else set()
             missing = expected_gj - actual_gj
-            if not missing:
+            # Cross-check the pmtiles set too: a layer whose tippecanoe run
+            # crashed left geojson but no tiles — without this it would be
+            # treated as up to date forever. Legitimately-empty layers leave
+            # a .empty marker (see tile.py), so only real losses re-trigger.
+            tiled = {p.stem for p in existing_tiles} | {
+                p.stem for p in tiles_dir.glob("*.empty")
+            }
+            missing_tiles = actual_gj - tiled
+            if not missing and not missing_tiles:
                 if progress is not None:
                     progress.cell_started(cell_name, info)
                     progress.cell_skipped(cell_name)
-                return existing_tiles, scale_band
-            # Missing layers — fall through to reconvert
+                return existing_tiles, scale_band, 0
+            # Missing layers/tiles — fall through to reconvert
 
     if progress is not None:
         progress.cell_started(cell_name, info)
 
-    # Callbacks for per-layer progress
+    # Callbacks for per-layer progress. Layer failures are loud: a silently
+    # dropped layer on a nautical chart can be a missing hazard.
+    failed_layers = 0
+
     def on_convert_layer(layer_name: str) -> None:
         if progress is not None:
             progress.cell_layer_done(cell_name, layer_name, "converting")
+
+    def on_layer_failed(layer_name: str, reason: str) -> None:
+        nonlocal failed_layers
+        failed_layers += 1
+        if progress is not None:
+            progress.warning(f"{cell_name}/{layer_name}: {reason}")
 
     def on_tile_layer(layer_name: str) -> None:
         if progress is not None:
@@ -331,24 +351,26 @@ def _process_cell(
     geojson_files = convert_enc(
         enc_path, geojson_dir, intu_zoom_ranges=intu_zoom_ranges,
         on_layer_done=on_convert_layer,
+        on_layer_failed=on_layer_failed,
     )
     convert_elapsed = time.monotonic() - convert_start
     if not geojson_files:
         elapsed = time.monotonic() - cell_start
         if progress is not None:
             progress.cell_done(cell_name, elapsed, convert_elapsed, 0.0)
-        return [], scale_band
+        return [], scale_band, failed_layers
 
     tile_start = time.monotonic()
     tiles = tile_geojson_files(
         geojson_dir, tiles_dir, min_zoom=min_zoom, max_zoom=max_zoom,
         on_layer_done=on_tile_layer,
+        on_layer_failed=on_layer_failed,
     )
     tile_elapsed = time.monotonic() - tile_start
     elapsed = time.monotonic() - cell_start
     if progress is not None:
         progress.cell_done(cell_name, elapsed, convert_elapsed, tile_elapsed)
-    return tiles, scale_band
+    return tiles, scale_band, failed_layers
 
 
 def _find_enc_files(args: argparse.Namespace) -> list[Path]:
@@ -540,12 +562,14 @@ def cmd_pipeline(args: argparse.Namespace) -> None:
             for future in as_completed(futures):
                 enc_path = futures[future]
                 try:
-                    tiles, _band = future.result()
-                    # Record successful build in state DB
+                    tiles, _band, failed_layers = future.result()
+                    # A cell with dropped layers is recorded as failed so the
+                    # next incremental run rebuilds it (the drop may have been
+                    # transient — OOM, disk-full).
                     noaa_date = db.get_noaa_date(enc_path.stem) or ""
                     db.set_build_state(
                         enc_path.stem, noaa_date, config_hash,
-                        len(tiles), success=True,
+                        len(tiles), success=(failed_layers == 0),
                     )
                 except Exception as e:
                     progress.cell_error(enc_path.stem, str(e))
@@ -639,6 +663,11 @@ def cmd_pipeline(args: argparse.Namespace) -> None:
             progress.warning(
                 f"{done} multi-band tiles not fully filled"
             )
+        elif phase_name == "warning_dropped_features":
+            progress.warning(
+                f"compositing dropped {done} feature(s) across {total} "
+                f"cell/layer pair(s) — see detail lines"
+            )
         elif phase_name == "writing":
             if "writing" not in _composite_phase_started:
                 _composite_phase_started["writing"] = now
@@ -657,6 +686,7 @@ def cmd_pipeline(args: argparse.Namespace) -> None:
         sources, output_path, debug_latlon=debug_latlon,
         region_bbox=region_bbox, jobs=composite_jobs,
         on_progress=_on_composite_progress,
+        on_warning=progress.warning,
     )
 
     # Summary of unused cells

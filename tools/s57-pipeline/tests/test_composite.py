@@ -93,7 +93,7 @@ class TestClipMvtFeatures:
         ]
         tile_data = _make_mvt_tile({"test": features}, bounds)
 
-        result = _clip_mvt_features(tile_data, tile_bbox, tile_bbox)
+        result, _dropped = _clip_mvt_features(tile_data, tile_bbox, tile_bbox)
         assert result is not None
         assert "test" in result
         assert len(result["test"]) == 1
@@ -109,7 +109,7 @@ class TestClipMvtFeatures:
 
         # Clip to west half only
         west_half = box(0, 0, 5, 10)
-        result = _clip_mvt_features(tile_data, west_half, tile_bbox)
+        result, _dropped = _clip_mvt_features(tile_data, west_half, tile_bbox)
         # Feature is entirely in east half, should be removed
         assert result is None
 
@@ -124,7 +124,7 @@ class TestClipMvtFeatures:
 
         # Clip to west half
         west_half = box(0, 0, 5, 10)
-        result = _clip_mvt_features(tile_data, west_half, tile_bbox)
+        result, _dropped = _clip_mvt_features(tile_data, west_half, tile_bbox)
         assert result is not None
         assert len(result["test"]) == 1
         assert result["test"][0]["properties"]["name"] == "full"
@@ -137,7 +137,7 @@ class TestClipMvtFeatures:
         ]
         tile_data = _make_mvt_tile({"test": features}, bounds, gzipped=False)
 
-        result = _clip_mvt_features(tile_data, tile_bbox, tile_bbox)
+        result, _dropped = _clip_mvt_features(tile_data, tile_bbox, tile_bbox)
         assert result is not None
 
 
@@ -155,7 +155,7 @@ class TestEncodeMvt:
         # Should be gzipped
         assert encoded[:2] == b"\x1f\x8b"
         # Decode back
-        result = _clip_mvt_features(encoded, tile_bbox, tile_bbox)
+        result, _dropped = _clip_mvt_features(encoded, tile_bbox, tile_bbox)
         assert result is not None
         assert "test" in result
 
@@ -239,7 +239,7 @@ class TestCompositeTiles:
             source = MmapSource(f)
             tiles = list(all_tiles(source))
             assert len(tiles) == 1
-            features = _clip_mvt_features(tiles[0][1], tb, tb)
+            features, _dropped = _clip_mvt_features(tiles[0][1], tb, tb)
             assert features is not None
             assert len(features["test"]) == 1
             assert features["test"][0]["properties"]["src"] == "high"
@@ -295,7 +295,7 @@ class TestCompositeTiles:
             source = MmapSource(f)
             tiles = list(all_tiles(source))
             assert len(tiles) == 1
-            features = _clip_mvt_features(tiles[0][1], tb, tb)
+            features, _dropped = _clip_mvt_features(tiles[0][1], tb, tb)
             assert features is not None
             srcs = {f["properties"]["src"] for f in features["test"]}
             assert srcs == {"low", "high"}
@@ -376,3 +376,137 @@ class TestCompositeTiles:
         assert "winner" in used_cells
         # loser is fully clipped away by winner's coverage
         assert "loser" not in used_cells
+
+
+class TestHazardLayerClipping:
+    def test_hazard_features_do_not_leak_into_higher_band_coverage(
+        self, tmp_path: Path
+    ) -> None:
+        """The anti-sliver buffer must not pull a lower band's hazards into
+        a detailed cell's coverage (the CATOBS leak): non-hazard layers may
+        overlap via the buffer, hazard layers clip to exact coverage."""
+        tile_bounds = _tile_to_bbox(5, 16, 15)
+        w, s, e, n = tile_bounds
+        tb = box(*tile_bounds)
+        mid_x = (w + e) / 2
+        mid_y = (s + n) / 2
+
+        # A low-band point just INSIDE the high band's coverage, within the
+        # 0.01-degree buffer of the low band's usable (west) region.
+        leak_point = {"type": "Point", "coordinates": [mid_x + 0.005, mid_y]}
+        low_tile = _make_mvt_tile(
+            {
+                "OBSTRN": [{"geometry": leak_point, "properties": {"src": "low"}}],
+                "SLCONS": [{"geometry": leak_point, "properties": {"src": "low"}}],
+            },
+            tile_bounds,
+        )
+        east_box = box(mid_x, s, e, n)
+        high_tile = _make_mvt_tile(
+            {"test": [{"geometry": mapping(east_box), "properties": {"src": "high"}}]},
+            tile_bounds,
+        )
+
+        low_path = tmp_path / "low.pmtiles"
+        high_path = tmp_path / "high.pmtiles"
+        _make_pmtiles(low_path, {(5, 16, 15): low_tile})
+        _make_pmtiles(high_path, {(5, 16, 15): high_tile})
+
+        output = tmp_path / "output.pmtiles"
+        sources = [
+            CellTileSource(pmtiles_path=low_path, band=1, coverage=tb, cell_name="low"),
+            CellTileSource(
+                pmtiles_path=high_path, band=3, coverage=east_box, cell_name="high"
+            ),
+        ]
+        result = composite_tiles(sources, output)
+        assert result is not None
+
+        from pmtiles.convert import all_tiles
+        from pmtiles.reader import MmapSource
+
+        with open(output, "rb") as f:
+            source = MmapSource(f)
+            tiles = list(all_tiles(source))
+            assert len(tiles) == 1
+            features, _dropped = _clip_mvt_features(tiles[0][1], tb, tb)
+            assert features is not None
+            # The buffered clip keeps the non-hazard leak (anti-sliver)...
+            assert "SLCONS" in features
+            # ...but the hazard layer clips to exact coverage: no leak.
+            assert "OBSTRN" not in features
+
+    def test_hazard_features_kept_inside_own_coverage(self, tmp_path: Path) -> None:
+        """Hazards squarely inside their own band's unfilled coverage survive."""
+        tile_bounds = _tile_to_bbox(5, 16, 15)
+        w, s, e, n = tile_bounds
+        tb = box(*tile_bounds)
+        mid_x = (w + e) / 2
+        mid_y = (s + n) / 2
+
+        west_point = {"type": "Point", "coordinates": [mid_x - 1.0, mid_y]}
+        low_tile = _make_mvt_tile(
+            {"OBSTRN": [{"geometry": west_point, "properties": {"src": "low"}}]},
+            tile_bounds,
+        )
+        east_box = box(mid_x, s, e, n)
+        high_tile = _make_mvt_tile(
+            {"test": [{"geometry": mapping(east_box), "properties": {"src": "high"}}]},
+            tile_bounds,
+        )
+
+        low_path = tmp_path / "low.pmtiles"
+        high_path = tmp_path / "high.pmtiles"
+        _make_pmtiles(low_path, {(5, 16, 15): low_tile})
+        _make_pmtiles(high_path, {(5, 16, 15): high_tile})
+
+        output = tmp_path / "output.pmtiles"
+        sources = [
+            CellTileSource(pmtiles_path=low_path, band=1, coverage=tb, cell_name="low"),
+            CellTileSource(
+                pmtiles_path=high_path, band=3, coverage=east_box, cell_name="high"
+            ),
+        ]
+        result = composite_tiles(sources, output)
+        assert result is not None
+
+        from pmtiles.convert import all_tiles
+        from pmtiles.reader import MmapSource
+
+        with open(output, "rb") as f:
+            source = MmapSource(f)
+            tiles = list(all_tiles(source))
+            features, _dropped = _clip_mvt_features(tiles[0][1], tb, tb)
+            assert features is not None
+            assert "OBSTRN" in features
+            assert len(features["OBSTRN"]) == 1
+
+
+class TestDroppedFeatureCounting:
+    def test_no_drops_on_clean_clip(self) -> None:
+        bounds = (0.0, 0.0, 10.0, 10.0)
+        tile_bbox = box(*bounds)
+        features = [
+            {"geometry": mapping(box(1, 1, 3, 3)), "properties": {}},
+        ]
+        tile_data = _make_mvt_tile({"test": features}, bounds)
+        _result, dropped = _clip_mvt_features(tile_data, tile_bbox, tile_bbox)
+        assert dropped == {}
+
+    def test_topology_error_is_counted_not_silent(self, monkeypatch) -> None:
+        import s57_pipeline.composite as comp
+
+        bounds = (0.0, 0.0, 10.0, 10.0)
+        tile_bbox = box(*bounds)
+        features = [
+            {"geometry": mapping(box(1, 1, 3, 3)), "properties": {}},
+        ]
+        tile_data = _make_mvt_tile({"test": features}, bounds)
+
+        def boom(_geom):
+            raise ValueError("synthetic topology error")
+
+        monkeypatch.setattr(comp, "make_valid", boom)
+        result, dropped = comp._clip_mvt_features(tile_data, tile_bbox, tile_bbox)
+        assert result is None
+        assert dropped == {"test": 1}

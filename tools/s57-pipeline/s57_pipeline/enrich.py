@@ -47,7 +47,7 @@ def enrich_geojson(
     cell_id: int | None = None,
     intu_zoom_ranges: dict[int, tuple[int, int, int]] | None = None,
     apply_scamin: bool = True,
-) -> None:
+) -> bool:
     """Enrich a GeoJSON file with all metadata in a single read/write pass.
 
     Adds: tippecanoe minzoom (from SCAMIN), _scale_band, _cell_id, LABEL,
@@ -60,6 +60,10 @@ def enrich_geojson(
         cell_id: Numeric identifier for the source ENC cell.
         intu_zoom_ranges: Pre-computed ranges from compute_intu_zoom_ranges().
         apply_scamin: Whether to add tippecanoe minzoom from SCAMIN attributes.
+
+    Returns:
+        False when the file was corrupt and removed (the whole layer is
+        dropped — callers surface this), True otherwise.
     """
     layer_name = geojson_path.stem.upper()
 
@@ -69,7 +73,7 @@ def enrich_geojson(
         except json.JSONDecodeError:
             # Corrupt/empty GeoJSON from ogr2ogr — remove and skip
             geojson_path.unlink(missing_ok=True)
-            return
+            return False
 
     # Pre-compute per-layer constants
     scale_band = 0
@@ -154,6 +158,7 @@ def enrich_geojson(
                 props[key] = ",".join(str(v) for v in val)
 
     _atomic_json_write(geojson_path, geojson)
+    return True
 
 
 # Layers whose features may have co-located TOPMAR features.

@@ -37,6 +37,12 @@ from s57_pipeline.state import StateDB  # noqa: E402
 
 NOAA_BASE = "https://charts.noaa.gov/ENCs"
 STATE_FILE = PIPELINE_DIR / "data" / "enc-update-state.json"
+# Dates captured during the check phase, applied later by --save-state.
+# Persisting the CHECK-time dates (not a post-build re-fetch) means an ENC
+# edition published mid-build is still seen as "changed" on the next check,
+# instead of being stamped current though tiles were built from the older
+# download.
+CHECK_DATES_FILE = PIPELINE_DIR / "data" / "enc-check-dates.json"
 
 
 def check_cell(
@@ -131,7 +137,10 @@ def main() -> None:
 
     state = load_state()
 
-    # Handle --save-state: re-check and write current dates
+    # Handle --save-state: persist the dates captured by the last check.
+    # A build takes ~2h; re-fetching NOAA dates here would stamp an edition
+    # published mid-build as current even though the tiles were built from
+    # the older download — and that edition would then be skipped forever.
     if args.save_state:
         region_cells_map: dict[str, list[str]] = {}
         all_cells: dict[str, list[str]] = {}
@@ -142,22 +151,45 @@ def main() -> None:
                 all_cells.setdefault(c, []).append(region_name)
 
         unique_cells = list(all_cells.keys())
-        if not args.quiet:
-            print(f"Fetching current dates for {len(unique_cells)} cells...")
 
-        with ThreadPoolExecutor(max_workers=args.parallel) as pool:
-            futures = {
-                pool.submit(check_cell, cell, ""): cell
-                for cell in unique_cells
-            }
-            for future in as_completed(futures):
-                cell, _status, last_modified = future.result()
-                if last_modified:
-                    state[cell] = {"last_modified": last_modified}
+        check_dates: dict[str, str] = {}
+        if CHECK_DATES_FILE.exists():
+            try:
+                check_dates = json.loads(CHECK_DATES_FILE.read_text())
+            except json.JSONDecodeError:
+                check_dates = {}
+
+        applied = 0
+        fetch_cells: list[str] = []
+        for cell in unique_cells:
+            date = check_dates.get(cell, "")
+            if date:
+                state[cell] = {"last_modified": date}
+                applied += 1
+            else:
+                fetch_cells.append(cell)
+
+        if fetch_cells:
+            # No check-time date recorded (fresh state, manual run) —
+            # fall back to fetching for just those cells.
+            if not args.quiet:
+                print(f"Fetching current dates for {len(fetch_cells)} cells...")
+            with ThreadPoolExecutor(max_workers=args.parallel) as pool:
+                futures = {
+                    pool.submit(check_cell, cell, ""): cell
+                    for cell in fetch_cells
+                }
+                for future in as_completed(futures):
+                    cell, _status, last_modified = future.result()
+                    if last_modified:
+                        state[cell] = {"last_modified": last_modified}
 
         save_state(state)
         if not args.quiet:
-            print(f"State file updated: {len(unique_cells)} cells")
+            print(
+                f"State file updated: {applied} from check-time dates, "
+                f"{len(fetch_cells)} re-fetched"
+            )
         return
 
     # Collect cells per region
@@ -194,6 +226,21 @@ def main() -> None:
             checked += 1
             if not args.quiet and not args.json and checked % 200 == 0:
                 print(f"  ... checked {checked} / {total}")
+
+    # Record the dates seen NOW so a later --save-state (after the build)
+    # persists what the build was actually based on. Merge over any prior
+    # capture so cells outside this run's region set keep their entries.
+    try:
+        prior: dict[str, str] = {}
+        if CHECK_DATES_FILE.exists():
+            prior = json.loads(CHECK_DATES_FILE.read_text())
+    except json.JSONDecodeError:
+        prior = {}
+    for cell, (status, last_modified) in results.items():
+        if last_modified:
+            prior[cell] = last_modified
+    CHECK_DATES_FILE.parent.mkdir(parents=True, exist_ok=True)
+    CHECK_DATES_FILE.write_text(json.dumps(prior, indent=0))
 
     # Summarize per region
     changed_cells: set[str] = set()

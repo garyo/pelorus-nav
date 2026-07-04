@@ -35,6 +35,15 @@ from .tilemath import tile_to_bbox as _tile_to_bbox
 # MVT default extent (coordinate space 0..4096)
 _MVT_EXTENTS = 4096
 
+# Safety-critical hazard layers (MVT layer names are the uppercase S-57
+# names — tippecanoe -l gets stem.upper(); mirrors _HAZARD_LAYERS in
+# enrich.py). These are clipped to the EXACT unfilled coverage during
+# multi-band compositing — never to the buffered anti-sliver region — so an
+# overview cell's hazard features can't leak ~1 km into a detailed cell's
+# coverage. Leaked overview copies lack the detailed attributes (e.g.
+# CATOBS) that safety symbology keys on.
+_HAZARD_LAYER_NAMES = {"OBSTRN", "WRECKS", "UWTROC"}
+
 
 @dataclass
 class CellTileSource:
@@ -95,7 +104,8 @@ def _clip_mvt_features(
     tile_data: bytes,
     usable_region: BaseGeometry,
     tile_bbox: BaseGeometry,
-) -> dict[str, list[dict]] | None:
+    hazard_region: BaseGeometry | None = None,
+) -> tuple[dict[str, list[dict]] | None, dict[str, int]]:
     """Decode an MVT tile and clip features to a usable region.
 
     Args:
@@ -103,10 +113,15 @@ def _clip_mvt_features(
         usable_region: The region within the tile where this cell's
             features should be kept (in geographic coords).
         tile_bbox: The tile's bounding box polygon (in geographic coords).
+        hazard_region: When set, layers in _HAZARD_LAYER_NAMES are clipped
+            to this (exact, unbuffered) region instead of usable_region.
 
     Returns:
-        Dict of layer_name → list of GeoJSON-like feature dicts
-        (in geographic coords), or None if no features survive clipping.
+        (layers, dropped): layers is a dict of layer_name → list of
+        GeoJSON-like feature dicts (geographic coords), or None if no
+        features survive clipping; dropped counts features discarded by
+        topology errors per layer — for a nautical chart a silently
+        vanished feature can be a hazard, so callers must surface these.
     """
     # Decompress if gzipped
     raw = tile_data
@@ -119,9 +134,15 @@ def _clip_mvt_features(
     decoded = mapbox_vector_tile.decode(raw)
 
     result: dict[str, list[dict]] = {}
+    dropped: dict[str, int] = {}
     has_features = False
 
     for layer_name, layer_data in decoded.items():
+        clip_to = usable_region
+        if hazard_region is not None and layer_name in _HAZARD_LAYER_NAMES:
+            clip_to = hazard_region
+            if clip_to.is_empty:
+                continue
         clipped_features: list[dict] = []
         for feature in layer_data.get("features", []):
             geom_dict = feature.get("geometry")
@@ -136,7 +157,7 @@ def _clip_mvt_features(
                     continue
 
                 # Clip to usable region
-                clipped = geom.intersection(usable_region)
+                clipped = geom.intersection(clip_to)
                 if clipped.is_empty:
                     continue
 
@@ -167,14 +188,16 @@ def _clip_mvt_features(
                         }
                     )
             except Exception:
-                # Skip features with topology errors
+                # Topology error — count it; silence here means a feature
+                # (possibly a hazard) vanishes from the published tiles.
+                dropped[layer_name] = dropped.get(layer_name, 0) + 1
                 continue
 
         if clipped_features:
             result[layer_name] = clipped_features
             has_features = True
 
-    return result if has_features else None
+    return (result if has_features else None), dropped
 
 
 def _encode_mvt(
@@ -219,42 +242,55 @@ def _encode_mvt(
 _SerEntry = tuple[int, str, bytes, bytes]
 
 
+# Dropped-feature accounting: (cell_name, layer_name) → count.
+_DropCounts = dict[tuple[str, str], int]
+
+
+def _merge_drops(total: _DropCounts, cell_name: str, dropped: dict[str, int]) -> None:
+    for layer_name, n in dropped.items():
+        key = (cell_name, layer_name)
+        total[key] = total.get(key, 0) + n
+
+
 def _composite_one_same_band(
     args: tuple[int, int, int, list[_SerEntry]],
-) -> tuple[int, bytes | None, set[str]]:
+) -> tuple[int, bytes | None, set[str], _DropCounts]:
     """Composite a same-band tile in a worker process.
 
-    Returns (tile_id, tile_bytes_or_None, used_cells).
+    Returns (tile_id, tile_bytes_or_None, used_cells, dropped_counts).
     """
     z, x, y, entries = args
     tile_id = zxy_to_tileid(z, x, y)
     tile_bbox = _tile_bbox_polygon(z, x, y)
     merged_layers: dict[str, list[dict]] = {}
     used: set[str] = set()
+    drops: _DropCounts = {}
 
     for _band, cell_name, data, _cov_wkb in entries:
-        features = _clip_mvt_features(data, tile_bbox, tile_bbox)
+        features, dropped = _clip_mvt_features(data, tile_bbox, tile_bbox)
+        _merge_drops(drops, cell_name, dropped)
         if features:
             used.add(cell_name)
             for ln, feats in features.items():
                 merged_layers.setdefault(ln, []).extend(feats)
 
     if merged_layers:
-        return tile_id, _encode_mvt(merged_layers, tile_bbox), used
-    return tile_id, None, used
+        return tile_id, _encode_mvt(merged_layers, tile_bbox), used, drops
+    return tile_id, None, used, drops
 
 
 def _composite_one_multi_band(
     args: tuple[int, int, int, list[_SerEntry]],
-) -> tuple[int, bytes | None, set[str], bool]:
+) -> tuple[int, bytes | None, set[str], bool, _DropCounts]:
     """Composite a multi-band tile in a worker process.
 
-    Returns (tile_id, tile_bytes_or_None, used_cells, fully_filled).
+    Returns (tile_id, tile_bytes_or_None, used_cells, fully_filled, dropped).
     """
     z, x, y, entries = args
     tile_id = zxy_to_tileid(z, x, y)
     tile_bbox = _tile_bbox_polygon(z, x, y)
     used: set[str] = set()
+    drops: _DropCounts = {}
 
     # Group entries by cell (band + cell_name share the same coverage)
     cell_groups: dict[
@@ -303,11 +339,19 @@ def _composite_one_multi_band(
         # Region boundary overlap is prevented by tile-center ownership
         # (each tile is assigned to exactly one region), so the buffer
         # can safely extend past the region boundary within this tile.
+        #
+        # Hazard layers are exempt from the buffer (clipped to the exact
+        # unfilled coverage): a lower band's OBSTRN/WRECKS/UWTROC leaking
+        # into detailed-cell coverage shows the overview copy — often
+        # missing CATOBS — inside an area the detailed cell owns.
         clip_region = make_valid(usable.buffer(0.01))
         clip_region = clip_region.intersection(tile_bbox)
 
         for data, _cov in cell_entries:
-            features = _clip_mvt_features(data, clip_region, tile_bbox)
+            features, dropped = _clip_mvt_features(
+                data, clip_region, tile_bbox, hazard_region=usable
+            )
+            _merge_drops(drops, cell_name, dropped)
             if features:
                 used.add(cell_name)
                 for ln, feats in features.items():
@@ -321,8 +365,14 @@ def _composite_one_multi_band(
 
     fully_filled = filled.contains(tile_bbox)
     if output_features:
-        return tile_id, _encode_mvt(output_features, tile_bbox), used, fully_filled
-    return tile_id, None, used, fully_filled
+        return (
+            tile_id,
+            _encode_mvt(output_features, tile_bbox),
+            used,
+            fully_filled,
+            drops,
+        )
+    return tile_id, None, used, fully_filled, drops
 
 
 # ── Main composite function ──────────────────────────────────────────
@@ -335,6 +385,7 @@ def composite_tiles(
     region_bbox: tuple[float, float, float, float] | None = None,
     jobs: int = 0,
     on_progress: Callable[[str, int, int], None] | None = None,
+    on_warning: Callable[[str], None] | None = None,
 ) -> tuple[Path, set[str]] | None:
     """Composite tiles from multiple cells using M_COVR coverage clipping.
 
@@ -470,6 +521,7 @@ def composite_tiles(
     composited_count = 0
     not_fully_filled = 0
     used_cells: set[str] = set()
+    dropped_features: _DropCounts = {}
 
     # Build set of debug tiles
     debug_tiles: set[tuple[int, int, int]] = set()
@@ -523,12 +575,14 @@ def composite_tiles(
         # Process same-band tiles in parallel
         if same_band_entries:
             with multiprocessing.Pool(num_workers) as pool:
-                for tile_id, tile_bytes, used in pool.imap_unordered(
+                for tile_id, tile_bytes, used, drops in pool.imap_unordered(
                     _composite_one_same_band, same_band_entries, chunksize=64,
                 ):
                     if tile_bytes is not None:
                         output_tiles[tile_id] = tile_bytes
                     used_cells.update(used)
+                    for key, n in drops.items():
+                        dropped_features[key] = dropped_features.get(key, 0) + n
                     tiles_composited_so_far += 1
                     _report("compositing", tiles_composited_so_far, total_tiles)
             same_band_count = len(same_band_entries)
@@ -539,12 +593,20 @@ def composite_tiles(
         t2 = time.monotonic()
         if multi_band_entries:
             with multiprocessing.Pool(num_workers) as pool:
-                for tile_id, tile_bytes, used, fully_filled in pool.imap_unordered(
+                for (
+                    tile_id,
+                    tile_bytes,
+                    used,
+                    fully_filled,
+                    drops,
+                ) in pool.imap_unordered(
                     _composite_one_multi_band, multi_band_entries, chunksize=32,
                 ):
                     if tile_bytes is not None:
                         output_tiles[tile_id] = tile_bytes
                     used_cells.update(used)
+                    for key, n in drops.items():
+                        dropped_features[key] = dropped_features.get(key, 0) + n
                     if not fully_filled:
                         not_fully_filled += 1
                     tiles_composited_so_far += 1
@@ -566,7 +628,8 @@ def composite_tiles(
                       f" (band={entries[0][0]}, cells={cells})")
 
             for _band, cell_name_entry, data, _cov_wkb in entries:
-                features = _clip_mvt_features(data, tile_bbox, tile_bbox)
+                features, dropped = _clip_mvt_features(data, tile_bbox, tile_bbox)
+                _merge_drops(dropped_features, cell_name_entry, dropped)
                 if features:
                     used_cells.add(cell_name_entry)
                     for ln, feats in features.items():
@@ -626,11 +689,16 @@ def composite_tiles(
 
                 # Expand clipping region slightly (~1km) to cover
                 # tippecanoe simplification gaps at cell boundaries.
+                # Hazard layers clip to the exact coverage (see the
+                # worker variant above for why).
                 clip_region = make_valid(usable.buffer(0.01))
                 clip_region = clip_region.intersection(tile_bbox)
 
                 for data, _cov in cell_entries_inner:
-                    features = _clip_mvt_features(data, clip_region, tile_bbox)
+                    features, dropped = _clip_mvt_features(
+                        data, clip_region, tile_bbox, hazard_region=usable
+                    )
+                    _merge_drops(dropped_features, cell_name, dropped)
                     if features:
                         used_cells.add(cell_name)
                         for ln, feats in features.items():
@@ -654,6 +722,21 @@ def composite_tiles(
     _report("compositing_done", len(output_tiles), total_tiles)
     if not_fully_filled:
         _report("warning_not_filled", not_fully_filled, composited_count)
+    if dropped_features:
+        # A dropped feature is a feature missing from the published chart —
+        # never let it pass without build-log evidence.
+        total_dropped = sum(dropped_features.values())
+        _report("warning_dropped_features", total_dropped, len(dropped_features))
+        if on_warning is not None:
+            worst = sorted(
+                dropped_features.items(), key=lambda kv: kv[1], reverse=True
+            )
+            for (cell, layer), n in worst[:10]:
+                on_warning(f"clip dropped {n} {layer} feature(s) from {cell}")
+            if len(worst) > 10:
+                on_warning(
+                    f"...and {len(worst) - 10} more cell/layer pairs with drops"
+                )
 
     # Phase 3: Write output PMTiles
     t0 = time.monotonic()

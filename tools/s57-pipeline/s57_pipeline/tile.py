@@ -16,7 +16,7 @@ def tile_layer(
     config: LayerConfig | None = None,
     min_zoom: int = 0,
     max_zoom: int = 14,
-) -> Path | None:
+) -> tuple[Path | None, str | None]:
     """Convert a single GeoJSON file to PMTiles using tippecanoe.
 
     Args:
@@ -28,7 +28,13 @@ def tile_layer(
         max_zoom: Maximum zoom level for tile generation (tippecanoe -z).
 
     Returns:
-        Path to output PMTiles, or None on failure.
+        (path, failure_reason): the output PMTiles path (None when nothing
+        was produced), and — when the absence is an ERROR (tippecanoe crash)
+        rather than a legitimately empty result — a short reason string.
+
+    Side effect: a legitimately empty result leaves a `<stem>.empty` marker
+    next to where the PMTiles would be, so the incremental cache check can
+    tell "this layer produces no tiles" apart from "tippecanoe crashed".
     """
     if config is None:
         config = get_layer_config(layer_name)
@@ -49,19 +55,25 @@ def tile_layer(
 
     cmd.append(str(geojson_path))
 
+    empty_marker = output_path.with_suffix(".empty")
+    empty_marker.unlink(missing_ok=True)
+
     result = subprocess.run(cmd, capture_output=True, text=True)
 
     if result.returncode != 0:
         print(f"  tippecanoe error for {layer_name}: {result.stderr}")
         output_path.unlink(missing_ok=True)
-        return None
+        stderr_tail = (result.stderr or "").strip().splitlines()
+        detail = stderr_tail[-1] if stderr_tail else "no stderr"
+        return None, f"tippecanoe exit {result.returncode}: {detail}"
 
     # Remove empty output (no features survived zoom filtering)
     if output_path.exists() and output_path.stat().st_size == 0:
         output_path.unlink()
-        return None
+        empty_marker.touch()
+        return None, None
 
-    return output_path
+    return output_path, None
 
 
 def tile_geojson_files(
@@ -70,6 +82,7 @@ def tile_geojson_files(
     min_zoom: int = 0,
     max_zoom: int = 14,
     on_layer_done: Callable[[str], None] | None = None,
+    on_layer_failed: Callable[[str, str], None] | None = None,
 ) -> list[Path]:
     """Convert all GeoJSON files in a directory to individual PMTiles.
 
@@ -80,6 +93,8 @@ def tile_geojson_files(
         max_zoom: Maximum zoom level for tile generation.
         on_layer_done: Optional callback invoked with the layer name after
             each layer is successfully tiled.
+        on_layer_failed: Optional callback invoked with (layer_name, reason)
+            when tippecanoe fails for a layer (not when legitimately empty).
 
     Returns:
         List of paths to created PMTiles files.
@@ -91,10 +106,12 @@ def tile_geojson_files(
         layer_name = geojson_path.stem.upper()
         pmtiles_path = tiles_dir / f"{geojson_path.stem}.pmtiles"
 
-        result = tile_layer(
+        result, failure = tile_layer(
             geojson_path, pmtiles_path, layer_name,
             min_zoom=min_zoom, max_zoom=max_zoom,
         )
+        if failure is not None and on_layer_failed is not None:
+            on_layer_failed(layer_name, failure)
         if result is not None:
             outputs.append(result)
             if on_layer_done is not None:

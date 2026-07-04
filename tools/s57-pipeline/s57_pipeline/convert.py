@@ -123,7 +123,7 @@ def convert_layer(
     enc_path: Path,
     layer_name: str,
     output_dir: Path,
-) -> Path | None:
+) -> tuple[Path | None, str | None]:
     """Convert a single S-57 layer to GeoJSON using ogr2ogr.
 
     Args:
@@ -132,7 +132,11 @@ def convert_layer(
         output_dir: Directory to write GeoJSON output.
 
     Returns:
-        Path to the output GeoJSON file, or None if the layer doesn't exist.
+        (path, failure_reason): the output GeoJSON path (None when the layer
+        produced no usable output), and — when the absence is an ERROR rather
+        than a legitimately empty layer — a short human-readable reason.
+        A dropped layer on a nautical chart can be a missing hazard, so
+        callers must surface non-None reasons.
     """
     output_path = output_dir / f"{layer_name.lower()}.geojson"
 
@@ -156,15 +160,18 @@ def convert_layer(
     if result.returncode != 0:
         # Clean up partial output on failure
         output_path.unlink(missing_ok=True)
-        return None
+        stderr_tail = (result.stderr or "").strip().splitlines()
+        detail = stderr_tail[-1] if stderr_tail else "no stderr"
+        return None, f"ogr2ogr exit {result.returncode}: {detail}"
 
     if not output_path.exists():
-        return None
+        # Layer was listed as present but ogr2ogr wrote nothing — suspicious.
+        return None, "ogr2ogr exit 0 but produced no output file"
 
     # Check if file has features (ogr2ogr creates empty files for missing layers)
     if output_path.stat().st_size < 100:
         output_path.unlink(missing_ok=True)
-        return None
+        return None, None  # legitimately empty layer
 
     # Validate JSON is parseable (catches truncated writes from disk-full, etc.)
     try:
@@ -172,12 +179,12 @@ def convert_layer(
             data = json.load(f)
         if not data.get("features"):
             output_path.unlink(missing_ok=True)
-            return None
-    except (json.JSONDecodeError, OSError):
+            return None, None  # legitimately empty layer
+    except (json.JSONDecodeError, OSError) as e:
         output_path.unlink(missing_ok=True)
-        return None
+        return None, f"unparseable GeoJSON output ({type(e).__name__})"
 
-    return output_path
+    return output_path, None
 
 
 def convert_enc(
@@ -186,6 +193,7 @@ def convert_enc(
     apply_scamin: bool = True,
     intu_zoom_ranges: dict[int, tuple[int, int, int]] | None = None,
     on_layer_done: Callable[[str], None] | None = None,
+    on_layer_failed: Callable[[str, str], None] | None = None,
 ) -> list[Path]:
     """Convert all known layers from an S-57 ENC file to GeoJSON.
 
@@ -196,6 +204,9 @@ def convert_enc(
         intu_zoom_ranges: Optional INTU-based zoom range mapping.
         on_layer_done: Optional callback invoked with the layer name after
             each layer is successfully converted.
+        on_layer_failed: Optional callback invoked with (layer_name, reason)
+            when a layer is dropped by an error (not when legitimately
+            empty) — the caller decides how loudly to surface it.
 
     Returns:
         List of paths to successfully created GeoJSON files.
@@ -216,9 +227,11 @@ def convert_enc(
 
     outputs: list[Path] = []
     for layer_name in target_layers:
-        path = convert_layer(enc_path, layer_name, output_dir)
+        path, failure = convert_layer(enc_path, layer_name, output_dir)
+        if failure is not None and on_layer_failed is not None:
+            on_layer_failed(layer_name, failure)
         if path is not None:
-            enrich_geojson(
+            ok = enrich_geojson(
                 path,
                 cell_cscl=cell_cscl,
                 cell_intu=cell_intu,
@@ -226,6 +239,8 @@ def convert_enc(
                 intu_zoom_ranges=intu_zoom_ranges,
                 apply_scamin=apply_scamin,
             )
+            if not ok and on_layer_failed is not None:
+                on_layer_failed(layer_name, "corrupt GeoJSON removed by enrich")
             # enrich_geojson may remove corrupt files
             if path.exists():
                 outputs.append(path)
