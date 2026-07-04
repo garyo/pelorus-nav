@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { NavigationData } from "./NavigationData";
 import { NMEAStream } from "./nmea-stream";
 
@@ -30,6 +30,17 @@ function collect(): { stream: NMEAStream; fixes: NavigationData[] } {
 }
 
 describe("NMEAStream", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    // Same day as the canned sentences' RMC date field (230394): the GGA
+    // nearest-day heuristic then agrees with the RMC date resolution, as in
+    // production where the receiver clock tracks wall clock.
+    vi.setSystemTime(new Date("1994-03-23T12:40:00Z"));
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   it("coalesces the RMC+GGA of one epoch into a single fix", () => {
     const { stream, fixes } = collect();
     stream.push(`${rmc("123519")}\r\n${gga("123519")}\r\n`);

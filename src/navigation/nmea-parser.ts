@@ -51,14 +51,47 @@ function parseLongitude(value: string, dir: string): number | null {
   return dir === "W" ? -result : result;
 }
 
-function parseTime(hhmmss: string): number {
-  if (!hhmmss || hhmmss.length < 6) return Date.now();
+const HALF_DAY_MS = 12 * 3600_000;
+const DAY_MS = 24 * 3600_000;
+
+/**
+ * Resolve NMEA HHMMSS(.sss) to epoch ms.
+ *
+ * With ddmmyy (RMC field 9) the date is authoritative. Without it (GGA),
+ * stamping onto *today's* UTC date is wrong for up to a day around UTC
+ * midnight (a fix generated at 23:59:59 but parsed at 00:00:01 landed ~24 h
+ * in the future — nightly filter resets for BLE-pod/serial users). Resolve
+ * to the nearest day instead: shift ±24 h to minimize |t − now|.
+ */
+function parseTime(
+  hhmmss: string,
+  ddmmyy?: string,
+  nowMs = Date.now(),
+): number {
+  if (!hhmmss || hhmmss.length < 6) return nowMs;
   const h = parseInt(hhmmss.slice(0, 2), 10);
   const m = parseInt(hhmmss.slice(2, 4), 10);
   const s = parseFloat(hhmmss.slice(4));
-  const now = new Date();
-  now.setUTCHours(h, m, Math.floor(s), Math.round((s % 1) * 1000));
-  return now.getTime();
+  const secs = Math.floor(s);
+  const ms = Math.round((s % 1) * 1000);
+
+  if (ddmmyy && ddmmyy.length >= 6) {
+    const day = parseInt(ddmmyy.slice(0, 2), 10);
+    const month = parseInt(ddmmyy.slice(2, 4), 10);
+    const yy = parseInt(ddmmyy.slice(4, 6), 10);
+    if (!Number.isNaN(day) && !Number.isNaN(month) && !Number.isNaN(yy)) {
+      // Two-digit year window: GPS epoch began 1980, so >=80 means 1900s.
+      const year = yy >= 80 ? 1900 + yy : 2000 + yy;
+      return Date.UTC(year, month - 1, day, h, m, secs, ms);
+    }
+  }
+
+  const today = new Date(nowMs);
+  today.setUTCHours(h, m, secs, ms);
+  let t = today.getTime();
+  if (t - nowMs > HALF_DAY_MS) t -= DAY_MS;
+  else if (nowMs - t > HALF_DAY_MS) t += DAY_MS;
+  return t;
 }
 
 /**
@@ -89,7 +122,7 @@ export function parseRMC(sentence: string): NMEAPosition | null {
     sog: sogKnots !== null && !Number.isNaN(sogKnots) ? sogKnots : null,
     altitude: null,
     accuracy: null,
-    timestamp: parseTime(parts[1]),
+    timestamp: parseTime(parts[1], parts[9] || undefined),
   };
 }
 
