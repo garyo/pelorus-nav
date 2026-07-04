@@ -1,9 +1,13 @@
 /**
  * Floating bottom-center notice with an action and a dismiss button.
- * Shared by the chart and app update notifiers; one notice at a time.
+ * Shared styling for the chart and app update notifiers, but each caller
+ * passes its own `id` so one notifier's notice can't remove the other's —
+ * only a notice with a matching id gets replaced.
  */
 
 export interface UpdateNoticeOptions {
+  /** DOM id — scopes removal/replacement to notices from the same caller. */
+  id: string;
   message: string;
   actionLabel: string;
   onAction: () => void;
@@ -12,9 +16,10 @@ export interface UpdateNoticeOptions {
 }
 
 export function showUpdateNotice(options: UpdateNoticeOptions): void {
-  document.querySelector(".update-notice")?.remove();
+  document.getElementById(options.id)?.remove();
 
   const notice = document.createElement("div");
+  notice.id = options.id;
   notice.className = "update-notice";
 
   const text = document.createElement("span");

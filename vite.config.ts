@@ -4,7 +4,13 @@ import { defineConfig } from "vite";
 import { VitePWA } from "vite-plugin-pwa";
 import pkg from "./package.json" with { type: "json" };
 
-const gitSha = execSync("git rev-parse --short HEAD").toString().trim();
+const gitSha = (() => {
+  try {
+    return execSync("git rev-parse --short HEAD").toString().trim();
+  } catch {
+    return "unknown";
+  }
+})();
 const buildTime = new Date().toISOString().replace(/:\d{2}\.\d+Z$/, "Z"); // drop seconds
 
 // Crawl date of the bundled NOAA tide/current harmonics (shown in About)
@@ -49,13 +55,24 @@ export default defineConfig({
     // PWA/service worker is disabled for Capacitor builds — assets are bundled
     // locally and the SW only causes stale-cache problems in Android WebView.
     // (`disable` still provides a no-op virtual:pwa-register module.)
-    // "prompt" mode: a new build shows a reload notice (AppUpdateNotifier)
-    // instead of hot-swapping code under an active navigation session; a
-    // full app restart still picks up the new version automatically.
+    // "autoUpdate" bakes skipWaiting + clientsClaim into the generated SW, so
+    // a new build activates and takes control of open tabs without waiting
+    // for every client to unload. App data lives in IndexedDB/localStorage/
+    // OPFS, so an automatic activation is safe. AppUpdateNotifier registers
+    // the SW itself (not via the generated virtual:pwa-register wrapper,
+    // which would force an immediate reload) so it can reload at an idle
+    // moment instead of mid-interaction.
     VitePWA({
       disable: isCapacitor,
-      registerType: "prompt",
+      registerType: "autoUpdate",
+      // Manual registration (AppUpdateNotifier.ts), not the generated
+      // virtual:pwa-register wrapper — see the comment above.
+      injectRegister: false,
       workbox: {
+        // registerType only auto-sets these when injectRegister is left at
+        // its "auto" default; set explicitly since injectRegister is false.
+        skipWaiting: true,
+        clientsClaim: true,
         // MapLibre glyphs (pbf) are bundled under public/fonts and
         // precached so labels render fully offline.
         globPatterns: ["**/*.{js,css,html,svg,png,woff2,json,pbf}"],
