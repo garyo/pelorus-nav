@@ -75,10 +75,36 @@ async function readMeta(): Promise<StoredChartInfo[]> {
   }
 }
 
-/** Write metadata sidecar to OPFS. */
+/** Write metadata sidecar to OPFS (temp-file + atomic move — see opfsWriteText). */
 async function writeMeta(charts: StoredChartInfo[]): Promise<void> {
   if (!(await getRoot())) return;
   await opfsWriteText(META_FILENAME, JSON.stringify(charts, null, 2));
+}
+
+/**
+ * Serializes every meta read-modify-write through a single promise chain, so
+ * a download/delete/import racing another one can't read a stale snapshot
+ * and clobber the other's entry on write. `metaQueue` always resolves (the
+ * trailing `.then(ok, ok)` swallows a failed op so the *next* queued op
+ * still runs); the failure itself still propagates to whoever queued it,
+ * via the returned promise.
+ */
+let metaQueue: Promise<void> = Promise.resolve();
+
+async function withMeta(
+  mutate: (
+    charts: StoredChartInfo[],
+  ) => StoredChartInfo[] | Promise<StoredChartInfo[]>,
+): Promise<void> {
+  const run = metaQueue.then(async () => {
+    const meta = await readMeta();
+    await writeMeta(await mutate(meta));
+  });
+  metaQueue = run.then(
+    () => undefined,
+    () => undefined,
+  );
+  return run;
 }
 
 /** List all stored chart files. */
@@ -187,14 +213,15 @@ export async function downloadChart(
     etag,
   };
 
-  const meta = await readMeta();
-  const idx = meta.findIndex((c) => c.filename === filename);
-  if (idx >= 0) {
-    meta[idx] = info;
-  } else {
-    meta.push(info);
-  }
-  await writeMeta(meta);
+  await withMeta((meta) => {
+    const idx = meta.findIndex((c) => c.filename === filename);
+    if (idx >= 0) {
+      meta[idx] = info;
+    } else {
+      meta.push(info);
+    }
+    return meta;
+  });
 }
 
 /**
@@ -214,14 +241,15 @@ export async function importChart(file: File): Promise<void> {
     downloadedAt: new Date().toISOString(),
   };
 
-  const meta = await readMeta();
-  const idx = meta.findIndex((c) => c.filename === file.name);
-  if (idx >= 0) {
-    meta[idx] = info;
-  } else {
-    meta.push(info);
-  }
-  await writeMeta(meta);
+  await withMeta((meta) => {
+    const idx = meta.findIndex((c) => c.filename === file.name);
+    if (idx >= 0) {
+      meta[idx] = info;
+    } else {
+      meta.push(info);
+    }
+    return meta;
+  });
 }
 
 /** Get a File handle for a stored chart (for PMTiles FileSource). */
@@ -246,32 +274,30 @@ export async function deleteChart(filename: string): Promise<void> {
     // file may not exist
   }
 
-  const meta = await readMeta();
-  const filtered = meta.filter((c) => c.filename !== filename);
-  await writeMeta(filtered);
+  await withMeta((meta) => meta.filter((c) => c.filename !== filename));
 }
 
-/** Delete all stored charts. */
+/**
+ * Delete all stored charts. Enumerates the actual OPFS directory rather than
+ * the meta sidecar — a chart whose meta entry was lost (e.g. to a crash
+ * during an earlier unguarded write) would otherwise survive as an invisible
+ * orphan that this could never remove.
+ */
 export async function deleteAllCharts(): Promise<void> {
-  const meta = await readMeta();
   const root = await getRoot();
   if (!root) return;
-  for (const chart of meta) {
-    try {
-      await root.removeEntry(chart.filename);
-    } catch {
-      // ignore
+  await withMeta(async () => {
+    // Removes the meta sidecar and any leftover `.downloading` temp files
+    // too — writeMeta([]) below recreates a fresh, empty sidecar.
+    for await (const name of root.keys()) {
+      try {
+        await root.removeEntry(name);
+      } catch {
+        // ignore
+      }
     }
-  }
-  // Also clean up any leftover .downloading files
-  sweptDownloadingFiles = false;
-  await sweepDownloadingFiles(root);
-  try {
-    await root.removeEntry(META_FILENAME);
-  } catch {
-    // ignore
-  }
-  await writeMeta([]);
+    return [];
+  });
 }
 
 /**
