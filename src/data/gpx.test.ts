@@ -301,6 +301,84 @@ describe("GPX import", () => {
     expect(() => parseGpx("not xml at all <><>")).toThrow("Invalid GPX XML");
   });
 
+  it("doesn't mistake a rtept's <name> for the route's own name", () => {
+    // A <rte> with no <name> of its own but whose first <rtept> has one —
+    // a descendant search would wrongly pick up the waypoint's name.
+    const gpx = [
+      '<?xml version="1.0" encoding="UTF-8"?>',
+      '<gpx version="1.1" xmlns="http://www.topografix.com/GPX/1/1">',
+      "  <rte>",
+      '    <rtept lat="42.36" lon="-71.06">',
+      "      <name>Mark 1</name>",
+      "    </rtept>",
+      "  </rte>",
+      "</gpx>",
+    ].join("\n");
+    const result = parseGpx(gpx);
+    expect(result.routes[0].name).toBe("Imported Route 1");
+    expect(result.routes[0].waypoints[0].name).toBe("Mark 1");
+  });
+
+  it("skips a waypoint with a missing lat/lon instead of defaulting to null-island", () => {
+    const gpx = [
+      '<?xml version="1.0" encoding="UTF-8"?>',
+      '<gpx version="1.1" xmlns="http://www.topografix.com/GPX/1/1">',
+      "  <wpt>",
+      "    <name>No Position</name>",
+      "  </wpt>",
+      '  <wpt lat="42.36" lon="-71.06">',
+      "    <name>Good</name>",
+      "  </wpt>",
+      "</gpx>",
+    ].join("\n");
+    const result = parseGpx(gpx);
+    expect(result.waypoints).toHaveLength(1);
+    expect(result.waypoints[0].name).toBe("Good");
+    expect(result.skippedPoints).toBe(1);
+  });
+
+  it("skips a route point with an out-of-range or non-numeric coordinate", () => {
+    const gpx = [
+      '<?xml version="1.0" encoding="UTF-8"?>',
+      '<gpx version="1.1" xmlns="http://www.topografix.com/GPX/1/1">',
+      "  <rte>",
+      "    <name>Bad Points</name>",
+      '    <rtept lat="120" lon="-71.06"><name>Bad lat</name></rtept>',
+      '    <rtept lat="42.36" lon="abc"><name>Bad lon</name></rtept>',
+      '    <rtept lat="42.36" lon="-71.06"><name>Good</name></rtept>',
+      "  </rte>",
+      "</gpx>",
+    ].join("\n");
+    const result = parseGpx(gpx);
+    expect(result.routes[0].waypoints).toHaveLength(1);
+    expect(result.routes[0].waypoints[0].name).toBe("Good");
+    expect(result.skippedPoints).toBe(2);
+  });
+
+  it("skips a track point with a non-numeric coordinate", () => {
+    const gpx = [
+      '<?xml version="1.0" encoding="UTF-8"?>',
+      '<gpx version="1.1" xmlns="http://www.topografix.com/GPX/1/1">',
+      "  <trk>",
+      "    <trkseg>",
+      '      <trkpt lat="42.36" lon="-71.06"/>',
+      '      <trkpt lat="notanumber" lon="-71.06"/>',
+      '      <trkpt lat="42.37" lon="-71.05"/>',
+      "    </trkseg>",
+      "  </trk>",
+      "</gpx>",
+    ].join("\n");
+    const result = parseGpx(gpx);
+    expect(result.tracks[0].points).toHaveLength(2);
+    expect(result.skippedPoints).toBe(1);
+  });
+
+  it("reports zero skipped points for a fully valid file", () => {
+    const gpx = routeToGpx(sampleRoute);
+    const result = parseGpx(gpx);
+    expect(result.skippedPoints).toBe(0);
+  });
+
   it("parses bare (non-namespaced) GPX", () => {
     const gpx = [
       '<?xml version="1.0" encoding="UTF-8"?>',

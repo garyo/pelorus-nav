@@ -186,19 +186,44 @@ export interface GpxImportResult {
   routes: Route[];
   tracks: Array<{ meta: TrackMeta; points: TrackPoint[] }>;
   waypoints: StandaloneWaypoint[];
+  /** Points/waypoints dropped for missing or out-of-range lat/lon. */
+  skippedPoints: number;
 }
 
 /**
- * Get text content of a child element by local name.
- * Handles both namespaced and bare GPX elements.
+ * Parse and validate a coordinate attribute. Returns null (rather than
+ * defaulting to "0") when the attribute is missing, non-numeric, or outside
+ * its valid range — a missing lat/lon should never silently become
+ * null-island, and a malformed one should never become NaN.
+ */
+function parseCoordAttr(
+  value: string | null,
+  min: number,
+  max: number,
+): number | null {
+  if (value === null) return null;
+  const n = Number.parseFloat(value);
+  if (!Number.isFinite(n) || n < min || n > max) return null;
+  return n;
+}
+
+function parseLatLon(el: Element): { lat: number; lon: number } | null {
+  const lat = parseCoordAttr(el.getAttribute("lat"), -90, 90);
+  const lon = parseCoordAttr(el.getAttribute("lon"), -180, 180);
+  if (lat === null || lon === null) return null;
+  return { lat, lon };
+}
+
+/**
+ * Get text content of a *direct* child element by local name (namespaced or
+ * bare — `Element.localName` ignores the prefix either way). Direct children
+ * only: a descendant search would find e.g. a `<rtept><name>` nested inside
+ * an `<rte>` that has no `<name>` of its own, and misreport it as the
+ * route's name.
  */
 function childText(parent: Element, localName: string): string | null {
-  // Try namespace-aware first
-  const nsEl = parent.getElementsByTagNameNS(GPX_NS, localName)[0];
-  if (nsEl?.textContent) return nsEl.textContent.trim();
-  // Fall back to bare element name
-  const bareEl = parent.getElementsByTagName(localName)[0];
-  if (bareEl?.textContent) return bareEl.textContent.trim();
+  const el = Array.from(parent.children).find((c) => c.localName === localName);
+  if (el?.textContent) return el.textContent.trim();
   return null;
 }
 
@@ -212,13 +237,9 @@ function pelorusExt(parent: Element, localName: string): string | null {
   return null;
 }
 
-/** Get all elements matching a local name (namespace-aware with fallback). */
+/** Get *direct* child elements matching a local name (see `childText`). */
 function getElements(parent: Element, localName: string): Element[] {
-  let els = Array.from(parent.getElementsByTagNameNS(GPX_NS, localName));
-  if (els.length === 0) {
-    els = Array.from(parent.getElementsByTagName(localName));
-  }
-  return els;
+  return Array.from(parent.children).filter((c) => c.localName === localName);
 }
 
 function parseColor(el: Element, fallbackIndex: number): string {
@@ -250,29 +271,46 @@ export function parseGpx(xml: string): GpxImportResult {
 
   const root = doc.documentElement;
   const now = Date.now();
+  let skippedPoints = 0;
 
   // Parse standalone waypoints (<wpt>)
   const wptEls = getElements(root, "wpt");
-  const waypoints: StandaloneWaypoint[] = wptEls.map((wptEl) => ({
-    id: generateUUID(),
-    lat: Number.parseFloat(wptEl.getAttribute("lat") ?? "0"),
-    lon: Number.parseFloat(wptEl.getAttribute("lon") ?? "0"),
-    name: childText(wptEl, "name") ?? "Imported Waypoint",
-    notes: childText(wptEl, "desc") ?? "",
-    icon: parseWaypointIcon(childText(wptEl, "sym")),
-    createdAt: now,
-    updatedAt: now,
-  }));
+  const waypoints: StandaloneWaypoint[] = [];
+  for (const wptEl of wptEls) {
+    const latLon = parseLatLon(wptEl);
+    if (!latLon) {
+      skippedPoints++;
+      continue;
+    }
+    waypoints.push({
+      id: generateUUID(),
+      lat: latLon.lat,
+      lon: latLon.lon,
+      name: childText(wptEl, "name") ?? "Imported Waypoint",
+      notes: childText(wptEl, "desc") ?? "",
+      icon: parseWaypointIcon(childText(wptEl, "sym")),
+      createdAt: now,
+      updatedAt: now,
+    });
+  }
 
   // Parse routes (<rte>)
   const rteEls = getElements(root, "rte");
   const routes: Route[] = rteEls.map((rteEl, i) => {
     const rteptEls = getElements(rteEl, "rtept");
-    const routeWaypoints: Waypoint[] = rteptEls.map((ptEl) => ({
-      lat: Number.parseFloat(ptEl.getAttribute("lat") ?? "0"),
-      lon: Number.parseFloat(ptEl.getAttribute("lon") ?? "0"),
-      name: childText(ptEl, "name") ?? "",
-    }));
+    const routeWaypoints: Waypoint[] = [];
+    for (const ptEl of rteptEls) {
+      const latLon = parseLatLon(ptEl);
+      if (!latLon) {
+        skippedPoints++;
+        continue;
+      }
+      routeWaypoints.push({
+        lat: latLon.lat,
+        lon: latLon.lon,
+        name: childText(ptEl, "name") ?? "",
+      });
+    }
 
     return {
       id: generateUUID(),
@@ -294,6 +332,11 @@ export function parseGpx(xml: string): GpxImportResult {
       for (const seg of segEls) {
         const trkptEls = getElements(seg, "trkpt");
         for (const ptEl of trkptEls) {
+          const latLon = parseLatLon(ptEl);
+          if (!latLon) {
+            skippedPoints++;
+            continue;
+          }
           const timeStr = childText(ptEl, "time");
           const sogStr = pelorusExt(ptEl, "sog");
           const cogStr = pelorusExt(ptEl, "cog");
@@ -301,8 +344,8 @@ export function parseGpx(xml: string): GpxImportResult {
           const latRawStr = pelorusExt(ptEl, "lat-raw");
           const lonRawStr = pelorusExt(ptEl, "lon-raw");
           const point: TrackPoint = {
-            lat: Number.parseFloat(ptEl.getAttribute("lat") ?? "0"),
-            lon: Number.parseFloat(ptEl.getAttribute("lon") ?? "0"),
+            lat: latLon.lat,
+            lon: latLon.lon,
             timestamp: timeStr ? new Date(timeStr).getTime() : 0,
             sog: sogStr !== null ? Number.parseFloat(sogStr) : null,
             cog: cogStr !== null ? Number.parseFloat(cogStr) : null,
@@ -333,5 +376,11 @@ export function parseGpx(xml: string): GpxImportResult {
     },
   );
 
-  return { routes, tracks, waypoints };
+  if (skippedPoints > 0) {
+    console.warn(
+      `GPX import: skipped ${skippedPoints} point(s) with missing or out-of-range lat/lon`,
+    );
+  }
+
+  return { routes, tracks, waypoints, skippedPoints };
 }
