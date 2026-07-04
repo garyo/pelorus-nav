@@ -353,8 +353,13 @@ if (import.meta.env.DEV) {
   }
 }
 
-// Persist map position on every move so refresh restores it
-chartManager.map.on("moveend", () => {
+// Persist map position (throttled — moveend fires ~10 Hz underway in follow
+// mode, and each write is a synchronous localStorage round-trip). The
+// throttle is non-re-arming so persistence can't be starved; flushed on
+// hide/pagehide so a reload restores a fresh position.
+const MAP_POS_SAVE_MS = 5_000;
+let mapPosSaveTimer: ReturnType<typeof setTimeout> | null = null;
+const saveMapPosition = (): void => {
   const c = chartManager.map.getCenter();
   localStorage.setItem(
     MAP_POS_KEY,
@@ -363,6 +368,17 @@ chartManager.map.on("moveend", () => {
       zoom: chartManager.map.getZoom(),
     }),
   );
+};
+chartManager.map.on("moveend", () => {
+  if (mapPosSaveTimer) return;
+  mapPosSaveTimer = setTimeout(() => {
+    mapPosSaveTimer = null;
+    saveMapPosition();
+  }, MAP_POS_SAVE_MS);
+});
+window.addEventListener("pagehide", saveMapPosition);
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "hidden") saveMapPosition();
 });
 
 // Watches CPU/thermal pressure via the Compute Pressure API; falls back to
