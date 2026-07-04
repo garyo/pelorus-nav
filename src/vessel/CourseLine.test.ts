@@ -3,7 +3,7 @@ import {
   circularInterpolate,
   circularMeanDeg,
 } from "../navigation/CourseSmoothing";
-import { formatTickLabel, selectAutoBucket } from "./CourseLine";
+import { cameraKeyOf, formatTickLabel, selectAutoBucket } from "./CourseLine";
 
 describe("circularMeanDeg", () => {
   it("returns the single angle for a single-element array", () => {
@@ -103,5 +103,17 @@ describe("formatTickLabel", () => {
 
   it("formats hour durations", () => {
     expect(formatTickLabel(60)).toBe("1h");
+  });
+});
+
+describe("cameraKeyOf", () => {
+  it("is stable across identical inputs and differs on any camera change", () => {
+    const base = cameraKeyOf(13, 45, 0, 800, 600);
+    expect(cameraKeyOf(13, 45, 0, 800, 600)).toBe(base);
+    expect(cameraKeyOf(13.1, 45, 0, 800, 600)).not.toBe(base);
+    expect(cameraKeyOf(13, 46, 0, 800, 600)).not.toBe(base);
+    expect(cameraKeyOf(13, 45, 5, 800, 600)).not.toBe(base);
+    expect(cameraKeyOf(13, 45, 0, 900, 600)).not.toBe(base);
+    expect(cameraKeyOf(13, 45, 0, 800, 700)).not.toBe(base);
   });
 });

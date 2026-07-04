@@ -89,6 +89,8 @@ export class CourseLine {
   // redraw() short-circuit the frequent move-event path when the line is off
   // or speed is below threshold.
   private isEmpty = true;
+  /** Camera key at the last draw — pure pans don't change tick geometry. */
+  private lastDrawCameraKey = "";
   // Coalesces high-frequency `move` events (especially during pinch) so we
   // don't fire one full setData per gesture frame — pile-ups stall the JS
   // thread on e-ink hardware and make pinch zoom feel runaway.
@@ -119,8 +121,25 @@ export class CourseLine {
     this.rafPending = true;
     requestAnimationFrame(() => {
       this.rafPending = false;
+      // The move-path redraw exists for camera changes that re-project the
+      // screen-space tick geometry. Pure pans keep it identical (project/
+      // unproject round-trips are translation-consistent), and in follow
+      // mode the per-frame jumpTo fires `move` right after the render
+      // handler already redrew — skip when nothing camera-shaped changed.
+      if (this.currentCameraKey() === this.lastDrawCameraKey) return;
       this.redraw();
     });
+  }
+
+  private currentCameraKey(): string {
+    const el = this.map.getContainer();
+    return cameraKeyOf(
+      this.map.getZoom(),
+      this.map.getBearing(),
+      this.map.getPitch(),
+      el.clientWidth,
+      el.clientHeight,
+    );
   }
 
   update(data: NavigationData, smoothed: SmoothedCourse | null): void {
@@ -399,6 +418,7 @@ export class CourseLine {
 
     source.setData({ type: "FeatureCollection", features });
     this.isEmpty = false;
+    this.lastDrawCameraKey = this.currentCameraKey();
   }
 
   private clearLine(): void {
@@ -408,5 +428,21 @@ export class CourseLine {
     if (!source) return;
     source.setData({ type: "FeatureCollection", features: [] });
     this.isEmpty = true;
+    this.lastDrawCameraKey = this.currentCameraKey();
   }
+}
+
+/**
+ * Key of everything the screen-space tick/label geometry depends on besides
+ * the course itself. Pure pans keep it constant, so a matching key means the
+ * move-path redraw would produce identical data. Exported for tests.
+ */
+export function cameraKeyOf(
+  zoom: number,
+  bearing: number,
+  pitch: number,
+  width: number,
+  height: number,
+): string {
+  return `${zoom}|${bearing}|${pitch}|${width}x${height}`;
 }
