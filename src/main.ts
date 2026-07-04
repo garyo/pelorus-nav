@@ -1,3 +1,6 @@
+// FIRST import: installs global JS error capture before any other module
+// evaluates, so even module-init crashes land in the persistent error log.
+import "./diagnostics/errorCaptureBoot";
 import { Capacitor } from "@capacitor/core";
 import { addProtocol } from "maplibre-gl";
 import { BackgroundGPS } from "./plugins/BackgroundGPS";

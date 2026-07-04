@@ -37,6 +37,7 @@ public class BackgroundGPSPlugin: CAPPlugin, CAPBridgedPlugin, CLLocationManager
     CAPPluginMethod(name: "getScreenOffTimeout", returnType: CAPPluginReturnPromise),
     CAPPluginMethod(name: "openDisplaySettings", returnType: CAPPluginReturnPromise),
     CAPPluginMethod(name: "appendDiag", returnType: CAPPluginReturnPromise),
+    CAPPluginMethod(name: "readDiag", returnType: CAPPluginReturnPromise),
   ]
 
   private let manager = CLLocationManager()
@@ -299,12 +300,26 @@ public class BackgroundGPSPlugin: CAPPlugin, CAPBridgedPlugin, CLLocationManager
       message: call.getString("message") ?? "")
     call.resolve()
   }
+
+  /// Return the tail of the persistent diagnostic log for the diagnostics export.
+  @objc func readDiag(_ call: CAPPluginCall) {
+    let maxBytes = call.getInt("maxBytes") ?? 65_536
+    DiagLog.readTail(maxBytes: maxBytes) { text, truncated, sizeBytes in
+      call.resolve([
+        "text": text,
+        "truncated": truncated,
+        "sizeBytes": sizeBytes,
+      ])
+    }
+  }
 }
 
 /// Minimal persistent diagnostic log — the iOS counterpart of the Android
-/// `DiagLog`, appending to a file in the app container.
+/// `DiagLog`, appending to a file in the app container. Rotates once at
+/// `maxBytes` (mirroring DiagLog.kt) so the file can't grow unbounded.
 enum DiagLog {
   private static let queue = DispatchQueue(label: "nav.pelorus.diag")
+  private static let maxBytes: UInt64 = 1_000_000
 
   private static var fileURL: URL? {
     let fm = FileManager.default
@@ -319,6 +334,7 @@ enum DiagLog {
   static func append(tag: String, message: String) {
     queue.async {
       guard let url = fileURL else { return }
+      rotateIfNeeded(url)
       let line = "\(ISO8601DateFormatter().string(from: Date())) [\(tag)] \(message)\n"
       guard let data = line.data(using: .utf8) else { return }
       if let handle = try? FileHandle(forWritingTo: url) {
@@ -328,6 +344,43 @@ enum DiagLog {
       } else {
         try? data.write(to: url)
       }
+    }
+  }
+
+  private static func rotateIfNeeded(_ url: URL) {
+    let fm = FileManager.default
+    guard
+      let size = (try? fm.attributesOfItem(atPath: url.path))?[.size] as? UInt64,
+      size > maxBytes
+    else { return }
+    let old = url.deletingLastPathComponent().appendingPathComponent("diag.log.1")
+    try? fm.removeItem(at: old)
+    try? fm.moveItem(at: url, to: old)
+  }
+
+  /// Read the last `maxBytes` of the log; completion runs on the diag queue,
+  /// serialized against append so a mid-write read can't tear a line.
+  static func readTail(
+    maxBytes: Int, completion: @escaping (String, Bool, Int) -> Void
+  ) {
+    queue.async {
+      guard let url = fileURL,
+        let data = try? Data(contentsOf: url)
+      else {
+        completion("(no diag.log)", false, 0)
+        return
+      }
+      let size = data.count
+      if size <= maxBytes {
+        completion(String(decoding: data, as: UTF8.self), false, size)
+        return
+      }
+      let tail = data.suffix(maxBytes)
+      var text = String(decoding: tail, as: UTF8.self)
+      if let nl = text.firstIndex(of: "\n") {
+        text = String(text[text.index(after: nl)...])  // drop partial first line
+      }
+      completion(text, true, size)
     }
   }
 }

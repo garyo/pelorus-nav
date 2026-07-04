@@ -96,6 +96,17 @@ export interface BackgroundGPSPlugin {
    */
   appendDiag(options: { tag: string; message: string }): Promise<void>;
 
+  /**
+   * Read the tail of the persistent native diagnostic log (diag.log).
+   * `maxBytes` caps the returned tail (default 65536). `truncated` is true
+   * when the file was longer; `sizeBytes` is the full on-disk size.
+   * Rejects on web (no web implementation) and on native shells older than
+   * this method — callers must catch.
+   */
+  readDiag(options?: {
+    maxBytes?: number;
+  }): Promise<{ text: string; truncated: boolean; sizeBytes: number }>;
+
   /** Listen for live GPS updates delivered via the Capacitor bridge. */
   addListener(
     eventName: "locationUpdate",

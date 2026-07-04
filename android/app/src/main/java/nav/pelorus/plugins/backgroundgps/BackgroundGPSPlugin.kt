@@ -160,6 +160,18 @@ class BackgroundGPSPlugin : Plugin() {
         call.resolve()
     }
 
+    /** Return the tail of the persistent diagnostic log for the diagnostics export. */
+    @PluginMethod
+    fun readDiag(call: PluginCall) {
+        val maxBytes = call.data.optLong("maxBytes", 65_536L)
+        val tail = DiagLog.readTail(context, maxBytes)
+        call.resolve(JSObject().apply {
+            put("text", tail.text)
+            put("truncated", tail.truncated)
+            put("sizeBytes", tail.sizeBytes)
+        })
+    }
+
     /**
      * Set the GPS power mode.
      *

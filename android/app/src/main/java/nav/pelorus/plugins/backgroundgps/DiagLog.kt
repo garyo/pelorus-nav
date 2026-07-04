@@ -2,6 +2,7 @@ package nav.pelorus.plugins.backgroundgps
 
 import android.content.Context
 import java.io.File
+import java.io.RandomAccessFile
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -36,6 +37,27 @@ object DiagLog {
                 file.appendText("${fmt.format(Date())} $tag $msg\n")
             } catch (_: Exception) {
                 // Diagnostics must never crash or block the app.
+            }
+        }
+    }
+
+    data class DiagTail(val text: String, val truncated: Boolean, val sizeBytes: Long)
+
+    /** Read the last [maxBytes] of the log (for the in-app diagnostics export). */
+    fun readTail(context: Context, maxBytes: Long): DiagTail {
+        synchronized(lock) {
+            val dir = context.getExternalFilesDir(null) ?: return DiagTail("", false, 0)
+            val file = File(dir, FILE_NAME)
+            if (!file.exists()) return DiagTail("(no diag.log)", false, 0)
+            val size = file.length()
+            val start = maxOf(0L, size - maxBytes)
+            RandomAccessFile(file, "r").use { raf ->
+                raf.seek(start)
+                val buf = ByteArray((size - start).toInt())
+                raf.readFully(buf)
+                var text = String(buf, Charsets.UTF_8)
+                if (start > 0) text = text.substringAfter('\n', text) // drop partial first line
+                return DiagTail(text, start > 0, size)
             }
         }
     }

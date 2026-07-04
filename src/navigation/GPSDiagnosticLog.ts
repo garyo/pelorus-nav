@@ -121,8 +121,8 @@ class GPSDiagnosticLog {
     }
   }
 
-  /** Export all entries as CSV text. */
-  toCSV(): string {
+  /** Export entries as CSV text — all of them, or just the last N. */
+  toCSV(lastN?: number): string {
     const headers = [
       "timestamp",
       "raw_lat",
@@ -142,7 +142,8 @@ class GPSDiagnosticLog {
       "quality_q",
     ];
     const lines = [headers.join(",")];
-    for (const e of this.entries) {
+    const rows = lastN ? this.entries.slice(-lastN) : this.entries;
+    for (const e of rows) {
       lines.push(
         [
           e.timestamp,

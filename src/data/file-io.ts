@@ -8,33 +8,41 @@ import { Share } from "@capacitor/share";
 
 export const GPX_MIME = "application/gpx+xml";
 
-/** Trigger a browser file download with the given content. */
-export function downloadFile(
+export type ShareOutcome = "shared" | "downloaded" | "cancelled";
+
+/**
+ * Share (native) or download (web) a text file. Resolves "cancelled" when the
+ * user dismisses the native share sheet; rejects on real failures (e.g. the
+ * temp-file write) so callers can surface them — unlike downloadFile, which
+ * fires and forgets.
+ */
+export async function shareOrDownloadFile(
   content: string,
   filename: string,
   mimeType: string,
-): void {
+): Promise<ShareOutcome> {
   if (Capacitor.isNativePlatform()) {
-    // Android WebView doesn't support <a download>. Write a temp file and
-    // share it so the receiving app gets a real file with the correct name.
-    Filesystem.writeFile({
+    // The WebView doesn't support <a download>. Write a temp file and share
+    // it so the receiving app gets a real file with the correct name.
+    const result = await Filesystem.writeFile({
       path: filename,
       data: content,
       directory: Directory.Cache,
       encoding: Encoding.UTF8,
-    })
-      .then((result) =>
-        Share.share({
-          title: filename,
-          url: result.uri,
-          dialogTitle: `Save ${filename}`,
-        }),
-      )
-      .catch((e) => {
-        // User cancelled share — not an error
-        console.log("downloadFile: share dismissed", String(e));
+    });
+    try {
+      await Share.share({
+        title: filename,
+        url: result.uri,
+        dialogTitle: `Save ${filename}`,
       });
-    return;
+      return "shared";
+    } catch (e) {
+      // Both platforms reject with "Share canceled" on user dismissal —
+      // a clean outcome, not an error.
+      if (/cancel/i.test(String(e))) return "cancelled";
+      throw e;
+    }
   }
 
   // Standard browser download via <a download>
@@ -47,6 +55,18 @@ export function downloadFile(
   a.click();
   document.body.removeChild(a);
   setTimeout(() => URL.revokeObjectURL(url), 0);
+  return "downloaded";
+}
+
+/** Fire-and-forget wrapper around shareOrDownloadFile for legacy callers. */
+export function downloadFile(
+  content: string,
+  filename: string,
+  mimeType: string,
+): void {
+  void shareOrDownloadFile(content, filename, mimeType).catch((e) => {
+    console.warn("downloadFile failed:", String(e));
+  });
 }
 
 /** Open a file picker and return the selected file's text content. */
