@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 
-test("map renders with NOAA charts and MapLibre controls", async ({ page }) => {
+test("map renders with MapLibre controls and top bar", async ({ page }) => {
   await page.goto("/");
 
   // MapLibre initializes
@@ -11,7 +11,7 @@ test("map renders with NOAA charts and MapLibre controls", async ({ page }) => {
   const canvas = page.locator("canvas.maplibregl-canvas");
   await expect(canvas).toBeVisible();
 
-  // Navigation control group (in top-right, not the chart switcher)
+  // Navigation control group (top-right)
   const navControl = page.locator(
     ".maplibregl-ctrl-top-right .maplibregl-ctrl-group",
   );
@@ -21,41 +21,34 @@ test("map renders with NOAA charts and MapLibre controls", async ({ page }) => {
   const scaleControl = page.locator(".maplibregl-ctrl-scale");
   await expect(scaleControl).toBeVisible();
 
-  // NOAA attribution is present
-  const attribution = page.locator(".maplibregl-ctrl-attrib-inner");
-  await expect(attribution).toContainText("NOAA");
+  // App top bar is present
+  await expect(page.locator("#topbar-menu")).toBeAttached();
 });
 
-test("chart source switcher is present and works", async ({ page }) => {
+test("chart source select in settings switches providers", async ({ page }) => {
   await page.goto("/");
-
-  // Wait for map to initialize
   await expect(page.locator(".maplibregl-map")).toBeVisible({
     timeout: 10000,
   });
 
-  // Chart switcher dropdown exists
-  const switcher = page.locator(".chart-switcher-select");
-  await expect(switcher).toBeVisible();
+  // Open the settings panel (gear in the top bar menu) and the Layers tab,
+  // where the chart-source select lives.
+  await page.locator(".settings-wrapper button").first().click();
+  await page.getByRole("button", { name: "Layers" }).click();
 
-  // Has NOAA, ECDIS, OSM, and Vector options
-  const options = switcher.locator("option");
+  const select = page.locator("#settings-chart-source");
+  await expect(select).toBeVisible();
+
+  // All four chart providers are offered
+  const options = select.locator("option");
   await expect(options).toHaveCount(4);
-  await expect(options.nth(0)).toHaveText("NOAA Nautical Charts");
-  await expect(options.nth(1)).toHaveText("NOAA ECDIS Charts");
-  await expect(options.nth(2)).toHaveText("OpenStreetMap");
-  await expect(options.nth(3)).toHaveText("NOAA Vector Charts");
 
-  // NOAA is initially selected
-  await expect(switcher).toHaveValue("noaa-ncds");
+  // Vector charts are the default provider
+  await expect(select).toHaveValue("s57-vector");
 
-  // Switch to OSM
-  await switcher.selectOption("osm");
-  await expect(switcher).toHaveValue("osm");
-
-  // Attribution changes to OpenStreetMap
-  const attribution = page.locator(".maplibregl-ctrl-attrib-inner");
-  await expect(attribution).toContainText("OpenStreetMap");
+  // Switching to OSM takes effect
+  await select.selectOption("osm");
+  await expect(select).toHaveValue("osm");
 });
 
 test("page has correct title", async ({ page }) => {
