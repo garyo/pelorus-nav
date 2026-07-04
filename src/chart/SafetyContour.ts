@@ -16,6 +16,7 @@ import type { FilterSpecification } from "maplibre-gl";
 import { getRegionLayerIds, getVectorSourceIds } from "../data/chart-catalog";
 import { getSettings, onSettingsChange } from "../settings";
 import { s52Colour } from "./s52-colours";
+import { type ViewportSig, viewportChangedMaterially } from "./viewport-gate";
 
 const ISOLATED_DANGER_SUFFIXES = [
   "wrecks-isodgr",
@@ -48,6 +49,8 @@ export class SafetyContour {
   private resolvedByCell = new Map<number, number>();
   /** Suppress sourcedata re-scans during our own paint updates. */
   private updating = false;
+  /** Viewport at the last completed scan — gates the moveend rescan. */
+  private lastScanViewport: ViewportSig | null = null;
   /** Throttled safety depth update — max one apply per THROTTLE_MS. */
   private pendingSafetyDepth: number | null = null;
   private throttleTimer: ReturnType<typeof setTimeout> | null = null;
@@ -57,9 +60,25 @@ export class SafetyContour {
     this.map = map;
     this.prevSafetyDepth = getSettings().safetyDepth;
 
-    // Re-scan tile data when genuinely new tiles arrive
+    // Re-scan when a chart source settles (new tiles) — NOT on the GeoJSON
+    // overlay setData churn, which fires "content" sourcedata at frame rate
+    // and used to re-arm (i.e. starve) the scan debounce indefinitely while
+    // underway: the safety contour never re-resolved for newly loaded cells.
     map.on("sourcedata", (e) => {
-      if (e.sourceDataType === "content" && !this.updating) {
+      if (this.updating) return;
+      if (!e.sourceId?.startsWith("s57-vector") || !e.isSourceLoaded) return;
+      this.debouncedScan();
+    });
+    // Cached tiles re-entering view fire no sourcedata (MapLibre cache hits
+    // are silent) — rescan on material viewport change instead.
+    map.on("moveend", () => {
+      if (
+        viewportChangedMaterially(
+          this.lastScanViewport,
+          this.viewportSig(),
+          this.gateOpts(),
+        )
+      ) {
         this.debouncedScan();
       }
     });
@@ -120,8 +139,29 @@ export class SafetyContour {
     }, 1000);
   }
 
+  private viewportSig(): ViewportSig {
+    const c = this.map.getCenter();
+    return {
+      lng: c.lng,
+      lat: c.lat,
+      zoom: this.map.getZoom(),
+      bearing: this.map.getBearing(),
+    };
+  }
+
+  private gateOpts(): { centerEpsPx: number } {
+    const el = this.map.getContainer();
+    return {
+      centerEpsPx: Math.max(
+        64,
+        0.1 * Math.min(el.clientWidth, el.clientHeight),
+      ),
+    };
+  }
+
   /** Scan all loaded DEPCNT features and cache VALDCO values grouped by _cell_id. */
   private scanTiles(): void {
+    this.lastScanViewport = this.viewportSig();
     const byCell = new Map<number, Set<number>>();
 
     for (const srcId of getVectorSourceIds()) {
