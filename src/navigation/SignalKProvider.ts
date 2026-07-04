@@ -162,8 +162,10 @@ export class SignalKProvider implements NavigationDataProvider {
   private openSocket(): Promise<void> {
     return new Promise((resolve, reject) => {
       const sock = new WebSocket(this.url);
+      let opened = false;
       this.ws = sock;
       sock.onopen = () => {
+        opened = true;
         this.sendSubscription(sock);
         resolve();
       };
@@ -179,13 +181,20 @@ export class SignalKProvider implements NavigationDataProvider {
       };
       sock.onerror = () => {
         console.warn("Signal K WebSocket error");
+        // Reject here too (no-op after open): some runtimes deliver the
+        // close event late or not at all on a failed handshake, and the
+        // establish must not hang on it.
+        reject(new Error("connection failed"));
       };
       sock.onclose = () => {
         // Identity guard: a torn-down socket's close event must not clobber
         // the replacement link's state (the close-race bug).
         if (this.ws !== sock) return;
         this.ws = null;
-        reject(new Error("connection closed")); // no-op if already open
+        if (!opened) {
+          reject(new Error("connection closed")); // failed before open
+          return;
+        }
         if (this.core.noteLinkDropped("server")) {
           this.onNotice?.({
             kind: "connect-failed",
