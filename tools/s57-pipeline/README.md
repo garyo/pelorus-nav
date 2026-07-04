@@ -6,8 +6,11 @@ vector tiles for use with MapLibre GL JS in Pelorus Nav.
 ## Prerequisites
 
 ```bash
-brew install gdal tippecanoe
+brew install gdal tippecanoe uv
 ```
+
+The pipeline is Python, run via [`uv`](https://docs.astral.sh/uv/) — `uv run`
+resolves dependencies automatically, no manual venv setup needed.
 
 ## Usage
 

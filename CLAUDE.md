@@ -65,7 +65,7 @@ off by default; enable it from the browser console or Chrome DevTools (via
 
 ## S-57 Pipeline (tools/s57-pipeline/)
 Python CLI for converting NOAA S-57 ENC data → PMTiles vector tiles.
-Requires `gdal` and `tippecanoe` installed via brew.
+Requires `gdal`, `tippecanoe`, and `uv` installed via brew.
 
 **Important:** `tools/s57-pipeline/data` must be a **symlink** to `tile-data/` at the
 project root (created by `build-tiles.sh`). Never create it as a real directory. Always
@@ -89,7 +89,10 @@ All tile workflows go through `tools/build-tiles.sh` (run `--help` for full usag
 - `bun run tiles:upload` — upload built tiles to CDN
 - `bun run tiles:update` — full unattended cycle (check → download → build → upload)
 - `tools/build-tiles.sh --build --region <name>` — build a single region
-  - Regions: `southern-new-england`, `northern-new-england`, `new-york`, `mid-atlantic`, `south-atlantic`, `usvi`, `boston-test`
+  - Regions (see `tools/regions.json`, the shared source of truth): `boston-test`,
+    `northern-new-england`, `southern-new-england`, `new-york`, `mid-atlantic`,
+    `south-atlantic`, `usvi`, `gulf-coast`, `great-lakes`, `ny-inland`, `washington`,
+    `oregon`, `northern-california`, `central-california`, `southern-california`, `hawaii`
   - `--force` rebuilds all cells; `--download` downloads ENCs first; `--composite-only` re-composites only
   - Output goes to `public/nautical-<region>.pmtiles`
 - `tools/build-tiles.sh --basemap --region <name>` — build the offline street basemap
@@ -148,7 +151,7 @@ The workflow requirements, worth knowing if it ever breaks:
 ## Tides & Currents
 Fully-offline tide and tidal-current predictions, computed client-side with
 `@neaps/tide-predictor` from NOAA harmonic constituents bundled in
-`public/tides-stations.json`. Overlay: `src/chart/TidesCurrentsLayer.ts`;
+`public/tides-stations.json`. Overlay: `src/plugins/tides/TidesOverlay.ts`;
 prediction core: `src/tides/` (schema, bundle loader, tide/current predictors,
 formatters). Toggled by the "Tides & Currents" layer group (default off).
 

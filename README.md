@@ -38,20 +38,20 @@ bun run check        # typecheck + lint + test
 
 ## Chart Data Pipeline
 
-The S-57 pipeline converts NOAA ENC data into vector tiles. Requires `gdal` and `tippecanoe`:
+The S-57 pipeline converts NOAA ENC data into vector tiles. Requires `gdal`, `tippecanoe`,
+and [`uv`](https://docs.astral.sh/uv/) (for the Python pipeline):
 
 ```bash
-brew install gdal tippecanoe
+brew install gdal tippecanoe uv
 
-# Download ENC cells (Boston Harbor test set)
-bun run tiles:download
-
-# Generate vector tiles
+# Generate vector tiles for the boston-test region (quick dev iteration)
 bun run tiles
 
-# Full region (Cape Cod to southern Maine, ~170 cells)
-bun run tiles:download:full
-bun run tiles:full
+# Download ENCs then build all production regions
+bun run tiles:build:fresh
+
+# Build all production regions (ENCs already downloaded)
+bun run tiles:build
 ```
 
 See `tools/s57-pipeline/` for the Python pipeline code.
@@ -63,8 +63,9 @@ See `tools/s57-pipeline/` for the Python pipeline code.
 | `bun dev` | Start dev server |
 | `bun run build` | Production build |
 | `bun run check` | Typecheck + lint + test |
-| `bun run tiles` | Generate tiles (Boston test region) |
-| `bun run tiles:full` | Generate tiles (full New England region) |
+| `bun run tiles` | Generate tiles (boston-test region) |
+| `bun run tiles:build` | Generate tiles (all production regions) |
+| `bun run tiles:build:fresh` | Download ENCs then build all regions |
 | `bun run tiles:upload` | Upload tiles to R2 |
 | `bun run deploy` | Build and deploy to Cloudflare Workers |
 

@@ -146,16 +146,7 @@ A modern, open-source marine chartplotter built as a progressive web app (PWA) i
 
 ## S-57 Layer Coverage
 
-We extract 50 layers covering all navigation-critical S-57 object classes. See `tools/s57-pipeline/s57_pipeline/layers.py` for the full list. Object querying (tap feature → info popup) is implemented in `src/chart/FeatureQueryHandler.ts`.
-
-### Nice to Have (not yet extracted)
-
-| Layer | Geom | Description |
-|-------|------|-------------|
-| RTPBCN | Point | RACON radar transponder beacons |
-| RDOSTA | Point | Radio stations (VHF, DGPS) |
-| WEDKLP | Point | Weed/kelp areas |
-| MARCUL | Polygon | Marine farms/aquaculture |
+We extract 111 layers covering all navigation-critical S-57 object classes. See `tools/s57-pipeline/s57_pipeline/layers.py` for the full list. Object querying (tap feature → info popup) is implemented in `src/chart/FeatureQueryHandler.ts`.
 
 ### Future Rendering Improvements
 
