@@ -58,6 +58,12 @@ public class BackgroundGPSPlugin: CAPPlugin, CAPBridgedPlugin, CLLocationManager
   private let maxAccuracyM: Double = 30
   /// Reject obviously-stale cached fixes iOS sometimes delivers first.
   private let maxFixAgeMs: Double = 5000
+  /// Passive-mode distance filter (m). Thins delegate wakeups to real
+  /// movement; at anchor the delegate goes quiet entirely instead of waking
+  /// the app ~1 Hz all night. 15 m ≈ one fix per ~5 s at 6 kn — denser than
+  /// the passive SQLite gate (15 s), so recorded-track fidelity is
+  /// unchanged; the gate stays the cadence authority.
+  private let passiveDistanceFilterM: CLLocationDistance = 15
 
   override public func load() {
     manager.delegate = self
@@ -122,30 +128,48 @@ public class BackgroundGPSPlugin: CAPPlugin, CAPBridgedPlugin, CLLocationManager
     let interval = call.getDouble("intervalMs")
     let grace = call.getDouble("graceMs") ?? 0
 
-    if mode == "passive" {
-      if let interval = interval { passiveIntervalMs = interval }
-      if grace > 0 {
-        schedulePassive(afterMs: grace)
+    // Apply on main: applyActive/applyPassive touch the CLLocationManager
+    // (distanceFilter), matching startTracking's dispatch pattern.
+    DispatchQueue.main.async {
+      if mode == "passive" {
+        if let interval = interval { self.passiveIntervalMs = interval }
+        if grace > 0 {
+          self.schedulePassive(afterMs: grace)
+        } else {
+          self.applyPassive()
+        }
       } else {
-        applyPassive()
+        if let interval = interval { self.activeIntervalMs = interval }
+        self.cancelGrace()
+        self.applyActive()
       }
-    } else {
-      if let interval = interval { activeIntervalMs = interval }
-      cancelGrace()
-      applyActive()
+      call.resolve()
     }
-    call.resolve()
   }
 
   private func applyActive() {
     passive = false
+    manager.distanceFilter = kCLDistanceFilterNone  // restore the full stream
     DiagLog.append(tag: "svc", message: "mode active")
   }
 
+  /// Passive power notes: `distanceFilter` thins *delivery* (app wakeups and
+  /// the per-fix work they trigger — the measured overnight cost); the GPS
+  /// chip itself may stay warm. Duty-cycling stopUpdatingLocation/restart
+  /// would cut deeper but is deliberately NOT done: with no active location
+  /// request iOS suspends the app and the restart timer never fires —
+  /// recording silently dies until foregrounded. A significant-location-
+  /// change keepalive has poor wake guarantees at anchor (no cell movement).
+  /// If field measurement shows residual drain, the next experiment is
+  /// `desiredAccuracy = kCLLocationAccuracyNearestTenMeters` in passive
+  /// (still comfortably inside the 30 m accuracy gate).
   private func applyPassive() {
     passive = true
     lastPassiveInsertMs = 0
-    DiagLog.append(tag: "svc", message: "mode passive interval=\(passiveIntervalMs)")
+    manager.distanceFilter = passiveDistanceFilterM
+    DiagLog.append(
+      tag: "svc",
+      message: "mode passive interval=\(passiveIntervalMs) distFilter=\(passiveDistanceFilterM)")
   }
 
   private func schedulePassive(afterMs: Double) {
