@@ -101,6 +101,13 @@ class BackgroundTrackService : Service() {
         /** Callback for delivering live location updates to the plugin. Cleared in PASSIVE mode. */
         var locationListener: ((TrackPointRow) -> Unit)? = null
 
+        /**
+         * Callback for reporting a service stop that JS did NOT initiate
+         * (the notification's Stop action). The plugin clears this on its own
+         * stopTracking() so a user-initiated stop emits nothing.
+         */
+        var stoppedListener: ((reason: String) -> Unit)? = null
+
         /** Reference to the running service instance (for runtime config from plugin). */
         var instance: BackgroundTrackService? = null
 
@@ -279,6 +286,13 @@ class BackgroundTrackService : Service() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         DiagLog.log(this, "svc", "onStartCommand action=${intent?.action} startId=$startId mode=$currentMode")
         if (intent?.action == ACTION_STOP) {
+            // Notification Stop: the user ended tracking outside JS. Tell the
+            // WebView (so the UI stops claiming tracking is live) and drop the
+            // bridge listener — a stale one would report isTracking-ish state
+            // and leak per-fix callbacks if the service were ever restarted.
+            DiagLog.log(this, "svc", "stopped via notification action")
+            locationListener = null
+            stoppedListener?.invoke("notification")
             stopSelf()
             return START_NOT_STICKY
         }
@@ -288,6 +302,8 @@ class BackgroundTrackService : Service() {
             startForeground(NOTIFICATION_ID, buildNotification())
         } catch (e: Exception) {
             Log.e(TAG, "Failed to start foreground service, stopping", e)
+            locationListener = null
+            stoppedListener?.invoke("foreground-start-failed")
             stopSelf()
             return START_NOT_STICKY
         }
@@ -363,9 +379,25 @@ class BackgroundTrackService : Service() {
      * Apply [currentMode] — set the location request rate/priority and the
      * wake-lock policy. Idempotent: skips re-issuing a LocationRequest when
      * the resolved (interval, priority) hasn't changed.
+     *
+     * Main-thread confined: callers can be on the plugin executor (setPowerMode)
+     * or the main looper (location callback, watchdog, onStartCommand), and the
+     * mode fields this reads/writes (appliedIntervalMs, lastSteadyState, inKick,
+     * holdLockContinuously) are plain fields — concurrent runs could double-issue
+     * or skip a LocationRequest or leave the wake lock in the wrong policy. Off
+     * the main thread the work is posted; on it, it runs synchronously so
+     * existing callback-path ordering is unchanged.
      */
-    @Suppress("MissingPermission")
     fun applyMode() {
+        if (Looper.myLooper() == Looper.getMainLooper()) {
+            applyModeOnMain()
+        } else {
+            mainHandler.post { applyModeOnMain() }
+        }
+    }
+
+    @Suppress("MissingPermission")
+    private fun applyModeOnMain() {
         if (!::fusedClient.isInitialized || !::locationCallback.isInitialized) {
             Log.w(TAG, "applyMode before service initialized, skipping")
             return

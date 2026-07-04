@@ -1,10 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
-    <!-- GPS permissions -->
+    <!-- GPS permissions. Screen-off tracking is covered by the location-type
+         foreground service; ACCESS_BACKGROUND_LOCATION is deliberately NOT
+         declared (never requested, and it invites Play policy rejection). -->
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
-    <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
 
     <!-- Bluetooth LE permissions (BLE GPS pod via @capacitor-community/bluetooth-le) -->
     <uses-permission android:name="android.permission.BLUETOOTH_SCAN"

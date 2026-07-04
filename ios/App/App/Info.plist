@@ -30,6 +30,11 @@
 	<string>Pelorus Nav records your vessel's GPS track in the background — including with the screen off — so your voyage is logged even when the app isn't open.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>Pelorus Nav uses your location to show your vessel on the chart and to navigate.</string>
+	<key>NSLocationTemporaryUsageDescriptionDictionary</key>
+	<dict>
+		<key>PreciseLocationNav</key>
+		<string>Precise location is required to plot your vessel accurately and record GPS tracks — approximate location is not usable for navigation.</string>
+	</dict>
 	<key>NSBluetoothAlwaysUsageDescription</key>
 	<string>Pelorus Nav connects to external Bluetooth GPS receivers to use their position and speed for navigation.</string>
 	<key>UIBackgroundModes</key>

@@ -113,6 +113,27 @@ export interface BackgroundGPSPlugin {
     listenerFunc: (data: TrackPointNative) => void,
   ): Promise<PluginListenerHandle>;
 
+  /**
+   * Fired when the native service stopped OUTSIDE JS control — the
+   * notification's Stop action, or a foreground-start failure. Delivered
+   * retained, so a hidden/suspended WebView receives it on resume. A
+   * JS-initiated stopTracking() never fires this.
+   */
+  addListener(
+    eventName: "trackingStopped",
+    listenerFunc: (data: { reason: string }) => void,
+  ): Promise<PluginListenerHandle>;
+
+  /**
+   * iOS only: "Precise Location" is off and the temporary full-accuracy
+   * request was declined — every fix will fail the 30 m accuracy gate, so
+   * location runs but nothing records. Surface it; don't fail silently.
+   */
+  addListener(
+    eventName: "reducedAccuracy",
+    listenerFunc: () => void,
+  ): Promise<PluginListenerHandle>;
+
   /** Remove all listeners for this plugin. */
   removeAllListeners(): Promise<void>;
 }

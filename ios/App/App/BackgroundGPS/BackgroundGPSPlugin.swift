@@ -82,6 +82,7 @@ public class BackgroundGPSPlugin: CAPPlugin, CAPBridgedPlugin, CLLocationManager
   @objc func startTracking(_ call: CAPPluginCall) {
     DispatchQueue.main.async {
       self.ensureAuthorization()
+      self.ensurePreciseLocation()
       self.tracking = true
       self.manager.startUpdatingLocation()
       DiagLog.append(tag: "svc", message: "startTracking")
@@ -115,10 +116,30 @@ public class BackgroundGPSPlugin: CAPPlugin, CAPBridgedPlugin, CLLocationManager
     }
   }
 
+  /// With "Precise Location" off, every fix arrives ~km-accurate and the 30 m
+  /// backstop drops all of them — location runs, nothing records: silent NO
+  /// GPS. Ask for a temporary full-accuracy grant (system dialog); if the
+  /// user declines, tell JS so it can show a banner instead of failing
+  /// silently.
+  private func ensurePreciseLocation() {
+    guard manager.accuracyAuthorization == .reducedAccuracy else { return }
+    manager.requestTemporaryFullAccuracyAuthorization(
+      withPurposeKey: "PreciseLocationNav"
+    ) { [weak self] _ in
+      guard let self = self else { return }
+      if self.manager.accuracyAuthorization == .reducedAccuracy {
+        DiagLog.append(tag: "svc", message: "precise location off — fixes will be dropped")
+        self.notifyListeners("reducedAccuracy", data: [:], retainUntilConsumed: true)
+      }
+    }
+  }
+
   public func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
     if manager.authorizationStatus == .authorizedWhenInUse {
       manager.requestAlwaysAuthorization()
     }
+    // The user can flip Precise Location in Settings mid-session.
+    if tracking { ensurePreciseLocation() }
   }
 
   // MARK: - Power mode

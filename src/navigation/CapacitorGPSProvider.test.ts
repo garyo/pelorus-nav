@@ -179,6 +179,65 @@ describe("CapacitorGPSProvider drain", () => {
     expect(mockPlugin.getRecordedPoints).toHaveBeenCalledTimes(1);
   });
 
+  const stubDocument = () =>
+    vi.stubGlobal("document", {
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      visibilityState: "visible",
+    });
+
+  it("surfaces a native-side stop: connected=false + connect-failed notice", async () => {
+    stubDocument();
+    const notices: Array<{ kind: string; detail?: string }> = [];
+    const events = new Map<string, (data: { reason: string }) => void>();
+    (
+      mockPlugin.addListener as unknown as {
+        mockImplementation(fn: unknown): void;
+      }
+    ).mockImplementation(
+      (name: string, cb: (data: { reason: string }) => void) => {
+        events.set(name, cb);
+        return Promise.resolve({ remove: vi.fn() });
+      },
+    );
+    const p = new CapacitorGPSProvider((n) => notices.push(n));
+    p.connect();
+    await vi.waitFor(() =>
+      expect(notices).toContainEqual({ kind: "connected" }),
+    );
+
+    events.get("trackingStopped")?.({ reason: "notification" });
+    expect(p.isConnected()).toBe(false);
+    expect(
+      notices.some(
+        (n) =>
+          n.kind === "connect-failed" && n.detail?.includes("notification"),
+      ),
+    ).toBe(true);
+    vi.unstubAllGlobals();
+  });
+
+  it("surfaces a startTracking rejection (coarse-only permission)", async () => {
+    stubDocument();
+    const notices: Array<{ kind: string; detail?: string }> = [];
+    mockPlugin.startTracking.mockRejectedValueOnce(
+      new Error("Precise location is off"),
+    );
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const p = new CapacitorGPSProvider((n) => notices.push(n));
+    p.connect();
+    await vi.waitFor(() =>
+      expect(
+        notices.some(
+          (n) => n.kind === "connect-failed" && n.detail?.includes("Precise"),
+        ),
+      ).toBe(true),
+    );
+    expect(p.isConnected()).toBe(false);
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+  });
+
   it("re-drains when a wakeup arrives mid-drain", async () => {
     let resolveFirst: ((v: { points: TrackPointNative[] }) => void) | null =
       null;

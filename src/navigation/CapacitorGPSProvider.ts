@@ -16,11 +16,13 @@ import { Capacitor } from "@capacitor/core";
 import { BackgroundGPS, type TrackPointNative } from "../plugins/BackgroundGPS";
 import { diag } from "../utils/diag";
 import { MS_TO_KNOTS } from "../utils/units";
+import { connectionLog } from "./ConnectionEventLog";
 import type {
   NavigationData,
   NavigationDataCallback,
   NavigationDataProvider,
 } from "./NavigationData";
+import type { ProviderNotice } from "./ProviderNotice";
 
 export class CapacitorGPSProvider implements NavigationDataProvider {
   readonly id = "capacitor-gps";
@@ -29,6 +31,8 @@ export class CapacitorGPSProvider implements NavigationDataProvider {
   private listeners: NavigationDataCallback[] = [];
   private connected = false;
   private listenerHandle: PluginListenerHandle | null = null;
+  private stoppedHandle: PluginListenerHandle | null = null;
+  private accuracyHandle: PluginListenerHandle | null = null;
   /** Highest fix timestamp emitted so far. Drives the SQLite since-filter. */
   private lastSeenTimestamp = 0;
   /** Reentrancy guard: prevents overlapping drain calls from racing. */
@@ -36,6 +40,19 @@ export class CapacitorGPSProvider implements NavigationDataProvider {
   /** Re-entrancy hint: a wakeup arrived during a drain — drain again on exit. */
   private drainRequested = false;
   private visibilityHandler: (() => void) | null = null;
+  /**
+   * Serializes start/stop chains: connect() and disconnect() spawn async
+   * native calls, and a quick toggle (or resetActiveProvider's
+   * disconnect-then-connect) must not interleave stopNative with a
+   * startNative still in flight — that can leave `connected=true` with the
+   * native GPS actually stopped, or leak a bridge listener.
+   */
+  private ops: Promise<unknown> = Promise.resolve();
+  private readonly onNotice?: (notice: ProviderNotice) => void;
+
+  constructor(onNotice?: (notice: ProviderNotice) => void) {
+    this.onNotice = onNotice;
+  }
 
   /** Returns true when running inside a Capacitor native shell. */
   static isAvailable(): boolean {
@@ -49,13 +66,60 @@ export class CapacitorGPSProvider implements NavigationDataProvider {
   connect(): void {
     if (this.connected) return;
     this.connected = true;
-    this.startNative().catch(console.error);
+    connectionLog.log(this.id, "connect-request");
+    this.enqueue(() => this.startNative()).catch((err) =>
+      this.handleStartFailure(err),
+    );
   }
 
   disconnect(): void {
     if (!this.connected) return;
     this.connected = false;
-    this.stopNative().catch(console.error);
+    connectionLog.log(this.id, "disconnected", "user");
+    this.enqueue(() => this.stopNative()).catch(console.error);
+  }
+
+  /**
+   * Manual reconnect (banner Retry / Settings button): full native restart.
+   * Recovers from a native-side stop (notification Stop) and re-runs the
+   * permission/precision checks on both platforms.
+   */
+  async reconnect(): Promise<void> {
+    connectionLog.log(this.id, "connect-attempt", "manual");
+    this.connected = true;
+    this.enqueue(() => this.stopNative()).catch(() => {});
+    await this.enqueue(() => this.startNative()).catch((err) =>
+      this.handleStartFailure(err),
+    );
+  }
+
+  /** Chain a native operation behind whatever is already in flight. */
+  private enqueue<T>(op: () => Promise<T>): Promise<T> {
+    const run = this.ops.then(op, op);
+    this.ops = run.catch(() => {});
+    return run;
+  }
+
+  private handleStartFailure(err: unknown): void {
+    console.error("Device GPS start failed:", err);
+    this.connected = false;
+    const message = err instanceof Error ? err.message : String(err);
+    connectionLog.log(this.id, "error", `start: ${message}`);
+    this.onNotice?.({ kind: "connect-failed", detail: message });
+  }
+
+  /** Native reported a stop we didn't ask for (notification Stop action). */
+  private handleTrackingStopped(reason: string): void {
+    if (!this.connected) return; // our own stopTracking during disconnect
+    this.connected = false;
+    connectionLog.log(this.id, "disconnected", reason);
+    this.onNotice?.({
+      kind: "connect-failed",
+      detail:
+        reason === "notification"
+          ? "tracking stopped from the notification"
+          : `tracking stopped (${reason})`,
+    });
   }
 
   subscribe(callback: NavigationDataCallback): void {
@@ -143,6 +207,23 @@ export class CapacitorGPSProvider implements NavigationDataProvider {
       "locationUpdate",
       () => this.requestDrain(),
     );
+    // Loud degradation: a native-side stop (notification action) and an
+    // iOS reduced-accuracy state both mean "GPS looks alive but records
+    // nothing" — surface them instead of silently losing the voyage.
+    this.stoppedHandle = await BackgroundGPS.addListener(
+      "trackingStopped",
+      (data) => this.handleTrackingStopped(data.reason),
+    );
+    this.accuracyHandle = await BackgroundGPS.addListener(
+      "reducedAccuracy",
+      () => {
+        connectionLog.log(this.id, "error", "precise location off");
+        this.onNotice?.({
+          kind: "connect-failed",
+          detail: "Precise Location is off — enable it in Settings",
+        });
+      },
+    );
 
     this.visibilityHandler = () => {
       if (document.visibilityState === "visible") this.requestDrain();
@@ -150,6 +231,8 @@ export class CapacitorGPSProvider implements NavigationDataProvider {
     document.addEventListener("visibilitychange", this.visibilityHandler);
 
     await BackgroundGPS.startTracking();
+    connectionLog.log(this.id, "connected");
+    this.onNotice?.({ kind: "connected" });
   }
 
   private async stopNative(): Promise<void> {
@@ -158,10 +241,16 @@ export class CapacitorGPSProvider implements NavigationDataProvider {
       this.visibilityHandler = null;
     }
     await BackgroundGPS.stopTracking();
-    if (this.listenerHandle) {
-      await this.listenerHandle.remove();
-      this.listenerHandle = null;
+    for (const handle of [
+      this.listenerHandle,
+      this.stoppedHandle,
+      this.accuracyHandle,
+    ]) {
+      await handle?.remove();
     }
+    this.listenerHandle = null;
+    this.stoppedHandle = null;
+    this.accuracyHandle = null;
   }
 
   /**

@@ -663,7 +663,9 @@ simulator.setSpeedMultiplier(getSettings().simulatorSpeed);
 navManager.registerProvider(simulator);
 let capacitorGPS: CapacitorGPSProvider | null = null;
 if (CapacitorGPSProvider.isAvailable()) {
-  capacitorGPS = new CapacitorGPSProvider();
+  capacitorGPS = new CapacitorGPSProvider(
+    makeProviderNoticeHandler("capacitor-gps", "Device GPS"),
+  );
   navManager.registerProvider(capacitorGPS);
 }
 // Browser geolocation works in both WebView and browser

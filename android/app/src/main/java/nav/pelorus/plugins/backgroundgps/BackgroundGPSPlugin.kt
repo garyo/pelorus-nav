@@ -40,10 +40,24 @@ class BackgroundGPSPlugin : Plugin() {
         trackDb = TrackDatabase(context)
     }
 
+    /**
+     * True only when PRECISE location is granted. On Android 12+ the user can
+     * grant "Approximate" — the alias then reports GRANTED (coarse), but the
+     * service requests HIGH_ACCURACY and its 30 m accuracy gate drops every
+     * coarse fix: a running service that records nothing. Fine location is a
+     * hard requirement, not a preference.
+     */
+    private fun hasFineLocation(): Boolean =
+        androidx.core.content.ContextCompat.checkSelfPermission(
+            context, Manifest.permission.ACCESS_FINE_LOCATION
+        ) == android.content.pm.PackageManager.PERMISSION_GRANTED
+
     @PluginMethod
     fun startTracking(call: PluginCall) {
-        // Check location permission first
-        if (getPermissionState("location") != PermissionState.GRANTED) {
+        // Check location permission first. Re-request when only coarse is
+        // granted — on Android 12+ the system dialog offers the precise
+        // upgrade; if the user declines again we reject loudly below.
+        if (getPermissionState("location") != PermissionState.GRANTED || !hasFineLocation()) {
             requestPermissionForAlias("location", call, "handleLocationPermission")
             return
         }
@@ -60,7 +74,7 @@ class BackgroundGPSPlugin : Plugin() {
 
     @PermissionCallback
     private fun handleLocationPermission(call: PluginCall) {
-        if (getPermissionState("location") == PermissionState.GRANTED) {
+        if (getPermissionState("location") == PermissionState.GRANTED && hasFineLocation()) {
             // Now check notifications
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
                 getPermissionState("notifications") != PermissionState.GRANTED) {
@@ -68,8 +82,14 @@ class BackgroundGPSPlugin : Plugin() {
             } else {
                 doStartTracking(call)
             }
+        } else if (getPermissionState("location") == PermissionState.GRANTED) {
+            DiagLog.log(context, "plugin", "startTracking rejected: coarse location only")
+            call.reject(
+                "Precise location is off — approximate location cannot record GPS tracks",
+                "COARSE_LOCATION_ONLY",
+            )
         } else {
-            call.reject("Location permission is required for GPS tracking")
+            call.reject("Location permission is required for GPS tracking", "LOCATION_DENIED")
         }
     }
 
@@ -107,6 +127,17 @@ class BackgroundGPSPlugin : Plugin() {
             }
             notifyListeners("locationUpdate", data)
         }
+        // The notification's Stop action kills the service outside JS control;
+        // without this event the UI keeps believing tracking is running.
+        // retainUntilConsumed: the WebView is usually hidden/suspended when
+        // Stop is tapped — deliver when it resumes.
+        BackgroundTrackService.stoppedListener = { reason ->
+            notifyListeners(
+                "trackingStopped",
+                JSObject().put("reason", reason),
+                true,
+            )
+        }
     }
 
     @PluginMethod
@@ -118,6 +149,7 @@ class BackgroundGPSPlugin : Plugin() {
         Log.i("BackgroundGPSPlugin", "stopTracking called\n$st")
         DiagLog.log(context, "plugin", "stopTracking called\n$st")
         BackgroundTrackService.locationListener = null
+        BackgroundTrackService.stoppedListener = null // JS-initiated — no event
         BackgroundTrackService.instance?.cancelPendingPassive()
         val intent = Intent(context, BackgroundTrackService::class.java)
         context.stopService(intent)
@@ -236,7 +268,10 @@ class BackgroundGPSPlugin : Plugin() {
 
     @PluginMethod
     fun isTracking(call: PluginCall) {
-        val tracking = BackgroundTrackService.locationListener != null
+        // "Tracking" means the foreground service is running — NOT whether the
+        // bridge listener is installed (that's cleared in PASSIVE mode while
+        // the service keeps recording to SQLite).
+        val tracking = BackgroundTrackService.instance != null
         val result = JSObject()
         result.put("tracking", tracking)
         call.resolve(result)
