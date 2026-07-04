@@ -52,6 +52,7 @@ export function startChartUpdateNotifier(
 function showNotice(updates: ChartUpdate[], onView: () => void): void {
   const names = updates.map((u) => u.region.name).join(", ");
   showUpdateNotice({
+    id: "chart-update-notice",
     message: `Newer charts available: ${names}`,
     actionLabel: "Update…",
     onAction: onView,
