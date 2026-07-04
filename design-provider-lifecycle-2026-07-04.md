@@ -3,7 +3,7 @@
 Review items 7+8 from code-review-2026-07-02.md, designed together (they touch
 the same provider classes). Produced by a Fable design pass 2026-07-04,
 re-verified against HEAD `2295da7`. Implementation sequence at the bottom;
-commits 1–2 landed same-day, 3–8 pending.
+commits 1, 2, 7, 8 landed same-day (2d0e2a9, e0a51d5, ef530e2, 906b4f7); 3–6 pending.
 
 ## Core decision: composition, not inheritance (Nav-15)
 
@@ -121,11 +121,12 @@ AdaptiveRate, SteadinessTrackerTest.kt.
 2. ~~Geolocation permission surfacing + ProviderNotice generalization (Nav-11)~~ **landed**
 3. Extract ReconnectingTransport; migrate both BLE providers (Nav-15, Nav-5,
    8b-10 watchdog gating). BLE tests untouched. THE risky one — isolated.
-4. Signal K reconnect + close race + period hint (Nav-1, -2, 8b-4)
-5. Web Serial unplug recovery (Nav-4)
-6. Visibility-aware tier + hidden subscriber gate + pacing wiring (8b-3)
-7. Android watchdog backoff (8b-2) — independent, can land anytime
-8. iOS passive distanceFilter (8b-1) — independent, can land anytime
+   **PENDING — do in a fresh session with this doc + the risk table.**
+4. Signal K reconnect + close race + period hint (Nav-1, -2, 8b-4) — PENDING
+5. Web Serial unplug recovery (Nav-4) — PENDING
+6. Visibility-aware tier + hidden subscriber gate + pacing (8b-3) — PENDING
+7. ~~Android watchdog backoff (8b-2)~~ **landed** (`ef530e2`)
+8. ~~iOS passive distanceFilter (8b-1)~~ **landed** (`906b4f7`)
 
 ## Risk table (abridged)
 
