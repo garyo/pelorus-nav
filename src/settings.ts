@@ -263,6 +263,79 @@ const DEFAULTS: Settings = {
 
 type SettingsListener = (settings: Settings) => void;
 
+/**
+ * Allowed values for keys whose type is a string/number literal union.
+ * Loaded values outside this list (or of the wrong `typeof`) fall back to
+ * the default for that key — see `sanitize()`.
+ */
+const ALLOWED_VALUES: Partial<Record<keyof Settings, readonly unknown[]>> = {
+  depthUnit: ["meters", "feet", "fathoms"],
+  speedUnit: ["knots", "mph", "kph"],
+  chartMode: ["follow", "course-up", "north-up", "free"],
+  gpsRateMode: ["adaptive", "manual"],
+  gpsFilterMode: ["auto", "strong", "normal"],
+  detailLevel: [-1, 0, 1, 2],
+  courseLineDuration: [0, "auto", 5, 15, 30, 60],
+  displayTheme: ["day", "dusk", "night", "eink"],
+  symbologyScheme: ["iho-s52"],
+  bearingMode: ["true", "magnetic"],
+  streetUnderlay: ["auto", "osm", "off"],
+  chartBlend: ["auto", "vector", "raster"],
+  wakeLock: ["off", "when-nav", "always"],
+  instrumentLayout: ["standard", "side"],
+};
+
+/** Structural keys with their own merge/validation, skipped by the generic pass. */
+const STRUCTURAL_KEYS = new Set<keyof Settings>([
+  "layerGroups",
+  "instrumentCells",
+  "plugins",
+]);
+
+function isValidPrimitive(key: keyof Settings, value: unknown): boolean {
+  if (typeof value !== typeof DEFAULTS[key]) return false;
+  if (typeof value === "number" && !Number.isFinite(value)) return false;
+  const allowed = ALLOWED_VALUES[key];
+  if (allowed && !allowed.includes(value)) return false;
+  return true;
+}
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+/**
+ * Strip any loaded key whose value doesn't match its default's type/range —
+ * corrupted or hand-edited localStorage (`textScale: "big"`, `shallowDepth:
+ * null`) falls back to the default for that key instead of flowing into
+ * layer builders, slider math, and the HUD. Mutates `parsed` in place.
+ */
+function sanitize(parsed: Partial<Settings>): void {
+  const rec = parsed as Record<string, unknown>;
+  for (const key of Object.keys(DEFAULTS) as (keyof Settings)[]) {
+    if (STRUCTURAL_KEYS.has(key)) continue;
+    if (key in rec && !isValidPrimitive(key, rec[key])) {
+      delete rec[key];
+    }
+  }
+  if ("instrumentCells" in rec) {
+    const cells = rec.instrumentCells;
+    if (
+      !Array.isArray(cells) ||
+      cells.length !== 2 ||
+      cells.some((c) => typeof c !== "string")
+    ) {
+      delete rec.instrumentCells;
+    }
+  }
+  if ("layerGroups" in rec && !isPlainObject(rec.layerGroups)) {
+    delete rec.layerGroups;
+  }
+  if ("plugins" in rec && !isPlainObject(rec.plugins)) {
+    delete rec.plugins;
+  }
+}
+
 let current: Settings = load();
 const listeners: SettingsListener[] = [];
 
@@ -271,12 +344,14 @@ function load(): Settings {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (raw) {
       const parsed = JSON.parse(raw) as Partial<Settings>;
+      const originalVersion = parsed.settingsVersion ?? 1;
       // Only IHO S-52 symbology is supported. Coerce any stored value
       // (incl. legacy "pelorus-standard"/"simplified-minimal") to the one scheme.
       parsed.symbologyScheme = "iho-s52";
       const legacy = parsed as Record<string, unknown>;
-      // v2: street underlay became on-by-default
-      if ((parsed.settingsVersion ?? 1) < 2) {
+      // v2: street underlay became on-by-default, but only when the user
+      // never set a preference — an explicit prior "off" must survive.
+      if (originalVersion < 2 && !("showOSMUnderlay" in legacy)) {
         legacy.showOSMUnderlay = true;
       }
       parsed.settingsVersion = SETTINGS_VERSION;
@@ -286,7 +361,8 @@ function load(): Settings {
       }
       delete legacy.showOSMUnderlay;
       // Migrate old updateRateHz → gpsRateMode + manualUpdateIntervalMs
-      if ("updateRateHz" in legacy) {
+      const hadUpdateRateHz = "updateRateHz" in legacy;
+      if (hadUpdateRateHz) {
         if (!parsed.gpsRateMode) {
           parsed.gpsRateMode = "adaptive";
           const hz = legacy.updateRateHz as number;
@@ -294,11 +370,18 @@ function load(): Settings {
         }
         delete legacy.updateRateHz;
       }
-      return {
+      sanitize(parsed);
+      const merged: Settings = {
         ...DEFAULTS,
         ...parsed,
         layerGroups: { ...DEFAULT_LAYER_GROUPS, ...parsed.layerGroups },
       };
+      // Persist once so a v1→v2 (or updateRateHz) migration doesn't re-run
+      // — and re-derive the same result — on every startup.
+      if (originalVersion < SETTINGS_VERSION || hadUpdateRateHz) {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(merged));
+      }
+      return merged;
     }
   } catch {
     // ignore
