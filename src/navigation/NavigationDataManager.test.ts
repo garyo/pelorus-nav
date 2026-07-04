@@ -13,8 +13,13 @@ import {
 class FakeProvider implements NavigationDataProvider {
   readonly id = "fake";
   readonly name = "Fake";
+  /** Polling-rate hints received from the manager, in order. */
+  hints: number[] = [];
   private cb: NavigationDataCallback | null = null;
   private connected = false;
+  setDesiredIntervalMs(ms: number): void {
+    this.hints.push(ms);
+  }
   isConnected(): boolean {
     return this.connected;
   }
@@ -106,5 +111,66 @@ describe("NavigationDataManager fix staleness", () => {
 
     mgr.setActiveProvider("fake"); // re-activate clears the last-fix time
     expect(mgr.isFixStale()).toBe(true);
+  });
+});
+
+describe("NavigationDataManager visibility (8b-3)", () => {
+  let mgr: NavigationDataManager;
+  let provider: FakeProvider;
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(0);
+    mgr = new NavigationDataManager();
+    provider = new FakeProvider();
+    mgr.registerProvider(provider);
+    mgr.setActiveProvider("fake");
+    // Adaptive rate (default); "normal" filter keeps the hardware-boost
+    // heuristic out of the hint assertions.
+    mgr.setFilterMode("normal");
+    mgr.forceFastRate = true; // non-e-ink screen policy
+  });
+
+  afterEach(() => {
+    mgr.dispose();
+    vi.useRealTimers();
+  });
+
+  /** Stationary fixes: with force-fast released these settle on the slow tier. */
+  function emitStationary(): void {
+    vi.advanceTimersByTime(2000);
+    provider.emit({ sog: 0, cog: null });
+  }
+
+  it("hidden releases the force-fast lock so the adaptive tier downgrades", () => {
+    provider.emit({ sog: 0, cog: null });
+    emitStationary();
+    expect(mgr.getAdaptiveState().tier).toBe("fast"); // locked while visible
+
+    mgr.setVisible(false);
+    emitStationary();
+    expect(mgr.getAdaptiveState().tier).toBe("slow"); // adaptive took over
+
+    mgr.setVisible(true);
+    expect(mgr.getAdaptiveState().tier).toBe("fast"); // lock reapplies at once
+  });
+
+  it("re-hints the provider polling rate on visibility changes", () => {
+    provider.emit({ sog: 0, cog: null });
+    mgr.setVisible(false);
+    emitStationary();
+    emitStationary();
+    expect(provider.hints).toContain(10000); // slow tier reached the provider
+
+    mgr.setVisible(true);
+    expect(provider.hints.at(-1)).toBe(2000); // fast re-hinted immediately
+  });
+
+  it("visibility is a no-op when the screen policy doesn't force fast", () => {
+    mgr.forceFastRate = false; // e-ink: adaptive rate even while visible
+    const hintsBefore = provider.hints.length;
+    mgr.setVisible(false);
+    mgr.setVisible(true);
+    expect(provider.hints.length).toBe(hintsBefore); // nothing re-hinted
   });
 });

@@ -804,6 +804,11 @@ let gpsPowerManager: GpsPowerManager | null = null;
 let lastNavData: NavigationData | null = null;
 navManager.subscribe((data) => {
   lastNavData = data;
+  // Hidden: skip all map/smoothing work — nothing is visible and the setData
+  // calls only burn CPU. The track recorder subscribes separately and keeps
+  // recording; the visibility handler below redraws on return. The smoother
+  // resumes via its dt>=1s snap path.
+  if (document.visibilityState === "hidden") return;
   courseSmoother.addSample(
     data.cog,
     data.sog,
@@ -1103,6 +1108,33 @@ if (capacitorGPS) {
   gpsPowerManager = new GpsPowerManager(capacitorGPS, trackRecorder);
   gpsPowerManager.start();
 }
+
+// --- Visibility/power boundary (8b-3) ---
+// Hidden: the screen's force-fast lock yields to the adaptive tier (the
+// controller still keeps fast during maneuvers for track fidelity), and BLE
+// reconnect pacing relaxes ×10 — unless a recording is running, which keeps
+// full reconnect aggressiveness (the overnight-track case). The map
+// subscriber's hidden gate above stops the per-fix map work.
+const applyReconnectPacing = () => {
+  const relaxed =
+    document.visibilityState === "hidden" && !trackRecorder.isRecording();
+  bleProvider?.setReconnectPacing(relaxed);
+};
+document.addEventListener("visibilitychange", () => {
+  const visible = document.visibilityState === "visible";
+  navManager.setVisible(visible);
+  applyReconnectPacing();
+  if (visible && lastNavData) {
+    // Redraw the state that accumulated while the map work was gated off,
+    // without waiting for the next fix.
+    appliedCourse = null;
+    vesselLayer.update(lastNavData);
+    chartMode.update(lastNavData);
+    chartManager.map.triggerRepaint();
+  }
+});
+// Recording toggles flip pacing eligibility (setPacing dedups no-ops).
+onSettingsChange(() => applyReconnectPacing());
 
 // Auto-dim the window when the user has been idle for a while. Per-window
 // brightness override — does not touch the system brightness setting.

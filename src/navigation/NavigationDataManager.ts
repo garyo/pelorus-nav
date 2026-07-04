@@ -79,6 +79,10 @@ export class NavigationDataManager {
   private pendingData: NavigationData | null = null;
   /** Last interval hinted to the provider — avoids redundant native IPC. */
   private lastHintedIntervalMs = -1;
+  /** Screen policy asks for the fast tier (non-e-ink themes). */
+  private screenWantsFast = false;
+  /** App visibility (see setVisible) — effective force-fast needs both. */
+  private visible = true;
 
   private readonly onData: NavigationDataCallback = (raw) => {
     // Diagnostic: log raw GPS fix
@@ -377,10 +381,36 @@ export class NavigationDataManager {
 
   /** Lock adaptive tier to "fast" (non-e-ink screen on). */
   set forceFastRate(value: boolean) {
-    this.adaptiveCtrl.forceFast = value;
-    if (value) {
-      this.hintProviderInterval(this.adaptiveCtrl.getConfig().fastIntervalMs);
-    }
+    this.screenWantsFast = value;
+    this.applyForceFast();
+  }
+
+  /**
+   * App visibility, injected by main.ts (this class stays DOM-free). Hidden,
+   * nobody is watching the fast tier, so the screen's force-fast lock yields
+   * to the adaptive controller — which still keeps fast during maneuvers
+   * (track fidelity) and drops to the slow tiers when steady or stationary.
+   * Deliberately not a hard clamp to slow while hidden.
+   */
+  setVisible(visible: boolean): void {
+    if (this.visible === visible) return;
+    this.visible = visible;
+    this.applyForceFast();
+  }
+
+  private applyForceFast(): void {
+    const effective = this.screenWantsFast && this.visible;
+    if (this.adaptiveCtrl.forceFast === effective) return;
+    this.adaptiveCtrl.forceFast = effective;
+    // Re-hint so the provider's polling rate tracks the tier change now
+    // rather than on the next fix.
+    this.hintProviderInterval(
+      effective
+        ? this.adaptiveCtrl.getConfig().fastIntervalMs
+        : this.rateMode === "adaptive"
+          ? this.adaptiveCtrl.getState().intervalMs
+          : this.manualIntervalMs,
+    );
   }
 
   subscribe(callback: NavigationDataCallback): void {
