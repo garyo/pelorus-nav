@@ -3,7 +3,11 @@
 Review items 7+8 from code-review-2026-07-02.md, designed together (they touch
 the same provider classes). Produced by a Fable design pass 2026-07-04,
 re-verified against HEAD `2295da7`. Implementation sequence at the bottom;
-commits 1, 2, 7, 8 landed same-day (2d0e2a9, e0a51d5, ef530e2, 906b4f7); 3–6 pending.
+ALL STEPS LANDED: 1, 2, 7, 8 (2d0e2a9, e0a51d5, ef530e2, 906b4f7) and
+3–6 (b8a1ce4, a8c35f4, ea8694e, df8e491). Both BLE test suites passed
+unmodified through the step-3 extraction, per the sacred-path contract.
+Remaining before a release build: manual pod smoke test (connect, pod
+power-cycle, walk-away/return, BT toggle, restart rehydrate).
 
 ## Core decision: composition, not inheritance (Nav-15)
 
@@ -119,12 +123,14 @@ AdaptiveRate, SteadinessTrackerTest.kt.
 
 1. ~~NMEA midnight fix (Nav-3)~~ **landed**
 2. ~~Geolocation permission surfacing + ProviderNotice generalization (Nav-11)~~ **landed**
-3. Extract ReconnectingTransport; migrate both BLE providers (Nav-15, Nav-5,
-   8b-10 watchdog gating). BLE tests untouched. THE risky one — isolated.
-   **PENDING — do in a fresh session with this doc + the risk table.**
-4. Signal K reconnect + close race + period hint (Nav-1, -2, 8b-4) — PENDING
-5. Web Serial unplug recovery (Nav-4) — PENDING
-6. Visibility-aware tier + hidden subscriber gate + pacing (8b-3) — PENDING
+3. ~~Extract ReconnectingTransport; migrate both BLE providers (Nav-15, Nav-5,
+   8b-10 watchdog gating)~~ **landed** (`b8a1ce4`, BLE tests unmodified)
+4. ~~Signal K reconnect + close race + period hint (Nav-1, -2, 8b-4)~~
+   **landed** (`a8c35f4`)
+5. ~~Web Serial unplug recovery (Nav-4)~~ **landed** (`ea8694e`, plus
+   serial "connect"-event replug recovery and silent getPorts restore)
+6. ~~Visibility-aware tier + hidden subscriber gate + pacing (8b-3)~~
+   **landed** (`df8e491`)
 7. ~~Android watchdog backoff (8b-2)~~ **landed** (`ef530e2`)
 8. ~~iOS passive distanceFilter (8b-1)~~ **landed** (`906b4f7`)
 
