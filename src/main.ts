@@ -748,7 +748,10 @@ if (Capacitor.isNativePlatform()) {
   bleProvider = new BLENMEAProvider(handleBleNotice);
   navManager.registerProvider(bleProvider);
 }
-const signalK = new SignalKProvider(getSettings().signalkUrl);
+const signalK = new SignalKProvider(
+  getSettings().signalkUrl,
+  makeProviderNoticeHandler("signalk", "Signal K"),
+);
 navManager.registerProvider(signalK);
 
 // Vessel display layer

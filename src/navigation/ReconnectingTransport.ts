@@ -69,7 +69,7 @@ export class ReconnectingTransport {
   private readonly logLabel: string;
   private readonly reconnectMinMs: number;
   private readonly reconnectMaxMs: number;
-  private readonly silenceLimitMs: number;
+  private silenceLimitMs: number;
   private readonly watchdogMs: number;
 
   private wantConnectedFlag = false;
@@ -189,6 +189,11 @@ export class ReconnectingTransport {
   /** Data arrived — feed the silence watchdog. */
   noteData(): void {
     this.lastDataMs = Date.now();
+  }
+
+  /** Providers with a configurable data rate scale their silence limit. */
+  setSilenceLimitMs(ms: number): void {
+    this.silenceLimitMs = ms;
   }
 
   /**
