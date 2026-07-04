@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { buildIndex, stationsInBounds } from "./bundle";
 import type { TidesBundle } from "./schema";
 
@@ -119,5 +119,42 @@ describe("stationsInBounds", () => {
       north: 50,
     });
     expect(hits.map((s) => s.id)).toEqual(["seattle"]);
+  });
+});
+
+describe("loadTidesIndex", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.resetModules();
+  });
+
+  it("retries after a failed fetch instead of caching the rejection", async () => {
+    vi.resetModules();
+    const fetchMock = vi
+      .fn()
+      .mockRejectedValueOnce(new Error("offline"))
+      .mockResolvedValueOnce(new Response(JSON.stringify(bundle)));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { loadTidesIndex } = await import("./bundle");
+
+    await expect(loadTidesIndex()).rejects.toThrow("offline");
+    const index = await loadTidesIndex();
+    expect(index.tideRefById.get("ref1")?.datum).toBe(1.5);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("shares one in-flight/cached result across concurrent calls", async () => {
+    vi.resetModules();
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(new Response(JSON.stringify(bundle)));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { loadTidesIndex } = await import("./bundle");
+
+    const [a, b] = await Promise.all([loadTidesIndex(), loadTidesIndex()]);
+    expect(a).toBe(b);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 });

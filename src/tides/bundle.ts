@@ -52,7 +52,11 @@ export function buildIndex(bundle: TidesBundle): TidesIndex {
 
 let indexPromise: Promise<TidesIndex> | null = null;
 
-/** Fetch and index the bundle once; subsequent calls share the result. */
+/**
+ * Fetch and index the bundle once; subsequent calls share the result. A
+ * failed fetch (offline) clears the cache instead of memoizing the
+ * rejection, so the next call retries once connectivity returns.
+ */
 export function loadTidesIndex(
   url = "/tides-stations.json",
 ): Promise<TidesIndex> {
@@ -61,7 +65,11 @@ export function loadTidesIndex(
       if (!r.ok) throw new Error(`tides bundle: HTTP ${r.status}`);
       return r.json() as Promise<TidesBundle>;
     })
-    .then(buildIndex);
+    .then(buildIndex)
+    .catch((err: unknown) => {
+      indexPromise = null;
+      throw err;
+    });
   return indexPromise;
 }
 
