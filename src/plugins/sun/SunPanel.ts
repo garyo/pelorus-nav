@@ -51,7 +51,10 @@ export class SunPanel {
       if (this.el && !this.el.contains(e.target as Node)) this.close();
     };
     this.onKey = (e) => {
-      if (e.key === "Escape") this.close();
+      if (e.key === "Escape" && this.el) {
+        e.preventDefault(); // consumed — the global Escape fallback must not also act
+        this.close();
+      }
     };
     // Close on `click` (not pointerdown) so it bubbles *after* the map's click
     // handler — which, via the registered pick suppressor, skips the pick

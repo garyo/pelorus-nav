@@ -416,6 +416,7 @@ export class TrackManagerPanel {
     input.addEventListener("keydown", (e) => {
       if (e.key === "Enter") input.blur();
       if (e.key === "Escape") {
+        e.preventDefault(); // cancel the rename only — not navigation
         input.value = meta.name;
         input.blur();
       }
@@ -423,15 +424,25 @@ export class TrackManagerPanel {
   }
 
   private async deleteAll(): Promise<void> {
-    const metas = await getAllTrackMetas();
+    // Never delete the actively-recording track out from under the recorder —
+    // it would keep appending points to the deleted id and re-save a ghost
+    // meta on stop. (refresh()'s trivial-track cleanup makes the same
+    // exclusion.)
+    const activeId = this.recorder.getCurrentTrack()?.id;
+    const metas = (await getAllTrackMetas()).filter((m) => m.id !== activeId);
     if (metas.length === 0) {
-      alert("No tracks to delete.");
+      alert(
+        activeId
+          ? "No tracks to delete (recording in progress is kept)."
+          : "No tracks to delete.",
+      );
       return;
     }
     const n = metas.length;
+    const suffix = activeId ? " The recording in progress is kept." : "";
     if (
       !confirm(
-        `Delete all ${n} track${n !== 1 ? "s" : ""}? This cannot be undone.`,
+        `Delete all ${n} track${n !== 1 ? "s" : ""}? This cannot be undone.${suffix}`,
       )
     ) {
       return;

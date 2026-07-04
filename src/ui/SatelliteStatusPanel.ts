@@ -180,7 +180,10 @@ export class SatelliteStatusPanel {
       if (e.target === this.overlay) this.hide();
     });
     document.addEventListener("keydown", (e) => {
-      if (e.key === "Escape" && this.visible) this.hide();
+      if (e.key === "Escape" && this.visible) {
+        e.preventDefault(); // consumed — the global Escape fallback must not also act
+        this.hide();
+      }
     });
   }
 

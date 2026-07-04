@@ -71,6 +71,7 @@ export class FeatureInfoPanel {
     // ESC to close
     document.addEventListener("keydown", (e) => {
       if (e.key === "Escape" && this.isVisible()) {
+        e.preventDefault(); // consumed — the global Escape fallback must not also act
         this.onClose?.();
       }
     });

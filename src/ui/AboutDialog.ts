@@ -220,6 +220,7 @@ export class AboutDialog {
     // Escape to dismiss
     document.addEventListener("keydown", (e) => {
       if (e.key === "Escape" && this.visible) {
+        e.preventDefault(); // consumed — the global Escape fallback must not also act
         this.hide();
       }
     });

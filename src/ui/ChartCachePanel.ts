@@ -140,6 +140,7 @@ export class ChartCachePanel {
     });
     document.addEventListener("keydown", (e) => {
       if (e.key === "Escape" && overlay.style.display === "flex") {
+        e.preventDefault(); // consumed — the global Escape fallback must not also act
         overlay.style.display = "none";
       }
     });

@@ -321,19 +321,38 @@ export function createContextMenu(deps: ContextMenuDeps): ContextMenuHandle {
   map.on("movestart", hide);
 
   // --- ESC key: cancel active navigation, exit plot mode, or clear measurement ---
+  //
+  // This is the global FALLBACK for Escape — it must never fire when some
+  // dialog/input consumed the key. Dialogs mark consumption with
+  // preventDefault(); deferring the check one tick makes listener
+  // registration order irrelevant. Also bail while typing in any text field
+  // (inline renames bubble to document).
+
+  const isTyping = (): boolean => {
+    const el = document.activeElement;
+    return (
+      el instanceof HTMLInputElement ||
+      el instanceof HTMLTextAreaElement ||
+      (el instanceof HTMLElement && el.isContentEditable)
+    );
+  };
 
   document.addEventListener("keydown", (e) => {
-    if (e.key === "Escape") {
-      if (menu.style.display !== "none") {
-        hide();
-      } else if (activeNav.getState().type !== "idle") {
+    if (e.key !== "Escape") return;
+    if (menu.style.display === "block") {
+      hide();
+      return;
+    }
+    setTimeout(() => {
+      if (e.defaultPrevented || isTyping()) return;
+      if (activeNav.getState().type !== "idle") {
         activeNav.stop();
       } else if (getMode() === "plot") {
         setMode("query");
       } else {
         measurementLayer.clear();
       }
-    }
+    }, 0);
   });
 
   return { element: menu, hide };

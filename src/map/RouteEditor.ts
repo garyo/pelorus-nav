@@ -158,6 +158,13 @@ export class RouteEditor {
 
   /** Start editing a new or existing route. */
   startEditing(route?: Route): void {
+    // Re-entry guard: starting a new edit while one is active would leak the
+    // old map handlers (every click then appends two waypoints). Tear the
+    // previous session down first — same teardown as cancel, minus the bar.
+    if (this.route !== null) {
+      this.cleanup();
+    }
+
     // Hide the existing route display while editing
     this.editingExistingId = route?.id ?? null;
     if (this.editingExistingId) {

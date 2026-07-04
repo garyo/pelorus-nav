@@ -412,6 +412,7 @@ export class RouteManagerPanel {
     input.addEventListener("keydown", (e) => {
       if (e.key === "Enter") input.blur();
       if (e.key === "Escape") {
+        e.preventDefault(); // cancel the rename only — not navigation
         input.value = route.name;
         input.blur();
       }

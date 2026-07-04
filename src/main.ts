@@ -153,6 +153,31 @@ startAppUpdateNotifier();
 const protocol = new Protocol({ metadata: true });
 addProtocol("pmtiles", protocol.tilev4);
 
+// Track which protocol entries are backed by OPFS files. A deleted chart's
+// entry must be REMOVED from the protocol — a stale entry serves an
+// OPFSSource over a deleted File (whose slice() rejects), so the region
+// renders blank until reload. With the key absent, the protocol auto-creates
+// a streaming FetchSource from the key URL — the correct fallback.
+const offlineProtocolKeys = new Set<string>();
+async function registerOfflineChart(filename: string): Promise<void> {
+  const file = await getChartFile(filename);
+  if (!file) return;
+  const key = `${chartAssetBase()}/${filename}`;
+  protocol.add(new PMTiles(new OPFSSource(file, key)));
+  offlineProtocolKeys.add(key);
+}
+function pruneOfflineCharts(currentFilenames: string[]): void {
+  const current = new Set(
+    currentFilenames.map((f) => `${chartAssetBase()}/${f}`),
+  );
+  for (const key of offlineProtocolKeys) {
+    if (!current.has(key)) {
+      protocol.tiles.delete(key); // next request streams from the key URL
+      offlineProtocolKeys.delete(key);
+    }
+  }
+}
+
 // Register the cached OSM tile protocol (offline-capable raster underlay)
 registerOSMTileProtocol();
 
@@ -160,12 +185,7 @@ registerOSMTileProtocol();
 try {
   const storedCharts = await listStoredCharts();
   for (const chart of storedCharts) {
-    const file = await getChartFile(chart.filename);
-    if (file) {
-      const key = `${chartAssetBase()}/${chart.filename}`;
-      const source = new OPFSSource(file, key);
-      protocol.add(new PMTiles(source));
-    }
+    await registerOfflineChart(chart.filename);
   }
   setStoredBasemaps(
     basemapRegionsFromFilenames(storedCharts.map((c) => c.filename)),
@@ -1288,17 +1308,15 @@ if (topbarMenu) {
   const cachePanel = new ChartCachePanel();
   idleCloseables.push(cachePanel);
   cachePanel.setOnChartsChanged(() => {
-    // Reload OPFS charts into PMTiles protocol + refresh offline coverage
+    // Reload OPFS charts into the PMTiles protocol (dropping entries for
+    // deleted charts so their regions fall back to streaming) + refresh
+    // offline coverage.
     (async () => {
       try {
         const charts = await listStoredCharts();
+        pruneOfflineCharts(charts.map((c) => c.filename));
         for (const chart of charts) {
-          const file = await getChartFile(chart.filename);
-          if (file) {
-            const key = `${chartAssetBase()}/${chart.filename}`;
-            const source = new OPFSSource(file, key);
-            protocol.add(new PMTiles(source));
-          }
+          await registerOfflineChart(chart.filename);
         }
         setStoredBasemaps(
           basemapRegionsFromFilenames(charts.map((c) => c.filename)),
