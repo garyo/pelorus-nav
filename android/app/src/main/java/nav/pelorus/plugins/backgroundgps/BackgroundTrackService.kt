@@ -139,6 +139,7 @@ class BackgroundTrackService : Service() {
 
     /** Steadiness detector for adaptive passive sampling. PASSIVE-only. */
     private val steadinessTracker = SteadinessTracker()
+    private val watchdogBackoff = WatchdogBackoff()
     /** Last value the tracker returned — caller compares to detect flips. */
     private var lastSteadyState = false
     /** Mode applyMode() last ran with — used to reset adaptive state on flips. */
@@ -259,10 +260,11 @@ class BackgroundTrackService : Service() {
                 // alive again — end the kick and return to PASSIVE. Otherwise
                 // just re-arm the deadline if we're still in PASSIVE.
                 if (accepted) {
+                    watchdogBackoff.reset()
                     if (inKick) {
                         endKick("fix arrived")
                     } else if (currentMode == MODE_PASSIVE) {
-                        armWatchdog(WATCHDOG_THRESHOLD_MS)
+                        armWatchdog(watchdogBackoff.nextDelayMs())
                     }
                 }
             }
@@ -379,6 +381,7 @@ class BackgroundTrackService : Service() {
             lastSteadyState = false
             lastModeApplied = currentMode
             inKick = false
+            watchdogBackoff.reset()
         }
 
         val intervalMs = when {
@@ -412,7 +415,7 @@ class BackgroundTrackService : Service() {
         // below so an external mode change still updates the watchdog
         // state even if the request itself doesn't need re-issuing.
         if (passive && !inKick) {
-            armWatchdog(WATCHDOG_THRESHOLD_MS)
+            armWatchdog(watchdogBackoff.nextDelayMs())
         } else if (!passive) {
             cancelWatchdog()
         }
@@ -444,6 +447,7 @@ class BackgroundTrackService : Service() {
     private fun armWatchdog(delayMs: Long) {
         val am = alarmManager ?: return
         val pi = watchdogPendingIntent ?: return
+        DiagLog.log(applicationContext, "svc", "watchdog armed ${delayMs}ms")
         am.cancel(pi)
         am.setAndAllowWhileIdle(
             AlarmManager.ELAPSED_REALTIME_WAKEUP,
@@ -471,6 +475,10 @@ class BackgroundTrackService : Service() {
             return
         }
         if (inKick) {
+            // Fruitless kick: stretch the next watchdog delay (90 s → 15 min
+            // cap) so an unusable-GPS situation doesn't burn a 40% duty
+            // cycle forever. Any accepted fix resets the schedule.
+            watchdogBackoff.onKickFruitless()
             endKick("kick timed out without accepted fix")
         } else {
             kickToActive()
