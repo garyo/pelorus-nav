@@ -9,6 +9,7 @@ import type {
   ExpressionSpecification,
   LayerSpecification,
 } from "@maplibre/maplibre-gl-style-spec";
+import { listAttrContains } from "../list-attr";
 import type { StyleContext } from "../style-context";
 import { SCALE_SORT_KEY } from "../style-context";
 
@@ -250,8 +251,8 @@ export function getAreaLayers(ctx: StyleContext): LayerSpecification[] {
       "source-layer": "LNDRGN",
       filter: [
         "any",
-        ["==", ["get", "CATLND"], "2"],
-        ["==", ["get", "CATLND"], "12"],
+        listAttrContains("CATLND", 2),
+        listAttrContains("CATLND", 12),
       ] as unknown as ExpressionSpecification,
       paint: {
         "fill-pattern": ctx.icon("marsh-pattern"),

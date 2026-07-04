@@ -8,6 +8,7 @@ import type {
   LayerSpecification,
   SymbolLayerSpecification,
 } from "@maplibre/maplibre-gl-style-spec";
+import { listAttrFirstNumber } from "../list-attr";
 import type { StyleContext } from "../style-context";
 import {
   BUOY_LABEL_ANCHOR_LAYOUT,
@@ -506,14 +507,7 @@ export function getHazardLayers(ctx: StyleContext): LayerSpecification[] {
       filter: [
         "all",
         ["==", ["geometry-type"], "Polygon"],
-        [
-          "!",
-          [
-            "in",
-            ["to-number", ["coalesce", ["get", "CATOBS"], 0], 0],
-            ["literal", [6, 7]],
-          ],
-        ],
+        ["!", ["in", listAttrFirstNumber("CATOBS"), ["literal", [6, 7]]]],
       ] as unknown as ExpressionSpecification,
       paint: {
         "fill-color": ctx.colour("DEPVS"),
@@ -531,11 +525,7 @@ export function getHazardLayers(ctx: StyleContext): LayerSpecification[] {
       filter: [
         "all",
         ["==", ["geometry-type"], "Polygon"],
-        [
-          "in",
-          ["to-number", ["coalesce", ["get", "CATOBS"], 0], 0],
-          ["literal", [6, 7]],
-        ],
+        ["in", listAttrFirstNumber("CATOBS"), ["literal", [6, 7]]],
       ] as unknown as ExpressionSpecification,
       paint: {
         "fill-pattern": ctx.icon("foul-pattern"),
@@ -550,11 +540,7 @@ export function getHazardLayers(ctx: StyleContext): LayerSpecification[] {
       filter: [
         "all",
         ["==", ["geometry-type"], "Polygon"],
-        [
-          "in",
-          ["to-number", ["coalesce", ["get", "CATOBS"], 0], 0],
-          ["literal", [6, 7]],
-        ],
+        ["in", listAttrFirstNumber("CATOBS"), ["literal", [6, 7]]],
       ] as unknown as ExpressionSpecification,
       paint: {
         "line-color": ctx.colour("CHGRD"),

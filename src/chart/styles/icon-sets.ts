@@ -1,5 +1,6 @@
 import type { ExpressionSpecification } from "@maplibre/maplibre-gl-style-spec";
 import type { DisplayTheme, SymbologyScheme } from "../../settings";
+import { listAttrContains, listAttrFirstNumber } from "./list-attr";
 
 /**
  * Icon set definitions for nautical chart symbology.
@@ -552,13 +553,11 @@ export function buildLayerExpressions(
   const isPrefStbd = ["all", ["==", c0, GREEN], ["==", c1, RED]];
   // S-52 BOYSPP01: CATSPM=9 (ODAS) and CATSPM=15 (LANBY) trigger the superbuoy trapezoid,
   // same as BOYSHP=7. (Source: OpenCPN chartsymbols.xml lookup IDs 1053/1063)
-  // GDAL/ogr2ogr encodes StringList attributes as JSON arrays (e.g. ["9"]), so we
-  // check for the quoted value as a substring: "9" in ["9"] or ["9","15"].
-  const catsStr = ["to-string", ["coalesce", ["get", "CATSPM"], ""]];
+  // CATSPM is a list attribute — comma-separated in tiles (never JSON arrays).
   const isSuperbuoyByCat = [
     "any",
-    ["in", '"9"', catsStr],
-    ["in", '"15"', catsStr],
+    listAttrContains("CATSPM", 9),
+    listAttrContains("CATSPM", 15),
   ];
 
   switch (layerName) {
@@ -658,8 +657,10 @@ export function buildLayerExpressions(
       return { iconExpr: uwtrocIcon, offsetExpr: uwtrocOffset };
     }
     case "OBSTRN":
+      // CATOBS is a list attribute — a multi-valued "6,7" must not fall to
+      // the default icon; the first element is the primary category.
       return matchOnAttr(
-        ["get", "CATOBS"],
+        listAttrFirstNumber("CATOBS"),
         [
           [CATOBS_FISH_STAKES, "obstruction-fish-stakes"],
           [CATOBS_FISH_TRAP, "obstruction-fish-trap"],
@@ -731,8 +732,10 @@ export function buildLayerExpressions(
         ["to-number", ["coalesce", ["get", "CONVIS"], 0], 0],
         1,
       ];
-      const catlmkExpr = ["to-number", ["coalesce", ["get", "CATLMK"], 0], 0];
-      const functnExpr = ["to-number", ["coalesce", ["get", "FUNCTN"], 0], 0];
+      // Both are list attributes ("17,15" exists in real data) — to-number
+      // of a multi-valued string falls to 0; take the primary (first) value.
+      const catlmkExpr = listAttrFirstNumber("CATLMK");
+      const functnExpr = listAttrFirstNumber("FUNCTN");
 
       // Build: ["match", CATLMK, val1, ["case", conspic?, conspic-sprite, non-conspic-sprite], ..., default]
       const iconArr: unknown[] = ["match", catlmkExpr];

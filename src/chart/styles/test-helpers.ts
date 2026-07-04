@@ -20,7 +20,8 @@ export function evalExpr(expr: unknown, props: Props): unknown {
 
   switch (op) {
     case "get":
-      return props[args[0] as string];
+      // MapLibre returns null (not undefined) for a missing property.
+      return props[args[0] as string] ?? null;
     case "coalesce":
       for (const a of args) {
         const v = evalExpr(a, props);
@@ -61,13 +62,36 @@ export function evalExpr(expr: unknown, props: Props): unknown {
       return (
         Number(evalExpr(args[0], props)) >= Number(evalExpr(args[1], props))
       );
-    case "==":
-      // biome-ignore lint/suspicious/noDoubleEquals: MapLibre loose equality
-      return evalExpr(args[0], props) == evalExpr(args[1], props);
+    case "==": {
+      // MapLibre "==" is type-strict: comparing mismatched types is an
+      // evaluation error on the real map, so it must fail tests too.
+      const a = evalExpr(args[0], props);
+      const b = evalExpr(args[1], props);
+      if (a === null || b === null) return a === b;
+      if (typeof a !== typeof b) {
+        throw new Error(
+          `"==" type mismatch: ${typeof a} vs ${typeof b} (${JSON.stringify(a)} vs ${JSON.stringify(b)}) — evaluation error on the real map`,
+        );
+      }
+      return a === b;
+    }
     case "in": {
-      const needle = String(evalExpr(args[0], props));
-      const haystack = String(evalExpr(args[1], props));
-      return haystack.includes(needle);
+      const needle = evalExpr(args[0], props);
+      const haystack = evalExpr(args[1], props);
+      if (Array.isArray(haystack)) {
+        return haystack.includes(needle); // strict membership, like MapLibre
+      }
+      if (typeof haystack === "string") {
+        if (typeof needle !== "string") {
+          throw new Error(
+            `"in" needle must be a string for a string haystack (got ${typeof needle}) — evaluation error on the real map`,
+          );
+        }
+        return haystack.includes(needle);
+      }
+      throw new Error(
+        `"in" haystack must be a string or array (got ${typeof haystack})`,
+      );
     }
     case "all":
       return args.every((a) => evalExpr(a, props));
@@ -82,11 +106,14 @@ export function evalExpr(expr: unknown, props: Props): unknown {
       return evalExpr(args[args.length - 1], props);
     }
     case "match": {
+      // MapLibre "match" labels are literals (a primitive or an array of
+      // primitives — never sub-expressions) and matching is type-strict: a
+      // string input never matches a numeric label on the real map.
       const val = evalExpr(args[0], props);
       for (let i = 1; i < args.length - 1; i += 2) {
-        const matchVal = evalExpr(args[i], props);
-        // biome-ignore lint/suspicious/noDoubleEquals: MapLibre loose equality
-        if (val == matchVal) return evalExpr(args[i + 1], props);
+        const label = args[i];
+        const hit = Array.isArray(label) ? label.includes(val) : label === val;
+        if (hit) return evalExpr(args[i + 1], props);
       }
       return evalExpr(args[args.length - 1], props);
     }

@@ -6,6 +6,7 @@ import type {
   ExpressionSpecification,
   LayerSpecification,
 } from "@maplibre/maplibre-gl-style-spec";
+import { listAttrContains } from "../list-attr";
 import type { StyleContext } from "../style-context";
 import { scaledTextSize } from "../style-context";
 
@@ -107,8 +108,8 @@ export function getNavigationOverlayLayers(
       minzoom: ctx.detailMinzoom(10),
       filter: [
         "any",
-        ["in", "7", ["concat", ",", ["get", "RESTRN"], ","]],
-        ["in", "14", ["concat", ",", ["get", "RESTRN"], ","]],
+        listAttrContains("RESTRN", 7),
+        listAttrContains("RESTRN", 14),
       ] as unknown as ExpressionSpecification,
       layout: {
         "icon-image": ctx.icon("anchoring-prohibited"),
@@ -128,8 +129,8 @@ export function getNavigationOverlayLayers(
       minzoom: ctx.detailMinzoom(10),
       filter: [
         "any",
-        ["in", ",2,", ["concat", ",", ["get", "RESTRN"], ","]],
-        ["in", ",6,", ["concat", ",", ["get", "RESTRN"], ","]],
+        listAttrContains("RESTRN", 2),
+        listAttrContains("RESTRN", 6),
       ] as unknown as ExpressionSpecification,
       layout: {
         "icon-image": ctx.icon("fishing-prohibited"),
@@ -149,10 +150,10 @@ export function getNavigationOverlayLayers(
       minzoom: ctx.detailMinzoom(10),
       filter: [
         "all",
-        ["in", ",1,", ["concat", ",", ["get", "RESTRN"], ","]],
+        listAttrContains("RESTRN", 1),
         // Don't show entry symbol when anchoring or fishing symbol already shown
-        ["!", ["in", ",7,", ["concat", ",", ["get", "RESTRN"], ","]]],
-        ["!", ["in", ",2,", ["concat", ",", ["get", "RESTRN"], ","]]],
+        ["!", listAttrContains("RESTRN", 7)],
+        ["!", listAttrContains("RESTRN", 2)],
       ] as unknown as ExpressionSpecification,
       layout: {
         "icon-image": ctx.icon("entry-prohibited"),

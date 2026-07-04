@@ -10,6 +10,7 @@ import type {
   LayerSpecification,
 } from "@maplibre/maplibre-gl-style-spec";
 import { depthUnitLabel } from "../../../settings";
+import { listAttrFirstNumber } from "../list-attr";
 import type { StyleContext } from "../style-context";
 import {
   SORT_KEY_AREA,
@@ -293,7 +294,7 @@ export function getTextLayers(ctx: StyleContext): LayerSpecification[] {
       minzoom: ctx.detailMinzoom(13),
       filter: [
         "match",
-        ["to-number", ["coalesce", ["get", "FUNCTN"], "0"]],
+        listAttrFirstNumber("FUNCTN"),
         [
           20, // church
           21, // chapel
@@ -309,7 +310,7 @@ export function getTextLayers(ctx: StyleContext): LayerSpecification[] {
       layout: {
         "icon-image": [
           "match",
-          ["to-number", ["get", "FUNCTN"]],
+          listAttrFirstNumber("FUNCTN"),
           26,
           ctx.icon("landmark-mosque-conspic"),
           22,
