@@ -673,7 +673,12 @@ navManager.registerProvider(
   ),
 );
 if (WebSerialNMEAProvider.isAvailable()) {
-  navManager.registerProvider(new WebSerialNMEAProvider());
+  navManager.registerProvider(
+    new WebSerialNMEAProvider(
+      undefined,
+      makeProviderNoticeHandler("web-serial", "USB GPS"),
+    ),
+  );
 }
 // BLE NUS GPS pod ("ble-nmea"): native builds use the Capacitor plugin (the
 // Android WebView has no Web Bluetooth); the web/PWA uses Web Bluetooth.
