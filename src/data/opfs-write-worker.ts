@@ -16,7 +16,8 @@
  * Protocol (main → worker): { id, op, ... }
  *   - fetchWrite { url, filename }  — stream a URL to an OPFS file, posting progress
  *   - writeBlob  { filename, blob } — write a Blob (e.g. an imported file)
- *   - writeText  { filename, text } — write a string (e.g. the metadata sidecar)
+ *   - writeText  { filename, text } — write a string via temp-file + atomic move
+ *                                     (e.g. the metadata sidecar — see moveIntoPlace)
  *   - abort      {}                 — cancel an in-flight fetchWrite
  * Worker → main: { id, type: "progress" | "done" | "error", ... }
  */
@@ -178,6 +179,38 @@ async function writeBytes(
   }
 }
 
+/**
+ * Write bytes to `filename` via a temp file + atomic move, so a crash (or
+ * tab kill) mid-write can never leave `filename` truncated or empty — the
+ * old file is untouched until the new one is fully flushed. Used for the
+ * chart-metadata sidecar, which is small but must never be caught half-written.
+ */
+async function writeBytesAtomic(
+  id: number,
+  filename: string,
+  bytes: Uint8Array,
+): Promise<void> {
+  const temp = tempName(filename);
+  let access: FileSystemSyncAccessHandle | null = null;
+  try {
+    access = await openAccess(temp);
+    access.truncate(0);
+    access.write(bytes, { at: 0 });
+    access.flush();
+    access.close();
+    access = null;
+    await moveIntoPlace(temp, filename);
+    ctx.postMessage({ id, type: "done", size: bytes.byteLength });
+  } catch (err) {
+    access?.close();
+    access = null;
+    await removeQuietly(temp);
+    throw err;
+  } finally {
+    access?.close();
+  }
+}
+
 ctx.onmessage = (e: MessageEvent) => {
   const msg = e.data as InMsg;
   if (msg.op === "abort") {
@@ -192,7 +225,7 @@ ctx.onmessage = (e: MessageEvent) => {
       const buf = new Uint8Array(await (msg.blob as Blob).arrayBuffer());
       await writeBytes(msg.id, msg.filename ?? "", buf);
     } else if (msg.op === "writeText") {
-      await writeBytes(
+      await writeBytesAtomic(
         msg.id,
         msg.filename ?? "",
         new TextEncoder().encode(msg.text ?? ""),

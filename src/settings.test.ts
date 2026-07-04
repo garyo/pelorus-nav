@@ -7,10 +7,9 @@ import {
 } from "./settings";
 
 describe("settings migration", () => {
-  it("forces S-52 symbology and turns the street underlay on once (v2)", async () => {
+  it("forces S-52 symbology and defaults the street underlay on (v1, no prior preference)", async () => {
     const stored = {
       symbologyScheme: "pelorus-standard",
-      showOSMUnderlay: false,
     };
     vi.stubGlobal("localStorage", {
       getItem: () => JSON.stringify(stored),
@@ -21,6 +20,54 @@ describe("settings migration", () => {
     expect(getSettings().symbologyScheme).toBe("iho-s52");
     expect(getSettings().streetUnderlay).toBe("auto");
     expect(getSettings().settingsVersion).toBe(2);
+    vi.unstubAllGlobals();
+    vi.resetModules();
+  });
+
+  it("honors an explicit v1 showOSMUnderlay=false instead of forcing it on", async () => {
+    // UI-13: the v1→v2 migration used to force showOSMUnderlay=true before
+    // the streetUnderlay migration read it, discarding an explicit "off".
+    const stored = {
+      symbologyScheme: "pelorus-standard",
+      showOSMUnderlay: false,
+    };
+    vi.stubGlobal("localStorage", {
+      getItem: () => JSON.stringify(stored),
+      setItem: () => {},
+    });
+    vi.resetModules();
+    const { getSettings } = await import("./settings");
+    expect(getSettings().streetUnderlay).toBe("off");
+    vi.unstubAllGlobals();
+    vi.resetModules();
+  });
+
+  it("persists once after a v1→v2 migration so it doesn't re-run every startup", async () => {
+    const stored = { symbologyScheme: "pelorus-standard" };
+    const setItem = vi.fn();
+    vi.stubGlobal("localStorage", {
+      getItem: () => JSON.stringify(stored),
+      setItem,
+    });
+    vi.resetModules();
+    await import("./settings");
+    expect(setItem).toHaveBeenCalledTimes(1);
+    const [, savedJson] = setItem.mock.calls[0] as [string, string];
+    expect(JSON.parse(savedJson).settingsVersion).toBe(2);
+    vi.unstubAllGlobals();
+    vi.resetModules();
+  });
+
+  it("doesn't re-persist on a load that needs no migration", async () => {
+    const stored = { settingsVersion: 2, streetUnderlay: "osm" };
+    const setItem = vi.fn();
+    vi.stubGlobal("localStorage", {
+      getItem: () => JSON.stringify(stored),
+      setItem,
+    });
+    vi.resetModules();
+    await import("./settings");
+    expect(setItem).not.toHaveBeenCalled();
     vi.unstubAllGlobals();
     vi.resetModules();
   });
@@ -67,6 +114,98 @@ describe("settings migration", () => {
     vi.resetModules();
     const { getSettings } = await import("./settings");
     expect(getSettings().streetUnderlay).toBe("osm");
+    vi.unstubAllGlobals();
+    vi.resetModules();
+  });
+});
+
+describe("settings load() validation", () => {
+  it("falls back to the default on a wrong-type value", async () => {
+    const stored = { settingsVersion: 2, textScale: "big" };
+    vi.stubGlobal("localStorage", {
+      getItem: () => JSON.stringify(stored),
+      setItem: () => {},
+    });
+    vi.resetModules();
+    const { getSettings } = await import("./settings");
+    expect(getSettings().textScale).toBe(1);
+    vi.unstubAllGlobals();
+    vi.resetModules();
+  });
+
+  it("falls back to the default on a non-finite number", async () => {
+    // 1e400 parses to Infinity — a valid JSON number token, not a valid depth.
+    const stored = '{"settingsVersion":2,"safetyDepth":1e400}';
+    vi.stubGlobal("localStorage", {
+      getItem: () => stored,
+      setItem: () => {},
+    });
+    vi.resetModules();
+    const { getSettings } = await import("./settings");
+    expect(getSettings().safetyDepth).toBe(6.1);
+    vi.unstubAllGlobals();
+    vi.resetModules();
+  });
+
+  it("falls back to the default on an unknown enum string", async () => {
+    const stored = { settingsVersion: 2, displayTheme: "ultraviolet" };
+    vi.stubGlobal("localStorage", {
+      getItem: () => JSON.stringify(stored),
+      setItem: () => {},
+    });
+    vi.resetModules();
+    const { getSettings } = await import("./settings");
+    expect(getSettings().displayTheme).toBe("day");
+    vi.unstubAllGlobals();
+    vi.resetModules();
+  });
+
+  it("falls back to the default on null", async () => {
+    const stored = { settingsVersion: 2, shallowDepth: null };
+    vi.stubGlobal("localStorage", {
+      getItem: () => JSON.stringify(stored),
+      setItem: () => {},
+    });
+    vi.resetModules();
+    const { getSettings } = await import("./settings");
+    expect(getSettings().shallowDepth).toBe(1.83);
+    vi.unstubAllGlobals();
+    vi.resetModules();
+  });
+
+  it("falls back to the default on a malformed instrumentCells tuple", async () => {
+    const stored = { settingsVersion: 2, instrumentCells: "sog" };
+    vi.stubGlobal("localStorage", {
+      getItem: () => JSON.stringify(stored),
+      setItem: () => {},
+    });
+    vi.resetModules();
+    const { getSettings } = await import("./settings");
+    expect(getSettings().instrumentCells).toEqual(["sog", "cog"]);
+    vi.unstubAllGlobals();
+    vi.resetModules();
+  });
+
+  it("keeps a fully valid load unchanged", async () => {
+    const stored = {
+      settingsVersion: 2,
+      textScale: 1.5,
+      displayTheme: "night",
+      shallowDepth: 2.5,
+      detailLevel: 2,
+      instrumentCells: ["dpt", "wind"],
+    };
+    vi.stubGlobal("localStorage", {
+      getItem: () => JSON.stringify(stored),
+      setItem: () => {},
+    });
+    vi.resetModules();
+    const { getSettings } = await import("./settings");
+    expect(getSettings().textScale).toBe(1.5);
+    expect(getSettings().displayTheme).toBe("night");
+    expect(getSettings().shallowDepth).toBe(2.5);
+    expect(getSettings().detailLevel).toBe(2);
+    expect(getSettings().instrumentCells).toEqual(["dpt", "wind"]);
     vi.unstubAllGlobals();
     vi.resetModules();
   });

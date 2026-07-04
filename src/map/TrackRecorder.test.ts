@@ -1,5 +1,15 @@
-import { describe, expect, it } from "vitest";
-import { isGapGlitch } from "./TrackRecorder";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { NavigationData } from "../navigation/NavigationData";
+import type { NavigationDataManager } from "../navigation/NavigationDataManager";
+import { isGapGlitch, TrackRecorder } from "./TrackRecorder";
+
+vi.mock("../data/db", () => ({
+  appendTrackPoint: vi.fn().mockResolvedValue(undefined),
+  saveTrackMeta: vi.fn().mockResolvedValue(undefined),
+  deleteTrack: vi.fn().mockResolvedValue(undefined),
+  getTrackPoints: vi.fn().mockResolvedValue([]),
+  replaceTrackPoints: vi.fn().mockResolvedValue(undefined),
+}));
 
 describe("isGapGlitch", () => {
   // Reference scenario: real bad point from Track 2026-05-22 13_14.gpx (idx 2760).
@@ -133,5 +143,80 @@ describe("gap-glitch cascade on a fast vessel", () => {
     expect(kept.length).toBeGreaterThan(fixes.length * 0.9);
     // The track now reaches the end of the trip.
     expect(kept[kept.length - 1].t).toBe(fixes[fixes.length - 1].t);
+  });
+});
+
+/** Minimal fake standing in for NavigationDataManager's subscribe/unsubscribe. */
+class FakeNavManager {
+  private cb: ((data: NavigationData) => void) | null = null;
+  subscribe(cb: (data: NavigationData) => void): void {
+    this.cb = cb;
+  }
+  unsubscribe(): void {
+    this.cb = null;
+  }
+  feed(data: NavigationData): void {
+    this.cb?.(data);
+  }
+}
+
+function fix(lat: number, lon: number, t: number): NavigationData {
+  return {
+    latitude: lat,
+    longitude: lon,
+    cog: null,
+    sog: null,
+    heading: null,
+    accuracy: null,
+    timestamp: t,
+    source: "test",
+  };
+}
+
+describe("TrackRecorder gap-split distance", () => {
+  const fakeStorage = new Map<string, string>();
+
+  beforeEach(() => {
+    fakeStorage.clear();
+    vi.stubGlobal("localStorage", {
+      getItem: (k: string) => fakeStorage.get(k) ?? null,
+      setItem: (k: string, v: string) => {
+        fakeStorage.set(k, v);
+      },
+      removeItem: (k: string) => {
+        fakeStorage.delete(k);
+      },
+    });
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("starts the new track at 0 distance instead of charging it the gap-jump", async () => {
+    const nav = new FakeNavManager();
+    const recorder = new TrackRecorder(nav as unknown as NavigationDataManager);
+    recorder.start();
+    // No saved active track, so tryResumeTrack resolves on its first check.
+    await Promise.resolve();
+    await Promise.resolve();
+
+    const t0 = Date.parse("2026-07-01T12:00:00.000Z");
+    nav.feed(fix(42.0, -71.0, t0));
+    await Promise.resolve();
+    await Promise.resolve();
+
+    // 40 min later, ~1.8 nm away — a low implied speed (~2.7 kn), so this
+    // isn't flagged as a gap-glitch, but it's well past GAP_THRESHOLD_MS
+    // (30 min) and splits off a new track.
+    const t1 = t0 + 40 * 60 * 1000;
+    nav.feed(fix(42.03, -71.0, t1));
+    await Promise.resolve();
+    await Promise.resolve();
+    await Promise.resolve();
+
+    const track = recorder.getCurrentTrack();
+    expect(track).not.toBeNull();
+    expect(track?.totalDistanceNM).toBe(0);
   });
 });

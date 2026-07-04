@@ -15,9 +15,14 @@ const DB_VERSION = 6;
 
 let dbPromise: Promise<IDBDatabase> | null = null;
 
+/**
+ * Opens the DB once; subsequent calls share the result. A failed open
+ * clears the cache instead of memoizing the rejection, so the next call
+ * retries rather than permanently stranding every store in this module.
+ */
 function openDB(): Promise<IDBDatabase> {
   if (dbPromise) return dbPromise;
-  dbPromise = new Promise((resolve, reject) => {
+  dbPromise = new Promise<IDBDatabase>((resolve, reject) => {
     const req = indexedDB.open(DB_NAME, DB_VERSION);
     req.onupgradeneeded = (event) => {
       const db = req.result;
@@ -55,6 +60,9 @@ function openDB(): Promise<IDBDatabase> {
     };
     req.onsuccess = () => resolve(req.result);
     req.onerror = () => reject(req.error);
+  }).catch((err: unknown) => {
+    dbPromise = null;
+    throw err;
   });
   return dbPromise;
 }
