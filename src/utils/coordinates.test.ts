@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   alongTrackDistanceNM,
+  bboxOfCoords,
   bearingDelta,
   formatLatLon,
   haversineDistanceNM,
@@ -318,5 +319,26 @@ describe("bearingDelta", () => {
   });
   it("handles 360-valued inputs", () => {
     expect(bearingDelta(360, 0)).toBe(0);
+  });
+});
+
+describe("bboxOfCoords", () => {
+  it("returns null for an empty array", () => {
+    expect(bboxOfCoords([])).toBeNull();
+  });
+
+  it("returns a degenerate box for a single point", () => {
+    expect(bboxOfCoords([[-71.06, 42.36]])).toEqual([
+      -71.06, 42.36, -71.06, 42.36,
+    ]);
+  });
+
+  it("finds min/max across lon and lat independently", () => {
+    const coords: [number, number][] = [
+      [-71.06, 42.36],
+      [-70.9, 41.49],
+      [-71.31, 42.0],
+    ];
+    expect(bboxOfCoords(coords)).toEqual([-71.31, 41.49, -70.9, 42.36]);
   });
 });

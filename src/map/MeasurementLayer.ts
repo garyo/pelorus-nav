@@ -7,24 +7,10 @@ import type maplibregl from "maplibre-gl";
 import { getSettings, onSettingsChange } from "../settings";
 import { haversineDistanceNM, initialBearingDeg } from "../utils/coordinates";
 import { formatBearing } from "../utils/magnetic";
+import { formatDistanceNM } from "../utils/units";
 import { DraggablePoints } from "./DraggablePoints";
 import { getMode, setMode } from "./InteractionMode";
 import { ensureMeasureIcons, MEASURE_ICON_EXPR } from "./point-icons";
-
-const NM_TO_METERS = 1852;
-const NM_TO_FEET = 6076.12;
-
-/** Format distance: use feet/meters when < 0.1 NM, otherwise NM. */
-function formatMeasureDist(nm: number): string {
-  if (nm < 0.1) {
-    const { depthUnit } = getSettings();
-    if (depthUnit === "feet" || depthUnit === "fathoms") {
-      return `${Math.round(nm * NM_TO_FEET)} ft`;
-    }
-    return `${Math.round(nm * NM_TO_METERS)} m`;
-  }
-  return `${nm.toFixed(2)} NM`;
-}
 
 const SOURCE_POINTS = "_measure-points";
 const SOURCE_LINE = "_measure-line";
@@ -271,7 +257,7 @@ export class MeasurementLayer {
       this.pointA.lng,
     );
 
-    const { bearingMode } = getSettings();
+    const { bearingMode, depthUnit } = getSettings();
     const fmtBrg = formatBearing(
       bearing,
       bearingMode,
@@ -287,7 +273,7 @@ export class MeasurementLayer {
 
     this.panel.innerHTML =
       '<div class="measure-panel-text">' +
-      `<strong>${formatMeasureDist(dist)}</strong> &nbsp; ` +
+      `<strong>${formatDistanceNM(dist, depthUnit)}</strong> &nbsp; ` +
       `${fmtBrg} &nbsp; ` +
       `(rev ${fmtRev})` +
       "</div>" +

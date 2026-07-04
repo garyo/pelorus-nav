@@ -29,6 +29,7 @@ import { smoothTrack } from "../navigation/RTSmoother";
 import { BackgroundGPS } from "../plugins/BackgroundGPS";
 import { haversineDistanceNM } from "../utils/coordinates";
 import { diag } from "../utils/diag";
+import { formatLocalDateTime } from "../utils/format";
 import { generateUUID } from "../utils/uuid";
 
 /** Trace each recorded point to diag.log. Off in shipping builds; pairs with
@@ -101,12 +102,6 @@ export function isGapGlitch(
   const distNM = haversineDistanceNM(prevLat, prevLon, newLat, newLon);
   const speedKn = (distNM * 3600 * 1000) / dtMs;
   return speedKn > maxSpeedKn;
-}
-
-/** Format a Date as "YYYY-MM-DD HH:MM" in local time. */
-function localDateTime(d: Date): string {
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
 type RecorderListener = () => void;
@@ -368,7 +363,7 @@ export class TrackRecorder {
     // Create new track if needed (but don't persist meta yet — see below)
     if (!this.currentTrack) {
       const date = new Date(now);
-      const name = `Track ${localDateTime(date)}`;
+      const name = `Track ${formatLocalDateTime(date)}`;
       this.currentTrack = {
         id: generateUUID(),
         name,

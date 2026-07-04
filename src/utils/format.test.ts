@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { formatDistanceShort, formatDurationShort } from "./format";
+import {
+  formatDistanceShort,
+  formatDurationShort,
+  formatLocalDateTime,
+} from "./format";
 
 describe("formatDurationShort", () => {
   it("formats across magnitudes", () => {
@@ -17,5 +21,17 @@ describe("formatDistanceShort", () => {
     expect(formatDistanceShort(12.44)).toBe("12.4 nm");
     expect(formatDistanceShort(127.4)).toBe("127 nm");
     expect(formatDistanceShort(-1)).toBe("0.00 nm");
+  });
+});
+
+describe("formatLocalDateTime", () => {
+  it("pads month, day, hour, and minute to two digits", () => {
+    const d = new Date(2026, 0, 4, 9, 5); // Jan 4 2026, 09:05 local
+    expect(formatLocalDateTime(d)).toBe("2026-01-04 09:05");
+  });
+
+  it("does not pad the four-digit year", () => {
+    const d = new Date(2026, 10, 23, 14, 30); // Nov 23 2026, 14:30 local
+    expect(formatLocalDateTime(d)).toBe("2026-11-23 14:30");
   });
 });

@@ -7,11 +7,13 @@ import type maplibregl from "maplibre-gl";
 import { getPlottingSheet, savePlottingSheet } from "../../data/db";
 import { getSettings, onSettingsChange } from "../../settings";
 import {
+  bearingDelta,
   haversineDistanceNM,
   initialBearingDeg,
   projectPoint,
 } from "../../utils/coordinates";
 import { formatBearing } from "../../utils/magnetic";
+import { formatDistanceNM } from "../../utils/units";
 import { generateUUID } from "../../utils/uuid";
 import { DraggablePoints } from "../DraggablePoints";
 import { getMode, onModeChange, setMode } from "../InteractionMode";
@@ -573,16 +575,7 @@ export class PlottingLayer {
         const brg = initialBearingDeg(el.lat1, el.lon1, el.lat2, el.lon2);
         const { bearingMode, depthUnit } = getSettings();
         const fmtBrg = formatBearing(brg, bearingMode, el.lat1, el.lon1);
-        let distStr: string;
-        if (dist < 0.1) {
-          if (depthUnit === "feet" || depthUnit === "fathoms") {
-            distStr = `${Math.round(dist * 6076.12)} ft`;
-          } else {
-            distStr = `${Math.round(dist * 1852)} m`;
-          }
-        } else {
-          distStr = `${dist.toFixed(2)} NM`;
-        }
+        const distStr = formatDistanceNM(dist, depthUnit);
         const segLabel = el.label
           ? `${el.label} — ${distStr} ${fmtBrg}`
           : `${distStr} ${fmtBrg}`;
@@ -664,16 +657,7 @@ export class PlottingLayer {
         // Distance & bearing label on the radial line
         const { bearingMode, depthUnit } = getSettings();
         const fmtBrg = formatBearing(el.lineAngle, bearingMode, el.lat, el.lon);
-        let distStr: string;
-        if (el.radiusNM < 0.1) {
-          if (depthUnit === "feet" || depthUnit === "fathoms") {
-            distStr = `${Math.round(el.radiusNM * 6076.12)} ft`;
-          } else {
-            distStr = `${Math.round(el.radiusNM * 1852)} m`;
-          }
-        } else {
-          distStr = `${el.radiusNM.toFixed(2)} NM`;
-        }
+        const distStr = formatDistanceNM(el.radiusNM, depthUnit);
         lineLabels.push({
           type: "Feature",
           properties: { id: el.id, label: `${distStr} ${fmtBrg}` },
@@ -775,16 +759,7 @@ export class PlottingLayer {
           el.lat,
           el.lon,
         );
-        let distStr: string;
-        if (el.distanceNM < 0.1) {
-          if (depthUnit === "feet" || depthUnit === "fathoms") {
-            distStr = `${Math.round(el.distanceNM * 6076.12)} ft`;
-          } else {
-            distStr = `${Math.round(el.distanceNM * 1852)} m`;
-          }
-        } else {
-          distStr = `${el.distanceNM.toFixed(2)} NM`;
-        }
+        const distStr = formatDistanceNM(el.distanceNM, depthUnit);
         lineLabels.push({
           type: "Feature",
           properties: { id: el.id, label: `${distStr} ${fmtBrg}` },
@@ -1320,17 +1295,6 @@ export class PlottingLayer {
     );
   }
 
-  /**
-   * Compute the signed shortest angular difference from `from` to `to` (degrees).
-   * Result in [-180, 180].
-   */
-  private angleDelta(from: number, to: number): number {
-    let d = to - from;
-    while (d > 180) d -= 360;
-    while (d < -180) d += 360;
-    return d;
-  }
-
   /** Generate arc GeoJSON coordinates from center, radius, start/end angles. */
   private arcCoordinates(
     lat: number,
@@ -1461,7 +1425,7 @@ export class PlottingLayer {
    */
   private updateArcSweep(lngLat: { lat: number; lng: number }): void {
     const angle = this.arcAngleFromPoint(lngLat);
-    const delta = this.angleDelta(this.arcLastAngle, angle);
+    const delta = bearingDelta(angle, this.arcLastAngle);
     this.arcAccum += delta;
     this.arcLastAngle = angle;
 

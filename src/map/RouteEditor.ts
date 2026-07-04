@@ -13,18 +13,13 @@ import type { SearchEntry } from "../data/search-index";
 import { findNearestNamedFeature } from "../search/feature-search";
 import { getSettings } from "../settings";
 import { haversineDistanceNM, initialBearingDeg } from "../utils/coordinates";
+import { formatLocalDateTime } from "../utils/format";
 import { formatBearing } from "../utils/magnetic";
 import { generateUUID } from "../utils/uuid";
 import { DraggablePoints } from "./DraggablePoints";
 import { getMode, setMode } from "./InteractionMode";
 import { ensurePointIcons, pointRole, ROLE_ICON_EXPR } from "./point-icons";
 import type { RouteLayer } from "./RouteLayer";
-
-/** Format a Date as "YYYY-MM-DD HH:MM" in local time. */
-function localDateTime(d: Date): string {
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
-}
 
 /** Max fraction of first leg length for the prepend handle offset. */
 const PREPEND_MAX_FRACTION = 0.8;
@@ -148,7 +143,7 @@ export class RouteEditor {
   startFromPoint(lat: number, lon: number): void {
     this.startEditing({
       id: generateUUID(),
-      name: `Route ${localDateTime(new Date())}`,
+      name: `Route ${formatLocalDateTime(new Date())}`,
       createdAt: Date.now(),
       color: "#4488cc",
       visible: true,
@@ -173,7 +168,7 @@ export class RouteEditor {
 
     this.route = route ?? {
       id: generateUUID(),
-      name: `Route ${localDateTime(new Date())}`,
+      name: `Route ${formatLocalDateTime(new Date())}`,
       createdAt: Date.now(),
       color: "#4488cc",
       visible: true,
