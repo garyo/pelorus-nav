@@ -13,6 +13,10 @@
  * - Bluetooth-off is detected and surfaced via the notice callback instead of
  *   failing silently; the connect intent survives and resumes when BT returns.
  * - Lifecycle events land in the persistent connectionLog for field diagnosis.
+ *
+ * The reconnect state machine (intent, backoff, silence watchdog) lives in
+ * ReconnectingTransport; this class owns the plugin transport, the picker
+ * flows, and Bluetooth on/off handling.
  */
 
 import { BleClient, type BleDevice } from "@capacitor-community/bluetooth-le";
@@ -30,6 +34,7 @@ import type {
 } from "./NavigationData";
 import { NMEAStream } from "./nmea-stream";
 import type { ProviderNotice } from "./ProviderNotice";
+import { ReconnectingTransport } from "./ReconnectingTransport";
 
 // Nordic UART Service UUIDs (lowercase, as the plugin expects).
 const NUS_SERVICE = "6e400001-b5a3-f393-e0a9-e50e24dcca9e";
@@ -45,29 +50,15 @@ export class CapacitorBLENMEAProvider
   readonly id = "ble-nmea";
   readonly name = "Bluetooth GPS (BLE)";
 
-  // Auto-reconnect backoff: a dropped link is retried without re-showing the
-  // picker (reconnecting to an already-chosen deviceId needs no user gesture).
-  private static readonly RECONNECT_MIN_MS = 1000;
-  private static readonly RECONNECT_MAX_MS = 30000;
-  // The pod streams position at ~1 Hz whenever connected, so a longer gap means
-  // the link is dead even if the stack still reports it up (pod reboot /
-  // half-open) — force a clean reconnect.
-  private static readonly SILENCE_LIMIT_MS = 8000;
-  private static readonly WATCHDOG_MS = 4000;
-
   private listeners: NavigationDataCallback[] = [];
   private satListeners: SatelliteStatusCallback[] = [];
   private device: BleDevice | null = null;
+  // The deviceId the last establish connected — what teardown must release
+  // when disconnect() raced the establish (this.device may be gone).
+  private linkDeviceId: string | null = null;
   private satWanted = false;
-  private connected = false;
-  private wantConnected = false;
-  private establishing = false;
-  private btOff = false;
   private enabledWatchStarted = false;
-  private lastDataMs = 0;
-  private watchdogTimer: ReturnType<typeof setInterval> | null = null;
-  private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
-  private reconnectDelayMs = 0;
+  private readonly core: ReconnectingTransport;
   private readonly decoder = new TextDecoder();
   private readonly encoder = new TextEncoder();
   private readonly stream: NMEAStream;
@@ -84,30 +75,39 @@ export class CapacitorBLENMEAProvider
         for (const fn of this.satListeners) fn(status);
       },
     );
+    this.core = new ReconnectingTransport(
+      { providerId: this.id, logLabel: "Capacitor BLE GPS" },
+      {
+        establish: () => this.openLink(),
+        onEstablished: () => this.handleEstablished(),
+        teardown: () => this.teardownLink(),
+        canAttempt: () => this.device !== null,
+        escalateRecovery: () => this.detectBtOff(),
+        attemptDetail: (cause) => this.attemptDetail(cause),
+      },
+    );
   }
 
   isConnected(): boolean {
-    return this.connected;
+    return this.core.isConnected();
   }
 
   isReconnecting(): boolean {
-    return this.wantConnected && !this.connected;
+    return this.core.isReconnecting();
+  }
+
+  /** Background pacing: stretch reconnect delays while hidden and not recording. */
+  setReconnectPacing(relaxed: boolean): void {
+    this.core.setPacing(relaxed);
   }
 
   connect(): void {
-    if (this.wantConnected) return;
-    this.wantConnected = true;
-    connectionLog.log(this.id, "connect-request");
-    this.startWatchdog();
+    if (!this.core.noteConnectRequested()) return;
     void this.startConnect();
   }
 
   disconnect(): void {
-    this.wantConnected = false;
-    this.clearReconnect();
-    this.stopWatchdog();
-    this.connected = false;
-    connectionLog.log(this.id, "disconnected", "user");
+    this.core.noteDisconnectRequested();
     const id = this.device?.deviceId;
     this.device = null;
     this.stream.reset();
@@ -128,7 +128,7 @@ export class CapacitorBLENMEAProvider
    * native picker.
    */
   async reconnect(): Promise<void> {
-    this.clearReconnect();
+    this.core.claimIntent();
     if (!this.device) {
       const saved = loadSavedBleDevice();
       if (saved) {
@@ -136,16 +136,13 @@ export class CapacitorBLENMEAProvider
       }
     }
     if (this.device) {
-      this.wantConnected = true;
-      this.connected = false;
-      this.startWatchdog();
       try {
         connectionLog.log(
           this.id,
           "connect-attempt",
           this.attemptDetail("manual"),
         );
-        await this.establish(); // reuse the chosen device — no picker
+        await this.core.runEstablish("manual"); // reuse the chosen device — no picker
         return;
       } catch (err) {
         console.warn(
@@ -156,24 +153,19 @@ export class CapacitorBLENMEAProvider
         this.device = null;
       }
     }
-    this.wantConnected = true;
-    this.startWatchdog();
     await this.pickAndConnect(); // shows the native picker
   }
 
   /** Forget the saved pod and re-run the picker (the stale-MAC escape hatch). */
   async pickNewDevice(): Promise<void> {
     clearSavedBleDevice();
-    this.clearReconnect();
     const id = this.device?.deviceId;
     if (id) {
       BleClient.stopNotifications(id, NUS_SERVICE, NUS_TX).catch(() => {});
       BleClient.disconnect(id).catch(() => {});
     }
     this.device = null;
-    this.connected = false;
-    this.wantConnected = true;
-    this.startWatchdog();
+    this.core.claimIntent();
     await this.pickAndConnect();
   }
 
@@ -216,7 +208,7 @@ export class CapacitorBLENMEAProvider
   // down; the pod also auto-reverts so a missed "SAT 0" can't strand it on.
   private sendSatCommand(enable: boolean): void {
     const id = this.device?.deviceId;
-    if (!id || !this.connected) return;
+    if (!id || !this.core.isConnected()) return;
     const bytes = this.encoder.encode(`SAT ${enable ? 1 : 0}\n`);
     const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
     BleClient.write(id, NUS_SERVICE, NUS_RX, view).catch((err) => {
@@ -238,7 +230,7 @@ export class CapacitorBLENMEAProvider
     } catch (err) {
       connectionLog.log(this.id, "error", `initialize: ${String(err)}`);
       this.onNotice?.({ kind: "connect-failed", detail: String(err) });
-      this.wantConnected = false;
+      this.core.dropIntent();
       return;
     }
     if (!(await this.ensureEnabledWatch())) return; // BT off: intent kept
@@ -257,11 +249,10 @@ export class CapacitorBLENMEAProvider
         this.attemptDetail("restored"),
       );
       try {
-        await this.establish();
+        await this.core.runEstablish("restored");
       } catch (err) {
         console.warn("Capacitor BLE GPS restored-device connect failed:", err);
-        if (await this.detectBtOff()) return;
-        this.scheduleReconnect();
+        await this.core.noteEstablishFailed(err);
       }
       return;
     }
@@ -271,7 +262,7 @@ export class CapacitorBLENMEAProvider
   /**
    * Start the Bluetooth enabled/disabled watch (once) and check current state.
    * Returns whether Bluetooth is enabled. When it's off, surface the notice
-   * and keep wantConnected — onEnabledChanged resumes when BT comes back.
+   * and keep the intent — onEnabledChanged resumes when BT comes back.
    */
   private async ensureEnabledWatch(): Promise<boolean> {
     if (!this.enabledWatchStarted) {
@@ -283,27 +274,24 @@ export class CapacitorBLENMEAProvider
       });
     }
     const enabled = await BleClient.isEnabled().catch(() => true);
-    this.btOff = !enabled;
     if (!enabled) {
+      this.core.suspend();
       connectionLog.log(this.id, "bt-disabled", "at connect");
       this.onNotice?.({ kind: "bt-off" });
+    } else if (this.core.isSuspended()) {
+      this.core.resume();
     }
     return enabled;
   }
 
   private onEnabledChanged(enabled: boolean): void {
     if (enabled) {
-      this.btOff = false;
+      this.core.resume();
       connectionLog.log(this.id, "bt-enabled");
       this.onNotice?.({ kind: "bt-on" });
-      if (this.wantConnected) {
-        this.reconnectDelayMs = 0;
-        void this.startConnect();
-      }
+      if (this.core.wantConnected) void this.startConnect();
     } else {
-      this.btOff = true;
-      this.connected = false;
-      this.clearReconnect(); // stop futile backoff; bt-on resumes instead
+      this.core.suspend(); // stop futile backoff; bt-on resumes instead
       connectionLog.log(this.id, "bt-disabled");
       this.onNotice?.({ kind: "bt-off" });
     }
@@ -317,8 +305,8 @@ export class CapacitorBLENMEAProvider
   private async detectBtOff(): Promise<boolean> {
     const enabled = await BleClient.isEnabled().catch(() => true);
     if (enabled) return false;
-    if (!this.btOff) {
-      this.btOff = true;
+    if (!this.core.isSuspended()) {
+      this.core.suspend();
       connectionLog.log(this.id, "bt-disabled", "detected on failure");
       this.onNotice?.({ kind: "bt-off" });
     }
@@ -350,7 +338,7 @@ export class CapacitorBLENMEAProvider
       connectionLog.log(this.id, "picker-cancelled", String(err));
       if (!(await this.detectBtOff())) {
         this.onNotice?.({ kind: "picker-cancelled", detail: String(err) });
-        this.wantConnected = false;
+        this.core.dropIntent();
       }
       return;
     }
@@ -363,12 +351,11 @@ export class CapacitorBLENMEAProvider
         "connect-attempt",
         this.attemptDetail("initial"),
       );
-      await this.establish();
+      await this.core.runEstablish("initial");
     } catch (err) {
       console.warn("Capacitor BLE GPS connect failed, retrying:", err);
       connectionLog.log(this.id, "error", `connect: ${String(err)}`);
-      if (await this.detectBtOff()) return;
-      this.scheduleReconnect();
+      await this.core.noteEstablishFailed(err);
     }
   }
 
@@ -390,111 +377,40 @@ export class CapacitorBLENMEAProvider
 
   // Connect + subscribe on the already-chosen deviceId. Used for both the
   // initial connect and every reconnect (no gesture needed).
-  private async establish(): Promise<void> {
+  private async openLink(): Promise<void> {
     const id = this.device?.deviceId;
     if (!id) throw new Error("no device");
-    this.establishing = true;
-    try {
-      // Clear any half-open link first: a pod reboot can leave the stack
-      // believing it's still connected, so connect()/startNotifications()
-      // resolve on a dead handle. A clean disconnect releases the pod's single
-      // client slot — what toggling the GPS source to None does manually.
-      await BleClient.disconnect(id).catch(() => {});
-      await BleClient.connect(id, () => this.onPeripheralDisconnect());
-      await BleClient.startNotifications(id, NUS_SERVICE, NUS_TX, (value) => {
-        this.lastDataMs = Date.now();
-        this.stream.push(this.decoder.decode(value));
-      });
-    } finally {
-      this.establishing = false;
-    }
+    this.linkDeviceId = id;
+    // Clear any half-open link first: a pod reboot can leave the stack
+    // believing it's still connected, so connect()/startNotifications()
+    // resolve on a dead handle. A clean disconnect releases the pod's single
+    // client slot — what toggling the GPS source to None does manually.
+    await BleClient.disconnect(id).catch(() => {});
+    await BleClient.connect(id, () => this.onPeripheralDisconnect());
+    await BleClient.startNotifications(id, NUS_SERVICE, NUS_TX, (value) => {
+      this.core.noteData();
+      this.stream.push(this.decoder.decode(value));
+    });
+  }
+
+  private handleEstablished(): void {
     this.stream.reset();
-    this.connected = true;
-    this.lastDataMs = Date.now(); // baseline so the watchdog doesn't fire instantly
-    this.reconnectDelayMs = 0; // recovered — reset the backoff
     connectionLog.log(this.id, "connected", this.device?.name ?? undefined);
     this.onNotice?.({ kind: "connected" });
     // Re-arm satellite forwarding if a diagnostics view is open across a reconnect.
     if (this.satWanted) this.sendSatCommand(true);
   }
 
+  // Release the link the establish just opened (the intent was dropped while
+  // it was awaited — leaking it would hold the pod's single client slot).
+  private teardownLink(): void {
+    const id = this.linkDeviceId;
+    if (!id) return;
+    BleClient.stopNotifications(id, NUS_SERVICE, NUS_TX).catch(() => {});
+    BleClient.disconnect(id).catch(() => {});
+  }
+
   private onPeripheralDisconnect(): void {
-    if (this.establishing) return; // our own teardown during (re)connect
-    this.connected = false;
-    connectionLog.log(this.id, "disconnected", "peripheral");
-    if (this.wantConnected) this.scheduleReconnect();
-  }
-
-  private startWatchdog(): void {
-    if (this.watchdogTimer !== null) return;
-    this.watchdogTimer = setInterval(
-      () => this.checkWatchdog(),
-      CapacitorBLENMEAProvider.WATCHDOG_MS,
-    );
-  }
-
-  private stopWatchdog(): void {
-    if (this.watchdogTimer !== null) {
-      clearInterval(this.watchdogTimer);
-      this.watchdogTimer = null;
-    }
-  }
-
-  // Detect a "connected" link that has gone silent and force a clean reconnect.
-  private checkWatchdog(): void {
-    if (!this.wantConnected || !this.connected) return;
-    if (
-      Date.now() - this.lastDataMs >
-      CapacitorBLENMEAProvider.SILENCE_LIMIT_MS
-    ) {
-      console.warn("Capacitor BLE GPS: link silent, forcing reconnect");
-      connectionLog.log(this.id, "watchdog-silent");
-      this.connected = false;
-      void this.retryConnect();
-    }
-  }
-
-  private scheduleReconnect(): void {
-    if (!this.wantConnected || this.btOff || this.reconnectTimer !== null)
-      return;
-    this.reconnectDelayMs = this.reconnectDelayMs
-      ? Math.min(
-          this.reconnectDelayMs * 2,
-          CapacitorBLENMEAProvider.RECONNECT_MAX_MS,
-        )
-      : CapacitorBLENMEAProvider.RECONNECT_MIN_MS;
-    connectionLog.log(
-      this.id,
-      "reconnect-scheduled",
-      `${this.reconnectDelayMs}ms`,
-    );
-    this.reconnectTimer = setTimeout(() => {
-      this.reconnectTimer = null;
-      void this.retryConnect();
-    }, this.reconnectDelayMs);
-  }
-
-  private async retryConnect(): Promise<void> {
-    if (!this.wantConnected || this.btOff || !this.device) return;
-    try {
-      connectionLog.log(
-        this.id,
-        "connect-attempt",
-        this.attemptDetail("retry"),
-      );
-      await this.establish();
-    } catch (err) {
-      console.warn("Capacitor BLE GPS reconnect failed:", err);
-      if (await this.detectBtOff()) return;
-      this.scheduleReconnect();
-    }
-  }
-
-  private clearReconnect(): void {
-    if (this.reconnectTimer !== null) {
-      clearTimeout(this.reconnectTimer);
-      this.reconnectTimer = null;
-    }
-    this.reconnectDelayMs = 0;
+    this.core.noteLinkDropped();
   }
 }
