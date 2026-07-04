@@ -29,19 +29,15 @@ import type {
   SatelliteStatusCallback,
 } from "./NavigationData";
 import { NMEAStream } from "./nmea-stream";
+import type { ProviderNotice } from "./ProviderNotice";
 
 // Nordic UART Service UUIDs (lowercase, as the plugin expects).
 const NUS_SERVICE = "6e400001-b5a3-f393-e0a9-e50e24dcca9e";
 const NUS_RX = "6e400002-b5a3-f393-e0a9-e50e24dcca9e"; // central → peripheral (write)
 const NUS_TX = "6e400003-b5a3-f393-e0a9-e50e24dcca9e"; // peripheral → central (notify)
 
-/** User-facing connection conditions, mapped to banners by main.ts. */
-export type BleNotice =
-  | { kind: "bt-off" }
-  | { kind: "bt-on" }
-  | { kind: "connected" }
-  | { kind: "picker-cancelled"; detail: string }
-  | { kind: "connect-failed"; detail: string };
+/** @deprecated Use ProviderNotice — kept as an alias during migration. */
+export type BleNotice = ProviderNotice;
 
 export class CapacitorBLENMEAProvider
   implements NavigationDataProvider, SatelliteDiagnostics

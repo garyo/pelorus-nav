@@ -7,11 +7,13 @@
  */
 
 import { MS_TO_KNOTS } from "../utils/units";
+import { connectionLog } from "./ConnectionEventLog";
 import type {
   NavigationData,
   NavigationDataCallback,
   NavigationDataProvider,
 } from "./NavigationData";
+import type { ProviderNotice } from "./ProviderNotice";
 
 export class BrowserGeolocationProvider implements NavigationDataProvider {
   readonly id = "browser-gps";
@@ -22,6 +24,30 @@ export class BrowserGeolocationProvider implements NavigationDataProvider {
   private pollTimer: ReturnType<typeof setInterval> | null = null;
   private connected = false;
   private desiredIntervalMs = 2000;
+  private readonly onNotice?: (notice: ProviderNotice) => void;
+
+  constructor(onNotice?: (notice: ProviderNotice) => void) {
+    this.onNotice = onNotice;
+  }
+
+  /**
+   * PERMISSION_DENIED is terminal: the browser will never deliver a fix and
+   * will not re-prompt — polling forever just looks like a healthy provider
+   * that never produces data. Stop and tell the user. Transient errors
+   * (TIMEOUT, POSITION_UNAVAILABLE) keep the watch/poll running.
+   */
+  private handleError(err: GeolocationPositionError): void {
+    if (err.code === err.PERMISSION_DENIED) {
+      connectionLog.log(this.id, "error", "location permission denied");
+      this.disconnect();
+      this.onNotice?.({
+        kind: "connect-failed",
+        detail: "location permission denied — enable it in browser settings",
+      });
+      return;
+    }
+    console.warn("Geolocation error:", err.message);
+  }
 
   isConnected(): boolean {
     return this.connected;
@@ -73,7 +99,7 @@ export class BrowserGeolocationProvider implements NavigationDataProvider {
     this.stopPoll();
     this.watchId = navigator.geolocation.watchPosition(
       (pos) => this.onPosition(pos),
-      (err) => console.warn("Geolocation error:", err.message),
+      (err) => this.handleError(err),
       {
         enableHighAccuracy: true,
         maximumAge: 2000,
@@ -106,7 +132,7 @@ export class BrowserGeolocationProvider implements NavigationDataProvider {
   private pollOnce(maxAge: number): void {
     navigator.geolocation.getCurrentPosition(
       (pos) => this.onPosition(pos),
-      (err) => console.warn("Geolocation poll error:", err.message),
+      (err) => this.handleError(err),
       {
         enableHighAccuracy: true,
         maximumAge: maxAge,

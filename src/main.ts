@@ -60,7 +60,6 @@ import {
   WebSerialNMEAProvider,
 } from "./navigation";
 import { ActiveNavigationManager } from "./navigation/ActiveNavigation";
-import type { BleNotice } from "./navigation/CapacitorBLENMEAProvider";
 import { connectionLog } from "./navigation/ConnectionEventLog";
 import {
   CourseSmoothing,
@@ -68,6 +67,7 @@ import {
 } from "./navigation/CourseSmoothing";
 import { gpsDiagLog } from "./navigation/GPSDiagnosticLog";
 import { GpsPowerManager } from "./navigation/GpsPowerManager";
+import type { ProviderNotice } from "./navigation/ProviderNotice";
 import { RegionAutoSwitch } from "./navigation/RegionAutoSwitch";
 import { REPLAY_TRACK } from "./navigation/replay-track";
 import {
@@ -538,6 +538,9 @@ const connectionLogPanel = new ConnectionLogPanel();
 // settings panel's Change… button and the banner actions need its
 // pickNewDevice/promptEnableBluetooth, which NavigationDataProvider omits.
 let bleProvider: CapacitorBLENMEAProvider | BLENMEAProvider | null = null;
+// Banner ids shown by any provider notice — hidden en masse on provider
+// switch so stale banners never linger on e-ink.
+const shownNoticeBanners = new Set<string>();
 const settingsHandle = topbarMenu
   ? createSettingsPanel(topbarMenu, {
       chartProviders: {
@@ -664,7 +667,11 @@ if (CapacitorGPSProvider.isAvailable()) {
   navManager.registerProvider(capacitorGPS);
 }
 // Browser geolocation works in both WebView and browser
-navManager.registerProvider(new BrowserGeolocationProvider());
+navManager.registerProvider(
+  new BrowserGeolocationProvider(
+    makeProviderNoticeHandler("browser-gps", "Browser GPS"),
+  ),
+);
 if (WebSerialNMEAProvider.isAvailable()) {
   navManager.registerProvider(new WebSerialNMEAProvider());
 }
@@ -676,54 +683,64 @@ if (WebSerialNMEAProvider.isAvailable()) {
 connectionLog.setMirror((e) =>
   diag("conn", `${e.src} ${e.type}${e.detail ? ` ${e.detail}` : ""}`),
 );
-function handleBleNotice(notice: BleNotice): void {
-  switch (notice.kind) {
-    case "bt-off":
-      showStatusBanner({
-        id: "ble-bt",
-        message: "Bluetooth is OFF — GPS pod unreachable",
-        actionLabel: Capacitor.isNativePlatform() ? "Turn On" : undefined,
-        onAction: Capacitor.isNativePlatform()
-          ? () => {
-              void (
-                bleProvider as CapacitorBLENMEAProvider
-              )?.promptEnableBluetooth();
-            }
-          : undefined,
-      });
-      break;
-    case "bt-on":
-      hideStatusBanner("ble-bt");
-      break;
-    case "connected":
-      hideStatusBanner("ble-bt");
-      hideStatusBanner("ble-pick");
-      hideStatusBanner("ble-conn");
-      break;
-    case "picker-cancelled":
-      showStatusBanner({
-        id: "ble-pick",
-        message: "No Bluetooth GPS chosen — GPS not connected",
-        actionLabel: "Choose…",
-        onAction: () => {
-          hideStatusBanner("ble-pick");
-          navManager.reconnectActiveProvider();
-        },
-      });
-      break;
-    case "connect-failed":
-      showStatusBanner({
-        id: "ble-conn",
-        message: `Bluetooth GPS not connected — ${notice.detail}`,
-        actionLabel: "Retry",
-        onAction: () => {
-          hideStatusBanner("ble-conn");
-          navManager.reconnectActiveProvider();
-        },
-      });
-      break;
-  }
+function makeProviderNoticeHandler(
+  bannerPrefix: string,
+  providerLabel: string,
+): (notice: ProviderNotice) => void {
+  const show = (id: string, opts: Parameters<typeof showStatusBanner>[0]) => {
+    shownNoticeBanners.add(id);
+    showStatusBanner(opts);
+  };
+  return (notice: ProviderNotice): void => {
+    switch (notice.kind) {
+      case "bt-off":
+        show(`${bannerPrefix}-bt`, {
+          id: `${bannerPrefix}-bt`,
+          message: "Bluetooth is OFF — GPS pod unreachable",
+          actionLabel: Capacitor.isNativePlatform() ? "Turn On" : undefined,
+          onAction: Capacitor.isNativePlatform()
+            ? () => {
+                void (
+                  bleProvider as CapacitorBLENMEAProvider
+                )?.promptEnableBluetooth();
+              }
+            : undefined,
+        });
+        break;
+      case "bt-on":
+        hideStatusBanner(`${bannerPrefix}-bt`);
+        break;
+      case "connected":
+        hideStatusBanner(`${bannerPrefix}-bt`);
+        hideStatusBanner(`${bannerPrefix}-pick`);
+        hideStatusBanner(`${bannerPrefix}-conn`);
+        break;
+      case "picker-cancelled":
+        show(`${bannerPrefix}-pick`, {
+          id: `${bannerPrefix}-pick`,
+          message: `No ${providerLabel} chosen — GPS not connected`,
+          actionLabel: "Choose…",
+          onAction: () => {
+            hideStatusBanner(`${bannerPrefix}-pick`);
+            navManager.reconnectActiveProvider();
+          },
+        });
+        break;
+      case "connect-failed":
+        show(`${bannerPrefix}-conn`, {
+          id: `${bannerPrefix}-conn`,
+          message: `${providerLabel} not connected — ${notice.detail}`,
+          actionLabel: "Retry",
+          onAction: () => {
+            hideStatusBanner(`${bannerPrefix}-conn`);
+            navManager.reconnectActiveProvider();
+          },
+        });
+        break;
+    }
+  };
 }
+const handleBleNotice = makeProviderNoticeHandler("ble", "Bluetooth GPS");
 if (Capacitor.isNativePlatform()) {
   bleProvider = new CapacitorBLENMEAProvider(handleBleNotice);
   navManager.registerProvider(bleProvider);
@@ -868,6 +885,7 @@ chartManager.map.on("resize", () => {
 });
 
 // React to chart mode changes from settings
+let navManagerNoticeSource = getSettings().gpsSource;
 onSettingsChange((s) => {
   if (s.chartMode !== chartMode.getMode()) {
     chartMode.setMode(s.chartMode);
@@ -875,11 +893,11 @@ onSettingsChange((s) => {
   if (s.gpsSource !== navManager.getActiveProvider()?.id) {
     navManager.setActiveProvider(s.gpsSource);
   }
-  if (s.gpsSource !== "ble-nmea") {
-    // Stale BLE banners must not linger after switching providers.
-    hideStatusBanner("ble-bt");
-    hideStatusBanner("ble-pick");
-    hideStatusBanner("ble-conn");
+  if (s.gpsSource !== navManagerNoticeSource) {
+    // Stale provider banners must not linger after switching sources.
+    navManagerNoticeSource = s.gpsSource;
+    for (const id of shownNoticeBanners) hideStatusBanner(id);
+    shownNoticeBanners.clear();
   }
   simulator.setSpeedMultiplier(s.simulatorSpeed);
   signalK.setUrl(s.signalkUrl);
