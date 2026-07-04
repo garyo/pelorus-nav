@@ -8,6 +8,40 @@ if (signingPropsFile.exists()) {
     signingProps.load(new FileInputStream(signingPropsFile))
 }
 
+// versionCode/versionName: CI (release.yml) exports ANDROID_VERSION_CODE from
+// `git rev-list --count HEAD` and ANDROID_VERSION_NAME from the release tag,
+// so every release APK gets a monotonically increasing code and a real
+// version name. Local/debug builds fall back to a git-derived count (or 1
+// outside a git checkout) and the package.json version (or "1.0").
+def resolveVersionCode = {
+    def envValue = System.getenv('ANDROID_VERSION_CODE')
+    if (envValue) return envValue.toInteger()
+    try {
+        def stdout = new ByteArrayOutputStream()
+        exec {
+            commandLine 'git', 'rev-list', '--count', 'HEAD'
+            standardOutput = stdout
+        }
+        def count = stdout.toString().trim().toInteger()
+        if (count > 0) return count
+    } catch (Exception ignored) {
+        // no git history available (e.g. a source tarball) — fall back below
+    }
+    return 1
+}
+
+def resolveVersionName = {
+    def envValue = System.getenv('ANDROID_VERSION_NAME')
+    if (envValue) return envValue
+    try {
+        def pkgJson = new groovy.json.JsonSlurper().parse(file('../../package.json'))
+        if (pkgJson.version) return pkgJson.version.toString()
+    } catch (Exception ignored) {
+        // package.json missing/unreadable — fall back below
+    }
+    return '1.0'
+}
+
 android {
     namespace = "nav.pelorus.app"
     compileSdk = rootProject.ext.compileSdkVersion
@@ -15,8 +49,8 @@ android {
         applicationId "nav.pelorus.app"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 1
-        versionName "1.0"
+        versionCode resolveVersionCode()
+        versionName resolveVersionName()
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
