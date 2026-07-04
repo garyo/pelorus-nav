@@ -4,7 +4,7 @@
  */
 
 import { deleteWaypoint, getAllWaypoints, saveWaypoint } from "../data/db";
-import { downloadFile, GPX_MIME, pickFile } from "../data/file-io";
+import { downloadFile, GPX_ACCEPT, GPX_MIME, pickFile } from "../data/file-io";
 import { parseGpx, waypointsToGpx } from "../data/gpx";
 import type { StandaloneWaypoint, WaypointIcon } from "../data/Waypoint";
 import type { WaypointLayer } from "../map/WaypointLayer";
@@ -247,7 +247,7 @@ export class WaypointManagerPanel {
   private async importGpx(): Promise<void> {
     let xml: string;
     try {
-      xml = await pickFile(".gpx");
+      xml = await pickFile(GPX_ACCEPT);
     } catch {
       return; // cancelled
     }

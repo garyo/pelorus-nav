@@ -11,6 +11,7 @@ import {
 } from "../data/db";
 import {
   downloadFile,
+  GPX_ACCEPT,
   GPX_MIME,
   pickFile,
   sanitizeFilename,
@@ -500,7 +501,7 @@ export class TrackManagerPanel {
   private async importGpx(): Promise<void> {
     let xml: string;
     try {
-      xml = await pickFile(".gpx");
+      xml = await pickFile(GPX_ACCEPT);
     } catch {
       return; // cancelled
     }

@@ -26,6 +26,10 @@
 	<string>$(CURRENT_PROJECT_VERSION)</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<key>UIFileSharingEnabled</key>
+	<true/>
+	<key>LSSupportsOpeningDocumentsInPlace</key>
+	<true/>
 	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
 	<string>Pelorus Nav records your vessel's GPS track in the background — including with the screen off — so your voyage is logged even when the app isn't open.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
