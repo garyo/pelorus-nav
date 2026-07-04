@@ -57,6 +57,8 @@ import {
   WebSerialNMEAProvider,
 } from "./navigation";
 import { ActiveNavigationManager } from "./navigation/ActiveNavigation";
+import type { BleNotice } from "./navigation/CapacitorBLENMEAProvider";
+import { connectionLog } from "./navigation/ConnectionEventLog";
 import {
   CourseSmoothing,
   einkBufferWindowMs,
@@ -82,6 +84,7 @@ import { CenterCrosshair } from "./ui/CenterCrosshair";
 import { ChartCachePanel } from "./ui/ChartCachePanel";
 import { ChartInUseReadout } from "./ui/ChartInUseReadout";
 import { startChartUpdateNotifier } from "./ui/ChartUpdateNotifier";
+import { ConnectionLogPanel } from "./ui/ConnectionLogPanel";
 import { createContextMenu } from "./ui/ContextMenu";
 import { createIdleDetector } from "./ui/IdleDetector";
 import { createInstrumentHUD, INSTRUMENTS } from "./ui/InstrumentHUD";
@@ -108,6 +111,7 @@ import { SatelliteStatusPanel } from "./ui/SatelliteStatusPanel";
 import { maybeShowScreenTimeoutWarning } from "./ui/ScreenTimeoutDialog";
 import { SearchDialog } from "./ui/SearchDialog";
 import { createSettingsPanel } from "./ui/SettingsPanel";
+import { hideStatusBanner, showStatusBanner } from "./ui/StatusBanner";
 import { TimeBar } from "./ui/TimeBar";
 import { TrackManagerPanel } from "./ui/TrackManagerPanel";
 import { TrackViewerPanel } from "./ui/TrackViewerPanel";
@@ -489,6 +493,11 @@ pluginManager.activateAll();
 const topbarMenu = document.getElementById("topbar-menu");
 const topbarActions = document.getElementById("topbar-actions");
 const satellitePanel = new SatelliteStatusPanel();
+const connectionLogPanel = new ConnectionLogPanel();
+// The concrete BLE provider instance (assigned at registration below) — the
+// settings panel's Change… button and the banner actions need its
+// pickNewDevice/promptEnableBluetooth, which NavigationDataProvider omits.
+let bleProvider: CapacitorBLENMEAProvider | BLENMEAProvider | null = null;
 const settingsHandle = topbarMenu
   ? createSettingsPanel(topbarMenu, {
       chartProviders: {
@@ -506,6 +515,9 @@ const settingsHandle = topbarMenu
           navManager.getActiveProvider()?.isReconnecting?.() ?? false,
         reconnect: () => navManager.reconnectActiveProvider(),
         reset: () => navManager.resetActiveProvider(),
+        changeDevice: () => {
+          void bleProvider?.pickNewDevice();
+        },
       },
       openSatelliteDiagnostics: () => {
         const provider = navManager.getActiveProvider();
@@ -513,6 +525,7 @@ const settingsHandle = topbarMenu
           satellitePanel.show(provider, navManager);
         }
       },
+      openConnectionLog: () => connectionLogPanel.show(),
     })
   : null;
 
@@ -617,10 +630,66 @@ if (WebSerialNMEAProvider.isAvailable()) {
 }
 // BLE NUS GPS pod ("ble-nmea"): native builds use the Capacitor plugin (the
 // Android WebView has no Web Bluetooth); the web/PWA uses Web Bluetooth.
+// Both surface connection conditions (Bluetooth off, picker cancelled,
+// connect failed) through persistent status banners — a silent BLE failure
+// on the water is a navigation hazard.
+connectionLog.setMirror((e) =>
+  diag("conn", `${e.src} ${e.type}${e.detail ? ` ${e.detail}` : ""}`),
+);
+function handleBleNotice(notice: BleNotice): void {
+  switch (notice.kind) {
+    case "bt-off":
+      showStatusBanner({
+        id: "ble-bt",
+        message: "Bluetooth is OFF — GPS pod unreachable",
+        actionLabel: Capacitor.isNativePlatform() ? "Turn On" : undefined,
+        onAction: Capacitor.isNativePlatform()
+          ? () => {
+              void (
+                bleProvider as CapacitorBLENMEAProvider
+              )?.promptEnableBluetooth();
+            }
+          : undefined,
+      });
+      break;
+    case "bt-on":
+      hideStatusBanner("ble-bt");
+      break;
+    case "connected":
+      hideStatusBanner("ble-bt");
+      hideStatusBanner("ble-pick");
+      hideStatusBanner("ble-conn");
+      break;
+    case "picker-cancelled":
+      showStatusBanner({
+        id: "ble-pick",
+        message: "No Bluetooth GPS chosen — GPS not connected",
+        actionLabel: "Choose…",
+        onAction: () => {
+          hideStatusBanner("ble-pick");
+          navManager.reconnectActiveProvider();
+        },
+      });
+      break;
+    case "connect-failed":
+      showStatusBanner({
+        id: "ble-conn",
+        message: `Bluetooth GPS not connected — ${notice.detail}`,
+        actionLabel: "Retry",
+        onAction: () => {
+          hideStatusBanner("ble-conn");
+          navManager.reconnectActiveProvider();
+        },
+      });
+      break;
+  }
+}
 if (Capacitor.isNativePlatform()) {
-  navManager.registerProvider(new CapacitorBLENMEAProvider());
+  bleProvider = new CapacitorBLENMEAProvider(handleBleNotice);
+  navManager.registerProvider(bleProvider);
 } else if (BLENMEAProvider.isAvailable()) {
-  navManager.registerProvider(new BLENMEAProvider());
+  bleProvider = new BLENMEAProvider(handleBleNotice);
+  navManager.registerProvider(bleProvider);
 }
 const signalK = new SignalKProvider(getSettings().signalkUrl);
 navManager.registerProvider(signalK);
@@ -754,6 +823,12 @@ onSettingsChange((s) => {
   }
   if (s.gpsSource !== navManager.getActiveProvider()?.id) {
     navManager.setActiveProvider(s.gpsSource);
+  }
+  if (s.gpsSource !== "ble-nmea") {
+    // Stale BLE banners must not linger after switching providers.
+    hideStatusBanner("ble-bt");
+    hideStatusBanner("ble-pick");
+    hideStatusBanner("ble-conn");
   }
   simulator.setSpeedMultiplier(s.simulatorSpeed);
   signalK.setUrl(s.signalkUrl);
@@ -1407,5 +1482,23 @@ const gpsDiag = {
   },
   clear: () => gpsDiagLog.clear(),
 };
-Object.assign(window, { gpsDiag });
+// Persistent connection event log (always on — survives restarts):
+//   bleLog.entryCount — number of entries
+//   bleLog.text()     — human-readable log
+//   bleLog.csv()      — CSV string
+//   bleLog.download() — export CSV via share/file save
+//   bleLog.clear()    — wipe the log
+const bleLog = {
+  get entryCount() {
+    return connectionLog.entryCount;
+  },
+  text: () => connectionLog.toText(),
+  csv: () => connectionLog.toCSV(),
+  download: () => {
+    const ts = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
+    downloadFile(connectionLog.toCSV(), `connection-log-${ts}.csv`, "text/csv");
+  },
+  clear: () => connectionLog.clear(),
+};
+Object.assign(window, { gpsDiag, bleLog });
 // To enable: run gpsDiag.start() in the browser console or Chrome DevTools.

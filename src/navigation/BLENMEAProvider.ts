@@ -8,6 +8,13 @@
  * provider in Settings supplies it, and the browser shows its device chooser.
  */
 
+import {
+  clearSavedBleDevice,
+  loadSavedBleDevice,
+  saveBleDevice,
+} from "./bleDeviceStore";
+import type { BleNotice } from "./CapacitorBLENMEAProvider";
+import { connectionLog } from "./ConnectionEventLog";
 import type {
   NavigationDataCallback,
   NavigationDataProvider,
@@ -39,6 +46,8 @@ interface BluetoothGATT {
   getPrimaryService(uuid: string): Promise<BluetoothService>;
 }
 interface BluetoothDevice extends EventTarget {
+  id: string;
+  name?: string;
   gatt?: BluetoothGATT;
   // Optional — lets us recover after the device has left Chrome's range cache
   // (gated/absent in some browsers, so feature-detected before use).
@@ -49,6 +58,8 @@ interface Bluetooth {
     filters?: Array<{ services?: string[]; namePrefix?: string }>;
     optionalServices?: string[];
   }): Promise<BluetoothDevice>;
+  // Permission-gated and not universally shipped — feature-detect before use.
+  getDevices?(): Promise<BluetoothDevice[]>;
 }
 declare global {
   interface Navigator {
@@ -105,12 +116,16 @@ export class BLENMEAProvider
       this.onNotify,
     );
     this.characteristic = null;
+    connectionLog.log(this.id, "disconnected", "peripheral");
     // The peripheral (or radio) dropped the link — keep the device reference
     // and retry on a backoff so the user doesn't have to re-pick.
     if (this.wantConnected) this.scheduleReconnect();
   };
 
-  constructor() {
+  private readonly onNotice?: (notice: BleNotice) => void;
+
+  constructor(onNotice?: (notice: BleNotice) => void) {
+    this.onNotice = onNotice;
     this.stream = new NMEAStream(
       "ble-nmea",
       (data) => {
@@ -137,8 +152,9 @@ export class BLENMEAProvider
   connect(): void {
     if (this.wantConnected) return;
     this.wantConnected = true;
+    connectionLog.log(this.id, "connect-request");
     this.startWatchdog();
-    void this.pickAndConnect();
+    void this.startConnect();
   }
 
   disconnect(): void {
@@ -146,6 +162,7 @@ export class BLENMEAProvider
     this.clearReconnect();
     this.stopWatchdog();
     this.connected = false;
+    connectionLog.log(this.id, "disconnected", "user");
     this.characteristic?.removeEventListener(
       "characteristicvaluechanged",
       this.onNotify,
@@ -226,6 +243,79 @@ export class BLENMEAProvider
     });
   }
 
+  /** Forget the saved pod and re-run the chooser (needs a user gesture). */
+  async pickNewDevice(): Promise<void> {
+    clearSavedBleDevice();
+    this.clearReconnect();
+    this.characteristic?.removeEventListener(
+      "characteristicvaluechanged",
+      this.onNotify,
+    );
+    this.device?.removeEventListener(
+      "gattserverdisconnected",
+      this.onDisconnect,
+    );
+    this.device?.gatt?.disconnect();
+    this.device = null;
+    this.characteristic = null;
+    this.rxCharacteristic = null;
+    this.connected = false;
+    this.wantConnected = true;
+    this.startWatchdog();
+    await this.pickAndConnect();
+  }
+
+  /**
+   * Full connect flow: saved-device rehydrate via bluetooth.getDevices()
+   * (silent, closes the cross-page-reload reconnect gap), falling back to the
+   * chooser. With a saved device but no getDevices support, surface a notice —
+   * requestDevice without a gesture would just throw a SecurityError.
+   */
+  private async startConnect(): Promise<void> {
+    const bluetooth = navigator.bluetooth;
+    if (!bluetooth) {
+      this.wantConnected = false;
+      return;
+    }
+    const saved = loadSavedBleDevice();
+    if (saved) {
+      if (typeof bluetooth.getDevices === "function") {
+        const devices = await bluetooth
+          .getDevices()
+          .catch(() => [] as BluetoothDevice[]);
+        const match = devices.find((d) => d.id === saved.deviceId);
+        if (match) {
+          this.device = match;
+          this.device.addEventListener(
+            "gattserverdisconnected",
+            this.onDisconnect,
+          );
+          connectionLog.log(
+            this.id,
+            "connect-attempt",
+            `${saved.deviceId} (restored)`,
+          );
+          try {
+            await this.establish();
+          } catch (err) {
+            console.warn("BLE GPS restored-device connect failed:", err);
+            if (!this.startAdvertisementWatch()) this.scheduleReconnect();
+          }
+          return;
+        }
+      }
+      // Saved device not reachable without a gesture — tell the user how to
+      // resume (the banner's Retry click supplies the gesture reconnect needs).
+      connectionLog.log(this.id, "error", "saved device needs a gesture");
+      this.onNotice?.({
+        kind: "connect-failed",
+        detail: "tap Retry to reconnect to the GPS pod",
+      });
+      return;
+    }
+    await this.pickAndConnect();
+  }
+
   // First connect: show the chooser (needs the user gesture from selecting this
   // provider) and open the link. A cancelled/failed picker drops the intent —
   // re-opening the chooser would need a fresh gesture, so we don't auto-retry it.
@@ -236,13 +326,22 @@ export class BLENMEAProvider
       return;
     }
     // The picker needs a user gesture; a cancel/failure here can't be retried
-    // silently, so drop the intent.
+    // silently, so drop the intent — but loudly (log + notice).
     try {
+      connectionLog.log(this.id, "picker-shown");
       this.device = await bluetooth.requestDevice({
         filters: [{ services: [NUS_SERVICE] }],
       });
+      saveBleDevice({ deviceId: this.device.id, name: this.device.name });
+      connectionLog.log(
+        this.id,
+        "device-selected",
+        `${this.device.name ?? "?"} ${this.device.id}`,
+      );
     } catch (err) {
       console.warn("BLE GPS device not selected:", err);
+      connectionLog.log(this.id, "picker-cancelled", String(err));
+      this.onNotice?.({ kind: "picker-cancelled", detail: String(err) });
       this.wantConnected = false;
       return;
     }
@@ -251,6 +350,11 @@ export class BLENMEAProvider
     // client slot is still held by a stale connection that's about to time
     // out). Retry on a backoff rather than giving up — no gesture needed.
     try {
+      connectionLog.log(
+        this.id,
+        "connect-attempt",
+        `${this.device.id} (initial)`,
+      );
       await this.establish();
     } catch (err) {
       console.warn("BLE GPS connect failed, retrying:", err);
@@ -296,6 +400,8 @@ export class BLENMEAProvider
     this.connected = true;
     this.lastDataMs = Date.now(); // baseline so the watchdog doesn't fire instantly
     this.reconnectDelayMs = 0; // recovered — reset the backoff
+    connectionLog.log(this.id, "connected", this.device?.name ?? undefined);
+    this.onNotice?.({ kind: "connected" });
     // Re-arm satellite forwarding if a diagnostics view is open across a reconnect.
     if (this.satWanted) this.sendSatCommand(true);
   }
@@ -320,6 +426,7 @@ export class BLENMEAProvider
     if (!this.wantConnected || !this.connected) return;
     if (Date.now() - this.lastDataMs > BLENMEAProvider.SILENCE_LIMIT_MS) {
       console.warn("BLE GPS: link silent, forcing reconnect");
+      connectionLog.log(this.id, "watchdog-silent");
       this.connected = false;
       void this.retryConnect();
     }
@@ -331,6 +438,11 @@ export class BLENMEAProvider
     this.reconnectDelayMs = this.reconnectDelayMs
       ? Math.min(this.reconnectDelayMs * 2, BLENMEAProvider.RECONNECT_MAX_MS)
       : BLENMEAProvider.RECONNECT_MIN_MS;
+    connectionLog.log(
+      this.id,
+      "reconnect-scheduled",
+      `${this.reconnectDelayMs}ms`,
+    );
     this.reconnectTimer = setTimeout(() => {
       this.reconnectTimer = null;
       void this.retryConnect();

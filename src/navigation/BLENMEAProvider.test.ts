@@ -32,6 +32,8 @@ class FakeGatt {
 }
 
 class FakeDevice extends EventTarget {
+  id = "web-dev-1";
+  name = "Pelorus-GPS";
   gatt = new FakeGatt();
   watchAdvertisements?: (options?: { signal?: AbortSignal }) => Promise<void> =
     vi.fn(() => Promise.resolve());
@@ -201,6 +203,68 @@ describe("BLENMEAProvider auto-reconnect", () => {
 
     expect(requestDevice).toHaveBeenCalledTimes(2); // fell back to the chooser
     expect(provider.isConnected()).toBe(true);
+  });
+
+  it("persists the picked device id and name", async () => {
+    const storage = new Map<string, string>();
+    vi.stubGlobal("localStorage", {
+      getItem: (k: string) => storage.get(k) ?? null,
+      setItem: (k: string, v: string) => storage.set(k, v),
+      removeItem: (k: string) => storage.delete(k),
+    });
+    const provider = new BLENMEAProvider();
+    provider.connect();
+    await flush();
+
+    expect(JSON.parse(storage.get("pelorus-nav-ble-device") ?? "{}")).toEqual({
+      deviceId: "web-dev-1",
+      name: "Pelorus-GPS",
+    });
+  });
+
+  it("startup connect rehydrates via bluetooth.getDevices when available", async () => {
+    const storage = new Map<string, string>([
+      [
+        "pelorus-nav-ble-device",
+        JSON.stringify({ deviceId: "web-dev-1", name: "Pelorus-GPS" }),
+      ],
+    ]);
+    vi.stubGlobal("localStorage", {
+      getItem: (k: string) => storage.get(k) ?? null,
+      setItem: (k: string, v: string) => storage.set(k, v),
+      removeItem: (k: string) => storage.delete(k),
+    });
+    vi.stubGlobal("navigator", {
+      bluetooth: {
+        requestDevice,
+        getDevices: () => Promise.resolve([device]),
+      },
+    });
+    const provider = new BLENMEAProvider();
+    provider.connect();
+    await flush();
+
+    expect(requestDevice).toHaveBeenCalledTimes(0); // no chooser
+    expect(provider.isConnected()).toBe(true);
+  });
+
+  it("startup with a saved device but no getDevices emits connect-failed, no chooser", async () => {
+    const storage = new Map<string, string>([
+      ["pelorus-nav-ble-device", JSON.stringify({ deviceId: "web-dev-1" })],
+    ]);
+    vi.stubGlobal("localStorage", {
+      getItem: (k: string) => storage.get(k) ?? null,
+      setItem: (k: string, v: string) => storage.set(k, v),
+      removeItem: (k: string) => storage.delete(k),
+    });
+    const notices: Array<{ kind: string }> = [];
+    const provider = new BLENMEAProvider((n) => notices.push(n));
+    provider.connect();
+    await flush();
+
+    expect(requestDevice).toHaveBeenCalledTimes(0); // would throw SecurityError
+    expect(notices.some((n) => n.kind === "connect-failed")).toBe(true);
+    expect(provider.isConnected()).toBe(false);
   });
 
   it("reports isReconnecting() between a drop and recovery", async () => {

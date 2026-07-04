@@ -6,9 +6,22 @@
  * stream, same id ("ble-nmea") and gesture model (selecting the provider in
  * Settings triggers the native device picker). Only the transport API differs,
  * so main.ts registers this on native and the Web Bluetooth one on the web.
+ *
+ * Resilience (field-tested the hard way):
+ * - The chosen device persists across app restarts (bleDeviceStore), so
+ *   startup reconnects silently — no picker.
+ * - Bluetooth-off is detected and surfaced via the notice callback instead of
+ *   failing silently; the connect intent survives and resumes when BT returns.
+ * - Lifecycle events land in the persistent connectionLog for field diagnosis.
  */
 
 import { BleClient, type BleDevice } from "@capacitor-community/bluetooth-le";
+import {
+  clearSavedBleDevice,
+  loadSavedBleDevice,
+  saveBleDevice,
+} from "./bleDeviceStore";
+import { connectionLog } from "./ConnectionEventLog";
 import type {
   NavigationDataCallback,
   NavigationDataProvider,
@@ -21,6 +34,14 @@ import { NMEAStream } from "./nmea-stream";
 const NUS_SERVICE = "6e400001-b5a3-f393-e0a9-e50e24dcca9e";
 const NUS_RX = "6e400002-b5a3-f393-e0a9-e50e24dcca9e"; // central → peripheral (write)
 const NUS_TX = "6e400003-b5a3-f393-e0a9-e50e24dcca9e"; // peripheral → central (notify)
+
+/** User-facing connection conditions, mapped to banners by main.ts. */
+export type BleNotice =
+  | { kind: "bt-off" }
+  | { kind: "bt-on" }
+  | { kind: "connected" }
+  | { kind: "picker-cancelled"; detail: string }
+  | { kind: "connect-failed"; detail: string };
 
 export class CapacitorBLENMEAProvider
   implements NavigationDataProvider, SatelliteDiagnostics
@@ -45,6 +66,8 @@ export class CapacitorBLENMEAProvider
   private connected = false;
   private wantConnected = false;
   private establishing = false;
+  private btOff = false;
+  private enabledWatchStarted = false;
   private lastDataMs = 0;
   private watchdogTimer: ReturnType<typeof setInterval> | null = null;
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
@@ -52,8 +75,10 @@ export class CapacitorBLENMEAProvider
   private readonly decoder = new TextDecoder();
   private readonly encoder = new TextEncoder();
   private readonly stream: NMEAStream;
+  private readonly onNotice?: (notice: BleNotice) => void;
 
-  constructor() {
+  constructor(onNotice?: (notice: BleNotice) => void) {
+    this.onNotice = onNotice;
     this.stream = new NMEAStream(
       "ble-nmea",
       (data) => {
@@ -76,8 +101,9 @@ export class CapacitorBLENMEAProvider
   connect(): void {
     if (this.wantConnected) return;
     this.wantConnected = true;
+    connectionLog.log(this.id, "connect-request");
     this.startWatchdog();
-    void this.pickAndConnect();
+    void this.startConnect();
   }
 
   disconnect(): void {
@@ -85,6 +111,7 @@ export class CapacitorBLENMEAProvider
     this.clearReconnect();
     this.stopWatchdog();
     this.connected = false;
+    connectionLog.log(this.id, "disconnected", "user");
     const id = this.device?.deviceId;
     this.device = null;
     this.stream.reset();
@@ -92,19 +119,36 @@ export class CapacitorBLENMEAProvider
       BleClient.stopNotifications(id, NUS_SERVICE, NUS_TX).catch(() => {});
       BleClient.disconnect(id).catch(() => {});
     }
+    if (this.enabledWatchStarted) {
+      this.enabledWatchStarted = false;
+      BleClient.stopEnabledNotifications().catch(() => {});
+    }
   }
 
   /**
-   * Manual reconnect (UI button). With a device already chosen, cancel any
-   * pending backoff and retry immediately — no picker. With no device, fall
-   * back to the normal connect, which shows the native picker.
+   * Manual reconnect (UI button). With a device already chosen (in memory or
+   * persisted), cancel any pending backoff and retry immediately — no picker.
+   * With no device at all, fall back to the normal connect, which shows the
+   * native picker.
    */
   async reconnect(): Promise<void> {
     this.clearReconnect();
+    if (!this.device) {
+      const saved = loadSavedBleDevice();
+      if (saved) {
+        this.device = { deviceId: saved.deviceId, name: saved.name };
+      }
+    }
     if (this.device) {
       this.wantConnected = true;
       this.connected = false;
+      this.startWatchdog();
       try {
+        connectionLog.log(
+          this.id,
+          "connect-attempt",
+          this.attemptDetail("manual"),
+        );
         await this.establish(); // reuse the chosen device — no picker
         return;
       } catch (err) {
@@ -112,11 +156,41 @@ export class CapacitorBLENMEAProvider
           "Capacitor BLE GPS manual reconnect: reuse failed, re-picking:",
           err,
         );
+        if (await this.detectBtOff()) return;
         this.device = null;
       }
     }
     this.wantConnected = true;
+    this.startWatchdog();
     await this.pickAndConnect(); // shows the native picker
+  }
+
+  /** Forget the saved pod and re-run the picker (the stale-MAC escape hatch). */
+  async pickNewDevice(): Promise<void> {
+    clearSavedBleDevice();
+    this.clearReconnect();
+    const id = this.device?.deviceId;
+    if (id) {
+      BleClient.stopNotifications(id, NUS_SERVICE, NUS_TX).catch(() => {});
+      BleClient.disconnect(id).catch(() => {});
+    }
+    this.device = null;
+    this.connected = false;
+    this.wantConnected = true;
+    this.startWatchdog();
+    await this.pickAndConnect();
+  }
+
+  /**
+   * Ask Android to enable Bluetooth (system dialog); falls back to opening
+   * the Bluetooth settings screen. Wired to the "Turn On" banner action.
+   */
+  async promptEnableBluetooth(): Promise<void> {
+    try {
+      await BleClient.requestEnable();
+    } catch {
+      await BleClient.openBluetoothSettings().catch(() => {});
+    }
   }
 
   subscribe(callback: NavigationDataCallback): void {
@@ -154,28 +228,150 @@ export class CapacitorBLENMEAProvider
     });
   }
 
+  private attemptDetail(cause: string): string {
+    return `${this.device?.deviceId ?? "?"} (${cause})`;
+  }
+
+  /**
+   * Full connect flow: initialize → Bluetooth-enabled check → saved-device
+   * rehydrate (silent) → picker fallback (first-ever use).
+   */
+  private async startConnect(): Promise<void> {
+    try {
+      await BleClient.initialize();
+    } catch (err) {
+      connectionLog.log(this.id, "error", `initialize: ${String(err)}`);
+      this.onNotice?.({ kind: "connect-failed", detail: String(err) });
+      this.wantConnected = false;
+      return;
+    }
+    if (!(await this.ensureEnabledWatch())) return; // BT off: intent kept
+    const saved = loadSavedBleDevice();
+    if (saved) {
+      // Silent startup rehydrate — connect by the persisted deviceId, no
+      // picker. getDevices just materializes the BleDevice; a failure there
+      // is non-fatal (Android can connect directly by id).
+      const found = await BleClient.getDevices([saved.deviceId]).catch(
+        () => [] as BleDevice[],
+      );
+      this.device = found[0] ?? { deviceId: saved.deviceId, name: saved.name };
+      connectionLog.log(
+        this.id,
+        "connect-attempt",
+        this.attemptDetail("restored"),
+      );
+      try {
+        await this.establish();
+      } catch (err) {
+        console.warn("Capacitor BLE GPS restored-device connect failed:", err);
+        if (await this.detectBtOff()) return;
+        this.scheduleReconnect();
+      }
+      return;
+    }
+    await this.pickAndConnect();
+  }
+
+  /**
+   * Start the Bluetooth enabled/disabled watch (once) and check current state.
+   * Returns whether Bluetooth is enabled. When it's off, surface the notice
+   * and keep wantConnected — onEnabledChanged resumes when BT comes back.
+   */
+  private async ensureEnabledWatch(): Promise<boolean> {
+    if (!this.enabledWatchStarted) {
+      this.enabledWatchStarted = true;
+      await BleClient.startEnabledNotifications((value) =>
+        this.onEnabledChanged(value),
+      ).catch((err) => {
+        console.warn("Capacitor BLE GPS: enabled watch failed:", err);
+      });
+    }
+    const enabled = await BleClient.isEnabled().catch(() => true);
+    this.btOff = !enabled;
+    if (!enabled) {
+      connectionLog.log(this.id, "bt-disabled", "at connect");
+      this.onNotice?.({ kind: "bt-off" });
+    }
+    return enabled;
+  }
+
+  private onEnabledChanged(enabled: boolean): void {
+    if (enabled) {
+      this.btOff = false;
+      connectionLog.log(this.id, "bt-enabled");
+      this.onNotice?.({ kind: "bt-on" });
+      if (this.wantConnected) {
+        this.reconnectDelayMs = 0;
+        void this.startConnect();
+      }
+    } else {
+      this.btOff = true;
+      this.connected = false;
+      this.clearReconnect(); // stop futile backoff; bt-on resumes instead
+      connectionLog.log(this.id, "bt-disabled");
+      this.onNotice?.({ kind: "bt-off" });
+    }
+  }
+
+  /**
+   * A connect failure may really be "Bluetooth just turned off" (racing the
+   * enabled notification). Detect it so the failure surfaces as the bt-off
+   * banner + resume-on-enable instead of a futile backoff loop.
+   */
+  private async detectBtOff(): Promise<boolean> {
+    const enabled = await BleClient.isEnabled().catch(() => true);
+    if (enabled) return false;
+    if (!this.btOff) {
+      this.btOff = true;
+      connectionLog.log(this.id, "bt-disabled", "detected on failure");
+      this.onNotice?.({ kind: "bt-off" });
+    }
+    return true;
+  }
+
   // First connect: native scan picker (needs the user gesture from selecting
   // this provider). A cancelled/failed picker drops the intent — re-opening it
   // would need a fresh gesture, so we don't auto-retry the picker.
   private async pickAndConnect(): Promise<void> {
     // The picker needs a user gesture; a cancel/failure here can't be retried
-    // silently, so drop the intent.
+    // silently, so drop the intent — but loudly (log + notice).
     try {
       await BleClient.initialize();
       await this.releaseStaleLinks();
+      connectionLog.log(this.id, "picker-shown");
       this.device = await BleClient.requestDevice({ services: [NUS_SERVICE] });
+      saveBleDevice({
+        deviceId: this.device.deviceId,
+        name: this.device.name,
+      });
+      connectionLog.log(
+        this.id,
+        "device-selected",
+        `${this.device.name ?? "?"} ${this.device.deviceId}`,
+      );
     } catch (err) {
       console.warn("Capacitor BLE GPS device not selected:", err);
-      this.wantConnected = false;
+      connectionLog.log(this.id, "picker-cancelled", String(err));
+      if (!(await this.detectBtOff())) {
+        this.onNotice?.({ kind: "picker-cancelled", detail: String(err) });
+        this.wantConnected = false;
+      }
       return;
     }
     // Opening the link can fail transiently (e.g. the peripheral's single
     // client slot is still held by a stale connection). Retry on a backoff
     // rather than giving up — no gesture needed.
     try {
+      connectionLog.log(
+        this.id,
+        "connect-attempt",
+        this.attemptDetail("initial"),
+      );
       await this.establish();
     } catch (err) {
       console.warn("Capacitor BLE GPS connect failed, retrying:", err);
+      connectionLog.log(this.id, "error", `connect: ${String(err)}`);
+      if (await this.detectBtOff()) return;
       this.scheduleReconnect();
     }
   }
@@ -220,6 +416,8 @@ export class CapacitorBLENMEAProvider
     this.connected = true;
     this.lastDataMs = Date.now(); // baseline so the watchdog doesn't fire instantly
     this.reconnectDelayMs = 0; // recovered — reset the backoff
+    connectionLog.log(this.id, "connected", this.device?.name ?? undefined);
+    this.onNotice?.({ kind: "connected" });
     // Re-arm satellite forwarding if a diagnostics view is open across a reconnect.
     if (this.satWanted) this.sendSatCommand(true);
   }
@@ -227,6 +425,7 @@ export class CapacitorBLENMEAProvider
   private onPeripheralDisconnect(): void {
     if (this.establishing) return; // our own teardown during (re)connect
     this.connected = false;
+    connectionLog.log(this.id, "disconnected", "peripheral");
     if (this.wantConnected) this.scheduleReconnect();
   }
 
@@ -253,19 +452,26 @@ export class CapacitorBLENMEAProvider
       CapacitorBLENMEAProvider.SILENCE_LIMIT_MS
     ) {
       console.warn("Capacitor BLE GPS: link silent, forcing reconnect");
+      connectionLog.log(this.id, "watchdog-silent");
       this.connected = false;
       void this.retryConnect();
     }
   }
 
   private scheduleReconnect(): void {
-    if (!this.wantConnected || this.reconnectTimer !== null) return;
+    if (!this.wantConnected || this.btOff || this.reconnectTimer !== null)
+      return;
     this.reconnectDelayMs = this.reconnectDelayMs
       ? Math.min(
           this.reconnectDelayMs * 2,
           CapacitorBLENMEAProvider.RECONNECT_MAX_MS,
         )
       : CapacitorBLENMEAProvider.RECONNECT_MIN_MS;
+    connectionLog.log(
+      this.id,
+      "reconnect-scheduled",
+      `${this.reconnectDelayMs}ms`,
+    );
     this.reconnectTimer = setTimeout(() => {
       this.reconnectTimer = null;
       void this.retryConnect();
@@ -273,11 +479,17 @@ export class CapacitorBLENMEAProvider
   }
 
   private async retryConnect(): Promise<void> {
-    if (!this.wantConnected || !this.device) return;
+    if (!this.wantConnected || this.btOff || !this.device) return;
     try {
+      connectionLog.log(
+        this.id,
+        "connect-attempt",
+        this.attemptDetail("retry"),
+      );
       await this.establish();
     } catch (err) {
       console.warn("Capacitor BLE GPS reconnect failed:", err);
+      if (await this.detectBtOff()) return;
       this.scheduleReconnect();
     }
   }

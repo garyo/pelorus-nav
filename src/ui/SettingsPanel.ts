@@ -76,6 +76,8 @@ export interface GpsLinkOpt {
   reconnect: () => void;
   /** Hard reset: full disconnect→connect, to clear a wedged link. */
   reset: () => void;
+  /** Forget the saved device and re-run the picker (e.g. new pod hardware). */
+  changeDevice: () => void;
 }
 
 export interface CreateSettingsPanelOpts {
@@ -84,6 +86,8 @@ export interface CreateSettingsPanelOpts {
   gpsLink: GpsLinkOpt;
   /** Open the live satellite diagnostics panel for the active provider. */
   openSatelliteDiagnostics: () => void;
+  /** Open the persistent connection event log viewer. */
+  openConnectionLog: () => void;
 }
 
 export interface SettingsPanelHandle {
@@ -199,7 +203,12 @@ function buildTabbedPanel(
   tabBodies.set("layers", buildLayersTab(settings, opts.chartProviders));
   tabBodies.set(
     "navigation",
-    buildNavigationTab(settings, opts.gpsLink, opts.openSatelliteDiagnostics),
+    buildNavigationTab(
+      settings,
+      opts.gpsLink,
+      opts.openSatelliteDiagnostics,
+      opts.openConnectionLog,
+    ),
   );
 
   for (const [id, body] of tabBodies) {
@@ -593,6 +602,7 @@ function buildNavigationTab(
   settings: ReturnType<typeof getSettings>,
   gpsLink: GpsLinkOpt,
   openSatelliteDiagnostics: () => void,
+  openConnectionLog: () => void,
 ): HTMLElement {
   const tab = document.createElement("div");
 
@@ -631,15 +641,21 @@ function buildNavigationTab(
     "View",
     () => openSatelliteDiagnostics(),
   );
+  // Persistent connection event log — the field-diagnosis record for BLE.
+  const logRow = buildActionRow("Event log", "settings-ble-log", "View", () =>
+    openConnectionLog(),
+  );
   const updateBleRows = (src: string) => {
     const display = src === "ble-nmea" ? "" : "none";
     linkRow.row.style.display = display;
     satRow.style.display = display;
+    logRow.style.display = display;
   };
   updateBleRows(settings.gpsSource);
   onSettingsChange((s) => updateBleRows(s.gpsSource));
   tab.appendChild(linkRow.row);
   tab.appendChild(satRow);
+  tab.appendChild(logRow);
   // Poll the link state while the panel exists (cheap; the row early-returns when
   // hidden). 1 Hz is enough to catch drops and the stuck-too-long escalation.
   setInterval(linkRow.update, 1000);
@@ -1344,7 +1360,15 @@ function buildGpsLinkRow(gpsLink: GpsLinkOpt): {
   resetBtn.style.display = "none";
   resetBtn.addEventListener("click", () => gpsLink.reset());
 
-  controls.append(status, reconnectBtn, resetBtn);
+  // Always enabled — it's the escape hatch when the saved device is stale
+  // (reflashed pod with a new MAC), including while "reconnecting" forever.
+  const changeBtn = document.createElement("button");
+  changeBtn.type = "button";
+  changeBtn.className = "settings-action-btn";
+  changeBtn.textContent = "Change…";
+  changeBtn.addEventListener("click", () => gpsLink.changeDevice());
+
+  controls.append(status, reconnectBtn, resetBtn, changeBtn);
   row.appendChild(controls);
 
   let reconnectingSince = 0;

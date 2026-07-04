@@ -849,6 +849,37 @@ body {
   overflow-y: auto;
 }
 
+/* Connection event log viewer (ConnectionLogPanel.ts) */
+.conn-log-card {
+  display: flex;
+  flex-direction: column;
+  width: 560px;
+}
+
+.conn-log-text {
+  flex: 1;
+  min-height: 120px;
+  max-height: 50vh;
+  overflow: auto;
+  margin: 12px 0;
+  padding: 8px;
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid #444;
+  border-radius: 4px;
+  font:
+    11px ui-monospace,
+    "SF Mono",
+    Menlo,
+    monospace;
+  white-space: pre;
+}
+
+.conn-log-buttons {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
 .about-title {
   font-size: 18px;
   font-weight: bold;
@@ -2453,6 +2484,54 @@ body {
   background: rgba(68, 136, 204, 0.15);
 }
 
+/* Keyed status banners (StatusBanner.ts) — persistent, high-contrast,
+   top-center so they don't collide with the bottom-center update notice. */
+.status-banner-stack {
+  position: fixed;
+  top: 56px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  z-index: 10001;
+  max-width: min(90vw, 480px);
+}
+
+.status-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  background: rgba(30, 30, 30, 0.95);
+  border: 1px solid #cc8844;
+  border-radius: 8px;
+  color: #eee;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.status-banner-icon {
+  flex-shrink: 0;
+  color: #ffaa44;
+}
+
+.status-banner button {
+  flex-shrink: 0;
+  padding: 4px 10px;
+  background: none;
+  border: 1px solid #4488cc;
+  border-radius: 4px;
+  color: #4488cc;
+  font-size: 12px;
+  cursor: pointer;
+  font-weight: 400;
+}
+
+.status-banner button:hover {
+  background: rgba(68, 136, 204, 0.15);
+}
+
 /* Offline indicator */
 .offline-indicator {
   display: flex;
@@ -2548,6 +2627,21 @@ body {
 }
 
 [data-theme="night"] .update-notice button {
+  border-color: #883333;
+  color: #cc3333;
+}
+
+[data-theme="night"] .status-banner {
+  background: rgba(26, 10, 10, 0.95);
+  border-color: #883333;
+  color: #cc3333;
+}
+
+[data-theme="night"] .status-banner-icon {
+  color: #cc3333;
+}
+
+[data-theme="night"] .status-banner button {
   border-color: #883333;
   color: #cc3333;
 }
@@ -2854,6 +2948,24 @@ body {
 }
 
 [data-theme="eink"] .update-notice button {
+  border-color: #000000;
+  border-radius: 0;
+  color: #000000;
+}
+
+[data-theme="eink"] .status-banner {
+  background: #ffffff;
+  border: 2px solid #000000;
+  border-radius: 0;
+  color: #000000;
+  font-weight: 700;
+}
+
+[data-theme="eink"] .status-banner-icon {
+  color: #000000;
+}
+
+[data-theme="eink"] .status-banner button {
   border-color: #000000;
   border-radius: 0;
   color: #000000;
