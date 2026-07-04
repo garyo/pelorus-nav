@@ -7,18 +7,11 @@ import type maplibregl from "maplibre-gl";
 import { getAllRoutes } from "../data/db";
 import type { Route } from "../data/Route";
 import { lightenHex } from "../utils/color";
-import { haversineDistanceNM } from "../utils/coordinates";
+import { bboxOfCoords, haversineDistanceNM } from "../utils/coordinates";
 import { fitMapToBounds, fitMapToBoundsIfNeeded } from "./fit-bounds";
 import { ensurePointIcons, pointRole, ROLE_ICON_EXPR } from "./point-icons";
-import {
-  GLOW_BLUR,
-  GLOW_CIRCLE_BLUR,
-  GLOW_CIRCLE_COLOR,
-  GLOW_CIRCLE_RADIUS,
-  GLOW_LIGHTEN,
-  GLOW_OPACITY,
-  GLOW_WIDTH,
-} from "./selection-glow";
+import { GLOW_LIGHTEN } from "./selection-glow";
+import { SelectionHalo } from "./selection-halo";
 
 function sourceId(routeId: string): string {
   return `_route-${routeId}`;
@@ -38,29 +31,22 @@ function labelLayerId(routeId: string): string {
 
 /** [minLon, minLat, maxLon, maxLat] or null if route has no waypoints. */
 function routeBbox(route: Route): [number, number, number, number] | null {
-  const wps = route.waypoints;
-  if (wps.length === 0) return null;
-  let minLon = wps[0].lon;
-  let minLat = wps[0].lat;
-  let maxLon = wps[0].lon;
-  let maxLat = wps[0].lat;
-  for (let i = 1; i < wps.length; i++) {
-    const w = wps[i];
-    if (w.lon < minLon) minLon = w.lon;
-    else if (w.lon > maxLon) maxLon = w.lon;
-    if (w.lat < minLat) minLat = w.lat;
-    else if (w.lat > maxLat) maxLat = w.lat;
-  }
-  return [minLon, minLat, maxLon, maxLat];
+  return bboxOfCoords(route.waypoints.map((w) => [w.lon, w.lat]));
 }
 
 export class RouteLayer {
   private readonly map: maplibregl.Map;
   private loadedRoutes = new Map<string, Route>();
   private selectedRouteId: string | null = null;
+  private readonly selectionHalo: SelectionHalo;
 
   constructor(map: maplibregl.Map) {
     this.map = map;
+    this.selectionHalo = new SelectionHalo(map, {
+      source: RouteLayer.SELECTED_SOURCE,
+      lineLayer: RouteLayer.SELECTED_LAYER,
+      pointsLayer: RouteLayer.SELECTED_POINTS_LAYER,
+    });
     map.on("style.load", () => this.reloadAll());
     if (map.isStyleLoaded()) this.reloadAll();
   }
@@ -286,92 +272,20 @@ export class RouteLayer {
       this.clearSelectedRoute();
       return;
     }
-    const features: GeoJSON.Feature[] = [
-      {
-        type: "Feature",
-        properties: {},
-        geometry: {
-          type: "LineString",
-          coordinates: wps.map((w) => [w.lon, w.lat]),
-        },
-      },
-    ];
-    for (const w of wps) {
-      features.push({
-        type: "Feature",
-        properties: {},
-        geometry: { type: "Point", coordinates: [w.lon, w.lat] },
-      });
-    }
-    const data: GeoJSON.FeatureCollection = {
-      type: "FeatureCollection",
-      features,
-    };
-
+    const coords = wps.map((w): [number, number] => [w.lon, w.lat]);
     const glowColor = lightenHex(route.color, GLOW_LIGHTEN);
-    const src = this.map.getSource(RouteLayer.SELECTED_SOURCE) as
-      | maplibregl.GeoJSONSource
-      | undefined;
-    if (src) {
-      src.setData(data);
-      if (this.map.getLayer(RouteLayer.SELECTED_LAYER)) {
-        this.map.setPaintProperty(
-          RouteLayer.SELECTED_LAYER,
-          "line-color",
-          glowColor,
-        );
-      }
-      return;
-    }
-
-    this.map.addSource(RouteLayer.SELECTED_SOURCE, {
-      type: "geojson",
-      data,
-    });
-
-    const beforeId = this.firstRouteLineLayer();
-    this.map.addLayer(
-      {
-        id: RouteLayer.SELECTED_LAYER,
-        type: "line",
-        source: RouteLayer.SELECTED_SOURCE,
-        filter: ["==", "$type", "LineString"],
-        layout: { "line-cap": "round", "line-join": "round" },
-        paint: {
-          "line-color": glowColor,
-          "line-width": GLOW_WIDTH,
-          "line-blur": GLOW_BLUR,
-          "line-opacity": GLOW_OPACITY,
-        },
-      },
-      beforeId,
-    );
-    this.map.addLayer(
-      {
-        id: RouteLayer.SELECTED_POINTS_LAYER,
-        type: "circle",
-        source: RouteLayer.SELECTED_SOURCE,
-        filter: ["==", "$type", "Point"],
-        paint: {
-          "circle-color": GLOW_CIRCLE_COLOR,
-          "circle-radius": GLOW_CIRCLE_RADIUS,
-          "circle-blur": GLOW_CIRCLE_BLUR,
-          "circle-opacity": GLOW_OPACITY,
-        },
-      },
-      beforeId,
+    this.selectionHalo.update(
+      coords,
+      glowColor,
+      this.firstRouteLineLayer(),
+      coords,
     );
   }
 
   /** Clear the selected-route halo (keeps layer, empties data). */
   clearSelectedRoute(): void {
     this.selectedRouteId = null;
-    const src = this.map.getSource(RouteLayer.SELECTED_SOURCE) as
-      | maplibregl.GeoJSONSource
-      | undefined;
-    if (src) {
-      src.setData({ type: "FeatureCollection", features: [] });
-    }
+    this.selectionHalo.clear();
   }
 
   /** Zoom to fit the route, unless it's already well-framed on screen. */

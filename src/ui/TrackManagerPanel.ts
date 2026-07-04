@@ -25,6 +25,7 @@ import type { TrackLayer } from "../map/TrackLayer";
 import type { TrackRecorder } from "../map/TrackRecorder";
 import { updateSettings } from "../settings";
 import { formatDistanceShort, formatDurationShort } from "../utils/format";
+import { openColorPicker } from "./color-picker";
 import {
   iconActivity,
   iconExport,
@@ -48,6 +49,10 @@ export class TrackManagerPanel {
    *  duplicate getTrackPoints + saveTrackMeta when refresh() runs again
    *  before a previous fill completes. */
   private readonly fillsInFlight: Set<string> = new Set();
+  /** True while an inline rename input is open. Suppresses refresh() so a
+   *  background refresh can't destroy the input mid-edit and silently
+   *  lose the rename. */
+  private editing = false;
   private onViewTrack?: (meta: TrackMeta) => void;
 
   constructor(trackLayer: TrackLayer, recorder: TrackRecorder) {
@@ -203,6 +208,7 @@ export class TrackManagerPanel {
   }
 
   private async refresh(): Promise<void> {
+    if (this.editing) return;
     const metas = await getAllTrackMetas();
     // Sort newest first
     metas.sort((a, b) => b.createdAt - a.createdAt);
@@ -402,10 +408,12 @@ export class TrackManagerPanel {
     input.style.margin = "0";
     input.style.width = "100%";
     nameEl.replaceWith(input);
+    this.editing = true;
     input.focus();
     input.select();
 
     const finish = async () => {
+      this.editing = false;
       const newName = input.value.trim() || meta.name;
       meta.name = newName;
       await saveTrackMeta(meta);
@@ -471,29 +479,22 @@ export class TrackManagerPanel {
     downloadFile(gpx, "pelorus-tracks.gpx", GPX_MIME);
   }
 
-  private async pickColor(
-    meta: TrackMeta,
-    colorEl: HTMLDivElement,
-  ): Promise<void> {
-    const input = document.createElement("input");
-    input.type = "color";
-    input.value = meta.color;
-    input.style.position = "absolute";
-    input.style.opacity = "0";
-    colorEl.appendChild(input);
-    input.click();
-
-    input.addEventListener("input", () => {
-      meta.color = input.value;
-      colorEl.style.backgroundColor = input.value;
-    });
-
-    input.addEventListener("change", async () => {
-      meta.color = input.value;
-      await saveTrackMeta(meta);
-      await this.trackLayer.reloadAll();
-      input.remove();
-    });
+  private pickColor(meta: TrackMeta, colorEl: HTMLDivElement): void {
+    openColorPicker(
+      colorEl,
+      meta.color,
+      (color) => {
+        meta.color = color;
+        colorEl.style.backgroundColor = color;
+      },
+      (color) => {
+        meta.color = color;
+        (async () => {
+          await saveTrackMeta(meta);
+          await this.trackLayer.reloadAll();
+        })().catch(console.error);
+      },
+    );
   }
 
   private async importGpx(): Promise<void> {

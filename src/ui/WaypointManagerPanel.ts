@@ -33,6 +33,10 @@ export class WaypointManagerPanel {
   private readonly body: HTMLDivElement;
   private readonly waypointLayer: WaypointLayer;
   private readonly activeNav: ActiveNavigationManager;
+  /** True while an inline rename input is open. Suppresses refresh() so a
+   *  background refresh can't destroy the input mid-edit and silently
+   *  lose the rename. */
+  private editing = false;
 
   constructor(
     waypointLayer: WaypointLayer,
@@ -92,6 +96,7 @@ export class WaypointManagerPanel {
   }
 
   refresh(): void {
+    if (this.editing) return;
     const waypoints = this.waypointLayer.getWaypoints();
 
     if (waypoints.length === 0) {
@@ -204,10 +209,12 @@ export class WaypointManagerPanel {
     input.style.margin = "0";
     input.style.width = "100%";
     nameEl.replaceWith(input);
+    this.editing = true;
     input.focus();
     input.select();
 
     const finish = async () => {
+      this.editing = false;
       const newName = input.value.trim() || wp.name;
       wp.name = newName;
       wp.updatedAt = Date.now();

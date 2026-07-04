@@ -17,6 +17,7 @@ import {
   trackGradientStops,
 } from "../data/track-analysis";
 import { getSettings } from "../settings";
+import { bboxOfCoords } from "../utils/coordinates";
 import { fitMapToBounds } from "./fit-bounds";
 
 const SRC_LINE = "_track-viewer-line-src";
@@ -367,16 +368,9 @@ export class TrackViewerLayer {
   private fitBounds(): void {
     const a = this.analysis;
     if (!a) return;
-    let minLon = a.points[0].lon;
-    let minLat = a.points[0].lat;
-    let maxLon = minLon;
-    let maxLat = minLat;
-    for (const p of a.points) {
-      if (p.lon < minLon) minLon = p.lon;
-      else if (p.lon > maxLon) maxLon = p.lon;
-      if (p.lat < minLat) minLat = p.lat;
-      else if (p.lat > maxLat) maxLat = p.lat;
-    }
+    const bbox = bboxOfCoords(a.points.map((p) => [p.lon, p.lat]));
+    if (!bbox) return;
+    const [minLon, minLat, maxLon, maxLat] = bbox;
     // Pad for the viewer panel, clamped to canvas fractions so the fit
     // still has room to work with on a landscape phone.
     const canvas = this.map.getCanvas();

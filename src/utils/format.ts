@@ -21,3 +21,10 @@ export function formatDistanceShort(nm: number): string {
   if (nm < 100) return `${nm.toFixed(1)} nm`;
   return `${Math.round(nm)} nm`;
 }
+
+/** Format a Date as "YYYY-MM-DD HH:MM" in local time — used to name
+ *  auto-created routes and tracks. */
+export function formatLocalDateTime(d: Date): string {
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}

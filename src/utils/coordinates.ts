@@ -222,6 +222,27 @@ export function alongTrackDistanceNM(
   return sign * atd * R_NM;
 }
 
+/**
+ * Bounding box of a set of [lon, lat] coordinates, as
+ * [minLon, minLat, maxLon, maxLat]. Returns null for an empty array.
+ */
+export function bboxOfCoords(
+  coords: readonly [number, number][],
+): [number, number, number, number] | null {
+  if (coords.length === 0) return null;
+  let [minLon, minLat] = coords[0];
+  let maxLon = minLon;
+  let maxLat = minLat;
+  for (let i = 1; i < coords.length; i++) {
+    const [lon, lat] = coords[i];
+    if (lon < minLon) minLon = lon;
+    else if (lon > maxLon) maxLon = lon;
+    if (lat < minLat) minLat = lat;
+    else if (lat > maxLat) maxLat = lat;
+  }
+  return [minLon, minLat, maxLon, maxLat];
+}
+
 export function parseLatLon(input: string): [number, number] | null {
   const s = input.trim();
   if (!s) return null;

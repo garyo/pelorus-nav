@@ -9,13 +9,10 @@ import type { TrackMeta, TrackPoint } from "../data/Track";
 import type { NavigationData } from "../navigation/NavigationData";
 import type { NavigationDataManager } from "../navigation/NavigationDataManager";
 import { lightenHex } from "../utils/color";
+import { bboxOfCoords } from "../utils/coordinates";
 import { fitMapToBoundsIfNeeded } from "./fit-bounds";
-import {
-  GLOW_BLUR,
-  GLOW_LIGHTEN,
-  GLOW_OPACITY,
-  GLOW_WIDTH,
-} from "./selection-glow";
+import { GLOW_LIGHTEN } from "./selection-glow";
+import { SelectionHalo } from "./selection-halo";
 import type { TrackRecorder } from "./TrackRecorder";
 
 /** Display point with timestamp for the active track buffer. */
@@ -61,6 +58,7 @@ export class TrackLayer {
   private loadedTracks = new Map<string, TrackMeta>();
   private activePoints: DisplayPoint[] = [];
   private lastDisplayTime = 0;
+  private readonly selectionHalo: SelectionHalo;
 
   constructor(
     map: maplibregl.Map,
@@ -69,6 +67,10 @@ export class TrackLayer {
   ) {
     this.map = map;
     this.recorder = recorder;
+    this.selectionHalo = new SelectionHalo(map, {
+      source: TrackLayer.SELECTED_SOURCE,
+      lineLayer: TrackLayer.SELECTED_LAYER,
+    });
 
     map.on("style.load", () => this.reloadAll());
     if (map.isStyleLoaded()) this.reloadAll();
@@ -215,64 +217,14 @@ export class TrackLayer {
       this.clearSelectedTrack();
       return;
     }
-    const data: GeoJSON.FeatureCollection = {
-      type: "FeatureCollection",
-      features: [
-        {
-          type: "Feature",
-          properties: {},
-          geometry: { type: "LineString", coordinates: coords },
-        },
-      ],
-    };
 
     const glowColor = lightenHex(meta.color, GLOW_LIGHTEN);
-    const src = this.map.getSource(TrackLayer.SELECTED_SOURCE) as
-      | maplibregl.GeoJSONSource
-      | undefined;
-    if (src) {
-      src.setData(data);
-      if (this.map.getLayer(TrackLayer.SELECTED_LAYER)) {
-        this.map.setPaintProperty(
-          TrackLayer.SELECTED_LAYER,
-          "line-color",
-          glowColor,
-        );
-      }
-      return;
-    }
-
-    this.map.addSource(TrackLayer.SELECTED_SOURCE, {
-      type: "geojson",
-      data,
-    });
-
-    const beforeId = this.firstTrackLineLayer();
-    this.map.addLayer(
-      {
-        id: TrackLayer.SELECTED_LAYER,
-        type: "line",
-        source: TrackLayer.SELECTED_SOURCE,
-        layout: { "line-cap": "round", "line-join": "round" },
-        paint: {
-          "line-color": glowColor,
-          "line-width": GLOW_WIDTH,
-          "line-blur": GLOW_BLUR,
-          "line-opacity": GLOW_OPACITY,
-        },
-      },
-      beforeId,
-    );
+    this.selectionHalo.update(coords, glowColor, this.firstTrackLineLayer());
   }
 
   clearSelectedTrack(): void {
     this.selectedTrackId = null;
-    const src = this.map.getSource(TrackLayer.SELECTED_SOURCE) as
-      | maplibregl.GeoJSONSource
-      | undefined;
-    if (src) {
-      src.setData({ type: "FeatureCollection", features: [] });
-    }
+    this.selectionHalo.clear();
   }
 
   /** Zoom to fit the track, unless it's already well-framed on screen. */
@@ -280,21 +232,11 @@ export class TrackLayer {
     const allPoints = await getTrackPoints(meta.id);
     // Use only the points the user actually sees on the map.
     const points = allPoints.filter((p) => !p.dropped);
-    if (points.length === 0) return;
-    let minLon = points[0].lon;
-    let minLat = points[0].lat;
-    let maxLon = points[0].lon;
-    let maxLat = points[0].lat;
-    for (let i = 1; i < points.length; i++) {
-      const p = points[i];
-      if (p.lon < minLon) minLon = p.lon;
-      else if (p.lon > maxLon) maxLon = p.lon;
-      if (p.lat < minLat) minLat = p.lat;
-      else if (p.lat > maxLat) maxLat = p.lat;
-    }
+    const bbox = bboxOfCoords(points.map((p) => [p.lon, p.lat]));
+    if (!bbox) return;
     fitMapToBoundsIfNeeded(this.map, [
-      [minLon, minLat],
-      [maxLon, maxLat],
+      [bbox[0], bbox[1]],
+      [bbox[2], bbox[3]],
     ]);
   }
 
