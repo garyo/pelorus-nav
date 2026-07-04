@@ -121,9 +121,27 @@ async function handleTilesRequest(
 
   // Full object request (no Range header) — also covers HEAD, since the
   // Workers runtime strips the body from HEAD responses automatically.
-  const object = await env.TILES.get(key);
+  // `onlyIf` gives conditional-request support: browsers' stale-while-
+  // revalidate background revalidation sends If-None-Match, and without a
+  // 304 here every revalidation re-downloads the entire body (15-20 MB of
+  // search/coverage data per launch on cellular).
+  const object = await env.TILES.get(key, { onlyIf: request.headers });
   if (!object) {
     return new Response("Not found", { status: 404 });
+  }
+  if (!("body" in object) || object.body === null) {
+    // Precondition satisfied (If-None-Match matched / not modified) — R2
+    // returns a body-less object; answer 304 so the client keeps its copy.
+    return new Response(null, {
+      status: 304,
+      headers: {
+        etag: object.httpEtag,
+        "last-modified": object.uploaded.toUTCString(),
+        "cache-control": cacheControlForKey(key),
+        ...corsHeaders,
+        "access-control-expose-headers": EXPOSED_HEADERS,
+      },
+    });
   }
   return new Response(object.body, {
     headers: {

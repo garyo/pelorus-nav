@@ -902,16 +902,28 @@ onSettingsChange((s) => {
   }
 });
 
-// Search dialog for chart features. Cache the merged entries so other
-// features (waypoint auto-naming) can read them synchronously.
+// Search dialog for chart features. The indexes total ~15-20 MB across all
+// regions — the single largest avoidable startup download on cellular — so
+// they load lazily on first use (opening search, or the first synchronous
+// auto-naming lookup kicks the fetch for subsequent calls) instead of at
+// boot. The merged entries are cached so auto-naming can read them
+// synchronously once loaded.
 const searchDialog = new SearchDialog(chartManager.map);
 idleCloseables.push(searchDialog);
 let cachedSearchEntries: SearchEntry[] = [];
-loadAllSearchIndices().then((entries) => {
-  cachedSearchEntries = entries;
-  searchDialog.setEntries(entries);
-});
-const getSearchEntries = (): SearchEntry[] => cachedSearchEntries;
+let searchIndicesRequested = false;
+function ensureSearchIndicesLoaded(): void {
+  if (searchIndicesRequested) return;
+  searchIndicesRequested = true;
+  loadAllSearchIndices().then((entries) => {
+    cachedSearchEntries = entries;
+    searchDialog.setEntries(entries);
+  });
+}
+const getSearchEntries = (): SearchEntry[] => {
+  ensureSearchIndicesLoaded();
+  return cachedSearchEntries;
+};
 
 // Instrument HUD (large data display) — insert before map so it pushes map down
 const mapEl = document.getElementById("map");
@@ -1010,6 +1022,7 @@ new RegionAutoSwitch(navManager);
 document.addEventListener("keydown", (e) => {
   if ((e.ctrlKey || e.metaKey) && e.key === "f") {
     e.preventDefault();
+    ensureSearchIndicesLoaded();
     searchDialog.toggle();
   }
 });
@@ -1386,6 +1399,7 @@ if (topbarMenu) {
     fullLabel: "Search",
   });
   searchBtn.addEventListener("click", () => {
+    ensureSearchIndicesLoaded();
     searchDialog.show();
     closeHamburger();
   });
