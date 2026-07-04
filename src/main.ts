@@ -7,6 +7,8 @@ import { BackgroundGPS } from "./plugins/BackgroundGPS";
 import "maplibre-gl/dist/maplibre-gl.css";
 import { PMTiles, Protocol } from "pmtiles";
 import "./style.css";
+import { installOverlayDimming } from "./app/overlayDimming";
+import { installRepaintThrottle } from "./app/repaintThrottle";
 import {
   ChartManager,
   FeatureQueryHandler,
@@ -27,7 +29,6 @@ import {
   setStoredRasterCharts,
 } from "./chart/raster-charts";
 import { SafetyContour } from "./chart/SafetyContour";
-import { getNauticalLayers } from "./chart/styles";
 import {
   getStreamingVersions,
   refreshStreamingVersions,
@@ -275,82 +276,13 @@ if (import.meta.env.DEV) {
   (window as unknown as { __map: unknown }).__map = chartManager.map;
 }
 
-// Dev-only render harness: with `?testChart=1`, overlay the synthetic S-57 test
-// chart (public/test-chart.pmtiles, one MVT source-layer per S-57 class) and
-// render it through the REAL nautical styles, so a headless spec can verify
-// every feature class produces decent iconography + text.
-//
-// The test layers are added ON TOP of the live style, tagged with a `test-`
-// id prefix and their own `s57-test` source, so a spec can isolate them via
-// queryRenderedFeatures(...).filter(f => f.source === "s57-test"). ChartManager
-// rebuilds the style (setStyle) on every region-in-view change and on the
-// startup streaming-version refresh — which strips anything not in the
-// provider's style — so we re-apply on `styledata` (idempotently). The app
-// always uses iho-s52 symbology, so the live sprite already matches the test
-// layers. No effect on production (gated behind import.meta.env.DEV + URL param).
+// Dev-only render harness (?testChart=1): overlays the synthetic S-57 test
+// chart through the real nautical styles for headless render specs. Loaded
+// dynamically so production bundles drop it entirely.
 if (import.meta.env.DEV) {
-  const testParams = new URLSearchParams(window.location.search);
-  if (testParams.get("testChart") === "1") {
-    const TEST_SOURCE_ID = "s57-test";
-    const testWindow = window as unknown as { __missingIcons?: string[] };
-    testWindow.__missingIcons ??= [];
-    const missingIcons = testWindow.__missingIcons;
-    chartManager.map.on("styleimagemissing", (e) => {
-      missingIcons.push(e.id);
-    });
-
-    const ensureTestChart = (): void => {
-      const map = chartManager.map;
-      let style: ReturnType<typeof map.getStyle>;
-      try {
-        style = map.getStyle();
-      } catch {
-        return; // style not ready yet
-      }
-      if (!style?.layers) return;
-
-      if (!map.getSource(TEST_SOURCE_ID)) {
-        map.addSource(TEST_SOURCE_ID, {
-          type: "vector",
-          tiles: [
-            `pmtiles://${window.location.origin}/test-chart.pmtiles/{z}/{x}/{y}`,
-          ],
-          minzoom: 0,
-          maxzoom: 16,
-        });
-      }
-      const s = getSettings();
-      // detailOffset 2 → showStandard + showOther so EVERY class's layers build.
-      const layers = getNauticalLayers(
-        TEST_SOURCE_ID,
-        s.depthUnit,
-        2,
-        s.layerGroups,
-        undefined,
-        s.displayTheme,
-        "iho-s52",
-        s.shallowDepth,
-        s.safetyDepth,
-        s.deepDepth,
-        s.textScale,
-        s.iconScale,
-      );
-      for (const layer of layers) {
-        // Skip the shared background (its id collides with the live style's).
-        if (layer.type === "background") continue;
-        const testLayer = { ...layer, id: `test-${layer.id}` };
-        if (!map.getLayer(testLayer.id)) map.addLayer(testLayer);
-      }
-      (window as unknown as { __testChartReady: boolean }).__testChartReady =
-        true;
-    };
-
-    // `styledata` fires after the initial load AND after every setStyle rebuild
-    // (incl. diff:true updates that drop our layers). Idempotent guards above
-    // make the re-entrant pass a no-op, so it converges.
-    chartManager.map.on("styledata", ensureTestChart);
-    ensureTestChart();
-  }
+  void import("./app/testChartHarness").then(({ installTestChartHarness }) =>
+    installTestChartHarness(chartManager.map),
+  );
 }
 
 // Persist map position (throttled — moveend fires ~10 Hz underway in follow
@@ -386,93 +318,10 @@ document.addEventListener("visibilitychange", () => {
 // the throttle below and the HUD indicator (see NavigationHUD).
 const thermalMonitor = createThermalMonitor();
 
-// Repaint throttle. Caps idle/steady-state rendering to save battery on
-// long passages — the course smoother is dt-aware, so visible motion
-// stays equally smooth at a lower frame rate. Gestures bypass the cap
-// (see the e-ink pinch-overshoot fix that originally added this).
-//   - E-ink: 250 ms (4 fps) to reduce ghosting.
-//   - Thermal serious/critical: 200 ms (5 fps) to let the SoC cool down.
-//   - Everything else: 100 ms (10 fps), responsive enough for the start
-//     of a turn while saving ~50× of the GPU work between GPS fixes
-//     vs. an uncapped 60 fps animation loop.
-const FRAME_INTERVAL_EINK = 250;
-const FRAME_INTERVAL_HOT = 200;
-const FRAME_INTERVAL_STEADY = 100;
-/**
- * E-ink, while tiles/style are still streaming in after a move or settings
- * change: every rendered frame is a full (~1 s) panel refresh, and MapLibre
- * paints each intermediate loading state — the chart visibly redraws 10+
- * times, gaining a few features per flash. Stretching the frame spacing
- * collapses the storm into 2–3 refreshes; loading still progresses each
- * frame, and the moment everything is loaded the normal interval resumes,
- * so the final complete state renders promptly.
- */
-const FRAME_INTERVAL_EINK_SETTLING = 1500;
-{
-  const map = chartManager.map;
-  const originalTriggerRepaint = map.triggerRepaint.bind(map);
-  let lastFrameTime = 0;
-  let pendingFrame: ReturnType<typeof setTimeout> | null = null;
-  let pendingDeadline = 0;
-
-  const throttledRepaint = () => {
-    // During gestures (pinch/pan/rotate) and the inertia that follows,
-    // run at full rate so the user sees what they're doing — otherwise
-    // incremental deltas pile up in MapLibre's _changes queue and the
-    // accumulated motion lands all at once (overshooting zoom limits, etc).
-    if (map.isMoving() || map.isZooming() || map.isRotating()) {
-      if (pendingFrame) {
-        clearTimeout(pendingFrame);
-        pendingFrame = null;
-      }
-      lastFrameTime = performance.now();
-      originalTriggerRepaint();
-      return;
-    }
-    const thermalState = thermalMonitor.getState();
-    const isHot = thermalState === "serious" || thermalState === "critical";
-    // Note: not isStyleLoaded() — the vessel/course-line setData updates
-    // keep the style perpetually "dirty", so that flag never settles here.
-    const settling = !map.areTilesLoaded();
-    const interval =
-      getSettings().displayTheme === "eink"
-        ? settling
-          ? FRAME_INTERVAL_EINK_SETTLING
-          : FRAME_INTERVAL_EINK
-        : isHot
-          ? FRAME_INTERVAL_HOT
-          : FRAME_INTERVAL_STEADY;
-    const now = performance.now();
-    const deadline = lastFrameTime + interval;
-    if (now >= deadline) {
-      if (pendingFrame) {
-        clearTimeout(pendingFrame);
-        pendingFrame = null;
-      }
-      lastFrameTime = now;
-      originalTriggerRepaint();
-      return;
-    }
-    // A shorter deadline supersedes a pending longer one (e.g. the last
-    // tile just loaded — render the final state now, not in 1.5 s).
-    if (pendingFrame && deadline < pendingDeadline) {
-      clearTimeout(pendingFrame);
-      pendingFrame = null;
-    }
-    if (!pendingFrame) {
-      pendingDeadline = deadline;
-      pendingFrame = setTimeout(
-        () => {
-          pendingFrame = null;
-          lastFrameTime = performance.now();
-          originalTriggerRepaint();
-        },
-        Math.max(0, deadline - now),
-      );
-    }
-  };
-  map.triggerRepaint = throttledRepaint;
-}
+// Repaint throttle: caps idle/steady-state rendering to save battery on
+// long passages (e-ink 4 fps, thermally hot 5 fps, otherwise 10 fps;
+// gestures bypass the cap). See src/app/repaintThrottle.ts.
+installRepaintThrottle(chartManager.map, thermalMonitor);
 
 // Feature picking: the chart query handler owns the single click handler and a
 // unified, cyclable feature-info list. Plugin overlays (tides, …) contribute
@@ -899,6 +748,18 @@ chartManager.map.on("resize", () => {
   appliedCourse = null;
 });
 
+// Screen wake lock. Created BEFORE the settings listener below that calls
+// into it — a const referenced by an earlier-registered listener is a TDZ
+// ReferenceError if any updateSettings() lands in the window between the
+// two, aborting the notify loop mid-listeners.
+const wakeLockCtrl = new WakeLockController();
+{
+  const s = getSettings();
+  wakeLockCtrl.setMode(s.wakeLock);
+  wakeLockCtrl.setGpsActive(s.gpsSource !== "none");
+  wakeLockCtrl.setEinkMode(s.displayTheme === "eink");
+}
+
 // React to chart mode changes from settings
 let navManagerNoticeSource = getSettings().gpsSource;
 onSettingsChange((s) => {
@@ -1029,12 +890,6 @@ function applyTouchZoomForTheme(theme: string): void {
 }
 applyTouchZoomForTheme(initGpsSettings.displayTheme);
 onSettingsChange((s) => applyTouchZoomForTheme(s.displayTheme));
-
-// Screen wake lock
-const wakeLockCtrl = new WakeLockController();
-wakeLockCtrl.setMode(initGpsSettings.wakeLock);
-wakeLockCtrl.setGpsActive(initGpsSettings.gpsSource !== "none");
-wakeLockCtrl.setEinkMode(initGpsSettings.displayTheme === "eink");
 
 // Activate initial GPS source from settings
 navManager.setActiveProvider(initGpsSettings.gpsSource);
@@ -1554,60 +1409,9 @@ if (topbarMenu) {
 // this. Fires after the UI is up so the dialog appears on top.
 maybeShowScreenTimeoutWarning().catch(console.error);
 
-// Dim overlay layers (routes, waypoints, bearing line) in night/dusk themes
-const NIGHT_OPACITY = 0.45;
-const DUSK_OPACITY = 0.7;
-
-function applyOverlayDimming(theme: string): void {
-  const map = chartManager.map;
-  if (!map.isStyleLoaded()) return;
-
-  const opacity =
-    theme === "night" ? NIGHT_OPACITY : theme === "dusk" ? DUSK_OPACITY : 1;
-
-  for (const layer of map.getStyle().layers) {
-    const id = layer.id;
-    const isOverlay =
-      id.startsWith("_route-line-") ||
-      id.startsWith("_route-labels-") ||
-      id === "_bearing-line-layer" ||
-      id === "_bearing-line-target" ||
-      id.startsWith("_plot-");
-
-    if (!isOverlay) continue;
-
-    if (layer.type === "line") {
-      map.setPaintProperty(id, "line-opacity", opacity * 0.9);
-    } else if (layer.type === "circle") {
-      map.setPaintProperty(id, "circle-opacity", opacity);
-      map.setPaintProperty(id, "circle-stroke-opacity", opacity);
-    } else if (layer.type === "symbol") {
-      map.setPaintProperty(id, "text-opacity", opacity);
-    }
-  }
-
-  // Symbol layers (route points, waypoint points) use icon-opacity
-  for (const id of ["_waypoints-points", "_waypoints-labels"]) {
-    if (map.getLayer(id)) {
-      map.setPaintProperty(id, "icon-opacity", opacity);
-      map.setPaintProperty(id, "text-opacity", opacity);
-    }
-  }
-  for (const layer of map.getStyle().layers) {
-    if (layer.id.startsWith("_route-points-") && layer.type === "symbol") {
-      map.setPaintProperty(layer.id, "icon-opacity", opacity);
-    }
-  }
-}
-
-// Apply on theme change and after style reloads (when layers are re-added)
-onSettingsChange((s) => applyOverlayDimming(s.displayTheme));
-chartManager.map.on("style.load", () => {
-  // Defer until layers are re-added after style load
-  chartManager.map.once("idle", () =>
-    applyOverlayDimming(getSettings().displayTheme),
-  );
-});
+// Dim overlay layers (routes, waypoints, bearing line) in night/dusk themes.
+// See src/app/overlayDimming.ts (wires its own settings + style.load hooks).
+installOverlayDimming(chartManager.map);
 
 // ── GPS diagnostic logging ─────────────────────────────────────────
 // Expose on window for console/adb access:
