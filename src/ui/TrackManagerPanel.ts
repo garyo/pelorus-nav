@@ -48,6 +48,10 @@ export class TrackManagerPanel {
    *  duplicate getTrackPoints + saveTrackMeta when refresh() runs again
    *  before a previous fill completes. */
   private readonly fillsInFlight: Set<string> = new Set();
+  /** True while an inline rename input is open. Suppresses refresh() so a
+   *  background refresh can't destroy the input mid-edit and silently
+   *  lose the rename. */
+  private editing = false;
   private onViewTrack?: (meta: TrackMeta) => void;
 
   constructor(trackLayer: TrackLayer, recorder: TrackRecorder) {
@@ -203,6 +207,7 @@ export class TrackManagerPanel {
   }
 
   private async refresh(): Promise<void> {
+    if (this.editing) return;
     const metas = await getAllTrackMetas();
     // Sort newest first
     metas.sort((a, b) => b.createdAt - a.createdAt);
@@ -402,10 +407,12 @@ export class TrackManagerPanel {
     input.style.margin = "0";
     input.style.width = "100%";
     nameEl.replaceWith(input);
+    this.editing = true;
     input.focus();
     input.select();
 
     const finish = async () => {
+      this.editing = false;
       const newName = input.value.trim() || meta.name;
       meta.name = newName;
       await saveTrackMeta(meta);

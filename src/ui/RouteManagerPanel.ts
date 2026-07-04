@@ -42,6 +42,10 @@ export class RouteManagerPanel {
   private onPreviewRoute?: (route: Route) => void;
   private activeNav: ActiveNavigationManager | null = null;
   private selectedRouteId: string | null = null;
+  /** True while an inline rename input is open. Suppresses refresh() so a
+   *  background refresh (e.g. from an editor change) can't destroy the
+   *  input mid-edit and silently lose the rename. */
+  private editing = false;
 
   constructor(routeLayer: RouteLayer, editor: RouteEditor) {
     this.routeLayer = routeLayer;
@@ -216,6 +220,7 @@ export class RouteManagerPanel {
   }
 
   private async refresh(): Promise<void> {
+    if (this.editing) return;
     const routes = await getAllRoutes();
     routes.sort((a, b) => b.createdAt - a.createdAt);
 
@@ -398,10 +403,12 @@ export class RouteManagerPanel {
     input.style.margin = "0";
     input.style.width = "100%";
     nameEl.replaceWith(input);
+    this.editing = true;
     input.focus();
     input.select();
 
     const finish = async () => {
+      this.editing = false;
       const newName = input.value.trim() || route.name;
       route.name = newName;
       await saveRoute(route);
