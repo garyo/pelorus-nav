@@ -78,6 +78,20 @@ describe("BrowserGeolocationProvider error handling", () => {
     expect(notices).toHaveLength(0);
   });
 
+  it("reconnect() re-establishes the watch after a permission-denied disconnect (Nav-9)", () => {
+    const provider = new BrowserGeolocationProvider((n) => notices.push(n));
+    provider.connect();
+    expect(fake.watchCount).toBe(1);
+
+    fake.watchError?.(geoError(1)); // PERMISSION_DENIED — disconnects
+    expect(provider.isConnected()).toBe(false);
+
+    provider.reconnect();
+
+    expect(provider.isConnected()).toBe(true);
+    expect(fake.watchCount).toBe(2); // watch restarted
+  });
+
   it("PERMISSION_DENIED in poll mode stops the poll timer", () => {
     const provider = new BrowserGeolocationProvider((n) => notices.push(n));
     provider.connect();

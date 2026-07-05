@@ -110,6 +110,8 @@ export class GPSFilter {
   /** Clear filter state. Next call to filter() will re-initialize. */
   reset(): void {
     this.state = null;
+    this.fixIntervals = [];
+    this.weakGps = false;
   }
 
   /** Returns true when the filter has been initialized with at least one fix. */
@@ -120,6 +122,11 @@ export class GPSFilter {
   /** Returns true when the GPS stream has been detected as weak/flaky. */
   isWeakGps(): boolean {
     return this.weakGps;
+  }
+
+  /** Test hook: expose the raw covariance matrix to verify its structure. */
+  getCovarianceForTests(): Float64Array | null {
+    return this.state?.P ?? null;
   }
 
   /** Current effective stale gap threshold (ms). */
@@ -382,11 +389,15 @@ export class GPSFilter {
     const velVar = (2 / KN_PER_DEG_S) ** 2; // ~2 kn uncertainty
     s.P[10] = velVar;
     s.P[15] = velVar;
-    // Clear cross-covariances between position and velocity
+    // Clear cross-covariances between position and velocity (both triangles,
+    // keeping P symmetric).
     s.P[2] = 0;
     s.P[3] = 0;
-    s.P[8] = 0;
+    s.P[6] = 0;
     s.P[7] = 0;
+    s.P[8] = 0;
+    s.P[9] = 0;
+    s.P[12] = 0;
     s.P[13] = 0;
   }
 

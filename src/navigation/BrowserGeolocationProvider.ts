@@ -69,6 +69,16 @@ export class BrowserGeolocationProvider implements NavigationDataProvider {
     this.stopPoll();
   }
 
+  /**
+   * Manual reconnect (banner Retry): full disconnect + connect. Needed after
+   * PERMISSION_DENIED, which stops the watch/poll for good — the user has to
+   * re-grant permission in browser settings first, then retry here.
+   */
+  reconnect(): void {
+    this.disconnect();
+    this.connect();
+  }
+
   subscribe(callback: NavigationDataCallback): void {
     this.listeners.push(callback);
   }
