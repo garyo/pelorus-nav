@@ -1,9 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
 import {
+  ALLOWED_VALUES,
   convertDepth,
   depthConversionFactor,
   depthUnitLabel,
   formatDepth,
+  type Settings,
 } from "./settings";
 
 describe("settings migration", () => {
@@ -208,6 +210,47 @@ describe("settings load() validation", () => {
     expect(getSettings().instrumentCells).toEqual(["dpt", "wind"]);
     vi.unstubAllGlobals();
     vi.resetModules();
+  });
+});
+
+describe("settings load() ALLOWED_VALUES round-trip", () => {
+  async function loadWith(stored: Record<string, unknown>): Promise<Settings> {
+    vi.stubGlobal("localStorage", {
+      getItem: () => JSON.stringify(stored),
+      setItem: () => {},
+    });
+    vi.resetModules();
+    const { getSettings } = await import("./settings");
+    const settings = getSettings();
+    vi.unstubAllGlobals();
+    vi.resetModules();
+    return settings;
+  }
+
+  for (const key of Object.keys(ALLOWED_VALUES) as (keyof Settings)[]) {
+    const values = ALLOWED_VALUES[key] ?? [];
+    for (const value of values) {
+      it(`accepts ${key}=${JSON.stringify(value)} (incl. mixed-type unions)`, async () => {
+        const settings = await loadWith({ settingsVersion: 2, [key]: value });
+        expect(settings[key]).toBe(value);
+      });
+    }
+  }
+
+  it("rejects an out-of-range courseLineDuration number and falls back to default", async () => {
+    const settings = await loadWith({
+      settingsVersion: 2,
+      courseLineDuration: 7,
+    });
+    expect(settings.courseLineDuration).toBe("auto");
+  });
+
+  it("rejects an unrecognized courseLineDuration string and falls back to default", async () => {
+    const settings = await loadWith({
+      settingsVersion: 2,
+      courseLineDuration: "fast",
+    });
+    expect(settings.courseLineDuration).toBe("auto");
   });
 });
 

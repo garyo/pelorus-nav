@@ -268,7 +268,9 @@ type SettingsListener = (settings: Settings) => void;
  * Loaded values outside this list (or of the wrong `typeof`) fall back to
  * the default for that key — see `sanitize()`.
  */
-const ALLOWED_VALUES: Partial<Record<keyof Settings, readonly unknown[]>> = {
+export const ALLOWED_VALUES: Partial<
+  Record<keyof Settings, readonly unknown[]>
+> = {
   depthUnit: ["meters", "feet", "fathoms"],
   speedUnit: ["knots", "mph", "kph"],
   chartMode: ["follow", "course-up", "north-up", "free"],
@@ -293,10 +295,10 @@ const STRUCTURAL_KEYS = new Set<keyof Settings>([
 ]);
 
 function isValidPrimitive(key: keyof Settings, value: unknown): boolean {
+  const allowed = ALLOWED_VALUES[key];
+  if (allowed) return allowed.includes(value);
   if (typeof value !== typeof DEFAULTS[key]) return false;
   if (typeof value === "number" && !Number.isFinite(value)) return false;
-  const allowed = ALLOWED_VALUES[key];
-  if (allowed && !allowed.includes(value)) return false;
   return true;
 }
 
