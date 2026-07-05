@@ -184,7 +184,9 @@ export class ReconnectingTransport {
     }
     this.connectedFlag = true;
     this.lastDataMs = Date.now();
-    this.reconnectDelayMs = 0;
+    // Also clears any pending backoff timer: a superseded attempt's failure
+    // may have armed one, and firing it against a live link would bounce it.
+    this.clearReconnect();
     this.syncWatchdog();
     this.ops.onEstablished();
   }
@@ -291,7 +293,9 @@ export class ReconnectingTransport {
   }
 
   private async retry(): Promise<void> {
-    if (!this.wantConnectedFlag || this.suspended) return;
+    // connectedFlag guards against a stale backoff timer (armed by a
+    // superseded establish's failure) bouncing a link that is already up.
+    if (!this.wantConnectedFlag || this.connectedFlag || this.suspended) return;
     if (this.ops.canAttempt && !this.ops.canAttempt()) return;
     if (this.ops.attemptDetail) {
       connectionLog.log(

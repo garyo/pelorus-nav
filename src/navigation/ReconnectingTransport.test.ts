@@ -209,6 +209,39 @@ describe("ReconnectingTransport", () => {
     expect(core.noteLinkDropped()).toBe(true);
   });
 
+  it("a backoff timer armed by a superseded establish's failure does not bounce a live link", async () => {
+    const attempts: Array<{
+      resolve: () => void;
+      reject: (e: Error) => void;
+    }> = [];
+    const { core, calls } = makeHarness({
+      establish: () =>
+        new Promise<void>((resolve, reject) => {
+          attempts.push({ resolve, reject });
+        }),
+    });
+    core.noteConnectRequested();
+    // The provider's retry path catches establish failures and routes them
+    // through noteEstablishFailed — mirror that here.
+    const first = core
+      .runEstablish("initial")
+      .catch((err) => core.noteEstablishFailed(err));
+    const second = core.runEstablish("manual");
+
+    attempts[1].resolve(); // the newer attempt wins
+    await second;
+    expect(core.isConnected()).toBe(true);
+
+    attempts[0].reject(new Error("superseded attempt lost the race"));
+    await first; // failure handling arms a backoff timer
+
+    // Past the 1s backoff but short of the silence watchdog's limit.
+    await vi.advanceTimersByTimeAsync(5000);
+    expect(attempts.length).toBe(2); // no spurious re-establish
+    expect(calls.teardown).toBe(0); // the live link is left alone
+    expect(core.isConnected()).toBe(true);
+  });
+
   it("escalated recovery suppresses the backoff timer until requestRetry", async () => {
     const { core, calls, control } = makeHarness({
       escalateRecovery: () => true,
