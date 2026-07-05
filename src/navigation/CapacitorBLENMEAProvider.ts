@@ -46,9 +46,6 @@ const NUS_TX = "6e400003-b5a3-f393-e0a9-e50e24dcca9e"; // peripheral → central
 // and only a full disconnect/reconnect can un-strand the provider.
 const ENABLED_WATCH_RETRY_MS = 5000;
 
-/** @deprecated Use ProviderNotice — kept as an alias during migration. */
-export type BleNotice = ProviderNotice;
-
 export class CapacitorBLENMEAProvider
   implements NavigationDataProvider, SatelliteDiagnostics
 {
@@ -68,9 +65,9 @@ export class CapacitorBLENMEAProvider
   private readonly decoder = new TextDecoder();
   private readonly encoder = new TextEncoder();
   private readonly stream: NMEAStream;
-  private readonly onNotice?: (notice: BleNotice) => void;
+  private readonly onNotice?: (notice: ProviderNotice) => void;
 
-  constructor(onNotice?: (notice: BleNotice) => void) {
+  constructor(onNotice?: (notice: ProviderNotice) => void) {
     this.onNotice = onNotice;
     this.stream = new NMEAStream(
       "ble-nmea",

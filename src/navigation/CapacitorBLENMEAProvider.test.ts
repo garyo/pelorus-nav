@@ -89,8 +89,8 @@ vi.mock("@capacitor-community/bluetooth-le", () => ({
   },
 }));
 
-import type { BleNotice } from "./CapacitorBLENMEAProvider";
 import { CapacitorBLENMEAProvider } from "./CapacitorBLENMEAProvider";
+import type { ProviderNotice } from "./ProviderNotice";
 
 function fakeLocalStorage(): Storage {
   const map = new Map<string, string>();
@@ -114,7 +114,7 @@ const flush = () => vi.advanceTimersByTimeAsync(0);
 
 describe("CapacitorBLENMEAProvider", () => {
   let storage: Storage;
-  let notices: BleNotice[];
+  let notices: ProviderNotice[];
 
   beforeEach(() => {
     vi.useFakeTimers();

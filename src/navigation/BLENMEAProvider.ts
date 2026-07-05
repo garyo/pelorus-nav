@@ -17,7 +17,6 @@ import {
   loadSavedBleDevice,
   saveBleDevice,
 } from "./bleDeviceStore";
-import type { BleNotice } from "./CapacitorBLENMEAProvider";
 import { connectionLog } from "./ConnectionEventLog";
 import type {
   NavigationDataCallback,
@@ -26,6 +25,7 @@ import type {
   SatelliteStatusCallback,
 } from "./NavigationData";
 import { NMEAStream } from "./nmea-stream";
+import type { ProviderNotice } from "./ProviderNotice";
 import { ReconnectingTransport } from "./ReconnectingTransport";
 
 // Nordic UART Service UUIDs (lowercase, as Web Bluetooth expects).
@@ -112,9 +112,9 @@ export class BLENMEAProvider
     this.characteristic = null;
   };
 
-  private readonly onNotice?: (notice: BleNotice) => void;
+  private readonly onNotice?: (notice: ProviderNotice) => void;
 
-  constructor(onNotice?: (notice: BleNotice) => void) {
+  constructor(onNotice?: (notice: ProviderNotice) => void) {
     this.onNotice = onNotice;
     this.stream = new NMEAStream(
       "ble-nmea",

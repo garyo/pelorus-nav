@@ -1,8 +1,8 @@
 /**
  * Repaint throttle. Caps idle/steady-state rendering to save battery on
  * long passages — the course smoother is dt-aware, so visible motion
- * stays equally smooth at a lower frame rate. Gestures bypass the cap
- * (see the e-ink pinch-overshoot fix that originally added this).
+ * stays equally smooth at a lower frame rate. Gestures bypass the cap —
+ * throttling mid-pinch makes e-ink zoom overshoot badly.
  *   - E-ink: 250 ms (4 fps) to reduce ghosting.
  *   - Thermal serious/critical: 200 ms (5 fps) to let the SoC cool down.
  *   - Everything else: 100 ms (10 fps), responsive enough for the start
