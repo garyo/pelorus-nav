@@ -148,8 +148,12 @@ if (Capacitor.isNativePlatform() && "serviceWorker" in navigator) {
 }
 
 // On the web PWA, register the service worker and offer a reload when a
-// new build is available (no-op stub in Capacitor builds).
-startAppUpdateNotifier();
+// new build is available (no-op stub in Capacitor builds). The reload is
+// deferred while under way — activeNav/trackRecorder are created further
+// below, but this closure only runs once an update actually arrives.
+startAppUpdateNotifier(
+  () => activeNav.getState().type !== "idle" || trackRecorder.isRecording(),
+);
 
 // Register PMTiles protocol for vector tile sources
 const protocol = new Protocol({ metadata: true });
