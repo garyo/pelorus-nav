@@ -169,15 +169,7 @@ export class WaypointManagerPanel {
     deleteBtn.addEventListener("click", () => {
       if (!confirm(`Delete waypoint "${wp.name}"?`)) return;
       (async () => {
-        // Cancel navigation if this waypoint is the active target
-        const state = this.activeNav.getState();
-        if (
-          state.type === "goto" &&
-          "id" in state.waypoint &&
-          state.waypoint.id === wp.id
-        ) {
-          this.activeNav.stop();
-        }
+        this.activeNav.noteWaypointDeleted(wp.id);
         await deleteWaypoint(wp.id);
         await this.waypointLayer.removeWaypoint(wp.id);
         this.refresh();

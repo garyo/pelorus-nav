@@ -1,6 +1,7 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Route } from "../data/Route";
 import {
+  ActiveNavigationManager,
   computeNavigation,
   pickStartLeg,
   shouldAdvanceLeg,
@@ -126,5 +127,72 @@ describe("pickStartLeg", () => {
   it("defaults to leg 1 for a degenerate single-waypoint route", () => {
     const single: Route = { ...route, waypoints: [route.waypoints[0]] };
     expect(pickStartLeg(0, -0.5, single, arrivalRadius)).toBe(1);
+  });
+});
+
+describe("stop-on-delete", () => {
+  beforeEach(() => {
+    vi.stubGlobal("localStorage", {
+      getItem: () => null,
+      setItem: () => {},
+      removeItem: () => {},
+    });
+  });
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  function makeNav() {
+    const navManager = {
+      subscribe: () => {},
+      getLastData: () => null,
+    } as unknown as ConstructorParameters<typeof ActiveNavigationManager>[0];
+    return new ActiveNavigationManager(navManager);
+  }
+
+  const route: Route = {
+    id: "r1",
+    name: "Test route",
+    color: "#ff0000",
+    visible: true,
+    waypoints: [
+      { id: "w1", name: "A", lat: 42.0, lon: -71.0 },
+      { id: "w2", name: "B", lat: 42.1, lon: -71.0 },
+    ],
+    createdAt: 0,
+    updatedAt: 0,
+  } as unknown as Route;
+
+  it("noteRouteDeleted stops navigation on the deleted route and notifies", () => {
+    const nav = makeNav();
+    nav.startRoute(route, 1);
+    expect(nav.getState().type).toBe("route");
+    let notified = 0;
+    nav.subscribe(() => notified++);
+
+    nav.noteRouteDeleted("r1");
+    expect(nav.getState().type).toBe("idle");
+    expect(notified).toBe(1);
+  });
+
+  it("noteRouteDeleted ignores other routes and non-route navigation", () => {
+    const nav = makeNav();
+    nav.startRoute(route, 1);
+    nav.noteRouteDeleted("other-route");
+    expect(nav.getState().type).toBe("route");
+
+    nav.stop();
+    nav.startGoto({ id: "w9", name: "WP", lat: 42.0, lon: -71.0 });
+    nav.noteRouteDeleted("r1");
+    expect(nav.getState().type).toBe("goto");
+  });
+
+  it("noteWaypointDeleted stops a goto to the deleted waypoint only", () => {
+    const nav = makeNav();
+    nav.startGoto({ id: "w9", name: "WP", lat: 42.0, lon: -71.0 });
+    nav.noteWaypointDeleted("other");
+    expect(nav.getState().type).toBe("goto");
+    nav.noteWaypointDeleted("w9");
+    expect(nav.getState().type).toBe("idle");
   });
 });

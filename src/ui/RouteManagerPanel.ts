@@ -130,6 +130,7 @@ export class RouteManagerPanel {
       if (!confirm(`Delete route "${route.name}"?`)) return;
       deleteRoute(route.id)
         .then(async () => {
+          this.activeNav?.noteRouteDeleted(route.id);
           if (this.selectedRouteId === route.id) this.clearSelection();
           this.detailPanel.hide();
           await this.routeLayer.reloadAll();
@@ -386,6 +387,7 @@ export class RouteManagerPanel {
       (async () => {
         if (this.selectedRouteId === route.id) this.clearSelection();
         await deleteRoute(route.id);
+        this.activeNav?.noteRouteDeleted(route.id);
         await this.routeLayer.reloadAll();
         await this.refresh();
       })().catch(console.error);

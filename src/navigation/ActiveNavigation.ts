@@ -304,6 +304,24 @@ export class ActiveNavigationManager {
     this.notify();
   }
 
+  /** The navigated route was deleted — navigation to it must not survive. */
+  noteRouteDeleted(routeId: string): void {
+    if (this.state.type === "route" && this.state.route.id === routeId) {
+      this.stop();
+    }
+  }
+
+  /** The goto target waypoint was deleted — navigation to it must not survive. */
+  noteWaypointDeleted(waypointId: string): void {
+    if (
+      this.state.type === "goto" &&
+      "id" in this.state.waypoint &&
+      this.state.waypoint.id === waypointId
+    ) {
+      this.stop();
+    }
+  }
+
   /** Jump to a specific leg by waypoint index (legIndex=N targets waypoint[N]). */
   setLeg(index: number): void {
     if (this.state.type !== "route") return;
