@@ -141,11 +141,16 @@ export class TrackManagerPanel {
 
   show(): void {
     this.el.classList.add("open");
+    // Defensive reset: if a rename input was ever removed from the DOM
+    // without firing `blur` (e.g. a background cleanup racing the edit),
+    // `editing` would otherwise latch true forever and freeze refresh().
+    this.editing = false;
     this.refresh();
   }
 
   hide(): void {
     this.el.classList.remove("open");
+    this.editing = false;
     this.clearSelection();
   }
 
@@ -252,8 +257,13 @@ export class TrackManagerPanel {
     }
   }
 
-  /** Quietly remove a trivial track from IDB and from the on-disk list. */
+  /** Quietly remove a trivial track from IDB and from the on-disk list.
+   *  Skipped while a rename is in progress — row.remove() doesn't fire
+   *  `blur`, so yanking a row out from under an open rename input would
+   *  leave `editing` latched true and freeze refresh() for the session.
+   *  The next refresh (once the rename finishes) retries the cleanup. */
   private async deleteTrivial(meta: TrackMeta): Promise<void> {
+    if (this.editing) return;
     try {
       await deleteTrack(meta.id);
       const row = this.body.querySelector<HTMLElement>(

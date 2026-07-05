@@ -88,11 +88,16 @@ export class WaypointManagerPanel {
 
   show(): void {
     this.el.classList.add("open");
+    // Defensive reset: guards against `editing` ever latching true (e.g. a
+    // rename input removed from the DOM without firing `blur`), which would
+    // otherwise freeze refresh() for the rest of the session.
+    this.editing = false;
     this.refresh();
   }
 
   hide(): void {
     this.el.classList.remove("open");
+    this.editing = false;
   }
 
   refresh(): void {
