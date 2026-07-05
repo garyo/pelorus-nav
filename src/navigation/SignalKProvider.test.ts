@@ -247,6 +247,35 @@ describe("SignalKProvider reconnect lifecycle", () => {
     expect(wss2.clients.size).toBe(1);
   }, 15000);
 
+  it("watchdog silence reconnect does not leak the old socket", async () => {
+    // A server that accepts the connection but never sends deltas: the TCP
+    // link stays alive (no close event) while the watchdog's silence limit
+    // elapses, forcing a reconnect. The old, still-open socket must be
+    // closed by the client before opening the replacement.
+    const wss = new WebSocketServer({ port: 0, path: "/signalk/v1/stream" });
+    servers.push(wss);
+    await listening(wss);
+    let connections = 0;
+    wss.on("connection", () => {
+      connections++; // silent — no periodic sends, so the link goes quiet
+    });
+    const port = portOf(wss);
+    provider = new SignalKProvider(wsUrl(port));
+    provider.connect();
+    await waitFor(() => provider?.isConnected() ?? false);
+    expect(connections).toBe(1);
+
+    // Default silence limit is silenceLimitFor(1000) = 10s; the watchdog
+    // trips on its next 4s tick after that (~12s) and reconnects almost
+    // immediately against a local server.
+    await waitFor(() => connections >= 2, 20000);
+    await waitFor(() => provider?.isConnected() ?? false, 5000);
+
+    // Only one live server-side connection should remain — the replacement.
+    // A leak shows up as two: the orphaned original plus the new one.
+    expect(wss.clients.size).toBe(1);
+  }, 30000);
+
   it("setUrl moves a live connection to the new server (close race)", async () => {
     const wssA = await streamServer();
     const wssB = await streamServer();

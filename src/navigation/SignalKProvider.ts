@@ -160,6 +160,11 @@ export class SignalKProvider implements NavigationDataProvider {
   // error before open). Post-open lifecycle flows through the core: messages
   // feed the watchdog, an unexpected close schedules a reconnect.
   private openSocket(): Promise<void> {
+    // A watchdog-forced retry finds this.ws still pointing at a live (if
+    // silent) socket — close it before replacing, or its onmessage/onclose
+    // handlers just early-return on the identity guard forever, leaking one
+    // subscribed connection per silence trip.
+    this.teardownSocket();
     return new Promise((resolve, reject) => {
       const sock = new WebSocket(this.url);
       let opened = false;

@@ -41,6 +41,11 @@ const NUS_SERVICE = "6e400001-b5a3-f393-e0a9-e50e24dcca9e";
 const NUS_RX = "6e400002-b5a3-f393-e0a9-e50e24dcca9e"; // central → peripheral (write)
 const NUS_TX = "6e400003-b5a3-f393-e0a9-e50e24dcca9e"; // peripheral → central (notify)
 
+// Retry the Bluetooth-enabled notification registration on this interval
+// until it succeeds — without it, bt-off/bt-on transitions are invisible
+// and only a full disconnect/reconnect can un-strand the provider.
+const ENABLED_WATCH_RETRY_MS = 5000;
+
 /** @deprecated Use ProviderNotice — kept as an alias during migration. */
 export type BleNotice = ProviderNotice;
 
@@ -58,6 +63,7 @@ export class CapacitorBLENMEAProvider
   private linkDeviceId: string | null = null;
   private satWanted = false;
   private enabledWatchStarted = false;
+  private enabledWatchRetryTimer: ReturnType<typeof setTimeout> | null = null;
   private readonly core: ReconnectingTransport;
   private readonly decoder = new TextDecoder();
   private readonly encoder = new TextEncoder();
@@ -114,6 +120,10 @@ export class CapacitorBLENMEAProvider
     if (id) {
       BleClient.stopNotifications(id, NUS_SERVICE, NUS_TX).catch(() => {});
       BleClient.disconnect(id).catch(() => {});
+    }
+    if (this.enabledWatchRetryTimer !== null) {
+      clearTimeout(this.enabledWatchRetryTimer);
+      this.enabledWatchRetryTimer = null;
     }
     if (this.enabledWatchStarted) {
       this.enabledWatchStarted = false;
@@ -265,13 +275,16 @@ export class CapacitorBLENMEAProvider
    * and keep the intent — onEnabledChanged resumes when BT comes back.
    */
   private async ensureEnabledWatch(): Promise<boolean> {
-    if (!this.enabledWatchStarted) {
-      this.enabledWatchStarted = true;
-      await BleClient.startEnabledNotifications((value) =>
-        this.onEnabledChanged(value),
-      ).catch((err) => {
-        console.warn("Capacitor BLE GPS: enabled watch failed:", err);
-      });
+    if (!this.enabledWatchStarted && this.enabledWatchRetryTimer === null) {
+      try {
+        await BleClient.startEnabledNotifications((value) =>
+          this.onEnabledChanged(value),
+        );
+        this.enabledWatchStarted = true;
+      } catch (err) {
+        console.warn("Capacitor BLE GPS: enabled watch failed, retrying:", err);
+        this.scheduleEnabledWatchRetry();
+      }
     }
     const enabled = await BleClient.isEnabled().catch(() => true);
     if (!enabled) {
@@ -282,6 +295,30 @@ export class CapacitorBLENMEAProvider
       this.core.resume();
     }
     return enabled;
+  }
+
+  private scheduleEnabledWatchRetry(): void {
+    this.enabledWatchRetryTimer = setTimeout(() => {
+      this.enabledWatchRetryTimer = null;
+      void this.retryEnabledWatch();
+    }, ENABLED_WATCH_RETRY_MS);
+  }
+
+  // A failed registration means bt-off/bt-on transitions are invisible until
+  // this succeeds. Once it does, apply the current state as if the
+  // notification had just fired — a transition that happened while
+  // unregistered must not leave the provider stranded.
+  private async retryEnabledWatch(): Promise<void> {
+    try {
+      await BleClient.startEnabledNotifications((value) =>
+        this.onEnabledChanged(value),
+      );
+      this.enabledWatchStarted = true;
+      this.onEnabledChanged(await BleClient.isEnabled().catch(() => true));
+    } catch (err) {
+      console.warn("Capacitor BLE GPS: enabled watch failed, retrying:", err);
+      this.scheduleEnabledWatchRetry();
+    }
   }
 
   private onEnabledChanged(enabled: boolean): void {
