@@ -454,6 +454,75 @@ describe("GPSFilter", () => {
     expect(out.sog).toBeLessThan(5);
   });
 
+  it("keeps the covariance matrix symmetric after seeding velocity from hardware (Nav-6)", () => {
+    const filter = new GPSFilter();
+    const startLat = 42.35;
+    const startLon = -71.04;
+    const cosLat = Math.cos((startLat * Math.PI) / 180);
+    const degPerSecLon = (5 * 1852) / (3600 * 111_111 * cosLat);
+
+    filter.filter(
+      makeFix({
+        latitude: startLat,
+        longitude: startLon,
+        sog: 5,
+        cog: 90,
+        timestamp: 0,
+      }),
+    );
+    // Build up position/velocity correlation over several predict+update cycles.
+    for (let i = 1; i <= 5; i++) {
+      filter.filter(
+        makeFix({
+          latitude: startLat,
+          longitude: startLon + degPerSecLon * i,
+          sog: 5,
+          cog: 90,
+          timestamp: i * 1000,
+        }),
+      );
+    }
+
+    // A >5s gap (within the stale-gap threshold) triggers seedVelocityFromHardware
+    // mid-stream, without a full reset via initState.
+    filter.filter(
+      makeFix({
+        latitude: startLat,
+        longitude: startLon + degPerSecLon * 15,
+        sog: 5,
+        cog: 90,
+        timestamp: 15_000,
+      }),
+    );
+
+    const P = filter.getCovarianceForTests();
+    expect(P).not.toBeNull();
+    if (!P) return;
+    for (let r = 0; r < 4; r++) {
+      for (let c = 0; c < 4; c++) {
+        expect(P[r * 4 + c]).toBeCloseTo(P[c * 4 + r], 9);
+      }
+    }
+  });
+
+  it("does not carry weak-GPS classification across a reset (Nav-7)", () => {
+    const filter = new GPSFilter();
+    filter.filter(makeFix({ timestamp: 0 }));
+
+    // Simulate flaky GPS: fixes at irregular 4-8s intervals to flag weak GPS.
+    let t = 0;
+    for (let i = 0; i < 20; i++) {
+      t += 4000 + Math.random() * 4000;
+      filter.filter(makeFix({ timestamp: t }));
+    }
+    expect(filter.isWeakGps()).toBe(true);
+
+    // A provider switch resets the filter — the new provider's stream
+    // shouldn't inherit the old provider's weak-GPS classification.
+    filter.reset();
+    expect(filter.isWeakGps()).toBe(false);
+  });
+
   it("does not reset on a duplicate-timestamp fix", () => {
     const filter = new GPSFilter();
     filter.filter(
