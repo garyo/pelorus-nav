@@ -13,12 +13,18 @@ import type { Feature, FeatureCollection } from "geojson";
 import type maplibregl from "maplibre-gl";
 import type { MapOverlay, PluginHost, PluginMap } from "../types";
 import {
+  displayLatticePointsInBounds,
   type LatticePoint,
-  latticePointsInBounds,
+  MASTER_LAT_STEP,
+  MASTER_LON_STEP,
+  MASTER_ZOOM,
   sampleAt,
+  selectApiPoints,
   WindCache,
   type WindSample,
 } from "./wind-cache";
+import { InFlightTracker } from "./wind-inflight";
+import { bilinearWind, type WindVector } from "./wind-interp";
 
 const SOURCE_ID = "_wind-om";
 const LAYER_ID = "_wind-om-layer";
@@ -169,6 +175,9 @@ export class WindOverlay implements MapOverlay {
   private debounce: ReturnType<typeof setTimeout> | null = null;
   /** Wind samples pinned to a fixed geographic lattice, with per-sample TTL. */
   private readonly cache = new WindCache(CACHE_TTL_MS, CACHE_MAX);
+  /** Lattice keys with a fetch in flight, so overlapping refreshes don't
+   * re-request the same missing points while a slow fetch is pending. */
+  private readonly inFlight = new InFlightTracker();
   /** Epoch ms before which we won't hit the API again (rate-limit backoff). */
   private rateLimitUntil = 0;
   private status: WindStatus = "off";
@@ -292,7 +301,9 @@ export class WindOverlay implements MapOverlay {
   /**
    * Re-evaluate the visible lattice: render whatever we already have (so a
    * revisit shows barbs instantly), then fetch only the points that are missing
-   * or stale — reusing the cache everywhere else.
+   * or stale — reusing the cache everywhere else. Points already being fetched
+   * by an in-flight request are excluded, so an overlapping refresh (e.g. from
+   * continued panning) doesn't duplicate that request.
    */
   private async refresh(): Promise<void> {
     const map = this.pmap?.raw;
@@ -305,7 +316,7 @@ export class WindOverlay implements MapOverlay {
     const b = map.getBounds();
     const zoom = Math.round(map.getZoom());
     const now = Date.now();
-    const points = latticePointsInBounds(
+    const points = selectApiPoints(
       b.getWest(),
       b.getEast(),
       b.getSouth(),
@@ -316,9 +327,10 @@ export class WindOverlay implements MapOverlay {
     // Paint cached barbs (fresh or stale) right away — no blink on revisit.
     const { need, have } = this.cache.partition(points, now);
     const atMs = this.host.time.now().getTime();
-    this.setData(this.toFeatures(have, atMs));
+    this.setData(this.render(zoom, b, atMs));
 
-    if (need.length === 0) {
+    const toFetch = this.inFlight.filterNew(need);
+    if (toFetch.length === 0) {
       this.setStatus(have.length ? "ok" : "no-data");
       return;
     }
@@ -329,7 +341,13 @@ export class WindOverlay implements MapOverlay {
     }
     if (have.length === 0) this.setStatus("loading");
 
-    const samples = await this.fetchPoints(need);
+    this.inFlight.begin(toFetch);
+    let samples: Array<{ point: LatticePoint; sample: WindSample }> | null;
+    try {
+      samples = await this.fetchPoints(toFetch);
+    } finally {
+      this.inFlight.end(toFetch);
+    }
     if (!samples) return; // fetch failed; backoff + status already set
     for (const { point, sample } of samples) {
       this.cache.put(point.key, point.lon, point.lat, sample, Date.now());
@@ -338,7 +356,7 @@ export class WindOverlay implements MapOverlay {
 
     // Re-partition (the view may have moved during the await) and repaint.
     const after = this.cache.partition(points, Date.now());
-    this.setData(this.toFeatures(after.have, this.host.time.now().getTime()));
+    this.setData(this.render(zoom, b, this.host.time.now().getTime()));
     this.setStatus(after.have.length ? "ok" : "no-data");
   }
 
@@ -351,35 +369,87 @@ export class WindOverlay implements MapOverlay {
     if (!map || !this.enabled || map.getZoom() < MIN_ZOOM) return;
     const b = map.getBounds();
     const zoom = Math.round(map.getZoom());
-    const points = latticePointsInBounds(
-      b.getWest(),
-      b.getEast(),
-      b.getSouth(),
-      b.getNorth(),
-      zoom,
-    );
-    const { have } = this.cache.partition(points, Date.now());
-    this.setData(this.toFeatures(have, this.host.time.now().getTime()));
+    this.setData(this.render(zoom, b, this.host.time.now().getTime()));
   }
 
-  private toFeatures(
-    have: Array<LatticePoint & { sample: WindSample }>,
+  /**
+   * Render barbs for the current view. At zoom <= MASTER_ZOOM the display
+   * points ARE the selected API points (identical to the pre-interpolation
+   * behaviour). Above MASTER_ZOOM, barbs are drawn at the finer per-zoom
+   * display density and each one's (speed, dir) is bilinearly interpolated
+   * from the 4 surrounding master-lattice samples, so visual density keeps
+   * increasing with zoom without fetching any more API locations.
+   */
+  private render(
+    zoom: number,
+    b: maplibregl.LngLatBounds,
     atMs: number,
   ): FeatureCollection {
+    const west = b.getWest();
+    const east = b.getEast();
+    const south = b.getSouth();
+    const north = b.getNorth();
+
+    if (zoom <= MASTER_ZOOM) {
+      const points = selectApiPoints(west, east, south, north, zoom);
+      const features: Feature[] = [];
+      for (const p of points) {
+        const sample = this.cache.get(p.key);
+        const s = sample && sampleAt(sample, atMs);
+        if (!s) continue; // missing or outside the forecast window — skip
+        features.push(this.feature(p.lon, p.lat, s));
+      }
+      return { type: "FeatureCollection", features };
+    }
+
     const features: Feature[] = [];
-    for (const p of have) {
-      const s = sampleAt(p.sample, atMs);
-      if (!s) continue; // outside the forecast window — skip
-      features.push({
-        type: "Feature",
-        geometry: { type: "Point", coordinates: [p.lon, p.lat] },
-        properties: {
-          barb: imageId(barbBucket(s.speed)),
-          dir: Math.round(s.dir),
-        },
-      });
+    for (const dp of displayLatticePointsInBounds(
+      west,
+      east,
+      south,
+      north,
+      zoom,
+    )) {
+      const iLon = dp.lon / MASTER_LON_STEP;
+      const iLat = dp.lat / MASTER_LAT_STEP;
+      const i0 = Math.floor(iLon);
+      const j0 = Math.floor(iLat);
+      const v = bilinearWind(
+        [
+          this.cornerAt(i0, j0, atMs),
+          this.cornerAt(i0 + 1, j0, atMs),
+          this.cornerAt(i0, j0 + 1, atMs),
+          this.cornerAt(i0 + 1, j0 + 1, atMs),
+        ],
+        iLon - i0,
+        iLat - j0,
+      );
+      if (!v) continue; // all 4 corners missing/stale-out-of-window
+      features.push(this.feature(dp.lon, dp.lat, v));
     }
     return { type: "FeatureCollection", features };
+  }
+
+  /** The wind at master-lattice index (i, j) at `atMs`, or null if uncached
+   * or outside its series window. */
+  private cornerAt(i: number, j: number, atMs: number): WindVector | null {
+    const sample = this.cache.get(`${i}:${j}`);
+    return sample ? sampleAt(sample, atMs) : null;
+  }
+
+  private feature(
+    lon: number,
+    lat: number,
+    s: { speed: number; dir: number },
+  ): Feature {
+    return {
+      type: "Feature",
+      geometry: { type: "Point", coordinates: [lon, lat] },
+      properties: {
+        barb: imageId(barbBucket(s.speed)),
+        dir: Math.round(s.dir),
+      },
+    };
   }
 
   /**
@@ -422,8 +492,19 @@ export class WindOverlay implements MapOverlay {
       return null;
     }
     const list = Array.isArray(data) ? data : [data];
+    // Pair strictly by index, which only works if the response has exactly
+    // one entry per requested point — Open-Meteo always should, but never
+    // guess-pair a short/long response onto the wrong locations. Take the
+    // common prefix instead; this isn't a rate-limit/quota condition, so it
+    // doesn't arm the backoff.
+    if (list.length !== points.length) {
+      console.warn(
+        `wind fetch: requested ${points.length} points, got ${list.length}; using common prefix`,
+      );
+    }
+    const n = Math.min(list.length, points.length);
     const out: Array<{ point: LatticePoint; sample: WindSample }> = [];
-    for (let i = 0; i < points.length; i++) {
+    for (let i = 0; i < n; i++) {
       const hourly = (
         list[i] as
           | {
