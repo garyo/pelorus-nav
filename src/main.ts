@@ -149,11 +149,11 @@ if (Capacitor.isNativePlatform() && "serviceWorker" in navigator) {
 
 // On the web PWA, register the service worker and offer a reload when a
 // new build is available (no-op stub in Capacitor builds). The reload is
-// deferred while under way — activeNav/trackRecorder are created further
-// below, but this closure only runs once an update actually arrives.
-startAppUpdateNotifier(
-  () => activeNav.getState().type !== "idle" || trackRecorder.isRecording(),
-);
+// deferred while under way — the busy check is late-bound (below, once
+// activeNav/trackRecorder exist) so an update arriving during startup's
+// top-level awaits can't hit their TDZ.
+let appUpdateBusy = () => false;
+startAppUpdateNotifier(() => appUpdateBusy());
 
 // Register PMTiles protocol for vector tile sources
 const protocol = new Protocol({ metadata: true });
@@ -1075,6 +1075,8 @@ routePanel.setOnPreviewRoute((route) => {
 
 // --- Waypoints + Active Navigation ---
 const activeNav = new ActiveNavigationManager(navManager);
+appUpdateBusy = () =>
+  activeNav.getState().type !== "idle" || trackRecorder.isRecording();
 const waypointLayer = new WaypointLayer(chartManager.map);
 const navHud = new NavigationHUD(
   chartManager.map,
