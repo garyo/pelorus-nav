@@ -33,14 +33,23 @@ import {
 import { getTextLayers } from "./layers/text";
 import { createStyleContext } from "./style-context";
 
-/** Maps layer IDs to group names for per-group toggle control. */
-const LAYER_GROUPS: Record<string, string> = {
+/**
+ * Maps layer IDs to group names for per-group toggle control.
+ *
+ * Exported for the registry-invariant test in index.test.ts, which checks
+ * that a layer sharing a source-layer with an already fully-wired sibling
+ * (registered in both this table and LAYER_CATEGORIES below) is wired in
+ * too — so a new symbol/label layer drawn atop an existing feature can't
+ * silently skip the group toggle or detail-level filter its sibling obeys.
+ */
+export const LAYER_GROUPS: Record<string, string> = {
   "s57-navlne": "routing",
   "s57-rectrc": "routing",
   "s57-dwrtcl": "routing",
   "s57-dwrtcl-label": "routing",
   "s57-tssbnd": "routing",
   "s57-tsslpt": "routing",
+  "s57-tsslpt-arrow": "routing",
   "s57-tsezne": "routing",
   "s57-tsezne-outline": "routing",
   "s57-twrtpt": "routing",
@@ -52,6 +61,7 @@ const LAYER_GROUPS: Record<string, string> = {
   "s57-ctnare": "restrictedAreas",
   "s57-ctnare-symbol": "restrictedAreas",
   "s57-achare": "anchorage",
+  "s57-achare-symbol": "anchorage",
   "s57-achbrt": "anchorage",
   "s57-cblare": "cablesAndPipes",
   "s57-cblsub": "cablesAndPipes",
@@ -135,8 +145,16 @@ const LAYER_GROUPS: Record<string, string> = {
   "s57-runway-outline": "facilities",
 };
 
-/** Display category -> layer ID mapping for filtering. */
-const LAYER_CATEGORIES: Record<string, "DISPLAYBASE" | "STANDARD" | "OTHER"> = {
+/**
+ * Display category -> layer ID mapping for filtering.
+ *
+ * Exported for the registry-invariant test in index.test.ts (see LAYER_GROUPS
+ * above for why).
+ */
+export const LAYER_CATEGORIES: Record<
+  string,
+  "DISPLAYBASE" | "STANDARD" | "OTHER"
+> = {
   "s57-lndare": "DISPLAYBASE",
   "s57-lndare-point": "DISPLAYBASE",
   "s57-depare-shallow": "DISPLAYBASE",
@@ -175,7 +193,9 @@ const LAYER_CATEGORIES: Record<string, "DISPLAYBASE" | "STANDARD" | "OTHER"> = {
   "s57-fairwy": "STANDARD",
   "s57-fairwy-outline": "STANDARD",
   "s57-achare": "STANDARD",
+  "s57-achare-symbol": "STANDARD",
   "s57-tsslpt": "STANDARD",
+  "s57-tsslpt-arrow": "STANDARD",
   "s57-resare": "STANDARD",
   "s57-resare-anchor-prohib": "STANDARD",
   "s57-resare-fish-prohib": "STANDARD",
