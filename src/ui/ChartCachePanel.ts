@@ -170,6 +170,11 @@ export class ChartCachePanel {
     this.el.classList.remove("open");
   }
 
+  /** True while a chart/basemap download is in flight — idle auto-return must not hide the panel mid-download. */
+  isBusy(): boolean {
+    return this.downloadController !== null;
+  }
+
   private async refresh(): Promise<void> {
     const token = ++this.refreshToken;
     const storedCharts = await listStoredCharts();
