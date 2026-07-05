@@ -225,9 +225,24 @@ export function createInstrumentHUD(
     container.style.display = s.showInstrumentHUD ? "flex" : "none";
   };
   applyVisibility(getSettings());
+
+  // Only `instrumentCells` changes which cells exist — everything else
+  // (units, bearing mode, etc.) just changes formatted text, handled by
+  // updateValues(). Rebuilding on every settings change tore down and
+  // rebuilt every cell on each of the ~8 commits/s a slider drag fires.
+  let lastInstrumentCells = getSettings().instrumentCells;
+  const instrumentCellsChanged = (cells: readonly string[]): boolean =>
+    cells.length !== lastInstrumentCells.length ||
+    cells.some((id, i) => id !== lastInstrumentCells[i]);
+
   onSettingsChange((s) => {
     applyVisibility(s);
-    rebuildStructure();
+    if (instrumentCellsChanged(s.instrumentCells)) {
+      lastInstrumentCells = s.instrumentCells;
+      rebuildStructure();
+    } else {
+      updateValues();
+    }
   });
 
   rebuildStructure();

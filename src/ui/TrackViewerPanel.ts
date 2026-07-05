@@ -215,6 +215,11 @@ export class TrackViewerPanel {
     return this.playing;
   }
 
+  /** Idle-auto-return busy contract: don't hide the viewer mid-playback. */
+  isBusy(): boolean {
+    return this.isPlaying();
+  }
+
   /** Load, analyze, and start viewing a track. */
   async open(meta: TrackMeta): Promise<void> {
     const points = await getTrackPoints(meta.id);

@@ -7,6 +7,7 @@ import { BackgroundGPS } from "./plugins/BackgroundGPS";
 import "maplibre-gl/dist/maplibre-gl.css";
 import { PMTiles, Protocol } from "pmtiles";
 import "./style.css";
+import { type IdleCloseable, runIdleAutoReturn } from "./app/idleAutoReturn";
 import { installOverlayDimming } from "./app/overlayDimming";
 import { installRepaintThrottle } from "./app/repaintThrottle";
 import {
@@ -423,7 +424,7 @@ const settingsHandle = topbarMenu
 
 // Dialogs/panels that the idle auto-return closes. Each is pushed at its
 // creation site below; the idle handler reads the populated list when it fires.
-const idleCloseables: Array<{ hide(): void }> = [];
+const idleCloseables: IdleCloseable[] = [];
 if (settingsHandle) idleCloseables.push(settingsHandle);
 idleCloseables.push(satellitePanel);
 // The feature-info popup (chart + merged plugin candidates) counts as a
@@ -1027,9 +1028,11 @@ if (Capacitor.isNativePlatform()) {
   const returnDetector = createIdleDetector(AUTO_RETURN_IDLE_MS);
   const autoReturnNow = () => {
     if (!getSettings().autoReturnWhenIdle) return;
-    // Watching a track replay is not "idle" — don't yank the user out of it
-    if (trackViewer.isPlaying()) return;
-    for (const c of idleCloseables) c.hide();
+    // Busy closeables (a chart download, a track replay) report themselves
+    // via isBusy() and are left open; skip recentering too so we don't yank
+    // the view away from whatever they're mid-task on.
+    const { anyBusy } = runIdleAutoReturn(idleCloseables);
+    if (anyBusy) return;
     if (chartMode.getMode() === "free") chartMode.recenter();
   };
   returnDetector.onChange((idle) => {
