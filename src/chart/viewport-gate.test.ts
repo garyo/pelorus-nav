@@ -2,6 +2,7 @@ import type maplibregl from "maplibre-gl";
 import { describe, expect, it } from "vitest";
 import {
   centerDeltaPx,
+  createViewportGate,
   currentViewportSig,
   defaultGateOpts,
   type ViewportSig,
@@ -102,5 +103,86 @@ describe("defaultGateOpts", () => {
     expect(defaultGateOpts(fakeMap(base, { w: 300, h: 200 }))).toEqual({
       centerEpsPx: 64,
     });
+  });
+});
+
+/** Fake map with a mutable container size and a real event-handler registry
+ * (for `resize`), so tests can distinguish "container resized" from
+ * "container size read again". */
+function fakeMapWithResize(
+  sig: ViewportSig,
+  containerSize = { w: 1000, h: 800 },
+) {
+  const handlers: Record<string, Array<() => void>> = {};
+  const size = { ...containerSize };
+  const map = {
+    getCenter: () => ({ lng: sig.lng, lat: sig.lat }),
+    getZoom: () => sig.zoom,
+    getBearing: () => sig.bearing,
+    getContainer: () => ({ clientWidth: size.w, clientHeight: size.h }),
+    on: (event: string, handler: () => void) => {
+      handlers[event] ??= [];
+      handlers[event].push(handler);
+    },
+    off: (event: string, handler: () => void) => {
+      handlers[event] = (handlers[event] ?? []).filter((h) => h !== handler);
+    },
+  };
+  return {
+    map: map as unknown as maplibregl.Map,
+    setSize(w: number, h: number) {
+      size.w = w;
+      size.h = h;
+    },
+    fireResize() {
+      for (const h of handlers.resize ?? []) h();
+    },
+    resizeListenerCount() {
+      return (handlers.resize ?? []).length;
+    },
+  };
+}
+
+describe("createViewportGate", () => {
+  it("caches opts across calls and only refreshes on a resize event", () => {
+    const { map, setSize, fireResize } = fakeMapWithResize(base, {
+      w: 2000,
+      h: 1000,
+    });
+    const gate = createViewportGate(map);
+    expect(gate.opts()).toEqual({ centerEpsPx: 100 });
+
+    // Container size changes but no resize event fires yet — cached opts
+    // must not read the DOM again.
+    setSize(700, 2000);
+    expect(gate.opts()).toEqual({ centerEpsPx: 100 });
+
+    fireResize();
+    expect(gate.opts()).toEqual({ centerEpsPx: 70 });
+  });
+
+  it("sig() always reads the live viewport (not cached)", () => {
+    const moving = { ...base };
+    const { map } = fakeMapWithResize(moving);
+    const gate = createViewportGate(map);
+    expect(gate.sig()).toEqual(base);
+    moving.lng += 1;
+    expect(gate.sig()).toEqual({ ...base, lng: base.lng + 1 });
+  });
+
+  it("dispose() detaches the resize listener", () => {
+    const { map, setSize, fireResize, resizeListenerCount } = fakeMapWithResize(
+      base,
+      { w: 2000, h: 1000 },
+    );
+    const gate = createViewportGate(map);
+    expect(resizeListenerCount()).toBe(1);
+
+    gate.dispose();
+    expect(resizeListenerCount()).toBe(0);
+
+    setSize(1000, 500);
+    fireResize(); // no-op: listener was removed
+    expect(gate.opts()).toEqual({ centerEpsPx: 100 });
   });
 });

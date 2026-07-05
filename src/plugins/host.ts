@@ -10,8 +10,7 @@ import type { ChartManager } from "../chart/ChartManager";
 import type { ChartProvider } from "../chart/ChartProvider";
 import type { FeatureInfo } from "../chart/feature-info";
 import {
-  currentViewportSig,
-  defaultGateOpts,
+  createViewportGate,
   type ViewportSig,
   viewportChangedMaterially,
 } from "../chart/viewport-gate";
@@ -159,6 +158,11 @@ export function activatePlugin(plugin: Plugin, deps: HostDeps): ActivePlugin {
     }
   };
 
+  // Shared across all of this plugin's onMapMove registrations — avoids a
+  // per-registration resize listener and per-moveend container read.
+  const viewportGate = createViewportGate(deps.map);
+  cleanups.push(() => viewportGate.dispose());
+
   const host: PluginHost = {
     manifest,
     map: hostMap,
@@ -267,7 +271,7 @@ export function activatePlugin(plugin: Plugin, deps: HostDeps): ActivePlugin {
         // long as the vessel keeps moving.
         let lastViewport: ViewportSig | null = null;
         const run = () => {
-          lastViewport = currentViewportSig(deps.map);
+          lastViewport = viewportGate.sig();
           fn();
         };
         const throttle =
@@ -276,8 +280,8 @@ export function activatePlugin(plugin: Plugin, deps: HostDeps): ActivePlugin {
           if (
             !viewportChangedMaterially(
               lastViewport,
-              currentViewportSig(deps.map),
-              defaultGateOpts(deps.map),
+              viewportGate.sig(),
+              viewportGate.opts(),
             )
           ) {
             return;

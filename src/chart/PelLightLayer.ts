@@ -40,7 +40,12 @@ import {
   SORT_KEY_LIGHT_CHAR,
   VARIABLE_ANCHOR_LAYOUT,
 } from "./styles/style-context";
-import { type ViewportSig, viewportChangedMaterially } from "./viewport-gate";
+import {
+  createViewportGate,
+  type ViewportGate,
+  type ViewportSig,
+  viewportChangedMaterially,
+} from "./viewport-gate";
 
 const SOURCE_ID = "_pel-lights";
 const LAYER_ICON = "_pel-light-icon";
@@ -281,19 +286,66 @@ export function buildGeoJson(
   };
 }
 
+/**
+ * Cheap identity signature for the raw LIGHTS features `buildGeoJson`
+ * depends on — computed straight from the query result, before the
+ * (comparatively expensive) clustering + dedup + `JSON.stringify` of the
+ * built output. Only features with `PARENT_LNAM` can ever appear in the
+ * output (see `buildClusters`), so non-PEL lights are skipped entirely.
+ *
+ * Every field `buildGeoJson` reads to decide cluster membership, sector
+ * identity, rotation, or label text is folded in, so an unchanged signature
+ * guarantees an unchanged `buildGeoJson` result (settings like the sprite
+ * scheme aren't part of this — those already force a rebuild elsewhere).
+ * Exported for unit testing.
+ */
+export function pelLightsSignature(lightsFeatures: Feature[]): string {
+  const keys: string[] = [];
+  for (const f of lightsFeatures) {
+    if (f.geometry.type !== "Point") continue;
+    const props = (f.properties ?? {}) as PelLightsProps;
+    if (!props.PARENT_LNAM) continue;
+    const [lon, lat] = f.geometry.coordinates;
+    keys.push(
+      [
+        props.LNAM ?? "",
+        props.PARENT_LNAM,
+        props.PARENT_OBJNAM ?? "",
+        props.PARENT_LAYER ?? "",
+        lon.toFixed(5),
+        lat.toFixed(5),
+        props.SECTR1 ?? "",
+        props.SECTR2 ?? "",
+        props.LITCHR ?? "",
+        String(props.COLOUR ?? ""),
+        props.LABEL ?? "",
+        props.HEIGHT ?? "",
+        props.VALNMR ?? "",
+        String(props.CATLIT ?? ""),
+      ].join(","),
+    );
+  }
+  keys.sort();
+  return keys.join("|");
+}
+
 export class PelLightLayer {
   private readonly map: maplibregl.Map;
   private debounceTimer: ReturnType<typeof setTimeout> | null = null;
   private suppressedLnams: Set<string> = new Set();
   /** Viewport at the last real rebuild — gates the moveend trigger. */
   private lastRebuildViewport: ViewportSig | null = null;
-  /** JSON of the last setData, to skip no-op writes (TidesOverlay pattern). */
-  private lastDataJson = "";
+  /** Signature of the last queried input that actually rebuilt the overlay
+   * (see `pelLightsSignature`), to skip the clustering/build/setData pass
+   * when the queried features haven't changed. */
+  private lastInputSig: string | null = null;
   /** Original filter on each suppressed layer so we can restore it. */
   private originalFilters: Map<string, unknown> = new Map();
+  private readonly gate: ViewportGate;
 
   constructor(map: maplibregl.Map) {
     this.map = map;
+    this.gate = createViewportGate(map);
 
     map.on("style.load", () => this.setup());
     if (map.isStyleLoaded()) this.setup();
@@ -313,8 +365,8 @@ export class PelLightLayer {
       if (
         viewportChangedMaterially(
           this.lastRebuildViewport,
-          this.viewportSig(),
-          this.gateOpts(),
+          this.gate.sig(),
+          this.gate.opts(),
         )
       ) {
         this.debouncedRebuild();
@@ -358,26 +410,6 @@ export class PelLightLayer {
     this.rebuild();
   }
 
-  private viewportSig(): ViewportSig {
-    const c = this.map.getCenter();
-    return {
-      lng: c.lng,
-      lat: c.lat,
-      zoom: this.map.getZoom(),
-      bearing: this.map.getBearing(),
-    };
-  }
-
-  private gateOpts(): { centerEpsPx: number } {
-    const el = this.map.getContainer();
-    return {
-      centerEpsPx: Math.max(
-        64,
-        0.1 * Math.min(el.clientWidth, el.clientHeight),
-      ),
-    };
-  }
-
   /** Concrete region-prefixed style layer IDs we suppress PEL slaves from. */
   private suppressedLayerIds(): string[] {
     return SUPPRESSED_LAYER_SUFFIXES.flatMap((suffix) =>
@@ -404,7 +436,9 @@ export class PelLightLayer {
 
   private addSourceAndLayers(): void {
     this.removeLayers();
-    this.lastDataJson = ""; // source recreated empty — never suppress the refill
+    // Source recreated empty, and the sprite scheme may have changed —
+    // force the next rebuild to run buildGeoJson + setData unconditionally.
+    this.lastInputSig = null;
 
     this.map.addSource(SOURCE_ID, {
       type: "geojson",
@@ -518,20 +552,23 @@ export class PelLightLayer {
     // query+group pass. Don't record the viewport: zooming back in must
     // re-trigger via the gate.
     if (this.map.getZoom() < MIN_ZOOM) return;
-    this.lastRebuildViewport = this.viewportSig();
+    this.lastRebuildViewport = this.gate.sig();
 
     const allLights = queryAllLights(this.map);
+
+    // Cheap identity check before the expensive clustering/build/stringify
+    // pass: if the queried features are identical to the last rebuild's,
+    // buildGeoJson would produce the exact same output.
+    const sig = pelLightsSignature(allLights);
+    if (sig === this.lastInputSig) return;
+    this.lastInputSig = sig;
 
     const s = getSettings();
     const scheme = getIconScheme(s.symbologyScheme, s.displayTheme);
     const { geojson, suppressedLnams } = buildGeoJson(allLights, scheme.sprite);
-    const json = JSON.stringify(geojson);
-    if (json !== this.lastDataJson) {
-      this.lastDataJson = json;
-      (this.map.getSource(SOURCE_ID) as maplibregl.GeoJSONSource)?.setData(
-        geojson,
-      );
-    }
+    (this.map.getSource(SOURCE_ID) as maplibregl.GeoJSONSource)?.setData(
+      geojson,
+    );
     this.applySuppressionFilter(suppressedLnams);
   }
 
