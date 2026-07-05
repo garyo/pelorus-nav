@@ -228,8 +228,8 @@ export function createInstrumentHUD(
 
   // Only `instrumentCells` changes which cells exist — everything else
   // (units, bearing mode, etc.) just changes formatted text, handled by
-  // updateValues(). Rebuilding on every settings change tore down and
-  // rebuilt every cell on each of the ~8 commits/s a slider drag fires.
+  // updateValues(). Settings commit ~8×/s during slider drags, so a full
+  // rebuild must be reserved for actual structure changes.
   let lastInstrumentCells = getSettings().instrumentCells;
   const instrumentCellsChanged = (cells: readonly string[]): boolean =>
     cells.length !== lastInstrumentCells.length ||
