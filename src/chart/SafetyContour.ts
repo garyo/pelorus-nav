@@ -15,6 +15,10 @@ import type maplibregl from "maplibre-gl";
 import type { FilterSpecification } from "maplibre-gl";
 import { getRegionLayerIds, getVectorSourceIds } from "../data/chart-catalog";
 import { getSettings, onSettingsChange } from "../settings";
+import {
+  createTrailingThrottle,
+  type TrailingThrottle,
+} from "../utils/trailing-throttle";
 import { s52Colour } from "./s52-colours";
 import { type ViewportSig, viewportChangedMaterially } from "./viewport-gate";
 
@@ -42,7 +46,7 @@ function forEachLayer(
 export class SafetyContour {
   private readonly map: maplibregl.Map;
   private prevSafetyDepth: number;
-  private scanTimer: ReturnType<typeof setTimeout> | null = null;
+  private readonly scanThrottle: TrailingThrottle;
   /** Cached sorted VALDCO values grouped by _cell_id. */
   private valdcoByCell = new Map<number, number[]>();
   /** Current per-cell resolved safety contour values. */
@@ -55,19 +59,28 @@ export class SafetyContour {
   private pendingSafetyDepth: number | null = null;
   private throttleTimer: ReturnType<typeof setTimeout> | null = null;
   private static readonly THROTTLE_MS = 250;
+  /** Max staleness/rate for tile rescans — see `scanThrottle`. */
+  private static readonly SCAN_THROTTLE_MS = 1000;
 
   constructor(map: maplibregl.Map) {
     this.map = map;
     this.prevSafetyDepth = getSettings().safetyDepth;
+    this.scanThrottle = createTrailingThrottle(
+      () => this.scanTiles(),
+      SafetyContour.SCAN_THROTTLE_MS,
+    );
 
     // Re-scan when a chart source settles (new tiles) — NOT on the GeoJSON
-    // overlay setData churn, which fires "content" sourcedata at frame rate
-    // and used to re-arm (i.e. starve) the scan debounce indefinitely while
-    // underway: the safety contour never re-resolved for newly loaded cells.
+    // overlay setData churn, which fires "content" sourcedata at frame rate.
+    // Both this trigger and moveend below funnel into the shared
+    // `scanThrottle`, a non-re-arming trailing throttle: in follow/course-up
+    // mode `jumpTo` fires moveend ~10 Hz underway, and a re-arming debounce
+    // would starve indefinitely under that stream, leaving newly loaded
+    // cells' safety contours unresolved until the vessel stops moving.
     map.on("sourcedata", (e) => {
       if (this.updating) return;
       if (!e.sourceId?.startsWith("s57-vector") || !e.isSourceLoaded) return;
-      this.debouncedScan();
+      this.scanThrottle.trigger();
     });
     // Cached tiles re-entering view fire no sourcedata (MapLibre cache hits
     // are silent) — rescan on material viewport change instead.
@@ -79,17 +92,17 @@ export class SafetyContour {
           this.gateOpts(),
         )
       ) {
-        this.debouncedScan();
+        this.scanThrottle.trigger();
       }
     });
 
     // Re-apply filter after a FULL style rebuild (ChartManager resets layers
-    // to placeholder). Guard with `updating` to break styledata feedback loop
-    // from our own setFilter/setPaintProperty calls.
-    map.on("styledata", () => {
-      if (!this.updating) {
-        this.reapplyAll();
-      }
+    // to placeholder). style.load fires once per setStyle call — unlike
+    // styledata, it doesn't fire for every layer mutation made by other
+    // overlays (vessel updates, route edits, highlights), so this can't
+    // churn setFilter/setPaintProperty across every layer on the hot path.
+    map.on("style.load", () => {
+      this.reapplyAll();
     });
 
     // When safetyDepth changes, resolve from cache (instant) + targeted updates
@@ -129,14 +142,6 @@ export class SafetyContour {
     this.updating = true;
     this.applyAll(depth);
     this.updating = false;
-  }
-
-  /** Debounced tile scan — only re-queries features at most once per 1s. */
-  private debouncedScan(): void {
-    if (this.scanTimer) clearTimeout(this.scanTimer);
-    this.scanTimer = setTimeout(() => {
-      this.scanTiles();
-    }, 1000);
   }
 
   private viewportSig(): ViewportSig {

@@ -188,7 +188,12 @@ export interface UiRegistrar {
 }
 
 export interface HostEvents {
-  /** Debounced map-move (moveend) subscription. Returns an unsubscribe fn. */
+  /**
+   * Map-move (moveend) subscription, gated on material viewport change and
+   * throttled to at most once per `debounceMs` (a non-re-arming trailing
+   * throttle, so a continuous moveend stream — ~10 Hz underway in follow
+   * mode — can't push the callback out forever). Returns an unsubscribe fn.
+   */
   onMapMove(fn: () => void, debounceMs?: number): () => void;
   /** Periodic tick on a wall-clock interval. Returns an unsubscribe fn. */
   onTimeTick(fn: () => void, intervalMs: number): () => void;
