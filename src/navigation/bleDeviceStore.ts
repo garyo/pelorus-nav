@@ -5,65 +5,45 @@
  * without re-showing the picker.
  */
 
+import {
+  createJsonStorageSlot,
+  defaultBrowserStorage,
+  type StorageLike,
+} from "../utils/json-storage-slot";
+
 export interface SavedBleDevice {
   deviceId: string;
   name?: string;
 }
 
-type StorageLike = Pick<Storage, "getItem" | "setItem" | "removeItem">;
-
 const KEY = "pelorus-nav-ble-device";
 
-function defaultStorage(): StorageLike | null {
-  return typeof localStorage !== "undefined" ? localStorage : null;
+function isSavedBleDevice(value: unknown): value is SavedBleDevice {
+  if (typeof value !== "object" || value === null) return false;
+  const v = value as Record<string, unknown>;
+  return (
+    typeof v.deviceId === "string" &&
+    (v.name === undefined || typeof v.name === "string")
+  );
 }
 
+const slot = createJsonStorageSlot<SavedBleDevice>(KEY, isSavedBleDevice);
+
 export function loadSavedBleDevice(
-  storage: StorageLike | null = defaultStorage(),
+  storage: StorageLike | null = defaultBrowserStorage(),
 ): SavedBleDevice | null {
-  if (!storage) return null;
-  try {
-    const raw = storage.getItem(KEY);
-    if (!raw) return null;
-    const parsed: unknown = JSON.parse(raw);
-    if (
-      typeof parsed === "object" &&
-      parsed !== null &&
-      typeof (parsed as Record<string, unknown>).deviceId === "string" &&
-      ((parsed as Record<string, unknown>).name === undefined ||
-        typeof (parsed as Record<string, unknown>).name === "string")
-    ) {
-      return parsed as SavedBleDevice;
-    }
-    storage.removeItem(KEY);
-    return null;
-  } catch {
-    try {
-      storage.removeItem(KEY);
-    } catch {
-      // unremovable — treat as absent
-    }
-    return null;
-  }
+  return slot.load(storage);
 }
 
 export function saveBleDevice(
   device: SavedBleDevice,
-  storage: StorageLike | null = defaultStorage(),
+  storage: StorageLike | null = defaultBrowserStorage(),
 ): void {
-  try {
-    storage?.setItem(KEY, JSON.stringify(device));
-  } catch {
-    // quota/privacy failures — connection still works, just not persisted
-  }
+  slot.save(device, storage);
 }
 
 export function clearSavedBleDevice(
-  storage: StorageLike | null = defaultStorage(),
+  storage: StorageLike | null = defaultBrowserStorage(),
 ): void {
-  try {
-    storage?.removeItem(KEY);
-  } catch {
-    // ignore
-  }
+  slot.clear(storage);
 }

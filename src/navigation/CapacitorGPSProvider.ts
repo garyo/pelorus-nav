@@ -203,27 +203,24 @@ export class CapacitorGPSProvider implements NavigationDataProvider {
 
     // Bridge events are wakeups, not data: every fix is in SQLite already,
     // and reading back from SQLite is what gives us race-free ordering.
-    this.listenerHandle = await BackgroundGPS.addListener(
-      "locationUpdate",
-      () => this.requestDrain(),
-    );
     // Loud degradation: a native-side stop (notification action) and an
     // iOS reduced-accuracy state both mean "GPS looks alive but records
     // nothing" — surface them instead of silently losing the voyage.
-    this.stoppedHandle = await BackgroundGPS.addListener(
-      "trackingStopped",
-      (data) => this.handleTrackingStopped(data.reason),
-    );
-    this.accuracyHandle = await BackgroundGPS.addListener(
-      "reducedAccuracy",
-      () => {
-        connectionLog.log(this.id, "error", "precise location off");
-        this.onNotice?.({
-          kind: "connect-failed",
-          detail: "Precise Location is off — enable it in Settings",
-        });
-      },
-    );
+    // The three registrations are independent, so run them concurrently.
+    [this.listenerHandle, this.stoppedHandle, this.accuracyHandle] =
+      await Promise.all([
+        BackgroundGPS.addListener("locationUpdate", () => this.requestDrain()),
+        BackgroundGPS.addListener("trackingStopped", (data) =>
+          this.handleTrackingStopped(data.reason),
+        ),
+        BackgroundGPS.addListener("reducedAccuracy", () => {
+          connectionLog.log(this.id, "error", "precise location off");
+          this.onNotice?.({
+            kind: "connect-failed",
+            detail: "Precise Location is off — enable it in Settings",
+          });
+        }),
+      ]);
 
     this.visibilityHandler = () => {
       if (document.visibilityState === "visible") this.requestDrain();

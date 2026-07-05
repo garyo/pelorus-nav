@@ -54,6 +54,7 @@ describe("errorLog", () => {
       max: 100,
     });
     log.log("js-error", "error", "boom");
+    log.flush(); // persist is debounced — force it through for this assertion
     expect(map.has("pelorus-nav-error-log")).toBe(true);
     expect(map.has("pelorus-nav-conn-log")).toBe(false);
   });

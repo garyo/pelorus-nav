@@ -7,9 +7,28 @@
  * failure diagnosable after the fact. Generic over providers via the `src`
  * field; the BLE providers are the primary writers.
  *
+ * Writes are debounced (see `PERSIST_DEBOUNCE_MS`) rather than persisted on
+ * every `log()` call — a night of BLE reconnect churn can push thousands of
+ * events, and re-serializing the whole buffer on each one is wasted work
+ * exactly when the log matters most. In-memory reads (`getEntries`,
+ * `entryCount`) always reflect un-persisted entries immediately; only the
+ * localStorage write lags. `pagehide` and `visibilitychange`→hidden flush any
+ * pending write so a backgrounded/killed app doesn't lose recent entries.
+ *
  * Exposed for field access as `window.bleLog` (main.ts) and viewable in
  * Settings → Navigation → Event log.
  */
+
+import {
+  createJsonStorageSlot,
+  defaultBrowserStorage,
+  type JsonStorageSlot,
+  type StorageLike,
+} from "../utils/json-storage-slot";
+import {
+  createTrailingThrottle,
+  type TrailingThrottle,
+} from "../utils/trailing-throttle";
 
 export type ConnectionEventType =
   | "connect-request" // app/user asked the provider to connect
@@ -32,14 +51,9 @@ export interface ConnectionEvent {
   detail?: string;
 }
 
-type StorageLike = Pick<Storage, "getItem" | "setItem" | "removeItem">;
-
 const DEFAULT_KEY = "pelorus-nav-conn-log";
 const DEFAULT_MAX = 300;
-
-function defaultStorage(): StorageLike | null {
-  return typeof localStorage !== "undefined" ? localStorage : null;
-}
+const PERSIST_DEBOUNCE_MS = 1000;
 
 function isValidEvent(e: unknown): e is ConnectionEvent {
   if (typeof e !== "object" || e === null) return false;
@@ -50,6 +64,10 @@ function isValidEvent(e: unknown): e is ConnectionEvent {
     typeof ev.type === "string" &&
     (ev.detail === undefined || typeof ev.detail === "string")
   );
+}
+
+function isValidEventArray(value: unknown): value is ConnectionEvent[] {
+  return Array.isArray(value) && value.every(isValidEvent);
 }
 
 /** Quote a CSV field, escaping embedded quotes (error text has commas). */
@@ -63,6 +81,10 @@ export class ConnectionEventLog {
   private readonly key: string;
   private readonly max: number;
   private mirror: ((e: ConnectionEvent) => void) | null = null;
+  private readonly slot: JsonStorageSlot<ConnectionEvent[]>;
+  private readonly persistThrottle: TrailingThrottle;
+  /** True when `entries` has changes not yet written to storage. */
+  private dirty = false;
 
   constructor(opts?: {
     storage?: StorageLike | null;
@@ -70,10 +92,19 @@ export class ConnectionEventLog {
     max?: number;
   }) {
     this.storage =
-      opts?.storage !== undefined ? opts.storage : defaultStorage();
+      opts?.storage !== undefined ? opts.storage : defaultBrowserStorage();
     this.key = opts?.key ?? DEFAULT_KEY;
     this.max = opts?.max ?? DEFAULT_MAX;
+    this.slot = createJsonStorageSlot<ConnectionEvent[]>(
+      this.key,
+      isValidEventArray,
+    );
+    this.persistThrottle = createTrailingThrottle(
+      () => this.persist(),
+      PERSIST_DEBOUNCE_MS,
+    );
     this.load();
+    this.registerFlushListeners();
   }
 
   log(src: string, type: ConnectionEventType, detail?: string): void {
@@ -83,7 +114,8 @@ export class ConnectionEventLog {
     if (this.entries.length > this.max) {
       this.entries.splice(0, this.entries.length - this.max);
     }
-    this.save();
+    this.dirty = true;
+    this.persistThrottle.trigger();
     this.mirror?.(event);
   }
 
@@ -129,40 +161,38 @@ export class ConnectionEventLog {
 
   clear(): void {
     this.entries = [];
-    try {
-      this.storage?.removeItem(this.key);
-    } catch {
-      // storage unavailable — memory is cleared regardless
+    this.dirty = false;
+    this.persistThrottle.cancel();
+    this.slot.clear(this.storage);
+  }
+
+  /** Write a pending debounced persist immediately; no-op if nothing pending. */
+  flush(): void {
+    this.persistThrottle.cancel();
+    if (this.dirty) this.persist();
+  }
+
+  /** Register the pagehide/hidden flush hooks (browser-only; no-op elsewhere, e.g. tests). */
+  private registerFlushListeners(): void {
+    const flush = () => this.flush();
+    if (typeof window !== "undefined") {
+      window.addEventListener("pagehide", flush);
+    }
+    if (typeof document !== "undefined") {
+      document.addEventListener("visibilitychange", () => {
+        if (document.visibilityState === "hidden") flush();
+      });
     }
   }
 
   private load(): void {
-    if (!this.storage) return;
-    try {
-      const raw = this.storage.getItem(this.key);
-      if (!raw) return;
-      const parsed: unknown = JSON.parse(raw);
-      if (Array.isArray(parsed) && parsed.every(isValidEvent)) {
-        this.entries = parsed.slice(-this.max);
-      } else {
-        this.storage.removeItem(this.key);
-      }
-    } catch {
-      try {
-        this.storage.removeItem(this.key);
-      } catch {
-        // ignore — corrupt and unremovable; start empty in memory
-      }
-    }
+    const loaded = this.slot.load(this.storage);
+    if (loaded) this.entries = loaded.slice(-this.max);
   }
 
-  private save(): void {
-    if (!this.storage) return;
-    try {
-      this.storage.setItem(this.key, JSON.stringify(this.entries));
-    } catch {
-      // quota/privacy failures must never break connection handling
-    }
+  private persist(): void {
+    this.slot.save(this.entries, this.storage);
+    this.dirty = false;
   }
 }
 
