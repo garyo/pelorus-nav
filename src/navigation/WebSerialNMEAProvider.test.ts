@@ -24,12 +24,22 @@ const GGA = withChecksum(
 );
 
 class FakePort {
+  // Mirrors real SerialPort semantics closely enough to reproduce the
+  // watchdog wedge: open() throws InvalidStateError on an already-open port,
+  // and close() rejects with TypeError while the readable side is locked
+  // (i.e. still piped to by an active read loop).
   open = vi.fn((_opts: { baudRate: number }) => {
     this.openCount++;
     if (this.failOpenTimes > 0) {
       this.failOpenTimes--;
       return Promise.reject(new Error("open failed"));
     }
+    if (this.isOpen) {
+      return Promise.reject(
+        new DOMException("port already open", "InvalidStateError"),
+      );
+    }
+    this.isOpen = true;
     this.readable = new ReadableStream<Uint8Array>({
       start: (c) => {
         this.controller = c;
@@ -37,10 +47,19 @@ class FakePort {
     });
     return Promise.resolve();
   });
-  close = vi.fn(() => Promise.resolve());
+  close = vi.fn(() => {
+    if (!this.isOpen) return Promise.resolve();
+    if (this.readable?.locked) {
+      return Promise.reject(new TypeError("cannot close a locked stream"));
+    }
+    this.isOpen = false;
+    this.readable = null;
+    return Promise.resolve();
+  });
 
   openCount = 0;
   failOpenTimes = 0; // make the next N open() attempts reject
+  isOpen = false;
   readable: ReadableStream<Uint8Array> | null = null;
   private controller: ReadableStreamDefaultController<Uint8Array> | null = null;
   private readonly info: { usbVendorId?: number; usbProductId?: number };
@@ -207,6 +226,38 @@ describe("WebSerialNMEAProvider", () => {
     expect(serial.requestPort).toHaveBeenCalledTimes(1); // not reopened
     expect(provider.isReconnecting()).toBe(false); // intent dropped
     expect(notices.some((n) => n.kind === "picker-cancelled")).toBe(true);
+  });
+
+  it("recovers from a silence-watchdog reconnect instead of wedging on the same port", async () => {
+    const provider = makeProvider();
+    const fixes: NavigationData[] = [];
+    provider.subscribe((d) => fixes.push(d));
+    provider.connect();
+    await flush();
+    expect(provider.isConnected()).toBe(true);
+    expect(port.openCount).toBe(1);
+
+    // Data goes silent (device still attached, just stopped sending) past the
+    // default 8s watchdog limit. The forced reconnect must actually reopen
+    // the port instead of wedging on a stale lock.
+    await vi.advanceTimersByTimeAsync(9000);
+    await settle();
+    await flush();
+
+    // Give it a few backoff cycles' worth of headroom in case the very first
+    // retry lands mid-teardown; a wedged provider never recovers no matter
+    // how long we wait.
+    await vi.advanceTimersByTimeAsync(60000);
+    await settle();
+    await flush();
+
+    expect(provider.isConnected()).toBe(true);
+    expect(serial.requestPort).toHaveBeenCalledTimes(1); // never re-picked
+
+    // The reopened port must actually carry data again.
+    port.send(`${RMC}\r\n${GGA}\r\n`);
+    await settle();
+    expect(fixes.length).toBeGreaterThan(0);
   });
 
   it("disconnect() closes the port and does not reconnect", async () => {

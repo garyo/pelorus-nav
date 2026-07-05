@@ -20,6 +20,7 @@ const fake = vi.hoisted(() => ({
     connect: [] as string[],
     requestEnable: 0,
   },
+  enabledWatchFailTimes: 0,
   reset() {
     this.enabled = true;
     this.connectFailTimes = 0;
@@ -28,6 +29,7 @@ const fake = vi.hoisted(() => ({
     this.pickedDevice = { deviceId: "AA:BB", name: "Pelorus-GPS" };
     this.enabledCallback = null;
     this.onDisconnect = null;
+    this.enabledWatchFailTimes = 0;
     this.calls = {
       initialize: 0,
       requestDevice: 0,
@@ -50,6 +52,10 @@ vi.mock("@capacitor-community/bluetooth-le", () => ({
     }),
     openBluetoothSettings: vi.fn(() => Promise.resolve()),
     startEnabledNotifications: vi.fn((cb: (value: boolean) => void) => {
+      if (fake.enabledWatchFailTimes > 0) {
+        fake.enabledWatchFailTimes--;
+        return Promise.reject(new Error("registration failed"));
+      }
       fake.enabledCallback = cb;
       return Promise.resolve();
     }),
@@ -200,6 +206,29 @@ describe("CapacitorBLENMEAProvider", () => {
     await vi.advanceTimersByTimeAsync(60000);
     expect(fake.calls.connect.length).toBe(connectsSoFar); // no futile retries
     expect(notices).toContainEqual({ kind: "bt-off" });
+  });
+
+  it("resumes after Bluetooth cycles off/on even if the enabled-watch registration itself failed once", async () => {
+    fake.enabledWatchFailTimes = 1; // registration rejects on the very first attempt
+    const provider = makeProvider();
+    provider.connect();
+    await flush();
+    expect(provider.isConnected()).toBe(true); // BT was on — connects fine regardless
+
+    // Bluetooth turns off: the peripheral drops, the retry discovers BT is
+    // off on failure and suspends.
+    fake.enabled = false;
+    fake.onDisconnect?.();
+    await vi.advanceTimersByTimeAsync(1000); // the scheduled retry fires and fails
+    expect(provider.isConnected()).toBe(false);
+    expect(notices.some((n) => n.kind === "bt-off")).toBe(true);
+
+    // Bluetooth turns back on. Since the notification watch never actually
+    // registered, nothing calls back automatically unless the registration
+    // itself gets retried — the provider must still self-heal.
+    fake.enabled = true;
+    await vi.advanceTimersByTimeAsync(60000);
+    expect(provider.isConnected()).toBe(true);
   });
 
   it("picker cancel drops intent and emits picker-cancelled", async () => {

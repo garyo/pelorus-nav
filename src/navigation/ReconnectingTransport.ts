@@ -5,7 +5,8 @@
  * The provider owns the transport — how a link is opened, torn down, and any
  * alternate recovery path (advertisement watch, Bluetooth-off detection) —
  * and injects it as {@link ReconnectingTransportOps}. The core owns *when*
- * to (re)try and the bookkeeping every provider used to duplicate:
+ * to (re)try and the bookkeeping a provider would otherwise have to
+ * duplicate:
  *
  * - connect/disconnect intent, and the connected flag derived from it
  * - exponential reconnect backoff (min→max ×2, reset on success)
@@ -13,6 +14,10 @@
  *   dead — force a clean reconnect); runs only while connected
  * - the establishing guard, so a provider's own teardown during (re)connect
  *   isn't mistaken for a peripheral drop
+ * - a generation token, so a superseded establish (Reconnect button, a
+ *   config change, a timer retry — any of these can race one another)
+ *   settling late doesn't flip state or tear down the link a newer attempt
+ *   opened
  * - a post-establish intent re-check: if disconnect() raced the establish
  *   await, the fresh link is torn down instead of leaking (on a single-client
  *   peripheral a leaked link holds its only slot)
@@ -75,6 +80,7 @@ export class ReconnectingTransport {
   private wantConnectedFlag = false;
   private connectedFlag = false;
   private establishing = false;
+  private generation = 0;
   private suspended = false;
   private escalated = false;
   private relaxed = false;
@@ -145,6 +151,7 @@ export class ReconnectingTransport {
    */
   claimIntent(): void {
     this.clearReconnect();
+    this.suspended = false; // a manual retry always overrides "retries are futile"
     this.wantConnectedFlag = true;
     this.connectedFlag = false;
     this.syncWatchdog();
@@ -157,12 +164,20 @@ export class ReconnectingTransport {
    * (callers decide between backoff, escalation, and picker fallback).
    */
   async runEstablish(cause: EstablishCause): Promise<void> {
+    // Every call supersedes whatever establish is already in flight (the
+    // Reconnect button, a config change, or a timer retry can all race one
+    // another). The generation token lets a superseded attempt recognize,
+    // once its own establish() settles, that it is no longer authoritative:
+    // it must not flip connectedFlag, fire onEstablished, or tear down the
+    // link a newer attempt may since have opened.
+    const myGeneration = ++this.generation;
     this.establishing = true;
     try {
       await this.ops.establish(cause);
     } finally {
-      this.establishing = false;
+      if (myGeneration === this.generation) this.establishing = false;
     }
+    if (myGeneration !== this.generation) return;
     if (!this.wantConnectedFlag) {
       this.ops.teardown();
       return;

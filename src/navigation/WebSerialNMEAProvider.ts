@@ -245,6 +245,11 @@ export class WebSerialNMEAProvider implements NavigationDataProvider {
   // every reconnect; re-resolves the port so a stale handle from before an
   // unplug is replaced by the freshly-attached one.
   private async openPort(): Promise<void> {
+    // A watchdog-forced retry finds the read loop still pumping on the same
+    // port (its reader.read() is merely pending on a silent stream, not
+    // errored) — tear that down first, or the re-open below throws
+    // InvalidStateError against the still-locked port on every retry.
+    this.teardownLink();
     const port = this.port ?? (await this.findGrantedPort());
     this.port = null; // stale handles must not survive a failed attempt
     if (!port) throw new Error(NOT_PRESENT);
