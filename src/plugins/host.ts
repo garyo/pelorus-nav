@@ -9,6 +9,12 @@ import type maplibregl from "maplibre-gl";
 import type { ChartManager } from "../chart/ChartManager";
 import type { ChartProvider } from "../chart/ChartProvider";
 import type { FeatureInfo } from "../chart/feature-info";
+import {
+  currentViewportSig,
+  defaultGateOpts,
+  type ViewportSig,
+  viewportChangedMaterially,
+} from "../chart/viewport-gate";
 import { type DataAsset, registerDataAsset } from "../data/chart-catalog";
 import type { NavigationDataProvider } from "../navigation/NavigationData";
 import type { NavigationDataManager } from "../navigation/NavigationDataManager";
@@ -27,6 +33,7 @@ import {
   getOffsetMs,
   onChange as onDisplayTimeChange,
 } from "../state/displayTime";
+import { createTrailingThrottle } from "../utils/trailing-throttle";
 import type { LegendHost } from "./legend";
 import type { PickContributor, PickRegistry } from "./picking";
 import { slotBeforeId } from "./slots";
@@ -252,18 +259,35 @@ export function activatePlugin(plugin: Plugin, deps: HostDeps): ActivePlugin {
 
     events: {
       onMapMove(fn, debounceMs = 0) {
-        let timer: ReturnType<typeof setTimeout> | null = null;
+        // moveend fires ~10 Hz underway in follow mode (see viewport-gate.ts),
+        // so this gates on material viewport change and — when debounced —
+        // uses a non-re-arming trailing throttle rather than a re-arming
+        // debounce: the latter never gets a quiet gap under that stream and
+        // starves plugin refreshes (tides/current arrows, wind barbs) for as
+        // long as the vessel keeps moving.
+        let lastViewport: ViewportSig | null = null;
+        const run = () => {
+          lastViewport = currentViewportSig(deps.map);
+          fn();
+        };
+        const throttle =
+          debounceMs > 0 ? createTrailingThrottle(run, debounceMs) : null;
         const handler = () => {
-          if (debounceMs <= 0) {
-            fn();
+          if (
+            !viewportChangedMaterially(
+              lastViewport,
+              currentViewportSig(deps.map),
+              defaultGateOpts(deps.map),
+            )
+          ) {
             return;
           }
-          if (timer) clearTimeout(timer);
-          timer = setTimeout(fn, debounceMs);
+          if (throttle) throttle.trigger();
+          else run();
         };
         deps.map.on("moveend", handler);
         const off = () => {
-          if (timer) clearTimeout(timer);
+          throttle?.cancel();
           deps.map.off("moveend", handler);
         };
         cleanups.push(off);

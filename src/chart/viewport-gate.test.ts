@@ -1,6 +1,9 @@
+import type maplibregl from "maplibre-gl";
 import { describe, expect, it } from "vitest";
 import {
   centerDeltaPx,
+  currentViewportSig,
+  defaultGateOpts,
   type ViewportSig,
   viewportChangedMaterially,
 } from "./viewport-gate";
@@ -67,5 +70,37 @@ describe("centerDeltaPx", () => {
     expect(centerDeltaPx({ ...base, zoom: 10 }, nextLo)).toBeLessThan(
       centerDeltaPx({ ...base, zoom: 14 }, nextHi),
     );
+  });
+});
+
+function fakeMap(sig: ViewportSig, containerSize = { w: 1000, h: 800 }) {
+  return {
+    getCenter: () => ({ lng: sig.lng, lat: sig.lat }),
+    getZoom: () => sig.zoom,
+    getBearing: () => sig.bearing,
+    getContainer: () => ({
+      clientWidth: containerSize.w,
+      clientHeight: containerSize.h,
+    }),
+  } as unknown as maplibregl.Map;
+}
+
+describe("currentViewportSig", () => {
+  it("reads center/zoom/bearing off the map", () => {
+    expect(currentViewportSig(fakeMap(base))).toEqual(base);
+  });
+});
+
+describe("defaultGateOpts", () => {
+  it("scales centerEpsPx to 10% of the smaller container dimension", () => {
+    expect(defaultGateOpts(fakeMap(base, { w: 2000, h: 1000 }))).toEqual({
+      centerEpsPx: 100,
+    });
+  });
+
+  it("floors centerEpsPx at 64px for small containers", () => {
+    expect(defaultGateOpts(fakeMap(base, { w: 300, h: 200 }))).toEqual({
+      centerEpsPx: 64,
+    });
   });
 });

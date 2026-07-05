@@ -10,6 +10,7 @@
  * since the consumer's last rebuild that the visible feature set may differ.
  */
 
+import type maplibregl from "maplibre-gl";
 import { circularDistanceDeg } from "../navigation/CourseSmoothing";
 
 export interface ViewportSig {
@@ -59,4 +60,23 @@ export function viewportChangedMaterially(
     circularDistanceDeg(next.bearing, prev.bearing) >= o.bearingEpsDeg ||
     centerDeltaPx(prev, next) >= o.centerEpsPx
   );
+}
+
+/** The map's current viewport signature. */
+export function currentViewportSig(map: maplibregl.Map): ViewportSig {
+  const c = map.getCenter();
+  return {
+    lng: c.lng,
+    lat: c.lat,
+    zoom: map.getZoom(),
+    bearing: map.getBearing(),
+  };
+}
+
+/** Gate options scaled to the map container size (min 64px). */
+export function defaultGateOpts(map: maplibregl.Map): ViewportGateOpts {
+  const el = map.getContainer();
+  return {
+    centerEpsPx: Math.max(64, 0.1 * Math.min(el.clientWidth, el.clientHeight)),
+  };
 }
