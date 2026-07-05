@@ -354,9 +354,17 @@ export class WindOverlay implements MapOverlay {
     }
     this.cache.prune(Date.now());
 
-    // Re-partition (the view may have moved during the await) and repaint.
+    // Repaint against the map's *current* view — it may have moved during the
+    // await, and rendering the bounds captured above would overwrite a newer
+    // refresh's paint with a stale viewport.
     const after = this.cache.partition(points, Date.now());
-    this.setData(this.render(zoom, b, this.host.time.now().getTime()));
+    this.setData(
+      this.render(
+        Math.round(map.getZoom()),
+        map.getBounds(),
+        this.host.time.now().getTime(),
+      ),
+    );
     this.setStatus(after.have.length ? "ok" : "no-data");
   }
 
