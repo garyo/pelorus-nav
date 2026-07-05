@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { type ConnectionEvent, ConnectionEventLog } from "./ConnectionEventLog";
 
 function fakeStorage(): Pick<Storage, "getItem" | "setItem" | "removeItem"> & {
@@ -50,6 +50,7 @@ describe("ConnectionEventLog", () => {
     const storage = fakeStorage();
     const log = new ConnectionEventLog({ storage });
     log.log("ble-nmea", "connected", "pod");
+    log.flush(); // persist is debounced — force it through before reloading
     const reloaded = new ConnectionEventLog({ storage });
     expect(reloaded.entryCount).toBe(1);
     expect(reloaded.getEntries()[0].detail).toBe("pod");
@@ -137,5 +138,127 @@ describe("ConnectionEventLog", () => {
     const log = new ConnectionEventLog({ storage, max: 5 });
     expect(log.entryCount).toBe(5);
     expect(log.getEntries()[0].detail).toBe("5");
+  });
+});
+
+describe("ConnectionEventLog write batching", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.useRealTimers();
+  });
+
+  it("collapses a burst of log() calls into a single persist", () => {
+    const storage = fakeStorage();
+    const setItem = vi.spyOn(storage, "setItem");
+    const log = new ConnectionEventLog({ storage });
+    log.log("ble-nmea", "connect-request");
+    log.log("ble-nmea", "picker-shown");
+    log.log("ble-nmea", "connected");
+    expect(setItem).not.toHaveBeenCalled();
+
+    vi.advanceTimersByTime(1000);
+
+    expect(setItem).toHaveBeenCalledTimes(1);
+    const reloaded = new ConnectionEventLog({ storage });
+    expect(reloaded.entryCount).toBe(3);
+  });
+
+  it("makes new entries readable in memory before the debounced persist fires", () => {
+    const storage = fakeStorage();
+    const log = new ConnectionEventLog({ storage });
+    log.log("ble-nmea", "connected", "pod");
+    expect(log.entryCount).toBe(1);
+    expect(log.getEntries()[0].detail).toBe("pod");
+    expect(storage.map.has("pelorus-nav-conn-log")).toBe(false);
+  });
+
+  it("flush() persists immediately and cancels the pending timer", () => {
+    const storage = fakeStorage();
+    const setItem = vi.spyOn(storage, "setItem");
+    const log = new ConnectionEventLog({ storage });
+    log.log("ble-nmea", "connected");
+    expect(setItem).not.toHaveBeenCalled();
+
+    log.flush();
+    expect(setItem).toHaveBeenCalledTimes(1);
+
+    // The debounce timer was cancelled, so letting it elapse writes nothing more.
+    vi.advanceTimersByTime(1000);
+    expect(setItem).toHaveBeenCalledTimes(1);
+  });
+
+  it("flush() is a no-op when nothing is pending", () => {
+    const storage = fakeStorage();
+    const setItem = vi.spyOn(storage, "setItem");
+    const log = new ConnectionEventLog({ storage });
+    log.flush();
+    expect(setItem).not.toHaveBeenCalled();
+  });
+
+  it("pagehide flushes a pending persist immediately", () => {
+    const handlers = new Map<string, () => void>();
+    vi.stubGlobal("window", {
+      addEventListener: (name: string, fn: () => void) => {
+        handlers.set(name, fn);
+      },
+      removeEventListener: vi.fn(),
+    });
+
+    const storage = fakeStorage();
+    const setItem = vi.spyOn(storage, "setItem");
+    const log = new ConnectionEventLog({ storage });
+    log.log("ble-nmea", "connected");
+    expect(setItem).not.toHaveBeenCalled();
+
+    handlers.get("pagehide")?.();
+    expect(setItem).toHaveBeenCalledTimes(1);
+    expect(log.entryCount).toBe(1);
+  });
+
+  it("visibilitychange to hidden flushes a pending persist immediately", () => {
+    const documentStub = {
+      visibilityState: "hidden" as DocumentVisibilityState,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+    };
+    vi.stubGlobal("document", documentStub);
+
+    const storage = fakeStorage();
+    const setItem = vi.spyOn(storage, "setItem");
+    const log = new ConnectionEventLog({ storage });
+    log.log("ble-nmea", "connected");
+    expect(setItem).not.toHaveBeenCalled();
+
+    const onVisibilityChange = documentStub.addEventListener.mock.calls.find(
+      ([name]) => name === "visibilitychange",
+    )?.[1] as (() => void) | undefined;
+    onVisibilityChange?.();
+
+    expect(setItem).toHaveBeenCalledTimes(1);
+  });
+
+  it("visibilitychange to visible does not flush", () => {
+    const documentStub = {
+      visibilityState: "visible" as DocumentVisibilityState,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+    };
+    vi.stubGlobal("document", documentStub);
+
+    const storage = fakeStorage();
+    const setItem = vi.spyOn(storage, "setItem");
+    const log = new ConnectionEventLog({ storage });
+    log.log("ble-nmea", "connected");
+
+    const onVisibilityChange = documentStub.addEventListener.mock.calls.find(
+      ([name]) => name === "visibilitychange",
+    )?.[1] as (() => void) | undefined;
+    onVisibilityChange?.();
+
+    expect(setItem).not.toHaveBeenCalled();
   });
 });

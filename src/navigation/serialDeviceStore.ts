@@ -5,64 +5,42 @@
  * page reload or an unplug/replug, without re-showing the picker.
  */
 
+import {
+  createJsonStorageSlot,
+  defaultBrowserStorage,
+  type StorageLike,
+} from "../utils/json-storage-slot";
+
 export interface SavedSerialDevice {
   vendorId: number;
   productId: number;
 }
 
-type StorageLike = Pick<Storage, "getItem" | "setItem" | "removeItem">;
-
 const KEY = "pelorus-nav-serial-device";
 
-function defaultStorage(): StorageLike | null {
-  return typeof localStorage !== "undefined" ? localStorage : null;
+function isSavedSerialDevice(value: unknown): value is SavedSerialDevice {
+  if (typeof value !== "object" || value === null) return false;
+  const v = value as Record<string, unknown>;
+  return typeof v.vendorId === "number" && typeof v.productId === "number";
 }
 
+const slot = createJsonStorageSlot<SavedSerialDevice>(KEY, isSavedSerialDevice);
+
 export function loadSavedSerialDevice(
-  storage: StorageLike | null = defaultStorage(),
+  storage: StorageLike | null = defaultBrowserStorage(),
 ): SavedSerialDevice | null {
-  if (!storage) return null;
-  try {
-    const raw = storage.getItem(KEY);
-    if (!raw) return null;
-    const parsed: unknown = JSON.parse(raw);
-    if (
-      typeof parsed === "object" &&
-      parsed !== null &&
-      typeof (parsed as Record<string, unknown>).vendorId === "number" &&
-      typeof (parsed as Record<string, unknown>).productId === "number"
-    ) {
-      return parsed as SavedSerialDevice;
-    }
-    storage.removeItem(KEY);
-    return null;
-  } catch {
-    try {
-      storage.removeItem(KEY);
-    } catch {
-      // unremovable — treat as absent
-    }
-    return null;
-  }
+  return slot.load(storage);
 }
 
 export function saveSerialDevice(
   device: SavedSerialDevice,
-  storage: StorageLike | null = defaultStorage(),
+  storage: StorageLike | null = defaultBrowserStorage(),
 ): void {
-  try {
-    storage?.setItem(KEY, JSON.stringify(device));
-  } catch {
-    // quota/privacy failures — connection still works, just not persisted
-  }
+  slot.save(device, storage);
 }
 
 export function clearSavedSerialDevice(
-  storage: StorageLike | null = defaultStorage(),
+  storage: StorageLike | null = defaultBrowserStorage(),
 ): void {
-  try {
-    storage?.removeItem(KEY);
-  } catch {
-    // ignore
-  }
+  slot.clear(storage);
 }
