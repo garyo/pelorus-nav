@@ -4,6 +4,7 @@
  */
 
 import type maplibregl from "maplibre-gl";
+import { reapplyOverlayDimming } from "../app/overlayDimming";
 import { getAllRoutes } from "../data/db";
 import type { Route } from "../data/Route";
 import { lightenHex } from "../utils/color";
@@ -71,6 +72,11 @@ export class RouteLayer {
       if (sel) this.selectRoute(sel);
       else this.selectedRouteId = null;
     }
+
+    // Routes were just re-added at hard-coded full opacity — re-dim them
+    // for the current theme (the settings-driven sweep won't re-run since
+    // the theme itself hasn't changed).
+    reapplyOverlayDimming(this.map);
   }
 
   async toggleVisibility(id: string, visible: boolean): Promise<void> {
@@ -79,6 +85,7 @@ export class RouteLayer {
     route.visible = visible;
     if (visible) {
       this.addRoute(route);
+      reapplyOverlayDimming(this.map);
     } else {
       this.removeRoute(id);
     }
@@ -89,6 +96,7 @@ export class RouteLayer {
     this.loadedRoutes.set(route.id, route);
     if (route.visible) {
       this.addRoute(route);
+      reapplyOverlayDimming(this.map);
     }
   }
 

@@ -9,6 +9,58 @@ import { getSettings, onSettingsChange } from "../settings";
 const NIGHT_OPACITY = 0.45;
 const DUSK_OPACITY = 0.7;
 
+/** Sweep the map's current layers and dim the overlay ones for `theme`. */
+function dimOverlayLayers(map: MapLibreMap, theme: string): void {
+  const opacity =
+    theme === "night" ? NIGHT_OPACITY : theme === "dusk" ? DUSK_OPACITY : 1;
+
+  for (const layer of map.getStyle().layers) {
+    const id = layer.id;
+    const isOverlay =
+      id.startsWith("_route-line-") ||
+      id.startsWith("_route-labels-") ||
+      id === "_bearing-line-layer" ||
+      id === "_bearing-line-target" ||
+      id.startsWith("_plot-");
+
+    if (!isOverlay) continue;
+
+    if (layer.type === "line") {
+      map.setPaintProperty(id, "line-opacity", opacity * 0.9);
+    } else if (layer.type === "circle") {
+      map.setPaintProperty(id, "circle-opacity", opacity);
+      map.setPaintProperty(id, "circle-stroke-opacity", opacity);
+    } else if (layer.type === "symbol") {
+      map.setPaintProperty(id, "text-opacity", opacity);
+    }
+  }
+
+  // Symbol layers (route points, waypoint points) use icon-opacity
+  for (const id of ["_waypoints-points", "_waypoints-labels"]) {
+    if (map.getLayer(id)) {
+      map.setPaintProperty(id, "icon-opacity", opacity);
+      map.setPaintProperty(id, "text-opacity", opacity);
+    }
+  }
+  for (const layer of map.getStyle().layers) {
+    if (layer.id.startsWith("_route-points-") && layer.type === "symbol") {
+      map.setPaintProperty(layer.id, "icon-opacity", opacity);
+    }
+  }
+}
+
+/**
+ * Force an immediate re-sweep for the current theme, bypassing the
+ * unchanged-theme memo in `installOverlayDimming`. Call this after
+ * recreating overlay layers mid-session (e.g. route reload/visibility
+ * toggle) — such layers are (re)added at hard-coded full opacity and
+ * won't otherwise be dimmed again until the theme itself changes.
+ */
+export function reapplyOverlayDimming(map: MapLibreMap): void {
+  if (!map.isStyleLoaded()) return;
+  dimOverlayLayers(map, getSettings().displayTheme);
+}
+
 export function installOverlayDimming(map: MapLibreMap): void {
   // Settings fire ~8×/s during slider drags and most changes don't touch the
   // theme — skip the full layer sweep (and its styledata churn) when the
@@ -20,43 +72,7 @@ export function installOverlayDimming(map: MapLibreMap): void {
     if (theme === appliedTheme) return;
     if (!map.isStyleLoaded()) return;
     appliedTheme = theme;
-
-    const opacity =
-      theme === "night" ? NIGHT_OPACITY : theme === "dusk" ? DUSK_OPACITY : 1;
-
-    for (const layer of map.getStyle().layers) {
-      const id = layer.id;
-      const isOverlay =
-        id.startsWith("_route-line-") ||
-        id.startsWith("_route-labels-") ||
-        id === "_bearing-line-layer" ||
-        id === "_bearing-line-target" ||
-        id.startsWith("_plot-");
-
-      if (!isOverlay) continue;
-
-      if (layer.type === "line") {
-        map.setPaintProperty(id, "line-opacity", opacity * 0.9);
-      } else if (layer.type === "circle") {
-        map.setPaintProperty(id, "circle-opacity", opacity);
-        map.setPaintProperty(id, "circle-stroke-opacity", opacity);
-      } else if (layer.type === "symbol") {
-        map.setPaintProperty(id, "text-opacity", opacity);
-      }
-    }
-
-    // Symbol layers (route points, waypoint points) use icon-opacity
-    for (const id of ["_waypoints-points", "_waypoints-labels"]) {
-      if (map.getLayer(id)) {
-        map.setPaintProperty(id, "icon-opacity", opacity);
-        map.setPaintProperty(id, "text-opacity", opacity);
-      }
-    }
-    for (const layer of map.getStyle().layers) {
-      if (layer.id.startsWith("_route-points-") && layer.type === "symbol") {
-        map.setPaintProperty(layer.id, "icon-opacity", opacity);
-      }
-    }
+    dimOverlayLayers(map, theme);
   };
 
   // Apply on theme change and after style reloads (when layers are re-added)
