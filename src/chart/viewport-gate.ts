@@ -80,3 +80,33 @@ export function defaultGateOpts(map: maplibregl.Map): ViewportGateOpts {
     centerEpsPx: Math.max(64, 0.1 * Math.min(el.clientWidth, el.clientHeight)),
   };
 }
+
+export interface ViewportGate {
+  /** The map's current viewport signature (cheap — no DOM reads). */
+  sig(): ViewportSig;
+  /** Gate options, cached and refreshed only on container resize. */
+  opts(): ViewportGateOpts;
+  /** Detach the resize listener (for consumers with an explicit lifecycle). */
+  dispose(): void;
+}
+
+/**
+ * Binds a viewport gate to `map`: `sig()` for the live viewport, `opts()`
+ * for gate thresholds scaled to the container size. `moveend` fires ~10 Hz
+ * underway in follow mode, and `defaultGateOpts` reads
+ * `clientWidth`/`clientHeight` — a potential forced reflow if done on every
+ * event. Container size only actually changes on a `resize` event, so it's
+ * read once here and cached rather than re-read per gate check.
+ */
+export function createViewportGate(map: maplibregl.Map): ViewportGate {
+  let opts = defaultGateOpts(map);
+  const onResize = () => {
+    opts = defaultGateOpts(map);
+  };
+  map.on("resize", onResize);
+  return {
+    sig: () => currentViewportSig(map),
+    opts: () => opts,
+    dispose: () => map.off("resize", onResize),
+  };
+}

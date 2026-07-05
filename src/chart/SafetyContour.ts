@@ -20,7 +20,12 @@ import {
   type TrailingThrottle,
 } from "../utils/trailing-throttle";
 import { s52Colour } from "./s52-colours";
-import { type ViewportSig, viewportChangedMaterially } from "./viewport-gate";
+import {
+  createViewportGate,
+  type ViewportGate,
+  type ViewportSig,
+  viewportChangedMaterially,
+} from "./viewport-gate";
 
 const ISOLATED_DANGER_SUFFIXES = [
   "wrecks-isodgr",
@@ -55,6 +60,7 @@ export class SafetyContour {
   private updating = false;
   /** Viewport at the last completed scan — gates the moveend rescan. */
   private lastScanViewport: ViewportSig | null = null;
+  private readonly gate: ViewportGate;
   /** Throttled safety depth update — max one apply per THROTTLE_MS. */
   private pendingSafetyDepth: number | null = null;
   private throttleTimer: ReturnType<typeof setTimeout> | null = null;
@@ -64,6 +70,7 @@ export class SafetyContour {
 
   constructor(map: maplibregl.Map) {
     this.map = map;
+    this.gate = createViewportGate(map);
     this.prevSafetyDepth = getSettings().safetyDepth;
     this.scanThrottle = createTrailingThrottle(
       () => this.scanTiles(),
@@ -88,8 +95,8 @@ export class SafetyContour {
       if (
         viewportChangedMaterially(
           this.lastScanViewport,
-          this.viewportSig(),
-          this.gateOpts(),
+          this.gate.sig(),
+          this.gate.opts(),
         )
       ) {
         this.scanThrottle.trigger();
@@ -144,29 +151,9 @@ export class SafetyContour {
     this.updating = false;
   }
 
-  private viewportSig(): ViewportSig {
-    const c = this.map.getCenter();
-    return {
-      lng: c.lng,
-      lat: c.lat,
-      zoom: this.map.getZoom(),
-      bearing: this.map.getBearing(),
-    };
-  }
-
-  private gateOpts(): { centerEpsPx: number } {
-    const el = this.map.getContainer();
-    return {
-      centerEpsPx: Math.max(
-        64,
-        0.1 * Math.min(el.clientWidth, el.clientHeight),
-      ),
-    };
-  }
-
   /** Scan all loaded DEPCNT features and cache VALDCO values grouped by _cell_id. */
   private scanTiles(): void {
-    this.lastScanViewport = this.viewportSig();
+    this.lastScanViewport = this.gate.sig();
     const byCell = new Map<number, Set<number>>();
 
     for (const srcId of getVectorSourceIds()) {

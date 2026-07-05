@@ -58,6 +58,9 @@ describe("SafetyContour", () => {
       expect(scans).toBeGreaterThanOrEqual(3);
       // ...and bounds the rate too: never faster than once per window.
       expect(scans).toBeLessThanOrEqual(6);
+      // Gate opts are cached (read once at gate creation, not per moveend) —
+      // no forced-reflow risk from repeated getContainer() calls underway.
+      expect(map.getContainer.mock.calls.length).toBeLessThanOrEqual(1);
     });
   });
 

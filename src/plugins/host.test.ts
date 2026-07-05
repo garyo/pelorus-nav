@@ -89,6 +89,9 @@ describe("PluginHost events.onMapMove", () => {
     // A non-re-arming trailing throttle bounds staleness at ~150ms, so a 5s
     // continuous stream must produce many refreshes, not zero.
     expect(fn.mock.calls.length).toBeGreaterThanOrEqual(10);
+    // Gate opts are cached (read once at gate creation, not per moveend) —
+    // no forced-reflow risk from repeated getContainer() calls underway.
+    expect(map.getContainer.mock.calls.length).toBeLessThanOrEqual(1);
   });
 
   it("skips refresh when the viewport hasn't moved materially", () => {

@@ -13,7 +13,12 @@ import type maplibregl from "maplibre-gl";
 import { getSettings, onSettingsChange } from "../settings";
 import { queryAllLights } from "./lights-query";
 import { s52Colour } from "./s52-colours";
-import { type ViewportSig, viewportChangedMaterially } from "./viewport-gate";
+import {
+  createViewportGate,
+  type ViewportGate,
+  type ViewportSig,
+  viewportChangedMaterially,
+} from "./viewport-gate";
 
 const SOURCE_ID = "_light-sectors";
 const LAYER_RANGE_FILL = "_light-range";
@@ -127,6 +132,7 @@ function rangeCircleColour(colourAttr: unknown): string {
 // ── Feature generation ───────────────────────────────────────────────
 
 interface LightsProps {
+  LNAM?: string;
   SECTR1?: number;
   SECTR2?: number;
   COLOUR?: unknown;
@@ -307,6 +313,47 @@ function buildFeatures(
   return { type: "FeatureCollection", features };
 }
 
+/**
+ * Cheap identity signature for the raw LIGHTS features `buildFeatures`
+ * depends on — computed straight from the query result, before the
+ * (comparatively expensive) arc/circle geometry generation and
+ * `JSON.stringify` of the built output.
+ *
+ * `zoom` is folded in because `buildFeatures`' radius (and therefore every
+ * generated coordinate) is a continuous function of it — unlike the
+ * `viewportChangedMaterially` gate upstream, which only requires a >=
+ * `zoomEps` change to trigger a rebuild at all, this must detect *any*
+ * zoom difference to match the old full-output comparison's behaviour.
+ * Exported for unit testing.
+ */
+export function sectorLightsSignature(
+  lightsFeatures: Feature[],
+  zoom: number,
+): string {
+  const keys: string[] = [];
+  for (const f of lightsFeatures) {
+    if (f.geometry.type !== "Point") continue;
+    const [lon, lat] = f.geometry.coordinates;
+    const props = (f.properties ?? {}) as LightsProps;
+    keys.push(
+      [
+        props.LNAM ?? "",
+        lon.toFixed(5),
+        lat.toFixed(5),
+        props.SECTR1 ?? "",
+        props.SECTR2 ?? "",
+        String(props.COLOUR ?? ""),
+        props.VALNMR ?? "",
+        props.LITVIS ?? "",
+        props.CATLIT ?? "",
+        props.ORIENT ?? "",
+      ].join(","),
+    );
+  }
+  keys.sort();
+  return `${zoom}|${keys.join("|")}`;
+}
+
 // ── Layer class ──────────────────────────────────────────────────────
 
 export class LightSectorLayer {
@@ -315,11 +362,15 @@ export class LightSectorLayer {
   private debounceTimer: ReturnType<typeof setTimeout> | null = null;
   /** Viewport at the last real rebuild — gates the moveend trigger. */
   private lastRebuildViewport: ViewportSig | null = null;
-  /** JSON of the last setData, to skip no-op writes. */
-  private lastDataJson = "";
+  /** Signature of the last queried input that actually rebuilt the overlay
+   * (see `sectorLightsSignature`), to skip the geometry-build/setData pass
+   * when the queried features and zoom haven't changed. */
+  private lastInputSig: string | null = null;
+  private readonly gate: ViewportGate;
 
   constructor(map: maplibregl.Map) {
     this.map = map;
+    this.gate = createViewportGate(map);
     this.enabled = getSettings().layerGroups.lightSectors ?? false;
 
     map.on("style.load", () => this.setup());
@@ -345,8 +396,8 @@ export class LightSectorLayer {
       if (
         viewportChangedMaterially(
           this.lastRebuildViewport,
-          this.viewportSig(),
-          this.gateOpts(),
+          this.gate.sig(),
+          this.gate.opts(),
         )
       ) {
         this.debouncedRebuild();
@@ -396,7 +447,7 @@ export class LightSectorLayer {
 
   private addSourceAndLayers(): void {
     this.removeLayers();
-    this.lastDataJson = ""; // source recreated empty — never suppress the refill
+    this.lastInputSig = null; // source recreated empty — never suppress the refill
 
     this.map.addSource(SOURCE_ID, {
       type: "geojson",
@@ -504,26 +555,6 @@ export class LightSectorLayer {
     });
   }
 
-  private viewportSig(): ViewportSig {
-    const c = this.map.getCenter();
-    return {
-      lng: c.lng,
-      lat: c.lat,
-      zoom: this.map.getZoom(),
-      bearing: this.map.getBearing(),
-    };
-  }
-
-  private gateOpts(): { centerEpsPx: number } {
-    const el = this.map.getContainer();
-    return {
-      centerEpsPx: Math.max(
-        64,
-        0.1 * Math.min(el.clientWidth, el.clientHeight),
-      ),
-    };
-  }
-
   // Non-re-arming trailing throttle: a re-armed debounce at ~frame spacing
   // never fires under the 10 Hz moveend firehose (it starves).
   private debouncedRebuild(): void {
@@ -546,26 +577,27 @@ export class LightSectorLayer {
       this.clear();
       return;
     }
-    this.lastRebuildViewport = this.viewportSig();
+    this.lastRebuildViewport = this.gate.sig();
 
     // Query LIGHTS features from all vector tile sources
     const allLights = queryAllLights(this.map);
+    const zoom = this.map.getZoom();
 
-    const radius = arcRadiusForZoom(this.map.getZoom());
+    // Cheap identity check (features + zoom, since radius is zoom-derived)
+    // before the expensive arc/circle geometry generation + stringify pass.
+    const sig = sectorLightsSignature(allLights, zoom);
+    if (sig === this.lastInputSig) return;
+    this.lastInputSig = sig;
+
+    const radius = arcRadiusForZoom(zoom);
     const geojson = buildFeatures(allLights, radius);
-    // The geojson embeds the zoom-dependent radius, so a real zoom change
-    // naturally misses this dedup — intended.
-    const json = JSON.stringify(geojson);
-    if (json !== this.lastDataJson) {
-      this.lastDataJson = json;
-      (this.map.getSource(SOURCE_ID) as maplibregl.GeoJSONSource)?.setData(
-        geojson,
-      );
-    }
+    (this.map.getSource(SOURCE_ID) as maplibregl.GeoJSONSource)?.setData(
+      geojson,
+    );
   }
 
   private clear(): void {
-    this.lastDataJson = "";
+    this.lastInputSig = null;
     const src = this.map.getSource(SOURCE_ID) as
       | maplibregl.GeoJSONSource
       | undefined;

@@ -1,6 +1,10 @@
 import type { Feature, Point } from "geojson";
 import { describe, expect, it } from "vitest";
-import { buildClusters, buildGeoJson } from "./PelLightLayer";
+import {
+  buildClusters,
+  buildGeoJson,
+  pelLightsSignature,
+} from "./PelLightLayer";
 
 function lights(
   props: Record<string, unknown>,
@@ -480,5 +484,42 @@ describe("buildGeoJson", () => {
     const { geojson, suppressedLnams } = buildGeoJson(feats);
     expect(geojson.features).toHaveLength(0);
     expect(suppressedLnams).toEqual([]);
+  });
+});
+
+describe("pelLightsSignature", () => {
+  it("is identical for the same feature set queried again", () => {
+    const a = pelLightsSignature(clevelandLedge());
+    const b = pelLightsSignature(clevelandLedge());
+    expect(a).toBe(b);
+  });
+
+  it("changes when a child is added or removed", () => {
+    const full = pelLightsSignature(clevelandLedge());
+    const partial = pelLightsSignature(clevelandLedge().slice(0, 6));
+    expect(full).not.toBe(partial);
+  });
+
+  it("changes when a sector-defining attribute changes", () => {
+    const before = pelLightsSignature(clevelandLedge());
+    const feats = clevelandLedge();
+    (feats[0].properties as Record<string, unknown>).SECTR1 = 999;
+    const after = pelLightsSignature(feats);
+    expect(before).not.toBe(after);
+  });
+
+  it("ignores non-PEL features (no PARENT_LNAM)", () => {
+    const withNonPel = pelLightsSignature([
+      ...clevelandLedge(),
+      lights({ LNAM: "not-pel", LITCHR: 2 }),
+    ]);
+    const without = pelLightsSignature(clevelandLedge());
+    expect(withNonPel).toBe(without);
+  });
+
+  it("is order-independent (same set, different query order)", () => {
+    const a = pelLightsSignature(clevelandLedge());
+    const b = pelLightsSignature([...clevelandLedge()].reverse());
+    expect(a).toBe(b);
   });
 });
