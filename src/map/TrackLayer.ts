@@ -58,6 +58,15 @@ export class TrackLayer {
   private loadedTracks = new Map<string, TrackMeta>();
   private activePoints: DisplayPoint[] = [];
   private lastDisplayTime = 0;
+  /** Track id the live-render buffer currently represents. Used to detect a
+   *  track change (new recording, resume, or a gap-split mid-recording) so
+   *  the buffer can be reset instead of silently carrying over the previous
+   *  track's points. */
+  private currentTrackId: string | null = null;
+  /** Track id a seedActivePoints() read is currently in flight for, so a
+   *  second notification for the same track doesn't launch a duplicate
+   *  IndexedDB read. */
+  private seedingTrackId: string | null = null;
   private readonly selectionHalo: SelectionHalo;
 
   constructor(
@@ -84,31 +93,65 @@ export class TrackLayer {
         // Save final state and reload
         this.activePoints = [];
         this.lastDisplayTime = 0;
+        this.currentTrackId = null;
         this.reloadAll();
         return;
       }
-      // Resuming an existing recording after a page refresh: reloadAll()
-      // already rendered the full saved history via loadTrack, but
-      // activePoints starts empty — without seeding it here, the next live
-      // fix would replace that history with a single-point line. This also
-      // fires on every point recorded (each one calls the recorder's
-      // notify()), so guard on activePoints still being empty — once seeded
-      // (or once a fresh, non-resumed track gets its first live point),
-      // this is a cheap no-op.
       const track = recorder.getCurrentTrack();
-      if (track && this.activePoints.length === 0) {
-        this.seedActivePoints(track.id).catch(console.error);
-      }
+      if (track) this.ensureTrackBuffer(track.id);
     });
   }
 
-  /** Seed the live-render buffer from IndexedDB when resuming a recording. */
+  /**
+   * Reset the live-render buffer when the recorder's current track changes
+   * (fresh start, resume after refresh, or a gap-split mid-recording) and
+   * seed it from IndexedDB. A no-op when the buffer already belongs to
+   * `trackId` — this is called on every GPS fix and every recorder notify,
+   * so it must be cheap in the common case.
+   */
+  private ensureTrackBuffer(trackId: string): void {
+    if (trackId === this.currentTrackId) return;
+    this.currentTrackId = trackId;
+    this.activePoints = [];
+    this.lastDisplayTime = 0;
+    this.seedActivePoints(trackId).catch(console.error);
+  }
+
+  /**
+   * Seed the live-render buffer from IndexedDB — used when resuming a
+   * recording after a page refresh and right after a gap-split mints a new
+   * track. Guarded against duplicate concurrent reads for the same track
+   * (seedingTrackId) and merges rather than overwrites on completion: a
+   * live fix appended via onNavData while this read is in flight must
+   * survive, not be discarded by the (now stale) IndexedDB snapshot.
+   */
   private async seedActivePoints(trackId: string): Promise<void> {
-    const points = await getTrackPoints(trackId);
-    this.activePoints = capDisplayPoints(points);
-    if (this.activePoints.length > 0) {
-      this.lastDisplayTime =
-        this.activePoints[this.activePoints.length - 1].timestamp;
+    if (this.seedingTrackId === trackId) return;
+    this.seedingTrackId = trackId;
+    try {
+      const points = await getTrackPoints(trackId);
+      if (this.currentTrackId !== trackId) return; // superseded while reading
+      const seeded = capDisplayPoints(points);
+      const seededLast = seeded.length > 0 ? seeded[seeded.length - 1] : null;
+      const liveOnly = seededLast
+        ? this.activePoints.filter((p) => p.timestamp > seededLast.timestamp)
+        : this.activePoints;
+      this.activePoints = [...seeded, ...liveOnly].slice(-MAX_DISPLAY_POINTS);
+      if (this.activePoints.length > 0) {
+        this.lastDisplayTime =
+          this.activePoints[this.activePoints.length - 1].timestamp;
+      }
+      // Render immediately — a resumed/split track otherwise stays blank
+      // (or shows only a stray live point) until the next GPS fix arrives.
+      const track = this.recorder.getCurrentTrack();
+      if (track && track.id === trackId) {
+        const coords = this.activePoints.map(
+          (p) => [p.lon, p.lat] as [number, number],
+        );
+        this.addTrackLine(trackId, track.color, coords);
+      }
+    } finally {
+      if (this.seedingTrackId === trackId) this.seedingTrackId = null;
     }
   }
 
@@ -251,6 +294,7 @@ export class TrackLayer {
     if (!this.recorder.isRecording()) return;
     const track = this.recorder.getCurrentTrack();
     if (!track) return;
+    this.ensureTrackBuffer(track.id);
 
     const now = data.timestamp;
 
