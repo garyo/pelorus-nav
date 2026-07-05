@@ -31,6 +31,7 @@ import {
   iconX,
   setIcon,
 } from "./icons";
+import { startInlineRename } from "./inline-rename";
 import { getPanelStack } from "./PanelStack";
 import { RouteDetailPanel } from "./RouteDetailPanel";
 
@@ -402,34 +403,16 @@ export class RouteManagerPanel {
     return item;
   }
 
-  private async rename(route: Route, nameEl: HTMLDivElement): Promise<void> {
-    const input = document.createElement("input");
-    input.type = "text";
-    input.value = route.name;
-    input.className = "map-context-input";
-    input.style.margin = "0";
-    input.style.width = "100%";
-    nameEl.replaceWith(input);
-    this.editing = true;
-    input.focus();
-    input.select();
-
-    const finish = async () => {
-      this.editing = false;
-      const newName = input.value.trim() || route.name;
-      route.name = newName;
-      await saveRoute(route);
-      this.refresh();
-    };
-
-    input.addEventListener("blur", finish);
-    input.addEventListener("keydown", (e) => {
-      if (e.key === "Enter") input.blur();
-      if (e.key === "Escape") {
-        e.preventDefault(); // cancel the rename only — not navigation
-        input.value = route.name;
-        input.blur();
-      }
+  private rename(route: Route, nameEl: HTMLDivElement): void {
+    startInlineRename(nameEl, route.name, {
+      setEditing: (v) => {
+        this.editing = v;
+      },
+      onCommit: async (newName) => {
+        route.name = newName;
+        await saveRoute(route);
+      },
+      refresh: () => this.refresh(),
     });
   }
 

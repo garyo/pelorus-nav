@@ -1,5 +1,6 @@
 /**
- * Compact display formatters shared by track UI (list rows, viewer panel).
+ * Compact display formatters shared by track UI (list rows, viewer panel)
+ * and by anything reporting on-disk/storage sizes (chart cache, diagnostics).
  */
 
 /** "47s", "12m", "1h 47m", "23h 8m" — compact, sortable-feeling. */
@@ -27,4 +28,16 @@ export function formatDistanceShort(nm: number): string {
 export function formatLocalDateTime(d: Date): string {
   const pad = (n: number) => String(n).padStart(2, "0");
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+/** "512 B", "48 KB", "12.3 MB", "1.20 GB" — binary (1024-based) units, since
+ *  every caller ultimately reports storage-API/filesystem sizes (OPFS chart
+ *  files, `navigator.storage.estimate()`), which browsers already surface in
+ *  binary units (e.g. Chrome's own storage UI). */
+export function formatBytes(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
+  if (bytes < 1024 * 1024 * 1024)
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`;
 }

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  formatBytes,
   formatDistanceShort,
   formatDurationShort,
   formatLocalDateTime,
@@ -33,5 +34,16 @@ describe("formatLocalDateTime", () => {
   it("does not pad the four-digit year", () => {
     const d = new Date(2026, 10, 23, 14, 30); // Nov 23 2026, 14:30 local
     expect(formatLocalDateTime(d)).toBe("2026-11-23 14:30");
+  });
+});
+
+describe("formatBytes", () => {
+  it("formats across magnitudes using binary (1024) units", () => {
+    expect(formatBytes(0)).toBe("0 B");
+    expect(formatBytes(512)).toBe("512 B");
+    expect(formatBytes(1024)).toBe("1 KB");
+    expect(formatBytes(48 * 1024)).toBe("48 KB");
+    expect(formatBytes(12.3 * 1024 * 1024)).toBe("12.3 MB");
+    expect(formatBytes(1.2 * 1024 * 1024 * 1024)).toBe("1.20 GB");
   });
 });

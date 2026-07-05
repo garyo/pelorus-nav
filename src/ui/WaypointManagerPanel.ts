@@ -18,6 +18,7 @@ import {
   iconX,
   setIcon,
 } from "./icons";
+import { startInlineRename } from "./inline-rename";
 import { getPanelStack } from "./PanelStack";
 
 const ICON_LABELS: Record<WaypointIcon, string> = {
@@ -203,39 +204,18 @@ export class WaypointManagerPanel {
     }
   }
 
-  private async rename(
-    wp: StandaloneWaypoint,
-    nameEl: HTMLDivElement,
-  ): Promise<void> {
-    const input = document.createElement("input");
-    input.type = "text";
-    input.value = wp.name;
-    input.className = "map-context-input";
-    input.style.margin = "0";
-    input.style.width = "100%";
-    nameEl.replaceWith(input);
-    this.editing = true;
-    input.focus();
-    input.select();
-
-    const finish = async () => {
-      this.editing = false;
-      const newName = input.value.trim() || wp.name;
-      wp.name = newName;
-      wp.updatedAt = Date.now();
-      await saveWaypoint(wp);
-      await this.waypointLayer.updateWaypoint(wp);
-      this.refresh();
-    };
-
-    input.addEventListener("blur", finish);
-    input.addEventListener("keydown", (e) => {
-      if (e.key === "Enter") input.blur();
-      if (e.key === "Escape") {
-        e.preventDefault(); // cancel the rename only — not navigation
-        input.value = wp.name;
-        input.blur();
-      }
+  private rename(wp: StandaloneWaypoint, nameEl: HTMLDivElement): void {
+    startInlineRename(nameEl, wp.name, {
+      setEditing: (v) => {
+        this.editing = v;
+      },
+      onCommit: async (newName) => {
+        wp.name = newName;
+        wp.updatedAt = Date.now();
+        await saveWaypoint(wp);
+        await this.waypointLayer.updateWaypoint(wp);
+      },
+      refresh: () => this.refresh(),
     });
   }
 

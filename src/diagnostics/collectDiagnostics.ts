@@ -16,6 +16,7 @@ import {
   getSettings,
   type Settings,
 } from "../settings";
+import { formatBytes } from "../utils/format";
 import { appErrorLog } from "./errorLog";
 
 export interface DiagnosticSection {
@@ -169,14 +170,14 @@ export function buildDefaultSections(
         lines.push(`downloaded charts: ${charts.length}`);
         for (const c of charts) {
           lines.push(
-            `  ${c.filename}  ${(c.sizeBytes / 1e6).toFixed(1)} MB  (${c.region})`,
+            `  ${c.filename}  ${formatBytes(c.sizeBytes)}  (${c.region})`,
           );
         }
         try {
           const est = await navigator.storage?.estimate?.();
           lines.push(
             est
-              ? `storage: ${((est.usage ?? 0) / 1e6).toFixed(0)} MB used of ${((est.quota ?? 0) / 1e6).toFixed(0)} MB quota`
+              ? `storage: ${formatBytes(est.usage ?? 0)} used of ${formatBytes(est.quota ?? 0)} quota`
               : "storage estimate: (unavailable)",
           );
         } catch {

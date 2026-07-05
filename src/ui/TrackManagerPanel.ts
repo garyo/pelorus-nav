@@ -37,6 +37,7 @@ import {
   iconX,
   setIcon,
 } from "./icons";
+import { startInlineRename } from "./inline-rename";
 import { getPanelStack } from "./PanelStack";
 
 export class TrackManagerPanel {
@@ -411,34 +412,16 @@ export class TrackManagerPanel {
     return item;
   }
 
-  private async rename(meta: TrackMeta, nameEl: HTMLDivElement): Promise<void> {
-    const input = document.createElement("input");
-    input.type = "text";
-    input.value = meta.name;
-    input.className = "map-context-input";
-    input.style.margin = "0";
-    input.style.width = "100%";
-    nameEl.replaceWith(input);
-    this.editing = true;
-    input.focus();
-    input.select();
-
-    const finish = async () => {
-      this.editing = false;
-      const newName = input.value.trim() || meta.name;
-      meta.name = newName;
-      await saveTrackMeta(meta);
-      this.refresh();
-    };
-
-    input.addEventListener("blur", finish);
-    input.addEventListener("keydown", (e) => {
-      if (e.key === "Enter") input.blur();
-      if (e.key === "Escape") {
-        e.preventDefault(); // cancel the rename only — not navigation
-        input.value = meta.name;
-        input.blur();
-      }
+  private rename(meta: TrackMeta, nameEl: HTMLDivElement): void {
+    startInlineRename(nameEl, meta.name, {
+      setEditing: (v) => {
+        this.editing = v;
+      },
+      onCommit: async (newName) => {
+        meta.name = newName;
+        await saveTrackMeta(meta);
+      },
+      refresh: () => this.refresh(),
     });
   }
 
