@@ -12,6 +12,7 @@ import type { WaypointLayer } from "../map/WaypointLayer";
 import type { ActiveNavigationManager } from "../navigation/ActiveNavigation";
 import { findNearestNamedFeature } from "../search/feature-search";
 import { formatLatLon, parseLatLon } from "../utils/coordinates";
+import { abbreviateFeatureName } from "../utils/feature-name";
 import { generateUUID } from "../utils/uuid";
 
 export interface ContextMenuDeps {
@@ -299,7 +300,9 @@ export function createContextMenu(deps: ContextMenuDeps): ContextMenuHandle {
       entries && entries.length > 0
         ? findNearestNamedFeature(ctxLng, ctxLat, entries)
         : null;
-    const name = nearby?.name ?? `WP ${formatLatLon(ctxLat, "lat")}`;
+    const name = nearby
+      ? abbreviateFeatureName(nearby.name)
+      : `WP ${formatLatLon(ctxLat, "lat")}`;
     const wp: StandaloneWaypoint = {
       id: generateUUID(),
       lat: ctxLat,

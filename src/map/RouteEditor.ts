@@ -13,6 +13,7 @@ import type { SearchEntry } from "../data/search-index";
 import { findNearestNamedFeature } from "../search/feature-search";
 import { getSettings } from "../settings";
 import { haversineDistanceNM, initialBearingDeg } from "../utils/coordinates";
+import { abbreviateFeatureName } from "../utils/feature-name";
 import { formatLocalDateTime } from "../utils/format";
 import { formatBearing } from "../utils/magnetic";
 import { generateUUID } from "../utils/uuid";
@@ -134,7 +135,7 @@ export class RouteEditor {
     const entries = this.getSearchEntries?.();
     if (entries && entries.length > 0) {
       const hit = findNearestNamedFeature(lon, lat, entries);
-      if (hit) return hit.name;
+      if (hit) return abbreviateFeatureName(hit.name);
     }
     return fallback;
   }
