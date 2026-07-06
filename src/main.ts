@@ -215,11 +215,24 @@ const applyDisplayTheme = (theme: string) => {
 applyDisplayTheme(getSettings().displayTheme);
 onSettingsChange((s) => applyDisplayTheme(s.displayTheme));
 
-const applyInstrumentLayout = (layout: string) => {
-  document.body.dataset.instrumentLayout = layout;
+// Reflect the instrument layout on <body> for CSS — but only while the HUD is
+// actually shown, so layout-conditional map chrome (e.g. sliding the
+// bottom-left controls clear of the side column) doesn't fire when there's no
+// HUD on screen.
+const applyInstrumentLayout = (layout: string, visible: boolean) => {
+  if (visible) {
+    document.body.dataset.instrumentLayout = layout;
+  } else {
+    delete document.body.dataset.instrumentLayout;
+  }
 };
-applyInstrumentLayout(getSettings().instrumentLayout);
-onSettingsChange((s) => applyInstrumentLayout(s.instrumentLayout));
+applyInstrumentLayout(
+  getSettings().instrumentLayout,
+  getSettings().showInstrumentHUD,
+);
+onSettingsChange((s) =>
+  applyInstrumentLayout(s.instrumentLayout, s.showInstrumentHUD),
+);
 
 // Create vector chart provider — loads ALL regions simultaneously
 const initialRegion = getSettings().activeRegion;

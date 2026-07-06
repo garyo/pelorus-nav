@@ -3269,39 +3269,51 @@ body {
   }
 }
 
-@media (orientation: landscape) and (max-height: 500px) {
-  .instrument-hud {
-    min-height: auto;
-  }
-
-  .instrument-cell {
-    height: 60px;
-    padding: 2px 12px;
-  }
-
-  .instrument-value {
-    font-size: 40px;
-  }
-
-  /* Nav (second row) must stay smaller than the primary SOG/COG row — the
-     default 5.5vw clamp grows past the base size on a wide landscape phone. */
-  .instrument-cell--nav .instrument-value {
-    font-size: 26px;
-  }
-}
-
 /* ── Landscape instrument layouts ────────────────────────────────────
-   Activated by body[data-instrument-layout] in any landscape viewport — the
-   setting decides side column vs top bar, on every device. Portrait keeps the
-   default top-bar layout (this is a landscape-only setting). "standard" needs
-   no rules. */
+   body[data-instrument-layout] picks side column vs top bar in landscape;
+   portrait always keeps the base top-bar flow above. Sizing model: each
+   layout derives ONE primary digit size from a min() of independent
+   budgets — a width term (the widest value plus its label/unit must fit
+   its cell), a height term (the HUD must not eat the chart), and an
+   absolute cap. Every term is continuous and monotonic in the viewport,
+   so resizing or rotating never makes the digits jump. The height
+   breakpoint further down changes only the ARRANGEMENT (where the nav
+   group sits), never a size formula, so both sides of it render the
+   digits at identical size. */
 @media (orientation: landscape) {
   /* Approach A — side column: instruments down the left edge, map fills the
      rest. The HUD is positioned absolutely (rather than via flex-wrap, which
      would collapse the map's height), and the map is inset by the same width
      — but only when the HUD is actually visible. */
   body[data-instrument-layout="side"] {
-    --instr-col-width: clamp(120px, 24vw, 168px);
+    /* Narrow enough that the chart keeps its width, wide enough for a
+       3-digit heading; 20vw lands at the cap on tablets (BOOX 896 → 172). */
+    --instr-col-width: clamp(130px, 20vw, 172px);
+  }
+
+  /* The side column occupies the left strip and, when tall, extends down over
+     the map's bottom-left controls (recenter / follow + cancel-nav buttons +
+     scale bar). Its height varies with active nav, instrument count and
+     viewport height, so no height threshold reliably predicts the overlap —
+     just slide those controls clear of the column whenever the side HUD is
+     shown. The attribute is absent when the HUD is hidden, so the controls stay
+     at the edge otherwise. Lay the two toggle buttons side by side (scale bar
+     wraps to its own line) so the offset cluster reads as a tidy wide group
+     rather than a tall stack poking up the edge of the map. */
+  body[data-instrument-layout="side"] .maplibregl-ctrl-bottom-left {
+    margin-left: var(--instr-col-width);
+    /* MapLibre lays this corner out as floated blocks with clear:both (one per
+       line); switch to flex so the two buttons can share a row. */
+    display: flex;
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: flex-end;
+  }
+
+  body[data-instrument-layout="side"]
+    .maplibregl-ctrl-bottom-left
+    .maplibregl-ctrl-scale {
+    flex-basis: 100%;
   }
 
   /* A compact data box pinned to the top-left, sized to its contents — not a
@@ -3391,123 +3403,109 @@ body {
     border-top: 1px solid #ccc;
   }
 
-  /* Standard landscape: pack every instrument into ONE tight row, with the
-     "next waypoint" caption on a thin line below. Reclaims the wasted space to
-     the right of each cell and gives the map back its vertical space. */
-  body[data-instrument-layout="standard"] .instrument-hud {
-    flex-wrap: wrap;
-    align-items: stretch;
+  /* ── Standard top bar (and the fallback when no layout is set) ──
+     SOG/COG share the top row, sized to their digits; the nav group
+     (caption + DTW/BRG/VMG/STEER) wraps below via the base flow, or moves
+     beside the mains on tall viewports (next block). */
+  body:not([data-instrument-layout="side"]) {
+    /* Width term: with the nav grid beside (30vw) and the GPS strip
+       (46px), each primary cell gets ≈35vw − 23px; the widest value
+       ("000°" ≈ 2.2em) + gap + label/unit stack + padding fit whenever
+       em ≤ 15vw − 38px. Height term: 9vh + 28px — the +28 keeps digits
+       legible on short phones, the slope bounds the bar's share of a
+       short screen, and tablets grow toward the 112px cap. */
+    --instr-primary-size: min(15vw - 38px, 9vh + 28px, 112px);
+    /* Nav cells track the primaries at a fixed ratio so the visual
+       hierarchy and the continuity are inherited, not re-derived. */
+    --instr-nav-size: clamp(20px, var(--instr-primary-size) * 0.38, 36px);
   }
 
-  /* SOG/COG share the first row; the nav group (caption + DTW/BRG/VMG/STEER)
-     wraps to its own row below — the base .instrument-nav-group already spans
-     full width — so the primary digits stay large instead of being squeezed by
-     four more cells into a single cramped row. */
-  body[data-instrument-layout="standard"] .instrument-cell {
+  body:not([data-instrument-layout="side"]) .instrument-cell {
     flex: 1 1 0;
     height: auto;
     padding: 1px 8px 2px;
   }
 
-  body[data-instrument-layout="standard"] .instrument-cell--nav {
-    height: auto;
-    padding: 1px 8px 2px;
+  body:not([data-instrument-layout="side"]) .instrument-value {
+    font-size: var(--instr-primary-size);
+    /* Digits, °, decimal and minus only — no descenders — so pull the
+       line box in tight and let the cell's height follow the digits. */
+    line-height: 0.9;
   }
 
-  body[data-instrument-layout="standard"] .instrument-value {
-    font-size: clamp(28px, 4.5vw, 40px);
+  /* The ° glyph tops out just above a 0.9 line box's ceiling, so give the
+     primary cells matching headroom or the top bar paints over it. Scales
+     with the digits: invisible on phones, sufficient on tablets. */
+  body:not([data-instrument-layout="side"])
+  .instrument-cell:not(.instrument-cell--nav) {
+    padding-top: calc(var(--instr-primary-size) * 0.08);
   }
 
-  body[data-instrument-layout="standard"]
+  body:not([data-instrument-layout="side"])
     .instrument-cell--nav
     .instrument-value {
-    font-size: clamp(20px, 3vw, 28px);
+    font-size: var(--instr-nav-size);
+    line-height: 1;
   }
 }
 
-/* ── Large landscape viewports (tablets / e-ink chartplotters) ────────
-   The compact landscape clamps above keep small landscape phones (handled by
-   the max-height: 500px block) tidy, but on a 7"+ helm display SOG/COG should
-   dominate. Gate the big sizes behind a tall viewport so only tablets get them.
-   On the BOOX (896×674 CSS px) these land at ~80 px digits. */
+/* ── Standard, tall landscape (tablets / helm displays) ──────────────
+   Move the nav group beside the mains as a 2×2 grid so the whole HUD is
+   one row tall and the chart keeps its height. Arrangement only — the
+   size formulas above keep working across this boundary, so shrinking
+   through 540px cannot make the digits jump. */
 @media (orientation: landscape) and (min-height: 540px) {
-  /* Standard, navigating: SOG/COG side-by-side on the left; the four nav
-     instruments as a 2×2 block on the right with the "Next:" caption above it —
-     the right block matching the big primary cells' height. (Not navigating
-     there's no nav group, so it's just the two big mains across the bar.) */
-  /* Reserve a strip on the right so the nav grid never sits under the corner
-     "• GPS" badge (absolutely positioned top-right of the bar). */
-  body[data-instrument-layout="standard"] .instrument-hud {
+  body:not([data-instrument-layout="side"]) .instrument-hud {
     flex-wrap: nowrap;
+    /* Strip reserved so the nav grid never slides under the corner
+       "● GPS" badge (absolutely positioned top-right of the bar). */
     padding-right: 46px;
   }
 
-  /* Size the mains to (just) drive the bar height rather than trailing the nav
-     block — so the value row fills the cell instead of floating centered in it
-     with empty space above and below, and the digits get as big as the row
-     allows. With zero vertical padding the cell height equals the value row. */
-  body[data-instrument-layout="standard"] .instrument-value {
-    font-size: clamp(56px, 12vw, 112px);
-  }
-
-  body[data-instrument-layout="standard"]
-    .instrument-cell:not(.instrument-cell--nav) {
-    padding-top: 0;
-    padding-bottom: 0;
-  }
-
-  /* Nav group sits to the right of the mains — sized to its content and divided
-     off by a rule, not wrapped onto a full-width second row. */
-  body[data-instrument-layout="standard"] .instrument-nav-group {
-    flex: 0 1 auto;
+  /* Nav group sits to the right of the mains — divided off by a rule, not
+     wrapped onto a full-width second row. (Not navigating there's no nav
+     group, so it's just the two big mains across the bar.) The width is
+     pinned: proportional so the mains' share — and with it the primary
+     width term above — holds at every viewport width, and independent of
+     the "Next:" caption, whose nowrap text would otherwise size the group
+     to its full name and squeeze the mains. */
+  body:not([data-instrument-layout="side"]) .instrument-nav-group {
+    flex: 0 0 auto;
+    width: min(30vw, 380px);
     border-top: none;
     border-left: 1px solid #ccc;
   }
 
-  body[data-instrument-layout="standard"] .instrument-next-wp {
+  body:not([data-instrument-layout="side"]) .instrument-next-wp {
     padding: 2px 10px 1px;
   }
 
-  /* The four nav cells as a 2×2 grid filling the group's height. Wider columns
-     let the values breathe and give the "Next:" caption room for longer names. */
-  body[data-instrument-layout="standard"] .instrument-nav-row {
+  /* 2×2 grid filling the group's pinned width and remaining height. */
+  body:not([data-instrument-layout="side"]) .instrument-nav-row {
     flex: 1;
     display: grid;
-    grid-template-columns: repeat(2, minmax(132px, 1fr));
-    grid-auto-rows: 1fr;
+    grid-template-columns: repeat(2, 1fr);
+    grid-auto-rows: minmax(34px, 1fr);
   }
 
-  body[data-instrument-layout="standard"]
-    .instrument-cell--nav
-    .instrument-value {
-    font-size: clamp(28px, 4.2vw, 40px);
-  }
-
-  /* Grid dividers via cell position, replacing the default per-cell left border
-     (which would leave a stray line under the first column). */
-  body[data-instrument-layout="standard"] .instrument-nav-row
+  /* Grid dividers via cell position, replacing the default per-cell left
+     border (which would leave a stray line under the first column). */
+  body:not([data-instrument-layout="side"]) .instrument-nav-row
     .instrument-cell--nav {
     border: none;
-    padding: 3px 14px;
+    padding: 2px 8px;
   }
 
-  body[data-instrument-layout="standard"]
+  body:not([data-instrument-layout="side"])
     .instrument-nav-row
     .instrument-cell--nav:nth-child(2n) {
     border-left: 1px solid #ccc;
   }
 
-  body[data-instrument-layout="standard"]
+  body:not([data-instrument-layout="side"])
     .instrument-nav-row
     .instrument-cell--nav:nth-child(n + 3) {
     border-top: 1px solid #ccc;
-  }
-
-  /* Side data box: kept narrow to give the chart maximum width. The digits stay
-     clearly readable in the column without driving it wide (a 3-digit heading
-     still fits the capped width). */
-  body[data-instrument-layout="side"] {
-    --instr-col-width: clamp(148px, 19vw, 172px);
   }
 }
 
