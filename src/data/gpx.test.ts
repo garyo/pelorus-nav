@@ -89,6 +89,21 @@ describe("GPX export", () => {
     expect(afterLast).not.toContain("<pelorus:sog>");
   });
 
+  it("rounds sog/cog to one decimal to avoid float noise", () => {
+    const noisy: TrackPoint[] = [
+      {
+        lat: 42.34866445279327,
+        lon: -71.02177731100036,
+        timestamp: 1700000000000,
+        sog: 4.598195902669607,
+        cog: 128.69478433098968,
+      },
+    ];
+    const gpx = trackToGpx(sampleTrackMeta, noisy);
+    expect(gpx).toContain("<pelorus:sog>4.6</pelorus:sog>");
+    expect(gpx).toContain("<pelorus:cog>128.7</pelorus:cog>");
+  });
+
   it("exports waypoints with desc and sym", () => {
     const gpx = waypointsToGpx(sampleWaypoints);
     expect(gpx).toContain("<wpt");

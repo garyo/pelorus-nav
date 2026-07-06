@@ -27,6 +27,11 @@ const IMPORT_COLORS = [
   "#44cccc",
 ];
 
+/** Round to `decimals` places, dropping trailing zeros (4.6, not 4.60000). */
+function round(value: number, decimals: number): number {
+  return Number(value.toFixed(decimals));
+}
+
 function escapeXml(s: string): string {
   return s
     .replace(/&/g, "&amp;")
@@ -101,10 +106,12 @@ function trackPointXml(pt: TrackPoint): string {
   if (pt.sog !== null || pt.cog !== null || hasAccuracy || emitRaw) {
     xml += "        <extensions>\n";
     if (pt.sog !== null) {
-      xml += `          <pelorus:sog>${pt.sog}</pelorus:sog>\n`;
+      // 0.1-knot / 0.1-degree resolution is well beyond GPS accuracy; the
+      // raw floats otherwise emit ~15 meaningless digits per point.
+      xml += `          <pelorus:sog>${round(pt.sog, 1)}</pelorus:sog>\n`;
     }
     if (pt.cog !== null) {
-      xml += `          <pelorus:cog>${pt.cog}</pelorus:cog>\n`;
+      xml += `          <pelorus:cog>${round(pt.cog, 1)}</pelorus:cog>\n`;
     }
     if (hasAccuracy) {
       xml += `          <pelorus:accuracy>${pt.accuracy}</pelorus:accuracy>\n`;

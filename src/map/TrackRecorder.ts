@@ -372,7 +372,7 @@ export class TrackRecorder {
     // Create new track if needed (but don't persist meta yet — see below)
     if (!this.currentTrack) {
       const date = new Date(now);
-      const name = `Track ${formatLocalDateTime(date)}`;
+      const name = `Pelorus Track ${formatLocalDateTime(date)}`;
       this.currentTrack = {
         id: generateUUID(),
         name,
