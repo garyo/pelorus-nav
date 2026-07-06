@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { suppressWhatsNew } from "./helpers";
 
 interface ProbeMap {
   getSource(id: string): unknown;
@@ -16,6 +17,7 @@ test("tides & currents overlay renders stations and shows event popup", async ({
   page,
 }) => {
   // Seed settings + map position before the app boots
+  await suppressWhatsNew(page);
   await page.addInitScript(() => {
     const raw = localStorage.getItem("pelorus-nav-settings");
     const settings = raw ? JSON.parse(raw) : {};

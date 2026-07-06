@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { suppressWhatsNew } from "./helpers";
 
 interface TrackMetaProbe {
   id: string;
@@ -21,6 +22,7 @@ const START: [number, number] = [42.363559, -71.047973]; // inner harbor
 test("recording a track while the simulator moves produces a saved track with distance", async ({
   page,
 }) => {
+  await suppressWhatsNew(page);
   await page.addInitScript(() => {
     const raw = localStorage.getItem("pelorus-nav-settings");
     const settings = raw ? JSON.parse(raw) : {};
