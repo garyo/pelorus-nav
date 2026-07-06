@@ -89,7 +89,7 @@ describe("GPX export", () => {
     expect(afterLast).not.toContain("<pelorus:sog>");
   });
 
-  it("rounds sog/cog to one decimal to avoid float noise", () => {
+  it("rounds trkpt lat/lon and sog/cog to avoid float noise", () => {
     const noisy: TrackPoint[] = [
       {
         lat: 42.34866445279327,
@@ -100,6 +100,7 @@ describe("GPX export", () => {
       },
     ];
     const gpx = trackToGpx(sampleTrackMeta, noisy);
+    expect(gpx).toContain('lat="42.3486645" lon="-71.0217773"');
     expect(gpx).toContain("<pelorus:sog>4.6</pelorus:sog>");
     expect(gpx).toContain("<pelorus:cog>128.7</pelorus:cog>");
   });

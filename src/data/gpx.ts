@@ -96,7 +96,8 @@ function routeXml(route: Route): string {
 }
 
 function trackPointXml(pt: TrackPoint): string {
-  let xml = `      <trkpt lat="${pt.lat}" lon="${pt.lon}">\n`;
+  // 7 decimals ≈ 1 cm — plenty for a marine track, vs ~15 raw float digits.
+  let xml = `      <trkpt lat="${round(pt.lat, 7)}" lon="${round(pt.lon, 7)}">\n`;
   if (pt.timestamp) {
     xml += `        <time>${new Date(pt.timestamp).toISOString()}</time>\n`;
   }
@@ -106,9 +107,9 @@ function trackPointXml(pt: TrackPoint): string {
   if (pt.sog !== null || pt.cog !== null || hasAccuracy || emitRaw) {
     xml += "        <extensions>\n";
     if (pt.sog !== null) {
-      // 0.1-knot / 0.1-degree resolution is well beyond GPS accuracy; the
+      // 0.01-knot / 0.1-degree resolution is well beyond GPS accuracy; the
       // raw floats otherwise emit ~15 meaningless digits per point.
-      xml += `          <pelorus:sog>${round(pt.sog, 1)}</pelorus:sog>\n`;
+      xml += `          <pelorus:sog>${round(pt.sog, 2)}</pelorus:sog>\n`;
     }
     if (pt.cog !== null) {
       xml += `          <pelorus:cog>${round(pt.cog, 1)}</pelorus:cog>\n`;
