@@ -60,6 +60,12 @@ test("COB hold-to-activate, restart survival, cancel guard, and resolve", async 
   await expect(page.locator(".cob-panel")).not.toHaveClass(/open/);
   await expect(page.locator(".cob-hint")).toBeVisible();
 
+  // Open the Waypoints panel BEFORE activating — the new COB waypoint must
+  // appear in an already-open list without closing/reopening it.
+  await page.getByRole("button", { name: "Waypoints" }).click();
+  const wpPanel = page.locator(".waypoint-manager-panel");
+  await expect(wpPanel).toHaveClass(/open/);
+
   // Full 1.5 s hold: emergency activates.
   await holdElement(page, ".cob-btn", 2000);
   const panel = page.locator(".cob-panel");
@@ -73,10 +79,14 @@ test("COB hold-to-activate, restart survival, cancel guard, and resolve", async 
   // Navigation back is active: cancel-nav control appears, HUD shows BRG
   await expect(page.locator(".cancel-nav-btn")).toBeVisible();
   await expect(cobBtn).toHaveClass(/cob-active/);
+  // Emergency auto-zoom snapped in close (instant fit, ~z15 at the drop —
+  // an animated fit would be canceled mid-flight by follow-mode jumpTo)
+  const zoom = await page.evaluate(() =>
+    (window as unknown as { __map: { getZoom(): number } }).__map.getZoom(),
+  );
+  expect(zoom).toBeGreaterThanOrEqual(13.5);
 
-  // The COB waypoint is in the waypoint manager, red-flagged
-  await page.getByRole("button", { name: "Waypoints" }).click();
-  const wpPanel = page.locator(".waypoint-manager-panel");
+  // The COB waypoint shows up in the still-open waypoint manager
   await expect(wpPanel).toContainText(/COB \d\d:\d\d:\d\d/);
   await page.getByRole("button", { name: "Waypoints" }).click();
 

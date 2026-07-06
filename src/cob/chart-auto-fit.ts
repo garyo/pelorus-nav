@@ -22,7 +22,14 @@ import { getSettings } from "../settings";
 import type { ChartModeController } from "../vessel/ChartMode";
 import type { CobManager } from "./CobManager";
 
-const FIT_OPTIONS: maplibregl.FitBoundsOptions = { padding: 90, maxZoom: 16 };
+// duration 0: an animated fit gets canceled mid-flight by follow-mode's
+// jumpTo on the next GPS tick, stranding the camera at an arbitrary zoom.
+// An emergency fit should snap instantly anyway.
+const FIT_OPTIONS: maplibregl.FitBoundsOptions = {
+  padding: 90,
+  maxZoom: 15,
+  duration: 0,
+};
 const REFIT_MIN_INTERVAL_MS = 5_000;
 /** E-ink refits force full-screen refreshes — keep them rare. */
 const EINK_REFIT_MIN_INTERVAL_MS = 30_000;
