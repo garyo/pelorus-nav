@@ -127,13 +127,6 @@ jobs:
           xcodebuild -exportArchive -archivePath build/App.xcarchive \
             -exportPath build/export -exportOptionsPlist ExportOptions.plist "${AUTH[@]}"
 
-          # Diagnostic: can this API key enumerate apps at all? If this fails,
-          # the problem is account/key-level (agreement, permissions, expiry),
-          # not the bundle-id lookup. Non-fatal.
-          echo "=== altool --list-apps (diagnostic) ==="
-          xcrun altool --list-apps --apiKey "$ASC_KEY_ID" --apiIssuer "$ASC_ISSUER_ID" \
-            || echo "list-apps failed (exit $?)"
-
           xcrun altool --upload-app -f build/export/*.ipa -t ios --apple-id "$APPLE_ID" \
             --apiKey "$ASC_KEY_ID" --apiIssuer "$ASC_ISSUER_ID"
 
