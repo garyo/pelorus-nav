@@ -18,9 +18,9 @@ The format follows [Keep a Changelog](https://keepachangelog.com/).
   deliberate press-and-hold, and the COB waypoint is kept as a record.
 - Volume-key chart controls (Android, optional): turn on "Volume keys zoom
   chart" in Settings to zoom the chart with the device's volume buttons —
-  handy on large e-ink devices. Press both volume buttons together to lock the
-  touchscreen (with an on-screen indicator) so accidental screen taps are
-  ignored under way; press both again to unlock.
+  handy on large e-ink devices. This also adds a "Lock screen" item to the menu
+  that disables the touchscreen (with an on-screen indicator) so accidental
+  taps are ignored under way; press a volume button to unlock.
 - After an update, a one-time "What's New" dialog summarizes the release's
   changes, with a link to the full changelog.
 - Waypoints auto-named from charted features now get shorter, tidier names

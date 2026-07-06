@@ -12,18 +12,18 @@ import com.getcapacitor.annotation.CapacitorPlugin
 
 /**
  * Takes over the physical volume keys when enabled:
- *  - single press        -> "volumeKey" event ("in" = up, "out" = down); the
- *    web layer zooms the chart.
- *  - both keys together   -> pressing volume-up and volume-down within a short
- *    window toggles a touchscreen lock. While locked, MainActivity swallows
- *    touch events (see dispatchTouchEvent) and the system bars are hidden;
- *    the volume keys still work so the same both-keys gesture unlocks.
+ *  - when unlocked, a volume press emits a "volumeKey" event ("in" = up,
+ *    "out" = down) and the web layer zooms the chart.
+ *  - the touchscreen lock is engaged from the web layer (a menu item -> lock())
+ *    and released by any single volume press. While locked, MainActivity
+ *    swallows touch events (see dispatchTouchEvent) and the system bars are
+ *    hidden.
  *
- * We can't use a press-and-hold gesture: some devices (e.g. BOOX e-ink readers)
- * report volume keys as an instantaneous down+up with no hold duration, so a
- * two-key chord is the reliable cross-hardware signal. The first key of a chord
- * still zooms — we only know it's a chord once the second key arrives — which is
- * a deliberately accepted quirk (no zoom delay).
+ * The lock can't be a key gesture: some devices (e.g. BOOX e-ink readers)
+ * report volume keys as an instantaneous down+up and only ever deliver one key
+ * at a time, so holds, chords, and fast double-presses are all undetectable.
+ * A single press is the one reliable signal, so it's used to unlock; locking is
+ * a deliberate on-screen action.
  *
  * MainActivity forwards key and touch events here — this plugin owns the
  * enabled/locked state because the touch swallowing lives in the Activity.
@@ -34,17 +34,18 @@ class HardwareKeysPlugin : Plugin() {
     @Volatile private var enabled = false
     @Volatile private var touchLocked = false
 
-    private var lastKeyCode = 0
-    private var lastKeyTime = 0L
-
-    companion object {
-        private const val CHORD_WINDOW_MS = 400L
-    }
-
     @PluginMethod
     fun setEnabled(call: PluginCall) {
         enabled = call.getBoolean("enabled", false) == true
         if (!enabled && touchLocked) setLocked(false)
+        call.resolve()
+    }
+
+    /** Lock the touchscreen (called from the web menu). No-op if the feature is
+     *  disabled, since then volume keys wouldn't be intercepted to unlock. */
+    @PluginMethod
+    fun lock(call: PluginCall) {
+        if (enabled && !touchLocked) setLocked(true)
         call.resolve()
     }
 
@@ -63,17 +64,9 @@ class HardwareKeysPlugin : Plugin() {
             return false
         }
         if (event.action == KeyEvent.ACTION_UP) {
-            val now = event.eventTime
-            val isChord =
-                lastKeyCode != 0 &&
-                    code != lastKeyCode &&
-                    now - lastKeyTime <= CHORD_WINDOW_MS
-            if (isChord) {
-                lastKeyCode = 0 // consume the chord; don't let a third press re-trigger
-                setLocked(!touchLocked)
+            if (touchLocked) {
+                setLocked(false) // any press unlocks; don't also zoom
             } else {
-                lastKeyCode = code
-                lastKeyTime = now
                 emitVolumeKey(if (code == KeyEvent.KEYCODE_VOLUME_UP) "in" else "out")
             }
         }

@@ -106,6 +106,7 @@ import {
   iconGauge,
   iconGlobe,
   iconInfo,
+  iconLock,
   iconMaximize,
   iconMinimize,
   iconPin,
@@ -923,7 +924,7 @@ onSettingsChange((s) => applyTouchZoomForTheme(s.displayTheme));
 installPinchZoomGuard(chartManager.map);
 
 // Volume keys → chart zoom / touchscreen lock (native only, opt-in via setting)
-installHardwareKeys(chartManager.map);
+const hardwareKeys = installHardwareKeys(chartManager.map);
 
 // Activate initial GPS source from settings
 navManager.setActiveProvider(initGpsSettings.gpsSource);
@@ -1474,6 +1475,25 @@ if (topbarMenu) {
   });
   document.addEventListener("fullscreenchange", updateFullscreenBtn);
   topbarMenu.insertBefore(fullscreenBtn, settingsWrapper);
+
+  // Lock screen (native only) — disables the touchscreen so accidental taps are
+  // ignored under way; a volume-key press unlocks. Shown only while the
+  // volume-key controls setting is on (unlock relies on that interception).
+  if (Capacitor.isNativePlatform()) {
+    const lockBtn = buildTopbarAction(iconLock, "LOCK", "Lock screen", {
+      fullLabel: "Lock screen",
+    });
+    lockBtn.addEventListener("click", () => {
+      hardwareKeys.lock();
+      closeHamburger();
+    });
+    const updateLockBtnVisibility = (visible: boolean) => {
+      lockBtn.style.display = visible ? "" : "none";
+    };
+    updateLockBtnVisibility(getSettings().volumeKeyControls);
+    onSettingsChange((s) => updateLockBtnVisibility(s.volumeKeyControls));
+    topbarMenu.insertBefore(lockBtn, settingsWrapper);
+  }
 
   // Offline indicator
   const offlineIndicator = document.createElement("div");

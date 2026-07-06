@@ -444,7 +444,7 @@ function buildAppearanceTab(
     // Volume-key controls: short press zooms, long press locks the screen.
     tab.appendChild(
       buildCheckboxRow(
-        "Volume keys zoom chart (both keys lock screen)",
+        "Volume keys zoom chart (adds Lock screen to menu)",
         "settings-volume-keys",
         settings.volumeKeyControls,
         (checked) => updateSettings({ volumeKeyControls: checked }),

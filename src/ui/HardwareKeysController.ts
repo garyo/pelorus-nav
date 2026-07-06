@@ -1,10 +1,11 @@
 /**
  * Wires the native HardwareKeys plugin to the map (Android only):
- *  - single volume press  -> zoom the chart in/out
- *  - both keys together   -> the plugin toggles a touchscreen lock; here we
- *    just show/hide a persistent on-screen "locked" indicator.
+ *  - single volume press  -> zoom the chart in/out (while unlocked)
+ *  - touchscreen lock     -> engaged via the returned lock() handle (a menu
+ *    item) and released by any single volume press. Here we just show/hide a
+ *    persistent on-screen "locked" indicator.
  *
- * No-op on web/desktop, where the plugin doesn't exist.
+ * Returns a handle with lock(); a no-op stub on web/desktop.
  */
 
 import { Capacitor } from "@capacitor/core";
@@ -14,8 +15,13 @@ import { getSettings, onSettingsChange } from "../settings";
 
 const ZOOM_STEP = 0.5;
 
-export function installHardwareKeys(map: maplibregl.Map): void {
-  if (!Capacitor.isNativePlatform()) return;
+/** Handle for triggering the touchscreen lock from elsewhere (e.g. a menu). */
+export interface HardwareKeysHandle {
+  lock(): void;
+}
+
+export function installHardwareKeys(map: maplibregl.Map): HardwareKeysHandle {
+  if (!Capacitor.isNativePlatform()) return { lock: () => {} };
 
   const pushEnabled = (enabled: boolean): void => {
     HardwareKeys.setEnabled({ enabled }).catch((err) =>
@@ -36,6 +42,14 @@ export function installHardwareKeys(map: maplibregl.Map): void {
   HardwareKeys.addListener("touchLock", ({ locked }) =>
     banner.setLocked(locked),
   );
+
+  return {
+    lock: () => {
+      HardwareKeys.lock().catch((err) =>
+        console.debug("HardwareKeys.lock failed:", err),
+      );
+    },
+  };
 }
 
 /**
@@ -49,7 +63,7 @@ class TouchLockBanner {
   constructor() {
     this.el = document.createElement("div");
     this.el.className = "touch-lock-banner";
-    this.el.textContent = "🔒 Screen locked — press both volume keys to unlock";
+    this.el.textContent = "🔒 Screen locked — press a volume key to unlock";
     document.body.appendChild(this.el);
   }
 

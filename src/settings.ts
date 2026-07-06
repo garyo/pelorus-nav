@@ -88,8 +88,9 @@ export interface Settings {
   autoReturnWhenIdle: boolean;
   /**
    * Use the device's volume keys for chart control (native only): single press
-   * zooms in/out, pressing both keys together locks/unlocks the touchscreen.
-   * Off by default so the keys keep their normal volume behaviour.
+   * zooms in/out, and a "Lock screen" menu item locks the touchscreen (a volume
+   * press unlocks). Off by default so the keys keep their normal volume
+   * behaviour.
    */
   volumeKeyControls: boolean;
   /** Scale factor for chart text labels (1 = default). */
