@@ -27,7 +27,7 @@ import type { CobManager } from "./CobManager";
 // An emergency fit should snap instantly anyway.
 const FIT_OPTIONS: maplibregl.FitBoundsOptions = {
   padding: 90,
-  maxZoom: 15,
+  maxZoom: 16,
   duration: 0,
 };
 const REFIT_MIN_INTERVAL_MS = 5_000;
