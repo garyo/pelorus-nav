@@ -124,6 +124,7 @@ import { TrackViewerPanel } from "./ui/TrackViewerPanel";
 import { buildTopbarAction } from "./ui/topbarButton";
 import { WakeLockController } from "./ui/WakeLock";
 import { WaypointManagerPanel } from "./ui/WaypointManagerPanel";
+import { maybeShowWhatsNew } from "./ui/WhatsNewDialog";
 import { diag } from "./utils/diag";
 import { applyDeclination, bearingModeLabel } from "./utils/magnetic";
 import { createThermalMonitor } from "./utils/thermal";
@@ -1435,6 +1436,9 @@ if (topbarMenu) {
 // use — see ScreenTimeoutDialog for the e-ink BIGME diagnosis that motivated
 // this. Fires after the UI is up so the dialog appears on top.
 maybeShowScreenTimeoutWarning().catch(console.error);
+
+// After an app update, show this version's changelog highlights once.
+maybeShowWhatsNew();
 
 // Dim overlay layers (routes, waypoints, bearing line) in night/dusk themes.
 // See src/app/overlayDimming.ts (wires its own settings + style.load hooks).

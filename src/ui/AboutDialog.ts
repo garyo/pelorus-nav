@@ -105,13 +105,19 @@ export class AboutDialog {
     releasesLink.rel = "noopener";
     releasesLink.textContent = "Releases";
 
+    const changelogLink = document.createElement("a");
+    changelogLink.href = `${REPO_URL}/blob/main/CHANGELOG.md`;
+    changelogLink.target = "_blank";
+    changelogLink.rel = "noopener";
+    changelogLink.textContent = "Changelog";
+
     const licenseLink = document.createElement("a");
     licenseLink.href = `${REPO_URL}/blob/main/LICENSE`;
     licenseLink.target = "_blank";
     licenseLink.rel = "noopener";
     licenseLink.textContent = "MIT License";
 
-    links.append(ghLink, releasesLink, licenseLink);
+    links.append(ghLink, releasesLink, changelogLink, licenseLink);
 
     // Credits
     const creditsHeading = document.createElement("div");
