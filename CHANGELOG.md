@@ -15,6 +15,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/).
   and survives an app restart. Ending the emergency always requires a
   deliberate press-and-hold, and the COB waypoint is kept as a record.
 
+### Changed
+- Recorded tracks are now named "Pelorus Track" with the date and time, so
+  exported and shared files are easier to identify.
+- Exported track (GPX) files are smaller, with sensible coordinate and
+  speed precision instead of long strings of meaningless digits.
+
 ## [0.10.0] - 2026-07-05
 
 ### Added
