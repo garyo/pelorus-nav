@@ -24,6 +24,7 @@ export class WakeLockController {
   private mode: WakeLockMode = "off";
   private gpsActive = false;
   private einkMode = false;
+  private emergency = false;
   private einkRefreshTimer: ReturnType<typeof setInterval> | null = null;
 
   constructor() {
@@ -48,6 +49,12 @@ export class WakeLockController {
     this.update();
   }
 
+  /** Force the wake lock during an emergency (COB), regardless of mode. */
+  setEmergencyActive(active: boolean): void {
+    this.emergency = active;
+    this.update();
+  }
+
   /** Enable/disable the 30-second e-ink refresh timer. */
   setEinkMode(eink: boolean): void {
     this.einkMode = eink;
@@ -59,6 +66,7 @@ export class WakeLockController {
     // On browser, check API availability
     if (!Capacitor.isNativePlatform() && !("wakeLock" in navigator))
       return false;
+    if (this.emergency) return true;
     switch (this.mode) {
       case "always":
         return true;

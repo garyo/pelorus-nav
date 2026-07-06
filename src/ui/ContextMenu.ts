@@ -25,6 +25,11 @@ export interface ContextMenuDeps {
   onWaypointAdded: () => void;
   /** Returns the loaded chart-feature search index (may be empty until loaded). */
   getSearchEntries?: () => SearchEntry[];
+  /**
+   * Consulted before the Escape fallback cancels active navigation;
+   * returning true means the guard took over (e.g. COB confirm dialog).
+   */
+  guardNavCancel?: () => boolean;
 }
 
 export interface ContextMenuHandle {
@@ -42,6 +47,7 @@ export function createContextMenu(deps: ContextMenuDeps): ContextMenuHandle {
     activeNav,
     onWaypointAdded,
     getSearchEntries,
+    guardNavCancel,
   } = deps;
 
   const menu = document.createElement("div");
@@ -349,6 +355,7 @@ export function createContextMenu(deps: ContextMenuDeps): ContextMenuHandle {
     setTimeout(() => {
       if (e.defaultPrevented || isTyping()) return;
       if (activeNav.getState().type !== "idle") {
+        if (guardNavCancel?.()) return;
         activeNav.stop();
       } else if (getMode() === "plot") {
         setMode("query");

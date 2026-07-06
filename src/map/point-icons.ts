@@ -21,6 +21,7 @@ export const POINT_ICON_ANCHOR = "_pt-anchor";
 export const POINT_ICON_HAZARD = "_pt-hazard";
 export const POINT_ICON_FUEL = "_pt-fuel";
 export const POINT_ICON_POI = "_pt-poi";
+export const POINT_ICON_COB = "_pt-cob";
 
 /** Register all point icons on the map. Safe to call multiple times. */
 export function ensurePointIcons(map: maplibregl.Map): void {
@@ -32,6 +33,7 @@ export function ensurePointIcons(map: maplibregl.Map): void {
   addIcon(map, POINT_ICON_HAZARD, drawHazard);
   addIcon(map, POINT_ICON_FUEL, drawFuel);
   addIcon(map, POINT_ICON_POI, drawPoi);
+  addIcon(map, POINT_ICON_COB, drawCob);
 }
 
 /**
@@ -67,6 +69,8 @@ export const WAYPOINT_ICON_EXPR: ExpressionSpecification = [
   POINT_ICON_FUEL,
   "poi",
   POINT_ICON_POI,
+  "cob",
+  POINT_ICON_COB,
   POINT_ICON_WAYPOINT, // default
 ];
 
@@ -393,6 +397,42 @@ function drawPoi(ctx: CanvasRenderingContext2D): void {
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
   ctx.fillText("★", cx, cx + 1);
+}
+
+/** Red/white quartered life-ring — the standard MOB/COB symbol. */
+function drawCob(ctx: CanvasRenderingContext2D): void {
+  const cx = SIZE / 2;
+  const r = cx - 1.5;
+
+  // White base disc
+  ctx.beginPath();
+  ctx.arc(cx, cx, r, 0, Math.PI * 2);
+  ctx.fillStyle = "#fff";
+  ctx.fill();
+
+  // Red quarters (top-left and bottom-right)
+  ctx.fillStyle = "#dd1111";
+  for (const start of [Math.PI / 2, (3 * Math.PI) / 2]) {
+    ctx.beginPath();
+    ctx.moveTo(cx, cx);
+    ctx.arc(cx, cx, r, start, start + Math.PI / 2);
+    ctx.closePath();
+    ctx.fill();
+  }
+
+  // Center hole + outer border
+  ctx.beginPath();
+  ctx.arc(cx, cx, r * 0.35, 0, Math.PI * 2);
+  ctx.fillStyle = "#fff";
+  ctx.fill();
+  ctx.strokeStyle = "#dd1111";
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.arc(cx, cx, r, 0, Math.PI * 2);
+  ctx.strokeStyle = "#fff";
+  ctx.lineWidth = 3;
+  ctx.stroke();
 }
 
 /** Checkerboard circle — finish flag. */

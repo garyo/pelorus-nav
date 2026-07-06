@@ -252,6 +252,19 @@ describe("GPX import", () => {
     expect(result.waypoints[1].icon).toBe("fuel");
   });
 
+  it("parses MOB/COB waypoint syms", () => {
+    const gpx = [
+      '<?xml version="1.0" encoding="UTF-8"?>',
+      '<gpx version="1.1" xmlns="http://www.topografix.com/GPX/1/1">',
+      '  <wpt lat="42.36" lon="-71.06"><name>A</name><sym>cob</sym></wpt>',
+      '  <wpt lat="42.37" lon="-71.07"><name>B</name><sym>MOB</sym></wpt>',
+      '  <wpt lat="42.38" lon="-71.08"><name>C</name><sym>Man Overboard</sym></wpt>',
+      "</gpx>",
+    ].join("\n");
+    const result = parseGpx(gpx);
+    expect(result.waypoints.map((w) => w.icon)).toEqual(["cob", "cob", "cob"]);
+  });
+
   it("parses GPX with mixed content types", () => {
     const gpx = exportAllToGpx(
       [sampleRoute],

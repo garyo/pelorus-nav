@@ -14,9 +14,15 @@ import { iconNavigation, setIcon } from "./icons";
 export class CancelNavButton implements maplibregl.IControl {
   private container: HTMLDivElement | null = null;
   private readonly activeNav: ActiveNavigationManager;
+  private readonly guard?: () => boolean;
 
-  constructor(activeNav: ActiveNavigationManager) {
+  /**
+   * @param guard Consulted before stopping navigation; returning true means
+   *   the guard took over (e.g. COB confirm dialog) and nav is left running.
+   */
+  constructor(activeNav: ActiveNavigationManager, guard?: () => boolean) {
     this.activeNav = activeNav;
+    this.guard = guard;
     this.activeNav.subscribe(this.onNavChange);
   }
 
@@ -31,7 +37,10 @@ export class CancelNavButton implements maplibregl.IControl {
     button.setAttribute("aria-label", "Cancel navigation");
     button.title = "Cancel navigation";
     setIcon(button, iconNavigation);
-    button.addEventListener("click", () => this.activeNav.stop());
+    button.addEventListener("click", () => {
+      if (this.guard?.()) return;
+      this.activeNav.stop();
+    });
 
     this.container.appendChild(button);
     return this.container;

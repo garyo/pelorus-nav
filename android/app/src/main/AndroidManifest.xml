@@ -23,6 +23,9 @@
     <!-- Notification permission (Android 13+) -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
+    <!-- Crew-overboard alarm vibration -->
+    <uses-permission android:name="android.permission.VIBRATE" />
+
     <uses-permission android:name="android.permission.INTERNET" />
 
     <application

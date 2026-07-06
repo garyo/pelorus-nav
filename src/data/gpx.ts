@@ -255,6 +255,8 @@ function parseWaypointIcon(sym: string | null): WaypointIcon {
   if (lower === "hazard" || lower === "danger") return "hazard";
   if (lower === "fuel" || lower === "gas station") return "fuel";
   if (lower === "poi" || lower === "flag") return "poi";
+  if (lower === "cob" || lower === "mob" || lower === "man overboard")
+    return "cob";
   return "default";
 }
 

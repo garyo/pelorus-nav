@@ -252,6 +252,16 @@ export const iconPlot = svg(
     '<circle cx="12" cy="12" r="2"/>',
 );
 
+/** Life ring / buoy — crew overboard. */
+export const iconLifeRing = svg(
+  '<circle cx="12" cy="12" r="10"/>' +
+    '<circle cx="12" cy="12" r="4"/>' +
+    '<line x1="4.93" y1="4.93" x2="9.17" y2="9.17"/>' +
+    '<line x1="14.83" y1="14.83" x2="19.07" y2="19.07"/>' +
+    '<line x1="14.83" y1="9.17" x2="19.07" y2="4.93"/>' +
+    '<line x1="4.93" y1="19.07" x2="9.17" y2="14.83"/>',
+);
+
 /**
  * Set the SVG icon on an element, replacing any existing SVG child but
  * preserving other children (label spans etc.). Marks the SVG aria-hidden

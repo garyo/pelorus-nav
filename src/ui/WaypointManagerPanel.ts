@@ -27,7 +27,23 @@ const ICON_LABELS: Record<WaypointIcon, string> = {
   hazard: "Hazard",
   fuel: "Fuel",
   poi: "POI",
+  cob: "COB / MOB",
 };
+
+/** Icons assignable in the edit dialog — "cob" is set only by the COB flow. */
+const PICKABLE_ICONS: readonly WaypointIcon[] = [
+  "default",
+  "anchorage",
+  "hazard",
+  "fuel",
+  "poi",
+];
+
+/** Hooks into the COB manager so deleting the active COB waypoint is never silent. */
+export interface WaypointCobHooks {
+  isCobWaypoint(id: string): boolean;
+  noteWaypointDeleted(id: string): void;
+}
 
 export class WaypointManagerPanel {
   private readonly el: HTMLDivElement;
@@ -38,6 +54,7 @@ export class WaypointManagerPanel {
    *  background refresh can't destroy the input mid-edit and silently
    *  lose the rename. */
   private editing = false;
+  private cobHooks: WaypointCobHooks | null = null;
 
   constructor(
     waypointLayer: WaypointLayer,
@@ -77,6 +94,10 @@ export class WaypointManagerPanel {
       setIcon(closeBtn, iconX);
       closeBtn.addEventListener("click", () => this.hide());
     }
+  }
+
+  setCobHooks(hooks: WaypointCobHooks): void {
+    this.cobHooks = hooks;
   }
 
   toggle(): void {
@@ -167,8 +188,13 @@ export class WaypointManagerPanel {
     setIcon(deleteBtn, iconTrash);
     deleteBtn.title = "Delete";
     deleteBtn.addEventListener("click", () => {
-      if (!confirm(`Delete waypoint "${wp.name}"?`)) return;
+      const isCob = this.cobHooks?.isCobWaypoint(wp.id) ?? false;
+      const prompt = isCob
+        ? `"${wp.name}" is the active crew-overboard point. Deleting it ENDS the COB emergency. Delete anyway?`
+        : `Delete waypoint "${wp.name}"?`;
+      if (!confirm(prompt)) return;
       (async () => {
+        if (isCob) this.cobHooks?.noteWaypointDeleted(wp.id);
         this.activeNav.noteWaypointDeleted(wp.id);
         await deleteWaypoint(wp.id);
         await this.waypointLayer.removeWaypoint(wp.id);
@@ -191,6 +217,8 @@ export class WaypointManagerPanel {
         return "#228833";
       case "poi":
         return "#8833aa";
+      case "cob":
+        return "#dd1111";
       default:
         return "#ff8800";
     }
@@ -265,10 +293,15 @@ export class WaypointManagerPanel {
     notesInput.value = wp.notes;
 
     const iconSelect = form.querySelector(".wp-edit-icon") as HTMLSelectElement;
-    for (const [value, label] of Object.entries(ICON_LABELS)) {
+    // Offer pickable icons, plus the current one if it's special (e.g. "cob")
+    // so editing a COB waypoint's name/notes doesn't force an icon change.
+    const choices = PICKABLE_ICONS.includes(wp.icon)
+      ? PICKABLE_ICONS
+      : [wp.icon, ...PICKABLE_ICONS];
+    for (const value of choices) {
       const opt = document.createElement("option");
       opt.value = value;
-      opt.textContent = label;
+      opt.textContent = ICON_LABELS[value];
       if (value === wp.icon) opt.selected = true;
       iconSelect.appendChild(opt);
     }

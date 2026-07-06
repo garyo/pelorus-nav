@@ -5,6 +5,16 @@ Notable user-facing changes to Pelorus Nav. Downloads are on the
 
 The format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [Unreleased]
+
+### Added
+- Crew Overboard (COB) button: hold the red life-ring button for 1.5 seconds
+  to instantly mark the spot, sound an alarm, and start navigating back.
+  Shows big coordinates for a mayday call, elapsed time, and bearing/distance
+  to the person in the water; keeps the screen awake, records your track,
+  and survives an app restart. Ending the emergency always requires a
+  deliberate press-and-hold, and the COB waypoint is kept as a record.
+
 ## [0.10.0] - 2026-07-05
 
 ### Added

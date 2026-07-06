@@ -30,11 +30,17 @@ import {
   setStoredRasterCharts,
 } from "./chart/raster-charts";
 import { SafetyContour } from "./chart/SafetyContour";
+import { CobAlarm } from "./cob/CobAlarm";
+import { CobButton } from "./cob/CobButton";
+import { CobManager } from "./cob/CobManager";
+import { confirmEndCobNavigation } from "./cob/CobNavGuard";
+import { CobPanel } from "./cob/CobPanel";
+import { startCobChartAutoFit } from "./cob/chart-auto-fit";
 import {
   getStreamingVersions,
   refreshStreamingVersions,
 } from "./data/chart-update-checker";
-import { repairTrackPointCounts } from "./data/db";
+import { getAllWaypoints, repairTrackPointCounts } from "./data/db";
 import { downloadFile } from "./data/file-io";
 import { OPFSSource } from "./data/opfs-source";
 import { chartAssetBase } from "./data/remote-url";
@@ -1097,8 +1103,6 @@ routePanel.setOnPreviewRoute((route) => {
 
 // --- Waypoints + Active Navigation ---
 const activeNav = new ActiveNavigationManager(navManager);
-appUpdateBusy = () =>
-  activeNav.getState().type !== "idle" || trackRecorder.isRecording();
 const waypointLayer = new WaypointLayer(chartManager.map);
 const navHud = new NavigationHUD(
   chartManager.map,
@@ -1113,6 +1117,45 @@ idleCloseables.push(waypointPanel);
 routePanel.setActiveNav(activeNav);
 routePanel.setWaypointLayer(waypointLayer);
 
+// --- Crew Overboard (COB) ---
+const cobAlarm = new CobAlarm();
+const cobManager = new CobManager({
+  navManager,
+  activeNav,
+  saveWaypoint: (wp) => waypointLayer.addWaypoint(wp),
+  updateWaypoint: (wp) => waypointLayer.updateWaypoint(wp),
+  getWaypointById: async (id) =>
+    (await getAllWaypoints()).find((w) => w.id === id) ?? null,
+  alarm: cobAlarm,
+  onEnsureRecording: () => {
+    if (!trackRecorder.isRecording())
+      updateSettings({ trackRecordingEnabled: true });
+  },
+  onEmergencyChange: (active) => wakeLockCtrl.setEmergencyActive(active),
+});
+appUpdateBusy = () =>
+  activeNav.getState().type !== "idle" ||
+  trackRecorder.isRecording() ||
+  cobManager.isActive();
+waypointPanel.setCobHooks({
+  isCobWaypoint: (id) => cobManager.isCobWaypoint(id),
+  noteWaypointDeleted: (id) => cobManager.noteWaypointDeleted(id),
+});
+
+// Anything canceling navigation while it targets the COB point must go
+// through an explicit confirm — a crew-overboard return is never ended by a
+// stray Escape or cancel-button tap.
+const guardNavCancel = (): boolean => {
+  if (!cobManager.isCobNavigation()) return false;
+  confirmEndCobNavigation()
+    .then((choice) => {
+      if (choice === "stop-nav") activeNav.stop();
+      else if (choice === "end-cob") return cobManager.resolve();
+    })
+    .catch(console.error);
+  return true;
+};
+
 // --- Context menu (right-click on map) ---
 const plottingLayer = new PlottingLayer(chartManager.map);
 const measurementLayer = new MeasurementLayer(chartManager.map);
@@ -1125,12 +1168,39 @@ const contextMenu = createContextMenu({
   activeNav,
   onWaypointAdded: () => waypointPanel.show(),
   getSearchEntries,
+  guardNavCancel,
 });
 idleCloseables.push(contextMenu);
 
 // Cancel navigation control
-const cancelNavBtn = new CancelNavButton(activeNav);
+const cancelNavBtn = new CancelNavButton(activeNav, guardNavCancel);
 chartManager.map.addControl(cancelNavBtn, "bottom-left");
+
+// COB button, info panel, and auto-view management.
+// The panel lives outside idleCloseables — idle auto-return must never
+// close an active emergency display.
+const cobPanel = new CobPanel(cobManager, navManager, cobAlarm);
+const cobButton = new CobButton({
+  onActivate: () => {
+    const result = cobManager.activate();
+    if (result === "no-fix") {
+      showStatusBanner({
+        id: "cob-no-fix",
+        message: "No GPS fix — cannot mark crew-overboard position",
+        onDismiss: () => {},
+      });
+      setTimeout(() => hideStatusBanner("cob-no-fix"), 8000);
+    }
+    cobButton.refresh();
+  },
+  onToggleWhileActive: () => cobPanel.toggle(),
+  isActive: () => cobManager.isActive(),
+});
+cobManager.subscribe(() => cobButton.refresh());
+// Bottom-left with the other custom controls — bottom-right belongs to the
+// fixed-position NavigationHUD, which would overlap a map control there.
+chartManager.map.addControl(cobButton, "bottom-left");
+startCobChartAutoFit(chartManager.map, chartMode, cobManager, navManager);
 
 // Register nav-mode instruments (before restore so HUD is ready)
 INSTRUMENTS.set("brg", {
@@ -1212,8 +1282,11 @@ INSTRUMENTS.set("steer", {
 instrumentHUD.setActiveNav(activeNav);
 instrumentHUD.onNavCellClick(() => routePanel.showActiveRoute());
 
-// Restore persisted navigation state (after all subscribers are wired up)
+// Restore persisted navigation state (after all subscribers are wired up).
+// COB restores second: it reconciles with whatever goto activeNav brought
+// back and only re-engages navigation if nav restored idle.
 await activeNav.restore();
+await cobManager.restore();
 
 if (topbarActions) {
   // Record track toggle
