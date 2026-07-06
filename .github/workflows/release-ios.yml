@@ -27,6 +27,9 @@ on:
 env:
   TEAM_ID: "4LRRTL3H3R" # darkstar (App Store team); not secret
   BUNDLE_ID: "com.darkstarsystems.pelorus.app"
+  APPLE_ID: "6781294138" # numeric App Store id; passed to altool so it doesn't
+  # have to resolve the app from the bundle id (that lookup intermittently fails
+  # with "Cannot determine the Apple ID from Bundle ID" / error 19)
 
 jobs:
   testflight:
@@ -124,7 +127,14 @@ jobs:
           xcodebuild -exportArchive -archivePath build/App.xcarchive \
             -exportPath build/export -exportOptionsPlist ExportOptions.plist "${AUTH[@]}"
 
-          xcrun altool --upload-app -f build/export/*.ipa -t ios \
+          # Diagnostic: can this API key enumerate apps at all? If this fails,
+          # the problem is account/key-level (agreement, permissions, expiry),
+          # not the bundle-id lookup. Non-fatal.
+          echo "=== altool --list-apps (diagnostic) ==="
+          xcrun altool --list-apps --apiKey "$ASC_KEY_ID" --apiIssuer "$ASC_ISSUER_ID" \
+            || echo "list-apps failed (exit $?)"
+
+          xcrun altool --upload-app -f build/export/*.ipa -t ios --apple-id "$APPLE_ID" \
             --apiKey "$ASC_KEY_ID" --apiIssuer "$ASC_ISSUER_ID"
 
       # altool only uploads — it never assigns the build to a TestFlight group
