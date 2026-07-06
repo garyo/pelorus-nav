@@ -2938,6 +2938,41 @@ body {
   border-radius: 0;
 }
 
+/* About & What's New dialogs on e-ink: white card, black text. White-on-black —
+   and especially grey-on-black — is hard to read on e-ink. On a white card the
+   subtle greys and coloured links stay legible, so only the light-on-dark body
+   text needs flipping to dark. */
+[data-theme="eink"] .about-card {
+  background: #ffffff;
+  border: 2px solid #000000;
+  border-radius: 0;
+  color: #000000;
+  box-shadow: none;
+}
+
+[data-theme="eink"] .about-card .about-title {
+  color: #000000;
+}
+
+[data-theme="eink"] .about-card .about-credits,
+[data-theme="eink"] .about-card .about-info-body,
+[data-theme="eink"] .about-card .whatsnew-list {
+  color: #1a1a1a;
+}
+
+[data-theme="eink"] .about-card .about-tagline,
+[data-theme="eink"] .about-card .about-credits-heading,
+[data-theme="eink"] .about-card .about-build-id {
+  color: #444444;
+}
+
+[data-theme="eink"] .about-card .about-clear-cache {
+  background: #ffffff;
+  color: #000000;
+  border: 1px solid #000000;
+  border-radius: 0;
+}
+
 [data-theme="eink"] .manager-item {
   border-bottom-color: #cccccc;
   color: #000000;

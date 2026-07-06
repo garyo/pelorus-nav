@@ -133,6 +133,14 @@ All tile workflows go through `tools/build-tiles.sh` (run `--help` for full usag
 Pushing a `v*` tag triggers `.github/workflows/release.yml`, which produces a **signed** release
 APK and publishes it as a GitHub Release (attached asset `app-release.apk`). To cut a new release:
 
+1. Add a `## [X.Y.Z] - YYYY-MM-DD` section to `CHANGELOG.md` — compact and user-focused
+   (omit changes users won't notice). This is the single source of truth for the in-app
+   "What's New" dialog (`src/ui/WhatsNewDialog.ts`), which shows this version's entry once
+   after an update and links to the changelog on GitHub.
+2. Bump `version` in `package.json` to `X.Y.Z` — it's the app's `__APP_VERSION__` and what
+   "What's New" keys on. Commit both.
+3. Tag and push:
+
 ```
 git tag -a vX.Y.Z -m "Pelorus Nav vX.Y.Z"
 git push origin vX.Y.Z
