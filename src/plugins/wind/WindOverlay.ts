@@ -25,6 +25,7 @@ import {
 } from "./wind-cache";
 import { InFlightTracker } from "./wind-inflight";
 import { bilinearWind, type WindVector } from "./wind-interp";
+import { isConnectivityError } from "./wind-net";
 
 const SOURCE_ID = "_wind-om";
 const LAYER_ID = "_wind-om-layer";
@@ -47,8 +48,17 @@ const CACHE_MAX = 1500;
  * "expensive" — backing off keeps us from hammering an exhausted quota.
  */
 const RATE_LIMIT_BACKOFF_MS = 5 * 60 * 1000;
+/** How long the "needs Internet" notice stays up before self-hiding — it's a
+ *  transient reminder, not a persistent banner (a later refresh re-shows it). */
+const OFFLINE_CHIP_MS = 6 * 1000;
 
-type WindStatus = "ok" | "loading" | "rate-limited" | "no-data" | "off";
+type WindStatus =
+  | "ok"
+  | "loading"
+  | "rate-limited"
+  | "offline"
+  | "no-data"
+  | "off";
 
 /**
  * Barb images are pre-rendered at 5 kt increments up to this cap. 70 kt covers
@@ -181,6 +191,8 @@ export class WindOverlay implements MapOverlay {
   /** Epoch ms before which we won't hit the API again (rate-limit backoff). */
   private rateLimitUntil = 0;
   private status: WindStatus = "off";
+  /** Timer that self-hides the transient "needs Internet" chip. */
+  private offlineChipTimer: ReturnType<typeof setTimeout> | null = null;
 
   constructor(host: PluginHost) {
     this.host = host;
@@ -282,15 +294,29 @@ export class WindOverlay implements MapOverlay {
   }
 
   private refreshStatus(): void {
+    if (this.offlineChipTimer) {
+      clearTimeout(this.offlineChipTimer);
+      this.offlineChipTimer = null;
+    }
     let text: string | null = null;
     if (this.enabled) {
       if (this.status === "loading") text = "Wind: loading…";
       else if (this.status === "rate-limited")
         text = "Wind: rate-limited — retrying soon";
+      else if (this.status === "offline")
+        text = "Wind barbs need Internet connectivity";
       else if (this.status === "no-data") text = "Wind: no data here";
       // "ok" / "off" → no chip; the barbs (or their absence) speak for themselves.
     }
     this.host.ui.setStatus(text);
+    // The connectivity notice self-hides so it doesn't linger; staying offline
+    // just re-shows it on the next refresh.
+    if (text && this.status === "offline") {
+      this.offlineChipTimer = setTimeout(() => {
+        this.offlineChipTimer = null;
+        this.host.ui.setStatus(null);
+      }, OFFLINE_CHIP_MS);
+    }
   }
 
   private scheduleRefresh(): void {
@@ -488,6 +514,14 @@ export class WindOverlay implements MapOverlay {
       if (!resp.ok) throw new Error(`Open-Meteo HTTP ${resp.status}`);
       data = await resp.json();
     } catch (err) {
+      // Airplane mode / no Internet: this is a connectivity problem, not a
+      // quota one — say so, and don't arm the long rate-limit backoff so barbs
+      // return promptly once we reconnect.
+      if (isConnectivityError(err, navigator.onLine)) {
+        this.setStatus("offline");
+        console.warn("wind fetch failed (offline):", err);
+        return null;
+      }
       this.rateLimitUntil = Date.now() + RATE_LIMIT_BACKOFF_MS;
       this.setStatus("rate-limited");
       console.warn("wind fetch failed:", err);
