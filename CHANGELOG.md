@@ -26,6 +26,11 @@ The format follows [Keep a Changelog](https://keepachangelog.com/).
 - Exported track (GPX) files are smaller, with sensible coordinate and
   speed precision instead of long strings of meaningless digits.
 
+### Fixed
+- The Waypoints list now updates immediately when a waypoint is added,
+  removed, or renamed while the panel is open — previously it could show
+  stale entries until you closed and reopened it.
+
 ## [0.10.0] - 2026-07-05
 
 ### Added
