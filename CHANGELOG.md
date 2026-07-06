@@ -7,6 +7,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.10.0] - 2026-07-06
+
 ### Added
 - Crew Overboard (COB) button: hold the red life-ring button for 1.5 seconds
   to instantly mark the spot, sound an alarm, and start navigating back.
@@ -19,27 +21,18 @@ The format follows [Keep a Changelog](https://keepachangelog.com/).
   handy on large e-ink devices. Press both volume buttons together to lock the
   touchscreen (with an on-screen indicator) so accidental screen taps are
   ignored under way; press both again to unlock.
-
-### Changed
-- Recorded tracks are now named "Pelorus Track" with the date and time, so
-  exported and shared files are easier to identify.
-- Exported track (GPX) files are smaller, with sensible coordinate and
-  speed precision instead of long strings of meaningless digits.
-
-### Fixed
-- The Waypoints list now updates immediately when a waypoint is added,
-  removed, or renamed while the panel is open — previously it could show
-  stale entries until you closed and reopened it.
-
-## [0.10.0] - 2026-07-05
-
-### Added
+- After an update, a one-time "What's New" dialog summarizes the release's
+  changes, with a link to the full changelog.
 - Waypoints auto-named from charted features now get shorter, tidier names
   (for example, long buoy names are abbreviated).
 
 ### Changed
 - Bigger, cleaner instrument readouts in landscape on small screens.
 - The side instrument panel no longer covers the on-map buttons.
+- Recorded tracks are now named "Pelorus Track" with the date and time, so
+  exported and shared files are easier to identify.
+- Exported track (GPX) files are smaller, with sensible coordinate and
+  speed precision instead of long strings of meaningless digits.
 - When you're offline, wind barbs now say "needs Internet connectivity"
   instead of showing a rate-limit error.
 
@@ -47,6 +40,11 @@ The format follows [Keep a Changelog](https://keepachangelog.com/).
 - The map no longer occasionally keeps zooming all the way out on its own
   after a pinch gesture (iOS).
 - Fixed a rare crash when switching chart theme or region while navigating.
+- The Waypoints list now updates immediately when a waypoint is added,
+  removed, or renamed while the panel is open — previously it could show
+  stale entries until you closed and reopened it.
+- The About and What's New dialogs are now high-contrast (black-on-white) on
+  e-ink displays.
 
 ## [0.9.0] - 2026-07-05
 
