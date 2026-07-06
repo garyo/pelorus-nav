@@ -42,6 +42,7 @@ import { loadAllSearchIndices, type SearchEntry } from "./data/search-index";
 import { getChartFile, listStoredCharts } from "./data/tile-store";
 import { BearingLine } from "./map/BearingLine";
 import { MeasurementLayer } from "./map/MeasurementLayer";
+import { installPinchZoomGuard } from "./map/pinch-zoom-guard";
 import { PlottingLayer } from "./map/plotting/PlottingLayer";
 import { RouteEditor } from "./map/RouteEditor";
 import { RouteLayer } from "./map/RouteLayer";
@@ -908,6 +909,10 @@ function applyTouchZoomForTheme(theme: string): void {
 }
 applyTouchZoomForTheme(initGpsSettings.displayTheme);
 onSettingsChange((s) => applyTouchZoomForTheme(s.displayTheme));
+
+// Stop pinch-release zoom inertia from running away to minZoom when the main
+// thread stalled mid-gesture (iOS) — see pinch-zoom-guard.ts for the mechanism.
+installPinchZoomGuard(chartManager.map);
 
 // Activate initial GPS source from settings
 navManager.setActiveProvider(initGpsSettings.gpsSource);
