@@ -98,9 +98,16 @@ export class BearingLine {
     endLon: number,
     endLat: number,
   ): void {
+    // A nav update can arrive mid style-(re)load — initial load, or a theme /
+    // chart-region swap tears the style down and re-runs setup() on style.load.
+    // In that window getStyle() is undefined; skip this frame and let the next
+    // GPS tick redraw once the style (and our source) are back.
+    const style = this.map.getStyle();
+    if (!style) return;
+
     // Keep bearing line above routes/waypoints (vessel ensures it stays above us)
     // Only move if not already near the top to avoid symbol re-placement churn
-    const layers = this.map.getStyle().layers;
+    const layers = style.layers;
     const topIdx = layers.length - 1;
     const lineIdx = layers.findIndex(
       (l: { id: string }) => l.id === LINE_LAYER,

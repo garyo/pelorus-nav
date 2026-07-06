@@ -284,7 +284,11 @@ export class TrackLayer {
   }
 
   private firstTrackLineLayer(): string | undefined {
-    for (const layer of this.map.getStyle().layers) {
+    // getStyle() is undefined mid style-(re)load (theme / region swap); treat as
+    // "no layer" — the reorder re-runs on style.load once the style is back.
+    const style = this.map.getStyle();
+    if (!style) return undefined;
+    for (const layer of style.layers) {
       if (layer.id.startsWith("_track-line-")) return layer.id;
     }
     return undefined;
