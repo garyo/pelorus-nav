@@ -18,6 +18,7 @@ export class WaypointLayer {
   private readonly map: maplibregl.Map;
   private waypoints: StandaloneWaypoint[] = [];
   private draggable: DraggablePoints | null = null;
+  private changeListeners: Array<() => void> = [];
 
   constructor(map: maplibregl.Map) {
     this.map = map;
@@ -35,20 +36,36 @@ export class WaypointLayer {
     });
   }
 
+  /**
+   * Subscribe to any change in the waypoint set (add/update/remove/reload/
+   * drag). This is the one place list-UIs stay in sync from — callers that
+   * mutate waypoints never need to poke the panel themselves.
+   */
+  onChange(fn: () => void): void {
+    this.changeListeners.push(fn);
+  }
+
+  private notifyChange(): void {
+    for (const fn of this.changeListeners) fn();
+  }
+
   async reloadAll(): Promise<void> {
     this.waypoints = await getAllWaypoints();
     this.updateSource();
+    this.notifyChange();
   }
 
   async addWaypoint(wp: StandaloneWaypoint): Promise<void> {
     await saveWaypoint(wp);
     this.waypoints.push(wp);
     this.updateSource();
+    this.notifyChange();
   }
 
   async removeWaypoint(id: string): Promise<void> {
     this.waypoints = this.waypoints.filter((w) => w.id !== id);
     this.updateSource();
+    this.notifyChange();
   }
 
   async updateWaypoint(wp: StandaloneWaypoint): Promise<void> {
@@ -58,6 +75,7 @@ export class WaypointLayer {
       this.waypoints[idx] = wp;
     }
     this.updateSource();
+    this.notifyChange();
   }
 
   getWaypoints(): readonly StandaloneWaypoint[] {
@@ -126,6 +144,7 @@ export class WaypointLayer {
         wp.lon = lngLat.lng;
         wp.updatedAt = Date.now();
         this.updateSource();
+        this.notifyChange();
         saveWaypoint(wp).catch(console.error);
       },
     );

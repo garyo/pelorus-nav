@@ -63,6 +63,13 @@ export class WaypointManagerPanel {
     this.waypointLayer = waypointLayer;
     this.activeNav = activeNav;
 
+    // Stay in sync with any waypoint mutation (COB drop, Go To dialog,
+    // context menu, drag-to-move) while open; refresh() already suppresses
+    // itself during an inline rename.
+    this.waypointLayer.onChange(() => {
+      if (this.el.classList.contains("open")) this.refresh();
+    });
+
     this.el = document.createElement("div");
     this.el.className = "manager-panel waypoint-manager-panel";
     this.el.innerHTML =
@@ -198,7 +205,6 @@ export class WaypointManagerPanel {
         this.activeNav.noteWaypointDeleted(wp.id);
         await deleteWaypoint(wp.id);
         await this.waypointLayer.removeWaypoint(wp.id);
-        this.refresh();
       })().catch(console.error);
     });
 
@@ -313,7 +319,6 @@ export class WaypointManagerPanel {
       wp.updatedAt = Date.now();
       await saveWaypoint(wp);
       await this.waypointLayer.updateWaypoint(wp);
-      this.refresh();
     };
 
     form

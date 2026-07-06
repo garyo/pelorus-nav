@@ -1122,16 +1122,8 @@ const cobAlarm = new CobAlarm();
 const cobManager = new CobManager({
   navManager,
   activeNav,
-  // refresh() so an already-open Waypoints panel shows the COB point
-  // immediately (and its resolved-notes annotation later).
-  saveWaypoint: async (wp) => {
-    await waypointLayer.addWaypoint(wp);
-    waypointPanel.refresh();
-  },
-  updateWaypoint: async (wp) => {
-    await waypointLayer.updateWaypoint(wp);
-    waypointPanel.refresh();
-  },
+  saveWaypoint: (wp) => waypointLayer.addWaypoint(wp),
+  updateWaypoint: (wp) => waypointLayer.updateWaypoint(wp),
   getWaypointById: async (id) =>
     (await getAllWaypoints()).find((w) => w.id === id) ?? null,
   alarm: cobAlarm,
