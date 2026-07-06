@@ -5,19 +5,26 @@ name: iOS TestFlight
 # Triggers: manually (workflow_dispatch) for ad-hoc betas, or on a v* release
 # tag (ships iOS alongside the Android release.yml).
 #
-# Signing is handcrafted (no fastlane/match): the Apple Distribution cert +
-# private key are imported from a base64 secret into a temp keychain, and an
-# App Store Connect API key drives both provisioning-profile updates
-# (-allowProvisioningUpdates) and the upload.
+# Signing is handcrafted (no fastlane/match) and fully MANUAL: the Apple
+# Distribution cert + private key are imported from a base64 secret into a temp
+# keychain, a committed-as-a-secret App Store provisioning profile is installed,
+# and the archive is pinned to both (no -allowProvisioningUpdates). This is
+# deliberate: automatic signing minted a throwaway "Apple Development" cert on
+# every run (the project's Release config uses that identity), which eventually
+# hit Apple's per-account certificate cap. The App Store Connect API key is used
+# only for the altool upload, not for provisioning.
 #
 # Required repository secrets (Settings → Secrets → Actions, "release" env):
-#   IOS_DIST_CERT_P12      base64 of the Apple Distribution cert exported from
-#                          Keychain Access as .p12 (include the private key)
-#   IOS_DIST_CERT_PASSWORD the password set when exporting that .p12
-#   ASC_API_KEY_P8         base64 of the App Store Connect API key AuthKey_*.p8
-#   ASC_KEY_ID             API key id (e.g. 2X9ABC1DEF)
-#   ASC_ISSUER_ID          API issuer id (uuid)
-#   KEYCHAIN_PASSWORD      any value (unlocks the temp keychain)
+#   IOS_DIST_CERT_P12          base64 of the Apple Distribution cert exported
+#                              from Keychain Access as .p12 (include private key)
+#   IOS_DIST_CERT_PASSWORD     the password set when exporting that .p12
+#   IOS_APPSTORE_PROFILE_BASE64 base64 of the App Store .mobileprovision for
+#                              com.darkstarsystems.pelorus.app (Distribution →
+#                              App Store Connect profile using the cert above)
+#   ASC_API_KEY_P8             base64 of the App Store Connect API key AuthKey_*.p8
+#   ASC_KEY_ID                 API key id (e.g. 2X9ABC1DEF)
+#   ASC_ISSUER_ID              API issuer id (uuid)
+#   KEYCHAIN_PASSWORD          any value (unlocks the temp keychain)
 
 on:
   workflow_dispatch:
@@ -88,6 +95,23 @@ jobs:
           echo -n "$ASC_API_KEY_P8" | base64 --decode > "$DIR/AuthKey_${ASC_KEY_ID}.p8"
           echo "ASC_KEY_PATH=$DIR/AuthKey_${ASC_KEY_ID}.p8" >> "$GITHUB_ENV"
 
+      - name: Install App Store provisioning profile
+        env:
+          PROFILE_B64: ${{ secrets.IOS_APPSTORE_PROFILE_BASE64 }}
+        run: |
+          set -euo pipefail
+          PROFILE="$RUNNER_TEMP/appstore.mobileprovision"
+          echo -n "$PROFILE_B64" | base64 --decode > "$PROFILE"
+          # The profile is CMS-signed; decode to plist to read its name + uuid.
+          PLIST="$(security cms -D -i "$PROFILE")"
+          NAME="$(echo "$PLIST" | plutil -extract Name raw -o - -)"
+          UUID="$(echo "$PLIST" | plutil -extract UUID raw -o - -)"
+          DEST="$HOME/Library/MobileDevice/Provisioning Profiles"
+          mkdir -p "$DEST"
+          cp "$PROFILE" "$DEST/$UUID.mobileprovision"
+          echo "Installed provisioning profile '$NAME' ($UUID)"
+          echo "PROFILE_NAME=$NAME" >> "$GITHUB_ENV"
+
       - name: Build web + sync iOS
         run: |
           CAPACITOR=1 bun run build
@@ -107,25 +131,45 @@ jobs:
           security unlock-keychain -p "$KEYCHAIN_PW" "$BUILD_KEYCHAIN"
 
           cd ios/App
-          # ExportOptions.plist is committed alongside the project (teamID 4LRRTL3H3R).
 
-          AUTH=(
-            -allowProvisioningUpdates
-            -authenticationKeyPath "$ASC_KEY_PATH"
-            -authenticationKeyID "$ASC_KEY_ID"
-            -authenticationKeyIssuerID "$ASC_ISSUER_ID"
-          )
-
+          # Manual signing: pin to the imported Apple Distribution cert + the
+          # installed App Store profile. No -allowProvisioningUpdates, so
+          # xcodebuild never creates a certificate (automatic signing was
+          # minting a throwaway Apple Development cert every run). Overrides are
+          # passed on the command line only — the project file stays automatic
+          # so local dev builds are unaffected.
           xcodebuild -project App.xcodeproj -scheme App -configuration Release \
             -archivePath build/App.xcarchive -destination 'generic/platform=iOS' \
             DEVELOPMENT_TEAM="$TEAM_ID" \
             MARKETING_VERSION="$MARKETING_VERSION" \
             CURRENT_PROJECT_VERSION="$BUILD_NUMBER" \
+            CODE_SIGN_STYLE=Manual \
+            CODE_SIGN_IDENTITY="Apple Distribution" \
+            PROVISIONING_PROFILE_SPECIFIER="$PROFILE_NAME" \
             OTHER_CODE_SIGN_FLAGS="--keychain $BUILD_KEYCHAIN" \
-            "${AUTH[@]}" archive
+            archive
+
+          # Manual export options, generated here so the profile name matches the
+          # one just installed (the committed ExportOptions.plist stays automatic
+          # for local ios-beta.sh use).
+          cat > build/ExportOptions.plist <<PLIST
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>method</key><string>app-store-connect</string>
+            <key>teamID</key><string>$TEAM_ID</string>
+            <key>destination</key><string>export</string>
+            <key>signingStyle</key><string>manual</string>
+            <key>signingCertificate</key><string>Apple Distribution</string>
+            <key>provisioningProfiles</key>
+            <dict><key>$BUNDLE_ID</key><string>$PROFILE_NAME</string></dict>
+          </dict>
+          </plist>
+          PLIST
 
           xcodebuild -exportArchive -archivePath build/App.xcarchive \
-            -exportPath build/export -exportOptionsPlist ExportOptions.plist "${AUTH[@]}"
+            -exportPath build/export -exportOptionsPlist build/ExportOptions.plist
 
           xcrun altool --upload-app -f build/export/*.ipa -t ios --apple-id "$APPLE_ID" \
             --apiKey "$ASC_KEY_ID" --apiIssuer "$ASC_ISSUER_ID"
