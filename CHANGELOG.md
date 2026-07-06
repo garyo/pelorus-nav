@@ -14,6 +14,11 @@ The format follows [Keep a Changelog](https://keepachangelog.com/).
   to the person in the water; keeps the screen awake, records your track,
   and survives an app restart. Ending the emergency always requires a
   deliberate press-and-hold, and the COB waypoint is kept as a record.
+- Volume-key chart controls (Android, optional): turn on "Volume keys zoom
+  chart" in Settings to zoom the chart with the device's volume buttons —
+  handy on large e-ink devices. Press and hold a volume button to lock the
+  touchscreen (with an on-screen indicator) so accidental screen taps are
+  ignored under way; hold again to unlock.
 
 ### Changed
 - Recorded tracks are now named "Pelorus Track" with the date and time, so

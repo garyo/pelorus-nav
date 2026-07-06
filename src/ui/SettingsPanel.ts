@@ -440,6 +440,16 @@ function buildAppearanceTab(
         },
       ),
     );
+
+    // Volume-key controls: short press zooms, long press locks the screen.
+    tab.appendChild(
+      buildCheckboxRow(
+        "Volume keys zoom chart (hold to lock screen)",
+        "settings-volume-keys",
+        settings.volumeKeyControls,
+        (checked) => updateSettings({ volumeKeyControls: checked }),
+      ),
+    );
   }
 
   return tab;

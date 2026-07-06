@@ -4291,3 +4291,40 @@ body.eink-refresh-tick {
     outline-offset: 2px;
   }
 }
+
+/* ── Touch-lock indicator (volume-key screen lock) ────────────────── */
+.touch-lock-banner {
+  display: none;
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 100000;
+  padding: 8px 12px;
+  text-align: center;
+  font:
+    bold 13px system-ui,
+    -apple-system,
+    sans-serif;
+  letter-spacing: 0.3px;
+  background: #c1121f;
+  color: #fff;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+  /* View-only overlay; never intercept input (native does the real blocking). */
+  pointer-events: none;
+}
+
+.touch-lock-banner.visible {
+  display: block;
+}
+
+[data-theme="night"] .touch-lock-banner {
+  background: #5a1010;
+  color: #ff8a8a;
+}
+
+[data-theme="eink"] .touch-lock-banner {
+  background: #000;
+  color: #fff;
+  box-shadow: none;
+}

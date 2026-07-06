@@ -86,6 +86,12 @@ export interface Settings {
   autoDimWhenIdle: boolean;
   /** After a stretch of no interaction, close open dialogs and recenter on the vessel. */
   autoReturnWhenIdle: boolean;
+  /**
+   * Use the device's volume keys for chart control (native only): short press
+   * zooms in/out, long press locks/unlocks the touchscreen. Off by default so
+   * the keys keep their normal volume behaviour.
+   */
+  volumeKeyControls: boolean;
   /** Scale factor for chart text labels (1 = default). */
   textScale: number;
   /** Scale factor for chart icons (1 = default, multiplied with scheme/theme scale). */
@@ -257,6 +263,7 @@ const DEFAULTS: Settings = {
   wakeLock: "when-nav",
   autoDimWhenIdle: false,
   autoReturnWhenIdle: true,
+  volumeKeyControls: false,
   textScale: 1,
   iconScale: 1,
 };

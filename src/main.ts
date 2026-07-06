@@ -98,6 +98,7 @@ import { ChartInUseReadout } from "./ui/ChartInUseReadout";
 import { startChartUpdateNotifier } from "./ui/ChartUpdateNotifier";
 import { ConnectionLogPanel } from "./ui/ConnectionLogPanel";
 import { createContextMenu } from "./ui/ContextMenu";
+import { installHardwareKeys } from "./ui/HardwareKeysController";
 import { createIdleDetector } from "./ui/IdleDetector";
 import { createInstrumentHUD, INSTRUMENTS } from "./ui/InstrumentHUD";
 import {
@@ -920,6 +921,9 @@ onSettingsChange((s) => applyTouchZoomForTheme(s.displayTheme));
 // Stop pinch-release zoom inertia from running away to minZoom when the main
 // thread stalled mid-gesture (iOS) — see pinch-zoom-guard.ts for the mechanism.
 installPinchZoomGuard(chartManager.map);
+
+// Volume keys → chart zoom / touchscreen lock (native only, opt-in via setting)
+installHardwareKeys(chartManager.map);
 
 // Activate initial GPS source from settings
 navManager.setActiveProvider(initGpsSettings.gpsSource);
