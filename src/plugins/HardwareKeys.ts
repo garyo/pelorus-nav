@@ -2,10 +2,11 @@
  * TypeScript interface for the native HardwareKeys Capacitor plugin.
  *
  * Lets the app take over the device's physical volume keys (Android only):
- * a short press zooms the chart, a long press toggles a touchscreen lock so
- * accidental screen presses are ignored (useful on big e-ink devices under
- * way). The lock only covers the app's own surface — Android does not let one
- * app swallow touches destined for the system UI or other apps.
+ * a single press zooms the chart, pressing both keys together toggles a
+ * touchscreen lock so accidental screen presses are ignored (useful on big
+ * e-ink devices under way). The lock only covers the app's own surface —
+ * Android does not let one app swallow touches destined for the system UI or
+ * other apps.
  */
 
 import type { PluginListenerHandle } from "@capacitor/core";
@@ -25,9 +26,9 @@ export interface HardwareKeysPlugin {
   ): Promise<PluginListenerHandle>;
 
   /**
-   * Fired when the touchscreen lock toggles (long-press). `locked` reflects
-   * the new state; the native side has already applied/removed the actual
-   * touch blocking, so the web layer only needs to update its indicator.
+   * Fired when the touchscreen lock toggles (both-keys gesture). `locked`
+   * reflects the new state; the native side has already applied/removed the
+   * actual touch blocking, so the web layer only needs to update its indicator.
    */
   addListener(
     eventName: "touchLock",

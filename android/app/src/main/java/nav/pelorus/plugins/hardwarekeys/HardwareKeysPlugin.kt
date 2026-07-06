@@ -1,7 +1,5 @@
 package nav.pelorus.plugins.hardwarekeys
 
-import android.os.Handler
-import android.os.Looper
 import android.view.KeyEvent
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
@@ -14,28 +12,33 @@ import com.getcapacitor.annotation.CapacitorPlugin
 
 /**
  * Takes over the physical volume keys when enabled:
- *  - short press  -> "volumeKey" event ("in" = up, "out" = down); the web
- *    layer zooms the chart.
- *  - long press   -> toggles a touchscreen lock. While locked, MainActivity
- *    swallows touch events (see dispatchTouchEvent) and the system bars are
- *    hidden; the volume keys still work so a long press unlocks.
+ *  - single press        -> "volumeKey" event ("in" = up, "out" = down); the
+ *    web layer zooms the chart.
+ *  - both keys together   -> pressing volume-up and volume-down within a short
+ *    window toggles a touchscreen lock. While locked, MainActivity swallows
+ *    touch events (see dispatchTouchEvent) and the system bars are hidden;
+ *    the volume keys still work so the same both-keys gesture unlocks.
+ *
+ * We can't use a press-and-hold gesture: some devices (e.g. BOOX e-ink readers)
+ * report volume keys as an instantaneous down+up with no hold duration, so a
+ * two-key chord is the reliable cross-hardware signal. The first key of a chord
+ * still zooms — we only know it's a chord once the second key arrives — which is
+ * a deliberately accepted quirk (no zoom delay).
  *
  * MainActivity forwards key and touch events here — this plugin owns the
- * enabled/locked state because the touch swallowing lives in the Activity and
- * the long-press detection needs a main-looper timer.
+ * enabled/locked state because the touch swallowing lives in the Activity.
  */
 @CapacitorPlugin(name = "HardwareKeys")
 class HardwareKeysPlugin : Plugin() {
 
-    private val handler = Handler(Looper.getMainLooper())
-    private var pendingLongPress: Runnable? = null
-    private var longPressFired = false
-
     @Volatile private var enabled = false
     @Volatile private var touchLocked = false
 
+    private var lastKeyCode = 0
+    private var lastKeyTime = 0L
+
     companion object {
-        private const val LONG_PRESS_MS = 600L
+        private const val CHORD_WINDOW_MS = 400L
     }
 
     @PluginMethod
@@ -50,7 +53,8 @@ class HardwareKeysPlugin : Plugin() {
 
     /**
      * Called from MainActivity.dispatchKeyEvent. Returns true when the event
-     * was a volume key we handled (and therefore consumed).
+     * was a volume key we handled (and therefore consumed). We act on the key
+     * UP and swallow everything else so the system volume UI never appears.
      */
     fun handleKeyEvent(event: KeyEvent): Boolean {
         if (!enabled) return false
@@ -58,47 +62,22 @@ class HardwareKeysPlugin : Plugin() {
         if (code != KeyEvent.KEYCODE_VOLUME_UP && code != KeyEvent.KEYCODE_VOLUME_DOWN) {
             return false
         }
-        when (event.action) {
-            KeyEvent.ACTION_DOWN -> {
-                if (event.repeatCount == 0) {
-                    longPressFired = false
-                    cancelPendingLongPress()
-                    val r = Runnable { fireLongPress() }
-                    pendingLongPress = r
-                    handler.postDelayed(r, LONG_PRESS_MS)
-                }
-                // Also honor an explicit system long-press flag: some OEMs (and
-                // injected test events) deliver FLAG_LONG_PRESS instead of a held
-                // key our timer would see. Guarded by longPressFired so the two
-                // paths can't both toggle the lock.
-                if (!longPressFired &&
-                    event.flags and KeyEvent.FLAG_LONG_PRESS != 0
-                ) {
-                    fireLongPress()
-                }
-                // Swallow auto-repeats too, so the system volume UI never shows.
-            }
-            KeyEvent.ACTION_UP -> {
-                cancelPendingLongPress()
-                if (!longPressFired) {
-                    emitVolumeKey(if (code == KeyEvent.KEYCODE_VOLUME_UP) "in" else "out")
-                }
-                longPressFired = false
+        if (event.action == KeyEvent.ACTION_UP) {
+            val now = event.eventTime
+            val isChord =
+                lastKeyCode != 0 &&
+                    code != lastKeyCode &&
+                    now - lastKeyTime <= CHORD_WINDOW_MS
+            if (isChord) {
+                lastKeyCode = 0 // consume the chord; don't let a third press re-trigger
+                setLocked(!touchLocked)
+            } else {
+                lastKeyCode = code
+                lastKeyTime = now
+                emitVolumeKey(if (code == KeyEvent.KEYCODE_VOLUME_UP) "in" else "out")
             }
         }
         return true
-    }
-
-    private fun fireLongPress() {
-        if (longPressFired) return
-        longPressFired = true
-        cancelPendingLongPress()
-        setLocked(!touchLocked)
-    }
-
-    private fun cancelPendingLongPress() {
-        pendingLongPress?.let { handler.removeCallbacks(it) }
-        pendingLongPress = null
     }
 
     private fun emitVolumeKey(direction: String) {
@@ -123,10 +102,5 @@ class HardwareKeysPlugin : Plugin() {
         } else {
             controller.show(WindowInsetsCompat.Type.systemBars())
         }
-    }
-
-    override fun handleOnDestroy() {
-        cancelPendingLongPress()
-        super.handleOnDestroy()
     }
 }

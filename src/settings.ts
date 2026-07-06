@@ -87,9 +87,9 @@ export interface Settings {
   /** After a stretch of no interaction, close open dialogs and recenter on the vessel. */
   autoReturnWhenIdle: boolean;
   /**
-   * Use the device's volume keys for chart control (native only): short press
-   * zooms in/out, long press locks/unlocks the touchscreen. Off by default so
-   * the keys keep their normal volume behaviour.
+   * Use the device's volume keys for chart control (native only): single press
+   * zooms in/out, pressing both keys together locks/unlocks the touchscreen.
+   * Off by default so the keys keep their normal volume behaviour.
    */
   volumeKeyControls: boolean;
   /** Scale factor for chart text labels (1 = default). */

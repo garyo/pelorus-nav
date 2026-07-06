@@ -1,7 +1,7 @@
 /**
  * Wires the native HardwareKeys plugin to the map (Android only):
- *  - volume-key short press  -> zoom the chart in/out
- *  - volume-key long press   -> the plugin toggles a touchscreen lock; here we
+ *  - single volume press  -> zoom the chart in/out
+ *  - both keys together   -> the plugin toggles a touchscreen lock; here we
  *    just show/hide a persistent on-screen "locked" indicator.
  *
  * No-op on web/desktop, where the plugin doesn't exist.
@@ -12,7 +12,7 @@ import type maplibregl from "maplibre-gl";
 import { HardwareKeys } from "../plugins/HardwareKeys";
 import { getSettings, onSettingsChange } from "../settings";
 
-const ZOOM_STEP = 1;
+const ZOOM_STEP = 0.5;
 
 export function installHardwareKeys(map: maplibregl.Map): void {
   if (!Capacitor.isNativePlatform()) return;
@@ -49,7 +49,7 @@ class TouchLockBanner {
   constructor() {
     this.el = document.createElement("div");
     this.el.className = "touch-lock-banner";
-    this.el.textContent = "🔒 Screen locked — hold a volume key to unlock";
+    this.el.textContent = "🔒 Screen locked — press both volume keys to unlock";
     document.body.appendChild(this.el);
   }
 
