@@ -34,6 +34,7 @@ import { diag } from "../utils/diag";
 import { formatBytes } from "../utils/format";
 import {
   iconCheckCircle,
+  iconCrosshair,
   iconDownload,
   iconFolderOpen,
   iconInfo,
@@ -50,6 +51,7 @@ export class ChartCachePanel {
   private readonly storageInfo: HTMLDivElement;
   private downloadController: AbortController | null = null;
   private onChartsChanged?: () => void;
+  private onShowChart?: (chart: RasterChart) => void;
   /** Bumped on each refresh so stale async update-checks are ignored. */
   private refreshToken = 0;
 
@@ -144,6 +146,10 @@ export class ChartCachePanel {
   /** Register a callback when charts are added/removed (for reloading PMTiles). */
   setOnChartsChanged(cb: () => void): void {
     this.onChartsChanged = cb;
+  }
+
+  setOnShowChart(cb: (chart: RasterChart) => void): void {
+    this.onShowChart = cb;
   }
 
   toggle(): void {
@@ -512,6 +518,13 @@ export class ChartCachePanel {
 
     const actions = document.createElement("div");
     actions.className = "manager-item-actions";
+
+    const showBtn = document.createElement("button");
+    showBtn.className = "manager-item-btn";
+    setIcon(showBtn, iconCrosshair);
+    showBtn.title = `Show ${chart.name} on the chart`;
+    showBtn.addEventListener("click", () => this.onShowChart?.(chart));
+    actions.appendChild(showBtn);
 
     if (stored) {
       const deleteBtn = document.createElement("button");

@@ -1395,6 +1395,9 @@ if (topbarMenu) {
       }
     })();
   });
+  cachePanel.setOnShowChart((chart) => {
+    chartManager.map.fitBounds(chart.bbox, { padding: 40 });
+  });
   const cacheBtn = buildTopbarAction(iconGlobe, "RGNS", "Chart Regions", {
     fullLabel: "Chart Regions",
   });

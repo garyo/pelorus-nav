@@ -56,6 +56,28 @@ bun run tiles:build
 
 See `tools/s57-pipeline/` for the Python pipeline code.
 
+## Sideloading Charts
+
+Chart Regions → **Load from File…** imports a `.pmtiles` file straight into the
+app's offline storage — handy for installing charts on a boat tablet without
+re-downloading over cellular. Any chart the app knows (region charts, street
+basemaps, and raster charts like `rnc-bvi.pmtiles`) works offline immediately
+after import.
+
+Bring-your-own charts — e.g. the satellite-imagery `.mbtiles` collections
+cruisers share (Sat2Chart, Soggy Paws, sv Ocelot) — are on the roadmap but not
+rendered yet: today the map only draws charts in its catalog, so an imported
+file with an unknown name is stored but not displayed. When that lands, the
+conversion step is one line with the [pmtiles CLI](https://github.com/protomaps/go-pmtiles):
+
+```bash
+pmtiles convert charts.mbtiles charts.pmtiles   # brew install pmtiles
+```
+
+Raster charts you build yourself with `tools/rnc-pipeline/convert-kap.py`
+(any georeferenced BSB/KAP) can be added to `RASTER_CHARTS` in
+`src/data/chart-catalog.ts` — see the BVI chart entry for the pattern.
+
 ## Scripts
 
 | Command | Description |
