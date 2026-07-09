@@ -281,6 +281,10 @@ export interface RasterChart {
   maxZoom: number;
   center: [number, number];
   bbox: [number, number, number, number]; // [west, south, east, north]
+  /** Map attribution; catalog charts default to NOAA RNC. */
+  attribution?: string;
+  /** True for user-imported charts (derived, not in the catalog). */
+  imported?: boolean;
 }
 
 export const RASTER_CHARTS: RasterChart[] = [

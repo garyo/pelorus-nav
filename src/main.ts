@@ -22,11 +22,13 @@ import {
   basemapRegionsFromFilenames,
   setStoredBasemaps,
 } from "./chart/basemap-underlay";
+import { deriveImportedRasterCharts } from "./chart/imported-charts";
 import { LightSectorLayer } from "./chart/LightSectorLayer";
 import { registerOSMTileProtocol } from "./chart/osm-tile-cache";
 import { PelLightLayer } from "./chart/PelLightLayer";
 import {
   rasterChartsFromFilenames,
+  setImportedRasterCharts,
   setStoredRasterCharts,
 } from "./chart/raster-charts";
 import { SafetyContour } from "./chart/SafetyContour";
@@ -210,6 +212,7 @@ try {
   setStoredRasterCharts(
     rasterChartsFromFilenames(storedCharts.map((c) => c.filename)),
   );
+  setImportedRasterCharts(await deriveImportedRasterCharts(storedCharts));
 } catch {
   // OPFS not available or no stored charts — fall back to remote
 }
@@ -1369,34 +1372,42 @@ if (topbarMenu) {
   // Chart cache panel button
   const cachePanel = new ChartCachePanel();
   idleCloseables.push(cachePanel);
-  cachePanel.setOnChartsChanged(() => {
+  cachePanel.setOnChartsChanged(async () => {
     // Reload OPFS charts into the PMTiles protocol (dropping entries for
     // deleted charts so their regions fall back to streaming) + refresh
-    // offline coverage.
-    (async () => {
-      try {
-        const charts = await listStoredCharts();
-        pruneOfflineCharts(charts.map((c) => c.filename));
-        for (const chart of charts) {
-          await registerOfflineChart(chart.filename);
-        }
-        setStoredBasemaps(
-          basemapRegionsFromFilenames(charts.map((c) => c.filename)),
-        );
-        setStoredRasterCharts(
-          rasterChartsFromFilenames(charts.map((c) => c.filename)),
-        );
-        await vectorProvider.loadAllOfflineCoverage();
-        // The downloaded set changed, so re-derive which regions stream
-        vectorProvider.setStreamingVersions(await getStreamingVersions());
-        chartManager.refreshStyle();
-      } catch {
-        // ignore
+    // offline coverage. Awaited by the panel so its refresh() sees the
+    // re-derived imported-chart list.
+    try {
+      const charts = await listStoredCharts();
+      pruneOfflineCharts(charts.map((c) => c.filename));
+      for (const chart of charts) {
+        await registerOfflineChart(chart.filename);
       }
-    })();
+      setStoredBasemaps(
+        basemapRegionsFromFilenames(charts.map((c) => c.filename)),
+      );
+      setStoredRasterCharts(
+        rasterChartsFromFilenames(charts.map((c) => c.filename)),
+      );
+      setImportedRasterCharts(await deriveImportedRasterCharts(charts));
+      await vectorProvider.loadAllOfflineCoverage();
+      // The downloaded set changed, so re-derive which regions stream
+      vectorProvider.setStreamingVersions(await getStreamingVersions());
+      chartManager.refreshStyle();
+    } catch {
+      // ignore
+    }
   });
   cachePanel.setOnShowChart((chart) => {
-    chartManager.map.fitBounds(chart.bbox, { padding: 40 });
+    // Fit the chart's footprint, but never land below its minZoom — a fit
+    // just under it would navigate to the chart yet show none of it.
+    const map = chartManager.map;
+    const camera = map.cameraForBounds(chart.bbox, { padding: 40 });
+    if (!camera) return;
+    map.flyTo({
+      ...camera,
+      zoom: Math.max(camera.zoom ?? chart.minZoom, chart.minZoom),
+    });
   });
   const cacheBtn = buildTopbarAction(iconGlobe, "RGNS", "Chart Regions", {
     fullLabel: "Chart Regions",

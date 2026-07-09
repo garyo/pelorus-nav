@@ -8,11 +8,12 @@
  * The active region is switched via settings.activeRegion.
  */
 
+import { isCatalogFilename } from "../chart/imported-charts";
+import { availableRasterCharts } from "../chart/raster-charts";
 import { UNIFIED_COVERAGE_FILENAME } from "../chart/VectorChartProvider";
 import {
   CHART_REGIONS,
   type ChartRegion,
-  RASTER_CHARTS,
   type RasterChart,
 } from "../data/chart-catalog";
 import { chartAssetBase } from "../data/remote-url";
@@ -50,7 +51,8 @@ export class ChartCachePanel {
   private readonly body: HTMLDivElement;
   private readonly storageInfo: HTMLDivElement;
   private downloadController: AbortController | null = null;
-  private onChartsChanged?: () => void;
+  private readonly fileInput: HTMLInputElement;
+  private onChartsChanged?: () => void | Promise<void>;
   private onShowChart?: (chart: RasterChart) => void;
   /** Bumped on each refresh so stale async update-checks are ignored. */
   private refreshToken = 0;
@@ -80,6 +82,8 @@ export class ChartCachePanel {
     const closeBtn = this.el.querySelector(".manager-close") as HTMLElement;
     setIcon(closeBtn, iconX);
     closeBtn.addEventListener("click", () => this.hide());
+
+    this.fileInput = this.buildFileInput();
   }
 
   /** Lazily-built "About offline charts & basemaps" info overlay. */
@@ -144,7 +148,7 @@ export class ChartCachePanel {
   }
 
   /** Register a callback when charts are added/removed (for reloading PMTiles). */
-  setOnChartsChanged(cb: () => void): void {
+  setOnChartsChanged(cb: () => void | Promise<void>): void {
     this.onChartsChanged = cb;
   }
 
@@ -203,7 +207,8 @@ export class ChartCachePanel {
     }
 
     // Raster charts (RNC) — fill ENC gaps (e.g. the BVI); auto-quilted
-    for (const chart of RASTER_CHARTS) {
+    const rasterCharts = availableRasterCharts();
+    for (const chart of rasterCharts) {
       this.body.appendChild(
         this.createRasterChartItem(
           chart,
@@ -212,15 +217,13 @@ export class ChartCachePanel {
       );
     }
 
-    // Any downloaded files not in catalog (e.g. manually imported)
+    // Any downloaded files neither in the catalog nor rendered as an imported
+    // raster chart (e.g. a vector import, which the map can't style)
     for (const chart of storedCharts) {
-      const inCatalog =
-        CHART_REGIONS.some(
-          (r) =>
-            r.filename === chart.filename ||
-            r.basemapFilename === chart.filename,
-        ) || RASTER_CHARTS.some((rc) => rc.filename === chart.filename);
-      if (!inCatalog) {
+      const known =
+        isCatalogFilename(chart.filename) ||
+        rasterCharts.some((rc) => rc.filename === chart.filename);
+      if (!known) {
         this.body.appendChild(this.createImportedItem(chart));
       }
     }
@@ -394,7 +397,7 @@ export class ChartCachePanel {
           await deleteAuxFile(
             region.filename.replace(".pmtiles", ".search.json"),
           );
-          this.onChartsChanged?.();
+          await this.onChartsChanged?.();
           await this.refresh();
         })().catch(console.error);
       });
@@ -458,7 +461,7 @@ export class ChartCachePanel {
         if (!confirm(`Remove offline basemap for "${region.name}"?`)) return;
         (async () => {
           await deleteChart(stored.filename);
-          this.onChartsChanged?.();
+          await this.onChartsChanged?.();
           await this.refresh();
         })().catch(console.error);
       });
@@ -508,8 +511,9 @@ export class ChartCachePanel {
     const detail = document.createElement("div");
     detail.className = "manager-item-detail";
     if (stored) {
+      const verb = chart.imported ? "Imported" : "Downloaded";
       const date = new Date(stored.downloadedAt).toLocaleDateString();
-      detail.innerHTML = `${iconCheckCircle} Downloaded · ${formatBytes(stored.sizeBytes)} · ${date}`;
+      detail.innerHTML = `${iconCheckCircle} ${verb} · ${formatBytes(stored.sizeBytes)} · ${date}`;
     } else {
       detail.textContent = `Streaming · ~${formatBytes(chart.sizeEstimate)}`;
     }
@@ -536,7 +540,7 @@ export class ChartCachePanel {
         (async () => {
           await deleteChart(stored.filename);
           await deleteAuxFile(chart.coverageFilename);
-          this.onChartsChanged?.();
+          await this.onChartsChanged?.();
           await this.refresh();
         })().catch(console.error);
       });
@@ -626,7 +630,7 @@ export class ChartCachePanel {
         this.downloadController.signal,
       );
       await downloadAux?.(this.downloadController.signal);
-      this.onChartsChanged?.();
+      await this.onChartsChanged?.();
     } catch (err) {
       if (err instanceof DOMException && err.name === "AbortError") {
         // User cancelled
@@ -679,7 +683,7 @@ export class ChartCachePanel {
       if (!confirm(`Delete "${chart.filename}"?`)) return;
       (async () => {
         await deleteChart(chart.filename);
-        this.onChartsChanged?.();
+        await this.onChartsChanged?.();
         await this.refresh();
       })().catch(console.error);
     });
@@ -764,7 +768,7 @@ export class ChartCachePanel {
       } catch {
         // Non-fatal: region tiles still work, mask falls back to online fetch
       }
-      this.onChartsChanged?.();
+      await this.onChartsChanged?.();
     } catch (err) {
       if (err instanceof DOMException && err.name === "AbortError") {
         // User cancelled
@@ -787,24 +791,33 @@ export class ChartCachePanel {
     await this.refresh();
   }
 
-  private async importFile(): Promise<void> {
+  /** Persistent hidden input (built in the constructor) — programmatic click
+   * on a detached input is flaky on some WebViews, and a DOM-resident input
+   * is scriptable in tests without opening the native chooser. */
+  private buildFileInput(): HTMLInputElement {
     const input = document.createElement("input");
     input.type = "file";
     input.accept = ".pmtiles";
-
+    input.className = "chart-cache-file-input";
+    input.style.display = "none";
     input.addEventListener("change", async () => {
       const file = input.files?.[0];
       if (!file) return;
+      input.value = ""; // allow re-importing the same filename later
       try {
         await importChart(file);
-        this.onChartsChanged?.();
+        await this.onChartsChanged?.();
         await this.refresh();
       } catch (err) {
         console.error("Import failed:", err);
       }
     });
+    this.el.appendChild(input);
+    return input;
+  }
 
-    input.click();
+  private importFile(): void {
+    this.fileInput.click();
   }
 
   private async flushAll(): Promise<void> {
@@ -819,7 +832,7 @@ export class ChartCachePanel {
       await deleteAuxFile(region.filename.replace(".pmtiles", ".search.json"));
     }
     await deleteAuxFile(UNIFIED_COVERAGE_FILENAME);
-    this.onChartsChanged?.();
+    await this.onChartsChanged?.();
     await this.refresh();
   }
 

@@ -34,12 +34,20 @@ export function rasterChartsFromFilenames(filenames: string[]): Set<string> {
   return ids;
 }
 
+let importedCharts: RasterChart[] = [];
+
+/** Set user-imported charts (derived from OPFS archives; called from main.ts). */
+export function setImportedRasterCharts(charts: RasterChart[]): void {
+  importedCharts = charts;
+}
+
 /**
- * Raster charts to render. All catalog charts stream by default (tiles
- * lazy-load only when in view); OPFS just makes a downloaded one work offline.
+ * Raster charts to render: catalog charts plus user imports. Catalog charts
+ * stream by default (tiles lazy-load only when in view); OPFS makes a
+ * downloaded one work offline. Imported charts are always OPFS-backed.
  */
 export function availableRasterCharts(): RasterChart[] {
-  return RASTER_CHARTS;
+  return [...RASTER_CHARTS, ...importedCharts];
 }
 
 function sourceId(chart: RasterChart): string {
@@ -56,7 +64,7 @@ export function getRasterChartSources(): Record<string, SourceSpecification> {
       tileSize: 256,
       minzoom: chart.minZoom,
       maxzoom: chart.maxZoom,
-      attribution: "NOAA RNC (public domain)",
+      attribution: chart.attribution ?? "NOAA RNC (public domain)",
     };
   }
   return sources;
