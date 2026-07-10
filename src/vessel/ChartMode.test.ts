@@ -118,6 +118,15 @@ describe("ChartModeController", () => {
     expect(controller.getMode()).toBe("follow");
   });
 
+  it("pelorus:navigate switches to free and recenter restores", () => {
+    controller.setMode("follow");
+    // Deliberate in-app navigation (search / go-to / show-chart)
+    mockMap._fire("pelorus:navigate", {});
+    expect(controller.getMode()).toBe("free");
+    controller.recenter();
+    expect(controller.getMode()).toBe("follow");
+  });
+
   it("recenter restores previous non-free mode", () => {
     controller.setMode("course-up");
     // User pans → free

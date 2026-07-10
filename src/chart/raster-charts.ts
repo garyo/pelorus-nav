@@ -66,19 +66,57 @@ export function getRasterChartSources(): Record<string, SourceSpecification> {
       maxzoom: chart.maxZoom,
       attribution: chart.attribution ?? "NOAA RNC (public domain)",
     };
+    const [w, s, e, n] = chart.bbox;
+    sources[`${sourceId(chart)}-outline`] = {
+      type: "geojson",
+      data: {
+        type: "Feature",
+        properties: { name: chart.name },
+        geometry: {
+          type: "Polygon",
+          coordinates: [
+            [
+              [w, s],
+              [e, s],
+              [e, n],
+              [w, n],
+              [w, s],
+            ],
+          ],
+        },
+      },
+    };
   }
   return sources;
 }
 
 export function getRasterChartLayers(): LayerSpecification[] {
-  return availableRasterCharts().map((chart) => ({
-    id: `${sourceId(chart)}-layer`,
-    type: "raster" as const,
-    source: sourceId(chart),
-    minzoom: chart.minZoom,
-    // No maxzoom cap: MapLibre overzooms the deepest tiles past the data zoom
-    // (the overscale badge warns when that happens).
-  }));
+  return availableRasterCharts().flatMap((chart): LayerSpecification[] => [
+    {
+      id: `${sourceId(chart)}-layer`,
+      type: "raster" as const,
+      source: sourceId(chart),
+      minzoom: chart.minZoom,
+      // No maxzoom cap: MapLibre overzooms the deepest tiles past the data
+      // zoom (the overscale badge warns when that happens).
+    },
+    // Below the chart's minZoom there are no tiles to draw (a raster source
+    // can't underzoom), so charts with deep minZooms — common for imported
+    // satellite charts — would be invisible and unfindable when zoomed out.
+    // Show the footprint as a dashed magenta box instead, paper-chart style.
+    {
+      id: `${sourceId(chart)}-outline-layer`,
+      type: "line" as const,
+      source: `${sourceId(chart)}-outline`,
+      maxzoom: chart.minZoom,
+      paint: {
+        "line-color": "#c837ab",
+        "line-width": 1.5,
+        "line-dasharray": [3, 2],
+        "line-opacity": 0.8,
+      },
+    },
+  ]);
 }
 
 /** The raster chart whose footprint (bbox) contains the point, if any. */

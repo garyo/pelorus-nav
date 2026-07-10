@@ -1399,10 +1399,6 @@ if (topbarMenu) {
     }
   });
   cachePanel.setOnShowChart((chart) => {
-    // Going to look at a chart is a deliberate move away from the vessel —
-    // drop to free like a manual pan would, else follow-mode's per-frame
-    // recentering stomps the flyTo (map stays put, zoom arc mangles the view).
-    chartMode.setMode("free");
     // Fit the chart's footprint, but never land below its minZoom — a fit
     // just under it would navigate to the chart yet show none of it.
     const map = chartManager.map;
@@ -1412,6 +1408,8 @@ if (topbarMenu) {
       ...camera,
       zoom: Math.max(camera.zoom ?? chart.minZoom, chart.minZoom),
     });
+    // Drops follow mode (ChartMode) and flashes the crosshair.
+    map.fire("pelorus:navigate" as never);
   });
   const cacheBtn = buildTopbarAction(iconGlobe, "RGNS", "Chart Regions", {
     fullLabel: "Chart Regions",

@@ -171,6 +171,16 @@ export class ChartModeController {
       }
     });
 
+    // Deliberate in-app navigation (search, go-to, show-chart) is a
+    // look-away just like a manual pan — without this, the per-frame
+    // recentering in follow modes stomps the navigation's flyTo.
+    this.map.on("pelorus:navigate" as never, () => {
+      if (this.mode !== "free") {
+        this.modeBeforeFree = this.mode;
+        this.setMode("free");
+      }
+    });
+
     // Suppress jumpTo while user is interacting so drag gestures
     // aren't cancelled by GPS-tick map updates.
     // Press is captured on the canvas; release listens on window so that

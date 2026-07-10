@@ -74,6 +74,16 @@ The conversion step is one line with the
 pmtiles convert charts.mbtiles charts.pmtiles   # brew install pmtiles
 ```
 
+An archive is only visible within its own zoom range — a z17-only satellite
+export shows nothing when zoomed out (raster tiles can't be drawn below
+their native zoom). Below a chart's minimum zoom the app draws its footprint
+as a dashed magenta box so it stays findable. To make such a chart visible
+at lower zooms too, add overview levels to the mbtiles before converting:
+
+```bash
+gdaladdo -r average charts.mbtiles 2 4 8 16   # brew install gdal
+```
+
 **Getting charts onto a phone or tablet**: convert on a desktop, then move
 the `.pmtiles` to the device — cloud storage (Google Drive, Dropbox; iCloud
 on iOS), a USB cable, or a direct download all work. "Load from File…" opens
