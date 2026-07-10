@@ -757,9 +757,12 @@ navManager.subscribe((data) => {
     // the render loop eases the smoothed rotation/centre per frame. chartMode
     // is fed every fix so it has a last-known position to centre on even while
     // stationary (otherwise the mode-toggle button does nothing until COG/SOG
-    // become valid).
+    // become valid). `smoothed` is passed even when null: a course-less fix
+    // clears the smoother, and chartMode must drop its stale smoothed
+    // position with it — else recenter targets wherever the vessel last had
+    // a valid course (e.g. a bygone simulator run) instead of the live fix.
     vesselLayer.update(data);
-    chartMode.update(data);
+    chartMode.update(data, smoothed);
   }
 
   chartManager.map.triggerRepaint();

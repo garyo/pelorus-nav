@@ -118,6 +118,33 @@ describe("ChartModeController", () => {
     expect(controller.getMode()).toBe("follow");
   });
 
+  it("drops a stale smoothed position when the course goes invalid", () => {
+    // Under way (e.g. simulator): smoothed course applied
+    controller.setMode("follow");
+    controller.update(makeNavData({ latitude: 42.36, longitude: -71.05 }), {
+      lat: 42.36,
+      lon: -71.05,
+      cog: 120,
+      sog: 6,
+    } as never);
+    // Now stationary at home: fixes carry no course, smoother returns null
+    mockMap.jumpTo.mockClear();
+    controller.update(
+      makeNavData({
+        latitude: 42.61,
+        longitude: -70.66,
+        cog: null,
+        sog: null,
+        heading: null,
+      }),
+      null,
+    );
+    // Recenter must target the live fix, not the bygone smoothed position
+    expect(mockMap.jumpTo).toHaveBeenCalledWith(
+      expect.objectContaining({ center: [-70.66, 42.61] }),
+    );
+  });
+
   it("pelorus:navigate switches to free and recenter restores", () => {
     controller.setMode("follow");
     // Deliberate in-app navigation (search / go-to / show-chart)
