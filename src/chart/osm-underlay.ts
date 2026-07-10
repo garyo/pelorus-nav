@@ -58,20 +58,28 @@ const WATER_FILL_SUFFIXES = ["-drgare", "-lakare", "-rivers"];
 /**
  * Merge OSM raster underlay into S-57 layers (see applyUnderlay).
  */
+/** The OSM raster underlay layer; `maxzoom` caps it to low/planning zooms. */
+export function getOSMUnderlayLayer(
+  theme: DisplayTheme,
+  maxzoom?: number,
+): LayerSpecification {
+  return {
+    id: "osm-underlay-layer",
+    type: "raster",
+    source: OSM_SOURCE_ID,
+    ...(maxzoom !== undefined ? { maxzoom } : {}),
+    paint: {
+      "raster-brightness-max": osmBrightness(theme),
+    },
+  };
+}
+
 export function applyOSMUnderlay(
   s57Layers: LayerSpecification[],
   landOpacity: number,
   theme: DisplayTheme,
 ): LayerSpecification[] {
-  const osmLayer: LayerSpecification = {
-    id: "osm-underlay-layer",
-    type: "raster",
-    source: OSM_SOURCE_ID,
-    paint: {
-      "raster-brightness-max": osmBrightness(theme),
-    },
-  };
-  return applyUnderlay(s57Layers, [osmLayer], landOpacity);
+  return applyUnderlay(s57Layers, [getOSMUnderlayLayer(theme)], landOpacity);
 }
 
 /**

@@ -19,6 +19,7 @@ import type { ChartProvider } from "./ChartProvider";
 import {
   applyOSMUnderlay,
   applyUnderlay,
+  getOSMUnderlayLayer,
   getOSMUnderlaySource,
 } from "./osm-underlay";
 import { getRasterChartLayers, getRasterChartSources } from "./raster-charts";
@@ -375,13 +376,23 @@ export class ChartManager {
         settings.streetUnderlay === "auto" &&
         hasStoredBasemap(settings.activeRegion)
       ) {
+        // The offline basemap is clipped to its region's coastal band at
+        // every zoom, so alone it leaves the rest of the world blank when
+        // zoomed out (e.g. viewing an imported chart abroad). Slide the
+        // cached OSM raster beneath it at planning zooms for world context —
+        // a handful of tiles, absent offline, basemap still wins in-region.
+        const osm = getOSMUnderlaySource();
         sources = {
           ...sources,
           ...getBasemapSources(settings.activeRegion),
+          [osm.id]: osm.source,
         };
         layers = applyUnderlay(
           layers,
-          getBasemapLayers(settings.displayTheme),
+          [
+            getOSMUnderlayLayer(settings.displayTheme, 10),
+            ...getBasemapLayers(settings.displayTheme),
+          ],
           0.3,
         );
       } else {

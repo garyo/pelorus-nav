@@ -1,8 +1,28 @@
 import { execSync } from "node:child_process";
-import { readFileSync } from "node:fs";
-import { defineConfig } from "vite";
+import { existsSync, readFileSync } from "node:fs";
+import { join } from "node:path";
+import { defineConfig, type Plugin } from "vite";
 import { VitePWA } from "vite-plugin-pwa";
 import pkg from "./package.json" with { type: "json" };
+
+// Vite's SPA fallback answers any missing path with index.html + HTTP 200.
+// Binary consumers (PMTiles archives, glyph PBFs) then parse HTML as their
+// format and spam the console ("Wrong magic number", "Unimplemented type").
+// Production hosting 404s these properly — make dev match.
+const binaryAssets404: Plugin = {
+  name: "binary-assets-404",
+  configureServer(server) {
+    server.middlewares.use((req, res, next) => {
+      const path = decodeURIComponent((req.url ?? "").split("?")[0]);
+      if (/\.(pmtiles|pbf)$/.test(path) && !existsSync(join("public", path))) {
+        res.statusCode = 404;
+        res.end("Not found");
+        return;
+      }
+      next();
+    });
+  },
+};
 
 const gitSha = (() => {
   try {
@@ -52,6 +72,7 @@ export default defineConfig({
     entries: ["src/main.ts", "src/worker.ts"],
   },
   plugins: [
+    binaryAssets404,
     // PWA/service worker is disabled for Capacitor builds — assets are bundled
     // locally and the SW only causes stale-cache problems in Android WebView.
     // (`disable` still provides a no-op virtual:pwa-register module.)
