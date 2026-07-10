@@ -7,6 +7,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.11.0] - 2026-07-10
+
 ### Added
 - Bring your own charts: import raster charts (.pmtiles) with
   Chart Regions → "Load from File…" — for example the satellite chart
