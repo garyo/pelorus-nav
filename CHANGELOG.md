@@ -7,6 +7,48 @@ The format follows [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Added
+- Bring your own charts: import raster charts (.pmtiles) with
+  Chart Regions → "Load from File…" — for example the satellite chart
+  collections cruisers share for waters without official coverage,
+  converted with a single command (see the README). Imported charts render
+  alongside the built-in charts, work offline, and can be removed anytime.
+- When zoomed out past an imported chart's detail, its actual coverage is
+  outlined as a dashed magenta footprint, so small local charts stay easy
+  to find on the map.
+- A packing tool merges a whole folder of small chart files (a typical
+  country collection is 100+ tiny single-anchorage charts) into one
+  importable file, so the entire collection is a single import.
+- Each raster chart in Chart Regions now has a show/hide toggle — if you
+  have overlapping charts for the same waters (a scanned chart and
+  satellite imagery, say), pick which one draws — and a "go to" button
+  that flies the map to the chart.
+- Desktop: panning with the mouse now shows the center crosshair and live
+  coordinates, as touch dragging always has.
+
+### Changed
+- With an offline street basemap downloaded, the world map still appears
+  when you look beyond the basemap's coverage — imported charts abroad no
+  longer float in empty ocean.
+- Battery: when the vessel is stationary (at anchor, at the dock), the
+  chart redraws only when a GPS fix arrives instead of animating
+  continuously. Every real movement still draws — swinging at anchor
+  stays visible.
+
+### Fixed
+- Imported charts assembled from many small patches no longer pop in and
+  out while zooming — every chart stays visible at its best available
+  detail.
+- Choosing a region in Chart Regions no longer snaps back to your GPS
+  region moments later. Sailing into a different region still switches
+  automatically.
+- Search, "go to", and region selection now actually take you there while
+  the chart is following the vessel (follow mode used to pull the view
+  straight back to the boat).
+- The lock-onto-vessel button could center far from the boat after sitting
+  stationary for a while (especially in a desktop browser); it now always
+  centers on the live GPS position.
+
 ## [0.10.0] - 2026-07-06
 
 ### Added
