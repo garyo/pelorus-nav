@@ -394,7 +394,7 @@ export class ChartManager {
     return {
       version: 8,
       sprite: `${window.location.origin}/sprites/${sprite}`,
-      glyphs: `${window.location.origin}/fonts/{fontstack}/{range}.pbf`,
+      glyphs: "local-glyphs://{fontstack}/{range}",
       sources,
       // Invisible anchor layers demarcate the z-order bands plugin overlays
       // place into (see src/plugins/slots.ts).

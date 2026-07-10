@@ -172,6 +172,21 @@ startAppUpdateNotifier(() => appUpdateBusy());
 const protocol = new Protocol({ metadata: true });
 addProtocol("pmtiles", protocol.tilev4);
 
+// Glyph loader for the bundled font ranges (see CLAUDE.md "Fonts / glyphs").
+// A request for an unbundled range must FAIL so MapLibre falls back to
+// rendering those codepoints with a local system font. A plain URL can't
+// guarantee that: SPA hosting (and the Vite dev server) answers missing
+// .pbf paths with index.html + HTTP 200, which MapLibre then parses as
+// protobuf and floods the console with "Unimplemented type" errors.
+addProtocol("local-glyphs", async (params) => {
+  const path = params.url.replace("local-glyphs://", "");
+  const resp = await fetch(`/fonts/${path}.pbf`);
+  if (!resp.ok || resp.headers.get("content-type")?.includes("text/html")) {
+    throw new Error(`glyph range not bundled: ${path}`);
+  }
+  return { data: await resp.arrayBuffer() };
+});
+
 // Track which protocol entries are backed by OPFS files. A deleted chart's
 // entry must be REMOVED from the protocol — a stale entry serves an
 // OPFSSource over a deleted File (whose slice() rejects), so the region

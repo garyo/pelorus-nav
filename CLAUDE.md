@@ -193,15 +193,21 @@ layer's `icon-image` but missing from the sprite sheet, MapLibre will log
 "Image could not be loaded" and show nothing.
 
 ## Fonts / glyphs
-MapLibre label glyphs are **bundled locally** under `public/fonts/{fontstack}/{range}.pbf` and served
-same-origin (the `glyphs` URL set in `ChartManager.buildStyle`). This is required for offline use: the
-Android WebView has no service worker, and the old demo-server CDN 404'd some stacks.
+MapLibre label glyphs are **bundled locally** under `public/fonts/{fontstack}/{range}.pbf`, served
+same-origin through the `local-glyphs://` protocol (registered in `main.ts`; the style's `glyphs` URL is
+set in `ChartManager.buildStyle`). This is required for offline use: the Android WebView has no service
+worker, and the old demo-server CDN 404'd some stacks.
 
 - Only the **Noto Sans** family is bundled — `Regular`, `Bold`, `Italic` — ranges `0-255` and `256-511`
-  (Latin; enough for US chart text). Every `text-font` in the styles must use one of these stacks.
-- A `text-font` referencing an unbundled font (e.g. `Open Sans Regular`) or text needing a codepoint
-  outside the bundled ranges loads no glyphs and the label silently renders **blank** — no error beyond a
-  network 404. When adding a label layer, reuse an existing Noto stack.
+  (Latin; enough for US chart text) plus `8448-8703` (tide trend arrows). Every `text-font` in the
+  styles must use one of these stacks.
+- Text needing a codepoint outside the bundled ranges (e.g. non-Latin place names in the basemap at
+  world zooms) renders via MapLibre's **local system-font fallback**, with one console warning per
+  codepoint ("glyph range not bundled"). The `local-glyphs` protocol exists to make missing ranges fail
+  cleanly: SPA hosting and the Vite dev server answer missing `.pbf` paths with `index.html` + HTTP 200,
+  which MapLibre would otherwise parse as protobuf ("Unimplemented type" console spam).
+- A `text-font` referencing an unbundled font entirely (e.g. `Open Sans Regular`) falls back the same
+  way; when adding a label layer, reuse an existing Noto stack.
 - To add a stack/range, download it from `https://demotiles.maplibre.org/font/<stack>/<range>.pbf` into
   `public/fonts/`. The `pbf` extension is in the PWA precache glob (`vite.config.ts`).
 
