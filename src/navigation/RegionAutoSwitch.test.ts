@@ -83,4 +83,50 @@ describe("RegionAutoSwitch", () => {
     mock.pushFix(0, 0);
     expect(getSettings().activeRegion).toBe("northern-new-england");
   });
+
+  it("does not override a manual selection while the vessel stays put", () => {
+    const mock = new MockNavManager();
+    new RegionAutoSwitch(mock as never);
+
+    // Vessel settles in its home region
+    mock.pushFix(42.36, -71.06);
+    mock.pushFix(42.36, -71.06);
+    mock.pushFix(42.36, -71.06);
+    expect(getSettings().activeRegion).toBe("northern-new-england");
+
+    // User manually browses another region; GPS keeps ticking at home
+    updateSettings({ activeRegion: "southern-california" });
+    mock.pushFix(42.36, -71.06);
+    mock.pushFix(42.36, -71.06);
+    mock.pushFix(42.36, -71.06);
+    expect(getSettings().activeRegion).toBe("southern-california");
+  });
+
+  it("does not override a manual selection made before the first settle", () => {
+    const mock = new MockNavManager();
+    new RegionAutoSwitch(mock as never);
+
+    // User picks a region while the very first fixes are still settling
+    mock.pushFix(42.36, -71.06);
+    updateSettings({ activeRegion: "southern-california" });
+    mock.pushFix(42.36, -71.06);
+    mock.pushFix(42.36, -71.06);
+    expect(getSettings().activeRegion).toBe("southern-california");
+  });
+
+  it("a real crossing still switches after a manual selection", () => {
+    const mock = new MockNavManager();
+    new RegionAutoSwitch(mock as never);
+
+    mock.pushFix(42.36, -71.06);
+    mock.pushFix(42.36, -71.06);
+    mock.pushFix(42.36, -71.06);
+    updateSettings({ activeRegion: "southern-california" });
+
+    // Vessel actually sails into the USVI
+    mock.pushFix(18.34, -64.93);
+    mock.pushFix(18.34, -64.93);
+    mock.pushFix(18.34, -64.93);
+    expect(getSettings().activeRegion).toBe("usvi");
+  });
 });

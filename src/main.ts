@@ -1426,6 +1426,12 @@ if (topbarMenu) {
     // Drops follow mode (ChartMode) and flashes the crosshair.
     map.fire("pelorus:navigate" as never);
   });
+  cachePanel.setOnRegionSelected(() => {
+    // Manual region pick → the flyTo in the settings listener is deliberate
+    // navigation. (Auto-switch takes the same flyTo path but must NOT exit
+    // follow mode mid-passage, hence this fires only from the panel.)
+    chartManager.map.fire("pelorus:navigate" as never);
+  });
   const cacheBtn = buildTopbarAction(iconGlobe, "RGNS", "Chart Regions", {
     fullLabel: "Chart Regions",
   });

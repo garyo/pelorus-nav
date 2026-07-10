@@ -30,7 +30,7 @@ import {
   isUpdateAvailable,
   listStoredCharts,
 } from "../data/tile-store";
-import { getSettings, updateSettings } from "../settings";
+import { getSettings, onSettingsChange, updateSettings } from "../settings";
 import { diag } from "../utils/diag";
 import { formatBytes } from "../utils/format";
 import {
@@ -54,6 +54,7 @@ export class ChartCachePanel {
   private readonly fileInput: HTMLInputElement;
   private onChartsChanged?: () => void | Promise<void>;
   private onShowChart?: (chart: RasterChart) => void;
+  private onRegionSelected?: () => void;
   /** Bumped on each refresh so stale async update-checks are ignored. */
   private refreshToken = 0;
 
@@ -84,6 +85,18 @@ export class ChartCachePanel {
     closeBtn.addEventListener("click", () => this.hide());
 
     this.fileInput = this.buildFileInput();
+
+    // Re-render when the active region changes externally (RegionAutoSwitch,
+    // other UI) — rows capture isActive at render time and go stale otherwise.
+    let lastActiveRegion = getSettings().activeRegion;
+    onSettingsChange((s) => {
+      if (s.activeRegion !== lastActiveRegion) {
+        lastActiveRegion = s.activeRegion;
+        if (this.el.classList.contains("open")) {
+          this.refresh().catch(console.error);
+        }
+      }
+    });
   }
 
   /** Lazily-built "About offline charts & basemaps" info overlay. */
@@ -154,6 +167,12 @@ export class ChartCachePanel {
 
   setOnShowChart(cb: (chart: RasterChart) => void): void {
     this.onShowChart = cb;
+  }
+
+  /** Called on a MANUAL region selection (not auto-switch) — the map flyTo
+   * that follows is deliberate navigation and should exit follow mode. */
+  setOnRegionSelected(cb: () => void): void {
+    this.onRegionSelected = cb;
   }
 
   toggle(): void {
@@ -357,6 +376,7 @@ export class ChartCachePanel {
     radio.title = isActive ? "Active region" : `Switch to ${region.name}`;
     radio.addEventListener("click", () => {
       if (!isActive) {
+        this.onRegionSelected?.();
         updateSettings({ activeRegion: region.id });
         this.refresh();
       }
