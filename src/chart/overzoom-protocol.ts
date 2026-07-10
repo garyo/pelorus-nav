@@ -39,32 +39,28 @@ export function parentQuadrant(
   return { sx: (x % f) * size, sy: (y % f) * size, size };
 }
 
-async function synthesize(
-  parentData: ArrayBuffer,
-  dz: number,
-  x: number,
-  y: number,
-): Promise<ArrayBuffer> {
-  const bmp = await createImageBitmap(new Blob([parentData]));
-  const { sx, sy, size } = parentQuadrant(dz, x, y, bmp.width);
-  const canvas = new OffscreenCanvas(bmp.width, bmp.height);
-  const ctx = canvas.getContext("2d") as OffscreenCanvasRenderingContext2D;
-  ctx.imageSmoothingEnabled = true;
-  ctx.imageSmoothingQuality = "high";
-  ctx.drawImage(
-    bmp,
-    sx,
-    sy,
-    size,
-    (size * bmp.height) / bmp.width,
-    0,
-    0,
-    canvas.width,
-    canvas.height,
-  );
-  bmp.close();
-  const blob = await canvas.convertToBlob({ type: "image/png" });
-  return blob.arrayBuffer();
+/**
+ * Cheap opacity check from the image container header, without decoding:
+ * JPEG can't carry alpha; PNG colour types 0 (grey) and 2 (RGB) have no
+ * alpha channel (a rare tRNS chunk is ignored). Returns null for "might
+ * be transparent — decode and look".
+ */
+export function opaqueByHeader(bytes: Uint8Array): boolean | null {
+  if (bytes.length > 3 && bytes[0] === 0xff && bytes[1] === 0xd8) return true;
+  if (bytes.length > 25 && bytes[0] === 0x89 && bytes[1] === 0x50) {
+    const colorType = bytes[25];
+    if (colorType === 0 || colorType === 2) return true;
+  }
+  return null;
+}
+
+function fullyOpaque(ctx: OffscreenCanvasRenderingContext2D): boolean {
+  const { width, height } = ctx.canvas;
+  const px = ctx.getImageData(0, 0, width, height).data;
+  for (let i = 3; i < px.length; i += 4) {
+    if (px[i] !== 255) return false;
+  }
+  return true;
 }
 
 /**
@@ -73,7 +69,7 @@ async function synthesize(
  */
 export function makeOverzoomHandler(protocol: Protocol) {
   // Dev-only visibility into how tiles are being served (probes read this).
-  const stats = { exact: 0, synthesized: 0, empty: 0 };
+  const stats = { exact: 0, composited: 0, synthesized: 0, empty: 0 };
   if (import.meta.env.DEV) {
     (globalThis as { __ozStats?: typeof stats }).__ozStats = stats;
   }
@@ -106,7 +102,8 @@ export function makeOverzoomHandler(protocol: Protocol) {
     }
 
     const exact = await archive.getZxy(z, x, y);
-    if (exact) {
+    // Fast path: a tile with no alpha channel can't need an underlay.
+    if (exact && opaqueByHeader(new Uint8Array(exact.data))) {
       stats.exact++;
       return { data: new Uint8Array(exact.data) };
     }
@@ -114,18 +111,63 @@ export function makeOverzoomHandler(protocol: Protocol) {
     const cached = cache.get(params.url);
     if (cached) return { data: cached };
 
+    // A present tile can still be transparent where a NEIGHBOURING chart's
+    // sliver owns the tile address — the coarser chart underneath must show
+    // through. Composite: upscaled ancestors (coarsest first), exact on top.
+    const exactBmp = exact
+      ? await createImageBitmap(new Blob([exact.data]))
+      : null;
+    const size = exactBmp?.width ?? 256;
+    const canvas = new OffscreenCanvas(size, size);
+    const ctx = canvas.getContext("2d") as OffscreenCanvasRenderingContext2D;
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = "high";
+
+    if (exactBmp) {
+      // Decoded alpha check: fully opaque → serve the original bytes
+      // untouched (no re-encode).
+      ctx.drawImage(exactBmp, 0, 0, size, size);
+      if (fullyOpaque(ctx)) {
+        exactBmp.close();
+        stats.exact++;
+        return { data: new Uint8Array((exact as { data: ArrayBuffer }).data) };
+      }
+      ctx.clearRect(0, 0, size, size);
+    }
+
     const header = await archive.getHeader();
+    const ancestors: { bmp: ImageBitmap; dz: number }[] = [];
     for (let dz = 1; dz <= MAX_PARENT_LEVELS; dz++) {
       const pz = z - dz;
       if (pz < header.minZoom) break;
       const parent = await archive.getZxy(pz, x >> dz, y >> dz);
       if (parent) {
-        const data = await synthesize(parent.data, dz, x, y);
-        stats.synthesized++;
-        return { data: remember(params.url, data) };
+        ancestors.push({
+          bmp: await createImageBitmap(new Blob([parent.data])),
+          dz,
+        });
       }
     }
-    stats.empty++;
-    return { data: null };
+
+    if (ancestors.length === 0 && !exactBmp) {
+      stats.empty++;
+      return { data: null };
+    }
+
+    for (const { bmp, dz } of ancestors.reverse()) {
+      // coarsest first, finer detail over it
+      const q = parentQuadrant(dz, x, y, bmp.width);
+      ctx.drawImage(bmp, q.sx, q.sy, q.size, q.size, 0, 0, size, size);
+      bmp.close();
+    }
+    if (exactBmp) {
+      ctx.drawImage(exactBmp, 0, 0, size, size);
+      exactBmp.close();
+      stats.composited++;
+    } else {
+      stats.synthesized++;
+    }
+    const blob = await canvas.convertToBlob({ type: "image/png" });
+    return { data: remember(params.url, await blob.arrayBuffer()) };
   };
 }

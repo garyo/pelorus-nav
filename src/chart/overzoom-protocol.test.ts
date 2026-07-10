@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parentQuadrant } from "./overzoom-protocol";
+import { opaqueByHeader, parentQuadrant } from "./overzoom-protocol";
 
 describe("parentQuadrant", () => {
   it("selects the right quadrant one level up", () => {
@@ -23,5 +23,29 @@ describe("parentQuadrant", () => {
       sy: 256,
       size: 256,
     });
+  });
+});
+
+describe("opaqueByHeader", () => {
+  it("JPEG is always opaque", () => {
+    expect(opaqueByHeader(new Uint8Array([0xff, 0xd8, 0xff, 0xe0]))).toBe(true);
+  });
+
+  it("PNG colour types without alpha are opaque", () => {
+    const png = (colorType: number) => {
+      const b = new Uint8Array(30);
+      b[0] = 0x89;
+      b[1] = 0x50;
+      b[25] = colorType;
+      return b;
+    };
+    expect(opaqueByHeader(png(2))).toBe(true); // RGB
+    expect(opaqueByHeader(png(0))).toBe(true); // greyscale
+    expect(opaqueByHeader(png(6))).toBe(null); // RGBA — must decode
+    expect(opaqueByHeader(png(3))).toBe(null); // palette — may have tRNS
+  });
+
+  it("unknown formats need a decode", () => {
+    expect(opaqueByHeader(new Uint8Array([1, 2, 3, 4]))).toBe(null);
   });
 });
