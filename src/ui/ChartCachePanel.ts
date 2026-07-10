@@ -37,6 +37,8 @@ import {
   iconCheckCircle,
   iconCrosshair,
   iconDownload,
+  iconEye,
+  iconEyeOff,
   iconFolderOpen,
   iconInfo,
   iconRefresh,
@@ -543,10 +545,28 @@ export class ChartCachePanel {
     const actions = document.createElement("div");
     actions.className = "manager-item-actions";
 
+    // Visibility toggle — with several charts imported for the same waters
+    // (RNC + satellite, say), pick which one draws.
+    const isHidden = getSettings().hiddenRasterCharts.includes(chart.id);
+    const eyeBtn = document.createElement("button");
+    eyeBtn.className = "manager-item-btn";
+    setIcon(eyeBtn, isHidden ? iconEyeOff : iconEye);
+    eyeBtn.title = isHidden ? `Show ${chart.name}` : `Hide ${chart.name}`;
+    eyeBtn.addEventListener("click", () => {
+      const hidden = getSettings().hiddenRasterCharts;
+      updateSettings({
+        hiddenRasterCharts: isHidden
+          ? hidden.filter((id) => id !== chart.id)
+          : [...hidden, chart.id],
+      });
+      this.refresh().catch(console.error);
+    });
+    actions.appendChild(eyeBtn);
+
     const showBtn = document.createElement("button");
     showBtn.className = "manager-item-btn";
     setIcon(showBtn, iconCrosshair);
-    showBtn.title = `Show ${chart.name} on the chart`;
+    showBtn.title = `Go to ${chart.name}`;
     showBtn.addEventListener("click", () => this.onShowChart?.(chart));
     actions.appendChild(showBtn);
 
@@ -560,6 +580,13 @@ export class ChartCachePanel {
         (async () => {
           await deleteChart(stored.filename);
           await deleteAuxFile(chart.coverageFilename);
+          // Don't let a deleted chart's id linger in the hidden list
+          const hidden = getSettings().hiddenRasterCharts;
+          if (hidden.includes(chart.id)) {
+            updateSettings({
+              hiddenRasterCharts: hidden.filter((id) => id !== chart.id),
+            });
+          }
           await this.onChartsChanged?.();
           await this.refresh();
         })().catch(console.error);

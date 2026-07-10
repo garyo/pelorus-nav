@@ -95,7 +95,10 @@ export function getRasterChartSources(): Record<string, SourceSpecification> {
   return sources;
 }
 
-export function getRasterChartLayers(): LayerSpecification[] {
+export function getRasterChartLayers(
+  hiddenIds: readonly string[] = [],
+): LayerSpecification[] {
+  const hidden = new Set(hiddenIds);
   return availableRasterCharts().flatMap((chart): LayerSpecification[] => [
     {
       id: `${sourceId(chart)}-layer`,
@@ -104,6 +107,7 @@ export function getRasterChartLayers(): LayerSpecification[] {
       minzoom: chart.minZoom,
       // No maxzoom cap: MapLibre overzooms the deepest tiles past the data
       // zoom (the overscale badge warns when that happens).
+      layout: { visibility: hidden.has(chart.id) ? "none" : "visible" },
     },
     // Below the chart's minZoom there are no tiles to draw (a raster source
     // can't underzoom), so charts with deep minZooms — common for imported
@@ -114,6 +118,7 @@ export function getRasterChartLayers(): LayerSpecification[] {
       type: "line" as const,
       source: `${sourceId(chart)}-outline`,
       maxzoom: chart.minZoom,
+      layout: { visibility: hidden.has(chart.id) ? "none" : "visible" },
       paint: {
         "line-color": "#c837ab",
         "line-width": 1.5,

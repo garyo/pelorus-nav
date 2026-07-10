@@ -43,6 +43,22 @@ describe("chart footprint outlines", () => {
   });
 });
 
+describe("hidden raster charts", () => {
+  it("hides both the raster and outline layers of a hidden chart", () => {
+    const layers = getRasterChartLayers(["bvi"]);
+    const vis = (id: string) =>
+      layers.find((l) => l.id === id)?.layout?.visibility;
+    expect(vis("rnc-bvi-layer")).toBe("none");
+    expect(vis("rnc-bvi-outline-layer")).toBe("none");
+  });
+
+  it("leaves other charts visible", () => {
+    const layers = getRasterChartLayers(["some-other-id"]);
+    const bvi = layers.find((l) => l.id === "rnc-bvi-layer");
+    expect(bvi?.layout?.visibility).toBe("visible");
+  });
+});
+
 describe("rasterChartAt", () => {
   it("returns the BVI chart for a point inside its footprint", () => {
     // Road Town, Tortola — inside the 25641 neatline.

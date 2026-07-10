@@ -57,6 +57,7 @@ export class ChartManager {
   private prevDeepDepth: number;
   private prevTextScale: number;
   private prevIconScale: number;
+  private prevHiddenRasterCharts: string;
   /** Region ids whose layers are in the style as of the last build. */
   private lastRegionIds: string[] = [];
   private lastViewCovered = false;
@@ -135,6 +136,7 @@ export class ChartManager {
     this.prevDeepDepth = initial.deepDepth;
     this.prevTextScale = initial.textScale;
     this.prevIconScale = initial.iconScale;
+    this.prevHiddenRasterCharts = JSON.stringify(initial.hiddenRasterCharts);
 
     // Re-apply style only when chart-relevant settings change. Structural
     // changes (which layers exist, their geometry/colours) need a style rebuild;
@@ -152,7 +154,8 @@ export class ChartManager {
         s.shallowDepth !== this.prevShallowDepth ||
         s.deepDepth !== this.prevDeepDepth ||
         s.textScale !== this.prevTextScale ||
-        s.iconScale !== this.prevIconScale;
+        s.iconScale !== this.prevIconScale ||
+        JSON.stringify(s.hiddenRasterCharts) !== this.prevHiddenRasterCharts;
       const layersChanged =
         JSON.stringify(s.layerGroups) !== JSON.stringify(this.prevLayerGroups);
 
@@ -169,6 +172,7 @@ export class ChartManager {
         this.prevDeepDepth = s.deepDepth;
         this.prevTextScale = s.textScale;
         this.prevIconScale = s.iconScale;
+        this.prevHiddenRasterCharts = JSON.stringify(s.hiddenRasterCharts);
         // A rebuild re-applies layer-group visibility too, so it subsumes
         // layersChanged.
         this.throttledRefreshStyle();
@@ -370,7 +374,7 @@ export class ChartManager {
     // hatch is moved below the raster so it only shows where NEITHER covers.
     // "raster" blend puts the raster on top instead; "vector" hides it.
     if (provider.type === "vector" && settings.chartBlend !== "vector") {
-      const rasterLayers = getRasterChartLayers();
+      const rasterLayers = getRasterChartLayers(settings.hiddenRasterCharts);
       if (rasterLayers.length > 0) {
         sources = { ...sources, ...getRasterChartSources() };
         if (settings.chartBlend === "raster") {

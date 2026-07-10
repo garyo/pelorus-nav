@@ -49,6 +49,8 @@ export interface Settings {
   showAccuracyCircle: boolean;
   detailLevel: DetailLevel;
   layerGroups: Record<string, boolean>;
+  /** Raster chart ids (catalog RNCs or imports) the user has hidden. */
+  hiddenRasterCharts: string[];
   showInstrumentHUD: boolean;
   /** Instrument HUD layout on landscape phones. */
   instrumentLayout: InstrumentLayout;
@@ -243,6 +245,7 @@ const DEFAULTS: Settings = {
   showAccuracyCircle: true,
   detailLevel: 0,
   layerGroups: { ...DEFAULT_LAYER_GROUPS },
+  hiddenRasterCharts: [],
   showInstrumentHUD: false,
   instrumentLayout: "side",
   instrumentCells: ["sog", "cog"],
@@ -299,6 +302,7 @@ export const ALLOWED_VALUES: Partial<
 const STRUCTURAL_KEYS = new Set<keyof Settings>([
   "layerGroups",
   "instrumentCells",
+  "hiddenRasterCharts",
   "plugins",
 ]);
 
@@ -340,6 +344,12 @@ function sanitize(parsed: Partial<Settings>): void {
   }
   if ("layerGroups" in rec && !isPlainObject(rec.layerGroups)) {
     delete rec.layerGroups;
+  }
+  if ("hiddenRasterCharts" in rec) {
+    const ids = rec.hiddenRasterCharts;
+    if (!Array.isArray(ids) || ids.some((v) => typeof v !== "string")) {
+      delete rec.hiddenRasterCharts;
+    }
   }
   if ("plugins" in rec && !isPlainObject(rec.plugins)) {
     delete rec.plugins;
