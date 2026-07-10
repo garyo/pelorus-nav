@@ -3,7 +3,9 @@
  *
  * Two use cases:
  * 1. Flash briefly after go-to / search navigation so the user sees where they landed.
- * 2. Show during touch-drag on mobile, with nav HUD center coords.
+ * 2. Show during a pan drag (touch or mouse), with nav HUD center coords.
+ *    (Wheel zoom is excluded — it zooms about the cursor, not the center,
+ *    so a center crosshair there would mislead.)
  */
 
 import type maplibregl from "maplibre-gl";
@@ -76,10 +78,12 @@ export class CenterCrosshair {
   }
 
   private setupTouchDrag(): void {
-    // MapLibre fires "movestart"/"moveend" for both touch and programmatic moves.
-    // Track touch state to distinguish user drags from flyTo animations.
+    // MapLibre fires "movestart"/"moveend" for both user and programmatic
+    // moves. Track pointer state to distinguish drags (touch or mouse) from
+    // flyTo animations.
     const canvas = this.map.getCanvasContainer();
     let touching = false;
+    let mouseDown = false;
 
     canvas.addEventListener(
       "touchstart",
@@ -102,9 +106,16 @@ export class CenterCrosshair {
       },
       { passive: true },
     );
+    canvas.addEventListener("mousedown", () => {
+      mouseDown = true;
+    });
+    // Window-level so a release outside the canvas can't leave it stuck
+    window.addEventListener("mouseup", () => {
+      mouseDown = false;
+    });
 
     this.map.on("movestart", () => {
-      if (!touching) return;
+      if (!touching && !mouseDown) return;
       this.touchDragging = true;
       this.show();
       this.coordsEl?.classList.add("dragging");
