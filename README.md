@@ -77,12 +77,35 @@ pmtiles convert charts.mbtiles charts.pmtiles   # brew install pmtiles
 An archive is only visible within its own zoom range — a z17-only satellite
 export shows nothing when zoomed out (raster tiles can't be drawn below
 their native zoom). Below a chart's minimum zoom the app draws its footprint
-as a dashed magenta box so it stays findable. To make such a chart visible
-at lower zooms too, add overview levels to the mbtiles before converting:
+as a dashed magenta outline so it stays findable. To make such a chart
+visible at lower zooms too, add overview levels to the mbtiles before
+converting:
 
 ```bash
 gdaladdo -r average charts.mbtiles 2 4 8 16   # brew install gdal
 ```
+
+**Packing a whole collection**: cruiser chart collections are often dozens of
+tiny single-anchorage mbtiles per country — tedious to convert and import
+one at a time. `tools/pack-charts.ts` lists, filters, and merges them into
+one importable archive (later files win where tiles overlap):
+
+```bash
+# See what's in a folder (recursive), with bounds and zoom ranges
+bun tools/pack-charts.ts ~/Downloads/Greece --list
+
+# Pack everything into one archive, with overview zooms down to z12 so
+# every chart is visible (as imagery or footprint) when zoomed out
+bun tools/pack-charts.ts ~/Downloads/Greece --overviews 12 \
+    --name "Greece Anchorages" -o greece.pmtiles
+
+# Only the charts intersecting an area (W,S,E,N)
+bun tools/pack-charts.ts ~/Downloads/Greece --bounds 24,36,27,38 -o cyclades.pmtiles
+```
+
+Requires the `pmtiles` CLI; `--overviews` also needs `gdal` (both via brew).
+One import then carries the whole collection, and the in-app footprint
+outline shows every chart patch at planning zooms.
 
 **Getting charts onto a phone or tablet**: convert on a desktop, then move
 the `.pmtiles` to the device — cloud storage (Google Drive, Dropbox; iCloud
