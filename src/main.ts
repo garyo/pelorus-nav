@@ -26,6 +26,10 @@ import {
 import { deriveImportedRasterCharts } from "./chart/imported-charts";
 import { LightSectorLayer } from "./chart/LightSectorLayer";
 import { registerOSMTileProtocol } from "./chart/osm-tile-cache";
+import {
+  makeOverzoomHandler,
+  OVERZOOM_SCHEME,
+} from "./chart/overzoom-protocol";
 import { PelLightLayer } from "./chart/PelLightLayer";
 import {
   rasterChartsFromFilenames,
@@ -173,6 +177,10 @@ startAppUpdateNotifier(() => appUpdateBusy());
 // Register PMTiles protocol for vector tile sources
 const protocol = new Protocol({ metadata: true });
 addProtocol("pmtiles", protocol.tilev4);
+// Overzoom variant for imported raster charts (fills mid-pyramid gaps in
+// multi-chart packed archives from ancestor tiles). Shares `protocol`'s
+// PMTiles instances, so OPFS-backed offline archives are reused.
+addProtocol(OVERZOOM_SCHEME, makeOverzoomHandler(protocol));
 
 // Glyph loader for the bundled font ranges (see CLAUDE.md "Fonts / glyphs").
 // A request for an unbundled range must FAIL so MapLibre falls back to

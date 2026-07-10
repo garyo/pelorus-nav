@@ -12,6 +12,7 @@
 import type { LayerSpecification, SourceSpecification } from "maplibre-gl";
 import { RASTER_CHARTS, type RasterChart } from "../data/chart-catalog";
 import { chartAssetBase } from "../data/remote-url";
+import { OVERZOOM_SCHEME } from "./overzoom-protocol";
 
 let storedRasterCharts = new Set<string>();
 
@@ -58,9 +59,13 @@ export function getRasterChartSources(): Record<string, SourceSpecification> {
   const sources: Record<string, SourceSpecification> = {};
   for (const chart of availableRasterCharts()) {
     const url = `${chartAssetBase()}/${chart.filename}`;
+    // Imported archives may be multi-chart packs with per-chart zoom ranges;
+    // the overzoom protocol fills mid-pyramid gaps from ancestor tiles.
+    // Catalog charts have complete pyramids — plain protocol.
+    const scheme = chart.imported ? OVERZOOM_SCHEME : "pmtiles";
     sources[sourceId(chart)] = {
       type: "raster",
-      tiles: [`pmtiles://${url}/{z}/{x}/{y}`],
+      tiles: [`${scheme}://${url}/{z}/{x}/{y}`],
       tileSize: 256,
       minzoom: chart.minZoom,
       maxzoom: chart.maxZoom,
