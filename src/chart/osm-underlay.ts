@@ -58,16 +58,21 @@ const WATER_FILL_SUFFIXES = ["-drgare", "-lakare", "-rivers"];
 /**
  * Merge OSM raster underlay into S-57 layers (see applyUnderlay).
  */
-/** The OSM raster underlay layer; `maxzoom` caps it to low/planning zooms. */
+/**
+ * The OSM raster underlay layer; `maxzoom` caps it to low/planning zooms.
+ * Always set explicitly (24 = uncapped): `setStyle(diff)` can change a
+ * layer's maxzoom but silently fails to *remove* one, so an absent property
+ * would leave a previous cap stuck on the live layer.
+ */
 export function getOSMUnderlayLayer(
   theme: DisplayTheme,
-  maxzoom?: number,
+  maxzoom = 24,
 ): LayerSpecification {
   return {
     id: "osm-underlay-layer",
     type: "raster",
     source: OSM_SOURCE_ID,
-    ...(maxzoom !== undefined ? { maxzoom } : {}),
+    maxzoom,
     paint: {
       "raster-brightness-max": osmBrightness(theme),
     },

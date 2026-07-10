@@ -1,5 +1,9 @@
 import maplibregl from "maplibre-gl";
-import { regionsInView } from "../data/chart-catalog";
+import {
+  bboxIntersects,
+  getRegion,
+  regionsInView,
+} from "../data/chart-catalog";
 import { applySlotAnchors } from "../plugins/slots";
 import type {
   ChartBlend,
@@ -57,6 +61,7 @@ export class ChartManager {
   private prevIconScale: number;
   /** Region ids whose layers are in the style as of the last build. */
   private lastRegionIds: string[] = [];
+  private lastInActiveRegion = true;
 
   constructor(options: ChartManagerOptions) {
     if (options.providers.length === 0) {
@@ -109,7 +114,12 @@ export class ChartManager {
         this.viewportBounds(),
         getSettings().activeRegion,
       );
-      if (ids.join(",") !== this.lastRegionIds.join(",")) {
+      const inRegion = this.viewInActiveRegion();
+      if (
+        ids.join(",") !== this.lastRegionIds.join(",") ||
+        inRegion !== this.lastInActiveRegion
+      ) {
+        this.lastInActiveRegion = inRegion;
         this.throttledRefreshStyle();
       }
     });
@@ -230,6 +240,20 @@ export class ChartManager {
   private viewportBounds(): [number, number, number, number] {
     const b = this.map.getBounds();
     return [b.getWest(), b.getSouth(), b.getEast(), b.getNorth()];
+  }
+
+  /**
+   * True when the viewport overlaps the active region's bbox ("home waters").
+   * Decides the OSM-under-basemap zoom cap: in home waters the offline
+   * basemap covers everything, so streaming OSM past planning zooms is
+   * wasted network; abroad (imported charts) OSM is the only surroundings
+   * at every zoom. Defaults to true (capped) before the map exists.
+   */
+  private viewInActiveRegion(): boolean {
+    if (!this.map) return true;
+    const region = getRegion(getSettings().activeRegion);
+    if (!region) return true;
+    return bboxIntersects(region.bbox, this.viewportBounds());
   }
 
   /** Get the currently active provider, or null if none. */
@@ -377,10 +401,12 @@ export class ChartManager {
         hasStoredBasemap(settings.activeRegion)
       ) {
         // The offline basemap is clipped to its region's coastal band at
-        // every zoom, so alone it leaves the rest of the world blank when
-        // zoomed out (e.g. viewing an imported chart abroad). Slide the
-        // cached OSM raster beneath it at planning zooms for world context —
-        // a handful of tiles, absent offline, basemap still wins in-region.
+        // every zoom, so alone it leaves the rest of the world blank (e.g.
+        // an imported chart abroad floats in empty ocean). Slide the cached
+        // OSM raster beneath it: capped to planning zooms in home waters
+        // (where the basemap covers everything and streaming past z10 is
+        // wasted network), uncapped when the view is outside the active
+        // region. Absent offline; the basemap still wins where it has tiles.
         const osm = getOSMUnderlaySource();
         sources = {
           ...sources,
@@ -390,7 +416,10 @@ export class ChartManager {
         layers = applyUnderlay(
           layers,
           [
-            getOSMUnderlayLayer(settings.displayTheme, 10),
+            getOSMUnderlayLayer(
+              settings.displayTheme,
+              this.viewInActiveRegion() ? 10 : 24,
+            ),
             ...getBasemapLayers(settings.displayTheme),
           ],
           0.3,
