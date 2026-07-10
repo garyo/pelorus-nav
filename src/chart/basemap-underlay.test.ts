@@ -7,6 +7,7 @@ import {
   getBasemapLayers,
   getBasemapSources,
   hasStoredBasemap,
+  isViewportCovered,
   setStoredBasemaps,
 } from "./basemap-underlay";
 
@@ -144,5 +145,71 @@ describe("getBasemapLayers", () => {
     expect(ids.indexOf("basemap-pois")).toBeLessThan(
       ids.indexOf("basemap-roads_labels_minor"),
     );
+  });
+});
+
+describe("isViewportCovered", () => {
+  // A 3x3 block of z10 cells around Boston-ish (x 316-318, y 378-380).
+  // z10 cell x=316 spans lon [-68.906, -68.555]; y=378 spans lat ~[44.6, 44.8].
+  const cells = new Set<string>();
+  for (let x = 316; x <= 318; x++) {
+    for (let y = 378; y <= 380; y++) cells.add(`${x},${y}`);
+  }
+  const n = 2 ** 10;
+  const lon = (x: number) => (x / n) * 360 - 180;
+  const lat = (y: number) =>
+    (Math.atan(Math.sinh(Math.PI * (1 - (2 * y) / n))) * 180) / Math.PI;
+  const cov = {
+    zoom: 10,
+    cells,
+    bbox: [lon(316), lat(381), lon(319), lat(378)] as [
+      number,
+      number,
+      number,
+      number,
+    ],
+  };
+  // A small viewport strictly inside the center cell (317, 379)
+  const inside: [number, number, number, number] = [
+    lon(317) + 0.01,
+    lat(380) + 0.01,
+    lon(318) - 0.01,
+    lat(379) - 0.01,
+  ];
+
+  it("true when the viewport lies entirely within covered cells", () => {
+    expect(isViewportCovered(cov, inside)).toBe(true);
+  });
+
+  it("false for null coverage or viewport (unknown = uncovered)", () => {
+    expect(isViewportCovered(null, inside)).toBe(false);
+    expect(isViewportCovered(cov, null)).toBe(false);
+  });
+
+  it("quick-rejects a viewport outside the coverage hull", () => {
+    expect(
+      isViewportCovered(cov, [14.7, 44.1, 15.0, 44.3]), // Croatia
+    ).toBe(false);
+  });
+
+  it("quick-rejects a viewport larger than the whole coverage", () => {
+    expect(
+      isViewportCovered(
+        { ...cov, bbox: [-180, -85, 180, 85] }, // defeat the hull reject
+        [-170, -80, 170, 80],
+      ),
+    ).toBe(false);
+  });
+
+  it("false when the viewport touches an uncovered cell", () => {
+    // Straddle the east edge of the block into cell x=319
+    expect(
+      isViewportCovered(cov, [
+        lon(318) + 0.01,
+        lat(380),
+        lon(319) + 0.1,
+        lat(379),
+      ]),
+    ).toBe(false);
   });
 });

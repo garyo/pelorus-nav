@@ -15,8 +15,12 @@ import type {
   LayerSpecification,
   SourceSpecification,
 } from "maplibre-gl";
+import { PMTiles } from "pmtiles";
+import { OPFSSource } from "../data/opfs-source";
 import { chartAssetBase } from "../data/remote-url";
+import { getChartFile } from "../data/tile-store";
 import type { DisplayTheme } from "../settings";
+import { enumerateCellsByZoom, lonLatToCell } from "./chart-footprint";
 
 export const BASEMAP_SOURCE_ID = "basemap-underlay";
 /**
@@ -52,6 +56,103 @@ export function basemapRegionsFromFilenames(filenames: string[]): Set<string> {
     if (m) ids.add(m[1]);
   }
   return ids;
+}
+
+/**
+ * What the stored basemap actually covers (a coastal band + harbor pockets,
+ * NOT its region's bbox), as the archive's own tile-cell set at one zoom.
+ * Read from the PMTiles directory — no geographic assumptions — so it stays
+ * correct for any future region, producer, or non-US basemap.
+ */
+export interface BasemapCoverage {
+  zoom: number;
+  cells: Set<string>;
+  /** [w, s, e, n] hull of the cells — the O(1) quick-reject gate. */
+  bbox: [number, number, number, number];
+}
+
+/** Coverage cells are kept at this zoom (~2 nm cells; band is ~10 nm). */
+const COVERAGE_ZOOM = 10;
+
+let coverage: BasemapCoverage | null = null;
+let coverageToken = 0;
+
+export function getBasemapCoverage(): BasemapCoverage | null {
+  return coverage;
+}
+
+/**
+ * Load the active region's stored basemap coverage from its OPFS archive
+ * (~tens of ms for a 250 MB basemap; directory reads only, no tile data).
+ * Clears to null — "unknown, assume uncovered" — when there is no stored
+ * basemap or the archive can't be enumerated.
+ */
+export async function loadBasemapCoverage(regionId: string): Promise<void> {
+  const token = ++coverageToken;
+  coverage = null;
+  const file = await getChartFile(basemapFilename(regionId));
+  if (!file) return;
+  try {
+    const archive = new PMTiles(new OPFSSource(file, file.name));
+    const byZoom = await enumerateCellsByZoom(archive);
+    if (token !== coverageToken || !byZoom) return; // superseded / too big
+    // Deepest zoom at or below COVERAGE_ZOOM present in the archive
+    let zoom = -1;
+    for (const z of byZoom.keys()) {
+      if (z <= COVERAGE_ZOOM && z > zoom) zoom = z;
+    }
+    const cells = zoom >= 0 ? (byZoom.get(zoom) as Set<string>) : null;
+    if (!cells || cells.size === 0) return;
+    let x0 = Number.POSITIVE_INFINITY;
+    let y0 = Number.POSITIVE_INFINITY;
+    let x1 = Number.NEGATIVE_INFINITY;
+    let y1 = Number.NEGATIVE_INFINITY;
+    for (const cell of cells) {
+      const [x, y] = cell.split(",").map(Number);
+      if (x < x0) x0 = x;
+      if (y < y0) y0 = y;
+      if (x > x1) x1 = x;
+      if (y > y1) y1 = y;
+    }
+    const n = 2 ** zoom;
+    const lon = (x: number) => (x / n) * 360 - 180;
+    const lat = (y: number) =>
+      (Math.atan(Math.sinh(Math.PI * (1 - (2 * y) / n))) * 180) / Math.PI;
+    coverage = {
+      zoom,
+      cells,
+      bbox: [lon(x0), lat(y1 + 1), lon(x1 + 1), lat(y0)],
+    };
+  } catch {
+    // unreadable archive — leave coverage null (uncapped OSM, correct display)
+  }
+}
+
+/**
+ * True when the basemap has tiles for the ENTIRE viewport — the only case
+ * where streaming OSM underneath adds nothing. Ordered cheapest-first:
+ * two O(1) rejects (bbox hull, candidate count) before any set lookups;
+ * the loop then runs only for small in-band viewports (≲ a few dozen cells).
+ */
+export function isViewportCovered(
+  cov: BasemapCoverage | null,
+  viewport: [number, number, number, number] | null,
+): boolean {
+  if (!cov || !viewport) return false;
+  const [w, s, e, n] = viewport;
+  // Quick reject: viewport not fully inside the coverage hull
+  if (w < cov.bbox[0] || s < cov.bbox[1] || e > cov.bbox[2] || n > cov.bbox[3])
+    return false;
+  const [x0, y0] = lonLatToCell(w, n, cov.zoom); // NW corner
+  const [x1, y1] = lonLatToCell(e, s, cov.zoom); // SE corner
+  // Quick reject: more candidate cells than the whole coverage set
+  if ((x1 - x0 + 1) * (y1 - y0 + 1) > cov.cells.size) return false;
+  for (let x = x0; x <= x1; x++) {
+    for (let y = y0; y <= y1; y++) {
+      if (!cov.cells.has(`${x},${y}`)) return false;
+    }
+  }
+  return true;
 }
 
 export function getBasemapSources(

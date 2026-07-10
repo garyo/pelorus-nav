@@ -1,9 +1,5 @@
 import maplibregl from "maplibre-gl";
-import {
-  bboxIntersects,
-  getRegion,
-  regionsInView,
-} from "../data/chart-catalog";
+import { regionsInView } from "../data/chart-catalog";
 import { applySlotAnchors } from "../plugins/slots";
 import type {
   ChartBlend,
@@ -15,9 +11,11 @@ import type {
 } from "../settings";
 import { getSettings, onSettingsChange } from "../settings";
 import {
+  getBasemapCoverage,
   getBasemapLayers,
   getBasemapSources,
   hasStoredBasemap,
+  isViewportCovered,
 } from "./basemap-underlay";
 import type { ChartProvider } from "./ChartProvider";
 import {
@@ -61,7 +59,7 @@ export class ChartManager {
   private prevIconScale: number;
   /** Region ids whose layers are in the style as of the last build. */
   private lastRegionIds: string[] = [];
-  private lastInActiveRegion = true;
+  private lastViewCovered = false;
 
   constructor(options: ChartManagerOptions) {
     if (options.providers.length === 0) {
@@ -114,12 +112,12 @@ export class ChartManager {
         this.viewportBounds(),
         getSettings().activeRegion,
       );
-      const inRegion = this.viewInActiveRegion();
+      const covered = this.viewCoveredByBasemap();
       if (
         ids.join(",") !== this.lastRegionIds.join(",") ||
-        inRegion !== this.lastInActiveRegion
+        covered !== this.lastViewCovered
       ) {
-        this.lastInActiveRegion = inRegion;
+        this.lastViewCovered = covered;
         this.throttledRefreshStyle();
       }
     });
@@ -243,17 +241,17 @@ export class ChartManager {
   }
 
   /**
-   * True when the viewport overlaps the active region's bbox ("home waters").
-   * Decides the OSM-under-basemap zoom cap: in home waters the offline
-   * basemap covers everything, so streaming OSM past planning zooms is
-   * wasted network; abroad (imported charts) OSM is the only surroundings
-   * at every zoom. Defaults to true (capped) before the map exists.
+   * True when the stored basemap's own tile coverage spans the whole
+   * viewport. Decides the OSM-under-basemap zoom cap: where the basemap
+   * covers everything, streaming OSM past planning zooms is wasted network
+   * (and failed-fetch churn offline); anywhere it doesn't — abroad, inland
+   * past the coastal band — OSM is the only surroundings at every zoom.
    */
-  private viewInActiveRegion(): boolean {
-    if (!this.map) return true;
-    const region = getRegion(getSettings().activeRegion);
-    if (!region) return true;
-    return bboxIntersects(region.bbox, this.viewportBounds());
+  private viewCoveredByBasemap(): boolean {
+    return isViewportCovered(
+      getBasemapCoverage(),
+      this.map ? this.viewportBounds() : null,
+    );
   }
 
   /** Get the currently active provider, or null if none. */
@@ -400,13 +398,13 @@ export class ChartManager {
         settings.streetUnderlay === "auto" &&
         hasStoredBasemap(settings.activeRegion)
       ) {
-        // The offline basemap is clipped to its region's coastal band at
-        // every zoom, so alone it leaves the rest of the world blank (e.g.
-        // an imported chart abroad floats in empty ocean). Slide the cached
-        // OSM raster beneath it: capped to planning zooms in home waters
-        // (where the basemap covers everything and streaming past z10 is
-        // wasted network), uncapped when the view is outside the active
-        // region. Absent offline; the basemap still wins where it has tiles.
+        // The offline basemap is clipped to a coastal band at every zoom,
+        // so alone it leaves everywhere else blank (an imported chart abroad
+        // floats in empty ocean; inland past the band goes empty too). Slide
+        // the cached OSM raster beneath it: capped to planning zooms while
+        // the basemap's own coverage spans the viewport (streaming past z10
+        // there is pure waste), uncapped anywhere it doesn't. Absent
+        // offline; the basemap still wins wherever it has tiles.
         const osm = getOSMUnderlaySource();
         sources = {
           ...sources,
@@ -418,7 +416,7 @@ export class ChartManager {
           [
             getOSMUnderlayLayer(
               settings.displayTheme,
-              this.viewInActiveRegion() ? 10 : 24,
+              this.viewCoveredByBasemap() ? 10 : 24,
             ),
             ...getBasemapLayers(settings.displayTheme),
           ],

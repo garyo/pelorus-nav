@@ -25,6 +25,22 @@ function cornerToLonLat(x: number, y: number, z: number): [number, number] {
   return [lon, lat];
 }
 
+/** [lon, lat] → containing tile (x, y) at zoom z (slippy scheme). */
+export function lonLatToCell(
+  lon: number,
+  lat: number,
+  z: number,
+): [number, number] {
+  const n = 2 ** z;
+  const x = Math.floor(((lon + 180) / 360) * n);
+  const latRad = (lat * Math.PI) / 180;
+  const y = Math.floor(
+    ((1 - Math.log(Math.tan(latRad) + 1 / Math.cos(latRad)) / Math.PI) / 2) * n,
+  );
+  const clamp = (v: number) => Math.min(n - 1, Math.max(0, v));
+  return [clamp(x), clamp(y)];
+}
+
 /** Drop intermediate points along straight runs of a closed corner path. */
 function dropCollinear(corners: [number, number][]): [number, number][] {
   const out: [number, number][] = [];
@@ -91,13 +107,12 @@ export function cellsToRings(
 }
 
 /**
- * Enumerate the archive's tile directory and trace the coverage boundary at
- * the deepest zoom that fits the cell budget. Returns null when the archive
- * is too large to enumerate cheaply (caller falls back to the bbox).
+ * Enumerate the archive's tile directory into per-zoom cell sets ("x,y"
+ * keys). Returns null when the archive is too large to enumerate cheaply.
  */
-export async function computeFootprint(
+export async function enumerateCellsByZoom(
   archive: PMTiles,
-): Promise<[number, number][][] | null> {
+): Promise<Map<number, Set<string>> | null> {
   const header = await archive.getHeader();
   const byZoom = new Map<number, Set<string>>();
   let total = 0;
@@ -137,7 +152,19 @@ export async function computeFootprint(
       return null;
     }
   }
+  return byZoom;
+}
 
+/**
+ * Trace the archive's coverage boundary at the deepest zoom that fits the
+ * cell budget. Returns null when the archive is too large to enumerate
+ * cheaply (caller falls back to the bbox).
+ */
+export async function computeFootprint(
+  archive: PMTiles,
+): Promise<[number, number][][] | null> {
+  const byZoom = await enumerateCellsByZoom(archive);
+  if (!byZoom) return null;
   for (const z of [...byZoom.keys()].sort((a, b) => b - a)) {
     const cells = byZoom.get(z) as Set<string>;
     if (cells.size <= CELL_BUDGET) return cellsToRings(cells, z);

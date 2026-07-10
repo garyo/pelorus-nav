@@ -20,6 +20,7 @@ import {
 } from "./chart";
 import {
   basemapRegionsFromFilenames,
+  loadBasemapCoverage,
   setStoredBasemaps,
 } from "./chart/basemap-underlay";
 import { deriveImportedRasterCharts } from "./chart/imported-charts";
@@ -228,6 +229,8 @@ try {
     rasterChartsFromFilenames(storedCharts.map((c) => c.filename)),
   );
   setImportedRasterCharts(await deriveImportedRasterCharts(storedCharts));
+  // Before the map exists, so the initial style gets the right OSM cap
+  await loadBasemapCoverage(getSettings().activeRegion);
 } catch {
   // OPFS not available or no stored charts — fall back to remote
 }
@@ -839,6 +842,10 @@ onSettingsChange((s) => {
       center: region.center,
       zoom: region.defaultZoom,
     });
+    // New active region → its basemap's coverage drives the OSM cap
+    loadBasemapCoverage(region.id)
+      .then(() => chartManager.refreshStyle())
+      .catch(() => {});
   }
 });
 
@@ -1405,6 +1412,7 @@ if (topbarMenu) {
         rasterChartsFromFilenames(charts.map((c) => c.filename)),
       );
       setImportedRasterCharts(await deriveImportedRasterCharts(charts));
+      await loadBasemapCoverage(getSettings().activeRegion);
       await vectorProvider.loadAllOfflineCoverage();
       // The downloaded set changed, so re-derive which regions stream
       vectorProvider.setStreamingVersions(await getStreamingVersions());
