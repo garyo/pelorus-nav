@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { cellsToRings } from "./chart-footprint";
+import { cellsToRings, footprintFromCells } from "./chart-footprint";
 
 /** Corner count excluding the closing point. */
 function cornerCount(ring: [number, number][]): number {
@@ -53,5 +53,40 @@ describe("cellsToRings", () => {
     expect(rings).toHaveLength(2);
     const counts = rings.map(cornerCount).sort((a, b) => a - b);
     expect(counts).toEqual([4, 4]); // square outer + square hole
+  });
+});
+
+describe("footprintFromCells (multi-zoom union)", () => {
+  it("covers charts that only exist at different zoom levels", () => {
+    // Packed archive: chart A native z6 at one place, chart B native z8
+    // elsewhere. A single-zoom trace would miss one of them entirely.
+    const byZoom = new Map<number, Set<string>>([
+      [6, new Set(["10,10"])],
+      [8, new Set(["50,50"])],
+    ]);
+    const rings = footprintFromCells(byZoom);
+    expect(rings).not.toBeNull();
+    // Two disjoint areas → two rings
+    expect(rings).toHaveLength(2);
+  });
+
+  it("merges overview cells with their own chart's deep cells", () => {
+    // One chart: overview cell at z6 (10,10) whose area contains its z8
+    // native cells (40..43, 40..43) — union must be one blob, not nested
+    const z8 = new Set<string>();
+    for (let x = 40; x <= 43; x++) {
+      for (let y = 40; y <= 43; y++) z8.add(`${x},${y}`);
+    }
+    const rings = footprintFromCells(
+      new Map([
+        [6, new Set(["10,10"])],
+        [8, z8],
+      ]),
+    );
+    expect(rings).toHaveLength(1);
+  });
+
+  it("returns null for an empty map", () => {
+    expect(footprintFromCells(new Map())).toBeNull();
   });
 });

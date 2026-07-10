@@ -156,18 +156,56 @@ export async function enumerateCellsByZoom(
 }
 
 /**
- * Trace the archive's coverage boundary at the deepest zoom that fits the
- * cell budget. Returns null when the archive is too large to enumerate
- * cheaply (caller falls back to the bbox).
+ * Trace the archive's coverage boundary. Coverage is the UNION across all
+ * zoom levels — in a packed multi-chart archive each zoom exists only where
+ * some chart has tiles (one chart's native z18, another's z14), so no single
+ * level sees the whole collection. Cells are normalized to the finest
+ * working zoom whose expanded union fits the cell budget. Returns null when
+ * the archive is too large to enumerate cheaply (caller falls back to bbox).
  */
 export async function computeFootprint(
   archive: PMTiles,
 ): Promise<[number, number][][] | null> {
   const byZoom = await enumerateCellsByZoom(archive);
-  if (!byZoom) return null;
-  for (const z of [...byZoom.keys()].sort((a, b) => b - a)) {
-    const cells = byZoom.get(z) as Set<string>;
-    if (cells.size <= CELL_BUDGET) return cellsToRings(cells, z);
+  return byZoom ? footprintFromCells(byZoom) : null;
+}
+
+/** Pure core of computeFootprint (unit-tested separately). */
+export function footprintFromCells(
+  byZoom: Map<number, Set<string>>,
+): [number, number][][] | null {
+  if (byZoom.size === 0) return null;
+  const zooms = [...byZoom.keys()].sort((a, b) => a - b);
+  const minZ = zooms[0];
+  const maxZ = zooms[zooms.length - 1];
+
+  // Finest working zoom W whose union fits the budget, using the no-dedup
+  // upper bound (cells coarser than W expand 4x per level; deeper shrink).
+  let w = maxZ;
+  while (w > minZ) {
+    let bound = 0;
+    for (const z of zooms) {
+      bound += (byZoom.get(z) as Set<string>).size * 4 ** Math.max(0, w - z);
+    }
+    if (bound <= CELL_BUDGET) break;
+    w--;
   }
-  return null;
+
+  const cells = new Set<string>();
+  for (const z of zooms) {
+    for (const key of byZoom.get(z) as Set<string>) {
+      const [x, y] = key.split(",").map(Number);
+      if (z >= w) {
+        cells.add(`${x >> (z - w)},${y >> (z - w)}`);
+      } else {
+        const f = 2 ** (w - z);
+        for (let dx = 0; dx < f; dx++) {
+          for (let dy = 0; dy < f; dy++) {
+            cells.add(`${x * f + dx},${y * f + dy}`);
+          }
+        }
+      }
+    }
+  }
+  return cellsToRings(cells, w);
 }
