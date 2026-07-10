@@ -8,10 +8,19 @@ main = "src/worker.ts"
 directory = "./dist"
 binding = "ASSETS"
 not_found_handling = "single-page-application"
+# Requests matching a static asset are normally served without invoking the
+# worker at all. The worker must own "/" (it rewrites it to the landing page —
+# the asset layer would serve the app's index.html) and /api/*.
+run_worker_first = ["/", "/api/*"]
 
 [[r2_buckets]]
 binding = "TILES"
 bucket_name = "pelorus-nav"
+
+# Landing-page newsletter signups (see handleSubscribe in src/worker.ts)
+[[kv_namespaces]]
+binding = "SUBSCRIBERS"
+id = "56c1f5b0796f4b7ea89a27ace5ed04d4"
 
 [observability]
 enabled = true

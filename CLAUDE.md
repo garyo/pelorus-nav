@@ -42,6 +42,19 @@ Pelorus Nav — open-source web-based marine chartplotter (PWA). See PLAN.md for
 - `tests/e2e/` — Playwright E2E tests
 - `public/` — static assets (PMTiles, sprites, glyph fonts, coverage masks)
 - `tools/` — offline tools (S-57 pipeline, sprite builder, tile upload/check scripts)
+- `branding/` — brand assets + parametric logo generator (see its README)
+
+## URL layout (production)
+In production the **app lives at `/app`**; `/` is the static marketing landing
+page (`public/landing.html`, assets in `public/landing/`). `src/worker.ts`
+rewrites `/` to the landing page and handles `POST /api/subscribe` (newsletter
+signups → SUBSCRIBERS KV; `run_worker_first` in wrangler.toml makes those routes
+reach the worker at all). The Vite **dev server still serves the app at `/`**
+(no worker); preview the landing page at `/landing.html`. To exercise the real
+routing locally: `bun run build && bunx wrangler dev --local`. The PWA
+`start_url` is `/app`; the service worker never intercepts `/`, `/landing.html`,
+or `/api/*` (denylist in vite.config.ts), and landing assets stay out of the
+app's precache. Capacitor builds are unaffected (they load the bundle directly).
 
 ## Testing
 - Unit tests: colocate as `*.test.ts` next to source files

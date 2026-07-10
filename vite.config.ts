@@ -97,8 +97,21 @@ export default defineConfig({
         // MapLibre glyphs (pbf) are bundled under public/fonts and
         // precached so labels render fully offline.
         globPatterns: ["**/*.{js,css,html,svg,png,woff2,json,pbf}"],
-        globIgnores: ["**/*.pmtiles", "**/*.geojson", "**/*.search.json"],
+        // The landing page (served at "/" by the worker; app lives at /app)
+        // is marketing, not app shell — keep it and its assets out of the
+        // app's offline precache.
+        globIgnores: [
+          "**/*.pmtiles",
+          "**/*.geojson",
+          "**/*.search.json",
+          "landing.html",
+          "landing/**",
+        ],
         navigateFallback: "/index.html",
+        // Never satisfy navigations to the landing page or API from the SW —
+        // "/" must always show the (possibly updated) marketing page, and
+        // /api is dynamic.
+        navigateFallbackDenylist: [/^\/$/, /^\/landing\.html$/, /^\/api\//],
       },
     }),
   ],

@@ -1,0 +1,393 @@
+<!doctype html>
+<!--
+  Pelorus Nav landing page — served at "/" by src/worker.ts; the app lives at /app.
+  Static, self-contained (assets under /landing/). The Outfit subset in
+  /landing/outfit.woff2 is generated from branding/fonts/Outfit[wght].ttf via
+  fontTools subset (ASCII + a few symbols); see branding/README.md.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Pelorus Nav — free, open-source marine chartplotter</title>
+<meta name="description" content="Official NOAA charts on the device you already own. Offline-first marine chartplotter with tides, currents, and real S-52 symbology. Free forever, no subscription, open source." />
+<link rel="icon" type="image/svg+xml" href="/icon.svg" />
+<link rel="canonical" href="https://pelorus-nav.com/" />
+<meta property="og:type" content="website" />
+<meta property="og:title" content="Pelorus Nav — free, open-source marine chartplotter" />
+<meta property="og:description" content="Official NOAA charts, fully offline, no subscription. On the phone, tablet, or e-ink device you already own." />
+<meta property="og:url" content="https://pelorus-nav.com/" />
+<meta property="og:image" content="https://pelorus-nav.com/landing/og-card.png" />
+<meta name="twitter:card" content="summary_large_image" />
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  "name": "Pelorus Nav",
+  "applicationCategory": "Navigation",
+  "operatingSystem": "Web, Android",
+  "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+  "url": "https://pelorus-nav.com/",
+  "description": "Open-source marine chartplotter with official NOAA vector charts, offline use, and tide/current predictions."
+}
+</script>
+<style>
+@font-face {
+  font-family: "Outfit";
+  src: url("/landing/outfit.woff2") format("woff2");
+  font-weight: 100 900;
+  font-display: swap;
+}
+:root {
+  --navy-deep: #0a1526;
+  --navy: #12203a;
+  --sea: #1a5276;
+  --blue: #2980b9;
+  --wave: #85c1e9;
+  --cloth: #eef4f7;
+  --chrome: #3d6d94;
+  --body: #b9cddd;
+  --hairline: rgba(133, 193, 233, 0.16);
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+body {
+  font-family: "Outfit", system-ui, sans-serif;
+  font-weight: 300;
+  background: radial-gradient(120% 80% at 50% -20%, var(--navy) 0%, var(--navy-deep) 75%);
+  color: var(--body);
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+.wrap { max-width: 1080px; margin: 0 auto; padding: 0 24px; }
+a { color: var(--wave); }
+
+/* ---------- header ---------- */
+header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 20px 0; gap: 16px;
+}
+.brand { display: flex; align-items: center; gap: 12px; text-decoration: none; }
+.brand svg { width: 40px; height: 40px; }
+.brand span { font-size: 21px; font-weight: 600; color: var(--cloth); letter-spacing: 0.01em; }
+.brand span b { color: var(--wave); font-weight: 600; }
+.header-links { display: flex; align-items: center; gap: 22px; }
+.header-links a { color: var(--body); text-decoration: none; font-size: 15.5px; font-weight: 400; }
+.header-links a:hover { color: var(--cloth); }
+.btn {
+  display: inline-block; text-decoration: none; font-weight: 500;
+  border-radius: 8px; transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+.btn-primary {
+  background: var(--blue); color: #fff !important;
+  padding: 10px 20px; font-size: 15.5px;
+}
+.btn-primary:hover { background: #3590cf; }
+.btn-big { padding: 15px 34px; font-size: 19px; }
+.btn-ghost {
+  border: 1px solid var(--chrome); color: var(--cloth) !important;
+  padding: 14px 28px; font-size: 17px;
+}
+.btn-ghost:hover { border-color: var(--wave); }
+
+/* ---------- hero ---------- */
+.hero { text-align: center; padding: 64px 0 0; }
+.eyebrow {
+  font-size: 13px; font-weight: 500; letter-spacing: 0.22em;
+  text-transform: uppercase; color: var(--chrome);
+}
+h1 {
+  font-weight: 600; color: var(--cloth); text-wrap: balance;
+  font-size: clamp(34px, 6vw, 58px); line-height: 1.12; letter-spacing: -0.01em;
+  margin: 18px auto 20px; max-width: 17ch;
+}
+h1 .accent { color: var(--wave); }
+.lede {
+  font-size: clamp(17px, 2.2vw, 20px); max-width: 56ch; margin: 0 auto 34px;
+}
+.lede strong { color: var(--cloth); font-weight: 500; }
+.cta-row { display: flex; gap: 16px; justify-content: center; flex-wrap: wrap; margin-bottom: 14px; }
+.cta-note { font-size: 14px; color: var(--chrome); }
+.cta-note a { color: var(--chrome); }
+
+.hero-shot { margin: 56px auto 0; max-width: 1080px; }
+.hero-shot img {
+  width: 100%; height: auto; display: block; border-radius: 10px;
+  border: 1px solid var(--hairline);
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.5), 0 -12px 60px rgba(41, 128, 185, 0.1);
+}
+.shot-caption { font-size: 13.5px; color: var(--chrome); padding: 10px 0 0; }
+
+/* brand wave under the hero screenshot */
+.divider {
+  border: none; height: 26px; margin: 6px 0 0;
+  background: no-repeat center/auto 100% url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 20" preserveAspectRatio="xMidYMid meet"><path d="M 8 12 Q 22 4 36 9 Q 52 15 64 10 Q 78 5 92 9" fill="none" stroke="%2385c1e9" stroke-width="3.5" stroke-linecap="round" opacity="0.7"/></svg>');
+}
+
+section { padding: 84px 0; }
+h2 {
+  font-size: clamp(26px, 3.6vw, 36px); font-weight: 600; color: var(--cloth);
+  letter-spacing: -0.01em; margin-bottom: 14px; text-wrap: balance;
+}
+.section-lede { max-width: 62ch; font-size: 17.5px; margin-bottom: 40px; }
+.section-lede strong { color: var(--cloth); font-weight: 500; }
+
+/* ---------- features ---------- */
+.feature-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(290px, 1fr)); gap: 18px; }
+.feature {
+  border: 1px solid var(--hairline); border-radius: 10px; padding: 24px 26px;
+  background: rgba(18, 32, 58, 0.45);
+}
+.feature h3 { font-size: 18px; font-weight: 500; color: var(--cloth); margin-bottom: 8px; }
+.feature p { font-size: 15.5px; }
+
+/* ---------- offline split ---------- */
+.split { display: grid; grid-template-columns: 1fr minmax(240px, 320px); gap: 56px; align-items: center; }
+.phone-frame {
+  border: 1px solid var(--hairline); border-radius: 28px; padding: 10px;
+  background: var(--navy-deep); justify-self: center;
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.45);
+}
+.phone-frame img { display: block; width: 100%; max-width: 300px; height: auto; border-radius: 19px; }
+.split ul { list-style: none; display: flex; flex-direction: column; gap: 16px; }
+.split li { padding-left: 26px; position: relative; font-size: 16.5px; }
+.split li::before {
+  content: ""; position: absolute; left: 0; top: 9px; width: 12px; height: 8px;
+  background: no-repeat center/contain url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 16"><path d="M2 12 Q7 6 12 9 Q17 12 22 6" fill="none" stroke="%2385c1e9" stroke-width="3" stroke-linecap="round"/></svg>');
+}
+.split li b { color: var(--cloth); font-weight: 500; }
+@media (max-width: 760px) { .split { grid-template-columns: 1fr; } }
+
+/* ---------- open source ---------- */
+.open-band {
+  border: 1px solid var(--hairline); border-radius: 12px;
+  padding: 40px 42px; display: flex; gap: 40px; align-items: center; flex-wrap: wrap;
+  background: rgba(10, 21, 38, 0.55);
+}
+.open-band > div { flex: 1 1 380px; }
+.open-band p { font-size: 16.5px; max-width: 60ch; }
+.open-band p + p { margin-top: 0.9em; }
+.open-band p b { color: var(--cloth); font-weight: 500; }
+
+/* ---------- follow / signup ---------- */
+.follow { text-align: center; }
+.follow h2 { margin-left: auto; margin-right: auto; }
+.follow .section-lede { margin-left: auto; margin-right: auto; }
+form.signup {
+  display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; margin-top: 8px;
+}
+.signup input[type="email"] {
+  font: inherit; font-size: 16.5px; color: var(--cloth);
+  background: var(--navy-deep); border: 1px solid var(--chrome); border-radius: 8px;
+  padding: 13px 18px; width: min(340px, 80vw);
+}
+.signup input[type="email"]::placeholder { color: var(--chrome); }
+.signup input[type="email"]:focus { outline: 2px solid var(--blue); outline-offset: 1px; border-color: var(--blue); }
+.signup button {
+  font: inherit; font-weight: 500; font-size: 16.5px; cursor: pointer;
+  background: var(--blue); color: #fff; border: none; border-radius: 8px; padding: 13px 26px;
+  transition: background 0.15s;
+}
+.signup button:hover { background: #3590cf; }
+.signup button:disabled { background: var(--chrome); cursor: default; }
+.hp { position: absolute; left: -9999px; width: 1px; height: 1px; overflow: hidden; }
+#signup-msg { margin-top: 16px; font-size: 15.5px; min-height: 1.5em; }
+#signup-msg.ok { color: var(--wave); }
+#signup-msg.err { color: #e0a86c; }
+.privacy-note { font-size: 13.5px; color: var(--chrome); margin-top: 10px; }
+
+/* ---------- footer ---------- */
+footer {
+  border-top: 1px solid var(--hairline); padding: 28px 0 40px;
+  display: flex; justify-content: space-between; align-items: center; gap: 14px; flex-wrap: wrap;
+  font-size: 14px; color: var(--chrome);
+}
+footer a { color: var(--chrome); text-decoration: none; }
+footer a:hover { color: var(--wave); }
+footer nav { display: flex; gap: 22px; }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <header>
+    <a class="brand" href="/">
+      <svg viewBox="0 0 100 100" aria-hidden="true">
+        <circle cx="50" cy="50" r="46" fill="#1a5276" stroke="#2980b9" stroke-width="3"/>
+        <path d="M 55.38 11.47 L 49.39 45.45 Q 40.39 50.46 31.12 56.95 Q 42.87 30.59 55.38 11.47 Z" fill="#eef4f7"/>
+        <path d="M 55.38 11.47 Q 64.22 33.34 63.12 62.59 Q 56.14 53.24 49.39 45.45 Z" fill="#a9c6dc"/>
+        <path d="M 13 70 Q 25 62.5 37 67 Q 51 72.5 62 68 Q 74 63.5 87 66.5" fill="none" stroke="#85c1e9" stroke-width="4.5" stroke-linecap="round"/>
+        <path d="M 17 77 Q 25 73 33 75" fill="none" stroke="#85c1e9" stroke-width="3" stroke-linecap="round" opacity="0.55"/>
+      </svg>
+      <span>Pelorus <b>Nav</b></span>
+    </a>
+    <nav class="header-links">
+      <a href="https://github.com/garyo/pelorus-nav">GitHub</a>
+      <a class="btn btn-primary" href="/app">Open the app</a>
+    </nav>
+  </header>
+</div>
+
+<div class="wrap hero">
+  <p class="eyebrow">Open-source marine chartplotter</p>
+  <h1>Real charts. Your own device. <span class="accent">No&nbsp;subscription.</span></h1>
+  <p class="lede">Pelorus Nav turns the phone or tablet you already own into a serious
+  chartplotter: <strong>official NOAA vector charts</strong>, real marine symbology,
+  tides and currents — <strong>fully offline</strong>, free forever, built in the open
+  by a sailor.</p>
+  <div class="cta-row">
+    <a class="btn btn-primary btn-big" href="/app">Open the app</a>
+    <a class="btn btn-ghost" href="https://github.com/garyo/pelorus-nav/releases/latest">Get the Android app</a>
+  </div>
+  <p class="cta-note">Runs in any modern browser — nothing to install, no account.
+  iOS is <a href="https://github.com/garyo/pelorus-nav">in the works</a>.</p>
+</div>
+
+<div class="hero-shot wrap">
+  <img src="/landing/hero-chart.webp" width="1920" height="932"
+    alt="Pelorus Nav showing Boston Inner Harbor: NOAA electronic chart with buoys, depth contours, anchorage areas, and the vessel underway with its course line" />
+</div>
+<hr class="divider" aria-hidden="true" />
+<div class="wrap"><p class="shot-caption">Boston Inner Harbor, live in the app — NOAA ENC data with IHO S-52 symbology, street basemap blended in near shore.</p></div>
+
+<div class="wrap">
+  <section id="features">
+    <h2>A real chartplotter, not a map with boats</h2>
+    <p class="section-lede">The same NOAA electronic navigational charts that commercial
+    plotters license — public data, rendered properly, on hardware you already own.</p>
+    <div class="feature-grid">
+      <div class="feature">
+        <h3>Official NOAA charts</h3>
+        <p>Full vector ENC coverage of US waters — depths, buoys, lights with their real
+        characteristics, restricted areas, cables — drawn with authentic S-52 marine
+        symbology. More regions and bring-your-own charts are on the roadmap.</p>
+      </div>
+      <div class="feature">
+        <h3>Works offline, properly</h3>
+        <p>Download a region once and everything works with the radio off: charts, tides,
+        place search. Cell coverage ends at the harbor mouth; your charts shouldn't.</p>
+      </div>
+      <div class="feature">
+        <h3>Tides &amp; currents, no internet</h3>
+        <p>Predictions computed on the device from NOAA harmonic stations — thousands of
+        tide and current stations, right on the chart, offshore or not.</p>
+      </div>
+      <div class="feature">
+        <h3>Navigation that earns its keep</h3>
+        <p>Routes, waypoints, track recording, course projection, anchor and crew-overboard
+        one-press response — designed for use with wet hands on a bouncing deck.</p>
+      </div>
+      <div class="feature">
+        <h3>Any GPS you've got</h3>
+        <p>The device's own GPS works out of the box. Bluetooth GPS pods, NMEA and
+        Signal K boat networks plug in when you want boat-grade data.</p>
+      </div>
+      <div class="feature">
+        <h3>Day, dusk, night — and e-ink</h3>
+        <p>Proper marine display themes, including one tuned for sunlight-readable e-ink
+        tablets — the budget cockpit display that never washes out.</p>
+      </div>
+    </div>
+  </section>
+
+  <section id="offline">
+    <div class="split">
+      <div>
+        <h2>Made for sailors without a nav station</h2>
+        <p class="section-lede">Day-sailors, club racers, charterers, dinghy cruisers —
+        if your "chartplotter" is the phone in your pocket, this is for you.</p>
+        <ul>
+          <li><b>Nothing to buy, nothing to subscribe to.</b> The app and every NOAA chart
+          are free, forever. That's a promise the license keeps: it's open source.</li>
+          <li><b>No account, no tracking.</b> Your position and tracks live on your
+          device and nowhere else.</li>
+          <li><b>Take it offshore.</b> Offline-first isn't a feature tier — it's the
+          whole design.</li>
+          <li><b>Keep your phone dry.</b> Pairs beautifully with a cheap waterproof
+          Android or e-ink tablet as a dedicated cockpit display.</li>
+        </ul>
+      </div>
+      <div class="phone-frame">
+        <img src="/landing/phone-chart.webp" width="450" height="810"
+          alt="Close-up of the chart display: vessel with course line approaching Fan Pier, Boston, with lighted buoys and depth soundings" />
+      </div>
+    </div>
+  </section>
+
+  <section id="open">
+    <div class="open-band">
+      <div>
+        <h2>Built in the open</h2>
+        <p>Pelorus Nav is <b>MIT-licensed</b> and developed in public — the code, the
+        chart pipeline, the roadmap, the mistakes. You can read it, file issues, build
+        your own, or self-host the whole thing.</p>
+        <p>Openness isn't a marketing line here; it's the guarantee that this app can't
+        be enshittified out from under you.</p>
+      </div>
+      <div style="flex: 0 1 auto">
+        <a class="btn btn-ghost" href="https://github.com/garyo/pelorus-nav">Pelorus Nav on GitHub</a>
+      </div>
+    </div>
+  </section>
+
+  <section id="follow" class="follow">
+    <h2>Next up: hardware</h2>
+    <p class="section-lede">A pocket <strong>Bluetooth GPS pod</strong> and a
+    <strong>sunlight-readable e-ink chartplotter</strong> are taking shape — open
+    hardware, same no-subscription promise. Leave an email and follow the build;
+    launch news only, no noise.</p>
+    <form class="signup" id="signup" action="/api/subscribe" method="post">
+      <label class="hp" aria-hidden="true">Leave this empty
+        <input type="text" name="website" tabindex="-1" autocomplete="off" />
+      </label>
+      <input type="email" name="email" required placeholder="you@example.com"
+        aria-label="Email address" />
+      <button type="submit">Follow the build</button>
+    </form>
+    <p id="signup-msg" role="status"></p>
+    <p class="privacy-note">Just an email list — unsubscribe anytime, never shared.</p>
+  </section>
+
+  <footer>
+    <span>© 2026 Pelorus Nav · MIT license</span>
+    <nav>
+      <a href="/app">Open the app</a>
+      <a href="https://github.com/garyo/pelorus-nav">GitHub</a>
+      <a href="https://github.com/garyo/pelorus-nav/blob/main/CHANGELOG.md">Changelog</a>
+      <a href="https://github.com/garyo/pelorus-nav/releases/latest">Android APK</a>
+    </nav>
+  </footer>
+</div>
+
+<script>
+const form = document.getElementById("signup");
+const msg = document.getElementById("signup-msg");
+form.addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const button = form.querySelector("button");
+  const email = form.elements.email.value.trim();
+  button.disabled = true;
+  msg.className = "";
+  msg.textContent = "";
+  try {
+    const res = await fetch("/api/subscribe", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ email, website: form.elements.website.value }),
+    });
+    if (!res.ok) throw new Error(String(res.status));
+    msg.className = "ok";
+    msg.textContent = "You're aboard — we'll email when there's news worth sending.";
+    form.reset();
+  } catch {
+    msg.className = "err";
+    msg.textContent = "That didn't go through — check the address and try again.";
+    button.disabled = false;
+    return;
+  }
+  button.disabled = false;
+});
+</script>
+</body>
+</html>

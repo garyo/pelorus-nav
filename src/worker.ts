@@ -1,11 +1,15 @@
 /**
  * Cloudflare Worker entry point.
- * Serves nautical.pmtiles from R2 with HTTP Range support; everything else from static assets.
+ * Serves the landing page at "/", the app at /app (via the assets binding's
+ * SPA fallback), nautical PMTiles from R2 with HTTP Range support, and the
+ * newsletter signup at POST /api/subscribe. Everything else comes from
+ * static assets.
  */
 
 interface Env {
   ASSETS: Fetcher;
   TILES: R2Bucket;
+  SUBSCRIBERS: KVNamespace;
 }
 
 const ALLOWED_ORIGINS = [
@@ -157,9 +161,59 @@ async function handleTilesRequest(
   });
 }
 
+// Newsletter signup: store one KV entry per address (key = lowercased email,
+// so repeat signups are idempotent). Export with
+// `wrangler kv key list --namespace-id=<id>`.
+async function handleSubscribe(request: Request, env: Env): Promise<Response> {
+  let body: { email?: string; website?: string };
+  try {
+    body = await request.json();
+  } catch {
+    return Response.json({ error: "invalid JSON" }, { status: 400 });
+  }
+  // "website" is the form's honeypot field — bots fill it, humans can't see it
+  if (body.website) {
+    return Response.json({ ok: true });
+  }
+  const email = (body.email ?? "").trim();
+  if (
+    email.length < 6 ||
+    email.length > 254 ||
+    !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)
+  ) {
+    return Response.json({ error: "invalid email" }, { status: 400 });
+  }
+  await env.SUBSCRIBERS.put(
+    email.toLowerCase(),
+    JSON.stringify({
+      email,
+      subscribedAt: new Date().toISOString(),
+      source: "landing",
+    }),
+  );
+  return Response.json({ ok: true });
+}
+
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
+
+    if (url.pathname === "/api/subscribe") {
+      if (request.method !== "POST") {
+        return new Response("Method Not Allowed", { status: 405 });
+      }
+      return handleSubscribe(request, env);
+    }
+
+    // The marketing landing page owns the root URL; the app lives at /app
+    // (an extensionless path, so the assets binding's SPA fallback serves the
+    // app shell there with no further routing here). Request "/landing", not
+    // "/landing.html": the binding's default html_handling 307-redirects
+    // ".html" URLs to the extensionless form, which would fall through to the
+    // SPA fallback and serve the app shell instead.
+    if (url.pathname === "/") {
+      return env.ASSETS.fetch(new Request(new URL("/landing", url), request));
+    }
 
     // Handle CORS preflight for tile/coverage requests
     if (request.method === "OPTIONS") {
