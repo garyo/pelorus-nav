@@ -1399,6 +1399,10 @@ if (topbarMenu) {
     }
   });
   cachePanel.setOnShowChart((chart) => {
+    // Going to look at a chart is a deliberate move away from the vessel —
+    // drop to free like a manual pan would, else follow-mode's per-frame
+    // recentering stomps the flyTo (map stays put, zoom arc mangles the view).
+    chartMode.setMode("free");
     // Fit the chart's footprint, but never land below its minZoom — a fit
     // just under it would navigate to the chart yet show none of it.
     const map = chartManager.map;

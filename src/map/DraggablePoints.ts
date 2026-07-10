@@ -69,7 +69,9 @@ export class DraggablePoints {
 
   private onMouseMove(e: maplibregl.MapMouseEvent): void {
     if (!this.dragging) {
-      // Hover cursor
+      // Hover cursor. The layer can be briefly absent mid style-rebuild
+      // (refreshStyle re-adds overlays async) — querying then throws.
+      if (!this.map.getLayer(this.layerId)) return;
       const features = this.map.queryRenderedFeatures(e.point, {
         layers: [this.layerId],
       });
