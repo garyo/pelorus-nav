@@ -74,6 +74,16 @@ The conversion step is one line with the
 pmtiles convert charts.mbtiles charts.pmtiles   # brew install pmtiles
 ```
 
+**Getting charts onto a phone or tablet**: convert on a desktop, then move
+the `.pmtiles` to the device — cloud storage (Google Drive, Dropbox; iCloud
+on iOS), a USB cable, or a direct download all work. "Load from File…" opens
+the system file picker, which shows installed cloud providers directly. For
+multi-GB archives, download the file to the device first (browser or Files
+app) and import from Downloads — picking straight from a cloud provider
+downloads the whole file inside the picker with no progress indication.
+Importing copies the chart into the app's own storage, so a large chart
+briefly exists twice on the device.
+
 Vector (MVT) archives are stored but not drawn — the app has no style for
 arbitrary vector data. Raster charts you build yourself with
 `tools/rnc-pipeline/convert-kap.py` (any georeferenced BSB/KAP) can either be
