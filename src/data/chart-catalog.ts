@@ -285,6 +285,11 @@ export interface RasterChart {
   attribution?: string;
   /** True for user-imported charts (derived, not in the catalog). */
   imported?: boolean;
+  /**
+   * True coverage boundary as closed [lon, lat] rings, traced from the
+   * archive's tile set (irregular for stitched charts). Absent → bbox.
+   */
+  footprint?: [number, number][][];
 }
 
 export const RASTER_CHARTS: RasterChart[] = [

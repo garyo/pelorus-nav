@@ -17,6 +17,7 @@ import {
 } from "../data/chart-catalog";
 import { OPFSSource } from "../data/opfs-source";
 import { getChartFile, type StoredChartInfo } from "../data/tile-store";
+import { computeFootprint } from "./chart-footprint";
 
 /** The slice of the PMTiles interface derivation needs (stubbed in tests). */
 export interface PMTilesLike {
@@ -120,7 +121,14 @@ export async function deriveImportedRasterCharts(
         info.filename,
         info.sizeBytes,
       );
-      if (chart) charts.push(chart);
+      if (!chart) continue;
+      try {
+        // Best-effort: bbox outline still works without it.
+        chart.footprint = (await computeFootprint(archive)) ?? undefined;
+      } catch {
+        // corrupt/odd directory — keep the chart, lose the fancy outline
+      }
+      charts.push(chart);
     } catch (err) {
       console.warn(`Skipping unreadable imported chart ${info.filename}:`, err);
     }

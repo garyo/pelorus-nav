@@ -66,24 +66,24 @@ export function getRasterChartSources(): Record<string, SourceSpecification> {
       maxzoom: chart.maxZoom,
       attribution: chart.attribution ?? "NOAA RNC (public domain)",
     };
+    // True traced footprint when available (stitched imports are irregular),
+    // else the bbox rectangle.
     const [w, s, e, n] = chart.bbox;
+    const rings = chart.footprint ?? [
+      [
+        [w, s],
+        [e, s],
+        [e, n],
+        [w, n],
+        [w, s],
+      ],
+    ];
     sources[`${sourceId(chart)}-outline`] = {
       type: "geojson",
       data: {
         type: "Feature",
         properties: { name: chart.name },
-        geometry: {
-          type: "Polygon",
-          coordinates: [
-            [
-              [w, s],
-              [e, s],
-              [e, n],
-              [w, n],
-              [w, s],
-            ],
-          ],
-        },
+        geometry: { type: "MultiLineString", coordinates: rings },
       },
     };
   }
