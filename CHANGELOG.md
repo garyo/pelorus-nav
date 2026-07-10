@@ -7,6 +7,11 @@ The format follows [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Changed
+- Wind barbs now end in a small downwind arrowhead instead of the
+  conventional circle, so the direction the wind is blowing toward is
+  unambiguous at a glance.
+
 ## [0.11.0] - 2026-07-10
 
 ### Added

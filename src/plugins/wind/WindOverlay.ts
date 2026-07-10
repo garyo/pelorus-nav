@@ -1,11 +1,14 @@
 /**
  * Wind overlay — Open-Meteo wind barbs.
  *
- * Renders standard meteorological wind barbs on a grid covering the visible
- * map: the staff points toward the wind source (the "from" direction), and
- * feathers encode speed (half-barb 5 kt, full barb 10 kt, pennant 50 kt). Barbs
- * are drawn white with a black halo so they stay visible over a busy chart in
- * any theme. Data is fetched keyless from Open-Meteo (best-match of
+ * Renders meteorological wind barbs on a grid covering the visible map: the
+ * staff points toward the wind source (the "from" direction), and feathers
+ * encode speed (half-barb 5 kt, full barb 10 kt, pennant 50 kt). One
+ * deliberate departure from the WMO glyph: the downwind end carries a small
+ * dart instead of the station circle — these are forecast grid points, not
+ * stations, and the arrow-flying-with-the-wind metaphor is unambiguous.
+ * Barbs are drawn white with a black halo so they stay visible over a busy
+ * chart in any theme. Data is fetched keyless from Open-Meteo (best-match of
  * GFS/HRRR/ECMWF/ICON), already in knots.
  */
 
@@ -116,8 +119,8 @@ function barbImage(speed: number): BarbImg {
   const halfN = rem >= 5 ? 1 : 0;
 
   // Feathers sit at the upwind tip and point away from the station (toward the
-  // wind source). The staff points the way the wind comes from; the station dot
-  // is the downwind end. (North wind ⇒ feathers on top, dot on the bottom.)
+  // wind source). The staff points the way the wind comes from; the downwind
+  // end carries a small dart. (North wind ⇒ feathers on top, dart below.)
   // Feathers are on the right of the staff (Northern Hemisphere convention).
   let y = topY + 2; // first feather just inside the tip
   for (; flagN > 0; flagN--) {
@@ -137,7 +140,27 @@ function barbImage(speed: number): BarbImg {
   if (halfN) lines.push([0, y, 6, y - 2.5]);
   lines.push([0, botY, 0, topY]); // staff
 
-  const pass = (lw: number, color: string, fill: boolean, dotR: number) => {
+  // Downwind dart in place of the WMO station circle: an arrow flies WITH
+  // the wind, so the tip marks where the wind is going — the circle read
+  // ambiguously (a weathervane of that shape points INTO the wind). Tip 3.2
+  // units downwind of the station, wings raked back, slightly concave
+  // leading edges. Footprint matches the old dot + halo.
+  const dart = () => {
+    ctx.beginPath();
+    ctx.moveTo(0, 3.2);
+    ctx.quadraticCurveTo(0.7, -0.2, 2.6, -2.2);
+    ctx.lineTo(0, -0.9);
+    ctx.lineTo(-2.6, -2.2);
+    ctx.quadraticCurveTo(-0.7, -0.2, 0, 3.2);
+    ctx.closePath();
+  };
+
+  const pass = (
+    lw: number,
+    color: string,
+    fill: boolean,
+    dartHaloW: number,
+  ) => {
     ctx.strokeStyle = color;
     ctx.fillStyle = color;
     ctx.lineWidth = lw;
@@ -158,12 +181,15 @@ function barbImage(speed: number): BarbImg {
       if (fill) ctx.fill();
       else ctx.stroke();
     }
-    ctx.beginPath();
-    ctx.arc(0, 0, dotR, 0, Math.PI * 2);
+    dart();
+    if (dartHaloW > 0) {
+      ctx.lineWidth = dartHaloW;
+      ctx.stroke();
+    }
     ctx.fill();
   };
-  pass(3.4, "rgba(0,0,0,0.85)", false, 2.6); // black halo + station dot
-  pass(1.5, "#ffffff", true, 1.4); // white barb + station dot
+  pass(3.4, "rgba(0,0,0,0.85)", false, 2.2); // black halo + dart backing
+  pass(1.5, "#ffffff", true, 0); // white barb + dart
 
   const img = ctx.getImageData(0, 0, s * px, s * px);
   return {
