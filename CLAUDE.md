@@ -119,10 +119,10 @@ All tile workflows go through `tools/build-tiles.sh` (run `--help` for full usag
   `rm -f dist/*.pmtiles dist/*.coverage.geojson dist/*.search.json` after `vite build`. Originals in
   `public/` are untouched — the dev server (`bun run dev`) serves from `public/` directly, so running
   `cap:build` or `deploy` while the dev server is active is safe.
-- After deploying a new APK, the WebView's service worker cache can serve stale JS.
-  Run `adb shell pm clear nav.pelorus.app` to wipe all app data (including SW cache).
-  The user will need to redo settings afterward. There's also a "Clear Cache & Reload"
-  button in the About dialog that clears the SW cache without losing settings.
+- Capacitor builds ship **no service worker** (`disable: isCapacitor` in vite.config.ts) —
+  all assets are bundled, so installing a new APK just works with no stale-cache concerns.
+  main.ts also unregisters any SW left behind by pre-0.10 installs at startup. The
+  "Clear Cache & Reload" button in the About dialog remains as an escape hatch only.
 - **Release signing**: keystore at `android/pelorus-release.keystore`, config in
   `android/signing.properties` (both gitignored). To set up on a new machine, generate a
   keystore with `keytool -genkeypair` and create `signing.properties` with storeFile,
