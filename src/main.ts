@@ -86,6 +86,7 @@ import {
   BOSTON_HARBOR_ROUTE,
   type SimulatorOptions,
 } from "./navigation/SimulatorProvider";
+import { createStationaryTracker } from "./navigation/stationary";
 import type { TopbarRegistrar } from "./plugins/host";
 import { LegendHost } from "./plugins/legend";
 import { BUILTIN_PLUGINS } from "./plugins/manifest";
@@ -369,8 +370,14 @@ const thermalMonitor = createThermalMonitor();
 
 // Repaint throttle: caps idle/steady-state rendering to save battery on
 // long passages (e-ink 4 fps, thermally hot 5 fps, otherwise 10 fps;
+// stationary vessel ~1 fps — per-fix, so anchor swing still draws;
 // gestures bypass the cap). See src/app/repaintThrottle.ts.
-installRepaintThrottle(chartManager.map, thermalMonitor);
+const stationaryTracker = createStationaryTracker();
+installRepaintThrottle(
+  chartManager.map,
+  thermalMonitor,
+  stationaryTracker.isStationary,
+);
 
 // Feature picking: the chart query handler owns the single click handler and a
 // unified, cyclable feature-info list. Plugin overlays (tides, …) contribute
@@ -390,6 +397,8 @@ new PelLightLayer(chartManager.map);
 // plugin may contribute nav providers, and so plugins activate before the
 // settings panel is built.
 const navManager = new NavigationDataManager();
+// Feed the stationary detector (repaint throttle) from raw fixes.
+navManager.subscribe((data) => stationaryTracker.onFix(data.sog));
 
 // Activate build-time plugins (Tides & Currents, Weather, …) through the plugin
 // host: they register overlays, layer-group toggles, settings controls, data
