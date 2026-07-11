@@ -9,6 +9,8 @@
  * distinction survives.
  */
 
+import { haversineDistanceNM } from "./coordinates";
+
 /** Multi-word phrases replaced before per-word abbreviation. */
 const PHRASE_ABBREV: [RegExp, string][] = [
   [/\blighted\s+buoy\b/gi, "LB"],
@@ -60,4 +62,32 @@ export function abbreviateFeatureName(name: string): string {
 
   const result = kept.join(" ");
   return result.length > 0 ? result : name.trim();
+}
+
+/**
+ * Max distance at which a same-named adjacent waypoint makes a
+ * feature-derived name redundant: two points placed near the same charted
+ * feature both inherit its name, and the repeat is clutter. Same-named
+ * features farther apart than this are genuinely distinct (or an
+ * out-and-back past the same mark) and keep their names.
+ */
+export const NEAR_DUPLICATE_M = 500;
+
+/**
+ * Whether `name` duplicates a nearby neighbor's name (case- and
+ * whitespace-insensitive, within NEAR_DUPLICATE_M). Callers fall back to a
+ * numbered WP-style name when this returns true.
+ */
+export function isNearDuplicateName(
+  name: string,
+  lat: number,
+  lon: number,
+  neighbors: { name: string; lat: number; lon: number }[],
+): boolean {
+  const norm = name.trim().toLowerCase();
+  return neighbors.some(
+    (n) =>
+      n.name.trim().toLowerCase() === norm &&
+      haversineDistanceNM(lat, lon, n.lat, n.lon) * 1852 <= NEAR_DUPLICATE_M,
+  );
 }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { abbreviateFeatureName } from "./feature-name";
+import { abbreviateFeatureName, isNearDuplicateName } from "./feature-name";
 
 describe("abbreviateFeatureName", () => {
   it.each([
@@ -42,5 +42,46 @@ describe("abbreviateFeatureName", () => {
     expect(abbreviateFeatureName("SOUTH CHANNEL LIGHT 3")).toBe(
       "SOUTH Chan Lt 3",
     );
+  });
+});
+
+describe("isNearDuplicateName", () => {
+  // ~500 m of latitude ≈ 0.0045°
+  const base = { lat: 42.35, lon: -71.0 };
+
+  it("flags a same-named neighbor within 500 m", () => {
+    expect(
+      isNearDuplicateName("Fan Pier S", base.lat, base.lon, [
+        { name: "Fan Pier S", lat: base.lat + 0.002, lon: base.lon },
+      ]),
+    ).toBe(true);
+  });
+
+  it("is case- and whitespace-insensitive", () => {
+    expect(
+      isNearDuplicateName("Fan Pier S", base.lat, base.lon, [
+        { name: "  fan pier s ", lat: base.lat, lon: base.lon },
+      ]),
+    ).toBe(true);
+  });
+
+  it("keeps same-named features that are far apart", () => {
+    expect(
+      isNearDuplicateName("Nun 2", base.lat, base.lon, [
+        { name: "Nun 2", lat: base.lat + 0.05, lon: base.lon }, // ~5.5 km
+      ]),
+    ).toBe(false);
+  });
+
+  it("ignores nearby neighbors with different names", () => {
+    expect(
+      isNearDuplicateName("Fan Pier S", base.lat, base.lon, [
+        { name: "Fan Pier N", lat: base.lat + 0.001, lon: base.lon },
+      ]),
+    ).toBe(false);
+  });
+
+  it("handles no neighbors", () => {
+    expect(isNearDuplicateName("WP1", base.lat, base.lon, [])).toBe(false);
   });
 });

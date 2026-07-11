@@ -13,7 +13,10 @@ import type { SearchEntry } from "../data/search-index";
 import { findNearestNamedFeature } from "../search/feature-search";
 import { getSettings } from "../settings";
 import { haversineDistanceNM, initialBearingDeg } from "../utils/coordinates";
-import { abbreviateFeatureName } from "../utils/feature-name";
+import {
+  abbreviateFeatureName,
+  isNearDuplicateName,
+} from "../utils/feature-name";
 import { formatLocalDateTime } from "../utils/format";
 import { formatBearing } from "../utils/magnetic";
 import { generateUUID } from "../utils/uuid";
@@ -130,12 +133,23 @@ export class RouteEditor {
   }
 
   /** Pick a default name for a new waypoint at (lat, lon): the nearest
-   *  named chart feature within ~200 m, or the WP-N fallback. */
-  private autoName(lat: number, lon: number, fallback: string): string {
+   *  named chart feature within ~200 m, or the WP-N fallback. When the
+   *  feature-derived name duplicates an adjacent waypoint close by (both
+   *  points near the same feature), the numbered fallback is used instead —
+   *  repeated names on neighboring points are clutter. */
+  private autoName(
+    lat: number,
+    lon: number,
+    fallback: string,
+    neighbors: Waypoint[] = [],
+  ): string {
     const entries = this.getSearchEntries?.();
     if (entries && entries.length > 0) {
       const hit = findNearestNamedFeature(lon, lat, entries);
-      if (hit) return abbreviateFeatureName(hit.name);
+      if (hit) {
+        const name = abbreviateFeatureName(hit.name);
+        if (!isNearDuplicateName(name, lat, lon, neighbors)) return name;
+      }
     }
     return fallback;
   }
@@ -225,7 +239,12 @@ export class RouteEditor {
       const wp: Waypoint = {
         lat: e.lngLat.lat,
         lon: e.lngLat.lng,
-        name: this.autoName(e.lngLat.lat, e.lngLat.lng, fallback),
+        name: this.autoName(
+          e.lngLat.lat,
+          e.lngLat.lng,
+          fallback,
+          this.route.waypoints.slice(-1),
+        ),
       };
       this.route.waypoints.push(wp);
       this.updateSources();
@@ -299,7 +318,12 @@ export class RouteEditor {
     const newWp: Waypoint = {
       lat,
       lon,
-      name: this.autoName(lat, lon, `WP${this.route.waypoints.length + 1}`),
+      name: this.autoName(
+        lat,
+        lon,
+        `WP${this.route.waypoints.length + 1}`,
+        this.route.waypoints.slice(0, 1),
+      ),
     };
     this.route.waypoints.unshift(newWp);
     this.selectedIndex = 0;
@@ -317,7 +341,13 @@ export class RouteEditor {
     const newWp: Waypoint = {
       lat,
       lon,
-      name: this.autoName(lat, lon, `WP${this.route.waypoints.length + 1}`),
+      name: this.autoName(
+        lat,
+        lon,
+        `WP${this.route.waypoints.length + 1}`,
+        // both sides of the insertion point
+        this.route.waypoints.slice(afterIndex, afterIndex + 2),
+      ),
     };
     this.route.waypoints.splice(afterIndex + 1, 0, newWp);
     this.selectedIndex = afterIndex + 1;
