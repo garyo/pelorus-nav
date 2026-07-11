@@ -189,13 +189,26 @@ h2 {
 form.signup {
   display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; margin-top: 8px;
 }
-.signup input[type="email"] {
+.signup-platforms {
+  flex-basis: 100%; display: flex; gap: 28px; justify-content: center;
+  font-size: 15.5px; margin-bottom: 4px;
+}
+.signup-platforms label {
+  display: flex; align-items: center; gap: 8px; cursor: pointer;
+  color: var(--body);
+}
+.signup-platforms input[type="checkbox"] {
+  width: 17px; height: 17px; accent-color: var(--blue); cursor: pointer;
+}
+.signup input[name="email"],
+.signup input[name="note"] {
   font: inherit; font-size: 16.5px; color: var(--cloth);
   background: var(--navy-deep); border: 1px solid var(--chrome); border-radius: 8px;
   padding: 13px 18px; width: min(340px, 80vw);
 }
-.signup input[type="email"]::placeholder { color: var(--chrome); }
-.signup input[type="email"]:focus { outline: 2px solid var(--blue); outline-offset: 1px; border-color: var(--blue); }
+.signup input[name="note"] { width: min(300px, 80vw); }
+.signup input::placeholder { color: var(--chrome); }
+.signup input:focus { outline: 2px solid var(--blue); outline-offset: 1px; border-color: var(--blue); }
 .signup button {
   font: inherit; font-weight: 500; font-size: 16.5px; cursor: pointer;
   background: var(--blue); color: #fff; border: none; border-radius: 8px; padding: 13px 26px;
@@ -370,8 +383,15 @@ footer nav { display: flex; gap: 22px; }
       <label class="hp" aria-hidden="true">Leave this empty
         <input type="text" name="website" tabindex="-1" autocomplete="off" />
       </label>
+      <div class="signup-platforms" role="group" aria-label="Beta testing programs">
+        <label><input type="checkbox" name="android" /> Android beta</label>
+        <label><input type="checkbox" name="ios" /> iOS TestFlight</label>
+      </div>
       <input type="email" name="email" required placeholder="you@example.com"
         aria-label="Email address" />
+      <input type="text" name="note" maxlength="200"
+        placeholder="Optional note…"
+        aria-label="Optional note (e.g. boat, home waters, wishes)" />
       <button type="submit">Count me in</button>
     </form>
     <p id="signup-msg" role="status"></p>
@@ -403,7 +423,13 @@ form.addEventListener("submit", async (e) => {
     const res = await fetch("/api/subscribe", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ email, website: form.elements.website.value }),
+      body: JSON.stringify({
+        email,
+        website: form.elements.website.value,
+        android: form.elements.android.checked,
+        ios: form.elements.ios.checked,
+        note: form.elements.note.value.trim(),
+      }),
     });
     if (!res.ok) throw new Error(String(res.status));
     msg.className = "ok";

@@ -165,7 +165,13 @@ async function handleTilesRequest(
 // so repeat signups are idempotent). Export with
 // `wrangler kv key list --namespace-id=<id>`.
 async function handleSubscribe(request: Request, env: Env): Promise<Response> {
-  let body: { email?: string; website?: string };
+  let body: {
+    email?: string;
+    website?: string;
+    android?: unknown;
+    ios?: unknown;
+    note?: unknown;
+  };
   try {
     body = await request.json();
   } catch {
@@ -183,12 +189,23 @@ async function handleSubscribe(request: Request, env: Env): Promise<Response> {
   ) {
     return Response.json({ error: "invalid email" }, { status: 400 });
   }
+  // Beta-program interest (checkboxes on the landing form). Repeat signups
+  // overwrite the whole record, so the latest platform choices win.
+  const platforms = [
+    ...(body.android === true ? ["android"] : []),
+    ...(body.ios === true ? ["ios"] : []),
+  ];
+  // Optional free-text note, kept short (the form caps at 200 chars too).
+  const note =
+    typeof body.note === "string" ? body.note.trim().slice(0, 200) : "";
   await env.SUBSCRIBERS.put(
     email.toLowerCase(),
     JSON.stringify({
       email,
       subscribedAt: new Date().toISOString(),
       source: "landing",
+      platforms,
+      ...(note ? { note } : {}),
     }),
   );
   return Response.json({ ok: true });
