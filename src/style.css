@@ -3508,26 +3508,51 @@ body {
     border-left: none;
     border-top: 1px solid #ccc;
   }
+}
 
-  /* ── Standard top bar (and the fallback when no layout is set) ──
-     SOG/COG share the top row, sized to their digits; the nav group
-     (caption + DTW/BRG/VMG/STEER) wraps below via the base flow, or moves
-     beside the mains on tall viewports (next block). */
+/* ── Standard top bar (and the fallback when no layout is set) ──
+   A full-width bar would be mostly blank white robbing the chart, so in
+   landscape the HUD floats over the map (which keeps its full height)
+   as a natural-width box pinned below the top bar: SOG/COG in one row
+   sized to their digits, plus the nav group (caption + DTW/BRG/VMG/STEER
+   as a 2×2 grid) beside them while navigating. The min-width keeps
+   nearly-square windows (foldables, resized desktop windows) out: below
+   it the one-row box means runt digits and a crushed nav grid, so those
+   keep the portrait flow — full-width bar, nav group wrapped below —
+   like portrait itself does. */
+@media (orientation: landscape) and (min-width: 600px) {
   body:not([data-instrument-layout="side"]) {
-    /* Width term: with the nav grid beside (30vw) and the GPS strip
-       (46px), each primary cell gets ≈35vw − 23px; the widest value
-       ("000°" ≈ 2.2em) + gap + label/unit stack + padding fit whenever
-       em ≤ 15vw − 38px. Height term: 9vh + 28px — the +28 keeps digits
-       legible on short phones, the slope bounds the bar's share of a
-       short screen, and tablets grow toward the 112px cap. */
-    --instr-primary-size: min(15vw - 38px, 9vh + 28px, 112px);
+    /* Width term: with the nav grid beside (30vw), each primary cell must
+       fit in ≈35vw; the widest value ("000°" ≈ 2.2em) + gap + label/unit
+       stack + padding fit whenever em ≤ 15vw − 38px — which also
+       guarantees the natural-width box never outgrows the viewport.
+       No height term: the box floats over the map instead of displacing
+       it, so window height shouldn't shrink the digits — 35vh only guards
+       a pathologically short window (the box is ≈ digits + padding tall,
+       so it stays near a third of the screen) and never binds on real
+       ones. */
+    --instr-primary-size: min(15vw - 38px, 35vh, 112px);
     /* Nav cells track the primaries at a fixed ratio so the visual
        hierarchy and the continuity are inherited, not re-derived. */
     --instr-nav-size: clamp(20px, var(--instr-primary-size) * 0.38, 36px);
   }
 
+  body:not([data-instrument-layout="side"]) .instrument-hud {
+    position: absolute;
+    top: var(--topbar-bottom);
+    left: 0;
+    width: max-content;
+    max-width: 100%;
+    flex-wrap: nowrap;
+    z-index: 20;
+    border-right: 1px solid #ccc;
+    border-bottom-right-radius: 8px;
+  }
+
+  /* Cells size to their digits — flex-grow would stretch them right back
+     to the box's max-content width for no visual gain. */
   body:not([data-instrument-layout="side"]) .instrument-cell {
-    flex: 1 1 0;
+    flex: 0 0 auto;
     height: auto;
     padding: 1px 8px 2px;
   }
@@ -3553,20 +3578,6 @@ body {
     font-size: var(--instr-nav-size);
     line-height: 1;
   }
-}
-
-/* ── Standard, tall landscape (tablets / helm displays) ──────────────
-   Move the nav group beside the mains as a 2×2 grid so the whole HUD is
-   one row tall and the chart keeps its height. Arrangement only — the
-   size formulas above keep working across this boundary, so shrinking
-   through 540px cannot make the digits jump. */
-@media (orientation: landscape) and (min-height: 540px) {
-  body:not([data-instrument-layout="side"]) .instrument-hud {
-    flex-wrap: nowrap;
-    /* Strip reserved so the nav grid never slides under the corner
-       "● GPS" badge (absolutely positioned top-right of the bar). */
-    padding-right: 46px;
-  }
 
   /* Nav group sits to the right of the mains — divided off by a rule, not
      wrapped onto a full-width second row. (Not navigating there's no nav
@@ -3577,13 +3588,19 @@ body {
      to its full name and squeeze the mains. */
   body:not([data-instrument-layout="side"]) .instrument-nav-group {
     flex: 0 0 auto;
-    width: min(30vw, 380px);
+    /* 200px floor: each grid column must hold a 20px-floor nav value plus
+       its label/unit stack, or the cells overflow their tracks just above
+       the layout's 600px gate. */
+    width: clamp(200px, 30vw, 380px);
     border-top: none;
     border-left: 1px solid #ccc;
   }
 
+  /* The corner GPS badge overlays the caption strip's right end (top-right
+     of the box), so long waypoint names must ellipsize before reaching it —
+     64px clears the widest state, "✕ NO GPS". */
   body:not([data-instrument-layout="side"]) .instrument-next-wp {
-    padding: 2px 10px 1px;
+    padding: 2px 64px 1px 10px;
   }
 
   /* 2×2 grid filling the group's pinned width and remaining height. */
