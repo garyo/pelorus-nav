@@ -101,6 +101,14 @@ export class AboutDialog {
     const links = document.createElement("div");
     links.className = "about-links";
 
+    // The only in-app path back to the landing page (email signup lives
+    // there); native builds have no other route to the website at all.
+    const siteLink = document.createElement("a");
+    siteLink.href = "https://pelorus-nav.com/";
+    siteLink.target = "_blank";
+    siteLink.rel = "noopener";
+    siteLink.textContent = "Website";
+
     const ghLink = document.createElement("a");
     ghLink.href = REPO_URL;
     ghLink.target = "_blank";
@@ -125,7 +133,7 @@ export class AboutDialog {
     licenseLink.rel = "noopener";
     licenseLink.textContent = "MIT License";
 
-    links.append(ghLink, releasesLink, changelogLink, licenseLink);
+    links.append(siteLink, ghLink, releasesLink, changelogLink, licenseLink);
 
     // Credits
     const creditsHeading = document.createElement("div");
