@@ -88,7 +88,9 @@ for (let attempt = 1; ; attempt++) {
     console.log(`\n  ✓ Uploaded ${key}`);
     break;
   } catch (err) {
-    console.error(`\n  ✗ Upload attempt ${attempt}/${MAX_TRIES} failed: ${err}`);
+    console.error(
+      `\n  ✗ Upload attempt ${attempt}/${MAX_TRIES} failed: ${err}`,
+    );
     if (attempt >= MAX_TRIES) {
       process.exit(1);
     }
