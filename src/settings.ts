@@ -7,7 +7,7 @@ export type DepthUnit = "meters" | "feet" | "fathoms";
 export type SpeedUnit = "knots" | "mph" | "kph";
 export type ChartMode = "follow" | "course-up" | "north-up" | "free";
 export type DetailLevel = -1 | 0 | 1 | 2;
-export type SimulatorMode = "replay" | "route";
+export type SimulatorMode = "replay" | "route" | "custom";
 export type CourseLineDuration = 0 | "auto" | 5 | 15 | 30 | 60;
 export type DisplayTheme = "day" | "dusk" | "night" | "eink";
 export type BearingMode = "true" | "magnetic";
@@ -61,7 +61,8 @@ export interface Settings {
   activeRegion: string;
   courseLineDuration: CourseLineDuration;
   simulatorSpeed: number;
-  /** What the simulator plays: a real recorded sail, or the synthetic route loop. */
+  /** What the simulator plays: a real recorded sail, the synthetic route
+   *  loop, or the user's own route named SIMULATOR ("custom"). */
   simulatorMode: SimulatorMode;
   displayTheme: DisplayTheme;
   symbologyScheme: SymbologyScheme;
@@ -292,7 +293,7 @@ export const ALLOWED_VALUES: Partial<
   gpsRateMode: ["adaptive", "manual"],
   gpsFilterMode: ["auto", "strong", "normal"],
   detailLevel: [-1, 0, 1, 2],
-  simulatorMode: ["replay", "route"],
+  simulatorMode: ["replay", "route", "custom"],
   courseLineDuration: [0, "auto", 5, 15, 30, 60],
   displayTheme: ["day", "dusk", "night", "eink"],
   symbologyScheme: ["iho-s52"],

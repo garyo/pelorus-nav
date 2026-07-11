@@ -309,6 +309,15 @@ export class SimulatorProvider implements NavigationDataProvider {
     this.lastRealTime = Date.now();
   }
 
+  /**
+   * Replace the route-mode waypoints (e.g. with a user-designed course) and
+   * rewind to its start.
+   */
+  setWaypoints(waypoints: [number, number][]): void {
+    this.opts.waypoints = waypoints;
+    this.restart();
+  }
+
   setDesiredIntervalMs(ms: number): void {
     if (ms === this.opts.intervalMs) return;
     this.opts.intervalMs = ms;

@@ -213,6 +213,33 @@ describe("SimulatorProvider", () => {
     sim.disconnect();
   });
 
+  it("setWaypoints swaps the course and rewinds to its start", () => {
+    vi.useFakeTimers();
+    const sim = new SimulatorProvider({
+      mode: "route",
+      speed: 6,
+      intervalMs: 1000,
+      speedMultiplier: 10,
+    });
+    const received: NavigationData[] = [];
+    sim.subscribe((data) => received.push({ ...data }));
+
+    sim.connect();
+    vi.advanceTimersByTime(30_000); // partway down the harbor loop
+
+    sim.setWaypoints([
+      [41.5, -70.5],
+      [41.51, -70.5],
+      [41.5, -70.5],
+    ]);
+    vi.advanceTimersByTime(1000);
+    const after = received[received.length - 1];
+    expect(after.latitude).toBeCloseTo(41.5, 1);
+    expect(after.longitude).toBeCloseTo(-70.5, 1);
+
+    sim.disconnect();
+  });
+
   it("circular mode produces valid positions", () => {
     vi.useFakeTimers();
     const sim = new SimulatorProvider({

@@ -695,6 +695,7 @@ function buildNavigationTab(
     [
       { value: "replay", label: "Replay real sail" },
       { value: "route", label: "Harbor route (6 kn)" },
+      { value: "custom", label: 'Route named "SIMULATOR"' },
     ],
     settings.simulatorMode,
     (v) => updateSettings({ simulatorMode: v as SimulatorMode }),

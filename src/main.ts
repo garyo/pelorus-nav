@@ -47,9 +47,14 @@ import {
   getStreamingVersions,
   refreshStreamingVersions,
 } from "./data/chart-update-checker";
-import { getAllWaypoints, repairTrackPointCounts } from "./data/db";
+import {
+  getAllRoutes,
+  getAllWaypoints,
+  repairTrackPointCounts,
+} from "./data/db";
 import { downloadFile } from "./data/file-io";
 import { OPFSSource } from "./data/opfs-source";
+import type { Route } from "./data/Route";
 import { chartAssetBase } from "./data/remote-url";
 import { loadAllSearchIndices, type SearchEntry } from "./data/search-index";
 import { getChartFile, listStoredCharts } from "./data/tile-store";
@@ -96,7 +101,12 @@ import { LegendHost } from "./plugins/legend";
 import { BUILTIN_PLUGINS } from "./plugins/manifest";
 import { PluginManager } from "./plugins/PluginManager";
 import { PickRegistry } from "./plugins/picking";
-import { getSettings, onSettingsChange, updateSettings } from "./settings";
+import {
+  getSettings,
+  onSettingsChange,
+  type SimulatorMode,
+  updateSettings,
+} from "./settings";
 import { AboutDialog } from "./ui/AboutDialog";
 import { startAppUpdateNotifier } from "./ui/AppUpdateNotifier";
 import { CancelNavButton } from "./ui/CancelNavButton";
@@ -477,7 +487,15 @@ const settingsHandle = topbarMenu
           void bleProvider?.pickNewDevice();
         },
       },
-      restartSimulator: () => simulator.restart(),
+      restartSimulator: () => {
+        // In custom mode, re-read the SIMULATOR route so "edit course →
+        // Restart" picks up the changes; setWaypoints rewinds implicitly.
+        if (getSettings().simulatorMode === "custom") {
+          void applySimulatorMode("custom");
+        } else {
+          simulator.restart();
+        }
+      },
       openSatelliteDiagnostics: () => {
         const provider = navManager.getActiveProvider();
         if (provider && hasSatelliteDiagnostics(provider)) {
@@ -544,10 +562,12 @@ if (topbarMenu) {
 function buildSimulatorOptions(): Partial<SimulatorOptions> {
   // Both motion models are always configured; the "simulatorMode" setting
   // (replay = a real recorded sail whose true turn rates and speed changes
-  // exercise the GPS pipeline, route = the synthetic 6 kn harbor loop)
-  // picks which one runs, switchable live from Settings.
+  // exercise the GPS pipeline, route = the synthetic 6 kn harbor loop,
+  // custom = the user's own route named SIMULATOR) picks which one runs,
+  // switchable live from Settings. "custom" runs the provider in route mode;
+  // applySimulatorMode() swaps the waypoints in once IndexedDB has answered.
   const defaults: Partial<SimulatorOptions> = {
-    mode: getSettings().simulatorMode,
+    mode: getSettings().simulatorMode === "replay" ? "replay" : "route",
     track: REPLAY_TRACK,
   };
   try {
@@ -585,10 +605,61 @@ function buildSimulatorOptions(): Partial<SimulatorOptions> {
 }
 
 // Register available GPS providers
-const simulator = new SimulatorProvider(buildSimulatorOptions());
+const simulatorOptions = buildSimulatorOptions();
+const simulator = new SimulatorProvider(simulatorOptions);
 simulator.setSpeedMultiplier(getSettings().simulatorSpeed);
 let prevSimulatorMode = getSettings().simulatorMode;
+
+/**
+ * Apply a simulator-mode setting to the provider. "custom" follows the
+ * user's own route named SIMULATOR (design any course in the route editor,
+ * then watch the sim sail it); the loop is closed back to its first waypoint
+ * like the built-in harbor route. Falls back to the default loop, with a
+ * banner, when no such route exists. Re-invoked by the Restart action in
+ * custom mode so course edits are picked up without touching settings.
+ */
+async function applySimulatorMode(mode: SimulatorMode): Promise<void> {
+  if (mode === "custom") {
+    let custom: Route | undefined;
+    try {
+      const routes = await getAllRoutes();
+      custom = routes.find(
+        (r) =>
+          r.name.trim().toUpperCase() === "SIMULATOR" &&
+          r.waypoints.length >= 2,
+      );
+    } catch (e) {
+      console.warn("simulator: route lookup failed:", e);
+    }
+    if (custom) {
+      hideStatusBanner("sim-custom-route");
+      const wps = custom.waypoints.map(
+        (w) => [w.lat, w.lon] as [number, number],
+      );
+      wps.push(wps[0]); // close the loop, like the built-in harbor route
+      simulator.setWaypoints(wps);
+      simulator.setMode("route");
+      return;
+    }
+    showStatusBanner({
+      id: "sim-custom-route",
+      message:
+        "No route named SIMULATOR (with 2+ waypoints) found — the simulator is using the built-in harbor loop.",
+    });
+  }
+  if (mode !== "replay") {
+    // route mode, or custom falling back: the default loop (including any
+    // ?simStart= prepend from boot).
+    simulator.setWaypoints(simulatorOptions.waypoints ?? BOSTON_HARBOR_ROUTE);
+  }
+  simulator.setMode(mode === "replay" ? "replay" : "route");
+}
+
 navManager.registerProvider(simulator);
+// A stored "custom" mode needs its route loaded from IndexedDB at boot.
+if (prevSimulatorMode === "custom") {
+  void applySimulatorMode("custom");
+}
 let capacitorGPS: CapacitorGPSProvider | null = null;
 if (CapacitorGPSProvider.isAvailable()) {
   capacitorGPS = new CapacitorGPSProvider(
@@ -863,7 +934,7 @@ onSettingsChange((s) => {
   // switches the simulator mode.
   if (s.simulatorMode !== prevSimulatorMode) {
     prevSimulatorMode = s.simulatorMode;
-    simulator.setMode(s.simulatorMode);
+    void applySimulatorMode(s.simulatorMode);
   }
   signalK.setUrl(s.signalkUrl);
   navManager.setRateMode(s.gpsRateMode, s.manualUpdateIntervalMs);
