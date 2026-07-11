@@ -207,12 +207,12 @@ export default {
 
     // The marketing landing page owns the root URL; the app lives at /app
     // (an extensionless path, so the assets binding's SPA fallback serves the
-    // app shell there with no further routing here). Request "/landing", not
-    // "/landing.html": the binding's default html_handling 307-redirects
-    // ".html" URLs to the extensionless form, which would fall through to the
-    // SPA fallback and serve the app shell instead.
+    // app shell there with no further routing here). html_handling is "none"
+    // in wrangler.toml, so .html assets resolve at their exact URLs.
     if (url.pathname === "/") {
-      return env.ASSETS.fetch(new Request(new URL("/landing", url), request));
+      return env.ASSETS.fetch(
+        new Request(new URL("/landing.html", url), request),
+      );
     }
 
     // Handle CORS preflight for tile/coverage requests

@@ -8,6 +8,11 @@ main = "src/worker.ts"
 directory = "./dist"
 binding = "ASSETS"
 not_found_handling = "single-page-application"
+# Serve .html files at their exact URLs. The default "auto-trailing-slash"
+# 307-redirects /index.html → "/" — which the worker rewrites to the landing
+# page, so the service worker's precache fetch of /index.html would cache the
+# LANDING page as the app shell and serve it for every /app navigation.
+html_handling = "none"
 # Requests matching a static asset are normally served without invoking the
 # worker at all. The worker must own "/" (it rewrites it to the landing page —
 # the asset layer would serve the app's index.html) and /api/*.
