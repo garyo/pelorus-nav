@@ -38,42 +38,62 @@ const client = new S3Client({
   region: "auto",
   endpoint: `https://${accountId}.r2.cloudflarestorage.com`,
   credentials: { accessKeyId, secretAccessKey },
+  // Per-request retries within the SDK (individual part PUTs etc.)
+  maxAttempts: 5,
 });
 
 const fileSize = statSync(filePath).size;
 const sizeMB = (fileSize / (1024 * 1024)).toFixed(1);
 console.log(`Uploading ${key} (${sizeMB} MiB) to ${bucket}...`);
 
-const upload = new Upload({
-  client,
-  params: {
-    Bucket: bucket,
-    Key: key,
-    Body: createReadStream(filePath),
-    ContentType: filePath.endsWith(".pmtiles")
-      ? "application/octet-stream"
-      : filePath.endsWith(".geojson")
-        ? "application/geo+json"
-        : "application/octet-stream",
-  },
-  // 50 MiB parts, up to 4 concurrent
-  partSize: 50 * 1024 * 1024,
-  queueSize: 4,
-});
+// R2 occasionally answers a finished multipart upload with a transient
+// "InternalError: We encountered an internal error. Please try again." —
+// retry the whole file a few times before giving up so one hiccup doesn't
+// kill a multi-hour nightly build. Each attempt needs a fresh Upload and a
+// fresh read stream (both are single-use).
+async function uploadOnce(): Promise<void> {
+  const upload = new Upload({
+    client,
+    params: {
+      Bucket: bucket,
+      Key: key,
+      Body: createReadStream(filePath),
+      ContentType: filePath.endsWith(".pmtiles")
+        ? "application/octet-stream"
+        : filePath.endsWith(".geojson")
+          ? "application/geo+json"
+          : "application/octet-stream",
+    },
+    // 50 MiB parts, up to 4 concurrent
+    partSize: 50 * 1024 * 1024,
+    queueSize: 4,
+  });
 
-upload.on("httpUploadProgress", (progress) => {
-  if (progress.loaded && fileSize > 0) {
-    const pct = ((progress.loaded / fileSize) * 100).toFixed(0);
-    process.stdout.write(
-      `\r  ${pct}% (${(progress.loaded / (1024 * 1024)).toFixed(1)} MiB)`,
-    );
-  }
-});
+  upload.on("httpUploadProgress", (progress) => {
+    if (progress.loaded && fileSize > 0) {
+      const pct = ((progress.loaded / fileSize) * 100).toFixed(0);
+      process.stdout.write(
+        `\r  ${pct}% (${(progress.loaded / (1024 * 1024)).toFixed(1)} MiB)`,
+      );
+    }
+  });
 
-try {
   await upload.done();
-  console.log(`\n  ✓ Uploaded ${key}`);
-} catch (err) {
-  console.error(`\n  ✗ Upload failed: ${err}`);
-  process.exit(1);
+}
+
+const MAX_TRIES = 3;
+for (let attempt = 1; ; attempt++) {
+  try {
+    await uploadOnce();
+    console.log(`\n  ✓ Uploaded ${key}`);
+    break;
+  } catch (err) {
+    console.error(`\n  ✗ Upload attempt ${attempt}/${MAX_TRIES} failed: ${err}`);
+    if (attempt >= MAX_TRIES) {
+      process.exit(1);
+    }
+    const delaySec = 15 * attempt;
+    console.error(`  Retrying in ${delaySec}s...`);
+    await new Promise((resolve) => setTimeout(resolve, delaySec * 1000));
+  }
 }
