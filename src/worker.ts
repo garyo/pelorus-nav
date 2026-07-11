@@ -10,6 +10,8 @@ interface Env {
   ASSETS: Fetcher;
   TILES: R2Bucket;
   SUBSCRIBERS: KVNamespace;
+  /** Bearer token for the read-only admin API (`wrangler secret put ADMIN_TOKEN`). */
+  ADMIN_TOKEN?: string;
 }
 
 const ALLOWED_ORIGINS = [
@@ -211,9 +213,40 @@ async function handleSubscribe(request: Request, env: Env): Promise<Response> {
   return Response.json({ ok: true });
 }
 
+// Read-only subscriber dump for the nightly signup-check routine (and manual
+// admin use). Requires the ADMIN_TOKEN secret; without it configured the
+// endpoint is a hard 401.
+async function handleSubscriberList(
+  request: Request,
+  env: Env,
+): Promise<Response> {
+  const auth = request.headers.get("authorization");
+  if (!env.ADMIN_TOKEN || auth !== `Bearer ${env.ADMIN_TOKEN}`) {
+    return new Response("Unauthorized", { status: 401 });
+  }
+  const records: unknown[] = [];
+  let cursor: string | undefined;
+  do {
+    const page = await env.SUBSCRIBERS.list({ cursor });
+    for (const key of page.keys) {
+      const value = await env.SUBSCRIBERS.get(key.name);
+      if (value) records.push(JSON.parse(value));
+    }
+    cursor = page.list_complete ? undefined : page.cursor;
+  } while (cursor);
+  return Response.json(records);
+}
+
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
+
+    if (url.pathname === "/api/subscribers") {
+      if (request.method !== "GET") {
+        return new Response("Method Not Allowed", { status: 405 });
+      }
+      return handleSubscriberList(request, env);
+    }
 
     if (url.pathname === "/api/subscribe") {
       if (request.method !== "POST") {
