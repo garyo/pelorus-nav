@@ -153,13 +153,43 @@ describe("smoothTrack — synthetic", () => {
   });
 });
 
+/** Deterministic small-state RNG (mulberry32) to stand in for Math.random. */
+function mulberry32(seed: number): () => number {
+  let s = seed >>> 0;
+  return () => {
+    s = (s + 0x6d2b79f5) >>> 0;
+    let t = s;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
 /** Drive a SimulatorProvider for the requested number of ticks and
- *  return the captured fixes as TrackPoints. Uses fake timers so the
- *  test is deterministic and instant. */
+ *  return the captured fixes as TrackPoints. Uses fake timers, and seeds
+ *  Math.random for the duration: the simulator's baseline jitter is
+ *  intentionally unseeded in production, which made these assertions
+ *  flake roughly once per thousand CI runs when an unlucky jitter draw
+ *  stacked on a burst and crossed the outlier floor. */
 function captureSimulatorFixes(
   ticks: number,
   errorMode: SimulatorErrorMode,
   intervalMs = 1000,
+): TrackPoint[] {
+  const randomSpy = vi
+    .spyOn(Math, "random")
+    .mockImplementation(mulberry32(0xbea75));
+  try {
+    return captureFixesInner(ticks, errorMode, intervalMs);
+  } finally {
+    randomSpy.mockRestore();
+  }
+}
+
+function captureFixesInner(
+  ticks: number,
+  errorMode: SimulatorErrorMode,
+  intervalMs: number,
 ): TrackPoint[] {
   const sim = new SimulatorProvider({
     mode: "circular",
