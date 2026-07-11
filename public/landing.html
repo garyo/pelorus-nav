@@ -9,13 +9,13 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Pelorus Nav — free, open-source marine chartplotter</title>
-<meta name="description" content="Official NOAA charts on the device you already own. Offline-first marine chartplotter with tides, currents, and real S-52 symbology. Free forever, no subscription, open source." />
+<title>Pelorus Nav — open-source marine chartplotter (beta)</title>
+<meta name="description" content="A free, open-source marine chartplotter in beta: official NOAA vector charts, offline use, tides and currents, standard S-52 symbology. No account, no subscription. Not for navigation." />
 <link rel="icon" type="image/svg+xml" href="/icon.svg" />
 <link rel="canonical" href="https://pelorus-nav.com/" />
 <meta property="og:type" content="website" />
-<meta property="og:title" content="Pelorus Nav — free, open-source marine chartplotter" />
-<meta property="og:description" content="Official NOAA charts, fully offline, no subscription. On the phone, tablet, or e-ink device you already own." />
+<meta property="og:title" content="Pelorus Nav — open-source marine chartplotter (beta)" />
+<meta property="og:description" content="Official NOAA charts, offline use, tides and currents — free and open source, on the device you already own. In beta; not for navigation." />
 <meta property="og:url" content="https://pelorus-nav.com/" />
 <meta property="og:image" content="https://pelorus-nav.com/landing/og-card.png" />
 <meta name="twitter:card" content="summary_large_image" />
@@ -28,7 +28,7 @@
   "operatingSystem": "Web, Android",
   "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
   "url": "https://pelorus-nav.com/",
-  "description": "Open-source marine chartplotter with official NOAA vector charts, offline use, and tide/current predictions."
+  "description": "Open-source marine chartplotter (beta) with official NOAA vector charts, offline use, and tide/current predictions. Not intended for primary navigation."
 }
 </script>
 <style>
@@ -100,7 +100,7 @@ header {
 h1 {
   font-weight: 600; color: var(--cloth); text-wrap: balance;
   font-size: clamp(34px, 6vw, 58px); line-height: 1.12; letter-spacing: -0.01em;
-  margin: 18px auto 20px; max-width: 17ch;
+  margin: 18px auto 20px; max-width: 24ch;
 }
 h1 .accent { color: var(--wave); }
 .lede {
@@ -110,6 +110,18 @@ h1 .accent { color: var(--wave); }
 .cta-row { display: flex; gap: 16px; justify-content: center; flex-wrap: wrap; margin-bottom: 14px; }
 .cta-note { font-size: 14px; color: var(--chrome); }
 .cta-note a { color: var(--chrome); }
+.cta-note strong { color: var(--body); font-weight: 500; }
+.beta-pill {
+  font-size: 11px; font-weight: 500; letter-spacing: 0.14em; text-transform: uppercase;
+  color: var(--wave); border: 1px solid var(--chrome); border-radius: 999px;
+  padding: 3px 9px; margin-left: 2px; position: relative; top: -2px;
+}
+.notice {
+  border: 1px solid var(--hairline); border-left: 3px solid var(--chrome);
+  border-radius: 8px; padding: 18px 22px; margin-top: 28px;
+  font-size: 15px; max-width: 72ch;
+}
+.notice b { color: var(--cloth); font-weight: 500; }
 
 .hero-shot { margin: 56px auto 0; max-width: 1080px; }
 .hero-shot img {
@@ -221,6 +233,7 @@ footer nav { display: flex; gap: 22px; }
         <path d="M 17 77 Q 25 73 33 75" fill="none" stroke="#85c1e9" stroke-width="3" stroke-linecap="round" opacity="0.55"/>
       </svg>
       <span>Pelorus <b>Nav</b></span>
+      <span class="beta-pill">beta</span>
     </a>
     <nav class="header-links">
       <a href="https://github.com/garyo/pelorus-nav">GitHub</a>
@@ -230,18 +243,20 @@ footer nav { display: flex; gap: 22px; }
 </div>
 
 <div class="wrap hero">
-  <p class="eyebrow">Open-source marine chartplotter</p>
-  <h1>Real charts. Your own device. <span class="accent">No&nbsp;subscription.</span></h1>
-  <p class="lede">Pelorus Nav turns the phone or tablet you already own into a serious
-  chartplotter: <strong>official NOAA vector charts</strong>, real marine symbology,
-  tides and currents — <strong>fully offline</strong>, free forever, built in the open
-  by a sailor.</p>
+  <p class="eyebrow">Open-source marine chartplotter · beta</p>
+  <h1>Official NOAA charts, on the device <span class="accent">you already own</span>.</h1>
+  <p class="lede">Pelorus Nav is a free, open-source chartplotter for the browser and
+  Android: <strong>official NOAA vector charts</strong> with standard marine symbology,
+  offline tide and current predictions, and no account or subscription. It's young —
+  in beta, improving steadily, and built in the open by a sailor.</p>
   <div class="cta-row">
-    <a class="btn btn-primary btn-big" href="/app">Open the app</a>
+    <a class="btn btn-primary btn-big" href="/app">Try the app</a>
     <a class="btn btn-ghost" href="https://github.com/garyo/pelorus-nav/releases/latest">Get the Android app</a>
   </div>
   <p class="cta-note">Runs in any modern browser — nothing to install, no account.
   iOS is <a href="https://github.com/garyo/pelorus-nav">in the works</a>.</p>
+  <p class="cta-note"><strong>Not for navigation:</strong> please treat it as a
+  planning and situational-awareness aid, and carry official charts.</p>
 </div>
 
 <div class="hero-shot wrap">
@@ -249,44 +264,50 @@ footer nav { display: flex; gap: 22px; }
     alt="Pelorus Nav showing Boston Inner Harbor: NOAA electronic chart with buoys, depth contours, anchorage areas, and the vessel underway with its course line" />
 </div>
 <hr class="divider" aria-hidden="true" />
-<div class="wrap"><p class="shot-caption">Boston Inner Harbor, live in the app — NOAA ENC data with IHO S-52 symbology, street basemap blended in near shore.</p></div>
+<div class="wrap"><p class="shot-caption">Boston Inner Harbor in the app — NOAA ENC data with IHO S-52 symbology, street basemap blended in near shore.</p>
+  <div class="notice"><b>Beta software — not for navigation.</b> Pelorus Nav is
+  young and under active development. Please use it as a planning and
+  situational-awareness aid alongside official charts and proper seamanship —
+  never as your only source of navigation information.</div>
+</div>
 
 <div class="wrap">
   <section id="features">
-    <h2>A real chartplotter, not a map with boats</h2>
-    <p class="section-lede">The same NOAA electronic navigational charts that commercial
-    plotters license — public data, rendered properly, on hardware you already own.</p>
+    <h2>What's aboard today</h2>
+    <p class="section-lede">Official NOAA electronic navigational charts — the same
+    public ENC data behind commercial plotters — rendered with standard marine
+    symbology, on hardware you already own.</p>
     <div class="feature-grid">
       <div class="feature">
         <h3>Official NOAA charts</h3>
-        <p>Full vector ENC coverage of US waters — depths, buoys, lights with their real
-        characteristics, restricted areas, cables — drawn with authentic S-52 marine
-        symbology. More regions and bring-your-own charts are on the roadmap.</p>
+        <p>Vector ENC coverage of US waters — depths, buoys, lights with their real
+        characteristics — drawn with standard S-52 marine symbology. More regions and
+        bring-your-own charts are on the roadmap.</p>
       </div>
       <div class="feature">
-        <h3>Works offline, properly</h3>
-        <p>Download a region once and everything works with the radio off: charts, tides,
-        place search. Cell coverage ends at the harbor mouth; your charts shouldn't.</p>
+        <h3>Works offline</h3>
+        <p>Download a region once and charts, tides, and place search keep working
+        without a signal — handy where cell coverage fades on the water.</p>
       </div>
       <div class="feature">
-        <h3>Tides &amp; currents, no internet</h3>
-        <p>Predictions computed on the device from NOAA harmonic stations — thousands of
-        tide and current stations, right on the chart, offshore or not.</p>
+        <h3>Tides &amp; currents</h3>
+        <p>Predictions computed on the device from NOAA harmonic stations — thousands
+        of tide and current stations, shown right on the chart, no internet needed.</p>
       </div>
       <div class="feature">
-        <h3>Navigation that earns its keep</h3>
-        <p>Routes, waypoints, track recording, course projection, anchor and crew-overboard
-        one-press response — designed for use with wet hands on a bouncing deck.</p>
+        <h3>The essentials, on deck</h3>
+        <p>Routes, waypoints, track recording, course projection, and a crew-overboard
+        button — laid out to be usable with wet hands on a moving deck.</p>
       </div>
       <div class="feature">
         <h3>Any GPS you've got</h3>
         <p>The device's own GPS works out of the box. Bluetooth GPS pods, NMEA and
-        Signal K boat networks plug in when you want boat-grade data.</p>
+        Signal K boat networks plug in when you want better position data.</p>
       </div>
       <div class="feature">
         <h3>Day, dusk, night — and e-ink</h3>
-        <p>Proper marine display themes, including one tuned for sunlight-readable e-ink
-        tablets — the budget cockpit display that never washes out.</p>
+        <p>Marine display themes for real conditions, including one tuned for
+        sunlight-readable e-ink tablets.</p>
       </div>
     </div>
   </section>
@@ -298,14 +319,14 @@ footer nav { display: flex; gap: 22px; }
         <p class="section-lede">Day-sailors, club racers, charterers, dinghy cruisers —
         if your "chartplotter" is the phone in your pocket, this is for you.</p>
         <ul>
-          <li><b>Nothing to buy, nothing to subscribe to.</b> The app and every NOAA chart
-          are free, forever. That's a promise the license keeps: it's open source.</li>
-          <li><b>No account, no tracking.</b> Your position and tracks live on your
-          device and nowhere else.</li>
-          <li><b>Take it offshore.</b> Offline-first isn't a feature tier — it's the
-          whole design.</li>
-          <li><b>Keep your phone dry.</b> Pairs beautifully with a cheap waterproof
-          Android or e-ink tablet as a dedicated cockpit display.</li>
+          <li><b>Free to use.</b> The app and NOAA charts cost nothing, with no
+          subscription — and the MIT license keeps it that way.</li>
+          <li><b>No account, no tracking.</b> Your position and tracks stay on your
+          device.</li>
+          <li><b>Offline-first.</b> Designed from the start to keep working when the
+          signal doesn't.</li>
+          <li><b>Keep your phone dry.</b> Works nicely on an inexpensive waterproof
+          Android or e-ink tablet as a cockpit display.</li>
         </ul>
       </div>
       <div class="phone-frame">
@@ -322,8 +343,8 @@ footer nav { display: flex; gap: 22px; }
         <p>Pelorus Nav is <b>MIT-licensed</b> and developed in public — the code, the
         chart pipeline, the roadmap, the mistakes. You can read it, file issues, build
         your own, or self-host the whole thing.</p>
-        <p>Openness isn't a marketing line here; it's the guarantee that this app can't
-        be enshittified out from under you.</p>
+        <p>Being open source is also a promise of continuity: the app can't be taken
+        away, locked down, or turned into a subscription later.</p>
       </div>
       <div style="flex: 0 1 auto">
         <a class="btn btn-ghost" href="https://github.com/garyo/pelorus-nav">Pelorus Nav on GitHub</a>
@@ -335,8 +356,8 @@ footer nav { display: flex; gap: 22px; }
     <h2>Next up: hardware</h2>
     <p class="section-lede">A pocket <strong>Bluetooth GPS pod</strong> and a
     <strong>sunlight-readable e-ink chartplotter</strong> are taking shape — open
-    hardware, same no-subscription promise. Leave an email and follow the build;
-    launch news only, no noise.</p>
+    hardware, with the same no-subscription approach as the app. If you'd like to
+    follow along, leave an email; launch news only, no noise.</p>
     <form class="signup" id="signup" action="/api/subscribe" method="post">
       <label class="hp" aria-hidden="true">Leave this empty
         <input type="text" name="website" tabindex="-1" autocomplete="off" />
@@ -350,7 +371,7 @@ footer nav { display: flex; gap: 22px; }
   </section>
 
   <footer>
-    <span>© 2026 Pelorus Nav · MIT license</span>
+    <span>© 2026 Pelorus Nav · MIT license · beta — not for navigation</span>
     <nav>
       <a href="/app">Open the app</a>
       <a href="https://github.com/garyo/pelorus-nav">GitHub</a>
