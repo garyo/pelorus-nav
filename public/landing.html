@@ -10,7 +10,7 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Pelorus Nav — open-source marine chartplotter (beta)</title>
-<meta name="description" content="A free, open-source marine chartplotter in beta: official NOAA vector charts, offline use, tides and currents, standard S-52 symbology. No account, no subscription. Not for navigation." />
+<meta name="description" content="A friendly, free, open-source marine chartplotter in beta: official NOAA vector charts, offline use, tides and currents, standard S-52 symbology. No account needed. Not for navigation." />
 <link rel="icon" type="image/svg+xml" href="/icon.svg" />
 <link rel="canonical" href="https://pelorus-nav.com/" />
 <meta property="og:type" content="website" />
@@ -244,11 +244,11 @@ footer nav { display: flex; gap: 22px; }
 
 <div class="wrap hero">
   <p class="eyebrow">Open-source marine chartplotter · beta</p>
-  <h1>Official NOAA charts, on the device <span class="accent">you already own</span>.</h1>
-  <p class="lede">Pelorus Nav is a free, open-source chartplotter for the browser and
-  Android: <strong>official NOAA vector charts</strong> with standard marine symbology,
-  offline tide and current predictions, and no account or subscription. It's young —
-  in beta, improving steadily, and built in the open by a sailor.</p>
+  <h1>The friendly, easy-to-use, <span class="accent">open-source</span> chartplotter.</h1>
+  <p class="lede">Pelorus Nav is a free chartplotter for the browser and Android —
+  and whatever comes next: <strong>official NOAA vector charts</strong> with standard
+  marine symbology, offline tide and current predictions, no account needed. It's
+  young — in beta, improving steadily, and built in the open by a sailor.</p>
   <div class="cta-row">
     <a class="btn btn-primary btn-big" href="/app">Try the app</a>
     <a class="btn btn-ghost" href="https://github.com/garyo/pelorus-nav/releases/latest">Get the Android app</a>
@@ -301,8 +301,9 @@ footer nav { display: flex; gap: 22px; }
       </div>
       <div class="feature">
         <h3>Any GPS you've got</h3>
-        <p>The device's own GPS works out of the box. Bluetooth GPS pods, NMEA and
-        Signal K boat networks plug in when you want better position data.</p>
+        <p>The device's own GPS works out of the box, and Bluetooth GPS pods pair in
+        a couple of taps. Signal K and NMEA connections are in there too — early,
+        and still lightly tested.</p>
       </div>
       <div class="feature">
         <h3>Day, dusk, night — and e-ink</h3>
@@ -319,8 +320,10 @@ footer nav { display: flex; gap: 22px; }
         <p class="section-lede">Day-sailors, club racers, charterers, dinghy cruisers —
         if your "chartplotter" is the phone in your pocket, this is for you.</p>
         <ul>
-          <li><b>Free to use.</b> The app and NOAA charts cost nothing, with no
-          subscription — and the MIT license keeps it that way.</li>
+          <li><b>Free at the core.</b> The app and NOAA charts are free. Optional
+          extras may come later — things like automatic chart updates or syncing
+          between your devices — to help support development; the free core stays
+          free.</li>
           <li><b>No account, no tracking.</b> Your position and tracks stay on your
           device.</li>
           <li><b>Offline-first.</b> Designed from the start to keep working when the
@@ -343,8 +346,8 @@ footer nav { display: flex; gap: 22px; }
         <p>Pelorus Nav is <b>MIT-licensed</b> and developed in public — the code, the
         chart pipeline, the roadmap, the mistakes. You can read it, file issues, build
         your own, or self-host the whole thing.</p>
-        <p>Being open source is also a promise of continuity: the app can't be taken
-        away, locked down, or turned into a subscription later.</p>
+        <p>Being open source is also a promise of continuity: the code and the free
+        charts will be there for good, whatever comes next for the project.</p>
       </div>
       <div style="flex: 0 1 auto">
         <a class="btn btn-ghost" href="https://github.com/garyo/pelorus-nav">Pelorus Nav on GitHub</a>
@@ -353,18 +356,21 @@ footer nav { display: flex; gap: 22px; }
   </section>
 
   <section id="follow" class="follow">
-    <h2>Next up: hardware</h2>
-    <p class="section-lede">A pocket <strong>Bluetooth GPS pod</strong> and a
-    <strong>sunlight-readable e-ink chartplotter</strong> are taking shape — open
-    hardware, with the same no-subscription approach as the app. If you'd like to
-    follow along, leave an email; launch news only, no noise.</p>
+    <h2>Help steer it</h2>
+    <p class="section-lede">Pelorus Nav is in beta, and feedback from sailors actually
+    using it is what shapes it: what works, what's missing, where it should go next.
+    Try it on your boat, then tell us — <a
+    href="https://github.com/garyo/pelorus-nav/issues">open a GitHub issue</a>, or
+    leave an email below and we'll check in now and then. (There's open
+    <strong>hardware</strong> taking shape too — a pocket GPS pod and a
+    sunlight-readable e-ink chartplotter — and the list hears about that first.)</p>
     <form class="signup" id="signup" action="/api/subscribe" method="post">
       <label class="hp" aria-hidden="true">Leave this empty
         <input type="text" name="website" tabindex="-1" autocomplete="off" />
       </label>
       <input type="email" name="email" required placeholder="you@example.com"
         aria-label="Email address" />
-      <button type="submit">Follow the build</button>
+      <button type="submit">Count me in</button>
     </form>
     <p id="signup-msg" role="status"></p>
     <p class="privacy-note">Just an email list — unsubscribe anytime, never shared.</p>

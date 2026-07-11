@@ -89,6 +89,14 @@ export class AboutDialog {
     author.className = "about-author";
     author.textContent = "by Gary Oberbrunner";
 
+    // Safety disclaimer
+    const disclaimer = document.createElement("div");
+    disclaimer.className = "about-disclaimer";
+    disclaimer.textContent =
+      "Beta software — not for navigation. Use as a planning and " +
+      "situational-awareness aid alongside official charts and proper " +
+      "seamanship.";
+
     // Links row
     const links = document.createElement("div");
     links.className = "about-links";
@@ -205,6 +213,7 @@ export class AboutDialog {
       title,
       tagline,
       author,
+      disclaimer,
       links,
       creditsHeading,
       creditsList,
