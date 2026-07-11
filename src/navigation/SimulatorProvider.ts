@@ -207,7 +207,10 @@ export class SimulatorProvider implements NavigationDataProvider {
     SimulatorOptions;
   private listeners: NavigationDataCallback[] = [];
   private timer: ReturnType<typeof setInterval> | null = null;
-  private startTime = 0;
+  /** Accumulated simulated seconds (real time × the multiplier in effect). */
+  private simElapsedSec = 0;
+  /** Real-clock ms when simElapsedSec was last brought up to date. */
+  private lastRealTime = 0;
   private tickCount = 0;
   private errorMode: SimulatorErrorMode;
   private errorRng: () => number;
@@ -244,7 +247,8 @@ export class SimulatorProvider implements NavigationDataProvider {
 
   connect(): void {
     if (this.timer) return;
-    this.startTime = Date.now();
+    this.simElapsedSec = 0;
+    this.lastRealTime = Date.now();
     this.timer = setInterval(() => this.tick(), this.opts.intervalMs);
     this.tick();
   }
@@ -265,7 +269,14 @@ export class SimulatorProvider implements NavigationDataProvider {
     if (idx >= 0) this.listeners.splice(idx, 1);
   }
 
+  /**
+   * Change the time multiplier without moving the boat: simulated time
+   * already accrued at the old rate is banked first, so only the rate of
+   * future progress changes (e.g. fast-forward at 50x, then drop to 1x for
+   * realistic instrument readings from the same position).
+   */
   setSpeedMultiplier(multiplier: number): void {
+    this.advanceSimClock();
     this.opts.speedMultiplier = multiplier;
   }
 
@@ -278,10 +289,18 @@ export class SimulatorProvider implements NavigationDataProvider {
     }
   }
 
+  /** Accrue simulated time at the current multiplier up to now. */
+  private advanceSimClock(): number {
+    const now = Date.now();
+    this.simElapsedSec +=
+      ((now - this.lastRealTime) / 1000) * this.opts.speedMultiplier;
+    this.lastRealTime = now;
+    return this.simElapsedSec;
+  }
+
   private tick(): void {
     const tickIdx = this.tickCount++;
-    const elapsed =
-      ((Date.now() - this.startTime) / 1000) * this.opts.speedMultiplier;
+    const elapsed = this.advanceSimClock();
     let data: NavigationData;
 
     switch (this.opts.mode) {

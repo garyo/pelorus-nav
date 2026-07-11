@@ -113,6 +113,42 @@ describe("SimulatorProvider", () => {
     sim.disconnect();
   });
 
+  it("changing the speed multiplier preserves the boat position", () => {
+    vi.useFakeTimers();
+    const sim = new SimulatorProvider({
+      mode: "route",
+      speed: 6,
+      intervalMs: 1000,
+      speedMultiplier: 10,
+    });
+    const received: NavigationData[] = [];
+    sim.subscribe((data) => received.push({ ...data }));
+
+    sim.connect();
+    vi.advanceTimersByTime(60_000); // 60 s real = 600 s simulated at 10x
+    const before = received[received.length - 1];
+
+    sim.setSpeedMultiplier(1);
+    vi.advanceTimersByTime(1000); // one more tick at 1x
+    const after = received[received.length - 1];
+
+    // At 6 kn the boat covers ~3 m/s; with jitter the fixes should still be
+    // within ~50 m. (The old elapsed×multiplier math would have jumped the
+    // boat ~1.7 km back toward the start.)
+    const latM = (after.latitude - before.latitude) * 111_111;
+    const lngM =
+      (after.longitude - before.longitude) *
+      111_111 *
+      Math.cos((before.latitude * Math.PI) / 180);
+    expect(Math.hypot(latM, lngM)).toBeLessThan(50);
+
+    // And SOG now reports the realistic 1x value.
+    expect(after.sog).toBeGreaterThan(5);
+    expect(after.sog).toBeLessThan(7);
+
+    sim.disconnect();
+  });
+
   it("circular mode produces valid positions", () => {
     vi.useFakeTimers();
     const sim = new SimulatorProvider({
