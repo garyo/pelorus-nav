@@ -10,6 +10,7 @@ import type { Route } from "../data/Route";
 import { lightenHex } from "../utils/color";
 import { bboxOfCoords, haversineDistanceNM } from "../utils/coordinates";
 import { fitMapToBounds, fitMapToBoundsIfNeeded } from "./fit-bounds";
+import { belowVesselLayerId } from "./layer-order";
 import { ensurePointIcons, pointRole, ROLE_ICON_EXPR } from "./point-icons";
 import { GLOW_LIGHTEN } from "./selection-glow";
 import { SelectionHalo } from "./selection-halo";
@@ -115,51 +116,64 @@ export class RouteLayer {
 
     this.map.addSource(sid, { type: "geojson", data });
 
-    this.map.addLayer({
-      id: lineLayerId(route.id),
-      type: "line",
-      source: sid,
-      filter: ["==", "$type", "LineString"],
-      paint: {
-        "line-color": route.color,
-        "line-width": 2.5,
-        "line-opacity": 0.9,
-      },
-    });
+    // All route layers insert below the vessel stack — the boat draws above
+    // route lines and waypoint markers (see layer-order.ts).
+    const beforeId = belowVesselLayerId(this.map);
 
-    this.map.addLayer({
-      id: pointLayerId(route.id),
-      type: "symbol",
-      source: sid,
-      filter: ["==", "$type", "Point"],
-      layout: {
-        "icon-image": ROLE_ICON_EXPR,
-        "icon-size": 0.75,
-        "icon-allow-overlap": true,
+    this.map.addLayer(
+      {
+        id: lineLayerId(route.id),
+        type: "line",
+        source: sid,
+        filter: ["==", "$type", "LineString"],
+        paint: {
+          "line-color": route.color,
+          "line-width": 2.5,
+          "line-opacity": 0.9,
+        },
       },
-    });
+      beforeId,
+    );
 
-    this.map.addLayer({
-      id: labelLayerId(route.id),
-      type: "symbol",
-      source: sid,
-      filter: ["==", "$type", "Point"],
-      layout: {
-        "text-field": ["get", "label"],
-        // Only Noto Sans is bundled — omitting text-font falls back to
-        // MapLibre's default stack, whose glyph fetch 200s into index.html
-        // (SPA fallback) and fails to parse.
-        "text-font": ["Noto Sans Regular"],
-        "text-size": 11,
-        "text-offset": [0, -1.5],
-        "text-allow-overlap": true,
+    this.map.addLayer(
+      {
+        id: pointLayerId(route.id),
+        type: "symbol",
+        source: sid,
+        filter: ["==", "$type", "Point"],
+        layout: {
+          "icon-image": ROLE_ICON_EXPR,
+          "icon-size": 0.75,
+          "icon-allow-overlap": true,
+        },
       },
-      paint: {
-        "text-color": "#fff",
-        "text-halo-color": "rgba(0,0,0,0.7)",
-        "text-halo-width": 1,
+      beforeId,
+    );
+
+    this.map.addLayer(
+      {
+        id: labelLayerId(route.id),
+        type: "symbol",
+        source: sid,
+        filter: ["==", "$type", "Point"],
+        layout: {
+          "text-field": ["get", "label"],
+          // Only Noto Sans is bundled — omitting text-font falls back to
+          // MapLibre's default stack, whose glyph fetch 200s into index.html
+          // (SPA fallback) and fails to parse.
+          "text-font": ["Noto Sans Regular"],
+          "text-size": 11,
+          "text-offset": [0, -1.5],
+          "text-allow-overlap": true,
+        },
+        paint: {
+          "text-color": "#fff",
+          "text-halo-color": "rgba(0,0,0,0.7)",
+          "text-halo-width": 1,
+        },
       },
-    });
+      beforeId,
+    );
   }
 
   private removeRoute(id: string): void {
@@ -218,29 +232,36 @@ export class RouteLayer {
         type: "geojson",
         data,
       });
-      this.map.addLayer({
-        id: RouteLayer.HIGHLIGHT_LINE,
-        type: "line",
-        source: RouteLayer.HIGHLIGHT_SOURCE,
-        filter: ["==", "$type", "LineString"],
-        paint: {
-          "line-color": "#ffcc00",
-          "line-width": 5,
-          "line-opacity": 0.8,
+      const beforeId = belowVesselLayerId(this.map);
+      this.map.addLayer(
+        {
+          id: RouteLayer.HIGHLIGHT_LINE,
+          type: "line",
+          source: RouteLayer.HIGHLIGHT_SOURCE,
+          filter: ["==", "$type", "LineString"],
+          paint: {
+            "line-color": "#ffcc00",
+            "line-width": 5,
+            "line-opacity": 0.8,
+          },
         },
-      });
-      this.map.addLayer({
-        id: RouteLayer.HIGHLIGHT_POINTS,
-        type: "circle",
-        source: RouteLayer.HIGHLIGHT_SOURCE,
-        filter: ["==", "$type", "Point"],
-        paint: {
-          "circle-radius": 7,
-          "circle-color": "#ffcc00",
-          "circle-stroke-color": "#fff",
-          "circle-stroke-width": 2,
+        beforeId,
+      );
+      this.map.addLayer(
+        {
+          id: RouteLayer.HIGHLIGHT_POINTS,
+          type: "circle",
+          source: RouteLayer.HIGHLIGHT_SOURCE,
+          filter: ["==", "$type", "Point"],
+          paint: {
+            "circle-radius": 7,
+            "circle-color": "#ffcc00",
+            "circle-stroke-color": "#fff",
+            "circle-stroke-width": 2,
+          },
         },
-      });
+        beforeId,
+      );
     }
   }
 

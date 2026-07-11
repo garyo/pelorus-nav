@@ -8,6 +8,7 @@ import { getAllWaypoints, saveWaypoint } from "../data/db";
 import type { StandaloneWaypoint } from "../data/Waypoint";
 import { DraggablePoints } from "./DraggablePoints";
 import { onModeChange } from "./InteractionMode";
+import { belowVesselLayerId } from "./layer-order";
 import { ensurePointIcons, WAYPOINT_ICON_EXPR } from "./point-icons";
 
 const SOURCE_ID = "_waypoints";
@@ -99,35 +100,45 @@ export class WaypointLayer {
       data: this.buildGeoJSON(),
     });
 
-    this.map.addLayer({
-      id: POINTS_LAYER,
-      type: "symbol",
-      source: SOURCE_ID,
-      layout: {
-        "icon-image": WAYPOINT_ICON_EXPR,
-        "icon-size": 0.85,
-        "icon-allow-overlap": true,
-      },
-    });
+    // Below the vessel stack — the boat draws above waypoint markers
+    // (see layer-order.ts).
+    const beforeId = belowVesselLayerId(this.map);
 
-    this.map.addLayer({
-      id: LABELS_LAYER,
-      type: "symbol",
-      source: SOURCE_ID,
-      layout: {
-        "text-field": ["get", "name"],
-        // Bundled stack — see RouteLayer label layer for why this is required
-        "text-font": ["Noto Sans Regular"],
-        "text-size": 11,
-        "text-offset": [0, -1.5],
-        "text-allow-overlap": false,
+    this.map.addLayer(
+      {
+        id: POINTS_LAYER,
+        type: "symbol",
+        source: SOURCE_ID,
+        layout: {
+          "icon-image": WAYPOINT_ICON_EXPR,
+          "icon-size": 0.85,
+          "icon-allow-overlap": true,
+        },
       },
-      paint: {
-        "text-color": "#fff",
-        "text-halo-color": "rgba(0,0,0,0.7)",
-        "text-halo-width": 1,
+      beforeId,
+    );
+
+    this.map.addLayer(
+      {
+        id: LABELS_LAYER,
+        type: "symbol",
+        source: SOURCE_ID,
+        layout: {
+          "text-field": ["get", "name"],
+          // Bundled stack — see RouteLayer label layer for why this is required
+          "text-font": ["Noto Sans Regular"],
+          "text-size": 11,
+          "text-offset": [0, -1.5],
+          "text-allow-overlap": false,
+        },
+        paint: {
+          "text-color": "#fff",
+          "text-halo-color": "rgba(0,0,0,0.7)",
+          "text-halo-width": 1,
+        },
       },
-    });
+      beforeId,
+    );
 
     this.setupDrag();
   }
