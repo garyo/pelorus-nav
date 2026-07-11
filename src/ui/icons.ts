@@ -142,6 +142,9 @@ export const iconChevronUp = svg('<polyline points="6 15 12 9 18 15"/>');
 /** Chevron down. */
 export const iconChevronDown = svg('<polyline points="6 9 12 15 18 9"/>');
 
+/** Chevron right (collapsed state). */
+export const iconChevronRight = svg('<polyline points="9 6 15 12 9 18"/>');
+
 /** Download / arrow-down-to-line. */
 export const iconDownload = svg(
   '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>' +

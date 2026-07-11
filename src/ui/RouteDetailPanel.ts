@@ -4,7 +4,7 @@
  * on the map.
  */
 
-import { saveRoute } from "../data/db";
+import { getAllRoutes, saveRoute } from "../data/db";
 import type { Route } from "../data/Route";
 import type { RouteLayer } from "../map/RouteLayer";
 import type {
@@ -15,6 +15,7 @@ import { getSettings } from "../settings";
 import { haversineDistanceNM, initialBearingDeg } from "../utils/coordinates";
 import { formatBearing } from "../utils/magnetic";
 import { iconEdit, iconNavigation, iconTrash, iconX, setIcon } from "./icons";
+import { groupByFolder } from "./manager-folders";
 import { getPanelStack } from "./PanelStack";
 
 interface Leg {
@@ -74,6 +75,7 @@ export class RouteDetailPanel {
   onEdit: ((route: Route) => void) | null = null;
   onDelete: ((route: Route) => void) | null = null;
   onRename: ((route: Route) => void) | null = null;
+  onFolderChange: ((route: Route) => void) | null = null;
 
   constructor(routeLayer: RouteLayer) {
     this.routeLayer = routeLayer;
@@ -250,7 +252,7 @@ export class RouteDetailPanel {
     if (legs.length === 0) {
       this.body.innerHTML =
         '<div class="manager-empty">No legs (need at least 2 waypoints)</div>';
-      this.footer.textContent = "";
+      this.renderFooter(route, "");
       return;
     }
 
@@ -263,7 +265,71 @@ export class RouteDetailPanel {
     this.body.appendChild(this.buildRouteList(route, legs, activeLegIdx));
 
     const totalDist = legs[legs.length - 1].cumDist;
-    this.footer.textContent = `${legs.length} leg${legs.length !== 1 ? "s" : ""}, ${fmtDist(totalDist)} NM`;
+    this.renderFooter(
+      route,
+      `${legs.length} leg${legs.length !== 1 ? "s" : ""}, ${fmtDist(totalDist)} NM`,
+    );
+  }
+
+  /** Footer: route summary + the folder picker. A native <select> keeps the
+   *  mobile UX simple (OS picker sheet, no drag/hover); "New folder…" uses
+   *  prompt(), matching the panel family's confirm()/alert() idiom. */
+  private renderFooter(route: Route, summary: string): void {
+    this.footer.innerHTML = "";
+    const summaryEl = document.createElement("span");
+    summaryEl.textContent = summary;
+
+    const select = document.createElement("select");
+    select.className = "route-folder-select";
+    select.title = "Move to folder";
+    // Sentinel that no real folder name can collide with (names are trimmed).
+    const NEW_SENTINEL = "\u0000new";
+
+    const rebuild = (folders: string[]) => {
+      select.innerHTML = "";
+      const none = document.createElement("option");
+      none.value = "";
+      none.textContent = "No folder";
+      select.appendChild(none);
+      for (const name of folders) {
+        const opt = document.createElement("option");
+        opt.value = name;
+        opt.textContent = name;
+        select.appendChild(opt);
+      }
+      const create = document.createElement("option");
+      create.value = NEW_SENTINEL;
+      create.textContent = "New folder…";
+      select.appendChild(create);
+      select.value = route.folder ?? "";
+    };
+    rebuild(route.folder ? [route.folder] : []);
+    getAllRoutes()
+      .then((routes) => {
+        rebuild([...groupByFolder(routes).folders.keys()]);
+      })
+      .catch(console.error);
+
+    select.addEventListener("change", () => {
+      let folder: string | undefined;
+      if (select.value === NEW_SENTINEL) {
+        const name = prompt("New folder name:")?.trim();
+        if (!name) {
+          select.value = route.folder ?? "";
+          return;
+        }
+        folder = name;
+      } else {
+        folder = select.value || undefined;
+      }
+      if (folder) route.folder = folder;
+      else delete route.folder;
+      saveRoute(route)
+        .then(() => this.onFolderChange?.(route))
+        .catch(console.error);
+    });
+
+    this.footer.append(summaryEl, select);
   }
 
   /**

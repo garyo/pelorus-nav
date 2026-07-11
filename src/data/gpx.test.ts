@@ -142,6 +142,17 @@ describe("GPX export", () => {
     expect(result.routes[0].name).toBe('Route <"A&B">');
     expect(result.routes[0].waypoints[0].name).toBe("Mark & <Point>");
   });
+
+  it("exports the folder as a pelorus extension, escaped", () => {
+    const gpx = routeToGpx({ ...sampleRoute, folder: "USVI A & B" });
+    expect(gpx).toContain("<pelorus:folder>USVI A &amp; B</pelorus:folder>");
+  });
+
+  it("emits no folder element (and no empty extensions) without one", () => {
+    const gpx = routeToGpx({ ...sampleRoute, color: "" });
+    expect(gpx).not.toContain("pelorus:folder");
+    expect(gpx).not.toContain("<extensions>");
+  });
 });
 
 describe("GPX import", () => {
@@ -158,6 +169,8 @@ describe("GPX import", () => {
     expect(r.waypoints[0].lon).toBe(-71.0589);
     expect(r.waypoints[0].name).toBe("Start");
     expect(r.waypoints[2].name).toBe("End");
+    // Folderless routes come back without a folder key
+    expect("folder" in r).toBe(false);
     // Should have a new UUID
     expect(r.id).not.toBe("r1");
     expect(r.id).toMatch(
@@ -424,5 +437,18 @@ describe("GPX import", () => {
     expect(result.routes).toHaveLength(1);
     expect(result.routes[0].name).toBe("Test Route");
     expect(result.routes[0].waypoints[0].name).toBe("WP1");
+  });
+});
+
+describe("GPX folder round-trip", () => {
+  it("preserves the folder through export and import", () => {
+    const gpx = routeToGpx({ ...sampleRoute, folder: "USVI" });
+    const result = parseGpx(gpx);
+    expect(result.routes[0].folder).toBe("USVI");
+  });
+
+  it("round-trips escaped folder names", () => {
+    const gpx = routeToGpx({ ...sampleRoute, folder: 'Trip <"A&B">' });
+    expect(parseGpx(gpx).routes[0].folder).toBe('Trip <"A&B">');
   });
 });

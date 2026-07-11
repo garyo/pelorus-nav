@@ -52,6 +52,8 @@ export interface Settings {
   layerGroups: Record<string, boolean>;
   /** Raster chart ids (catalog RNCs or imports) the user has hidden. */
   hiddenRasterCharts: string[];
+  /** Route-manager folder names the user has collapsed (list-only). */
+  collapsedRouteFolders: string[];
   showInstrumentHUD: boolean;
   /** Instrument HUD layout on landscape phones. */
   instrumentLayout: InstrumentLayout;
@@ -250,6 +252,7 @@ const DEFAULTS: Settings = {
   detailLevel: 0,
   layerGroups: { ...DEFAULT_LAYER_GROUPS },
   hiddenRasterCharts: [],
+  collapsedRouteFolders: [],
   showInstrumentHUD: false,
   instrumentLayout: "side",
   instrumentCells: ["sog", "cog"],
@@ -309,6 +312,7 @@ const STRUCTURAL_KEYS = new Set<keyof Settings>([
   "layerGroups",
   "instrumentCells",
   "hiddenRasterCharts",
+  "collapsedRouteFolders",
   "plugins",
 ]);
 
@@ -355,6 +359,12 @@ function sanitize(parsed: Partial<Settings>): void {
     const ids = rec.hiddenRasterCharts;
     if (!Array.isArray(ids) || ids.some((v) => typeof v !== "string")) {
       delete rec.hiddenRasterCharts;
+    }
+  }
+  if ("collapsedRouteFolders" in rec) {
+    const names = rec.collapsedRouteFolders;
+    if (!Array.isArray(names) || names.some((v) => typeof v !== "string")) {
+      delete rec.collapsedRouteFolders;
     }
   }
   if ("plugins" in rec && !isPlainObject(rec.plugins)) {

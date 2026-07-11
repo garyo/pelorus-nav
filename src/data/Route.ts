@@ -14,5 +14,7 @@ export interface Route {
   createdAt: number;
   color: string;
   visible: boolean;
+  /** Optional one-level grouping in the route manager. Absent = top level. */
+  folder?: string;
   waypoints: Waypoint[];
 }

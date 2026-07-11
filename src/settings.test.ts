@@ -188,6 +188,32 @@ describe("settings load() validation", () => {
     vi.resetModules();
   });
 
+  it("falls back to the default on malformed collapsedRouteFolders", async () => {
+    const stored = { settingsVersion: 2, collapsedRouteFolders: [1, "USVI"] };
+    vi.stubGlobal("localStorage", {
+      getItem: () => JSON.stringify(stored),
+      setItem: () => {},
+    });
+    vi.resetModules();
+    const { getSettings } = await import("./settings");
+    expect(getSettings().collapsedRouteFolders).toEqual([]);
+    vi.unstubAllGlobals();
+    vi.resetModules();
+  });
+
+  it("keeps a valid collapsedRouteFolders array", async () => {
+    const stored = { settingsVersion: 2, collapsedRouteFolders: ["USVI"] };
+    vi.stubGlobal("localStorage", {
+      getItem: () => JSON.stringify(stored),
+      setItem: () => {},
+    });
+    vi.resetModules();
+    const { getSettings } = await import("./settings");
+    expect(getSettings().collapsedRouteFolders).toEqual(["USVI"]);
+    vi.unstubAllGlobals();
+    vi.resetModules();
+  });
+
   it("keeps a fully valid load unchanged", async () => {
     const stored = {
       settingsVersion: 2,

@@ -83,9 +83,14 @@ function standaloneWaypointXml(wp: StandaloneWaypoint): string {
 function routeXml(route: Route): string {
   let xml = "  <rte>\n";
   xml += `    <name>${escapeXml(route.name)}</name>\n`;
-  if (route.color) {
+  if (route.color || route.folder) {
     xml += `    <extensions>\n`;
-    xml += `      <pelorus:color>${escapeXml(route.color)}</pelorus:color>\n`;
+    if (route.color) {
+      xml += `      <pelorus:color>${escapeXml(route.color)}</pelorus:color>\n`;
+    }
+    if (route.folder) {
+      xml += `      <pelorus:folder>${escapeXml(route.folder)}</pelorus:folder>\n`;
+    }
     xml += `    </extensions>\n`;
   }
   for (const wp of route.waypoints) {
@@ -322,12 +327,14 @@ export function parseGpx(xml: string): GpxImportResult {
       });
     }
 
+    const folder = pelorusExt(rteEl, "folder");
     return {
       id: generateUUID(),
       name: childText(rteEl, "name") ?? `Imported Route ${i + 1}`,
       createdAt: now,
       color: parseColor(rteEl, i),
       visible: true,
+      ...(folder ? { folder } : {}),
       waypoints: routeWaypoints,
     };
   });

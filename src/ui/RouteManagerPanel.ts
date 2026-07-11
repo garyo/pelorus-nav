@@ -16,11 +16,13 @@ import type { RouteEditor } from "../map/RouteEditor";
 import type { RouteLayer } from "../map/RouteLayer";
 import type { WaypointLayer } from "../map/WaypointLayer";
 import type { ActiveNavigationManager } from "../navigation/ActiveNavigation";
-import { getSettings } from "../settings";
+import { getSettings, updateSettings } from "../settings";
 import { haversineDistanceNM } from "../utils/coordinates";
 import { openColorPicker } from "./color-picker";
 import {
   iconActivity,
+  iconChevronDown,
+  iconChevronRight,
   iconEdit,
   iconExport,
   iconEye,
@@ -32,6 +34,7 @@ import {
   setIcon,
 } from "./icons";
 import { startInlineRename } from "./inline-rename";
+import { folderVisibility, groupByFolder } from "./manager-folders";
 import { getPanelStack } from "./PanelStack";
 import { RouteDetailPanel } from "./RouteDetailPanel";
 
@@ -54,6 +57,9 @@ export class RouteManagerPanel {
     this.routeLayer = routeLayer;
     this.editor = editor;
     this.detailPanel = new RouteDetailPanel(routeLayer);
+    this.detailPanel.onFolderChange = () => {
+      this.refresh().catch(console.error);
+    };
 
     this.el = document.createElement("div");
     this.el.className = "manager-panel route-manager-panel";
@@ -231,22 +237,123 @@ export class RouteManagerPanel {
   private async refresh(): Promise<void> {
     if (this.editing) return;
     const routes = await getAllRoutes();
-    routes.sort((a, b) => b.createdAt - a.createdAt);
 
     if (routes.length === 0) {
       this.body.innerHTML = '<div class="manager-empty">No routes</div>';
       return;
     }
 
+    const { ungrouped, folders } = groupByFolder(routes);
+
+    // Prune collapse-state entries for folders that no longer exist.
+    const stored = getSettings().collapsedRouteFolders;
+    const collapsed = stored.filter((f) => folders.has(f));
+    if (collapsed.length !== stored.length) {
+      updateSettings({ collapsedRouteFolders: collapsed });
+    }
+
     this.body.innerHTML = "";
-    for (const route of routes) {
+    for (const route of ungrouped) {
       this.body.appendChild(this.createRouteItem(route));
+    }
+    for (const [name, contents] of folders) {
+      const isCollapsed = collapsed.includes(name);
+      this.body.appendChild(this.createFolderRow(name, contents, isCollapsed));
+      if (!isCollapsed) {
+        for (const route of contents) {
+          this.body.appendChild(this.createRouteItem(route, true));
+        }
+      }
     }
   }
 
-  private createRouteItem(route: Route): HTMLDivElement {
+  /** Header row for a folder: chevron + name + count + bulk-visibility eye.
+   *  Clicking the row collapses/expands (list-only); the eye shows/hides all
+   *  contained routes on the map. */
+  private createFolderRow(
+    name: string,
+    contents: Route[],
+    isCollapsed: boolean,
+  ): HTMLDivElement {
     const item = document.createElement("div");
-    item.className = "manager-item";
+    item.className = "manager-item manager-folder";
+    item.title = isCollapsed ? "Expand folder" : "Collapse folder";
+
+    const chevron = document.createElement("span");
+    chevron.className = "manager-folder-chevron";
+    setIcon(chevron, isCollapsed ? iconChevronRight : iconChevronDown);
+
+    const info = document.createElement("div");
+    info.className = "manager-item-info";
+    const nameEl = document.createElement("div");
+    nameEl.className = "manager-item-name";
+    nameEl.textContent = name;
+    const count = document.createElement("span");
+    count.className = "manager-folder-count";
+    count.textContent = ` (${contents.length})`;
+    nameEl.appendChild(count);
+    info.appendChild(nameEl);
+
+    const actions = document.createElement("div");
+    actions.className = "manager-item-actions";
+    const eyeBtn = document.createElement("button");
+    eyeBtn.className = "manager-item-btn";
+    const vis = folderVisibility(contents);
+    setIcon(eyeBtn, vis === "none" ? iconEyeOff : iconEye);
+    eyeBtn.classList.toggle("mixed", vis === "mixed");
+    eyeBtn.title = vis === "none" ? "Show all" : "Hide all";
+    eyeBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      (async () => {
+        const show = folderVisibility(contents) === "none";
+        for (const route of contents) {
+          await this.setRouteVisible(route, show);
+        }
+        await this.refresh();
+      })().catch(console.error);
+    });
+    actions.appendChild(eyeBtn);
+
+    item.addEventListener("click", () => {
+      const current = getSettings().collapsedRouteFolders;
+      const next = current.includes(name)
+        ? current.filter((f) => f !== name)
+        : [...current, name];
+      updateSettings({ collapsedRouteFolders: next });
+      this.refresh().catch(console.error);
+    });
+
+    item.append(chevron, info, actions);
+    return item;
+  }
+
+  /** Set a route's map visibility with the panel's usual side effects:
+   *  hiding the actively navigated route stops navigation, and hiding the
+   *  selected route clears the selection glow. No-op if already set; does
+   *  not refresh the list. */
+  private async setRouteVisible(route: Route, visible: boolean): Promise<void> {
+    if (route.visible === visible) return;
+    route.visible = visible;
+    if (!visible && this.activeNav) {
+      const st = this.activeNav.getState();
+      if (st.type === "route" && st.route.id === route.id) {
+        this.activeNav.stop();
+      }
+    }
+    // Hiding a selected route clears selection so the glow doesn't
+    // linger without the crisp line under it.
+    if (!visible && this.selectedRouteId === route.id) {
+      this.clearSelection();
+    }
+    await saveRoute(route);
+    await this.routeLayer.toggleVisibility(route.id, visible);
+  }
+
+  private createRouteItem(route: Route, inFolder = false): HTMLDivElement {
+    const item = document.createElement("div");
+    item.className = inFolder
+      ? "manager-item manager-item--sub"
+      : "manager-item";
     item.dataset.routeId = route.id;
     if (this.selectedRouteId === route.id) item.classList.add("selected");
 
@@ -359,21 +466,7 @@ export class RouteManagerPanel {
     toggleBtn.title = route.visible ? "Hide" : "Show";
     toggleBtn.addEventListener("click", () => {
       (async () => {
-        route.visible = !route.visible;
-        // Stop navigation if hiding the actively navigated route
-        if (!route.visible && this.activeNav) {
-          const st = this.activeNav.getState();
-          if (st.type === "route" && st.route.id === route.id) {
-            this.activeNav.stop();
-          }
-        }
-        // Hiding a selected route clears selection so the glow doesn't
-        // linger without the crisp line under it.
-        if (!route.visible && this.selectedRouteId === route.id) {
-          this.clearSelection();
-        }
-        await saveRoute(route);
-        await this.routeLayer.toggleVisibility(route.id, route.visible);
+        await this.setRouteVisible(route, !route.visible);
         await this.refresh();
       })().catch(console.error);
     });

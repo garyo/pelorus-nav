@@ -1638,6 +1638,32 @@ body {
   background: rgba(255, 255, 255, 0.03);
 }
 
+/* Route-folder header row (chevron + name + count + bulk-visibility eye) */
+.manager-folder {
+  cursor: pointer;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.manager-folder .manager-item-name {
+  font-weight: 600;
+}
+
+.manager-folder-chevron {
+  display: flex;
+  color: #999;
+}
+
+.manager-folder-count {
+  color: #999;
+  font-size: 11px;
+  font-weight: 400;
+}
+
+/* Folder eye when only some contained routes are visible */
+.manager-item-btn.mixed {
+  opacity: 0.55;
+}
+
 .manager-item.selected {
   background: rgba(100, 130, 200, 0.25);
 }
@@ -1889,7 +1915,19 @@ body {
   border-top: 1px solid #444;
   font-size: 12px;
   color: #aaa;
-  text-align: right;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.route-folder-select {
+  background: rgba(0, 0, 0, 0.3);
+  color: #e0e0e0;
+  border: 1px solid #444;
+  border-radius: 4px;
+  font-size: 12px;
+  max-width: 50%;
 }
 
 .route-leg-table {
@@ -1978,6 +2016,12 @@ body {
 /* Route header uses space-between instead of gap */
 .route-manager-panel .manager-header {
   justify-content: space-between;
+}
+
+/* A bit wider than the base panel: folder indentation (.manager-item--sub)
+ * costs ~2 characters of route-name space. Capped for narrow phones. */
+.route-manager-panel {
+  width: min(330px, 92vw);
 }
 
 .route-editor-bar {

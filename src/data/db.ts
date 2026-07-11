@@ -11,7 +11,7 @@ import type { StandaloneWaypoint } from "./Waypoint";
 const DB_NAME = "pelorus-nav";
 // Bump DB_VERSION when adding/removing stores or indexes. In onupgradeneeded,
 // check oldVersion and apply incremental migrations (e.g. if (oldVersion < 2) ...).
-const DB_VERSION = 6;
+const DB_VERSION = 7;
 
 let dbPromise: Promise<IDBDatabase> | null = null;
 
@@ -56,6 +56,10 @@ function openDB(): Promise<IDBDatabase> {
         // No store changes — TrackPoint gained optional `accuracy` (meters).
         // Existing rows are still valid; new fixes carry the GPS-reported
         // accuracy through for filtering and diagnostic export.
+      }
+      if (oldVersion < 7) {
+        // No store changes — Route gained optional `folder` (one-level
+        // grouping in the route manager). Existing rows stay valid.
       }
     };
     req.onsuccess = () => resolve(req.result);
