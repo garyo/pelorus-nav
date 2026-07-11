@@ -160,6 +160,20 @@ import { CourseLine } from "./vessel/CourseLine";
 import { type CourseSnapshot, courseChanged } from "./vessel/course-gate";
 import { VesselLayer } from "./vessel/VesselLayer";
 
+// The app lives at /app in production ("/" is the marketing landing page).
+// Old PWA installs (start_url "/") can still boot the app at "/" through
+// their pre-split service worker's navigation fallback — rewrite the URL so
+// every later reload (e.g. the app-update banner) lands back in the app
+// instead of on the landing page. Dev serves the app at "/" with no worker,
+// so this is production-only.
+if (
+  import.meta.env.PROD &&
+  !Capacitor.isNativePlatform() &&
+  window.location.pathname === "/"
+) {
+  window.history.replaceState(null, "", "/app");
+}
+
 // On Capacitor, unregister any stale service workers left from previous installs.
 // The SW is disabled for Capacitor builds (assets are bundled locally) but devices
 // that ran older builds may still have a cached SW serving stale JS.
