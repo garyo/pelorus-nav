@@ -7,10 +7,42 @@ The format follows [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Added
+- Route folders: file a route into a folder from its detail panel, and
+  the route manager groups them under collapsible headers — handy for a
+  trip's worth of daily routes. A folder's eye icon shows or hides the
+  whole set on the chart, and folders survive GPX export and import.
+- The demo simulator grew up (Settings → Navigation, with Simulator as
+  the GPS source): choose between replaying a real recorded sail and
+  following a plotted Boston Harbor route, restart it from the beginning,
+  or sail a course of your own design by naming a route SIMULATOR.
+  Changing the speed multiplier no longer teleports the boat, so you can
+  fast-forward at 50× and drop to 1× at the interesting part.
+- The About dialog links to the pelorus-nav.com website.
+
 ### Changed
 - Wind barbs now end in a small downwind arrowhead instead of the
   conventional circle, so the direction the wind is blowing toward is
   unambiguous at a glance.
+- In landscape, the top-bar instrument panel no longer spans the full
+  screen width. It's now a compact readout box floating below the top
+  bar, so the chart keeps its full width and height; while navigating,
+  the waypoint readouts sit beside SOG/COG instead of on a second row.
+  The digits also no longer shrink as the window gets shorter.
+- New brand mark: the "sail-dart" emblem replaces the old logo on the
+  app icon, splash screen, and About dialog.
+- Course-over-ground smoothing now recognizes a committed turn: through
+  a tack the course line sweeps around in one clean motion and settles
+  within seconds, instead of slewing slowly in stages.
+- pelorus-nav.com is now an introduction page with an email signup; the
+  web app lives at pelorus-nav.com/app. Old bookmarks and installed PWAs
+  carry over automatically.
+
+### Fixed
+- The vessel icon always draws above route lines and waypoint markers,
+  never underneath them.
+- Route waypoints placed near the same charted feature no longer get
+  identical auto-names.
 
 ## [0.11.0] - 2026-07-10
 
