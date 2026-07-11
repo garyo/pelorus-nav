@@ -25,6 +25,7 @@ import {
   isLayerGroupEnabled,
   onSettingsChange,
   type SettingControl,
+  type SimulatorMode,
   type SpeedUnit,
   type StreetUnderlayMode,
   setPluginSetting,
@@ -88,6 +89,8 @@ export interface CreateSettingsPanelOpts {
   openSatelliteDiagnostics: () => void;
   /** Open the persistent connection event log viewer. */
   openConnectionLog: () => void;
+  /** Rewind the simulator to the start of its route/track. */
+  restartSimulator: () => void;
 }
 
 export interface SettingsPanelHandle {
@@ -208,6 +211,7 @@ function buildTabbedPanel(
       opts.gpsLink,
       opts.openSatelliteDiagnostics,
       opts.openConnectionLog,
+      opts.restartSimulator,
     ),
   );
 
@@ -613,6 +617,7 @@ function buildNavigationTab(
   gpsLink: GpsLinkOpt,
   openSatelliteDiagnostics: () => void,
   openConnectionLog: () => void,
+  restartSimulator: () => void,
 ): HTMLElement {
   const tab = document.createElement("div");
 
@@ -684,11 +689,30 @@ function buildNavigationTab(
     String(settings.simulatorSpeed),
     (v) => updateSettings({ simulatorSpeed: Number(v) }),
   );
-  simSpeedRow.style.display = settings.gpsSource === "simulator" ? "" : "none";
-  onSettingsChange((s) => {
-    simSpeedRow.style.display = s.gpsSource === "simulator" ? "" : "none";
-  });
-  tab.appendChild(simSpeedRow);
+  const simModeRow = buildSelectRow(
+    "Sim source",
+    "settings-sim-mode",
+    [
+      { value: "replay", label: "Replay real sail" },
+      { value: "route", label: "Harbor route (6 kn)" },
+    ],
+    settings.simulatorMode,
+    (v) => updateSettings({ simulatorMode: v as SimulatorMode }),
+  );
+  const simRestartRow = buildActionRow(
+    "Restart sim",
+    "settings-sim-restart",
+    "Restart",
+    () => restartSimulator(),
+  );
+  const simRows = [simSpeedRow, simModeRow, simRestartRow];
+  const updateSimRows = (src: string) => {
+    const display = src === "simulator" ? "" : "none";
+    for (const row of simRows) row.style.display = display;
+  };
+  updateSimRows(settings.gpsSource);
+  onSettingsChange((s) => updateSimRows(s.gpsSource));
+  for (const row of simRows) tab.appendChild(row);
 
   // Signal K server URL (shown only when Signal K is the GPS source)
   const signalkRow = buildTextRow(

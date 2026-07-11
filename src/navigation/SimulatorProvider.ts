@@ -257,8 +257,7 @@ export class SimulatorProvider implements NavigationDataProvider {
 
   connect(): void {
     if (this.timer) return;
-    this.simElapsedSec = 0;
-    this.lastRealTime = Date.now();
+    this.restart();
     this.timer = setInterval(() => this.tick(), this.opts.intervalMs);
     this.tick();
   }
@@ -288,6 +287,26 @@ export class SimulatorProvider implements NavigationDataProvider {
   setSpeedMultiplier(multiplier: number): void {
     this.advanceSimClock();
     this.opts.speedMultiplier = multiplier;
+  }
+
+  getMode(): SimulatorOptions["mode"] {
+    return this.opts.mode;
+  }
+
+  /**
+   * Switch motion model (e.g. replay ↔ route). Positions aren't comparable
+   * across modes, so the sim clock restarts from the beginning.
+   */
+  setMode(mode: SimulatorOptions["mode"]): void {
+    if (mode === this.opts.mode) return;
+    this.opts.mode = mode;
+    this.restart();
+  }
+
+  /** Rewind to the start of the route/track (keeps ticking if connected). */
+  restart(): void {
+    this.simElapsedSec = 0;
+    this.lastRealTime = Date.now();
   }
 
   setDesiredIntervalMs(ms: number): void {

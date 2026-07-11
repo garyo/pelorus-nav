@@ -477,6 +477,7 @@ const settingsHandle = topbarMenu
           void bleProvider?.pickNewDevice();
         },
       },
+      restartSimulator: () => simulator.restart(),
       openSatelliteDiagnostics: () => {
         const provider = navManager.getActiveProvider();
         if (provider && hasSatelliteDiagnostics(provider)) {
@@ -541,15 +542,21 @@ if (topbarMenu) {
  *   http://localhost:5173/?simStart=42.334504,-70.968894
  */
 function buildSimulatorOptions(): Partial<SimulatorOptions> {
+  // Both motion models are always configured; the "simulatorMode" setting
+  // (replay = a real recorded sail whose true turn rates and speed changes
+  // exercise the GPS pipeline, route = the synthetic 6 kn harbor loop)
+  // picks which one runs, switchable live from Settings.
+  const defaults: Partial<SimulatorOptions> = {
+    mode: getSettings().simulatorMode,
+    track: REPLAY_TRACK,
+  };
   try {
     const raw = new URLSearchParams(window.location.search).get("simStart");
-    // Default: replay a real recorded sail — true turn rates and speed
-    // changes exercise the GPS pipeline far better than the synthetic loop.
-    if (!raw) return { mode: "replay", track: REPLAY_TRACK };
+    if (!raw) return defaults;
     const m = raw.match(/^\s*(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)\s*$/);
     if (!m) {
       console.warn("simStart: expected lat,lon — got", raw);
-      return { mode: "replay", track: REPLAY_TRACK };
+      return defaults;
     }
     const lat = Number(m[1]);
     const lon = Number(m[2]);
@@ -560,21 +567,27 @@ function buildSimulatorOptions(): Partial<SimulatorOptions> {
       Math.abs(lon) > 180
     ) {
       console.warn("simStart: out-of-range lat/lon", lat, lon);
-      return { mode: "replay", track: REPLAY_TRACK };
+      return defaults;
     }
     console.log(`simStart override: simulator boat begins at (${lat}, ${lon})`);
-    // Prepend to the default loop. The boat starts at simStart and
-    // continues to the harbour loop's first waypoint, then cycles.
-    return { waypoints: [[lat, lon], ...BOSTON_HARBOR_ROUTE] };
+    // Prepend to the default loop and force route mode; the boat starts at
+    // simStart, continues to the loop's first waypoint, then cycles. A later
+    // change to the simulator-mode setting takes over from there.
+    return {
+      mode: "route",
+      waypoints: [[lat, lon], ...BOSTON_HARBOR_ROUTE],
+      track: REPLAY_TRACK,
+    };
   } catch (e) {
     console.warn("simStart parse failed:", e);
-    return { mode: "replay", track: REPLAY_TRACK };
+    return defaults;
   }
 }
 
 // Register available GPS providers
 const simulator = new SimulatorProvider(buildSimulatorOptions());
 simulator.setSpeedMultiplier(getSettings().simulatorSpeed);
+let prevSimulatorMode = getSettings().simulatorMode;
 navManager.registerProvider(simulator);
 let capacitorGPS: CapacitorGPSProvider | null = null;
 if (CapacitorGPSProvider.isAvailable()) {
@@ -845,6 +858,13 @@ onSettingsChange((s) => {
     shownNoticeBanners.clear();
   }
   simulator.setSpeedMultiplier(s.simulatorSpeed);
+  // Prev-tracked (not just idempotent setMode) so a ?simStart= route-mode
+  // override survives unrelated settings changes until the user explicitly
+  // switches the simulator mode.
+  if (s.simulatorMode !== prevSimulatorMode) {
+    prevSimulatorMode = s.simulatorMode;
+    simulator.setMode(s.simulatorMode);
+  }
   signalK.setUrl(s.signalkUrl);
   navManager.setRateMode(s.gpsRateMode, s.manualUpdateIntervalMs);
   navManager.setFilterMode(s.gpsFilterMode);

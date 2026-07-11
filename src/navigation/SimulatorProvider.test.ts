@@ -149,6 +149,70 @@ describe("SimulatorProvider", () => {
     sim.disconnect();
   });
 
+  it("restart() rewinds to the start of the route", () => {
+    vi.useFakeTimers();
+    const sim = new SimulatorProvider({
+      mode: "route",
+      speed: 6,
+      intervalMs: 1000,
+      speedMultiplier: 100,
+    });
+    const received: NavigationData[] = [];
+    sim.subscribe((data) => received.push({ ...data }));
+
+    sim.connect();
+    const start = received[0];
+    vi.advanceTimersByTime(60_000); // well down the route
+    const mid = received[received.length - 1];
+    const movedM = Math.hypot(
+      (mid.latitude - start.latitude) * 111_111,
+      (mid.longitude - start.longitude) * 111_111,
+    );
+    expect(movedM).toBeGreaterThan(500);
+
+    sim.restart();
+    vi.advanceTimersByTime(1000);
+    const after = received[received.length - 1];
+    const backM = Math.hypot(
+      (after.latitude - start.latitude) * 111_111,
+      (after.longitude - start.longitude) * 111_111,
+    );
+    // One tick at 100x = 100 sim-seconds ≈ 309 m at 6 kn, plus jitter —
+    // near the start again, nowhere near the pre-restart position (~18 km in).
+    expect(backM).toBeLessThan(500);
+
+    sim.disconnect();
+  });
+
+  it("setMode switches between route and replay and restarts", () => {
+    vi.useFakeTimers();
+    const track: [number, number, number][] = [
+      [0, 41.0, -70.0],
+      [600, 41.01, -70.0],
+    ];
+    const sim = new SimulatorProvider({
+      mode: "route",
+      track,
+      intervalMs: 1000,
+    });
+    const received: NavigationData[] = [];
+    sim.subscribe((data) => received.push({ ...data }));
+
+    sim.connect();
+    expect(sim.getMode()).toBe("route");
+    // Route mode starts on the Boston loop
+    expect(received[0].latitude).toBeCloseTo(42.36, 1);
+
+    sim.setMode("replay");
+    expect(sim.getMode()).toBe("replay");
+    vi.advanceTimersByTime(1000);
+    // Replay mode plays the configured track from its beginning
+    const after = received[received.length - 1];
+    expect(after.latitude).toBeCloseTo(41.0, 1);
+
+    sim.disconnect();
+  });
+
   it("circular mode produces valid positions", () => {
     vi.useFakeTimers();
     const sim = new SimulatorProvider({

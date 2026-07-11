@@ -7,6 +7,7 @@ export type DepthUnit = "meters" | "feet" | "fathoms";
 export type SpeedUnit = "knots" | "mph" | "kph";
 export type ChartMode = "follow" | "course-up" | "north-up" | "free";
 export type DetailLevel = -1 | 0 | 1 | 2;
+export type SimulatorMode = "replay" | "route";
 export type CourseLineDuration = 0 | "auto" | 5 | 15 | 30 | 60;
 export type DisplayTheme = "day" | "dusk" | "night" | "eink";
 export type BearingMode = "true" | "magnetic";
@@ -60,6 +61,8 @@ export interface Settings {
   activeRegion: string;
   courseLineDuration: CourseLineDuration;
   simulatorSpeed: number;
+  /** What the simulator plays: a real recorded sail, or the synthetic route loop. */
+  simulatorMode: SimulatorMode;
   displayTheme: DisplayTheme;
   symbologyScheme: SymbologyScheme;
   /** Arrival radius in NM — auto-advance route legs when closer than this. */
@@ -256,6 +259,7 @@ const DEFAULTS: Settings = {
   arrivalRadiusNM: 0.1,
   routePlanSpeedKn: 5,
   simulatorSpeed: 1,
+  simulatorMode: "replay",
   displayTheme: "day",
   symbologyScheme: "iho-s52",
   bearingMode: "magnetic",
@@ -288,6 +292,7 @@ export const ALLOWED_VALUES: Partial<
   gpsRateMode: ["adaptive", "manual"],
   gpsFilterMode: ["auto", "strong", "normal"],
   detailLevel: [-1, 0, 1, 2],
+  simulatorMode: ["replay", "route"],
   courseLineDuration: [0, "auto", 5, 15, 30, 60],
   displayTheme: ["day", "dusk", "night", "eink"],
   symbologyScheme: ["iho-s52"],
