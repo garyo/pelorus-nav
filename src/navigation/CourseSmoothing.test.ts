@@ -108,3 +108,120 @@ describe("CourseSmoothing resume behaviour", () => {
     expect(r3).toBeLessThan(204);
   });
 });
+
+/**
+ * Drive a smoother through a COG trajectory: fixes at `intervalMs`, render
+ * frames at ~60 fps between them. `cogAt(tMs)` gives the true course at each
+ * fix time. Returns the smoothed COG timeline sampled per frame.
+ */
+function runTrajectory(
+  cs: CourseSmoothing,
+  cogAt: (tMs: number) => number,
+  durationMs: number,
+  intervalMs: number,
+): { t: number; cog: number }[] {
+  const out: { t: number; cog: number }[] = [];
+  let nextFix = 0;
+  for (let t = 0; t <= durationMs; t += 16) {
+    if (t >= nextFix) {
+      cs.addSample(cogAt(nextFix), 6, 42, -71, nextFix);
+      nextFix += intervalMs;
+    }
+    const r = cs.smooth(t);
+    if (r) out.push({ t, cog: r.cog });
+  }
+  return out;
+}
+
+/** First time (ms) after `fromMs` the smoothed COG stays within `deg` of `target`. */
+function settleTime(
+  timeline: { t: number; cog: number }[],
+  target: number,
+  deg: number,
+  fromMs: number,
+): number {
+  for (let i = 0; i < timeline.length; i++) {
+    const p = timeline[i];
+    if (p.t < fromMs) continue;
+    if (circularDistanceDeg(p.cog, target) <= deg) {
+      // require it to STAY converged (no overshoot back out)
+      if (
+        timeline
+          .slice(i)
+          .every((q) => circularDistanceDeg(q.cog, target) <= deg + 2)
+      ) {
+        return p.t;
+      }
+    }
+  }
+  return Number.POSITIVE_INFINITY;
+}
+
+describe("CourseSmoothing turn commit", () => {
+  // The measured 2026-07 sim scenario: 104° instant tack, 2 s fixes. The old
+  // buffer-mean staircase took ~10 s (and with the quality feedback, longer).
+  it("converges an instant 104° tack within ~5 s at 2 s fixes", () => {
+    const cs = new CourseSmoothing();
+    cs.setQuality(0.35); // the measured mid-tack quality score (2026-07 sim capture)
+    const tackAt = 20_000;
+    const cogAt = (t: number) => (t < tackAt ? 137 : 33);
+    const tl = runTrajectory(cs, cogAt, 40_000, 2_000);
+    const settled = settleTime(tl, 33, 5, tackAt);
+    expect(settled - tackAt).toBeLessThan(5_500);
+  });
+
+  it("behaves the same at 1 Hz fixes (ΔT-relative, not sample-count)", () => {
+    const cs = new CourseSmoothing();
+    cs.setQuality(0.35);
+    const tackAt = 20_000;
+    const cogAt = (t: number) => (t < tackAt ? 137 : 33);
+    const tl = runTrajectory(cs, cogAt, 40_000, 1_000);
+    const settled = settleTime(tl, 33, 5, tackAt);
+    expect(settled - tackAt).toBeLessThan(5_500);
+  });
+
+  it("tracks an extended 90° rounding (10 s at 9°/s) with bounded lag", () => {
+    const cs = new CourseSmoothing();
+    cs.setQuality(0.35);
+    const start = 20_000;
+    const cogAt = (t: number) => {
+      if (t < start) return 90;
+      if (t > start + 10_000) return 180;
+      return 90 + ((t - start) / 10_000) * 90;
+    };
+    const tl = runTrajectory(cs, cogAt, 45_000, 1_000);
+    // Settles on the new course within ~4 s of turn-stop
+    const settled = settleTime(tl, 180, 5, start + 10_000);
+    expect(settled - (start + 10_000)).toBeLessThan(4_000);
+    // Once the turn commits, mid-turn lag stays bounded (old-course samples
+    // don't drag the mean): from 5 s into the turn, error < 30°.
+    for (const p of tl) {
+      if (p.t >= start + 5_000 && p.t <= start + 10_000) {
+        expect(circularDistanceDeg(p.cog, cogAt(p.t))).toBeLessThan(30);
+      }
+    }
+  });
+
+  it("a single shot glitch does not commit a turn", () => {
+    const cs = new CourseSmoothing();
+    // steady course with one fix 90° off
+    const cogAt = (t: number) => (t === 10_000 ? 180 : 90);
+    const tl = runTrajectory(cs, cogAt, 25_000, 1_000);
+    for (const p of tl) {
+      // smoothed course never strays far toward the glitch
+      expect(circularDistanceDeg(p.cog, 90)).toBeLessThan(35);
+    }
+    expect(cs.isTurning()).toBe(false);
+  });
+
+  it("overrides bad-quality smoothing during a committed turn", () => {
+    const cs = new CourseSmoothing();
+    cs.setQuality(1); // 25 s window, tau 4 s — the heavy-smoothing regime
+    const tackAt = 30_000;
+    const cogAt = (t: number) => (t < tackAt ? 137 : 33);
+    const tl = runTrajectory(cs, cogAt, 60_000, 2_000);
+    const settled = settleTime(tl, 33, 5, tackAt);
+    // Without the override this takes tens of seconds; with it, ~5 s.
+    expect(settled - tackAt).toBeLessThan(6_500);
+  });
+});

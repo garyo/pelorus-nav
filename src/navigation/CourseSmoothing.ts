@@ -62,6 +62,54 @@ const TAU_POS_BAD_S = 3;
  */
 const MAX_COG_ERROR_SNAP_DEG = 120;
 
+/**
+ * Turn-commit detection. The buffer mean treats a genuine course change like
+ * noise: through a tack the target staircases as the sample majority flips,
+ * and the quality score rises (the maneuver reads as jitter), widening the
+ * window exactly when responsiveness is wanted — measured 2026-07 in the
+ * simulator: ~10 s of three-phase slew for a 104° tack at 2 s fixes.
+ *
+ * The fix: when the samples of the last TURN_RECENT_SPAN_MS agree with each
+ * other but diverge from the older buffer contents by TURN_COMMIT_DEG, that's
+ * a real course change, not noise — drop the older samples so the target
+ * moves to the new consensus in one step. A sustained turn (5–15 s at
+ * roughly constant turn rate) re-commits as divergence re-accumulates,
+ * keeping the buffer short for the whole maneuver; turn-stop simply stops
+ * the commits and normal smoothing resumes on the settled course.
+ *
+ * All thresholds are ΔT-relative (seconds, degrees) — behavior must be the
+ * same at 1 Hz and 0.5 Hz fix rates.
+ */
+/** Span of the "recent consensus" group, newest-sample-relative. */
+const TURN_RECENT_SPAN_MS = 2_500;
+/** Recent group must cover at least this much time — a single fix (or a
+ *  burst arriving in the same instant) can never commit a turn. */
+const TURN_MIN_CONFIRM_MS = 1_000;
+/** Recent-vs-older divergence that commits a course change. */
+const TURN_COMMIT_DEG = 25;
+/**
+ * The newest fix must sit near the recent mean for a commit. A single shot
+ * glitch (fix 90° off, next fix back on course) makes the recent mean land
+ * halfway between — far from the newest fix — so glitch pairs are rejected,
+ * while a steady turn keeps newest within ~(turn rate × span/2) of the mean
+ * (≤ ~25° up to about 20°/s).
+ */
+const TURN_AGREE_DEG = 25;
+/**
+ * After a commit, stay in responsive turn mode this long (window capped at
+ * the recent span, tau at its base value, quality scaling ignored) so an
+ * extended rounding tracks smoothly between successive re-commits.
+ */
+const TURN_HOLD_MS = 4_000;
+/**
+ * While turn mode is active, the hold is refreshed as long as the (span-
+ * capped) buffer still shows this much rotation end-to-end — a sustained
+ * rounding (5–15 s at roughly constant rate) keeps the smoother responsive
+ * for its whole duration instead of sawtoothing as the hold expires and
+ * divergence has to re-accumulate. 15° over the ≤2.5 s span ≈ 6°/s.
+ */
+const TURN_SUSTAIN_DEG = 15;
+
 interface Sample {
   cog: number;
   sog: number;
@@ -137,6 +185,14 @@ export class CourseSmoothing {
    * frame, once the recovery drain burst has landed.
    */
   private pendingSnap = false;
+  /**
+   * Sample-timestamp until which a committed turn keeps the smoother in
+   * responsive mode. Maintained entirely in the GPS-fix clock domain (smooth()
+   * may run on a different clock), so `turnActive` is updated in addSample()
+   * and only read elsewhere.
+   */
+  private turnHoldUntil = 0;
+  private turnActive = false;
 
   /**
    * Set the smoothing buffer window. Use to scale with GPS update interval
@@ -187,8 +243,16 @@ export class CourseSmoothing {
       this.buffer.length = 0;
     }
 
-    // Prune old samples, but keep at least MIN_SAMPLES
-    const cutoff = timestamp - this.bufferWindowMs;
+    this.detectTurn(timestamp);
+
+    // Prune old samples, but keep at least MIN_SAMPLES. During a committed
+    // turn the window is capped at the recent span regardless of the
+    // quality-scaled width — old-course samples must not drag the mean
+    // through a genuine maneuver.
+    const windowMs = this.turnActive
+      ? Math.min(this.bufferWindowMs, TURN_RECENT_SPAN_MS)
+      : this.bufferWindowMs;
+    const cutoff = timestamp - windowMs;
     while (
       this.buffer.length > MIN_SAMPLES &&
       this.buffer[0].timestamp < cutoff
@@ -212,6 +276,62 @@ export class CourseSmoothing {
     // the gap was detected in smooth(); keep snapping so we settle on the
     // freshly-recovered course rather than slewing from the stale value.
     if (this.pendingSnap) this.snapToTarget();
+  }
+
+  /** Whether a committed course change currently holds the smoother in
+   *  responsive mode. Exposed for diagnostics. */
+  isTurning(): boolean {
+    return this.turnActive;
+  }
+
+  /**
+   * Turn-commit check (see the TURN_* constant docs). Splits the buffer into
+   * a recent consensus group and everything older; when they diverge beyond
+   * TURN_COMMIT_DEG — and the newest fix agrees with the recent mean — the
+   * older samples are dropped and the hold window starts/extends.
+   */
+  private detectTurn(timestamp: number): void {
+    this.turnActive = this.buffer.length > 0 && timestamp < this.turnHoldUntil;
+
+    // Sustain: while turn mode holds the window at the recent span, the
+    // buffer's end-to-end rotation is the live turn rate — keep the hold
+    // alive as long as the boat is still visibly coming around.
+    if (this.turnActive && this.buffer.length >= 2) {
+      const first = this.buffer[0];
+      const last = this.buffer[this.buffer.length - 1];
+      if (circularDistanceDeg(first.cog, last.cog) >= TURN_SUSTAIN_DEG) {
+        this.turnHoldUntil = timestamp + TURN_HOLD_MS;
+      }
+    }
+
+    const recentCutoff = timestamp - TURN_RECENT_SPAN_MS;
+    let split = this.buffer.length;
+    while (split > 0 && this.buffer[split - 1].timestamp >= recentCutoff) {
+      split--;
+    }
+    if (split === 0) return; // nothing older than the recent span
+    const recent = this.buffer.slice(split);
+    if (
+      recent.length < 2 ||
+      recent[recent.length - 1].timestamp - recent[0].timestamp <
+        TURN_MIN_CONFIRM_MS
+    ) {
+      return; // not enough confirmed time on the new course yet
+    }
+
+    const recentMean = circularMeanDeg(recent.map((s) => s.cog));
+    const olderMean = circularMeanDeg(
+      this.buffer.slice(0, split).map((s) => s.cog),
+    );
+    if (
+      circularDistanceDeg(recentMean, olderMean) >= TURN_COMMIT_DEG &&
+      circularDistanceDeg(recent[recent.length - 1].cog, recentMean) <=
+        TURN_AGREE_DEG
+    ) {
+      this.buffer = recent;
+      this.turnHoldUntil = timestamp + TURN_HOLD_MS;
+      this.turnActive = true;
+    }
   }
 
   /**
@@ -257,8 +377,12 @@ export class CourseSmoothing {
           this.snapToTarget();
           this.pendingSnap = false;
         } else {
-          const tau = TAU_S + this.quality * (TAU_BAD_S - TAU_S);
-          const tauPos = TAU_POS_S + this.quality * (TAU_POS_BAD_S - TAU_POS_S);
+          // A committed turn overrides quality scaling: the elevated q during
+          // a maneuver is the detector misreading the turn as jitter, and
+          // heavier smoothing is exactly wrong mid-maneuver.
+          const q = this.turnActive ? 0 : this.quality;
+          const tau = TAU_S + q * (TAU_BAD_S - TAU_S);
+          const tauPos = TAU_POS_S + q * (TAU_POS_BAD_S - TAU_POS_S);
           const alpha = 1 - Math.exp(-dt / tau);
           const cogError = circularDistanceDeg(
             this.smoothedCog,
