@@ -74,19 +74,29 @@ export interface SimulatorOptions {
   errorSeed?: number;
 }
 
-/** Default Boston Harbor loop. Exported so dev tooling can splice in
- *  custom starting points without rebuilding the whole loop. */
+/** Default Boston Harbor loop, taken from a real route plotted in the app
+ *  (Route 2026-07-11): inner harbor out the main channel past Castle Island
+ *  and President Roads to the outer harbor, and back. The first point is
+ *  repeated at the end so the modulo wrap in route mode closes the loop
+ *  without a jump. Exported so dev tooling can splice in custom starting
+ *  points without rebuilding the whole loop. */
 export const BOSTON_HARBOR_ROUTE: [number, number][] = [
-  [42.363559, -71.047973], // inner harbor
-  [42.361406, -71.045476], // past Long Wharf
-  [42.353086, -71.03469], // Castle Island
-  [42.333935, -71.000208], // Deer Island
-  [42.33633, -70.945541], // outer harbor
-  [42.361693, -70.926069], // off Nahant
-  [42.33633, -70.945541], // outer harbor (return)
-  [42.333935, -71.000208], // Deer Island (return)
-  [42.353086, -71.03469], // Castle Island (return)
-  [42.361406, -71.045476], // past Long Wharf (return)
+  [42.363715, -71.04743], // inner harbor (Long Wharf)
+  [42.352039, -71.032698], // main channel off Castle Island
+  [42.354634, -71.030561],
+  [42.342674, -71.014302], // President Roads, westbound edge
+  [42.344705, -71.01163],
+  [42.332517, -70.995676], // off Deer Island
+  [42.337764, -70.949034], // The Narrows
+  [42.342743, -70.940904],
+  [42.37055, -70.916631], // outer harbor, north
+  [42.358987, -70.903958], // turnaround
+  [42.344263, -70.918004], // return leg
+  [42.334671, -70.95098],
+  [42.340877, -70.995485],
+  [42.345615, -71.017469],
+  [42.363303, -71.045078], // approaching inner harbor
+  [42.363715, -71.04743], // close the loop (same as first point)
 ];
 
 const DEFAULT_SPEED_KN = 6;

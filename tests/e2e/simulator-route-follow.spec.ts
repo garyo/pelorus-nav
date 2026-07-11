@@ -20,9 +20,9 @@ interface SeedRoute {
 // below is set to the first point, so the simulator's own path traces
 // exactly A -> B -> C -> ... and this route's waypoints sit precisely on
 // that path — arrival is geometric fact, not a timing guess.
-const A: [number, number] = [42.363559, -71.047973]; // inner harbor
-const B: [number, number] = [42.361406, -71.045476]; // past Long Wharf
-const C: [number, number] = [42.353086, -71.03469]; // Castle Island
+const A: [number, number] = [42.363715, -71.04743]; // inner harbor
+const B: [number, number] = [42.352039, -71.032698]; // off Castle Island
+const C: [number, number] = [42.354634, -71.030561]; // across the channel
 
 const ROUTE_ID = "e2e-route-follow";
 
@@ -35,8 +35,8 @@ function seedRoute(): SeedRoute {
     visible: true,
     waypoints: [
       { lat: A[0], lon: A[1], name: "Inner Harbor" },
-      { lat: B[0], lon: B[1], name: "Long Wharf" },
-      { lat: C[0], lon: C[1], name: "Castle Island" },
+      { lat: B[0], lon: B[1], name: "Castle Island" },
+      { lat: C[0], lon: C[1], name: "President Roads" },
     ],
   };
 }
@@ -48,10 +48,10 @@ function seedRoute(): SeedRoute {
  *
  * GPS source is left at "none" until after the route is activated. With no
  * GPS fix yet, ActiveNavigationManager.pickStartLeg deterministically picks
- * leg 1 (target = the 2nd waypoint, "Long Wharf") regardless of how long
+ * leg 1 (target = the 2nd waypoint, "Castle Island") regardless of how long
  * the earlier setup steps (panel opens, IndexedDB seed) took in real time —
  * only switching to the simulator afterwards starts its position clock, so
- * the "arrives at Long Wharf, advances to Castle Island" transition we
+ * the "arrives at Castle Island, advances to President Roads" transition we
  * assert on isn't racing unrelated UI setup time under parallel-worker load.
  */
 test("simulator-driven route navigation advances through waypoints on arrival", async ({
@@ -116,7 +116,7 @@ test("simulator-driven route navigation advances through waypoints on arrival", 
 
   const nextWp = page.locator(".instrument-next-wp");
   await expect(nextWp).toBeVisible({ timeout: 5000 });
-  await expect(nextWp).toHaveText("Next: Long Wharf");
+  await expect(nextWp).toHaveText("Next: Castle Island");
 
   // Now start the simulator — its position clock begins from this instant.
   await routesBtn.click(); // close Routes panel out of the way
@@ -126,8 +126,8 @@ test("simulator-driven route navigation advances through waypoints on arrival", 
   await page.locator("#settings-gps-source").selectOption("simulator");
   await settingsBtn.click(); // close settings
 
-  // As the simulated vessel reaches Long Wharf's arrival radius,
+  // As the simulated vessel reaches Castle Island's arrival radius,
   // ActiveNavigationManager advances the leg and the HUD caption updates —
   // the "waypoint arrival/advance" signal this test exists to catch.
-  await expect(nextWp).toHaveText("Next: Castle Island", { timeout: 15000 });
+  await expect(nextWp).toHaveText("Next: President Roads", { timeout: 15000 });
 });
