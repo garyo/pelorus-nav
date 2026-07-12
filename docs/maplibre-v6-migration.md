@@ -40,14 +40,16 @@ public types).
 ### Real work expected
 
 - **style-spec v25 with stricter legacy-expression validation** (6.0.0-16).
-  We still use legacy filter syntax in several layers:
-  `["==", "$type", "LineString"]` in `selection-halo.ts`, `BearingLine.ts`,
-  `RouteLayer.ts`, and legacy `["has", …]` forms in `SafetyContour.ts`.
-  Convert to modern expressions (`["==", ["geometry-type"], …]`) ahead of the
-  bump — harmless on v5, removes a whole class of upgrade risk. Also unpin
-  and bump `@maplibre/maplibre-gl-style-spec` 24.8.1 → 25.x at the same time
-  and re-verify the public type exports (`ExpressionSpecification` et al.,
-  imported in ~5 files) — the reason for the 24.8.1 pin.
+  ~~We still use legacy filter syntax~~ **Done 2026-07-12**: the nine
+  `["==", "$type", …]` filters in `selection-halo.ts`, `BearingLine.ts`, and
+  `RouteLayer.ts` were converted to `["==", ["geometry-type"], …]`. Those
+  were the only legacy filters: `["has", "KEY"]` (SafetyContour) and
+  `["in", needle, <expression>]` (comma-padded list-attr matching) look
+  legacy but are classified as modern expressions by the spec's
+  `isExpressionFilter` rules. Remaining at upgrade time: unpin and bump
+  `@maplibre/maplibre-gl-style-spec` 24.8.1 → 25.x and re-verify the public
+  type exports (`ExpressionSpecification` et al., imported in ~5 files) —
+  the reason for the 24.8.1 pin.
 - **Icon scaling with offset — render behavior change** (6.0.0-13). Our S-52
   symbol layers use per-symbol `icon-offset` expressions
   (`styles/icon-sets.ts`, `styles/layers/points.ts`, `PelLightLayer.ts`),

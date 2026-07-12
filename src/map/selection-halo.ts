@@ -82,7 +82,7 @@ export class SelectionHalo {
         id: this.ids.lineLayer,
         type: "line",
         source: this.ids.source,
-        filter: ["==", "$type", "LineString"],
+        filter: ["==", ["geometry-type"], "LineString"],
         layout: { "line-cap": "round", "line-join": "round" },
         paint: {
           "line-color": color,
@@ -100,7 +100,7 @@ export class SelectionHalo {
           id: this.ids.pointsLayer,
           type: "circle",
           source: this.ids.source,
-          filter: ["==", "$type", "Point"],
+          filter: ["==", ["geometry-type"], "Point"],
           paint: {
             "circle-color": GLOW_CIRCLE_COLOR,
             "circle-radius": GLOW_CIRCLE_RADIUS,

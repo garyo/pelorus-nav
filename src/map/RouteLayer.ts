@@ -125,7 +125,7 @@ export class RouteLayer {
         id: lineLayerId(route.id),
         type: "line",
         source: sid,
-        filter: ["==", "$type", "LineString"],
+        filter: ["==", ["geometry-type"], "LineString"],
         paint: {
           "line-color": route.color,
           "line-width": 2.5,
@@ -140,7 +140,7 @@ export class RouteLayer {
         id: pointLayerId(route.id),
         type: "symbol",
         source: sid,
-        filter: ["==", "$type", "Point"],
+        filter: ["==", ["geometry-type"], "Point"],
         layout: {
           "icon-image": ROLE_ICON_EXPR,
           "icon-size": 0.75,
@@ -155,7 +155,7 @@ export class RouteLayer {
         id: labelLayerId(route.id),
         type: "symbol",
         source: sid,
-        filter: ["==", "$type", "Point"],
+        filter: ["==", ["geometry-type"], "Point"],
         layout: {
           "text-field": ["get", "label"],
           // Only Noto Sans is bundled — omitting text-font falls back to
@@ -238,7 +238,7 @@ export class RouteLayer {
           id: RouteLayer.HIGHLIGHT_LINE,
           type: "line",
           source: RouteLayer.HIGHLIGHT_SOURCE,
-          filter: ["==", "$type", "LineString"],
+          filter: ["==", ["geometry-type"], "LineString"],
           paint: {
             "line-color": "#ffcc00",
             "line-width": 5,
@@ -252,7 +252,7 @@ export class RouteLayer {
           id: RouteLayer.HIGHLIGHT_POINTS,
           type: "circle",
           source: RouteLayer.HIGHLIGHT_SOURCE,
-          filter: ["==", "$type", "Point"],
+          filter: ["==", ["geometry-type"], "Point"],
           paint: {
             "circle-radius": 7,
             "circle-color": "#ffcc00",

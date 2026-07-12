@@ -69,7 +69,7 @@ export class BearingLine {
       id: LINE_LAYER,
       type: "line",
       source: SOURCE_ID,
-      filter: ["==", "$type", "LineString"],
+      filter: ["==", ["geometry-type"], "LineString"],
       paint: {
         "line-color": "#ffdd00",
         "line-width": 2.5,
@@ -82,7 +82,7 @@ export class BearingLine {
       id: TARGET_LAYER,
       type: "circle",
       source: SOURCE_ID,
-      filter: ["==", "$type", "Point"],
+      filter: ["==", ["geometry-type"], "Point"],
       paint: {
         "circle-radius": 8,
         "circle-color": "transparent",
