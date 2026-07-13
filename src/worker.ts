@@ -14,7 +14,7 @@ interface Env {
   ADMIN_TOKEN?: string;
   /** ntfy endpoint incl. topic, e.g. https://ntfy.example.com/pelorus-signups. */
   NTFY_URL?: string;
-  /** Bearer token for the ntfy server. */
+  /** HTTP basic-auth token (base64 user:pass) for the ntfy server. */
   NTFY_TOKEN?: string;
 }
 
@@ -186,7 +186,7 @@ function notifySignup(
     fetch(env.NTFY_URL, {
       method: "POST",
       headers: {
-        authorization: `Bearer ${env.NTFY_TOKEN}`,
+        authorization: `Basic ${env.NTFY_TOKEN}`,
         title: isNew ? "New Pelorus signup" : "Signup updated",
         tags: "sailboat,email",
       },
