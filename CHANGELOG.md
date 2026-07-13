@@ -5,7 +5,7 @@ Notable user-facing changes to Pelorus Nav. Downloads are on the
 
 The format follows [Keep a Changelog](https://keepachangelog.com/).
 
-## [Unreleased]
+## [0.12.1] - 2026-07-13
 
 ### Added
 - Report a Bug (About dialog): describe the problem, optionally leave your
