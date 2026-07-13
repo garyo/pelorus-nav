@@ -245,6 +245,32 @@ export class BLENMEAProvider
     });
   }
 
+  // Ask the pod for its own status counters ($PPELD). Never rejects and never
+  // waits past the (short) timeout — diagnostics collection must not stall on
+  // a pod that's off, out of range, or running pre-DIAG firmware.
+  requestDeviceDiag(timeoutMs = 2000): Promise<string | null> {
+    const c = this.rxCharacteristic;
+    if (!c || !this.isConnected()) return Promise.resolve(null);
+    return new Promise((resolve) => {
+      const timer = setTimeout(() => {
+        this.stream.onPodDiag = undefined;
+        resolve(null);
+      }, timeoutMs);
+      this.stream.onPodDiag = (line) => {
+        clearTimeout(timer);
+        this.stream.onPodDiag = undefined;
+        resolve(line);
+      };
+      const data = this.encoder.encode("DIAG\n");
+      const write = c.writeValueWithResponse ?? c.writeValue;
+      write?.call(c, data).catch(() => {
+        clearTimeout(timer);
+        this.stream.onPodDiag = undefined;
+        resolve(null);
+      });
+    });
+  }
+
   /** Forget the saved pod and re-run the chooser (needs a user gesture). */
   async pickNewDevice(): Promise<void> {
     clearSavedBleDevice();

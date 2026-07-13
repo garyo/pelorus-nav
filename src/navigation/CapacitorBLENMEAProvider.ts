@@ -227,6 +227,36 @@ export class CapacitorBLENMEAProvider
     });
   }
 
+  // Ask the pod for its own status counters ($PPELD). Never rejects and never
+  // waits past the (short) timeout — diagnostics collection must not stall on
+  // a pod that's off, out of range, or running pre-DIAG firmware.
+  requestDeviceDiag(timeoutMs = 2000): Promise<string | null> {
+    const id = this.device?.deviceId;
+    if (!id || !this.core.isConnected()) return Promise.resolve(null);
+    return new Promise((resolve) => {
+      const timer = setTimeout(() => {
+        this.stream.onPodDiag = undefined;
+        resolve(null);
+      }, timeoutMs);
+      this.stream.onPodDiag = (line) => {
+        clearTimeout(timer);
+        this.stream.onPodDiag = undefined;
+        resolve(line);
+      };
+      const bytes = this.encoder.encode("DIAG\n");
+      const view = new DataView(
+        bytes.buffer,
+        bytes.byteOffset,
+        bytes.byteLength,
+      );
+      BleClient.write(id, NUS_SERVICE, NUS_RX, view).catch(() => {
+        clearTimeout(timer);
+        this.stream.onPodDiag = undefined;
+        resolve(null);
+      });
+    });
+  }
+
   private attemptDetail(cause: string): string {
     return `${this.device?.deviceId ?? "?"} (${cause})`;
   }

@@ -1686,7 +1686,12 @@ if (topbarMenu) {
   updateOnlineStatus();
 
   // About button
-  const aboutDialog = new AboutDialog();
+  const aboutDialog = new AboutDialog({
+    nav: {
+      diagnosticsSnapshot: () => navManager.diagnosticsSnapshot(),
+      requestDeviceDiag: () => navManager.requestDeviceDiag(),
+    },
+  });
   idleCloseables.push(aboutDialog);
   const aboutBtn = buildTopbarAction(iconInfo, "INFO", "About", {
     fullLabel: "About",

@@ -113,4 +113,12 @@ export interface NavigationDataProvider {
    * fixless" (NO FIX — wait for satellites).
    */
   lastRawDataMs?(): number;
+  /**
+   * Optional: ask the device for its own status ("DIAG" over the NUS RX
+   * characteristic; the GPS pod answers with one $PPELD sentence carrying
+   * uptime/connection/notify/UART counters). Resolves the raw sentence, or
+   * null when the link is down or the device doesn't answer in time. Used by
+   * the diagnostics collector so bug reports include the device's view.
+   */
+  requestDeviceDiag?(timeoutMs?: number): Promise<string | null>;
 }

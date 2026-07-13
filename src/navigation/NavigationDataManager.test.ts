@@ -221,4 +221,18 @@ describe("NavigationDataManager fixlessState", () => {
     provider.lastRawDataMs = undefined;
     expect(mgr.fixlessState()).toBe("no-fix");
   });
+
+  it("diagnosticsSnapshot names the provider and current state", () => {
+    rawDataMs = 0;
+    vi.setSystemTime(60_000);
+    const snap = mgr.diagnosticsSnapshot();
+    expect(snap).toContain("provider: Fake (fake)");
+    expect(snap).toContain("connected: true");
+    expect(snap).toContain("raw data age: (never this connection)");
+    expect(snap).toContain("state: NO-DATA");
+  });
+
+  it("requestDeviceDiag resolves null when the provider has no hook", () => {
+    return expect(mgr.requestDeviceDiag()).resolves.toBeNull();
+  });
 });

@@ -63,11 +63,19 @@ const CREDITS: { name: string; url: string; desc: string }[] = [
   },
 ];
 
+/** Live-navigation hooks for the diagnostics bundle (see DiagnosticsDeps). */
+export interface AboutDialogOptions {
+  nav?: {
+    diagnosticsSnapshot(): string;
+    requestDeviceDiag(): Promise<string | null>;
+  };
+}
+
 export class AboutDialog {
   private readonly overlay: HTMLDivElement;
   private visible = false;
 
-  constructor() {
+  constructor(options: AboutDialogOptions = {}) {
     this.overlay = document.createElement("div");
     this.overlay.className = "about-overlay";
 
@@ -196,6 +204,7 @@ export class AboutDialog {
             buildDefaultSections({
               appVersion: __APP_VERSION__,
               buildId: __BUILD_ID__,
+              nav: options.nav,
             }),
           ),
       });

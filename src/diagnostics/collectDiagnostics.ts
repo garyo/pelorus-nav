@@ -109,6 +109,11 @@ export function redactSettings(
 interface DiagnosticsDeps {
   appVersion: string;
   buildId: string;
+  /** Live navigation state + device-side pod status, when available. */
+  nav?: {
+    diagnosticsSnapshot(): string;
+    requestDeviceDiag(): Promise<string | null>;
+  };
 }
 
 /** The production section list. */
@@ -128,6 +133,19 @@ export function buildDefaultSections(
           `userAgent: ${navigator.userAgent}`,
           `screen: ${screen.width}x${screen.height} @${devicePixelRatio}x (viewport ${innerWidth}x${innerHeight})`,
         ].join("\n"),
+    },
+    {
+      title: "NAVIGATION",
+      collect: async () => {
+        if (!deps.nav) return "(navigation manager not wired)";
+        const lines = [deps.nav.diagnosticsSnapshot()];
+        // Device-side status ($PPELD from the GPS pod's DIAG command). The
+        // request self-times-out fast (~2 s) and resolves null — a pod that's
+        // off, out of range, or on old firmware must not stall the report.
+        const pod = await deps.nav.requestDeviceDiag();
+        lines.push(`device status: ${pod ?? "(no answer / not supported)"}`);
+        return lines.join("\n");
+      },
     },
     {
       title: "DEVICE",

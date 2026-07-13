@@ -15,6 +15,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/).
 - The GPS badge now says why there's no position: "NO GPS" (no source
   connected), "NO DATA" (device connected but silent — check the device),
   or "NO FIX" (device healthy, still waiting for satellites).
+- Bug reports include a live navigation snapshot (source, connection,
+  data/fix ages) and, for the Pelorus GPS pod, the pod's own status
+  counters — fetched over Bluetooth in a couple of seconds, skipped
+  instantly if the pod doesn't answer.
 
 ### Fixed
 - Streamed (not-downloaded) charts failed to load from the production

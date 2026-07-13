@@ -47,6 +47,9 @@ export class NMEAStream {
   private readonly satTracker: SatelliteTracker | null;
   private satCommitTimer: ReturnType<typeof setTimeout> | null = null;
 
+  /** Consumer for $PPELD pod-status lines (set by the owning provider). */
+  onPodDiag?: (line: string) => void;
+
   constructor(
     source: string,
     onFix: (data: NavigationData) => void,
@@ -95,6 +98,13 @@ export class NMEAStream {
 
   private processLine(line: string): void {
     if (!line.startsWith("$")) return;
+
+    // Proprietary pod-status response ($PPELD…, answering a "DIAG" command) —
+    // hand it to the waiting consumer; it's device telemetry, not a fix.
+    if (line.startsWith("$PPELD")) {
+      this.onPodDiag?.(line);
+      return;
+    }
 
     if (this.satTracker) {
       const id = line.split(",")[0];

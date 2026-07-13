@@ -319,6 +319,36 @@ export class NavigationDataManager {
     return "no-fix";
   }
 
+  /** One-shot navigation-state summary for the diagnostics bundle — the
+   *  "what is the GPS doing RIGHT NOW" a bug report needs. */
+  diagnosticsSnapshot(): string {
+    const p = this.activeProvider;
+    if (!p) return "provider: (none)";
+    const lines = [
+      `provider: ${p.name} (${p.id})`,
+      `connected: ${p.isConnected()}${p.isReconnecting?.() ? " (reconnecting)" : ""}`,
+    ];
+    const raw = p.lastRawDataMs?.();
+    if (raw !== undefined) {
+      lines.push(
+        `raw data age: ${raw === 0 ? "(never this connection)" : `${Date.now() - raw} ms`}`,
+      );
+    }
+    const fixAge = this.getFixAgeMs();
+    lines.push(
+      `fix age: ${Number.isFinite(fixAge) ? `${Math.round(fixAge)} ms` : "(no fix this session)"}`,
+      `state: ${this.isFixStale() ? this.fixlessState().toUpperCase() : "live fix"}`,
+    );
+    return lines.join("\n");
+  }
+
+  /** The active provider's device-side status hook (the GPS pod's "DIAG"
+   *  command), when the transport has one. Resolves null quickly otherwise —
+   *  never blocks diagnostics collection. */
+  requestDeviceDiag(): Promise<string | null> {
+    return this.activeProvider?.requestDeviceDiag?.() ?? Promise.resolve(null);
+  }
+
   /** True when no fix has arrived recently enough to trust live motion data.
    *  The HUDs use this to blank SOG/COG and flag GPS loss. */
   isFixStale(): boolean {

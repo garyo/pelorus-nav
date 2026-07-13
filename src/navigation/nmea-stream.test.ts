@@ -130,4 +130,18 @@ describe("NMEAStream", () => {
     expect(fixes[1].cog).toBeNull();
     expect(fixes[1].sog).toBeNull();
   });
+
+  it("routes $PPELD pod-status lines to onPodDiag, not the fix pipeline", () => {
+    const { stream, fixes } = collect();
+    const diags: string[] = [];
+    stream.onPodDiag = (line) => diags.push(line);
+    stream.push("$PPELD,120,1,34,5738,548,606,V*4A\r\n");
+    stream.push(`${rmc("123519")}\r\n${gga("123519")}\r\n`);
+    expect(diags).toEqual(["$PPELD,120,1,34,5738,548,606,V*4A"]);
+    expect(fixes).toHaveLength(1); // the surrounding epoch still parses normally
+
+    stream.onPodDiag = undefined;
+    stream.push("$PPELD,121,1,35,5800,500,600,V*4B\r\n"); // no consumer — dropped
+    expect(diags).toHaveLength(1);
+  });
 });
