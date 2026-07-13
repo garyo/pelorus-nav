@@ -13,10 +13,13 @@ not_found_handling = "single-page-application"
 # page, so the service worker's precache fetch of /index.html would cache the
 # LANDING page as the app shell and serve it for every /app navigation.
 html_handling = "none"
-# Requests matching a static asset are normally served without invoking the
-# worker at all. The worker must own "/" (it rewrites it to the landing page —
-# the asset layer would serve the app's index.html) and /api/*.
-run_worker_first = ["/", "/api/*"]
+# The worker must run on EVERY request. With a run_worker_first *list*,
+# non-listed paths are handled by the asset layer alone — its SPA fallback
+# answers missing paths (including the R2-served *.pmtiles) with index.html
+# and the worker's R2/tile routing never executes (this silently broke all
+# streamed charts 2026-07-10 → 07-13). The worker already forwards unmatched
+# paths to the ASSETS binding, so worker-first everywhere is safe.
+run_worker_first = true
 
 [[r2_buckets]]
 binding = "TILES"
