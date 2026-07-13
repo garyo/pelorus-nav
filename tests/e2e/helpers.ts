@@ -30,7 +30,7 @@ export async function acceptDisclaimer(page: Page): Promise<void> {
     localStorage.setItem(
       "pelorus-nav-disclaimer-acceptance",
       JSON.stringify({
-        disclaimerVersion: 1,
+        disclaimerVersion: 2,
         acceptedAt: Date.now(),
         appVersion,
       }),

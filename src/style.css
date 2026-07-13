@@ -1179,6 +1179,30 @@ body {
   margin-bottom: 6px;
 }
 
+.disclaimer-body h2 {
+  font-size: 14px;
+  margin: 12px 0 4px;
+}
+
+/* Conspicuous warning callout at the top of the agreement. */
+.disclaimer-body .ua-notice {
+  font-weight: 700;
+  text-transform: uppercase;
+  font-size: 12px;
+  background: #fef3c7;
+  border: 1px solid #f59e0b;
+  border-radius: 6px;
+  padding: 8px 10px;
+  margin-bottom: 12px;
+  color: #1e293b;
+}
+
+/* Uppercase "conspicuous text" convention for warranty/liability clauses. */
+.disclaimer-body .ua-caps {
+  text-transform: uppercase;
+  font-size: 12px;
+}
+
 .disclaimer-buttons {
   display: flex;
   justify-content: flex-end;
@@ -3051,6 +3075,13 @@ body {
 [data-theme="eink"] .about-card .disclaimer-body,
 [data-theme="eink"] .about-card .screen-timeout-body {
   color: #1a1a1a;
+}
+
+[data-theme="eink"] .about-card .disclaimer-body .ua-notice {
+  background: #ffffff;
+  border-color: #000000;
+  border-radius: 0;
+  color: #000000;
 }
 
 [data-theme="eink"] .about-card .about-tagline,

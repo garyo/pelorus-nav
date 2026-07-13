@@ -8,6 +8,7 @@ import {
   collectDiagnostics,
   diagnosticsFilename,
 } from "../diagnostics/collectDiagnostics";
+import { showTermsDialog } from "./DisclaimerDialog";
 
 declare const __APP_VERSION__: string;
 declare const __BUILD_ID__: string;
@@ -133,7 +134,23 @@ export class AboutDialog {
     licenseLink.rel = "noopener";
     licenseLink.textContent = "MIT License";
 
-    links.append(siteLink, ghLink, releasesLink, changelogLink, licenseLink);
+    // Re-read the agreement accepted at first launch (read-only).
+    const termsLink = document.createElement("a");
+    termsLink.href = "#";
+    termsLink.textContent = "Terms";
+    termsLink.addEventListener("click", (e) => {
+      e.preventDefault();
+      showTermsDialog();
+    });
+
+    links.append(
+      siteLink,
+      ghLink,
+      releasesLink,
+      changelogLink,
+      licenseLink,
+      termsLink,
+    );
 
     // Credits
     const creditsHeading = document.createElement("div");
