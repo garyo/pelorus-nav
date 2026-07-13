@@ -1280,6 +1280,10 @@ body {
   opacity: 0.5;
   cursor: default;
 }
+/* Adjacent About-footer buttons (Report a Bug… / Clear Cache & Reload). */
+.about-clear-cache + .about-clear-cache {
+  margin-left: 8px;
+}
 
 /* Search dialog */
 .search-overlay {
