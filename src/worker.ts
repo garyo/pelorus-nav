@@ -191,7 +191,15 @@ function notifySignup(
         tags: "sailboat,email",
       },
       body,
-    }).catch(() => {}),
+    })
+      .then(async (res) => {
+        if (!res.ok) {
+          console.error(
+            `ntfy notify failed: HTTP ${res.status} ${await res.text()}`,
+          );
+        }
+      })
+      .catch((err) => console.error("ntfy notify error:", err)),
   );
 }
 
