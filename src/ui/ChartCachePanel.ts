@@ -659,7 +659,13 @@ export class ChartCachePanel {
 
     this.downloadController = new AbortController();
     cancelBtn.addEventListener("click", () => {
-      this.downloadController?.abort();
+      if (this.downloadController) {
+        this.downloadController.abort();
+      } else {
+        // Post-error state: the controller is gone (nulled in finally), so
+        // the button dismisses the stale progress UI + error message instead.
+        void this.refresh();
+      }
     });
 
     progressContainer.append(labelDiv, barOuter, stats, cancelBtn);
@@ -691,6 +697,7 @@ export class ChartCachePanel {
         errorDiv.className = "chart-cache-error";
         errorDiv.textContent = `Download failed: ${msg}`;
         this.body.appendChild(errorDiv);
+        cancelBtn.textContent = "Close";
         return;
       }
     } finally {
@@ -766,7 +773,13 @@ export class ChartCachePanel {
 
     this.downloadController = new AbortController();
     cancelBtn.addEventListener("click", () => {
-      this.downloadController?.abort();
+      if (this.downloadController) {
+        this.downloadController.abort();
+      } else {
+        // Post-error state: the controller is gone (nulled in finally), so
+        // the button dismisses the stale progress UI + error message instead.
+        void this.refresh();
+      }
     });
 
     progressContainer.append(label, barOuter, stats, cancelBtn);
@@ -829,6 +842,7 @@ export class ChartCachePanel {
         errorDiv.className = "chart-cache-error";
         errorDiv.textContent = `Download failed: ${msg}`;
         this.body.appendChild(errorDiv);
+        cancelBtn.textContent = "Close";
         return;
       }
     } finally {

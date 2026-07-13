@@ -68,15 +68,21 @@ function tempName(filename: string): string {
 /**
  * Promote a completed temp file over `filename`. Prefers the native rename
  * (`FileSystemFileHandle.move`), which is atomic and doesn't re-copy bytes;
- * falls back to a chunked sync-access copy + delete on browsers that don't
- * yet implement `move`.
+ * falls back to a chunked sync-access copy + delete when `move` is missing —
+ * or when it exists but throws: some WebViews (Amazon Fire) expose `move` yet
+ * reject it with NotAllowedError, which used to fail whole downloads at the
+ * finish line even though sync-access writes work fine.
  */
 async function moveIntoPlace(from: string, filename: string): Promise<void> {
   const root = await getRoot();
   const tempHandle = await root.getFileHandle(from);
   if (typeof tempHandle.move === "function") {
-    await tempHandle.move(filename);
-    return;
+    try {
+      await tempHandle.move(filename);
+      return;
+    } catch {
+      // fall through to the copy path
+    }
   }
   const finalHandle = await root.getFileHandle(filename, { create: true });
   const src = await tempHandle.createSyncAccessHandle();

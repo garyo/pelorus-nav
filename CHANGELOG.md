@@ -5,6 +5,15 @@ Notable user-facing changes to Pelorus Nav. Downloads are on the
 
 The format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [Unreleased]
+
+### Fixed
+- Chart downloads could fail at the very end on some Android WebViews
+  (e.g. Amazon Fire tablets): the final file rename is now retried as a
+  copy when the platform rejects the rename.
+- After a failed download, the dialog's Cancel button did nothing; it now
+  becomes "Close" and dismisses the error.
+
 ## [0.12.1] - 2026-07-13
 
 ### Added
