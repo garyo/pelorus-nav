@@ -12,6 +12,10 @@ interface Env {
   SUBSCRIBERS: KVNamespace;
   /** Bearer token for the read-only admin API (`wrangler secret put ADMIN_TOKEN`). */
   ADMIN_TOKEN?: string;
+  /** ntfy endpoint incl. topic, e.g. https://ntfy.example.com/pelorus-signups. */
+  NTFY_URL?: string;
+  /** Bearer token for the ntfy server. */
+  NTFY_TOKEN?: string;
 }
 
 const ALLOWED_ORIGINS = [
@@ -163,10 +167,42 @@ async function handleTilesRequest(
   });
 }
 
+// Push a signup notification to the (self-hosted) ntfy server. Fire-and-forget
+// via ctx.waitUntil — an unreachable ntfy must never delay or fail a signup.
+// Skipped entirely when the NTFY_* secrets aren't configured (dev, CI).
+function notifySignup(
+  env: Env,
+  ctx: ExecutionContext,
+  record: { email: string; platforms: string[]; note: string; isNew: boolean },
+): void {
+  if (!env.NTFY_URL || !env.NTFY_TOKEN) return;
+  const { email, platforms, note, isNew } = record;
+  const body = [
+    email,
+    `Platforms: ${platforms.join(", ") || "none"}`,
+    ...(note ? [`Note: ${note}`] : []),
+  ].join("\n");
+  ctx.waitUntil(
+    fetch(env.NTFY_URL, {
+      method: "POST",
+      headers: {
+        authorization: `Bearer ${env.NTFY_TOKEN}`,
+        title: isNew ? "New Pelorus signup" : "Signup updated",
+        tags: "sailboat,email",
+      },
+      body,
+    }).catch(() => {}),
+  );
+}
+
 // Newsletter signup: store one KV entry per address (key = lowercased email,
 // so repeat signups are idempotent). Export with
 // `wrangler kv key list --namespace-id=<id>`.
-async function handleSubscribe(request: Request, env: Env): Promise<Response> {
+async function handleSubscribe(
+  request: Request,
+  env: Env,
+  ctx: ExecutionContext,
+): Promise<Response> {
   let body: {
     email?: string;
     website?: string;
@@ -200,8 +236,10 @@ async function handleSubscribe(request: Request, env: Env): Promise<Response> {
   // Optional free-text note, kept short (the form caps at 200 chars too).
   const note =
     typeof body.note === "string" ? body.note.trim().slice(0, 200) : "";
+  const key = email.toLowerCase();
+  const isNew = (await env.SUBSCRIBERS.get(key)) === null;
   await env.SUBSCRIBERS.put(
-    email.toLowerCase(),
+    key,
     JSON.stringify({
       email,
       subscribedAt: new Date().toISOString(),
@@ -210,6 +248,7 @@ async function handleSubscribe(request: Request, env: Env): Promise<Response> {
       ...(note ? { note } : {}),
     }),
   );
+  notifySignup(env, ctx, { email, platforms, note, isNew });
   return Response.json({ ok: true });
 }
 
@@ -238,7 +277,11 @@ async function handleSubscriberList(
 }
 
 export default {
-  async fetch(request: Request, env: Env): Promise<Response> {
+  async fetch(
+    request: Request,
+    env: Env,
+    ctx: ExecutionContext,
+  ): Promise<Response> {
     const url = new URL(request.url);
 
     if (url.pathname === "/api/subscribers") {
@@ -252,7 +295,7 @@ export default {
       if (request.method !== "POST") {
         return new Response("Method Not Allowed", { status: 405 });
       }
-      return handleSubscribe(request, env);
+      return handleSubscribe(request, env, ctx);
     }
 
     // The marketing landing page owns the root URL; the app lives at /app
