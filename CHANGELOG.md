@@ -12,6 +12,9 @@ The format follows [Keep a Changelog](https://keepachangelog.com/).
   email, and the report — with app diagnostics attached — goes straight to
   the developer. No more hunting for an app to share a file with. Offline,
   it falls back to sharing the report as a file.
+- The GPS badge now says why there's no position: "NO GPS" (no source
+  connected), "NO DATA" (device connected but silent — check the device),
+  or "NO FIX" (device healthy, still waiting for satellites).
 
 ### Fixed
 - Streamed (not-downloaded) charts failed to load from the production

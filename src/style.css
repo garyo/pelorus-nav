@@ -3727,9 +3727,9 @@ body {
 
   /* The corner GPS badge overlays the caption strip's right end (top-right
      of the box), so long waypoint names must ellipsize before reaching it —
-     64px clears the widest state, "✕ NO GPS". */
+     70px clears the widest state, "✕ NO DATA". */
   body:not([data-instrument-layout="side"]) .instrument-next-wp {
-    padding: 2px 64px 1px 10px;
+    padding: 2px 70px 1px 10px;
   }
 
   /* 2×2 grid filling the group's pinned width and remaining height. */

@@ -100,10 +100,21 @@ export function createInstrumentHUD(
   let navActive = false;
   let navCellClickCallback: (() => void) | null = null;
 
+  // Each fixless state names what the user should check: NO GPS = no source
+  // connected; NO DATA = source connected but silent (check the device);
+  // NO FIX = sentences flowing, no valid fix yet (wait for satellites).
+  const FIXLESS_LABEL = {
+    "no-gps": "NO GPS",
+    "no-data": "NO DATA",
+    "no-fix": "NO FIX",
+  } as const;
+
   const updateGpsStatus = (stale: boolean) => {
     gpsBadge.dataset.conn = stale ? "bad" : "ok";
     gpsDot.textContent = stale ? "✕" : "●"; // ✕ / ●
-    gpsText.textContent = stale ? "NO GPS" : "GPS";
+    gpsText.textContent = stale
+      ? FIXLESS_LABEL[navManager.fixlessState()]
+      : "GPS";
   };
 
   /** Brief pulse on the dot for each received fix — a live "fix" cue. */

@@ -295,6 +295,30 @@ export class NavigationDataManager {
     return Date.now() - this.lastBroadcastWallMs;
   }
 
+  /** Why there's no usable fix right now — drives the HUD badge text so the
+   *  user knows what to check:
+   *  - "no-gps":  no source connected at all → set up / reconnect a source
+   *  - "no-data": transport link is up but nothing is arriving → check the
+   *               device (the GPS-pod failure mode)
+   *  - "no-fix":  sentences are flowing but carry no valid fix → wait for
+   *               satellites (or providers that can't report raw data flow)
+   *  Only meaningful while isFixStale() is true. */
+  fixlessState(): "no-gps" | "no-data" | "no-fix" {
+    const provider = this.activeProvider;
+    if (!provider?.isConnected()) return "no-gps";
+    const rawMs = provider.lastRawDataMs?.();
+    if (rawMs !== undefined) {
+      const intervalMs =
+        this.rateMode === "adaptive"
+          ? this.adaptiveCtrl.getState().intervalMs
+          : this.manualIntervalMs;
+      if (Date.now() - rawMs >= gpsStaleThresholdMs(intervalMs)) {
+        return "no-data";
+      }
+    }
+    return "no-fix";
+  }
+
   /** True when no fix has arrived recently enough to trust live motion data.
    *  The HUDs use this to blank SOG/COG and flag GPS loss. */
   isFixStale(): boolean {

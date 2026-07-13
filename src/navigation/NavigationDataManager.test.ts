@@ -15,6 +15,8 @@ class FakeProvider implements NavigationDataProvider {
   readonly name = "Fake";
   /** Polling-rate hints received from the manager, in order. */
   hints: number[] = [];
+  /** Optional raw-transport capability, settable per test. */
+  lastRawDataMs?: () => number;
   private cb: NavigationDataCallback | null = null;
   private connected = false;
   setDesiredIntervalMs(ms: number): void {
@@ -172,5 +174,51 @@ describe("NavigationDataManager visibility (8b-3)", () => {
     mgr.setVisible(false);
     mgr.setVisible(true);
     expect(provider.hints.length).toBe(hintsBefore); // nothing re-hinted
+  });
+});
+
+describe("NavigationDataManager fixlessState", () => {
+  let mgr: NavigationDataManager;
+  let provider: FakeProvider;
+  /** Raw-transport timestamp for the provider; undefined = capability absent. */
+  let rawDataMs: number | undefined;
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(0);
+    mgr = new NavigationDataManager();
+    provider = new FakeProvider();
+    provider.lastRawDataMs = () => rawDataMs as number;
+    rawDataMs = undefined;
+    mgr.registerProvider(provider);
+    mgr.setActiveProvider("fake");
+    mgr.setRateMode("manual", 2000); // threshold: 5000 ms (see above)
+  });
+
+  afterEach(() => {
+    mgr.dispose();
+    vi.useRealTimers();
+  });
+
+  it("is no-gps when the provider is disconnected", () => {
+    provider.disconnect();
+    expect(mgr.fixlessState()).toBe("no-gps");
+  });
+
+  it("is no-data when connected but the transport has gone silent", () => {
+    rawDataMs = 0; // connected, nothing ever received
+    vi.setSystemTime(60_000);
+    expect(mgr.fixlessState()).toBe("no-data");
+  });
+
+  it("is no-fix while raw data is flowing (fixless sentences)", () => {
+    vi.setSystemTime(60_000);
+    rawDataMs = 59_000; // sentences arriving, just no valid fix
+    expect(mgr.fixlessState()).toBe("no-fix");
+  });
+
+  it("is no-fix when the provider can't report raw data flow", () => {
+    provider.lastRawDataMs = undefined;
+    expect(mgr.fixlessState()).toBe("no-fix");
   });
 });

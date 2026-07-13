@@ -74,6 +74,10 @@ export class SignalKProvider implements NavigationDataProvider {
     return this.core.isConnected();
   }
 
+  lastRawDataMs(): number {
+    return this.core.lastRawDataMs();
+  }
+
   isReconnecting(): boolean {
     return this.core.isReconnecting();
   }

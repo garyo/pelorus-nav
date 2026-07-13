@@ -208,6 +208,13 @@ export class ReconnectingTransport {
     this.lastDataMs = Date.now();
   }
 
+  /** Wall-clock ms of the last raw data (or connection establishment, which
+   *  arms the watchdog; 0 = never). Backs providers' `lastRawDataMs()` so the
+   *  UI can tell "connected but silent" from "delivering but fixless". */
+  lastRawDataMs(): number {
+    return this.lastDataMs;
+  }
+
   /** Providers with a configurable data rate scale their silence limit. */
   setSilenceLimitMs(ms: number): void {
     this.silenceLimitMs = ms;

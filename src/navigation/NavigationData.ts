@@ -106,4 +106,11 @@ export interface NavigationDataProvider {
   unsubscribe(callback: NavigationDataCallback): void;
   /** Optional: hint the desired update interval (for battery savings). */
   setDesiredIntervalMs?(ms: number): void;
+  /**
+   * Optional: wall-clock ms of the last raw transport data received (0 =
+   * never), regardless of whether it parsed to a fix. Lets the UI separate
+   * "connected but silent" (NO DATA — check the device) from "delivering but
+   * fixless" (NO FIX — wait for satellites).
+   */
+  lastRawDataMs?(): number;
 }
