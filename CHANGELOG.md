@@ -5,7 +5,7 @@ Notable user-facing changes to Pelorus Nav. Downloads are on the
 
 The format follows [Keep a Changelog](https://keepachangelog.com/).
 
-## [Unreleased]
+## [0.12.0] - 2026-07-13
 
 ### Added
 - Route folders: file a route into a folder from its detail panel, and
@@ -18,7 +18,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/).
   or sail a course of your own design by naming a route SIMULATOR.
   Changing the speed multiplier no longer teleports the boat, so you can
   fast-forward at 50× and drop to 1× at the interesting part.
-- The About dialog links to the pelorus-nav.com website.
+- The About dialog links to the pelorus-nav.com website and the app's
+  Terms of Use.
 
 ### Changed
 - Wind barbs now end in a small downwind arrowhead instead of the
