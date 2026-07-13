@@ -36,7 +36,7 @@ if [[ $STATUS -eq 0 ]]; then
     if [[ -n "${NTFY_USER:-}" && -n "${NTFY_PASS:-}" ]]; then
       curl --max-time 10 -u "$NTFY_USER:$NTFY_PASS" \
         -d "Pelorus tile rebuild succeeded. Logs are at $LOG" \
-        https://ntfy.oberbrunner.com/misc >> "$LOG" 2>&1 || true
+        https://ntfy.oberbrunner.com/pelorus-nav >> "$LOG" 2>&1 || true
     fi
   fi
 else
@@ -50,7 +50,7 @@ else
       curl --max-time 10 -u "$NTFY_USER:$NTFY_PASS" \
         -H "Tags: warning" \
         -d "Pelorus tile rebuild failed; check logs at $LOG" \
-        https://ntfy.oberbrunner.com/misc >> "$LOG" 2>&1 || true
+        https://ntfy.oberbrunner.com/pelorus-nav >> "$LOG" 2>&1 || true
     fi
   fi
   exit 1
