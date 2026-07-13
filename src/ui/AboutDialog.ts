@@ -2,12 +2,11 @@
  * About dialog — shows app info, author, license, and open-source credits.
  */
 
-import { shareOrDownloadFile } from "../data/file-io";
 import {
   buildDefaultSections,
   collectDiagnostics,
-  diagnosticsFilename,
 } from "../diagnostics/collectDiagnostics";
+import { showBugReportDialog } from "./BugReportDialog";
 import { showTermsDialog } from "./DisclaimerDialog";
 
 declare const __APP_VERSION__: string;
@@ -183,33 +182,23 @@ export class AboutDialog {
     // Share diagnostics button — one plain-text report (settings, connection
     // log, JS errors, storage state, native diag log) via the share sheet /
     // browser download, so a beta tester can email it to the developer.
+    // Bug reports upload description + diagnostics to the server directly
+    // (share-as-file is the dialog's offline fallback), so a report arrives
+    // with everything needed to debug — no "please send your settings" round
+    // trips with beta testers.
     const shareDiagBtn = document.createElement("button");
     shareDiagBtn.className = "about-clear-cache about-share-diag";
-    const SHARE_LABEL = "Share Diagnostics…";
-    shareDiagBtn.textContent = SHARE_LABEL;
-    shareDiagBtn.addEventListener("click", async () => {
-      shareDiagBtn.disabled = true;
-      shareDiagBtn.textContent = "Collecting…";
-      try {
-        const text = await collectDiagnostics(
-          buildDefaultSections({
-            appVersion: __APP_VERSION__,
-            buildId: __BUILD_ID__,
-          }),
-        );
-        // The collector never throws (sections are individually guarded) —
-        // this catch is exclusively the share/write path. A dismissed share
-        // sheet resolves "cancelled", which is a clean reset, not a failure.
-        await shareOrDownloadFile(text, diagnosticsFilename(), "text/plain");
-        shareDiagBtn.textContent = SHARE_LABEL;
-      } catch (e) {
-        shareDiagBtn.textContent = `Share failed: ${String(e).slice(0, 60)}`;
-        setTimeout(() => {
-          shareDiagBtn.textContent = SHARE_LABEL;
-        }, 5000);
-      } finally {
-        shareDiagBtn.disabled = false;
-      }
+    shareDiagBtn.textContent = "Report a Bug…";
+    shareDiagBtn.addEventListener("click", () => {
+      showBugReportDialog({
+        collectDiagnostics: () =>
+          collectDiagnostics(
+            buildDefaultSections({
+              appVersion: __APP_VERSION__,
+              buildId: __BUILD_ID__,
+            }),
+          ),
+      });
     });
 
     // Clear cache button

@@ -167,30 +167,25 @@ async function handleTilesRequest(
   });
 }
 
-// Push a signup notification to the (self-hosted) ntfy server. Fire-and-forget
-// via ctx.waitUntil — an unreachable ntfy must never delay or fail a signup.
-// Skipped entirely when the NTFY_* secrets aren't configured (dev, CI).
-function notifySignup(
+// Push a notification to the (self-hosted) ntfy server. Fire-and-forget via
+// ctx.waitUntil — an unreachable ntfy must never delay or fail the request
+// that triggered it. Skipped entirely when the NTFY_* secrets aren't
+// configured (dev, CI).
+function notifyNtfy(
   env: Env,
   ctx: ExecutionContext,
-  record: { email: string; platforms: string[]; note: string; isNew: boolean },
+  msg: { title: string; tags: string; body: string },
 ): void {
   if (!env.NTFY_URL || !env.NTFY_TOKEN) return;
-  const { email, platforms, note, isNew } = record;
-  const body = [
-    email,
-    `Platforms: ${platforms.join(", ") || "none"}`,
-    ...(note ? [`Note: ${note}`] : []),
-  ].join("\n");
   ctx.waitUntil(
     fetch(env.NTFY_URL, {
       method: "POST",
       headers: {
         authorization: `Basic ${env.NTFY_TOKEN}`,
-        title: isNew ? "New Pelorus signup" : "Signup updated",
-        tags: "sailboat,email",
+        title: msg.title,
+        tags: msg.tags,
       },
-      body,
+      body: msg.body,
     })
       .then(async (res) => {
         if (!res.ok) {
@@ -256,8 +251,86 @@ async function handleSubscribe(
       ...(note ? { note } : {}),
     }),
   );
-  notifySignup(env, ctx, { email, platforms, note, isNew });
+  notifyNtfy(env, ctx, {
+    title: isNew ? "New Pelorus signup" : "Signup updated",
+    tags: "sailboat,email",
+    body: [
+      email,
+      `Platforms: ${platforms.join(", ") || "none"}`,
+      ...(note ? [`Note: ${note}`] : []),
+    ].join("\n"),
+  });
   return Response.json({ ok: true });
+}
+
+// In-app bug reports: description + optional reply address + the app's full
+// diagnostics dump. Stored whole in R2 under bug-reports/ — the tile-serving
+// routes only expose *.pmtiles/*.coverage.geojson/*.search.json, so reports
+// are unreachable from outside. Read with:
+//   wrangler r2 object get pelorus-nav bug-reports/<name> --remote
+const BUG_REPORT_MAX_BYTES = 1_000_000;
+
+async function handleBugReport(
+  request: Request,
+  env: Env,
+  ctx: ExecutionContext,
+): Promise<Response> {
+  // The native app posts cross-origin (https://localhost → pelorus-nav.com),
+  // so real responses need the CORS origin echoed just like the tile routes.
+  const corsOrigin = getAllowedOrigin(request);
+  const corsHeaders: Record<string, string> = corsOrigin
+    ? { "access-control-allow-origin": corsOrigin }
+    : {};
+  const jsonResponse = (data: unknown, status = 200) =>
+    Response.json(data, { status, headers: corsHeaders });
+
+  if (Number(request.headers.get("content-length") ?? 0) > BUG_REPORT_MAX_BYTES)
+    return jsonResponse({ error: "report too large" }, 413);
+  let body: { description?: unknown; email?: unknown; diagnostics?: unknown };
+  try {
+    body = await request.json();
+  } catch {
+    return jsonResponse({ error: "invalid JSON" }, 400);
+  }
+  const description =
+    typeof body.description === "string"
+      ? body.description.trim().slice(0, 2000)
+      : "";
+  if (!description) return jsonResponse({ error: "description required" }, 400);
+  const email =
+    typeof body.email === "string" ? body.email.trim().slice(0, 254) : "";
+  const diagnostics =
+    typeof body.diagnostics === "string"
+      ? body.diagnostics.slice(0, BUG_REPORT_MAX_BYTES)
+      : "";
+
+  const now = new Date();
+  const key = `bug-reports/${now.toISOString().replace(/[:.]/g, "-")}-${crypto.randomUUID().slice(0, 8)}.txt`;
+  const text = [
+    `date: ${now.toISOString()}`,
+    `email: ${email || "(none)"}`,
+    "",
+    "--- DESCRIPTION ---",
+    description,
+    "",
+    "--- DIAGNOSTICS ---",
+    diagnostics || "(none)",
+    "",
+  ].join("\n");
+  await env.TILES.put(key, text, {
+    httpMetadata: { contentType: "text/plain" },
+  });
+
+  notifyNtfy(env, ctx, {
+    title: "Pelorus bug report",
+    tags: "bug",
+    body: [
+      description.slice(0, 300) + (description.length > 300 ? "…" : ""),
+      ...(email ? [`From: ${email}`] : []),
+      `r2: ${key}`,
+    ].join("\n"),
+  });
+  return jsonResponse({ ok: true });
 }
 
 // Read-only subscriber dump for the nightly signup-check routine (and manual
@@ -292,6 +365,28 @@ export default {
   ): Promise<Response> {
     const url = new URL(request.url);
 
+    // CORS preflight, for both tile Range requests and the JSON API posts
+    // from the native app's cross-site origin. Must precede the route
+    // handlers — their method checks would 405 an OPTIONS request.
+    if (request.method === "OPTIONS") {
+      const corsOrigin = getAllowedOrigin(request);
+      if (corsOrigin) {
+        const isApi = url.pathname.startsWith("/api/");
+        return new Response(null, {
+          status: 204,
+          headers: {
+            "access-control-allow-origin": corsOrigin,
+            "access-control-allow-methods": isApi
+              ? "POST, OPTIONS"
+              : "GET, HEAD, OPTIONS",
+            "access-control-allow-headers": isApi ? "content-type" : "range",
+            "access-control-max-age": "86400",
+          },
+        });
+      }
+      return new Response(null, { status: 204 });
+    }
+
     if (url.pathname === "/api/subscribers") {
       if (request.method !== "GET") {
         return new Response("Method Not Allowed", { status: 405 });
@@ -306,6 +401,13 @@ export default {
       return handleSubscribe(request, env, ctx);
     }
 
+    if (url.pathname === "/api/bug-report") {
+      if (request.method !== "POST") {
+        return new Response("Method Not Allowed", { status: 405 });
+      }
+      return handleBugReport(request, env, ctx);
+    }
+
     // The marketing landing page owns the root URL; the app lives at /app
     // (an extensionless path, so the assets binding's SPA fallback serves the
     // app shell there with no further routing here). html_handling is "none"
@@ -314,23 +416,6 @@ export default {
       return env.ASSETS.fetch(
         new Request(new URL("/landing.html", url), request),
       );
-    }
-
-    // Handle CORS preflight for tile/coverage requests
-    if (request.method === "OPTIONS") {
-      const corsOrigin = getAllowedOrigin(request);
-      if (corsOrigin) {
-        return new Response(null, {
-          status: 204,
-          headers: {
-            "access-control-allow-origin": corsOrigin,
-            "access-control-allow-methods": "GET, HEAD, OPTIONS",
-            "access-control-allow-headers": "range",
-            "access-control-max-age": "86400",
-          },
-        });
-      }
-      return new Response(null, { status: 204 });
     }
 
     // Serve PMTiles, coverage GeoJSON, and search indices from R2

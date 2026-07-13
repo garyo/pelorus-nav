@@ -1,5 +1,6 @@
 import maplibregl from "maplibre-gl";
 import { regionsInView } from "../data/chart-catalog";
+import { appErrorLog } from "../diagnostics/errorLog";
 import { applySlotAnchors } from "../plugins/slots";
 import type {
   ChartBlend,
@@ -94,6 +95,20 @@ export class ChartManager {
     });
 
     this.activeProviderId = initialId;
+
+    // Funnel MapLibre source/tile errors into the persistent app error log —
+    // they surface only as map "error" events (not window errors or unhandled
+    // rejections), so without this they never appear in shared diagnostics.
+    // Deduped by message: a broken tile source repeats one error per tile.
+    const seenMapErrors = new Set<string>();
+    this.map.on("error", (e) => {
+      const msg = e.error?.message ?? String(e.error ?? "unknown map error");
+      const key = msg.slice(0, 200);
+      if (seenMapErrors.size < 50 && !seenMapErrors.has(key)) {
+        seenMapErrors.add(key);
+        appErrorLog.log("maplibre", "error", msg);
+      }
+    });
 
     this.map.addControl(new maplibregl.NavigationControl(), "top-right");
     this.map.addControl(

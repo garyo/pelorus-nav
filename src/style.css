@@ -1209,6 +1209,59 @@ body {
   gap: 8px;
 }
 
+/* Bug-report dialog (reuses .about-overlay / .about-card / .disclaimer-buttons) */
+.bugreport-overlay {
+  z-index: 10005;
+}
+
+.bugreport-card {
+  width: 440px;
+}
+
+.bugreport-description,
+.bugreport-email {
+  width: 100%;
+  box-sizing: border-box;
+  margin-bottom: 10px;
+  padding: 8px 10px;
+  font: inherit;
+  font-size: 13px;
+  color: #e0e0e0;
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid #555;
+  border-radius: 6px;
+}
+
+.bugreport-description {
+  resize: vertical;
+}
+
+.bugreport-note {
+  font-size: 11px;
+  color: #999;
+  margin-bottom: 10px;
+}
+
+.bugreport-status {
+  font-size: 12px;
+  color: #ddd;
+  min-height: 16px;
+  margin-bottom: 10px;
+}
+
+[data-theme="eink"] .about-card .bugreport-description,
+[data-theme="eink"] .about-card .bugreport-email {
+  background: #ffffff;
+  color: #000000;
+  border: 1px solid #000000;
+  border-radius: 0;
+}
+
+[data-theme="eink"] .about-card .bugreport-note,
+[data-theme="eink"] .about-card .bugreport-status {
+  color: #1a1a1a;
+}
+
 .about-clear-cache {
   margin-top: 12px;
   padding: 6px 14px;

@@ -5,6 +5,18 @@ Notable user-facing changes to Pelorus Nav. Downloads are on the
 
 The format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [Unreleased]
+
+### Added
+- Report a Bug (About dialog): describe the problem, optionally leave your
+  email, and the report — with app diagnostics attached — goes straight to
+  the developer. No more hunting for an app to share a file with. Offline,
+  it falls back to sharing the report as a file.
+
+### Fixed
+- Streamed (not-downloaded) charts failed to load from the production
+  server; downloaded charts were unaffected.
+
 ## [0.12.0] - 2026-07-13
 
 ### Added

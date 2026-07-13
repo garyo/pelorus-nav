@@ -130,6 +130,65 @@ export function buildDefaultSections(
         ].join("\n"),
     },
     {
+      title: "DEVICE",
+      collect: async () => {
+        const nav = navigator as Navigator & {
+          deviceMemory?: number;
+          connection?: { effectiveType?: string; downlink?: number };
+          getBattery?: () => Promise<{ level: number; charging: boolean }>;
+        };
+        const lines = [
+          `cores: ${nav.hardwareConcurrency ?? "?"}`,
+          `memory class: ${nav.deviceMemory ?? "?"} GB`,
+          `language: ${nav.language}`,
+          `timezone: ${Intl.DateTimeFormat().resolvedOptions().timeZone}`,
+          `online: ${nav.onLine}`,
+        ];
+        if (nav.connection) {
+          lines.push(
+            `network: ${nav.connection.effectiveType ?? "?"} (~${nav.connection.downlink ?? "?"} Mbps)`,
+          );
+        }
+        try {
+          const canvas = document.createElement("canvas");
+          let version = "webgl2";
+          let gl = canvas.getContext("webgl2") as WebGLRenderingContext | null;
+          if (!gl) {
+            version = "webgl1";
+            gl = canvas.getContext("webgl");
+          }
+          if (gl) {
+            const dbg = gl.getExtension("WEBGL_debug_renderer_info");
+            const renderer = dbg
+              ? gl.getParameter(dbg.UNMASKED_RENDERER_WEBGL)
+              : gl.getParameter(gl.RENDERER);
+            lines.push(`webgl: ${version} — ${String(renderer)}`);
+          } else {
+            lines.push("webgl: (unavailable)");
+          }
+        } catch {
+          lines.push("webgl: (probe failed)");
+        }
+        try {
+          const perm = await nav.permissions?.query?.({ name: "geolocation" });
+          lines.push(`geolocation permission: ${perm?.state ?? "(unknown)"}`);
+        } catch {
+          lines.push("geolocation permission: (unknown)");
+        }
+        try {
+          const batt = await nav.getBattery?.();
+          if (batt) {
+            lines.push(
+              `battery: ${Math.round(batt.level * 100)}%${batt.charging ? " (charging)" : ""}`,
+            );
+          }
+        } catch {
+          // no battery API — omit the line
+        }
+        return lines.join("\n");
+      },
+    },
+    {
       title: "SETTINGS",
       collect: () => JSON.stringify(redactSettings(getSettings()), null, 2),
     },
