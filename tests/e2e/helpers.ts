@@ -17,3 +17,23 @@ export async function suppressWhatsNew(page: Page): Promise<void> {
     localStorage.setItem("pelorus-nav-last-seen-version", version);
   }, APP_VERSION);
 }
+
+/**
+ * Pre-accept the blocking navigation disclaimer (DisclaimerDialog.ts) —
+ * without this, app startup halts at the "I Agree" dialog and the map never
+ * initializes. Call before page.goto(). The version here must match
+ * DISCLAIMER_VERSION in src/ui/DisclaimerDialog.ts; when that bumps, every
+ * e2e test fails at startup until this is updated to match.
+ */
+export async function acceptDisclaimer(page: Page): Promise<void> {
+  await page.addInitScript((appVersion) => {
+    localStorage.setItem(
+      "pelorus-nav-disclaimer-acceptance",
+      JSON.stringify({
+        disclaimerVersion: 1,
+        acceptedAt: Date.now(),
+        appVersion,
+      }),
+    );
+  }, APP_VERSION);
+}

@@ -1,4 +1,9 @@
 import { expect, test } from "@playwright/test";
+import { acceptDisclaimer } from "./helpers";
+
+test.beforeEach(async ({ page }) => {
+  await acceptDisclaimer(page);
+});
 
 test("map renders with MapLibre controls and top bar", async ({ page }) => {
   await page.goto("/");

@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { suppressWhatsNew } from "./helpers";
+import { acceptDisclaimer, suppressWhatsNew } from "./helpers";
 
 /** Matches src/data/Route.ts. */
 interface RouteWaypoint {
@@ -58,6 +58,7 @@ test("simulator-driven route navigation advances through waypoints on arrival", 
   page,
 }) => {
   await suppressWhatsNew(page);
+  await acceptDisclaimer(page);
   await page.addInitScript(() => {
     const raw = localStorage.getItem("pelorus-nav-settings");
     const settings = raw ? JSON.parse(raw) : {};

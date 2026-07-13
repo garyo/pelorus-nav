@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { expect, test } from "@playwright/test";
 import { PNG } from "pngjs";
-import { suppressWhatsNew } from "./helpers";
+import { acceptDisclaimer, suppressWhatsNew } from "./helpers";
 
 /**
  * BYO chart import: a raster PMTiles the catalog doesn't know is imported via
@@ -36,6 +36,7 @@ test("imported raster PMTiles becomes a rendered chart and can be removed", asyn
   page,
 }) => {
   await suppressWhatsNew(page);
+  await acceptDisclaimer(page);
   await page.goto("/");
   await expect(page.locator(".maplibregl-map")).toBeVisible({ timeout: 10000 });
 

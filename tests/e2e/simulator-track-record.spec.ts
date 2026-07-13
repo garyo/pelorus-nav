@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { suppressWhatsNew } from "./helpers";
+import { acceptDisclaimer, suppressWhatsNew } from "./helpers";
 
 interface TrackMetaProbe {
   id: string;
@@ -23,6 +23,7 @@ test("recording a track while the simulator moves produces a saved track with di
   page,
 }) => {
   await suppressWhatsNew(page);
+  await acceptDisclaimer(page);
   await page.addInitScript(() => {
     const raw = localStorage.getItem("pelorus-nav-settings");
     const settings = raw ? JSON.parse(raw) : {};

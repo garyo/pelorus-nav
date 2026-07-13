@@ -1,5 +1,5 @@
 import { expect, type Page, test } from "@playwright/test";
-import { suppressWhatsNew } from "./helpers";
+import { acceptDisclaimer, suppressWhatsNew } from "./helpers";
 
 // SimulatorProvider's Boston inner-harbor start point (see
 // simulator-route-follow.spec.ts for the route geometry).
@@ -21,6 +21,7 @@ async function holdElement(
 
 async function seedSimulatorSettings(page: Page): Promise<void> {
   await suppressWhatsNew(page);
+  await acceptDisclaimer(page);
   await page.addInitScript(() => {
     const raw = localStorage.getItem("pelorus-nav-settings");
     const settings = raw ? JSON.parse(raw) : {};
@@ -117,6 +118,7 @@ test("COB hold-to-activate, restart survival, cancel guard, and resolve", async 
 test("COB without any GPS fix shows an error and does not activate", async ({
   page,
 }) => {
+  await acceptDisclaimer(page);
   // Default gpsSource in a browser context is "none" — no fix ever arrives.
   await page.goto("/");
   await expect(page.locator(".maplibregl-map")).toBeVisible({ timeout: 10000 });

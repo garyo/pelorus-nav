@@ -3,6 +3,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { test } from "@playwright/test";
+import { acceptDisclaimer } from "./helpers";
 
 /**
  * Headless render-coverage harness for the synthetic S-57 test chart.
@@ -94,6 +95,8 @@ test("S-57 test-chart render coverage", async ({ page }) => {
     (manifest.bbox.minLng + manifest.bbox.maxLng) / 2,
     (manifest.bbox.minLat + manifest.bbox.maxLat) / 2,
   ];
+
+  await acceptDisclaimer(page);
 
   for (const scheme of SCHEMES) {
     // Seed settings before boot: day theme, no GPS, no network underlays, the
