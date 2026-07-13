@@ -116,6 +116,7 @@ import { ChartInUseReadout } from "./ui/ChartInUseReadout";
 import { startChartUpdateNotifier } from "./ui/ChartUpdateNotifier";
 import { ConnectionLogPanel } from "./ui/ConnectionLogPanel";
 import { createContextMenu } from "./ui/ContextMenu";
+import { maybeShowDisclaimer } from "./ui/DisclaimerDialog";
 import { installHardwareKeys } from "./ui/HardwareKeysController";
 import { createIdleDetector } from "./ui/IdleDetector";
 import { createInstrumentHUD, INSTRUMENTS } from "./ui/InstrumentHUD";
@@ -197,6 +198,10 @@ if (Capacitor.isNativePlatform() && "serviceWorker" in navigator) {
 // top-level awaits can't hit their TDZ.
 let appUpdateBusy = () => false;
 startAppUpdateNotifier(() => appUpdateBusy());
+
+// Block here until the user accepts the navigation disclaimer — nothing
+// chart/GPS-related is set up below until this resolves.
+await maybeShowDisclaimer();
 
 // Register PMTiles protocol for vector tile sources
 const protocol = new Protocol({ metadata: true });

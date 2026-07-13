@@ -1148,6 +1148,43 @@ body {
   background: #4570b0;
 }
 
+/* Navigation disclaimer dialog (reuses .about-overlay / .about-card). Higher
+   z-index than other dialogs since it must always be the topmost thing on
+   screen if one ever manages to fire while it's still up. */
+.disclaimer-overlay {
+  z-index: 10010;
+}
+
+.disclaimer-card {
+  width: 520px;
+}
+
+.disclaimer-body {
+  font-size: 13px;
+  color: #ddd;
+  line-height: 1.5;
+  margin-bottom: 14px;
+}
+
+.disclaimer-body p {
+  margin: 0 0 10px;
+}
+
+.disclaimer-body ul {
+  margin: 0 0 10px 20px;
+  padding: 0;
+}
+
+.disclaimer-body li {
+  margin-bottom: 6px;
+}
+
+.disclaimer-buttons {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
 .about-clear-cache {
   margin-top: 12px;
   padding: 6px 14px;
@@ -3010,7 +3047,9 @@ body {
 
 [data-theme="eink"] .about-card .about-credits,
 [data-theme="eink"] .about-card .about-info-body,
-[data-theme="eink"] .about-card .whatsnew-list {
+[data-theme="eink"] .about-card .whatsnew-list,
+[data-theme="eink"] .about-card .disclaimer-body,
+[data-theme="eink"] .about-card .screen-timeout-body {
   color: #1a1a1a;
 }
 
@@ -3020,11 +3059,17 @@ body {
   color: #444444;
 }
 
-[data-theme="eink"] .about-card .about-clear-cache {
+[data-theme="eink"] .about-card .about-clear-cache,
+[data-theme="eink"] .about-card .screen-timeout-btn {
   background: #ffffff;
   color: #000000;
   border: 1px solid #000000;
   border-radius: 0;
+}
+
+[data-theme="eink"] .about-card .screen-timeout-btn.primary {
+  background: #000000;
+  color: #ffffff;
 }
 
 [data-theme="eink"] .manager-item {
