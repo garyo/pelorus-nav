@@ -1,11 +1,13 @@
 name: Android APK (ad-hoc)
 
-# Build a signed release APK on demand WITHOUT cutting a release. Triggered
-# manually (workflow_dispatch) from any branch/ref; the APK is attached to the
-# run as a downloadable artifact instead of a GitHub Release, and no tag is
-# created. Deliberately separate from release.yml (tag-driven, publishes a
-# Release) and release-ios.yml (TestFlight) so an ad-hoc Android build touches
-# neither.
+# Build a signed release APK on demand WITHOUT cutting a public release.
+# Triggered manually (workflow_dispatch) from any branch/ref; the APK is
+# published as a DRAFT pre-release so it can be downloaded directly on-device
+# (a plain .apk asset, not a zipped run artifact). The draft is tagged
+# `adhoc-<sha>` — never `v*` — so it can't trigger release.yml even if
+# published, and its tag ref isn't created at all while it stays a draft.
+# Deliberately separate from release.yml (v* tag → public Release) and
+# release-ios.yml (TestFlight) so an ad-hoc Android build touches neither.
 #
 # Signed with the same release keystore as release.yml, so it installs OVER an
 # existing release build in place (same signature) — app data is preserved. The
@@ -21,7 +23,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write # gh release create (draft pre-release)
 
 jobs:
   build-apk:
@@ -76,16 +78,21 @@ jobs:
         working-directory: android
         run: ./gradlew assembleRelease
 
-      # Rename to a clear .apk filename so it's obviously installable once the
-      # artifact zip is extracted on-device (GitHub always wraps artifacts in a
-      # zip; the inner filename is what the user taps).
+      # Rename to a clear, tappable .apk filename for the release asset.
       - name: Rename APK
         run: mv android/app/build/outputs/apk/release/app-release.apk "pelorus-nav-${SHORT_SHA}.apk"
 
-      - name: Upload APK artifact
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: pelorus-nav-${{ env.SHORT_SHA }}
-          path: pelorus-nav-${{ env.SHORT_SHA }}.apk
-          retention-days: 30
-          if-no-files-found: error
+      # Publish as a draft pre-release so the APK downloads directly on-device
+      # (no zip). Re-runnable: drop any prior draft for this commit first.
+      - name: Publish draft pre-release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="adhoc-${SHORT_SHA}"
+          gh release delete "$TAG" --yes --cleanup-tag 2>/dev/null || true
+          gh release create "$TAG" "pelorus-nav-${SHORT_SHA}.apk" \
+            --target "$GITHUB_SHA" \
+            --draft --prerelease \
+            --title "Ad-hoc build ${ANDROID_VERSION_NAME}" \
+            --notes "Unlisted ad-hoc Android build from \`${SHORT_SHA}\` (branch \`${GITHUB_REF_NAME}\`). Release-signed — installs over an existing release build with app data preserved. Not a public release."
+          echo "Draft pre-release: $(gh release view "$TAG" --json url --jq .url)"
