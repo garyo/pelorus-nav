@@ -2,7 +2,7 @@ import { execFileSync } from "node:child_process";
 import { mkdirSync, rmSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { type RenderOptions, resolveConfig } from "./config";
-import type { Card, Pip, Punch, Scene, Storyboard } from "./types";
+import type { Card, Music, Pip, Punch, Scene, Storyboard } from "./types";
 
 /**
  * Assemble the finished tutorial from captured scene clips. Fully scripted so a
@@ -25,6 +25,7 @@ interface Asm {
   caps: string;
   seg: string;
   out: string;
+  music?: Music;
 }
 
 const ff = (args: string[]) =>
@@ -203,6 +204,33 @@ function concatXfade(a: Asm, segs: { path: string; dur: number }[]): void {
     prev = label;
     running = running + segs[i].dur - a.xfade;
   }
+
+  // Optional backing music: take only the audio stream of the track, trim it to
+  // the final video length, and fade both ends. `running` is the true finished
+  // duration (accounts for every xfade overlap), so the fade-out lands exactly
+  // at the end no matter how the scenes were re-timed.
+  const audioArgs: string[] = ["-an"];
+  if (a.music) {
+    const idx = segs.length;
+    const gain = a.music.gainDb ?? 0;
+    const fin = a.music.fadeInSec ?? 0.8;
+    const fout = a.music.fadeOutSec ?? 3;
+    const foutSt = Math.max(0, running - fout).toFixed(3);
+    const chain = [
+      `atrim=0:${running.toFixed(3)}`,
+      "asetpts=PTS-STARTPTS",
+      gain !== 0 ? `volume=${gain}dB` : "",
+      `afade=t=in:st=0:d=${fin}`,
+      `afade=t=out:st=${foutSt}:d=${fout}`,
+    ]
+      .filter(Boolean)
+      .join(",");
+    inputs.push("-i", a.music.path);
+    parts.push(`[${idx}:a]${chain}[aout]`);
+    audioArgs.length = 0;
+    audioArgs.push("-map", "[aout]", "-c:a", "aac", "-b:a", "192k");
+  }
+
   mkdirSync(dirname(a.out), { recursive: true });
   ff([
     ...inputs,
@@ -210,7 +238,7 @@ function concatXfade(a: Asm, segs: { path: string; dur: number }[]): void {
     parts.join(";"),
     "-map",
     "[vout]",
-    "-an",
+    ...audioArgs,
     "-c:v",
     "libx264",
     "-preset",
@@ -242,6 +270,7 @@ function asmFrom(storyboard: Storyboard, opts: RenderOptions): Asm {
     caps: cfg.capsDir,
     seg: cfg.segDir,
     out: cfg.outFile,
+    music: storyboard.music,
   };
 }
 

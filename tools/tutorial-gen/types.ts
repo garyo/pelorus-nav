@@ -43,6 +43,18 @@ export interface Card {
   sec: number;
 }
 
+/** Backing music track, trimmed to the video and faded at the ends. */
+export interface Music {
+  /** Path to an audio file (mp3/m4a/wav…); extra streams (album art) ignored. */
+  path: string;
+  /** Fade-in seconds at the start (default 0.8). */
+  fadeInSec?: number;
+  /** Fade-out seconds at the end (default 3). */
+  fadeOutSec?: number;
+  /** Gain applied to the whole track, in dB (default 0). */
+  gainDb?: number;
+}
+
 /** Caption + card styling shared across the storyboard. */
 export interface Theme {
   /** Path to a TTF used for captions and PiP labels. */
@@ -117,6 +129,8 @@ export interface Storyboard<Setup = unknown, App = unknown> {
   outro?: Card;
   /** Cross-dissolve between segments (default 0.5s). */
   transition?: { kind: "dissolve"; sec: number };
+  /** Optional backing music, muxed in at assemble time. */
+  music?: Music;
 }
 
 /**
