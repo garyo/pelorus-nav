@@ -4,7 +4,9 @@ An open-source web-based marine chartplotter. Runs in any browser as a progressi
 
 I aim for the highest quality software in all projects, including this one. All code is thoroughly tested at all levels, including back end tile pipelines and end-to-end app tests. All code is linted and type-checked, and frequently reviewed and refactored when needed to reduce technical debt.
 
-**Live demo**: [pelorus-nav.garyo.workers.dev](https://pelorus-nav.garyo.workers.dev/)
+**Live web app**: [pelorus-nav.com](https://pelorus-nav.com/)
+**Android**: see github [Releases](/releases/) page; sideload directly for now until we're in the Play Store
+**iOS**: Please contact me directly for a TestFlight invitation link
 
 ## Features
 
@@ -21,6 +23,7 @@ I aim for the highest quality software in all projects, including this one. All 
 - **Crew Overboard** tracking
 - **Themes**: Day, Dusk, Night and E-Ink
 - **Download regions** to work 100% offline
+- **Bring your own charts**: import your `pmtiles` raster or vector charts
 - **Sunrise/set**
 - **GPS: built-in device or various external options** (Signal K, Bluetooth, BLE)
 - **Settings**: layers, text & icon sizes, detail level control
@@ -156,4 +159,4 @@ See [PLAN.md](PLAN.md) for the full roadmap and architecture decisions.
 
 ## License
 
-MIT
+MIT; see [LICENSE.md](LICENSE.md)
