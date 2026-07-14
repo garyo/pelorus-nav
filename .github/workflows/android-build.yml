@@ -3,9 +3,11 @@ name: Android APK (ad-hoc)
 # Build a signed release APK on demand WITHOUT cutting a public release.
 # Triggered manually (workflow_dispatch) from any branch/ref; the APK is
 # published as a DRAFT pre-release so it can be downloaded directly on-device
-# (a plain .apk asset, not a zipped run artifact). The draft is tagged
-# `adhoc-<sha>` — never `v*` — so it can't trigger release.yml even if
-# published, and its tag ref isn't created at all while it stays a draft.
+# (a plain .apk asset, not a zipped run artifact). It uses one rolling tag
+# `adhoc` — never `v*` — recreated each run, so there's always exactly one
+# ad-hoc draft (the latest) instead of a pile-up, and it can't trigger
+# release.yml even if published. As a draft its tag ref isn't created at all.
+# The build's commit is in the asset filename, title, and notes.
 # Deliberately separate from release.yml (v* tag → public Release) and
 # release-ios.yml (TestFlight) so an ad-hoc Android build touches neither.
 #
@@ -91,16 +93,17 @@ jobs:
         run: mv android/app/build/outputs/apk/release/app-release.apk "pelorus-nav-${SHORT_SHA}.apk"
 
       # Publish as a draft pre-release so the APK downloads directly on-device
-      # (no zip). Re-runnable: drop any prior draft for this commit first.
+      # (no zip). One rolling `adhoc` tag: delete the previous draft, then create
+      # the new one — so only the latest ad-hoc build is ever listed.
       - name: Publish draft pre-release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          TAG="adhoc-${SHORT_SHA}"
+          TAG="adhoc"
           gh release delete "$TAG" --yes --cleanup-tag 2>/dev/null || true
           gh release create "$TAG" "pelorus-nav-${SHORT_SHA}.apk" \
             --target "$GITHUB_SHA" \
             --draft --prerelease \
             --title "Ad-hoc build ${ANDROID_VERSION_NAME}" \
-            --notes "Unlisted ad-hoc Android build from \`${SHORT_SHA}\` (branch \`${GITHUB_REF_NAME}\`). Release-signed — installs over an existing release build with app data preserved. Not a public release."
+            --notes "Unlisted latest ad-hoc Android build from \`${SHORT_SHA}\` (branch \`${GITHUB_REF_NAME}\`). Release-signed — installs over an existing release build with app data preserved. Not a public release."
           echo "Draft pre-release: $(gh release view "$TAG" --json url --jq .url)"
