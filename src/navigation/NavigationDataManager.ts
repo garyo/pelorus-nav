@@ -5,7 +5,11 @@
  */
 
 import { diag } from "../utils/diag";
-import { AdaptiveRateController, type AdaptiveRateState } from "./AdaptiveRate";
+import {
+  AdaptiveRateController,
+  type AdaptiveRateState,
+  DEFAULT_ADAPTIVE_CONFIG,
+} from "./AdaptiveRate";
 import { gpsDiagLog } from "./GPSDiagnosticLog";
 import { GPSFilter } from "./GPSFilter";
 import { GPSQualityDetector } from "./GPSQualityDetector";
@@ -29,6 +33,15 @@ export type QualityListener = (q: number) => void;
  * extra when the chip can't keep up).
  */
 const FAST_HW_SAMPLING_MS = 1000;
+
+/**
+ * Fast-tier broadcast interval when the source is an external pod on a visible
+ * non-e-ink screen: the fixes arrive for free, so update the display per-fix
+ * (this cap lets a 2 Hz pod through and bounds a faster one to 4 Hz — still
+ * well under the 10 fps render throttle). Internal GPS keeps the default 2 s
+ * fast ceiling to conserve battery.
+ */
+const EXTERNAL_FAST_INTERVAL_MS = 250;
 
 /** Quality score above which we boost hardware polling in "auto" mode. */
 const HW_BOOST_QUALITY_THRESHOLD = 0.3;
@@ -80,6 +93,7 @@ export class NavigationDataManager {
   /** Last interval hinted to the provider — avoids redundant native IPC. */
   private lastHintedIntervalMs = -1;
   /** Screen policy asks for the fast tier (non-e-ink themes). */
+  private sourceIsExternal = false;
   private screenWantsFast = false;
   /** App visibility (see setVisible) — effective force-fast needs both. */
   private visible = true;
@@ -374,6 +388,10 @@ export class NavigationDataManager {
     this.lastHintedIntervalMs = -1;
     const provider = this.providers.find((p) => p.id === id) ?? null;
     this.activeProvider = provider;
+    // adaptiveCtrl.reset() above restored the default fast ceiling; re-apply the
+    // source-aware one (external pods update per-fix on a non-e-ink screen).
+    this.sourceIsExternal = provider?.external ?? false;
+    this.applyFastInterval();
 
     if (provider) {
       provider.subscribe(this.onData);
@@ -454,8 +472,8 @@ export class NavigationDataManager {
 
   private applyForceFast(): void {
     const effective = this.screenWantsFast && this.visible;
-    if (this.adaptiveCtrl.forceFast === effective) return;
     this.adaptiveCtrl.forceFast = effective;
+    this.applyFastInterval();
     // Re-hint so the provider's polling rate tracks the tier change now
     // rather than on the next fix.
     this.hintProviderInterval(
@@ -464,6 +482,20 @@ export class NavigationDataManager {
         : this.rateMode === "adaptive"
           ? this.adaptiveCtrl.getState().intervalMs
           : this.manualIntervalMs,
+    );
+  }
+
+  /**
+   * Set the adaptive fast-tier ceiling from the current source + screen state:
+   * an external pod on a visible non-e-ink screen (the force-fast condition)
+   * gets per-fix updates; everything else keeps the battery-saving default.
+   */
+  private applyFastInterval(): void {
+    const cheapAndVisible = this.screenWantsFast && this.visible;
+    this.adaptiveCtrl.setFastIntervalMs(
+      this.sourceIsExternal && cheapAndVisible
+        ? EXTERNAL_FAST_INTERVAL_MS
+        : DEFAULT_ADAPTIVE_CONFIG.fastIntervalMs,
     );
   }
 

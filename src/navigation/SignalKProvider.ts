@@ -33,6 +33,7 @@ function silenceLimitFor(periodMs: number): number {
 export class SignalKProvider implements NavigationDataProvider {
   readonly id = "signalk";
   readonly name = "Signal K";
+  readonly external = true;
 
   private listeners: NavigationDataCallback[] = [];
   private ws: WebSocket | null = null;

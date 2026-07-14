@@ -77,6 +77,7 @@ export class BLENMEAProvider
 {
   readonly id = "ble-nmea";
   readonly name = "Bluetooth GPS (BLE)";
+  readonly external = true;
 
   private listeners: NavigationDataCallback[] = [];
   private satListeners: SatelliteStatusCallback[] = [];

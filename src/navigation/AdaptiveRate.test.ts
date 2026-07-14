@@ -117,6 +117,36 @@ describe("AdaptiveRateController", () => {
     expect(ctrl.shouldBroadcast(Date.now())).toBe(true);
   });
 
+  it("setFastIntervalMs lowers the fast-tier ceiling immediately", () => {
+    const ctrl = new AdaptiveRateController();
+    expect(ctrl.getState().tier).toBe("fast");
+    expect(ctrl.getState().intervalMs).toBe(2000);
+    ctrl.setFastIntervalMs(250);
+    expect(ctrl.getConfig().fastIntervalMs).toBe(250);
+    expect(ctrl.getState().intervalMs).toBe(250);
+  });
+
+  it("setFastIntervalMs gates broadcasts at the new interval", () => {
+    const ctrl = new AdaptiveRateController();
+    const t = 1_000_000;
+    ctrl.markBroadcast(t);
+    // Default fast ceiling (2 s): a fix 500 ms later must not broadcast...
+    expect(ctrl.shouldBroadcast(t + 500)).toBe(false);
+    // ...but after lowering the ceiling to 250 ms (external pod) it should.
+    ctrl.setFastIntervalMs(250);
+    expect(ctrl.shouldBroadcast(t + 500)).toBe(true);
+  });
+
+  it("setFastIntervalMs is idempotent and restorable to the default", () => {
+    const ctrl = new AdaptiveRateController();
+    ctrl.setFastIntervalMs(250);
+    ctrl.setFastIntervalMs(250);
+    expect(ctrl.getConfig().fastIntervalMs).toBe(250);
+    ctrl.setFastIntervalMs(2000);
+    expect(ctrl.getConfig().fastIntervalMs).toBe(2000);
+    expect(ctrl.getState().intervalMs).toBe(2000);
+  });
+
   it("transitions to slow for stationary fixes", () => {
     const ctrl = new AdaptiveRateController();
     const t = 1000000;

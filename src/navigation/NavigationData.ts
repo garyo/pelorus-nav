@@ -86,6 +86,13 @@ export interface NavigationDataProvider {
   readonly id: string;
   /** Human-readable name */
   readonly name: string;
+  /**
+   * True when fixes arrive from external hardware (a BLE/NMEA/Signal K pod), so
+   * the device spends no power producing them — the display can update as fast
+   * as data arrives. Internal GPS (phone geolocation) leaves this false/unset so
+   * the adaptive rate stays battery-conservative.
+   */
+  readonly external?: boolean;
   /** Whether the provider is currently connected/active */
   isConnected(): boolean;
   /** Optional: whether the provider is mid-(re)connect (for a "trying" UI state). */

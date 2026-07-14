@@ -252,6 +252,19 @@ export class AdaptiveRateController {
     return this.config;
   }
 
+  /**
+   * Override the fast-tier interval. Used to speed the display up when fixes
+   * are cheap — an external pod on a non-e-ink screen — where the default
+   * fast ceiling (a battery-saving 2 s) is needlessly slow. Idempotent.
+   */
+  setFastIntervalMs(ms: number): void {
+    if (this.config.fastIntervalMs === ms) return;
+    this.config = { ...this.config, fastIntervalMs: ms };
+    if (this.state.tier === "fast") {
+      this.state = { ...this.state, intervalMs: ms };
+    }
+  }
+
   /** Lock tier to "fast" (e.g. screen on, non-e-ink). */
   set forceFast(value: boolean) {
     this._forceFast = value;

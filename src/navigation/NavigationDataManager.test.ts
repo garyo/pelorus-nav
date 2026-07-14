@@ -52,6 +52,30 @@ class FakeProvider implements NavigationDataProvider {
   }
 }
 
+/** External source (BLE/NMEA/Signal K pod): fixes arrive for free. */
+class ExternalFakeProvider extends FakeProvider {
+  readonly external = true;
+}
+
+describe("NavigationDataManager external-source update rate", () => {
+  it("runs an external pod at the fast per-fix ceiling on a non-e-ink screen", () => {
+    const mgr = new NavigationDataManager();
+    mgr.registerProvider(new ExternalFakeProvider());
+    mgr.setActiveProvider("fake");
+    mgr.forceFastRate = true; // non-e-ink screen, visible
+    expect(mgr.getAdaptiveState().tier).toBe("fast");
+    expect(mgr.getAdaptiveState().intervalMs).toBe(250);
+  });
+
+  it("keeps internal GPS at the battery-saving 2 s ceiling", () => {
+    const mgr = new NavigationDataManager();
+    mgr.registerProvider(new FakeProvider());
+    mgr.setActiveProvider("fake");
+    mgr.forceFastRate = true;
+    expect(mgr.getAdaptiveState().intervalMs).toBe(2000);
+  });
+});
+
 describe("gpsStaleThresholdMs", () => {
   it("floors at GPS_STALE_FLOOR_MS for fast broadcast rates", () => {
     expect(gpsStaleThresholdMs(1000)).toBe(GPS_STALE_FLOOR_MS);

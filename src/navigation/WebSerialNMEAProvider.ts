@@ -53,6 +53,7 @@ const NOT_PRESENT = "saved GPS device not present";
 export class WebSerialNMEAProvider implements NavigationDataProvider {
   readonly id = "web-serial";
   readonly name = "USB GPS (Serial)";
+  readonly external = true;
 
   private listeners: NavigationDataCallback[] = [];
   private port: SerialPort | null = null;

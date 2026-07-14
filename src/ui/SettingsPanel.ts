@@ -16,7 +16,6 @@ import {
   depthConversionFactor,
   depthUnitLabel,
   type GpsFilterMode,
-  type GpsRateMode,
   getLayerGroups,
   getPluginSetting,
   getPluginSettingsSchemas,
@@ -729,42 +728,39 @@ function buildNavigationTab(
   });
   tab.appendChild(signalkRow);
 
-  // GPS rate mode
-  const GPS_RATE_MODES = [
-    { value: "adaptive", label: "Adaptive" },
-    { value: "manual", label: "Manual" },
-  ];
-  tab.appendChild(
-    buildSelectRow(
-      "GPS rate",
-      "settings-gps-rate-mode",
-      GPS_RATE_MODES,
-      settings.gpsRateMode,
-      (v) => {
-        updateSettings({ gpsRateMode: v as GpsRateMode });
-      },
-    ),
-  );
-
-  // Manual interval (shown only when manual mode selected)
-  const MANUAL_INTERVAL_OPTIONS = [
+  // GPS update rate: "Auto" (adaptive — as fast as useful, eased back to save
+  // power/e-ink refreshes) or a fixed interval. One control mapped onto the two
+  // underlying settings. 0.5/1s are useful with a fast external pod and for
+  // power testing; Auto already runs an external pod at full rate on a non-e-ink
+  // screen (see NavigationDataManager).
+  const GPS_RATE_OPTIONS = [
+    { value: "auto", label: "Auto" },
+    { value: "500", label: "0.5s" },
+    { value: "1000", label: "1s" },
     { value: "2000", label: "2s" },
     { value: "5000", label: "5s" },
     { value: "10000", label: "10s" },
   ];
-  const manualRow = buildSelectRow(
-    "Update interval",
-    "settings-manual-interval",
-    MANUAL_INTERVAL_OPTIONS,
-    String(settings.manualUpdateIntervalMs),
-    (v) => updateSettings({ manualUpdateIntervalMs: Number(v) }),
+  tab.appendChild(
+    buildSelectRow(
+      "GPS update rate",
+      "settings-gps-rate",
+      GPS_RATE_OPTIONS,
+      settings.gpsRateMode === "adaptive"
+        ? "auto"
+        : String(settings.manualUpdateIntervalMs),
+      (v) => {
+        if (v === "auto") {
+          updateSettings({ gpsRateMode: "adaptive" });
+        } else {
+          updateSettings({
+            gpsRateMode: "manual",
+            manualUpdateIntervalMs: Number(v),
+          });
+        }
+      },
+    ),
   );
-  manualRow.style.display = settings.gpsRateMode === "manual" ? "" : "none";
-  tab.appendChild(manualRow);
-
-  onSettingsChange((s) => {
-    manualRow.style.display = s.gpsRateMode === "manual" ? "" : "none";
-  });
 
   // GPS filter strength (adaptive smoothing for jittery hardware)
   const GPS_FILTER_MODES: { value: GpsFilterMode; label: string }[] = [
