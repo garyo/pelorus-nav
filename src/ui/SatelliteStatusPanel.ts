@@ -28,9 +28,13 @@ const SAT_LIVE_MS = 3000;
 // Grace after opening before "Waiting…" becomes "No data — tap Resume", so a
 // SAT command that never produces data is recoverable rather than a dead end.
 const SAT_OPEN_GRACE_MS = 6000;
-// Within the grace window, re-arm this often if no data has arrived — the first
-// BLE write after connecting can be dropped, so the initial command self-heals.
+// While no satellite data is streaming, re-arm this often — a "SAT 1" write can
+// be dropped (repeatedly, on slow WebViews like older Fire tablets), so the
+// command self-heals until one lands instead of stranding on manual Resume.
 const SAT_RETRY_MS = 2000;
+// While data IS live, re-arm this often to stay ahead of the pod's 60 s
+// forwarding auto-revert, so an open panel never pauses waiting for Resume.
+const SAT_KEEPALIVE_MS = 30000;
 
 const FIX_LABELS: Record<number, string> = {
   1: "No fix — searching",
@@ -254,15 +258,13 @@ export class SatelliteStatusPanel {
     // that produced nothing.
     const offerResume = connected && !satLive && (hadData || pastGrace);
 
-    // Self-heal a dropped initial SAT command: re-arm a few times during the
-    // grace window before falling back to the manual Resume. Initial acquisition
-    // only — a real post-data timeout still waits for the manual button.
-    if (
-      connected &&
-      !hadData &&
-      !pastGrace &&
-      Date.now() - this.lastSatCmdMs > SAT_RETRY_MS
-    ) {
+    // Keep the pod forwarding without manual intervention. Re-arm fast while
+    // nothing is streaming (initial acquisition, or after a drop) — persistently,
+    // not just for the first few seconds, so a flaky WebView write eventually
+    // lands. Once live, re-arm slowly to stay inside the pod's 60 s auto-revert
+    // so a live stream never pauses. Resume remains as a manual override.
+    const reArmAfter = satLive ? SAT_KEEPALIVE_MS : SAT_RETRY_MS;
+    if (connected && Date.now() - this.lastSatCmdMs > reArmAfter) {
       this.sendSatOn();
     }
 
@@ -286,9 +288,9 @@ export class SatelliteStatusPanel {
         `Live · ${(satAge / 1000).toFixed(1)}s ago`,
       );
     } else if (hadData) {
-      this.set(this.rowData, "amber", "Paused — device timeout");
+      this.set(this.rowData, "amber", "Paused — reacquiring…");
     } else if (pastGrace) {
-      this.set(this.rowData, "amber", "No data — tap Resume");
+      this.set(this.rowData, "amber", "No data — retrying…");
     } else {
       this.set(this.rowData, "amber", "Waiting for data…");
     }

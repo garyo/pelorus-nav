@@ -55,7 +55,13 @@ const TIER_ICONS: Record<AdaptiveTier, string> = {
 };
 
 function formatRateIndicator(tier: AdaptiveTier, intervalMs: number): string {
-  return `${TIER_ICONS[tier]}${(intervalMs / 1000).toFixed(0)}s`;
+  const s = intervalMs / 1000;
+  // Whole seconds print bare ("2s"); sub-second keeps up to 2 decimals so a
+  // 250 ms external-pod rate reads "0.25s" instead of rounding to "0s".
+  const txt = Number.isInteger(s)
+    ? `${s}`
+    : `${Number.parseFloat(s.toFixed(2))}`;
+  return `${TIER_ICONS[tier]}${txt}s`;
 }
 
 const THERMAL_LABEL: Record<ThermalState, string> = {
