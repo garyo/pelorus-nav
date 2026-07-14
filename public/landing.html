@@ -131,6 +131,29 @@ h1 .accent { color: var(--wave); }
 }
 .shot-caption { font-size: 13.5px; color: var(--chrome); padding: 10px 0 0; }
 
+/* promo video — click-to-load YouTube facade (no third-party JS until played) */
+.video-block { margin: 72px auto 0; max-width: 1080px; text-align: center; }
+.video-block h2 { margin-bottom: 12px; }
+.video-lede { margin: 0 auto 28px; }
+.video-facade {
+  position: relative; aspect-ratio: 16 / 9; border-radius: 10px; overflow: hidden;
+  cursor: pointer; border: 1px solid var(--hairline);
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.5), 0 -12px 60px rgba(41, 128, 185, 0.1);
+}
+.video-facade img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.video-facade iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
+.play-btn {
+  position: absolute; inset: 0; margin: auto; width: 84px; height: 84px;
+  display: grid; place-items: center; border-radius: 999px;
+  background: rgba(41, 128, 185, 0.92); box-shadow: 0 10px 34px rgba(0, 0, 0, 0.55);
+  transition: transform 0.15s ease, background 0.15s ease;
+}
+.video-facade:hover .play-btn,
+.video-facade:focus-visible .play-btn { transform: scale(1.07); background: var(--blue); }
+.video-facade:focus-visible { outline: 2px solid var(--wave); outline-offset: 3px; }
+.play-btn svg { width: 34px; height: 34px; margin-left: 5px; fill: #fff; }
+@media (prefers-reduced-motion: reduce) { .play-btn { transition: none; } }
+
 /* brand wave under the hero screenshot */
 .divider {
   border: none; height: 26px; margin: 6px 0 0;
@@ -282,6 +305,20 @@ footer nav { display: flex; gap: 22px; }
   young and under active development. Please use it as a planning and
   situational-awareness aid alongside official charts and proper seamanship —
   never as your only source of navigation information.</div>
+</div>
+
+<div class="wrap video-block">
+  <h2>See it in action</h2>
+  <p class="section-lede video-lede">A quick tour — official charts, routes and waypoints,
+  tides and currents, track review, and the crew-overboard button.</p>
+  <div class="video-facade" id="promo-video" data-yt="YOUTUBE_ID"
+    role="button" tabindex="0" aria-label="Play the Pelorus Nav walkthrough video">
+    <img src="/landing/promo-poster.webp" width="1920" height="1080" loading="lazy"
+      alt="Pelorus Nav showing a NOAA electronic chart of Boston Harbor with buoys, depth contours, and live speed and course instruments" />
+    <span class="play-btn" aria-hidden="true">
+      <svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z" /></svg>
+    </span>
+  </div>
 </div>
 
 <div class="wrap">
@@ -443,6 +480,32 @@ form.addEventListener("submit", async (e) => {
   }
   button.disabled = false;
 });
+
+// Promo video: swap the poster for the YouTube player only when the user clicks
+// (no third-party requests otherwise). Inert until data-yt holds a real id.
+const facade = document.getElementById("promo-video");
+if (facade) {
+  const play = () => {
+    const id = facade.dataset.yt;
+    if (!id || id === "YOUTUBE_ID") return;
+    const iframe = document.createElement("iframe");
+    iframe.src =
+      `https://www.youtube-nocookie.com/embed/${id}?autoplay=1&rel=0&modestbranding=1`;
+    iframe.title = "Pelorus Nav walkthrough";
+    iframe.allow =
+      "autoplay; encrypted-media; picture-in-picture; fullscreen";
+    iframe.allowFullscreen = true;
+    facade.replaceChildren(iframe);
+    facade.style.cursor = "default";
+  };
+  facade.addEventListener("click", play);
+  facade.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault();
+      play();
+    }
+  });
+}
 </script>
 </body>
 </html>
