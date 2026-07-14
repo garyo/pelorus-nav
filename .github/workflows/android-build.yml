@@ -1,0 +1,85 @@
+name: Android APK (ad-hoc)
+
+# Build a signed release APK on demand WITHOUT cutting a release. Triggered
+# manually (workflow_dispatch) from any branch/ref; the APK is attached to the
+# run as a downloadable artifact instead of a GitHub Release, and no tag is
+# created. Deliberately separate from release.yml (tag-driven, publishes a
+# Release) and release-ios.yml (TestFlight) so an ad-hoc Android build touches
+# neither.
+#
+# Signed with the same release keystore as release.yml, so it installs OVER an
+# existing release build in place (same signature) — app data is preserved. The
+# versionCode uses the commit count (identical scheme to release.yml) so a real
+# release from the same or a later commit will still upgrade this build.
+#
+# One-time setup: the signing secrets live in the `release` GitHub environment,
+# which is restricted to v* tag refs. To let this workflow run from a branch,
+# add that branch (e.g. main) to the environment's allowed deployment branches
+# and tags: Settings → Environments → release → Deployment branches and tags.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-apk:
+    runs-on: ubuntu-latest
+    environment: release
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0 # full history → versionCode from commit count
+
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: latest
+
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: "22"
+
+      - uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654 # v5.2.0
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Compute Android version
+        run: |
+          echo "ANDROID_VERSION_CODE=$(git rev-list --count HEAD)" >> "$GITHUB_ENV"
+          PKG_VERSION="$(node -p "require('./package.json').version")"
+          echo "ANDROID_VERSION_NAME=${PKG_VERSION}-${GITHUB_SHA::7}" >> "$GITHUB_ENV"
+          echo "SHORT_SHA=${GITHUB_SHA::7}" >> "$GITHUB_ENV"
+
+      - name: Build web + sync Android
+        run: |
+          CAPACITOR=1 bun run build
+          bunx cap sync android
+
+      - name: Decode signing keystore
+        run: echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 -d > android/pelorus-release.keystore
+
+      - name: Write signing.properties
+        run: |
+          cat > android/signing.properties <<EOF
+          storeFile=pelorus-release.keystore
+          storePassword=${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          keyAlias=${{ secrets.ANDROID_KEY_ALIAS }}
+          keyPassword=${{ secrets.ANDROID_KEY_PASSWORD }}
+          EOF
+
+      - name: Build signed release APK
+        working-directory: android
+        run: ./gradlew assembleRelease
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: pelorus-nav-${{ env.SHORT_SHA }}
+          path: android/app/build/outputs/apk/release/app-release.apk
+          retention-days: 30
+          if-no-files-found: error
