@@ -35,6 +35,10 @@ const SAT_RETRY_MS = 2000;
 // While data IS live, re-arm this often to stay ahead of the pod's 60 s
 // forwarding auto-revert, so an open panel never pauses waiting for Resume.
 const SAT_KEEPALIVE_MS = 30000;
+// The raw position stream (RMC/GGA) flows from boot, before any satellite
+// detail — treat it as live if a sentence arrived within this window. Generous
+// vs the pod's 1–2 Hz output so the Data row doesn't flicker between sentences.
+const RAW_LIVE_MS = 4000;
 
 const FIX_LABELS: Record<number, string> = {
   1: "No fix — searching",
@@ -252,6 +256,12 @@ export class SatelliteStatusPanel {
       : Infinity;
     const satLive = connected && satAge < SAT_LIVE_MS;
     const hadData = this.lastSatDataMs > 0;
+    // The raw position stream (RMC/GGA) flows from boot, independent of the
+    // on-request satellite detail — drive Data/Fix from it so the panel reads
+    // usefully the instant we're connected.
+    const rawMs = provider.lastRawDataMs?.() ?? 0;
+    const rawAge = rawMs ? Date.now() - rawMs : Infinity;
+    const rawLive = connected && rawAge < RAW_LIVE_MS;
     const pastGrace = Date.now() - this.openedAtMs > SAT_OPEN_GRACE_MS;
     // Offer Resume whenever connected but not streaming, once it's clearly not
     // just initial latency — covers both the pod's auto-revert and a SAT command
@@ -279,28 +289,43 @@ export class SatelliteStatusPanel {
     }
     this.reconnectBtn.style.display = connected ? "none" : "";
 
+    // Data row reflects the raw sentence stream (RMC/GGA) — present from boot,
+    // independent of the on-request satellite detail. So a connected, streaming
+    // pod never reads "No data" just because GSV/GSA aren't armed yet.
     if (!connected) {
       this.set(this.rowData, "off", "—");
-    } else if (satLive) {
+    } else if (rawLive) {
       this.set(
         this.rowData,
         "green",
-        `Live · ${(satAge / 1000).toFixed(1)}s ago`,
+        `Receiving · ${(rawAge / 1000).toFixed(1)}s ago`,
       );
-    } else if (hadData) {
-      this.set(this.rowData, "amber", "Paused — reacquiring…");
-    } else if (pastGrace) {
-      this.set(this.rowData, "amber", "No data — retrying…");
+    } else if (rawMs > 0 || pastGrace) {
+      this.set(this.rowData, "red", "No data — check pod");
     } else {
       this.set(this.rowData, "amber", "Waiting for data…");
     }
     this.resumeBtn.style.display = offerResume ? "" : "none";
 
+    // Fix row from the position stream (RMC/GGA): "No fix — searching" shows as
+    // soon as sentences flow — no SAT command needed — and GSA fixType upgrades
+    // it to 2D/3D once satellite detail arrives.
     const status = this.status;
+    const data = this.manager?.getLastData() ?? null;
+    const fixStale = this.manager?.isFixStale() ?? true;
+    if (data && !fixStale) {
+      const ft = status?.fixType ?? 3;
+      const fixState: DotState = ft >= 3 ? "green" : "amber";
+      this.set(this.rowFix, fixState, FIX_LABELS[ft] ?? "3D fix");
+    } else if (rawLive) {
+      this.set(this.rowFix, "red", "No fix — searching");
+    } else {
+      this.set(this.rowFix, "off", "—");
+    }
+
+    // Accuracy is satellite-detail derived (sats used + HDOP) — dashes until
+    // GSV/GSA arrive.
     if (status) {
-      const fixState: DotState =
-        status.fixType >= 3 ? "green" : status.fixType === 2 ? "amber" : "red";
-      this.set(this.rowFix, fixState, FIX_LABELS[status.fixType] ?? "—");
       const hdop = status.hdop !== null ? status.hdop.toFixed(1) : "—";
       const quality = hdopQuality(status.hdop);
       this.set(
@@ -309,11 +334,17 @@ export class SatelliteStatusPanel {
         `${status.used} used · HDOP ${hdop}${quality ? ` · ${quality}` : ""}`,
       );
     } else {
-      this.set(this.rowFix, "off", "—");
       this.set(this.rowAccuracy, "off", "—");
     }
 
-    const data = this.manager?.getLastData() ?? null;
+    // Satellite-detail (GSV/GSA) section state — separate from the raw stream;
+    // renderBars() sets "· N in view" once bursts arrive.
+    if (connected && !satLive) {
+      this.satHeader.textContent = hadData
+        ? "Satellites · paused"
+        : "Satellites · acquiring…";
+    }
+
     if (data) {
       this.set(
         this.rowPosition,
