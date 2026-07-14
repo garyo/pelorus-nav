@@ -74,6 +74,69 @@ describe("NavigationDataManager external-source update rate", () => {
     mgr.forceFastRate = true;
     expect(mgr.getAdaptiveState().intervalMs).toBe(2000);
   });
+
+  it("reports the effective rate from the source, not the throttle ceiling", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(0);
+    try {
+      const mgr = new NavigationDataManager();
+      const provider = new ExternalFakeProvider();
+      mgr.registerProvider(provider);
+      mgr.setActiveProvider("fake");
+      mgr.forceFastRate = true; // ceiling is 250 ms...
+
+      // ...but a 2 Hz pod only delivers a fix every 500 ms.
+      for (let i = 0; i < 6; i++) {
+        provider.emit();
+        vi.advanceTimersByTime(500);
+      }
+
+      // Ceiling stays 250 ms; the displayed effective rate tracks the source.
+      expect(mgr.getAdaptiveState().intervalMs).toBe(250);
+      expect(mgr.getEffectiveIntervalMs()).toBeGreaterThan(450);
+      expect(mgr.getEffectiveIntervalMs()).toBeLessThan(550);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("falls back to the throttle interval before any fixes arrive", () => {
+    const mgr = new NavigationDataManager();
+    mgr.registerProvider(new ExternalFakeProvider());
+    mgr.setActiveProvider("fake");
+    mgr.forceFastRate = true;
+    expect(mgr.getEffectiveIntervalMs()).toBe(250);
+  });
+
+  it("does not spike the effective rate after a long gap (backgrounded tab)", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(0);
+    try {
+      const mgr = new NavigationDataManager();
+      const provider = new ExternalFakeProvider();
+      mgr.registerProvider(provider);
+      mgr.setActiveProvider("fake");
+      mgr.forceFastRate = true;
+
+      for (let i = 0; i < 5; i++) {
+        provider.emit();
+        vi.advanceTimersByTime(500);
+      }
+      expect(mgr.getEffectiveIntervalMs()).toBeGreaterThan(450);
+
+      // A 60 s gap (tab hidden), then 2 Hz fixes resume. The gap must not be
+      // averaged into the reading — it re-anchors and stays at the source rate.
+      vi.advanceTimersByTime(60_000);
+      for (let i = 0; i < 3; i++) {
+        provider.emit();
+        vi.advanceTimersByTime(500);
+      }
+      expect(mgr.getEffectiveIntervalMs()).toBeGreaterThan(450);
+      expect(mgr.getEffectiveIntervalMs()).toBeLessThan(550);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });
 
 describe("gpsStaleThresholdMs", () => {

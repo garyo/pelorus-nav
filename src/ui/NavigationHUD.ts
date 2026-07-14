@@ -54,10 +54,19 @@ const TIER_ICONS: Record<AdaptiveTier, string> = {
   slow: "\u25A0", // ■
 };
 
+// Snap a measured interval to a clean display value — finer near the fast end,
+// coarser for slow rates — so EMA jitter doesn't show noisy digits (e.g. an
+// ~500 ms pod reads "0.5s", not "0.49s").
+function snapIntervalForDisplay(ms: number): number {
+  if (ms < 1000) return Math.round(ms / 50) * 50;
+  if (ms < 3000) return Math.round(ms / 100) * 100;
+  return Math.round(ms / 500) * 500;
+}
+
 function formatRateIndicator(tier: AdaptiveTier, intervalMs: number): string {
-  const s = intervalMs / 1000;
+  const s = snapIntervalForDisplay(intervalMs) / 1000;
   // Whole seconds print bare ("2s"); sub-second keeps up to 2 decimals so a
-  // 250 ms external-pod rate reads "0.25s" instead of rounding to "0s".
+  // 250 ms rate reads "0.25s" instead of rounding to "0s".
   const txt = Number.isInteger(s)
     ? `${s}`
     : `${Number.parseFloat(s.toFixed(2))}`;
@@ -207,7 +216,7 @@ export class NavigationHUD {
       const adaptiveState = navManager.getAdaptiveState();
       const rateText =
         navManager.getRateMode() === "adaptive"
-          ? ` ${formatRateIndicator(adaptiveState.tier, adaptiveState.intervalMs)}`
+          ? ` ${formatRateIndicator(adaptiveState.tier, navManager.getEffectiveIntervalMs())}`
           : "";
       this.gpsPosSpan.textContent = `GPS: ${formatLatLon(data.latitude, "lat")} ${formatLatLon(data.longitude, "lon")} `;
       this.gpsSourceSpan.textContent = `[${shortSource(data.source)}]`;

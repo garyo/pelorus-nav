@@ -92,6 +92,12 @@ export class NavigationDataManager {
   private pendingData: NavigationData | null = null;
   /** Last interval hinted to the provider — avoids redundant native IPC. */
   private lastHintedIntervalMs = -1;
+  /** Time-of-fix of the last broadcast, for measuring the real update cadence. */
+  private lastBroadcastTsMs: number | null = null;
+  /** Smoothed interval between broadcasts (ms) — the actual rate fixes reach
+   *  the display. What the HUD shows, vs. the throttle ceiling, which can be
+   *  faster than the source delivers. 0 until two broadcasts are seen. */
+  private broadcastIntervalMs = 0;
   /** Screen policy asks for the fast tier (non-e-ink themes). */
   private sourceIsExternal = false;
   private screenWantsFast = false;
@@ -210,6 +216,30 @@ export class NavigationDataManager {
       );
     }
     this.lastBroadcastWallMs = Date.now();
+
+    // Measure the real update cadence (time-of-fix deltas) so the HUD shows the
+    // rate actually reaching the display, not the throttle ceiling. Only while
+    // visible, and only across contiguous fixes: a backgrounded tab (which eases
+    // the tier) or a dropped-then-resumed link is a gap, not a rate sample —
+    // averaging it in would make the readout spike and slowly settle. Re-anchor
+    // across a gap instead. EMA rides out per-fix jitter; the first sample snaps
+    // (no lag on a fresh source).
+    if (this.visible) {
+      if (this.lastBroadcastTsMs !== null) {
+        const dt = data.timestamp - this.lastBroadcastTsMs;
+        const gapMs = gpsStaleThresholdMs(
+          this.broadcastIntervalMs || this.adaptiveCtrl.getState().intervalMs,
+        );
+        if (dt > 0 && dt <= gapMs) {
+          this.broadcastIntervalMs =
+            this.broadcastIntervalMs > 0
+              ? this.broadcastIntervalMs * 0.6 + dt * 0.4
+              : dt;
+        }
+      }
+      this.lastBroadcastTsMs = data.timestamp;
+    }
+
     for (const fn of this.listeners) {
       fn(data);
     }
@@ -381,6 +411,8 @@ export class NavigationDataManager {
 
     this.lastData = null;
     this.lastBroadcastWallMs = Number.NEGATIVE_INFINITY;
+    this.lastBroadcastTsMs = null;
+    this.broadcastIntervalMs = 0;
     this.clearDeferredTimer();
     this.gpsFilter.reset();
     this.qualityDetector.reset();
@@ -416,6 +448,18 @@ export class NavigationDataManager {
   /** Get the current adaptive rate state (for HUD display). */
   getAdaptiveState(): Readonly<AdaptiveRateState> {
     return this.adaptiveCtrl.getState();
+  }
+
+  /** Effective update interval in ms — the measured cadence at which fixes
+   *  reach the display. This is the rate the HUD shows the user: it reflects
+   *  what the source actually delivers, not the throttle ceiling (which is
+   *  only an upper bound and is often faster than the source). Falls back to
+   *  the active throttle interval until two broadcasts have been measured. */
+  getEffectiveIntervalMs(): number {
+    if (this.broadcastIntervalMs > 0) return this.broadcastIntervalMs;
+    return this.rateMode === "adaptive"
+      ? this.adaptiveCtrl.getState().intervalMs
+      : this.manualIntervalMs;
   }
 
   getRateMode(): RateMode {
@@ -467,6 +511,9 @@ export class NavigationDataManager {
   setVisible(visible: boolean): void {
     if (this.visible === visible) return;
     this.visible = visible;
+    // Re-anchor the cadence measurement across the visibility gap so the rate
+    // readout doesn't average in the hidden period when the tab returns.
+    this.lastBroadcastTsMs = null;
     this.applyForceFast();
   }
 
@@ -517,5 +564,7 @@ export class NavigationDataManager {
     this.listeners.length = 0;
     this.lastData = null;
     this.lastBroadcastWallMs = Number.NEGATIVE_INFINITY;
+    this.lastBroadcastTsMs = null;
+    this.broadcastIntervalMs = 0;
   }
 }
