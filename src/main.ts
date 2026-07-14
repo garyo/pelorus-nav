@@ -1640,30 +1640,34 @@ if (topbarMenu) {
     closeHamburger();
   });
 
-  // Fullscreen toggle
-  const fullscreenBtn = buildTopbarAction(iconMaximize, "FULL", "Fullscreen", {
-    fullLabel: "Fullscreen",
-  });
-  const updateFullscreenBtn = () => {
-    const isFs = !!document.fullscreenElement;
-    fullscreenBtn.classList.toggle("active", isFs);
-    setIcon(fullscreenBtn, isFs ? iconMinimize : iconMaximize);
-    const t = isFs ? "Exit fullscreen" : "Fullscreen";
-    fullscreenBtn.title = t;
-    fullscreenBtn.setAttribute("aria-label", t);
-    const fullSpan = fullscreenBtn.querySelector(".topbar-menu-label");
-    if (fullSpan) fullSpan.textContent = t;
-  };
-  fullscreenBtn.addEventListener("click", () => {
-    if (document.fullscreenElement) {
-      document.exitFullscreen();
-    } else {
-      document.documentElement.requestFullscreen();
-    }
-    closeHamburger();
-  });
-  document.addEventListener("fullscreenchange", updateFullscreenBtn);
-  topbarMenu.insertBefore(fullscreenBtn, settingsWrapper);
+  // Fullscreen toggle — web only; native apps are always fullscreen.
+  let fullscreenBtn: HTMLButtonElement | null = null;
+  if (!Capacitor.isNativePlatform()) {
+    const btn = buildTopbarAction(iconMaximize, "FULL", "Fullscreen", {
+      fullLabel: "Fullscreen",
+    });
+    fullscreenBtn = btn;
+    const updateFullscreenBtn = () => {
+      const isFs = !!document.fullscreenElement;
+      btn.classList.toggle("active", isFs);
+      setIcon(btn, isFs ? iconMinimize : iconMaximize);
+      const t = isFs ? "Exit fullscreen" : "Fullscreen";
+      btn.title = t;
+      btn.setAttribute("aria-label", t);
+      const fullSpan = btn.querySelector(".topbar-menu-label");
+      if (fullSpan) fullSpan.textContent = t;
+    };
+    btn.addEventListener("click", () => {
+      if (document.fullscreenElement) {
+        document.exitFullscreen();
+      } else {
+        document.documentElement.requestFullscreen();
+      }
+      closeHamburger();
+    });
+    document.addEventListener("fullscreenchange", updateFullscreenBtn);
+    topbarMenu.insertBefore(btn, settingsWrapper);
+  }
 
   // Lock screen (native only) — disables the touchscreen so accidental taps are
   // ignored under way; a volume-key press unlocks. Shown only while the
@@ -1717,9 +1721,11 @@ if (topbarMenu) {
   topbarMenu.insertBefore(aboutBtn, settingsWrapper);
 
   // Plugin-contributed actions (e.g. Sun) sit just before the trailing
-  // Full/Info group rather than at the front of the menu.
+  // Full/Info group rather than at the front of the menu. On native there's
+  // no Full button, so anchor on About instead.
+  const pluginAnchor = fullscreenBtn ?? aboutBtn;
   topbarMenu.querySelectorAll(".topbar-plugin-action").forEach((b) => {
-    topbarMenu.insertBefore(b, fullscreenBtn);
+    topbarMenu.insertBefore(b, pluginAnchor);
   });
 }
 
