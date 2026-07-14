@@ -315,5 +315,11 @@ export const PROMO: Storyboard<PelorusSetup, PelorusApp> = {
   intro: { image: TITLE, sec: 2.6 },
   outro: { image: OUTRO, sec: 3.2 },
   transition: { kind: "dissolve", sec: 0.5 },
-  music: { path: MUSIC, startSec: 13.5, gainDb: -10, fadeInSec: 1.5, fadeOutSec: 3.5 },
+  music: {
+    path: MUSIC,
+    startSec: 13.5,
+    gainDb: -10,
+    fadeInSec: 1.5,
+    fadeOutSec: 3.5,
+  },
 };
