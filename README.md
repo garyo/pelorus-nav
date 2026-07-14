@@ -1,18 +1,29 @@
 # Pelorus Nav
 
-An open-source web-based marine chartplotter. Runs in any browser as a progressive web app — designed for phones, tablets, desktops, and e-ink devices on sailboats.
+An open-source web-based marine chartplotter. Runs in any browser as a progressive web app — designed for phones, tablets, desktops, and e-ink devices on sailboats. Dedicated app versions for Android and iOS have even more features.
+
+I aim for the highest quality software in all projects, including this one. All code is thoroughly tested at all levels, including back end tile pipelines and end-to-end app tests. All code is linted and type-checked, and frequently reviewed and refactored when needed to reduce technical debt.
 
 **Live demo**: [pelorus-nav.garyo.workers.dev](https://pelorus-nav.garyo.workers.dev/)
 
 ## Features
 
-- **NOAA vector charts** — S-57 ENC data rendered as vector tiles with nautical symbology
-- **Depth soundings** — with configurable units (meters, feet, fathoms)
-- **Nav aids** — buoys, beacons, lights, fog signals with ECDIS-style symbology
-- **Feature info** — tap any chart object to see its attributes
-- **Detail level control** — adjustable from minimal to full chart detail
+- **Routes and waypoints**, including import/export and folders for long trips
+- **Track recording** (works in app versions only)
+- **Track playback**, including import/export
+- **Big instruments** for easy visibility while sailing
+- **More instruments** added when navigating (VMG, course to steer etc.)
+- **Search** for anything on the charts, worldwide
+- **Detailed info** for all chart items (buoys/lights/etc.)
+- **All NOAA S-57 entities decoded and shown using proper S-52 symbology**
 - **Multi-scale quilting** — seamless display across overview, coastal, and harbor chart scales
-- **Fast** — PMTiles format with HTTP range requests, no tile server needed
+- **Tides, currents and wind** (wind requires network), including future predictions
+- **Crew Overboard** tracking
+- **Themes**: Day, Dusk, Night and E-Ink
+- **Download regions** to work 100% offline
+- **Sunrise/set**
+- **GPS: built-in device or various external options** (Signal K, Bluetooth, BLE)
+- **Settings**: layers, text & icon sizes, detail level control
 
 ## Tech Stack
 
@@ -22,19 +33,6 @@ An open-source web-based marine chartplotter. Runs in any browser as a progressi
 - **Cloudflare Workers + R2** for deployment
 - **Biome** for linting/formatting
 - **Vitest** + **Playwright** for testing
-
-## Getting Started
-
-```bash
-# Install dependencies
-bun install
-
-# Start dev server
-bun dev
-
-# Run checks
-bun run check        # typecheck + lint + test
-```
 
 ## Chart Data Pipeline
 
@@ -123,7 +121,23 @@ arbitrary vector data. Raster charts you build yourself with
 imported the same way or added to `RASTER_CHARTS` in
 `src/data/chart-catalog.ts` — see the BVI chart entry for the pattern.
 
-## Scripts
+## Development
+
+### Getting Started
+
+```bash
+# Install dependencies
+bun install
+
+# Start dev server
+bun dev
+
+# Run checks
+bun run check        # typecheck + lint + test
+```
+
+
+### Scripts
 
 | Command | Description |
 |---------|-------------|
