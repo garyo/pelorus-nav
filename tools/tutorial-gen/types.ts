@@ -47,6 +47,8 @@ export interface Card {
 export interface Music {
   /** Path to an audio file (mp3/m4a/wav…); extra streams (album art) ignored. */
   path: string;
+  /** Seconds to skip from the head of the source track (default 0). */
+  startSec?: number;
   /** Fade-in seconds at the start (default 0.8). */
   fadeInSec?: number;
   /** Fade-out seconds at the end (default 3). */

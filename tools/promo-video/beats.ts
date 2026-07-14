@@ -18,7 +18,7 @@ const HERE = dirname(fileURLToPath(import.meta.url));
 const FONT = join(HERE, "..", "..", "branding", "fonts", "Outfit-SemiBold.ttf");
 const TITLE = join(HERE, "assets", "title.png");
 const OUTRO = join(HERE, "assets", "outro.png");
-const MUSIC = join(HERE, "assets", "tide-map-drift.mp3");
+const MUSIC = join(HERE, "assets", "the-low-seas.mp3");
 
 type PelorusScene = Scene<PelorusSetup, PelorusApp>;
 
@@ -315,5 +315,5 @@ export const PROMO: Storyboard<PelorusSetup, PelorusApp> = {
   intro: { image: TITLE, sec: 2.6 },
   outro: { image: OUTRO, sec: 3.2 },
   transition: { kind: "dissolve", sec: 0.5 },
-  music: { path: MUSIC, fadeInSec: 1.2, fadeOutSec: 3.5 },
+  music: { path: MUSIC, startSec: 13.5, gainDb: -10, fadeInSec: 1.5, fadeOutSec: 3.5 },
 };

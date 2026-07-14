@@ -212,12 +212,13 @@ function concatXfade(a: Asm, segs: { path: string; dur: number }[]): void {
   const audioArgs: string[] = ["-an"];
   if (a.music) {
     const idx = segs.length;
+    const start = a.music.startSec ?? 0;
     const gain = a.music.gainDb ?? 0;
     const fin = a.music.fadeInSec ?? 0.8;
     const fout = a.music.fadeOutSec ?? 3;
     const foutSt = Math.max(0, running - fout).toFixed(3);
     const chain = [
-      `atrim=0:${running.toFixed(3)}`,
+      `atrim=${start.toFixed(3)}:${(start + running).toFixed(3)}`,
       "asetpts=PTS-STARTPTS",
       gain !== 0 ? `volume=${gain}dB` : "",
       `afade=t=in:st=0:d=${fin}`,
