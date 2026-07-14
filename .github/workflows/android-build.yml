@@ -76,10 +76,16 @@ jobs:
         working-directory: android
         run: ./gradlew assembleRelease
 
+      # Rename to a clear .apk filename so it's obviously installable once the
+      # artifact zip is extracted on-device (GitHub always wraps artifacts in a
+      # zip; the inner filename is what the user taps).
+      - name: Rename APK
+        run: mv android/app/build/outputs/apk/release/app-release.apk "pelorus-nav-${SHORT_SHA}.apk"
+
       - name: Upload APK artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: pelorus-nav-${{ env.SHORT_SHA }}
-          path: android/app/build/outputs/apk/release/app-release.apk
+          path: pelorus-nav-${{ env.SHORT_SHA }}.apk
           retention-days: 30
           if-no-files-found: error
