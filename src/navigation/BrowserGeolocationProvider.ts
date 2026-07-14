@@ -15,6 +15,19 @@ import type {
 } from "./NavigationData";
 import type { ProviderNotice } from "./ProviderNotice";
 
+/**
+ * Watch-mode keep-alive period. `watchPosition` only re-fires when the position
+ * changes, so a stationary vessel — or desktop WiFi geolocation that never
+ * moves — goes silent, which the fix-staleness watchdog misreads as signal loss
+ * ("NO FIX"). After this much silence we re-emit the last known fix with a
+ * current timestamp so it stays fresh. (We deliberately do NOT poll
+ * `getCurrentPosition` here: with the watch quiet its cache is always stale, so
+ * every call forces a fresh Core Location lookup that takes seconds or times
+ * out on desktop.) A genuine loss makes `watchPosition` *error*, which suppresses
+ * the re-emit so real staleness still surfaces. Kept under the ~5 s threshold.
+ */
+const WATCH_KEEPALIVE_MS = 2000;
+
 export class BrowserGeolocationProvider implements NavigationDataProvider {
   readonly id = "browser-gps";
   readonly name = "Browser GPS";
@@ -22,6 +35,10 @@ export class BrowserGeolocationProvider implements NavigationDataProvider {
   private listeners: NavigationDataCallback[] = [];
   private watchId: number | null = null;
   private pollTimer: ReturnType<typeof setInterval> | null = null;
+  private keepAliveTimer: ReturnType<typeof setTimeout> | null = null;
+  private lastPos: GeolocationPosition | null = null;
+  private lastFixMs = 0;
+  private lastErrorMs = 0;
   private connected = false;
   private desiredIntervalMs = 2000;
   private readonly onNotice?: (notice: ProviderNotice) => void;
@@ -46,6 +63,9 @@ export class BrowserGeolocationProvider implements NavigationDataProvider {
       });
       return;
     }
+    // A genuine loss (POSITION_UNAVAILABLE / TIMEOUT) — record it so the
+    // keep-alive stops re-emitting the last fix and the HUD goes stale.
+    this.lastErrorMs = Date.now();
     console.warn("Geolocation error:", err.message);
   }
 
@@ -116,12 +136,41 @@ export class BrowserGeolocationProvider implements NavigationDataProvider {
         timeout: 10000,
       },
     );
+    this.scheduleKeepAlive();
   }
 
   private stopWatch(): void {
+    this.clearKeepAlive();
     if (this.watchId !== null) {
       navigator.geolocation.clearWatch(this.watchId);
       this.watchId = null;
+    }
+  }
+
+  /**
+   * (Re)arm the watch keep-alive: a single timer, reset on every fix, that fires
+   * only after WATCH_KEEPALIVE_MS of silence. On firing it re-emits the last
+   * known fix with a current timestamp (unless the watch has errored since the
+   * last real fix), then re-arms — so while `watchPosition` is delivering
+   * (moving) it never fires, and while the watch is quiet (stationary) the fix
+   * stays fresh. Watch-mode only; poll mode re-emits on its own timer.
+   */
+  private scheduleKeepAlive(): void {
+    if (this.watchId === null) return;
+    this.clearKeepAlive();
+    this.keepAliveTimer = setTimeout(() => {
+      this.keepAliveTimer = null;
+      if (this.lastPos && this.lastFixMs > this.lastErrorMs) {
+        this.emit(this.lastPos, Date.now());
+      }
+      this.scheduleKeepAlive();
+    }, WATCH_KEEPALIVE_MS);
+  }
+
+  private clearKeepAlive(): void {
+    if (this.keepAliveTimer !== null) {
+      clearTimeout(this.keepAliveTimer);
+      this.keepAliveTimer = null;
     }
   }
 
@@ -151,7 +200,18 @@ export class BrowserGeolocationProvider implements NavigationDataProvider {
     );
   }
 
+  /** A real fix from the watch or poll: remember it and reset the watchdog. */
   private onPosition(pos: GeolocationPosition): void {
+    this.lastPos = pos;
+    this.lastFixMs = Date.now();
+    this.scheduleKeepAlive();
+    this.emit(pos, pos.timestamp);
+  }
+
+  /** Convert a GeolocationPosition to NavigationData and fan out to listeners.
+   *  `timestamp` is passed separately so the keep-alive can re-emit the last
+   *  position with a current time (keeping a stationary fix fresh). */
+  private emit(pos: GeolocationPosition, timestamp: number): void {
     const { latitude, longitude, accuracy, heading, speed } = pos.coords;
 
     const data: NavigationData = {
@@ -161,7 +221,7 @@ export class BrowserGeolocationProvider implements NavigationDataProvider {
       sog: speed !== null && !Number.isNaN(speed) ? speed * MS_TO_KNOTS : null,
       heading: null, // browser geolocation doesn't provide true heading
       accuracy: accuracy ?? null,
-      timestamp: pos.timestamp,
+      timestamp,
       source: "browser-gps",
     };
 
