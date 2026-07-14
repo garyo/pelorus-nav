@@ -94,6 +94,37 @@ describe("SimulatorProvider", () => {
     sim.disconnect();
   });
 
+  it("linear mode holds a fixed heading with no jitter", () => {
+    vi.useFakeTimers();
+    const sim = new SimulatorProvider({
+      mode: "linear",
+      position: [42.0, -71.0],
+      heading: 90, // due east
+      speed: 6,
+      intervalMs: 1000,
+    });
+    const received: NavigationData[] = [];
+    sim.subscribe((data) => received.push({ ...data }));
+
+    sim.connect();
+    const first = received[0];
+    expect(first.latitude).toBeCloseTo(42.0, 5);
+    expect(first.longitude).toBeCloseTo(-71.0, 5);
+    // COG is exactly the heading (no baseline jitter in linear mode).
+    expect(first.cog).toBe(90);
+    expect(first.sog).toBeCloseTo(6, 5);
+
+    // After a few seconds the boat has moved due east (longitude up, latitude
+    // unchanged) and the course is still exactly 90°.
+    vi.advanceTimersByTime(5000);
+    const later = received[received.length - 1];
+    expect(later.cog).toBe(90);
+    expect(later.latitude).toBeCloseTo(42.0, 5);
+    expect(later.longitude).toBeGreaterThan(first.longitude);
+
+    sim.disconnect();
+  });
+
   it("unsubscribe stops callbacks", () => {
     vi.useFakeTimers();
     const sim = new SimulatorProvider({ intervalMs: 100 });

@@ -590,7 +590,8 @@ function buildSimulatorOptions(): Partial<SimulatorOptions> {
     track: REPLAY_TRACK,
   };
   try {
-    const raw = new URLSearchParams(window.location.search).get("simStart");
+    const params = new URLSearchParams(window.location.search);
+    const raw = params.get("simStart");
     if (!raw) return defaults;
     const m = raw.match(/^\s*(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)\s*$/);
     if (!m) {
@@ -607,6 +608,19 @@ function buildSimulatorOptions(): Partial<SimulatorOptions> {
     ) {
       console.warn("simStart: out-of-range lat/lon", lat, lon);
       return defaults;
+    }
+    // Dev-only: ?simMode=linear&simCog=<deg> holds the boat at simStart on a
+    // fixed heading (a steady pose for demos/screenshots — off-route with a
+    // divergent course so the route, bearing, and course lines read separately).
+    if (import.meta.env.DEV && params.get("simMode") === "linear") {
+      const cog = Number(params.get("simCog") ?? "0");
+      console.log(`sim linear: (${lat}, ${lon}) heading ${cog}°`);
+      return {
+        mode: "linear",
+        position: [lat, lon],
+        heading: cog,
+        track: REPLAY_TRACK,
+      };
     }
     console.log(`simStart override: simulator boat begins at (${lat}, ${lon})`);
     // Prepend to the default loop and force route mode; the boat starts at

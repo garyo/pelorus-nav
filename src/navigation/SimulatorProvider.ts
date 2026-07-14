@@ -1,6 +1,7 @@
 /**
  * Simulated GPS provider for development.
- * Modes: route (follow waypoints), circular (orbit a center), static (fixed position).
+ * Modes: route (follow waypoints), circular (orbit a center), static (fixed
+ * position), replay (recorded track), linear (straight line at a fixed heading).
  */
 
 import {
@@ -51,9 +52,11 @@ export type SimulatorErrorMode =
   | { kind: "dropout"; rate: number };
 
 export interface SimulatorOptions {
-  mode: "route" | "circular" | "static" | "replay";
+  mode: "route" | "circular" | "static" | "replay" | "linear";
   /** Waypoints for route mode: [lat, lng][] */
   waypoints?: [number, number][];
+  /** Course over ground in degrees for linear mode. */
+  heading?: number;
   /** Recorded track for replay mode: [tSec, lat, lng][] (looped). */
   track?: [number, number, number][];
   /** Speed in knots for route/circular modes */
@@ -234,6 +237,7 @@ export class SimulatorProvider implements NavigationDataProvider {
       center: options?.center ?? [42.35, -71.04],
       radius: options?.radius ?? 0.5,
       position: options?.position ?? [42.355, -71.045],
+      heading: options?.heading,
       intervalMs: options?.intervalMs ?? DEFAULT_INTERVAL_MS,
       speedMultiplier: options?.speedMultiplier ?? 1,
     };
@@ -351,12 +355,18 @@ export class SimulatorProvider implements NavigationDataProvider {
       case "circular":
         data = this.computeCircular(elapsed);
         break;
+      case "linear":
+        data = this.computeLinear(elapsed);
+        break;
       default:
         data = this.computeStatic();
         break;
     }
 
-    let output = this.opts.mode === "static" ? data : addJitter(data);
+    // static/linear are "held" poses used for demos and screenshots — keep them
+    // steady (no baseline jitter) so the course line and heading don't wander.
+    const steady = this.opts.mode === "static" || this.opts.mode === "linear";
+    let output = steady ? data : addJitter(data);
     const errored = this.applyErrorMode(output, tickIdx);
     if (errored === null) return; // dropout — suppress this tick
     output = errored;
@@ -513,6 +523,31 @@ export class SimulatorProvider implements NavigationDataProvider {
       longitude: lng,
       cog,
       sog: speedKn * this.opts.speedMultiplier,
+      heading: cog,
+      accuracy: 5,
+      timestamp: Date.now(),
+      source: "simulator",
+    };
+  }
+
+  /**
+   * Straight-line motion from `position` along a fixed `heading` at `speed`.
+   * COG is constant (no turn transient), which makes it ideal for a
+   * near-still demo shot: at a low multiplier the boat barely moves over a few
+   * seconds, but reports a steady course so the heading/course line is drawn.
+   */
+  private computeLinear(elapsedSec: number): NavigationData {
+    const [lat0, lon0] = this.opts.position ?? [42.355, -71.045];
+    const cog = (((this.opts.heading ?? 0) % 360) + 360) % 360;
+    const distNM = (this.opts.speed * elapsedSec) / 3600;
+    const distDeg = distNM / 60;
+    const cogRad = toRadians(cog);
+    return {
+      latitude: lat0 + distDeg * Math.cos(cogRad),
+      longitude:
+        lon0 + (distDeg * Math.sin(cogRad)) / Math.cos(toRadians(lat0)),
+      cog,
+      sog: this.opts.speed * this.opts.speedMultiplier,
       heading: cog,
       accuracy: 5,
       timestamp: Date.now(),
