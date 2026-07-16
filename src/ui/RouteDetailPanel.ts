@@ -276,8 +276,13 @@ export class RouteDetailPanel {
    *  prompt(), matching the panel family's confirm()/alert() idiom. */
   private renderFooter(route: Route, summary: string): void {
     this.footer.innerHTML = "";
-    const summaryEl = document.createElement("span");
+    const summaryEl = document.createElement("button");
+    summaryEl.type = "button";
+    summaryEl.className = "route-detail-summary";
     summaryEl.textContent = summary;
+    summaryEl.title = "Zoom to route";
+    summaryEl.setAttribute("aria-label", "Zoom to route");
+    summaryEl.addEventListener("click", () => this.routeLayer.fitRoute(route));
 
     const select = document.createElement("select");
     select.className = "route-folder-select";

@@ -2039,6 +2039,23 @@ body {
   gap: 8px;
 }
 
+/* Summary text doubles as "zoom to route" — same quiet look, tappable. */
+.route-detail-summary {
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  text-align: left;
+}
+
+.route-detail-summary:hover,
+.route-detail-summary:focus-visible {
+  color: #fff;
+  text-decoration: underline;
+}
+
 .route-folder-select {
   background: rgba(0, 0, 0, 0.3);
   color: #e0e0e0;
@@ -2160,6 +2177,18 @@ body {
   align-items: center;
   gap: 10px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  max-width: min(94vw, 640px);
+  flex-wrap: wrap;
+}
+
+/* Narrow screens: the route detail panel (top right) stays open during
+   editing as a live waypoint list, so drop the editor bar to the bottom
+   where it can't collide — also easier thumb reach on tablets. */
+@media (max-width: 900px) {
+  .route-editor-bar {
+    top: auto;
+    bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+  }
 }
 
 /* ── Track viewer ─────────────────────────────────────────────────── */
@@ -2476,6 +2505,11 @@ body {
 
 .route-editor-text {
   flex: 1;
+  /* Let the label shrink without wrapping into a tall sliver. */
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .route-editor-btn {

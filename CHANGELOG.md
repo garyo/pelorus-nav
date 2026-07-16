@@ -7,7 +7,18 @@ The format follows [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Changed
+- Editing a route now zooms to fit it first, and the route dialog's
+  summary line ("4 legs, 5.15 NM") zooms to the route when tapped.
+- On narrow screens the route editor toolbar sits at the bottom of the
+  screen, out of the way of the route dialog.
+
 ### Fixed
+- Route editing on touch screens: tapping a waypoint now selects it
+  (showing Delete / Insert After) — previously only dragging worked —
+  and waypoints are easier to hit with a finger.
+- Deleting the last waypoint no longer leaves a ghost dashed line on
+  touch devices.
 - The toolbar could vanish off the top of the screen on iPad Safari after
   entering fullscreen or when Safari resized its own toolbars — the page
   now re-anchors itself whenever the browser leaves it scrolled.

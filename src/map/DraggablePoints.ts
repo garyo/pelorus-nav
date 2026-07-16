@@ -10,21 +10,39 @@ export type DragCallback = (
   lngLat: { lng: number; lat: number },
 ) => void;
 
+export type TapCallback = (featureIndex: number) => void;
+
+/** Finger-sized half-width for touch hit-testing (px). */
+const TOUCH_HIT_SLOP = 10;
+/** Movement below this (px) is a tap, not a drag. */
+const TAP_MOVE_SLOP = 6;
+
 export class DraggablePoints {
   private readonly map: maplibregl.Map;
   private readonly layerId: string;
   private readonly onDrag: DragCallback;
+  private readonly onTap: TapCallback | null;
 
   private dragging = false;
   private dragIndex = -1;
   /** Pixel offset from mousedown to feature anchor, to avoid jump on pickup. */
   private dragOffsetX = 0;
   private dragOffsetY = 0;
+  /** Touch-down point, for tap-vs-drag discrimination. */
+  private touchStartX = 0;
+  private touchStartY = 0;
+  private touchMoved = false;
 
-  constructor(map: maplibregl.Map, layerId: string, onDrag: DragCallback) {
+  constructor(
+    map: maplibregl.Map,
+    layerId: string,
+    onDrag: DragCallback,
+    onTap: TapCallback | null = null,
+  ) {
     this.map = map;
     this.layerId = layerId;
     this.onDrag = onDrag;
+    this.onTap = onTap;
 
     this.onMouseDown = this.onMouseDown.bind(this);
     this.onMouseMove = this.onMouseMove.bind(this);
@@ -102,9 +120,14 @@ export class DraggablePoints {
       touch.clientX - rect.left,
       touch.clientY - rect.top,
     ];
-    const features = this.map.queryRenderedFeatures(point, {
-      layers: [this.layerId],
-    });
+    // Fingers are imprecise — hit-test a small box, not the exact pixel.
+    const features = this.map.queryRenderedFeatures(
+      [
+        [point[0] - TOUCH_HIT_SLOP, point[1] - TOUCH_HIT_SLOP],
+        [point[0] + TOUCH_HIT_SLOP, point[1] + TOUCH_HIT_SLOP],
+      ],
+      { layers: [this.layerId] },
+    );
     if (features.length === 0) return;
     const feature = features[0];
     if (feature.geometry.type === "Point") {
@@ -113,7 +136,12 @@ export class DraggablePoints {
       this.dragOffsetX = featurePx.x - point[0];
       this.dragOffsetY = featurePx.y - point[1];
     }
+    // preventDefault also suppresses the synthetic click, so tap
+    // handling is ours to do: see onTouchEnd.
     e.preventDefault();
+    this.touchStartX = touch.clientX;
+    this.touchStartY = touch.clientY;
+    this.touchMoved = false;
     this.startDrag((feature.properties?.index as number) ?? 0);
   }
 
@@ -121,6 +149,13 @@ export class DraggablePoints {
     if (!this.dragging || e.touches.length !== 1) return;
     e.preventDefault();
     const touch = e.touches[0];
+    if (!this.touchMoved) {
+      const dx = touch.clientX - this.touchStartX;
+      const dy = touch.clientY - this.touchStartY;
+      // Ignore sub-slop jitter so a slightly shaky tap stays a tap.
+      if (dx * dx + dy * dy < TAP_MOVE_SLOP * TAP_MOVE_SLOP) return;
+      this.touchMoved = true;
+    }
     const rect = this.map.getCanvas().getBoundingClientRect();
     const lngLat = this.map.unproject([
       touch.clientX - rect.left + this.dragOffsetX,
@@ -131,7 +166,10 @@ export class DraggablePoints {
 
   private onTouchEnd(): void {
     if (!this.dragging) return;
+    const wasTap = !this.touchMoved;
+    const index = this.dragIndex;
     this.endDrag();
+    if (wasTap) this.onTap?.(index);
   }
 
   private startDrag(index: number): void {

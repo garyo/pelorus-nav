@@ -190,6 +190,14 @@ export class RouteEditor {
       waypoints: [],
     };
 
+    // Frame an existing route before editing — appending to an off-screen
+    // route drops waypoints sight-unseen. Single-waypoint routes (context
+    // menu "start route here") skip it: the point is already on screen and
+    // a degenerate bbox would yank the camera to max zoom.
+    if (route && route.waypoints.length >= 2) {
+      this.routeLayer.fitRoute(route);
+    }
+
     this.selectedIndex = null;
     setMode("route-edit");
     this.bar.style.display = "flex";
@@ -511,12 +519,25 @@ export class RouteEditor {
         this.updateSources();
         this.updateBar();
       },
+      // Touch tap on a waypoint: DraggablePoints consumes the touch (its
+      // preventDefault suppresses the synthetic click, so clickHandler
+      // never sees it) — mirror the click path's select/deselect toggle.
+      (index) => {
+        if (this.selectedIndex === index) {
+          this.deselect();
+        } else {
+          this.select(index);
+        }
+      },
     );
   }
 
   private updateSources(): void {
     if (!this.route) return;
     this.notify();
+    // Drop any stale cursor-preview line (the next mousemove redraws it;
+    // touch devices never get one). Keeps the prepend-handle dash fresh.
+    this.updatePreview(null);
     const wps = this.route.waypoints;
 
     const ptSrc = this.map.getSource(SOURCE_ID) as
@@ -607,7 +628,7 @@ export class RouteEditor {
     }
   }
 
-  private updatePreview(cursor: maplibregl.LngLat): void {
+  private updatePreview(cursor: maplibregl.LngLat | null): void {
     const src = this.map.getSource(SOURCE_PREVIEW) as
       | maplibregl.GeoJSONSource
       | undefined;
@@ -621,19 +642,23 @@ export class RouteEditor {
 
     const features: GeoJSON.Feature[] = [];
 
-    // Append preview: dashed line from last waypoint to cursor
-    const last = wps[wps.length - 1];
-    features.push({
-      type: "Feature",
-      properties: {},
-      geometry: {
-        type: "LineString",
-        coordinates: [
-          [last.lon, last.lat],
-          [cursor.lng, cursor.lat],
-        ],
-      },
-    });
+    // Append preview: dashed line from last waypoint to cursor. Cursor is
+    // null on touch devices (no mousemove) and right after a mutation —
+    // the stale line would otherwise point at a deleted/moved waypoint.
+    if (cursor) {
+      const last = wps[wps.length - 1];
+      features.push({
+        type: "Feature",
+        properties: {},
+        geometry: {
+          type: "LineString",
+          coordinates: [
+            [last.lon, last.lat],
+            [cursor.lng, cursor.lat],
+          ],
+        },
+      });
+    }
 
     const prependPos = prependHandlePos(wps);
     if (prependPos) {
