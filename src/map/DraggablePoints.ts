@@ -93,6 +93,9 @@ export class DraggablePoints {
 
   private onTouchStart(e: TouchEvent): void {
     if (e.touches.length !== 1) return;
+    // Same guard as onMouseMove: the layer can be briefly absent
+    // mid style-rebuild — querying then throws.
+    if (!this.map.getLayer(this.layerId)) return;
     const touch = e.touches[0];
     const rect = this.map.getCanvas().getBoundingClientRect();
     const point: [number, number] = [
