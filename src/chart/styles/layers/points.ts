@@ -74,6 +74,20 @@ export function getNavAidLayers(ctx: StyleContext): LayerSpecification[] {
       type: "symbol",
       source: ctx.sourceId,
       "source-layer": "SOUNDG",
+      // At Standard detail and below, soundings deeper than the user's
+      // deep-water threshold wait until z13 — the zoom where what's right
+      // below you starts to matter. At overview zooms they're passage
+      // trivia, not grounding information. Standard+/Full show every
+      // sounding at all zooms.
+      ...(ctx.showOther
+        ? {}
+        : {
+            filter: [
+              "any",
+              ["<=", ["get", "DEPTH"], ctx.deepDepth],
+              [">=", ["zoom"], 13],
+            ] as unknown as ExpressionSpecification,
+          }),
       layout: {
         "text-font": ["Noto Sans Regular"],
         "text-field": depthTextField(ctx.depthUnit),
