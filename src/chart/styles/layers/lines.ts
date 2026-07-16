@@ -418,6 +418,7 @@ export function getOtherLineLayers(ctx: StyleContext): LayerSpecification[] {
       type: "line" as const,
       source: ctx.sourceId,
       "source-layer": "CBLARE",
+      minzoom: ctx.detailMinzoom(12),
       paint: {
         "line-color": ctx.colour("ISDNG"),
         "line-width": 1,
@@ -430,6 +431,7 @@ export function getOtherLineLayers(ctx: StyleContext): LayerSpecification[] {
       type: "line" as const,
       source: ctx.sourceId,
       "source-layer": "PIPARE",
+      minzoom: ctx.detailMinzoom(12),
       paint: {
         "line-color": ctx.colour("ISDNG"),
         "line-width": 1,
@@ -442,6 +444,7 @@ export function getOtherLineLayers(ctx: StyleContext): LayerSpecification[] {
       type: "line" as const,
       source: ctx.sourceId,
       "source-layer": "PIPSOL",
+      minzoom: ctx.detailMinzoom(12),
       paint: {
         "line-color": ctx.colour("ISDNG"),
         "line-width": 1,

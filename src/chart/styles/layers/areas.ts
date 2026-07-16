@@ -329,6 +329,7 @@ export function getAdditionalAreaLayers(
       type: "fill",
       source: ctx.sourceId,
       "source-layer": "AIRARE",
+      minzoom: ctx.detailMinzoom(13),
       paint: {
         "fill-color": ctx.colour("LANDF"),
         "fill-opacity": 0.3,
@@ -339,6 +340,7 @@ export function getAdditionalAreaLayers(
       type: "line",
       source: ctx.sourceId,
       "source-layer": "AIRARE",
+      minzoom: ctx.detailMinzoom(13),
       paint: {
         "line-color": ctx.colour("CHBLK"),
         "line-width": 1,
@@ -349,6 +351,7 @@ export function getAdditionalAreaLayers(
       type: "fill",
       source: ctx.sourceId,
       "source-layer": "DRYDOC",
+      minzoom: ctx.detailMinzoom(13),
       paint: {
         "fill-color": ctx.colour("CHBRN"),
         "fill-opacity": 0.2,
@@ -359,6 +362,7 @@ export function getAdditionalAreaLayers(
       type: "line",
       source: ctx.sourceId,
       "source-layer": "DRYDOC",
+      minzoom: ctx.detailMinzoom(13),
       paint: {
         "line-color": ctx.colour("CHBLK"),
         "line-width": 1,
@@ -369,6 +373,7 @@ export function getAdditionalAreaLayers(
       type: "fill",
       source: ctx.sourceId,
       "source-layer": "RUNWAY",
+      minzoom: ctx.detailMinzoom(13),
       paint: {
         "fill-color": ctx.colour("LANDF"),
         "fill-opacity": 0.4,
@@ -379,6 +384,7 @@ export function getAdditionalAreaLayers(
       type: "line",
       source: ctx.sourceId,
       "source-layer": "RUNWAY",
+      minzoom: ctx.detailMinzoom(13),
       paint: {
         "line-color": ctx.colour("CHBLK"),
         "line-width": 1,

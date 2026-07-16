@@ -336,6 +336,7 @@ export function getNavigationOverlayLayers(
       type: "line",
       source: ctx.sourceId,
       "source-layer": "TESARE",
+      minzoom: ctx.detailMinzoom(12),
       paint: {
         "line-color": ctx.colour("CHGRD"),
         "line-width": 1,
@@ -349,6 +350,7 @@ export function getNavigationOverlayLayers(
       type: "line",
       source: ctx.sourceId,
       "source-layer": "EXEZNE",
+      minzoom: ctx.detailMinzoom(12),
       paint: {
         "line-color": ctx.colour("CHGRD"),
         "line-width": 1,

@@ -1177,6 +1177,7 @@ export function getOtherPointLayers(ctx: StyleContext): LayerSpecification[] {
     {
       id: "s57-dmpgrd",
       type: "fill" as const,
+      minzoom: ctx.detailMinzoom(12),
       source: ctx.sourceId,
       "source-layer": "DMPGRD",
       paint: {
@@ -1187,6 +1188,7 @@ export function getOtherPointLayers(ctx: StyleContext): LayerSpecification[] {
     {
       id: "s57-dmpgrd-outline",
       type: "line" as const,
+      minzoom: ctx.detailMinzoom(12),
       source: ctx.sourceId,
       "source-layer": "DMPGRD",
       paint: {
@@ -1199,6 +1201,7 @@ export function getOtherPointLayers(ctx: StyleContext): LayerSpecification[] {
     {
       id: "s57-splare",
       type: "fill" as const,
+      minzoom: ctx.detailMinzoom(12),
       source: ctx.sourceId,
       "source-layer": "SPLARE",
       paint: {
@@ -1224,6 +1227,7 @@ export function getOtherPointLayers(ctx: StyleContext): LayerSpecification[] {
     {
       id: "s57-splare-outline",
       type: "line" as const,
+      minzoom: ctx.detailMinzoom(12),
       source: ctx.sourceId,
       "source-layer": "SPLARE",
       paint: {
@@ -1300,6 +1304,7 @@ export function getOtherPointLayers(ctx: StyleContext): LayerSpecification[] {
     {
       id: "s57-ofsplf",
       type: "symbol" as const,
+      minzoom: ctx.detailMinzoom(12),
       source: ctx.sourceId,
       "source-layer": "OFSPLF",
       layout: withOffset(

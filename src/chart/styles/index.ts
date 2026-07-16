@@ -360,6 +360,11 @@ const OTHER_STANDARD_MINZOOM: Record<string, number> = {
   "s57-airare-outline": 13,
   "s57-runway": 13,
   "s57-runway-outline": 13,
+  // Grouped stragglers — match their native minzoom.
+  "s57-spring": 11,
+  "s57-retrfl": 10,
+  "s57-cgusta": 12,
+  "s57-smcfac-label": 12,
 };
 
 /**
@@ -506,8 +511,10 @@ export function getNauticalLayers(
     const cat = LAYER_CATEGORIES[layer.id];
 
     // OTHER layers at Standard detail: include only if they have a
-    // high-zoom override, and raise their minzoom accordingly.
+    // high-zoom override, and raise their minzoom accordingly. At Base
+    // detail OTHER layers never show, overrides included.
     if (cat === "OTHER" && !ctx.showOther) {
+      if (!ctx.showStandard) return false;
       const overrideZoom = OTHER_STANDARD_MINZOOM[layer.id];
       if (overrideZoom === undefined) return false;
       const existing = (layer as { minzoom?: number }).minzoom ?? 0;
