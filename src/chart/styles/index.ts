@@ -117,7 +117,6 @@ export const LAYER_GROUPS: Record<string, string> = {
   "s57-rtpbcn": "facilities",
   "s57-rdosta": "facilities",
   "s57-gatcon-symbol": "facilities",
-  "s57-magvar": "magneticVariation",
   "s57-depcnt-label": "depthContourLabels",
   "s57-sbdare": "seabed",
   "s57-daymar": "daymarksTopmarks",
@@ -290,7 +289,6 @@ export const LAYER_CATEGORIES: Record<
   "s57-buisgl-label": "OTHER",
   "s57-buisgl-functn": "OTHER",
   "s57-ofsplf": "OTHER",
-  "s57-magvar": "OTHER",
   "s57-daymar": "STANDARD",
   "s57-topmar": "STANDARD",
   // New STANDARD layers
@@ -326,7 +324,12 @@ export const LAYER_CATEGORIES: Record<
   "s57-airare-outline": "OTHER",
 };
 
-/** Per-layer minzoom at which OTHER layers appear at Standard detail. */
+/**
+ * Per-layer minzoom at which OTHER layers appear at Standard detail.
+ * Every OTHER layer belonging to a user-toggleable group (LAYER_GROUPS +
+ * LAYER_GROUP_LABELS) needs an entry here — otherwise the layer is never
+ * built at the default detail level and its Settings toggle is a no-op.
+ */
 const OTHER_STANDARD_MINZOOM: Record<string, number> = {
   "s57-siltnk": 14,
   "s57-siltnk-outline": 14,
@@ -335,6 +338,28 @@ const OTHER_STANDARD_MINZOOM: Record<string, number> = {
   "s57-ofsplf": 14,
   "s57-buisgl": 14,
   "s57-morfac": 12,
+  // Seabed nature labels — anchoring aid, approach scale.
+  "s57-sbdare": 12,
+  // Cable/pipeline areas (the cblsub/cblohd lines are STANDARD already).
+  "s57-cblare": 12,
+  "s57-pipare": 12,
+  "s57-pipsol": 12,
+  // Water-side facilities and regulated areas.
+  "s57-dmpgrd": 12,
+  "s57-dmpgrd-outline": 12,
+  "s57-splare": 12,
+  "s57-splare-symbol": 12,
+  "s57-splare-outline": 12,
+  "s57-tesare": 12,
+  "s57-exezne": 12,
+  // Land-side facility detail.
+  "s57-cranes": 13,
+  "s57-drydoc": 13,
+  "s57-drydoc-outline": 13,
+  "s57-airare": 13,
+  "s57-airare-outline": 13,
+  "s57-runway": 13,
+  "s57-runway-outline": 13,
 };
 
 /**
