@@ -29,6 +29,23 @@ Pelorus Nav — open-source web-based marine chartplotter (PWA). See PLAN.md for
 - Keep modules small and focused; one concept per file
 - All utility functions must have unit tests
 
+## UI Conventions
+- **Floating panels/bars register with `src/ui/SurfaceManager.ts`** (slot,
+  group, priority) and call the handle's `opened()` when shown — never
+  hand-pick z-indexes or hand-wire "panel A closes panel B". Opening a
+  surface evicts other groups from its slot; same-group surfaces coexist
+  (a manager panel and its detail panel form a click-through pair);
+  `priority` surfaces (COB) are never evicted. Outside-tap dismissal is
+  the default (touch devices have no Esc key); bars whose purpose is map
+  interaction opt out with `closeOnOutsideClick: false`. Full contract in
+  the module header.
+- **Dialogs that consume Escape call `e.preventDefault()`** — the global
+  Escape fallback (nav cancel, in ContextMenu.ts) defers one tick and
+  checks `defaultPrevented`.
+- **Detail-level visibility is documented in `docs/detail-levels.md`** —
+  regenerate it with `bun tools/detail-levels-report.ts` after changing
+  layer minzooms, `LAYER_CATEGORIES`, or the detail-level minzoom maps.
+
 ## File Structure
 - `src/` — application source
   - `chart/` — chart providers, S-52 colours, vector tile styles (`styles/`)
