@@ -5,9 +5,29 @@ Notable user-facing changes to Pelorus Nav. Downloads are on the
 
 The format follows [Keep a Changelog](https://keepachangelog.com/).
 
-## [Unreleased]
+## [0.13.0] - 2026-07-16
+
+### Changed
+- Much less chart clutter at the Standard detail level: dense
+  rock/wreck/obstruction clusters thin themselves below zoom 13 (always-
+  submerged rocks win the spot), buoys, beacons, and short-range lights
+  start at zoom 10 (major lights and isolated-danger marks are
+  unaffected), and soundings deeper than your "deep water" depth wait
+  until zoom 13. Standard+ and Full detail are unchanged — raise the
+  Detail slider to see everything as before.
+
+### Added
+- "Kelp, Overfalls & Fish Farms" layer toggle — these layers were always
+  drawn with no way to turn them off.
 
 ### Fixed
+- Several layer toggles (Seabed, Cables & Pipes, parts of Facilities) did
+  nothing at the default detail level; those layers now appear from zoom
+  12–13 and the toggles control them.
+- Removed the Magnetic Variation toggle: it never controlled anything
+  (the layer isn't implemented yet).
+- Base detail no longer shows a few layers that belong to higher detail
+  levels (seabed letters, moorings, sea boundaries).
 - Chart downloads could fail at the very end on some Android WebViews
   (e.g. Amazon Fire tablets): the final file rename is now retried as a
   copy when the platform rejects the rename.
