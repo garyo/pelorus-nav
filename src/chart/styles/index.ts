@@ -209,6 +209,8 @@ export const LAYER_CATEGORIES: Record<
   "s57-boyisd": "STANDARD",
   "s57-bcnlat": "STANDARD",
   "s57-bcncar": "STANDARD",
+  "s57-bcnisd": "STANDARD",
+  "s57-bcnsaw": "STANDARD",
   "s57-lights": "STANDARD",
   "s57-lights-glow": "STANDARD",
   "s57-fogsig": "STANDARD",
@@ -333,6 +335,24 @@ const OTHER_STANDARD_MINZOOM: Record<string, number> = {
   "s57-ofsplf": 14,
   "s57-buisgl": 14,
   "s57-morfac": 12,
+};
+
+/**
+ * Raised minzoom for STANDARD layers at Standard detail and below — trims
+ * navaid clutter at overview zooms. Standard+ and Full keep the layers'
+ * own (lower) minzoom. Isolated-danger marks (boyisd, bcnisd) are exempt:
+ * they flag hazards and keep their early minzoom at every detail level.
+ */
+const STANDARD_DETAIL_MINZOOM: Record<string, number> = {
+  "s57-lights-glow": 8,
+  "s57-lights": 8,
+  "s57-boylat": 10,
+  "s57-boycar": 10,
+  "s57-boysaw": 10,
+  "s57-boyspp": 10,
+  "s57-bcnlat": 10,
+  "s57-bcncar": 10,
+  "s57-bcnsaw": 10,
 };
 
 /** Category visibility filter helper. */
@@ -471,6 +491,19 @@ export function getNauticalLayers(
         overrideZoom,
       );
       return true;
+    }
+
+    // STANDARD layers at Standard detail and below: keep them, but raise
+    // minzoom for the noisiest navaid layers. Standard+/Full untouched.
+    if (cat === "STANDARD" && !ctx.showOther) {
+      const raisedZoom = STANDARD_DETAIL_MINZOOM[layer.id];
+      if (raisedZoom !== undefined) {
+        const existing = (layer as { minzoom?: number }).minzoom ?? 0;
+        (layer as { minzoom?: number }).minzoom = Math.max(
+          existing,
+          raisedZoom,
+        );
+      }
     }
 
     if (cat !== undefined) {

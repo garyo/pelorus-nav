@@ -36,6 +36,25 @@ function scaledSize(
 }
 
 /**
+ * At Standard detail and below, minor lights (VALNMR < 10 — lit buoys, pier
+ * lights) wait until z10; major lights keep the layer minzoom. Standard+
+ * and Full show every light from the layer minzoom. The VALNMR >= 10 test
+ * matches the major/minor icon split in icon-sets.ts.
+ */
+function lightZoomFilter(ctx: StyleContext): {
+  filter?: ExpressionSpecification;
+} {
+  if (ctx.showOther) return {};
+  return {
+    filter: [
+      "any",
+      [">=", ["coalesce", ["get", "VALNMR"], 0], 10],
+      [">=", ["zoom"], 10],
+    ] as unknown as ExpressionSpecification,
+  };
+}
+
+/**
  * Add icon-offset to a symbol layer layout if an offset expression is provided.
  */
 function withOffset(
@@ -80,6 +99,7 @@ export function getNavAidLayers(ctx: StyleContext): LayerSpecification[] {
       source: ctx.sourceId,
       "source-layer": "LIGHTS",
       minzoom: 6,
+      ...lightZoomFilter(ctx),
       paint: {
         "circle-radius": 12,
         "circle-color": ctx.colour("LITYW"),
@@ -127,6 +147,7 @@ export function getBuoyBeaconLayers(ctx: StyleContext): LayerSpecification[] {
       source: ctx.sourceId,
       "source-layer": "LIGHTS",
       minzoom: 6,
+      ...lightZoomFilter(ctx),
       layout: withOffset(
         {
           "text-font": ["Noto Sans Regular"],
@@ -481,8 +502,16 @@ export function getHazardLayers(ctx: StyleContext): LayerSpecification[] {
             13,
             true,
           ] as unknown as ExpressionSpecification,
-          // Don't push labels away from wrecks — see UWTROC comment below.
-          "icon-ignore-placement": true,
+          // Below z13 hazard icons claim collision space so dense clusters
+          // self-thin; at z13+ every hazard shows and stops pushing
+          // neighbours — see UWTROC comment below.
+          "icon-ignore-placement": [
+            "step",
+            ["zoom"],
+            false,
+            13,
+            true,
+          ] as unknown as ExpressionSpecification,
           "icon-padding": 2,
           // Dangerous wrecks (CATWRK=2) get slightly higher priority than
           // non-dangerous within the HAZARD band so they win collisions.
@@ -602,8 +631,14 @@ export function getHazardLayers(ctx: StyleContext): LayerSpecification[] {
             13,
             true,
           ] as unknown as ExpressionSpecification,
-          // Don't push labels away from obstructions — see UWTROC comment.
-          "icon-ignore-placement": true,
+          // Cluster self-thinning below z13 — see UWTROC comment.
+          "icon-ignore-placement": [
+            "step",
+            ["zoom"],
+            false,
+            13,
+            true,
+          ] as unknown as ExpressionSpecification,
           "icon-padding": 2,
         },
         obstrn.offsetExpr,
@@ -643,7 +678,12 @@ export function getHazardLayers(ctx: StyleContext): LayerSpecification[] {
       minzoom: 10,
       layout: withOffset(
         {
-          "symbol-sort-key": SORT_KEY_HAZARD,
+          "symbol-sort-key": [
+            "case",
+            ["==", ["get", "WATLEV"], 3],
+            SORT_KEY_HAZARD,
+            SORT_KEY_HAZARD + 1,
+          ] as unknown as ExpressionSpecification,
           "icon-image": uwtroc.iconExpr,
           "icon-size": scaledSize(
             [
@@ -664,12 +704,22 @@ export function getHazardLayers(ctx: StyleContext): LayerSpecification[] {
             13,
             true,
           ] as unknown as ExpressionSpecification,
-          // Hazard icons are safety-critical (allow-overlap at z13+) but
-          // shouldn't block *other* labels from placing nearby — a ring of
-          // UWTROCs around an island would otherwise force the LNDMRK name
-          // off the screen. ``ignore-placement: true`` lets the asterisks
-          // always show and still leaves room for neighbours.
-          "icon-ignore-placement": true,
+          // Hazard icon collision, two regimes:
+          //  - z13+: allow-overlap + ignore-placement — every hazard shows
+          //    (safety-critical at navigation scale) without pushing other
+          //    labels away; a ring of UWTROCs around an island must not
+          //    force the LNDMRK name off the screen.
+          //  - below z13: both false — icons claim collision space, so a
+          //    field of dozens of rocks self-thins to a readable few. A
+          //    submerged rock (WATLEV=3) wins over awash/dry neighbours
+          //    via the sort key: it's the one you can't see from the deck.
+          "icon-ignore-placement": [
+            "step",
+            ["zoom"],
+            false,
+            13,
+            true,
+          ] as unknown as ExpressionSpecification,
           "icon-padding": 2,
         },
         uwtroc.offsetExpr,

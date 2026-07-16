@@ -418,8 +418,9 @@ export class PelLightLayer {
   }
 
   private captureOriginalFilters(): void {
-    // Base layers have no explicit filter today; capture whatever they have
-    // at style-load time so we can restore if ever needed.
+    // Capture the layers' style-time filters (s57-lights carries a
+    // minor-light zoom gate at Standard detail) so the suppression filter
+    // can compose with them instead of clobbering them.
     for (const id of this.suppressedLayerIds()) {
       if (this.map.getLayer(id)) {
         this.originalFilters.set(id, this.map.getFilter(id));
@@ -588,9 +589,23 @@ export class PelLightLayer {
             ["in", ["get", "LNAM"], ["literal", lnamList]],
           ] as unknown as maplibregl.FilterSpecification);
 
+    // Compose with the layer's own style-time filter (e.g. the minor-light
+    // zoom gate at Standard detail) rather than replacing it.
     for (const id of this.suppressedLayerIds()) {
       if (!this.map.getLayer(id)) continue;
-      this.map.setFilter(id, filterExpr);
+      const base = (this.originalFilters.get(id) ??
+        null) as maplibregl.FilterSpecification | null;
+      const combined =
+        filterExpr === null
+          ? base
+          : base
+            ? ([
+                "all",
+                base,
+                filterExpr,
+              ] as unknown as maplibregl.FilterSpecification)
+            : filterExpr;
+      this.map.setFilter(id, combined);
     }
   }
 }
