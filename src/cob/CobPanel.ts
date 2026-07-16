@@ -12,6 +12,7 @@
 import { computeNavigation } from "../navigation/ActiveNavigation";
 import type { NavigationDataManager } from "../navigation/NavigationDataManager";
 import { getSettings } from "../settings";
+import { registerSurface } from "../ui/SurfaceManager";
 import { formatLatLon } from "../utils/coordinates";
 import { formatBearing } from "../utils/magnetic";
 import { convertSpeed, formatDistanceNM, speedUnitLabel } from "../utils/units";
@@ -24,6 +25,16 @@ const HOLD_MS = 1500;
 
 export class CobPanel {
   private readonly el: HTMLDivElement;
+  // Priority surface: an active crew-overboard panel is never evicted
+  // or auto-closed, and outranks every other bottom-center bar.
+  private readonly surface = registerSurface({
+    id: "cob",
+    slot: "bottom-center",
+    priority: true,
+    el: () => this.el,
+    isOpen: () => this.el.classList.contains("open"),
+    close: () => {},
+  });
   private readonly manager: CobManager;
   private readonly navManager: Pick<
     NavigationDataManager,
@@ -191,6 +202,7 @@ export class CobPanel {
       this.collapsed = false;
       this.el.classList.remove("collapsed");
       this.el.classList.add("open");
+      this.surface.opened();
     }
     this.latEl.textContent = formatLatLon(state.waypoint.lat, "lat");
     this.lonEl.textContent = formatLatLon(state.waypoint.lon, "lon");

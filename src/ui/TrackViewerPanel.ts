@@ -38,6 +38,7 @@ import { formatBearing } from "../utils/magnetic";
 import { convertSpeed, speedUnitLabel } from "../utils/units";
 import { iconCrosshair, iconPause, iconPlay, iconX, setIcon } from "./icons";
 import { SpeedProfileChart } from "./SpeedProfileChart";
+import { registerSurface } from "./SurfaceManager";
 
 const SLIDER_MAX = 1000;
 const PLAY_RATES = [10, 60, 600] as const;
@@ -206,6 +207,15 @@ export class TrackViewerPanel {
     return this.el.querySelector(sel) as T;
   }
 
+  private readonly surface = registerSurface({
+    id: "track-viewer",
+    slot: "bottom-center",
+    closeOnOutsideClick: false,
+    el: () => this.el,
+    isOpen: () => this.isOpen(),
+    close: () => this.close(),
+  });
+
   isOpen(): boolean {
     return this.el.classList.contains("open");
   }
@@ -284,6 +294,7 @@ export class TrackViewerPanel {
     // before showing the layer, whose fit pads for the panel's height.
     setMode("track-view");
     this.el.classList.add("open");
+    this.surface.opened();
     this.chart.setData(analysis, stops);
     this.layer.show(analysis, maneuvers, this.el.offsetHeight);
     this.setFraction(0);

@@ -39,6 +39,7 @@ import {
 } from "./icons";
 import { startInlineRename } from "./inline-rename";
 import { getPanelStack } from "./PanelStack";
+import { registerSurface } from "./SurfaceManager";
 
 export class TrackManagerPanel {
   private readonly el: HTMLDivElement;
@@ -132,6 +133,15 @@ export class TrackManagerPanel {
     this.recordBtn.classList.toggle("recording", recording);
   }
 
+  private readonly surface = registerSurface({
+    id: "track-manager",
+    slot: "top-right",
+    group: "tracks",
+    el: () => this.el,
+    isOpen: () => this.el.classList.contains("open"),
+    close: () => this.hide(),
+  });
+
   toggle(): void {
     if (this.el.classList.contains("open")) {
       this.hide();
@@ -142,6 +152,7 @@ export class TrackManagerPanel {
 
   show(): void {
     this.el.classList.add("open");
+    this.surface.opened();
     // Defensive reset: if a rename input was ever removed from the DOM
     // without firing `blur` (e.g. a background cleanup racing the edit),
     // `editing` would otherwise latch true forever and freeze refresh().

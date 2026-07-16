@@ -17,6 +17,7 @@ import {
   setOffsetMs,
 } from "../state/displayTime";
 import { shortTimeZone } from "../utils/timezone";
+import { registerSurface } from "./SurfaceManager";
 
 const HOUR_MS = 3_600_000;
 
@@ -103,6 +104,15 @@ export class TimeBar {
     });
   }
 
+  private readonly surface = registerSurface({
+    id: "time-bar",
+    slot: "bottom-center",
+    closeOnOutsideClick: false,
+    el: () => this.el,
+    isOpen: () => this.isOpen(),
+    close: () => this.hide(),
+  });
+
   isOpen(): boolean {
     return this.el.style.display !== "none";
   }
@@ -117,6 +127,7 @@ export class TimeBar {
     this.slider.value = String(getOffsetMs());
     this.renderReadout(getOffsetMs());
     this.el.style.display = "flex";
+    this.surface.opened();
     // The absolute time drifts forward with the wall clock; refresh it.
     this.clockTimer = setInterval(
       () => this.renderReadout(getOffsetMs()),

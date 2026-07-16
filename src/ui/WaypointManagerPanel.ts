@@ -20,6 +20,7 @@ import {
 } from "./icons";
 import { startInlineRename } from "./inline-rename";
 import { getPanelStack } from "./PanelStack";
+import { registerSurface } from "./SurfaceManager";
 
 const ICON_LABELS: Record<WaypointIcon, string> = {
   default: "Default",
@@ -107,6 +108,15 @@ export class WaypointManagerPanel {
     this.cobHooks = hooks;
   }
 
+  private readonly surface = registerSurface({
+    id: "waypoint-manager",
+    slot: "top-right",
+    group: "waypoints",
+    el: () => this.el,
+    isOpen: () => this.el.classList.contains("open"),
+    close: () => this.hide(),
+  });
+
   toggle(): void {
     if (this.el.classList.contains("open")) {
       this.hide();
@@ -117,6 +127,7 @@ export class WaypointManagerPanel {
 
   show(): void {
     this.el.classList.add("open");
+    this.surface.opened();
     // Defensive reset: guards against `editing` ever latching true (e.g. a
     // rename input removed from the DOM without firing `blur`), which would
     // otherwise freeze refresh() for the rest of the session.

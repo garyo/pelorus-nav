@@ -37,6 +37,7 @@ import {
   maybeShowScreenTimeoutWarning,
   resetScreenTimeoutDismissal,
 } from "./ScreenTimeoutDialog";
+import { registerSurface } from "./SurfaceManager";
 import { buildTopbarAction } from "./topbarButton";
 
 const DEPTH_UNITS: { value: DepthUnit; label: string }[] = [
@@ -140,21 +141,24 @@ export function createSettingsPanel(
 
   const openListeners: (() => void)[] = [];
 
+  // Slot registration: opening evicts whatever else holds the top-right
+  // corner, fixes the z-order, and closes on outside click / Escape.
+  const surface = registerSurface({
+    id: "settings",
+    slot: "top-right",
+    el: () => panel,
+    isOpen: () => panel.classList.contains("open"),
+    close: () => panel.classList.remove("open"),
+  });
+
   // Toggle panel
   btn.addEventListener("click", (e) => {
     e.stopPropagation();
     const opening = !panel.classList.contains("open");
     panel.classList.toggle("open");
     if (opening) {
+      surface.opened();
       for (const fn of openListeners) fn();
-    }
-  });
-
-  // Close on outside click — check both wrapper and panel (different DOM trees)
-  document.addEventListener("click", (e) => {
-    const target = e.target as Node;
-    if (!wrapper.contains(target) && !panel.contains(target)) {
-      panel.classList.remove("open");
     }
   });
 

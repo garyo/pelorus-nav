@@ -145,6 +145,7 @@ import { maybeShowScreenTimeoutWarning } from "./ui/ScreenTimeoutDialog";
 import { SearchDialog } from "./ui/SearchDialog";
 import { createSettingsPanel } from "./ui/SettingsPanel";
 import { hideStatusBanner, showStatusBanner } from "./ui/StatusBanner";
+import { registerSurface } from "./ui/SurfaceManager";
 import { TimeBar } from "./ui/TimeBar";
 import { TrackManagerPanel } from "./ui/TrackManagerPanel";
 import { TrackViewerPanel } from "./ui/TrackViewerPanel";
@@ -539,6 +540,16 @@ idleCloseables.push(featureQueryHandler);
 const hamburgerBtn = document.getElementById("hamburger-btn");
 const closeHamburger = () => topbarMenu?.classList.remove("open");
 if (hamburgerBtn && topbarMenu) {
+  // Registering the dropdown gives it slot semantics: opening it closes
+  // panels in the corner (they used to render on top of it) and vice
+  // versa, and outside taps close it.
+  const menuSurface = registerSurface({
+    id: "topbar-menu",
+    slot: "top-right",
+    el: () => topbarMenu,
+    isOpen: () => topbarMenu.classList.contains("open"),
+    close: closeHamburger,
+  });
   hamburgerBtn.addEventListener("click", (e) => {
     e.stopPropagation();
     // If settings is open, just close it (don't open the menu)
@@ -546,12 +557,9 @@ if (hamburgerBtn && topbarMenu) {
       settingsHandle.hide();
       return;
     }
+    const opening = !topbarMenu.classList.contains("open");
     topbarMenu.classList.toggle("open");
-  });
-  document.addEventListener("click", (e) => {
-    if (!topbarMenu.contains(e.target as Node) && e.target !== hamburgerBtn) {
-      closeHamburger();
-    }
+    if (opening) menuSurface.opened();
   });
 }
 
@@ -1134,7 +1142,8 @@ const trackViewer = new TrackViewerPanel(trackViewerLayer, {
 });
 idleCloseables.push(trackViewer);
 trackPanel.setOnViewTrack((meta) => {
-  trackPanel.hide();
+  // Keep the list open: viewer is a bottom bar, so users can click
+  // through tracks the way they click through routes.
   trackViewer.open(meta).catch(console.error);
 });
 
@@ -1498,7 +1507,6 @@ if (topbarActions) {
   const trackBtn = buildTopbarAction(iconTrack, "TRK", "Tracks");
   trackBtn.addEventListener("click", () => {
     trackPanel.toggle();
-    settingsHandle?.hide();
   });
   topbarActions.appendChild(trackBtn);
 
@@ -1506,7 +1514,6 @@ if (topbarActions) {
   const routeBtn = buildTopbarAction(iconRoute, "RTE", "Routes");
   routeBtn.addEventListener("click", () => {
     routePanel.toggle();
-    settingsHandle?.hide();
   });
   topbarActions.appendChild(routeBtn);
 }
@@ -1521,7 +1528,6 @@ if (topbarMenu) {
   });
   waypointBtn.addEventListener("click", () => {
     waypointPanel.toggle();
-    settingsHandle?.hide();
     closeHamburger();
   });
   topbarMenu.insertBefore(waypointBtn, settingsWrapper);
@@ -1590,7 +1596,6 @@ if (topbarMenu) {
   });
   cacheBtn.addEventListener("click", () => {
     cachePanel.toggle();
-    settingsHandle?.hide();
     closeHamburger();
   });
   topbarMenu.insertBefore(cacheBtn, settingsWrapper);
@@ -1600,7 +1605,6 @@ if (topbarMenu) {
   startChartUpdateNotifier({
     showChartRegions: () => {
       cachePanel.show();
-      settingsHandle?.hide();
     },
     applyStreamingVersions,
   });
@@ -1632,12 +1636,9 @@ if (topbarMenu) {
     timeBtn.classList.toggle("active", open);
   topbarMenu.insertBefore(timeBtn, settingsWrapper);
 
-  // Close manager panels when settings opens
+  // Settings opening evicts other panels via the SurfaceManager; the
+  // hamburger dropdown still needs an explicit close (separate wiring).
   settingsHandle?.onOpen(() => {
-    trackPanel.hide();
-    routePanel.hide();
-    waypointPanel.hide();
-    cachePanel.hide();
     closeHamburger();
   });
 

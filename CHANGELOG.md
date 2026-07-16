@@ -8,6 +8,13 @@ The format follows [Keep a Changelog](https://keepachangelog.com/).
 ## [Unreleased]
 
 ### Changed
+- Panels now behave like windows should: opening one closes whatever
+  else held that corner (no more Settings hiding behind the route
+  panel), tapping anywhere else dismisses them (Escape also works on
+  desktop), and the crew-overboard panel always stays on top of other
+  bottom bars. The Routes list and a route's details still open
+  together, and the Tracks list now stays open while viewing a track so
+  you can click through tracks.
 - The top bar now shows as many buttons as fit the screen width instead
   of a fixed four — on an iPad that's usually all of them; the rest stay
   in the ☰ menu.

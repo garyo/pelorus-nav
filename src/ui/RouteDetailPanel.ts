@@ -17,6 +17,7 @@ import { formatBearing } from "../utils/magnetic";
 import { iconEdit, iconNavigation, iconTrash, iconX, setIcon } from "./icons";
 import { groupByFolder } from "./manager-folders";
 import { getPanelStack } from "./PanelStack";
+import { registerSurface } from "./SurfaceManager";
 
 interface Leg {
   index: number;
@@ -144,6 +145,15 @@ export class RouteDetailPanel {
     this.activeNav = activeNav;
   }
 
+  private readonly surface = registerSurface({
+    id: "route-detail",
+    slot: "top-right",
+    group: "routes",
+    el: () => this.el,
+    isOpen: () => this.el.classList.contains("open"),
+    close: () => this.hide(),
+  });
+
   isOpen(): boolean {
     return this.el.classList.contains("open");
   }
@@ -170,6 +180,7 @@ export class RouteDetailPanel {
     this.header.textContent = route.name;
     this.render();
     this.el.classList.add("open");
+    this.surface.opened();
     // Subscribe to nav state changes to keep active leg highlighting current.
     // Use refreshIfOpen so an active inline edit (e.g. waypoint rename)
     // isn't clobbered by the next GPS tick.

@@ -47,6 +47,7 @@ import {
   setIcon,
 } from "./icons";
 import { getPanelStack } from "./PanelStack";
+import { registerSurface } from "./SurfaceManager";
 
 export class ChartCachePanel {
   private readonly el: HTMLDivElement;
@@ -177,6 +178,15 @@ export class ChartCachePanel {
     this.onRegionSelected = cb;
   }
 
+  private readonly surface = registerSurface({
+    id: "chart-cache",
+    slot: "top-right",
+    group: "charts",
+    el: () => this.el,
+    isOpen: () => this.el.classList.contains("open"),
+    close: () => this.hide(),
+  });
+
   toggle(): void {
     if (this.el.classList.contains("open")) {
       this.hide();
@@ -187,6 +197,7 @@ export class ChartCachePanel {
 
   show(): void {
     this.el.classList.add("open");
+    this.surface.opened();
     this.refresh();
   }
 

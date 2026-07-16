@@ -37,6 +37,7 @@ import { startInlineRename } from "./inline-rename";
 import { folderVisibility, groupByFolder } from "./manager-folders";
 import { getPanelStack } from "./PanelStack";
 import { RouteDetailPanel } from "./RouteDetailPanel";
+import { registerSurface } from "./SurfaceManager";
 
 export class RouteManagerPanel {
   private readonly el: HTMLDivElement;
@@ -169,6 +170,15 @@ export class RouteManagerPanel {
     }
   }
 
+  private readonly surface = registerSurface({
+    id: "route-manager",
+    slot: "top-right",
+    group: "routes",
+    el: () => this.el,
+    isOpen: () => this.el.classList.contains("open"),
+    close: () => this.hide(),
+  });
+
   toggle(): void {
     if (this.el.classList.contains("open")) {
       this.hide();
@@ -179,6 +189,7 @@ export class RouteManagerPanel {
 
   show(): void {
     this.el.classList.add("open");
+    this.surface.opened();
     // Defensive reset: guards against `editing` ever latching true (e.g. a
     // rename input removed from the DOM without firing `blur`), which would
     // otherwise freeze refresh() for the rest of the session.

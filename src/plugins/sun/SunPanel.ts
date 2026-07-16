@@ -5,6 +5,7 @@
  */
 
 import { sunTimes } from "../../astro/sun";
+import { registerSurface } from "../../ui/SurfaceManager";
 import { formatLatLon } from "../../utils/coordinates";
 import { shortTimeZone } from "../../utils/timezone";
 import type { PluginHost } from "../types";
@@ -23,6 +24,13 @@ function localNoon(offset: number): Date {
 export class SunPanel {
   private readonly host: PluginHost;
   private el: HTMLElement | null = null;
+  private readonly surface = registerSurface({
+    id: "sun",
+    slot: "top-right",
+    el: () => this.el,
+    isOpen: () => this.el !== null,
+    close: () => this.close(),
+  });
   /** Notified when the popup opens (true) / closes (false) — drives button state. */
   onVisibilityChange: ((open: boolean) => void) | null = null;
   private outside: ((e: Event) => void) | null = null;
@@ -43,6 +51,7 @@ export class SunPanel {
 
   open(): void {
     if (this.el) return;
+    this.surface.opened();
     const c = this.host.map.raw.getCenter();
     this.el = this.render(c.lat, c.lng);
     document.body.appendChild(this.el);
