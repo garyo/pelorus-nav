@@ -5,6 +5,13 @@ Notable user-facing changes to Pelorus Nav. Downloads are on the
 
 The format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [Unreleased]
+
+### Fixed
+- The toolbar could vanish off the top of the screen on iPad Safari after
+  entering fullscreen or when Safari resized its own toolbars — the page
+  now re-anchors itself whenever the browser leaves it scrolled.
+
 ## [0.13.0] - 2026-07-16
 
 ### Changed

@@ -1667,6 +1667,33 @@ if (topbarMenu) {
     });
     document.addEventListener("fullscreenchange", updateFullscreenBtn);
     topbarMenu.insertBefore(btn, settingsWrapper);
+
+    // iOS Safari can scroll the page when browser chrome, fullscreen, or
+    // keyboard transitions resize the viewport, and leave it scrolled —
+    // pinning the top bar off-screen (observed live: scrollY=20 after a
+    // chrome-height change; also reported on iPadOS 18.x after entering
+    // fullscreen). The page is overflow:hidden and never scrolls by
+    // design, so any offset is wrong — except while an input is focused,
+    // when Safari legitimately scrolls to keep it above the keyboard.
+    const reanchorViewport = () => {
+      const ae = document.activeElement;
+      if (
+        ae instanceof HTMLElement &&
+        (ae.tagName === "INPUT" ||
+          ae.tagName === "TEXTAREA" ||
+          ae.isContentEditable)
+      ) {
+        return;
+      }
+      if (window.scrollX !== 0 || window.scrollY !== 0) {
+        window.scrollTo(0, 0);
+      }
+    };
+    window.addEventListener("scroll", reanchorViewport);
+    window.visualViewport?.addEventListener("resize", reanchorViewport);
+    document.addEventListener("focusout", () =>
+      setTimeout(reanchorViewport, 50),
+    );
   }
 
   // Lock screen (native only) — disables the touchscreen so accidental taps are
