@@ -148,6 +148,7 @@ import { hideStatusBanner, showStatusBanner } from "./ui/StatusBanner";
 import { TimeBar } from "./ui/TimeBar";
 import { TrackManagerPanel } from "./ui/TrackManagerPanel";
 import { TrackViewerPanel } from "./ui/TrackViewerPanel";
+import { initTopbarOverflow } from "./ui/topbar-overflow";
 import { buildTopbarAction } from "./ui/topbarButton";
 import { WakeLockController } from "./ui/WakeLock";
 import { WaypointManagerPanel } from "./ui/WaypointManagerPanel";
@@ -1754,6 +1755,18 @@ if (topbarMenu) {
   topbarMenu.querySelectorAll(".topbar-plugin-action").forEach((b) => {
     topbarMenu.insertBefore(b, pluginAnchor);
   });
+
+  // On narrow screens, promote as many menu items as fit into the
+  // always-visible row instead of hiding them all behind the hamburger.
+  const topBarEl = document.getElementById("top-bar");
+  if (topBarEl && hamburgerBtn && topbarMenu && topbarActions) {
+    initTopbarOverflow({
+      topBar: topBarEl,
+      actions: topbarActions,
+      menu: topbarMenu,
+      hamburger: hamburgerBtn,
+    });
+  }
 }
 
 // Warn the user once if the OS screen-off timeout is too short for marine

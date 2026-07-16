@@ -8,6 +8,9 @@ The format follows [Keep a Changelog](https://keepachangelog.com/).
 ## [Unreleased]
 
 ### Changed
+- The top bar now shows as many buttons as fit the screen width instead
+  of a fixed four — on an iPad that's usually all of them; the rest stay
+  in the ☰ menu.
 - Editing a route now zooms to fit it first, and the route dialog's
   summary line ("4 legs, 5.15 NM") zooms to the route when tapped.
 - On narrow screens the route editor toolbar sits at the bottom of the

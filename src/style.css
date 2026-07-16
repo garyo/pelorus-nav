@@ -3459,7 +3459,9 @@ body {
     display: flex;
   }
 
-  .topbar-menu-label {
+  /* Scoped to the dropdown: buttons promoted into the visible row keep
+     their compact icon + short-label look. */
+  .topbar-menu .topbar-menu-label {
     display: inline;
     margin-left: 8px;
     font-size: 13px;
