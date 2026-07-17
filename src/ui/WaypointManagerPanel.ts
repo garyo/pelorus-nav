@@ -112,6 +112,9 @@ export class WaypointManagerPanel {
     id: "waypoint-manager",
     slot: "top-right",
     group: "waypoints",
+    // A workspace like the route panels: outside taps (pan/zoom while
+    // reviewing waypoints) don't dismiss it. Closes via X, Escape, eviction.
+    closeOnOutsideClick: false,
     el: () => this.el,
     isOpen: () => this.el.classList.contains("open"),
     close: () => this.hide(),

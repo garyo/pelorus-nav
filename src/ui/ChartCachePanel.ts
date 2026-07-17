@@ -182,6 +182,9 @@ export class ChartCachePanel {
     id: "chart-cache",
     slot: "top-right",
     group: "charts",
+    // A workspace like the other manager panels — and a download may be in
+    // flight (isBusy). Outside taps don't dismiss it; X, Escape, eviction do.
+    closeOnOutsideClick: false,
     el: () => this.el,
     isOpen: () => this.el.classList.contains("open"),
     close: () => this.hide(),

@@ -565,7 +565,7 @@ if (hamburgerBtn && topbarMenu) {
 
 // Clicking the map to dismiss an open click-outside panel (Settings, or the
 // mobile topbar menu) shouldn't also register a chart pick — almost never the
-// intent. (The Regions panel doesn't close on outside click, so it's unaffected.)
+// intent. Manager panels persist through outside clicks, so they're unaffected.
 if (settingsHandle) {
   featureQueryHandler.addPickSuppressor(() => settingsHandle.isOpen());
 }
