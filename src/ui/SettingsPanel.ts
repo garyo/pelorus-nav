@@ -31,7 +31,6 @@ import {
   updateSettings,
   type WakeLockMode,
 } from "../settings";
-import { bearingModeLabel } from "../utils/magnetic";
 import { iconSettings } from "./icons";
 import {
   maybeShowScreenTimeoutWarning,
@@ -109,24 +108,8 @@ export function createSettingsPanel(
   const wrapper = document.createElement("div");
   wrapper.className = "settings-wrapper";
 
-  // Depth unit indicator
-  const unitBadge = document.createElement("span");
-  unitBadge.className = "depth-unit-badge";
-  unitBadge.textContent = depthUnitLabel(getSettings().depthUnit);
-  wrapper.appendChild(unitBadge);
-
-  // Bearing mode indicator
-  const bearingBadge = document.createElement("span");
-  bearingBadge.className = "depth-unit-badge";
-  const initSettings = getSettings();
-  bearingBadge.textContent = `\u00b0${bearingModeLabel(initSettings.bearingMode)}`;
-  wrapper.appendChild(bearingBadge);
-
-  onSettingsChange((s) => {
-    unitBadge.textContent = depthUnitLabel(s.depthUnit);
-    bearingBadge.textContent = `\u00b0${bearingModeLabel(s.bearingMode)}`;
-  });
-
+  // The depth-unit / bearing-mode badges live in the bottom-center chart
+  // readout (ChartInUseReadout) now, not beside the gear.
   const btn = buildTopbarAction(iconSettings, "SET", "Settings", {
     fullLabel: "Settings",
   });

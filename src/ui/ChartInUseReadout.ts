@@ -11,7 +11,8 @@
 
 import type maplibregl from "maplibre-gl";
 import { rasterChartAt } from "../chart/raster-charts";
-import { getSettings } from "../settings";
+import { depthUnitLabel, getSettings, onSettingsChange } from "../settings";
+import { bearingModeLabel } from "../utils/magnetic";
 
 function isEncFeature(f: maplibregl.MapGeoJSONFeature): boolean {
   return typeof f.source === "string" && f.source.startsWith("s57-vector");
@@ -20,6 +21,10 @@ function isEncFeature(f: maplibregl.MapGeoJSONFeature): boolean {
 export class ChartInUseReadout {
   private readonly map: maplibregl.Map;
   private readonly el: HTMLElement;
+  /** Last-computed chart label + overscale state, so a units change can
+   *  re-render without re-querying the map. */
+  private chartLabel: string | null = null;
+  private overscale = false;
 
   constructor(map: maplibregl.Map) {
     this.map = map;
@@ -37,10 +42,14 @@ export class ChartInUseReadout {
       color: "#fff",
       pointerEvents: "none",
       whiteSpace: "nowrap",
-      display: "none",
       zIndex: "5",
     } satisfies Partial<CSSStyleDeclaration>);
     map.getContainer().appendChild(this.el);
+
+    // Units live here now (leading segment), so the readout is always
+    // shown — even over land with no chart — and re-renders on a units
+    // change without waiting for the next map move.
+    onSettingsChange(() => this.render());
 
     // Re-evaluate on move and whenever a source finishes loading tiles — the
     // map never goes fully "idle" here (vessel/overlay updates keep it busy),
@@ -96,15 +105,26 @@ export class ChartInUseReadout {
       overscale = zoom > rc.nativeZoom + 0.5;
     }
 
-    if (!label) {
-      this.el.style.display = "none";
-      return;
-    }
-    this.el.textContent = overscale ? `${label} · OVERSCALE` : label;
-    this.el.style.background = overscale
+    this.chartLabel = label;
+    this.overscale = overscale;
+    this.render();
+  }
+
+  /** Compose the always-on units segment with the current chart label. */
+  private render(): void {
+    const s = getSettings();
+    const units = `${depthUnitLabel(s.depthUnit)} · °${bearingModeLabel(
+      s.bearingMode,
+    )}`;
+    const chart = this.chartLabel
+      ? this.overscale
+        ? `${this.chartLabel} · OVERSCALE`
+        : this.chartLabel
+      : null;
+    this.el.textContent = chart ? `${units}  ·  ${chart}` : units;
+    this.el.style.background = this.overscale
       ? "rgba(200,120,0,0.85)"
       : "rgba(0,0,0,0.6)";
-    this.el.style.display = "";
   }
 }
 
