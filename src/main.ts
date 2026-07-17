@@ -1281,7 +1281,8 @@ routeEditor.setSearchEntriesProvider(getSearchEntries);
 const routePanel = new RouteManagerPanel(routeLayer, routeEditor);
 idleCloseables.push(routePanel);
 routePanel.setOnPreviewRoute((route) => {
-  routePanel.hide();
+  // The preview is a bottom bar and doesn't contest the route panels'
+  // space — leave them open, matching track viewing.
   trackViewer.openRoute(route);
 });
 
