@@ -5,7 +5,7 @@ Notable user-facing changes to Pelorus Nav. Downloads are on the
 
 The format follows [Keep a Changelog](https://keepachangelog.com/).
 
-## [Unreleased]
+## [0.14.0] - 2026-07-17
 
 ### Changed
 - Popup panels now behave more sensibly and clearly.
