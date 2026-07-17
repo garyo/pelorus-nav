@@ -8,50 +8,40 @@ The format follows [Keep a Changelog](https://keepachangelog.com/).
 ## [Unreleased]
 
 ### Changed
-- Panels now behave like windows should: opening one closes whatever
-  else held that corner (no more Settings hiding behind the route
-  panel), tapping anywhere else dismisses them (Escape also works on
-  desktop), and the crew-overboard panel always stays on top of other
-  bottom bars. The Routes list and a route's details still open
-  together, and the Tracks list now stays open while viewing a track so
-  you can click through tracks.
+- Popup panels now behave more sensibly and clearly.
 - The top bar now shows as many buttons as fit the screen width instead
-  of a fixed four — on an iPad that's usually all of them; the rest stay
-  in the ☰ menu.
+  of a fixed four on mobile — the rest stay in the ☰ menu.
 - Editing a route now zooms to fit it first, and the route dialog's
-  summary line ("4 legs, 5.15 NM") zooms to the route when tapped.
+  summary line zooms to the route when tapped.
 - On narrow screens the route editor toolbar sits at the bottom of the
-  screen, out of the way of the route dialog.
+  screen, out of the way of the route dialog, so route editing works better.
 - Much less chart clutter at the Standard detail level: dense
-  rock/wreck/obstruction clusters thin themselves below zoom 13 (always-
-  submerged rocks win the spot), buoys, beacons, and short-range lights
-  start at zoom 10 (major lights and isolated-danger marks are
-  unaffected), and soundings deeper than your "deep water" depth wait
-  until zoom 13. Standard+ and Full detail are unchanged — raise the
-  Detail slider to see everything as before.
+  rock/wreck/obstruction clusters thin themselves below zoom 13,
+  buoys, beacons, and short-range lights start at zoom 10 (major
+  lights and isolated-danger marks are unaffected), and soundings
+  deeper than your "deep water" depth wait until zoom 13. Standard+
+  and Full detail are unchanged — raise the Detail slider to see
+  everything as before.
 
 ### Added
-- "Kelp, Overfalls & Fish Farms" layer toggle — these layers were always
-  drawn with no way to turn them off.
+- "Kelp, Overfalls & Fish Farms" layer toggle in Settings — before,
+  these layers were always drawn with no way to turn them off.
 
 ### Fixed
-- The About dialog's "Website" link led straight back to the app instead
-  of the pelorus-nav.com landing page (the offline cache was answering
-  for the landing URL).
-- Route editing on touch screens: tapping a waypoint now selects it
-  (showing Delete / Insert After) — previously only dragging worked —
-  and waypoints are easier to hit with a finger.
+- The About dialog's "Website" link now properly goes to
+  pelorus-nav.com landing page, not back to the app.
+- Route editing on touch screens: tapping a waypoint now selects it.
+  Previously only dragging worked, and waypoints are easier to hit
+  with a finger.
 - Deleting the last waypoint no longer leaves a ghost dashed line on
   touch devices.
-- The toolbar could vanish off the top of the screen on iPad Safari after
-  entering fullscreen or when Safari resized its own toolbars — the page
-  now re-anchors itself whenever the browser leaves it scrolled.
+- The toolbar can no longer vanish off the top of the screen on iPad Safari after
+  entering fullscreen or when Safari resized its own toolbars.
 - Several layer toggles (Seabed, Cables & Pipes, parts of Facilities) did
   nothing at the default detail level; those layers now appear from zoom
   12–13 and the toggles control them.
-- Removed the Magnetic Variation toggle: it never controlled anything
-  (the layer isn't implemented yet).
-- Base detail no longer shows a few layers that belong to higher detail
+- Removed the Magnetic Variation settings toggle: it never controlled anything.
+- "Base" detail no longer shows a few layers that belong to higher detail
   levels (seabed letters, moorings, sea boundaries).
 - Chart downloads could fail at the very end on some Android WebViews
   (e.g. Amazon Fire tablets): the final file rename is now retried as a
