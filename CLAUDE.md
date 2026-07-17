@@ -161,7 +161,13 @@ All tile workflows go through `tools/build-tiles.sh` (run `--help` for full usag
 
 ### CI release builds
 Pushing a `v*` tag triggers `.github/workflows/release.yml`, which produces a **signed** release
-APK and publishes it as a GitHub Release (attached asset `app-release.apk`). To cut a new release:
+APK and publishes it as a GitHub Release (attached asset `app-release.apk`).
+
+User-facing changes accumulate under `## [Unreleased]` in CHANGELOG.md as they
+land. A versioned section is created **only at tag time** — the web deploys
+continuously from main, but a changelog section implies a tagged Android/iOS
+release (iOS review can take days, so tags are cut deliberately). To cut a new
+release:
 
 1. Add a `## [X.Y.Z] - YYYY-MM-DD` section to `CHANGELOG.md` — compact and user-focused
    (omit changes users won't notice). This is the single source of truth for the in-app
