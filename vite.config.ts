@@ -108,13 +108,16 @@ export default defineConfig({
           "landing/**",
         ],
         navigateFallback: "/index.html",
-        // Never satisfy navigations to the landing page or API from the SW —
-        // "/" must always show the (possibly updated) marketing page, and
-        // /api is dynamic.
-        navigateFallbackDenylist: [/^\/$/, /^\/landing\.html$/, /^\/api\//],
+        // The app owns exactly /app; every other URL (the landing page at
+        // "/", /api, and any future site section like /docs) belongs to the
+        // network, where worker.ts routes it. An allowlist means new site
+        // sections need no service-worker changes — the old denylist
+        // approach would silently serve the app shell on any URL nobody
+        // remembered to list.
+        navigateFallbackAllowlist: [/^\/app(?:[/?#]|$)/],
         // Workbox's precache route maps "/" to the precached /index.html by
-        // default (directoryIndex), BEFORE the navigation route runs — so the
-        // denylist above never saw "/" and the SW served the app shell on the
+        // default (directoryIndex), BEFORE the navigation route runs — so no
+        // deny/allowlist ever saw "/" and the SW served the app shell on the
         // landing page URL (then main.ts's old-PWA migration rewrote the URL
         // to /app: the About dialog's Website link led straight back to the
         // app). Disable it; "/" now reaches the network and gets the landing

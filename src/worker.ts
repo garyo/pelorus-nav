@@ -446,6 +446,21 @@ export default {
       return new Response("Not found", { status: 404 });
     }
 
+    // Same honesty for extensionless paths outside /app. The app shell
+    // belongs at /app only — matching the service worker's navigation
+    // allowlist — and future site sections (/docs, /help, …) get explicit
+    // routes above, so an unrouted path is a real 404, not a surprise
+    // copy of the app.
+    const isAppPath = /^\/app(?:\/|$)/.test(url.pathname);
+    const isExtensionless = !/\.[a-z0-9]+$/i.test(url.pathname);
+    if (
+      !isAppPath &&
+      isExtensionless &&
+      response.headers.get("content-type")?.includes("text/html")
+    ) {
+      return new Response("Not found", { status: 404 });
+    }
+
     return response;
   },
 } satisfies ExportedHandler<Env>;

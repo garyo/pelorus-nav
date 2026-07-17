@@ -63,7 +63,11 @@ Pelorus Nav — open-source web-based marine chartplotter (PWA). See PLAN.md for
 
 ## URL layout (production)
 In production the **app lives at `/app`**; `/` is the static marketing landing
-page (`public/landing.html`, assets in `public/landing/`). `src/worker.ts`
+page (`public/landing.html`, assets in `public/landing/`). The app shell is
+served **only** under `/app` — the service worker's `navigateFallbackAllowlist`
+(vite.config.ts) and the worker's extensionless-path 404 (worker.ts) both
+encode this, so adding a future site section (`/docs`, `/help`, …) needs only
+an explicit route in `src/worker.ts`; no service-worker or client changes. `src/worker.ts`
 rewrites `/` to the landing page and handles `POST /api/subscribe` (newsletter
 signups → SUBSCRIBERS KV; `run_worker_first` in wrangler.toml makes those routes
 reach the worker at all). The Vite **dev server still serves the app at `/`**
