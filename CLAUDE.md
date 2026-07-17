@@ -170,8 +170,14 @@ APK and publishes it as a GitHub Release (attached asset `app-release.apk`).
 User-facing changes accumulate under `## [Unreleased]` in CHANGELOG.md as they
 land. A versioned section is created **only at tag time** — the web deploys
 continuously from main, but a changelog section implies a tagged Android/iOS
-release (iOS review can take days, so tags are cut deliberately). To cut a new
-release:
+release (iOS review can take days, so tags are cut deliberately).
+
+**Releasing is always the maintainer's explicit decision.** Never bump the
+package.json version, create a versioned changelog section, or push a `v*` tag
+without being asked to cut a release — the version bump alone makes deployed
+web builds announce a new version to users. Note that pushing to main deploys
+the production web app; get the maintainer's go-ahead before pushing. To cut a
+new release:
 
 1. Add a `## [X.Y.Z] - YYYY-MM-DD` section to `CHANGELOG.md` — compact and user-focused
    (omit changes users won't notice). This is the single source of truth for the in-app
