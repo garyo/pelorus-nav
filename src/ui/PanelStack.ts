@@ -6,7 +6,6 @@
  */
 
 const CONTAINER_CLASS = "panel-stack";
-const TOP_BAR_HEIGHT = 44;
 
 let container: HTMLDivElement | null = null;
 
@@ -28,22 +27,37 @@ export function trackInstrumentHUD(hudElement: HTMLElement): void {
 
   const update = () => {
     const rect = hudElement.getBoundingClientRect();
+    // Hidden HUD (height 0): clear our inline override so the stylesheet's
+    // `top: var(--topbar-bottom)` positions the stack — that value includes
+    // the safe-area inset (a hardcoded constant would sit too high under the
+    // top bar in fullscreen, where the inset is nonzero).
+    if (rect.height <= 0) {
+      stack.style.top = "";
+      stack.style.maxHeight = "";
+      return;
+    }
     // A full-width top bar: the stack sits below it. A narrow side column
     // (landscape "side" layout): sit beside it, anchored at its top instead.
-    // Hidden HUD (height 0): fall back to the top bar height.
-    let top: number;
-    if (rect.height <= 0) {
-      top = TOP_BAR_HEIGHT;
-    } else if (rect.width >= window.innerWidth * 0.6) {
-      top = rect.bottom;
-    } else {
-      top = rect.top;
-    }
+    const top = rect.width >= window.innerWidth * 0.6 ? rect.bottom : rect.top;
     stack.style.top = `${top}px`;
     stack.style.maxHeight = `calc(100vh - ${top + 10}px)`;
   };
 
   const observer = new ResizeObserver(update);
   observer.observe(hudElement);
+
+  // The observer only fires on HUD *size* changes. Entering fullscreen (or
+  // Safari showing/hiding its chrome) shifts the HUD's position via a
+  // safe-area-inset change without resizing it, so the stack's top would
+  // otherwise keep its stale pre-transition value and overlap the HUD.
+  // Recompute on the events that signal those repositions. fullscreenchange
+  // can fire before the safe-area/reflow settles, so also re-read next frame.
+  window.addEventListener("resize", update);
+  window.visualViewport?.addEventListener("resize", update);
+  document.addEventListener("fullscreenchange", () => {
+    update();
+    requestAnimationFrame(update);
+  });
+
   update();
 }
