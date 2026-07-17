@@ -10,7 +10,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/).
 ### Changed
 - Popup panels now behave more sensibly and clearly.
 - The top bar now shows as many buttons as fit the screen width instead
-  of a fixed four on mobile — the rest stay in the ☰ menu.
+  of a fixed four on mobile — the rest stay in the ☰ menu, which is
+  hidden entirely when everything fits.
+- The depth/bearing units moved from the top bar to the chart readout at
+  the bottom of the screen ("Ft · °M · ENC · NOAA").
 - Editing a route now zooms to fit it first, and the route dialog's
   summary line zooms to the route when tapped.
 - On narrow screens the route editor toolbar sits at the bottom of the
@@ -37,6 +40,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/).
   touch devices.
 - The toolbar can no longer vanish off the top of the screen on iPad Safari after
   entering fullscreen or when Safari resized its own toolbars.
+- Panels no longer sit too high, overlapping the instruments, after
+  entering fullscreen on iPad.
 - Several layer toggles (Seabed, Cables & Pipes, parts of Facilities) did
   nothing at the default detail level; those layers now appear from zoom
   12–13 and the toggles control them.
