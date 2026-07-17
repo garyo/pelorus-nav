@@ -7,10 +7,11 @@
  * and only the core #topbar-actions buttons stay visible — but many
  * widths (e.g. iPad portrait at 744px) have room for more. This promotes
  * menu items into the visible row while they fit and demotes them back
- * when space shrinks, preserving menu order. Non-action elements (the
- * offline indicator, the settings wrapper with its gear and badges)
- * always stay in the dropdown, so the hamburger keeps a purpose at
- * every width.
+ * when space shrinks, preserving menu order. The settings wrapper (gear)
+ * promotes last, after all action buttons, so it stays reachable in the
+ * dropdown whenever there IS overflow. When everything fits — nothing
+ * left in the menu but a hidden offline indicator — the hamburger hides
+ * entirely (an iPad in portrait shows the whole bar, no menu button).
  */
 
 export interface TopbarOverflowElements {
@@ -20,7 +21,7 @@ export interface TopbarOverflowElements {
   actions: HTMLElement;
   /** Collapsible menu that owns the items when not promoted. */
   menu: HTMLElement;
-  /** Hamburger button — its visibility marks narrow mode. */
+  /** Hamburger button — hidden when the menu has nothing left to hold. */
   hamburger: HTMLElement;
 }
 
@@ -43,32 +44,53 @@ export function relayoutTopbar(
   promoted: PromotedItem[],
   hooks: TopbarOverflowHooks = {},
 ): void {
-  const { topBar, actions, menu } = els;
+  const { topBar, actions, menu, hamburger } = els;
   const fits = hooks.fits ?? (() => topBar.scrollWidth <= topBar.clientWidth);
+  // Key off the CSS breakpoint directly, not the hamburger's display — this
+  // function now controls that display, so reading it back would feed on
+  // itself.
   const isNarrow =
-    hooks.isNarrow ??
-    (() => getComputedStyle(els.hamburger).display !== "none");
+    hooks.isNarrow ?? (() => window.matchMedia("(max-width: 768px)").matches);
 
-  // First remaining action button, scanning past non-action elements
-  // (e.g. the offline indicator) so they don't wall off later buttons.
+  // Next thing to promote: leading action buttons first (scanning past the
+  // offline indicator so it doesn't wall off later buttons), then the
+  // settings wrapper last — it should be the first to fall back into the
+  // dropdown when space is tight, so it's promoted only once nothing else
+  // is left in the menu.
   const nextPromotable = (): HTMLElement | null => {
     for (const child of menu.children) {
       if (child instanceof HTMLElement && child.matches(".topbar-action")) {
         return child;
       }
     }
-    return null;
+    const wrapper = menu.querySelector(".settings-wrapper");
+    return wrapper instanceof HTMLElement ? wrapper : null;
   };
   const demote = () => {
     const item = promoted.pop();
     if (!item) return;
+    // A null anchor means the item was the menu's last child — insertBefore
+    // with a null reference node appends to the end, which is what we want.
     const anchor = item.anchor?.parentElement === menu ? item.anchor : null;
-    menu.insertBefore(item.el, anchor ?? menu.firstChild);
+    menu.insertBefore(item.el, anchor);
   };
 
-  // Wide mode: CSS renders the whole menu inline — restore canonical order.
+  // The hamburger is only needed if the menu still holds something the user
+  // must reach through it — a visible child (offline indicator when shown,
+  // or anything not yet promoted). A child's own `display` is independent of
+  // the menu's collapsed display:none, so this reads correctly either way.
+  const updateHamburger = () => {
+    const needed = [...menu.children].some(
+      (c) => c instanceof HTMLElement && getComputedStyle(c).display !== "none",
+    );
+    hamburger.style.display = needed ? "" : "none";
+  };
+
+  // Wide mode: CSS renders the whole menu inline — restore canonical order
+  // and let CSS hide the hamburger.
   if (!isNarrow()) {
     while (promoted.length > 0) demote();
+    hamburger.style.display = "";
     return;
   }
 
@@ -81,6 +103,8 @@ export function relayoutTopbar(
   }
   // …then shrink until the bar fits again.
   while (promoted.length > 0 && !fits()) demote();
+
+  updateHamburger();
 }
 
 /** Wire up the overflow manager: initial layout + relayout on resize and
