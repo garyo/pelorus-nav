@@ -35,6 +35,9 @@ The format follows [Keep a Changelog](https://keepachangelog.com/).
   drawn with no way to turn them off.
 
 ### Fixed
+- The About dialog's "Website" link led straight back to the app instead
+  of the pelorus-nav.com landing page (the offline cache was answering
+  for the landing URL).
 - Route editing on touch screens: tapping a waypoint now selects it
   (showing Delete / Insert After) — previously only dragging worked —
   and waypoints are easier to hit with a finger.

@@ -112,6 +112,14 @@ export default defineConfig({
         // "/" must always show the (possibly updated) marketing page, and
         // /api is dynamic.
         navigateFallbackDenylist: [/^\/$/, /^\/landing\.html$/, /^\/api\//],
+        // Workbox's precache route maps "/" to the precached /index.html by
+        // default (directoryIndex), BEFORE the navigation route runs — so the
+        // denylist above never saw "/" and the SW served the app shell on the
+        // landing page URL (then main.ts's old-PWA migration rewrote the URL
+        // to /app: the About dialog's Website link led straight back to the
+        // app). Disable it; "/" now reaches the network and gets the landing
+        // page.
+        directoryIndex: "",
       },
     }),
   ],
