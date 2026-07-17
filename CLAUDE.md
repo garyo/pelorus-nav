@@ -164,8 +164,16 @@ All tile workflows go through `tools/build-tiles.sh` (run `--help` for full usag
 - `tools/upload-apk.sh [--build]` — upload APK to Dropbox (`garyo-dropbox:software/pelorus-nav/`)
 
 ### CI release builds
-Pushing a `v*` tag triggers `.github/workflows/release.yml`, which produces a **signed** release
-APK and publishes it as a GitHub Release (attached asset `app-release.apk`).
+Pushing a `v*` tag triggers **two** workflows, so one tag ships all platforms:
+- `.github/workflows/release.yml` — produces a **signed** Android release APK and
+  publishes it as a GitHub Release (attached asset `app-release.apk`).
+- `.github/workflows/release-ios.yml` ("iOS TestFlight") — builds a signed iOS app
+  on a macOS runner and **uploads it to TestFlight** via altool. After it succeeds
+  the build sits in Apple's processing/review queue (this is the "review can take
+  days" step) — no separate manual iOS build is needed for a tagged release.
+
+(Pushing to `main` separately auto-deploys the production **web** app via Cloudflare.
+So one tag on an up-to-date main covers web + Android + iOS.)
 
 User-facing changes accumulate under `## [Unreleased]` in CHANGELOG.md as they
 land. A versioned section is created **only at tag time** — the web deploys
