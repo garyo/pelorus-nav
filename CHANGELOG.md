@@ -42,6 +42,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/).
   entering fullscreen or when Safari resized its own toolbars.
 - Panels no longer sit too high, overlapping the instruments, after
   entering fullscreen on iPad.
+- On the e-ink theme, tidal-current arrows fill red like the other
+  themes instead of black.
 - Several layer toggles (Seabed, Cables & Pipes, parts of Facilities) did
   nothing at the default detail level; those layers now appear from zoom
   12–13 and the toggles control them.
