@@ -95,11 +95,12 @@ export class RouteManagerPanel {
 
     this.el.querySelector("#route-new-btn")?.addEventListener("click", () => {
       this.hide();
+      this.detailPanel.hide();
       this.editor.startEditing();
     });
 
     editor.onEditorChange(() => {
-      this.refresh();
+      this.refreshSoon();
       this.detailPanel.refreshIfOpen();
     });
 
@@ -122,12 +123,13 @@ export class RouteManagerPanel {
     });
 
     this.detailPanel.onEdit = (route) => {
-      this.hide();
       this.editor.startEditing(route);
       // Re-show detail panel with editor's live route reference
       const liveRoute = this.editor.getRoute();
       if (liveRoute) this.detailPanel.show(liveRoute);
     };
+
+    this.detailPanel.onHide = () => this.clearSelection();
 
     this.detailPanel.onRename = () => {
       this.refresh().catch(console.error);
@@ -174,6 +176,9 @@ export class RouteManagerPanel {
     id: "route-manager",
     slot: "top-right",
     group: "routes",
+    // Route planning is a workspace: outside taps (panning the chart,
+    // measuring) must not dismiss it. Closes via X, Escape, or eviction.
+    closeOnOutsideClick: false,
     el: () => this.el,
     isOpen: () => this.el.classList.contains("open"),
     close: () => this.hide(),
@@ -198,10 +203,10 @@ export class RouteManagerPanel {
   }
 
   hide(): void {
+    // Only the list: the detail panel is the user's route workspace and
+    // outlives it (eviction closes both — each is its own surface).
     this.el.classList.remove("open");
     this.editing = false;
-    this.detailPanel.hide();
-    this.clearSelection();
   }
 
   private clearSelection(): void {
@@ -243,6 +248,17 @@ export class RouteManagerPanel {
 
     this.routeLayer.selectRoute(route);
     this.routeLayer.fitRoute(route);
+  }
+
+  private refreshRafId: number | null = null;
+  /** Frame-throttled refresh — editor changes fire per drag movement and
+   *  the list stays visible during editing. */
+  private refreshSoon(): void {
+    if (this.refreshRafId !== null) return;
+    this.refreshRafId = requestAnimationFrame(() => {
+      this.refreshRafId = null;
+      this.refresh().catch(console.error);
+    });
   }
 
   private async refresh(): Promise<void> {
@@ -464,7 +480,6 @@ export class RouteManagerPanel {
     setIcon(editBtn, iconEdit);
     editBtn.title = "Edit";
     editBtn.addEventListener("click", () => {
-      this.hide();
       this.editor.startEditing(route);
       // Auto-open detail panel with live route reference
       const liveRoute = this.editor.getRoute();

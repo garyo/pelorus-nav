@@ -74,6 +74,9 @@ export class RouteDetailPanel {
   private navCallback: ActiveNavCallback | null = null;
   private readonly navBtn: HTMLButtonElement;
   onEdit: ((route: Route) => void) | null = null;
+  /** Called whenever the panel hides (any path) — the manager clears the
+   *  route selection halo here so it tracks the panel's lifetime. */
+  onHide: (() => void) | null = null;
   onDelete: ((route: Route) => void) | null = null;
   onRename: ((route: Route) => void) | null = null;
   onFolderChange: ((route: Route) => void) | null = null;
@@ -149,6 +152,8 @@ export class RouteDetailPanel {
     id: "route-detail",
     slot: "top-right",
     group: "routes",
+    // Part of the route-planning workspace — see route-manager.
+    closeOnOutsideClick: false,
     el: () => this.el,
     isOpen: () => this.el.classList.contains("open"),
     close: () => this.hide(),
@@ -235,6 +240,7 @@ export class RouteDetailPanel {
       this.activeNav.unsubscribe(this.navCallback);
       this.navCallback = null;
     }
+    this.onHide?.();
   }
 
   /** Returns true if actively navigating the currently displayed route. */
