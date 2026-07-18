@@ -298,6 +298,33 @@ describe("detectManeuvers", () => {
     expect(m[0].turnDeg).toBeCloseTo(120, 0);
   });
 
+  it("absorbs an overshoot correction into one maneuver", () => {
+    // Slow port tack sweeping -200° (past the new course), then an
+    // immediate +75° starboard correction onto it — one maneuver on the
+    // water, seen on real light-air tracks as a marker pair.
+    const port = [155, 130, 105, 80, 55, 30, 5, 340];
+    const correct = [0, 20, 40, 55];
+    const a = analyzeTrack(
+      trackWithCourses([180, 180, 180, ...port, ...correct, 55, 55, 55, 55]),
+    );
+    if (!a) throw new Error("null analysis");
+    const m = detectManeuvers(a);
+    expect(m).toHaveLength(1);
+    expect(m[0].turnDeg).toBeCloseTo(-125, 0); // net turn after correction
+  });
+
+  it("keeps an equal immediate opposite turn as two maneuvers", () => {
+    // Tack and immediate equal tack-back with no steady leg — two real
+    // maneuvers, not an overshoot.
+    const a = analyzeTrack(
+      trackWithCourses([
+        30, 30, 30, 60, 90, 120, 120, 90, 60, 30, 30, 30, 30, 30,
+      ]),
+    );
+    if (!a) throw new Error("null analysis");
+    expect(detectManeuvers(a)).toHaveLength(2);
+  });
+
   it("still counts two separate tacks with straight legs between", () => {
     const a = analyzeTrack(
       trackWithCourses([

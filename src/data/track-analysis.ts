@@ -355,6 +355,22 @@ export function detectManeuvers(a: TrackAnalysis): Maneuver[] {
         }
         // Round up so a gap-spanning pair marks the turn's completion
         const mid = Math.min(i + Math.ceil((end - i) / 2), n - 1);
+        // A slow tack can also overshoot the new course and steer back.
+        // Absorb that contiguous counter-swing when it's smaller than
+        // the turn itself — an equal-or-larger opposite swing is a real
+        // second maneuver, and a steady leg (zero delta) ends absorption.
+        let cEnd = end;
+        let counter = 0;
+        while (cEnd + 1 < n) {
+          const d = bearingDelta(a.coursesDeg[cEnd + 1], a.coursesDeg[cEnd]);
+          if (d * Math.sign(turn) >= 0) break;
+          counter += d;
+          cEnd++;
+        }
+        if (Math.abs(counter) < Math.abs(total)) {
+          total += counter;
+          end = cEnd;
+        }
         maneuvers.push({
           index: mid,
           timestamp: a.times[mid],
