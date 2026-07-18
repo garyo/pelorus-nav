@@ -2173,10 +2173,12 @@ body {
   flex-wrap: wrap;
 }
 
-/* Narrow screens: the route detail panel (top right) stays open during
-   editing as a live waypoint list, so drop the editor bar to the bottom
-   where it can't collide — also easier thumb reach on tablets. */
-@media (max-width: 900px) {
+/* Narrow screens and touch devices: the route detail panel (top right)
+   stays open during editing as a live waypoint list, so drop the editor
+   bar to the bottom where it can't collide — also easier thumb reach.
+   (hover: none) catches tablets in landscape, whose width exceeds the
+   narrow-screen breakpoint. */
+@media (max-width: 900px), (hover: none) {
   .route-editor-bar {
     top: auto;
     bottom: calc(16px + env(safe-area-inset-bottom, 0px));
