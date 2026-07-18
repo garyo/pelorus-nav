@@ -81,3 +81,4 @@ ios/.beta-config
 # S-57 test chart (regenerable)
 public/test-chart.pmtiles
 .dev.vars
+ios/version.xcconfig
