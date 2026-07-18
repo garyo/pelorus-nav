@@ -116,6 +116,10 @@ jobs:
         run: |
           CAPACITOR=1 bun run build
           bunx cap sync ios
+          # The Xcode project's base configuration file is gitignored and
+          # generated — without it the archive fails before the command-line
+          # version overrides are even consulted.
+          bun tools/sync-ios-version.ts
 
       - name: Archive, export, and upload to TestFlight
         env:
