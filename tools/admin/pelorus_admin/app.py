@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import dataclasses
 import os
 import sys
 from pathlib import Path
@@ -17,6 +18,7 @@ from textual import work
 from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.containers import Vertical, VerticalScroll
+from textual.theme import BUILTIN_THEMES
 from textual.widgets import DataTable, Footer, Static, TabbedContent, TabPane
 
 from .api import AdminClient
@@ -38,6 +40,16 @@ STATUS_STYLES = {
 
 def styled_status(status: str) -> Text:
     return Text(status, style=STATUS_STYLES.get(status, ""))
+
+
+# textual-light on a pure white background instead of its default med-gray.
+LIGHT_THEME = dataclasses.replace(
+    BUILTIN_THEMES["textual-light"],
+    name="pelorus-light",
+    surface="#ffffff",
+    panel="#f0f0f0",
+    background="#ffffff",
+)
 
 
 def terminal_prefers_dark() -> bool:
@@ -340,7 +352,8 @@ class AdminApp(App):
         yield Footer()
 
     def on_mount(self) -> None:
-        self.theme = "textual-dark" if terminal_prefers_dark() else "textual-light"
+        self.register_theme(LIGHT_THEME)
+        self.theme = "textual-dark" if terminal_prefers_dark() else "pelorus-light"
         self.sub_title = self.base_url
         self.query_one(BugsPane).refresh_data()
         self.query_one(SignupsPane).refresh_data()
@@ -377,6 +390,9 @@ class AdminApp(App):
     def action_show_tab(self, tab: str) -> None:
         self.query_one(TabbedContent).active = tab
         self.active_pane().table.focus()
+
+    def action_toggle_dark(self) -> None:
+        self.theme = "pelorus-light" if self.theme == "textual-dark" else "textual-dark"
 
     def action_refresh(self) -> None:
         self.active_pane().refresh_data()
