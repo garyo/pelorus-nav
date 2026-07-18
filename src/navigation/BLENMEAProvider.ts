@@ -12,11 +12,6 @@
  * acquisition flows (chooser, getDevices rehydrate, advertisement watch).
  */
 
-import {
-  clearSavedBleDevice,
-  loadSavedBleDevice,
-  saveBleDevice,
-} from "./bleDeviceStore";
 import { connectionLog } from "./ConnectionEventLog";
 import type {
   NavigationDataCallback,
@@ -27,6 +22,7 @@ import type {
 import { NMEAStream } from "./nmea-stream";
 import type { ProviderNotice } from "./ProviderNotice";
 import { ReconnectingTransport } from "./ReconnectingTransport";
+import { bleDeviceStore } from "./savedDeviceStore";
 
 // Nordic UART Service UUIDs (lowercase, as Web Bluetooth expects).
 const NUS_SERVICE = "6e400001-b5a3-f393-e0a9-e50e24dcca9e";
@@ -274,7 +270,7 @@ export class BLENMEAProvider
 
   /** Forget the saved pod and re-run the chooser (needs a user gesture). */
   async pickNewDevice(): Promise<void> {
-    clearSavedBleDevice();
+    bleDeviceStore.clear();
     this.stopAdWatch();
     this.characteristic?.removeEventListener(
       "characteristicvaluechanged",
@@ -305,7 +301,7 @@ export class BLENMEAProvider
       this.core.dropIntent();
       return;
     }
-    const saved = loadSavedBleDevice();
+    const saved = bleDeviceStore.load();
     if (saved) {
       if (typeof bluetooth.getDevices === "function") {
         const devices = await bluetooth
@@ -360,7 +356,7 @@ export class BLENMEAProvider
       this.device = await bluetooth.requestDevice({
         filters: [{ services: [NUS_SERVICE] }],
       });
-      saveBleDevice({ deviceId: this.device.id, name: this.device.name });
+      bleDeviceStore.save({ deviceId: this.device.id, name: this.device.name });
       connectionLog.log(
         this.id,
         "device-selected",

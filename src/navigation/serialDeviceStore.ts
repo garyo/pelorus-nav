@@ -1,6 +1,6 @@
 /**
  * Persistence for the chosen Web Serial GPS device (USB vendor/product ids).
- * Pairing state, not a user preference — mirrors bleDeviceStore. Lets the
+ * Pairing state, not a user preference — mirrors savedDeviceStore. Lets the
  * provider re-find the granted port via navigator.serial.getPorts() after a
  * page reload or an unplug/replug, without re-showing the picker.
  */

@@ -3,7 +3,7 @@
  * storage: parse-and-validate on load (corrupt or wrong-shaped data clears the
  * key and falls back to absent), swallow write failures (quota/privacy), and
  * tolerate a missing storage backend entirely. Shared by the small pairing
- * stores (`bleDeviceStore`, `serialDeviceStore`) and `ConnectionEventLog`,
+ * stores (`savedDeviceStore`, `serialDeviceStore`) and `ConnectionEventLog`,
  * which previously each reimplemented this by hand.
  */
 

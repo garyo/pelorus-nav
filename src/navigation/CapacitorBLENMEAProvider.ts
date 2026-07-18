@@ -20,11 +20,6 @@
  */
 
 import { BleClient, type BleDevice } from "@capacitor-community/bluetooth-le";
-import {
-  clearSavedBleDevice,
-  loadSavedBleDevice,
-  saveBleDevice,
-} from "./bleDeviceStore";
 import { connectionLog } from "./ConnectionEventLog";
 import type {
   NavigationDataCallback,
@@ -35,6 +30,7 @@ import type {
 import { NMEAStream } from "./nmea-stream";
 import type { ProviderNotice } from "./ProviderNotice";
 import { ReconnectingTransport } from "./ReconnectingTransport";
+import { bleDeviceStore } from "./savedDeviceStore";
 
 // Nordic UART Service UUIDs (lowercase, as the plugin expects).
 const NUS_SERVICE = "6e400001-b5a3-f393-e0a9-e50e24dcca9e";
@@ -142,7 +138,7 @@ export class CapacitorBLENMEAProvider
   async reconnect(): Promise<void> {
     this.core.claimIntent();
     if (!this.device) {
-      const saved = loadSavedBleDevice();
+      const saved = bleDeviceStore.load();
       if (saved) {
         this.device = { deviceId: saved.deviceId, name: saved.name };
       }
@@ -170,7 +166,7 @@ export class CapacitorBLENMEAProvider
 
   /** Forget the saved pod and re-run the picker (the stale-MAC escape hatch). */
   async pickNewDevice(): Promise<void> {
-    clearSavedBleDevice();
+    bleDeviceStore.clear();
     const id = this.device?.deviceId;
     if (id) {
       BleClient.stopNotifications(id, NUS_SERVICE, NUS_TX).catch(() => {});
@@ -276,7 +272,7 @@ export class CapacitorBLENMEAProvider
       return;
     }
     if (!(await this.ensureEnabledWatch())) return; // BT off: intent kept
-    const saved = loadSavedBleDevice();
+    const saved = bleDeviceStore.load();
     if (saved) {
       // Silent startup rehydrate — connect by the persisted deviceId, no
       // picker. getDevices just materializes the BleDevice; a failure there
@@ -393,7 +389,7 @@ export class CapacitorBLENMEAProvider
       await this.releaseStaleLinks();
       connectionLog.log(this.id, "picker-shown");
       this.device = await BleClient.requestDevice({ services: [NUS_SERVICE] });
-      saveBleDevice({
+      bleDeviceStore.save({
         deviceId: this.device.deviceId,
         name: this.device.name,
       });

@@ -26,12 +26,7 @@ import type {
 import { NMEAStream } from "./nmea-stream";
 import type { ProviderNotice } from "./ProviderNotice";
 import { ReconnectingTransport } from "./ReconnectingTransport";
-import {
-  clearSavedSppDevice,
-  loadSavedSppDevice,
-  type SavedSppDevice,
-  saveSppDevice,
-} from "./sppDeviceStore";
+import { type SavedDevice, sppDeviceStore } from "./savedDeviceStore";
 
 /** Poll the adapter state at this interval while suspended for Bluetooth-off. */
 const BT_OFF_POLL_MS = 5000;
@@ -50,7 +45,7 @@ export class CapacitorSPPNMEAProvider
 
   private listeners: NavigationDataCallback[] = [];
   private satListeners: SatelliteStatusCallback[] = [];
-  private device: SavedSppDevice | null = null;
+  private device: SavedDevice | null = null;
   private pluginListenersReady = false;
   private btPollTimer: ReturnType<typeof setTimeout> | null = null;
   private readonly core: ReconnectingTransport;
@@ -125,7 +120,7 @@ export class CapacitorSPPNMEAProvider
    */
   async reconnect(): Promise<void> {
     this.core.claimIntent();
-    if (!this.device) this.device = loadSavedSppDevice();
+    if (!this.device) this.device = sppDeviceStore.load();
     if (this.device) {
       try {
         connectionLog.log(
@@ -146,7 +141,7 @@ export class CapacitorSPPNMEAProvider
 
   /** Forget the saved device and re-run the chooser. */
   async pickNewDevice(): Promise<void> {
-    clearSavedSppDevice();
+    sppDeviceStore.clear();
     this.device = null;
     void BluetoothSerial.disconnect().catch(() => {});
     this.core.claimIntent();
@@ -180,7 +175,7 @@ export class CapacitorSPPNMEAProvider
 
   /** Full connect flow: saved-device rehydrate (silent) → chooser fallback. */
   private async startConnect(): Promise<void> {
-    const saved = loadSavedSppDevice();
+    const saved = sppDeviceStore.load();
     if (saved) {
       this.device = saved;
       connectionLog.log(
@@ -234,7 +229,7 @@ export class CapacitorSPPNMEAProvider
       return;
     }
     this.device = choice;
-    saveSppDevice(choice);
+    sppDeviceStore.save(choice);
     connectionLog.log(
       this.id,
       "device-selected",
