@@ -5,6 +5,13 @@ Notable user-facing changes to Pelorus Nav. Downloads are on the
 
 The format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [Unreleased]
+
+### Changed
+- The maneuver markers in the track viewer are now small dots that grow
+  as you zoom in, instead of large white circles. A new button in the
+  viewer toolbar hides them entirely; the choice is remembered.
+
 ## [0.14.0] - 2026-07-17
 
 ### Changed
