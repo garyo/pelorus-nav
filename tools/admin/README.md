@@ -41,7 +41,7 @@ are fetched on refresh.
 | `q` / `C-c` | quit |
 
 Bugs tab: `a` toggle actionable-only filter (default on; hides
-fixed/wontfix/spam), `d` download the report to `./<name>.txt`, and statuses
+fixed/wontfix/spam), `d` download the report to `~/Downloads`, and statuses
 `k` ack · `i` in-progress · `f` fixed · `w` wontfix · `x` spam · `u` new.
 
 Signups tab: `c` contacted · `t` beta · `x` unsubscribed · `u` new.

@@ -210,14 +210,15 @@ class BugsPane(ListDetailPane):
         bug = self.current_bug()
         if bug is None or bug.body is None:
             return
-        path = Path.cwd() / bug.basename
+        downloads = Path.home() / "Downloads"
+        path = (downloads if downloads.is_dir() else Path.home()) / bug.basename
         raw = (
             f"date: {bug.body.date}\nemail: {bug.body.email or '(none)'}\n\n"
             f"--- DESCRIPTION ---\n{bug.body.description}\n\n"
             f"--- DIAGNOSTICS ---\n{bug.body.diagnostics}\n"
         )
         path.write_text(raw)
-        self.app.notify(f"Saved {path.name}")
+        self.app.notify(f"Saved {path}")
 
     @work(group="bug-status")
     async def action_set_status(self, status: str) -> None:
