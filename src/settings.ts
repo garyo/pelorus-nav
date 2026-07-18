@@ -72,6 +72,8 @@ export interface Settings {
   arrivalRadiusNM: number;
   /** Planning speed (knots) for route pre-visualization ETAs. */
   routePlanSpeedKn: number;
+  /** Show auto-detected maneuver markers in the track viewer. */
+  trackShowManeuvers: boolean;
   /** Display bearings as true or magnetic. */
   bearingMode: BearingMode;
   /**
@@ -262,6 +264,7 @@ const DEFAULTS: Settings = {
   courseLineDuration: "auto",
   arrivalRadiusNM: 0.1,
   routePlanSpeedKn: 5,
+  trackShowManeuvers: true,
   simulatorSpeed: 1,
   simulatorMode: "replay",
   displayTheme: "day",

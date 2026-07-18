@@ -62,6 +62,13 @@ export const iconTrack = svg(
   '<polyline points="4 19 8 13 12 17 16 10 20 14"/>',
 );
 
+/** Track with maneuver dots at the turns — viewer maneuvers toggle. */
+export const iconManeuvers = svg(
+  '<polyline points="3 19 9 9 15 15 21 5"/>' +
+    '<circle cx="9" cy="9" r="2" fill="currentColor" stroke="none"/>' +
+    '<circle cx="15" cy="15" r="2" fill="currentColor" stroke="none"/>',
+);
+
 /** Crosshair / recenter. */
 export const iconCrosshair = svg(
   '<circle cx="12" cy="12" r="4"/>' +

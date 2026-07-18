@@ -36,7 +36,14 @@ import { getSettings, updateSettings } from "../settings";
 import { formatDistanceShort, formatDurationShort } from "../utils/format";
 import { formatBearing } from "../utils/magnetic";
 import { convertSpeed, speedUnitLabel } from "../utils/units";
-import { iconCrosshair, iconPause, iconPlay, iconX, setIcon } from "./icons";
+import {
+  iconCrosshair,
+  iconManeuvers,
+  iconPause,
+  iconPlay,
+  iconX,
+  setIcon,
+} from "./icons";
 import { SpeedProfileChart } from "./SpeedProfileChart";
 import { registerSurface } from "./SurfaceManager";
 
@@ -66,6 +73,7 @@ export class TrackViewerPanel {
   private readonly playBtn: HTMLButtonElement;
   private readonly rateSelect: HTMLSelectElement;
   private readonly followBtn: HTMLButtonElement;
+  private readonly maneuversBtn: HTMLButtonElement;
   private readonly planWrap: HTMLLabelElement;
   private readonly planInput: HTMLInputElement;
   private readonly readouts: Record<string, HTMLSpanElement>;
@@ -114,6 +122,7 @@ export class TrackViewerPanel {
       '<button class="track-viewer-play" title="Play"></button>' +
       '<select class="track-viewer-rate" title="Playback speed"></select>' +
       '<button class="track-viewer-follow" title="Keep cursor centered"></button>' +
+      '<button class="track-viewer-maneuvers" title="Show maneuvers"></button>' +
       '<span data-ro="time"></span>' +
       '<span data-ro="sog"></span>' +
       '<span data-ro="cog"></span>' +
@@ -133,6 +142,7 @@ export class TrackViewerPanel {
     this.playBtn = this.q<HTMLButtonElement>(".track-viewer-play");
     this.rateSelect = this.q<HTMLSelectElement>(".track-viewer-rate");
     this.followBtn = this.q<HTMLButtonElement>(".track-viewer-follow");
+    this.maneuversBtn = this.q<HTMLButtonElement>(".track-viewer-maneuvers");
     this.readouts = Object.fromEntries(
       Array.from(this.el.querySelectorAll<HTMLSpanElement>("[data-ro]")).map(
         (s) => [s.dataset.ro as string, s],
@@ -182,6 +192,18 @@ export class TrackViewerPanel {
       this.followCursor = !this.followCursor;
       this.followBtn.classList.toggle("active", this.followCursor);
       if (this.followCursor) this.setFraction(this.cursorFrac); // snap now
+    });
+
+    setIcon(this.maneuversBtn, iconManeuvers);
+    this.maneuversBtn.classList.toggle(
+      "active",
+      getSettings().trackShowManeuvers,
+    );
+    this.maneuversBtn.addEventListener("click", () => {
+      const show = !getSettings().trackShowManeuvers;
+      updateSettings({ trackShowManeuvers: show });
+      this.maneuversBtn.classList.toggle("active", show);
+      this.layer.setManeuversVisible(show);
     });
 
     // Re-synthesize the route preview when the planning speed changes

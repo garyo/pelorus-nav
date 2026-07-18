@@ -62,6 +62,17 @@ export class TrackViewerLayer {
     this.maneuverClickCb = cb;
   }
 
+  /** Show or hide the maneuver markers (viewer toolbar toggle). */
+  setManeuversVisible(show: boolean): void {
+    if (this.map.getLayer(LYR_MANEUVERS)) {
+      this.map.setLayoutProperty(
+        LYR_MANEUVERS,
+        "visibility",
+        show ? "visible" : "none",
+      );
+    }
+  }
+
   /**
    * Show the given track and fit the viewport to it. `bottomPadPx` is the
    * viewer panel's height, so the fit keeps the track clear of it.
@@ -268,16 +279,31 @@ export class TrackViewerLayer {
         data: maneuverData,
       });
     }
+    // Small beads on the line when zoomed out, tappable dots when zoomed
+    // in. Dark on the colored gradient; inverted on e-ink's black line.
     this.map.addLayer({
       id: LYR_MANEUVERS,
       type: "circle",
       source: SRC_MANEUVERS,
+      layout: {
+        visibility: getSettings().trackShowManeuvers ? "visible" : "none",
+      },
       paint: {
-        "circle-radius": 5,
-        "circle-color": "#ffffff",
+        "circle-radius": [
+          "interpolate",
+          ["linear"],
+          ["zoom"],
+          8,
+          1.5,
+          13,
+          2.5,
+          16,
+          5,
+        ] as ExpressionSpecification,
+        "circle-color": eink ? "#ffffff" : "#1a3a8c",
         "circle-opacity": 0.9,
-        "circle-stroke-width": 2,
-        "circle-stroke-color": eink ? "#000000" : "#1a3a8c",
+        "circle-stroke-width": 1,
+        "circle-stroke-color": eink ? "#000000" : "#ffffff",
       },
     });
 

@@ -2390,7 +2390,8 @@ body {
 }
 
 .track-viewer-play,
-.track-viewer-follow {
+.track-viewer-follow,
+.track-viewer-maneuvers {
   background: none;
   border: none;
   color: inherit;
@@ -2406,16 +2407,19 @@ body {
 }
 
 .track-viewer-play svg,
-.track-viewer-follow svg {
+.track-viewer-follow svg,
+.track-viewer-maneuvers svg {
   width: 20px;
   height: 20px;
 }
 
-.track-viewer-follow {
+.track-viewer-follow,
+.track-viewer-maneuvers {
   opacity: 0.5;
 }
 
-.track-viewer-follow.active {
+.track-viewer-follow.active,
+.track-viewer-maneuvers.active {
   opacity: 1;
   color: #4488cc;
 }
