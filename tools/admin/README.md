@@ -10,20 +10,20 @@ cd tools/admin
 uv sync
 ```
 
-Requires the worker's `ADMIN_TOKEN` secret:
+Requires the worker's `ADMIN_TOKEN` secret. The token is looked up as:
+`PELORUS_ADMIN_TOKEN` env var, else `ADMIN_TOKEN=` in the repo's `.env` or
+`.dev.vars` (both gitignored). With the token in one of those files, just:
 
 ```sh
-PELORUS_ADMIN_TOKEN=... uv run pelorus-admin
+bun run admin        # from the repo root
 ```
-
-Or from the repo root: `PELORUS_ADMIN_TOKEN=... bun run admin`.
 
 Options: `--url <base>` (default `https://pelorus-nav.com`, or set
 `PELORUS_ADMIN_URL`). Against a local worker:
 
 ```sh
-bunx wrangler dev   # ADMIN_TOKEN=localtest via .dev.vars
-PELORUS_ADMIN_TOKEN=localtest uv run pelorus-admin --url http://localhost:8787
+bunx wrangler dev    # the local worker accepts ADMIN_TOKEN from .dev.vars
+bun run admin -- --url http://localhost:8787
 ```
 
 Bug-report bodies are immutable, so they're cached forever under the platform

@@ -371,6 +371,24 @@ class AdminApp(App):
         self.notify("Refreshing…")
 
 
+def find_token() -> str | None:
+    """PELORUS_ADMIN_TOKEN env var, else ADMIN_TOKEN from the repo's
+    .env or .dev.vars (both gitignored)."""
+    token = os.environ.get("PELORUS_ADMIN_TOKEN")
+    if token:
+        return token
+    repo_root = Path(__file__).parents[3]
+    for name in (".env", ".dev.vars"):
+        path = repo_root / name
+        if not path.exists():
+            continue
+        for line in path.read_text().splitlines():
+            key, _, value = line.partition("=")
+            if key.strip() == "ADMIN_TOKEN":
+                return value.strip().strip("'\"") or None
+    return None
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Pelorus Nav admin TUI")
     parser.add_argument(
@@ -379,12 +397,12 @@ def main() -> None:
         help="Worker base URL (default: %(default)s)",
     )
     args = parser.parse_args()
-    token = os.environ.get("PELORUS_ADMIN_TOKEN")
+    token = find_token()
     if not token:
         sys.exit(
-            "PELORUS_ADMIN_TOKEN is not set.\n"
-            "Set it to the worker's ADMIN_TOKEN secret, e.g.:\n"
-            "  PELORUS_ADMIN_TOKEN=... pelorus-admin"
+            "No admin token found.\n"
+            "Set PELORUS_ADMIN_TOKEN, or put ADMIN_TOKEN=... in the repo's\n"
+            ".env or .dev.vars."
         )
     AdminApp(args.url, token).run()
 
