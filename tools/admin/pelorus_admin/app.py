@@ -22,21 +22,31 @@ from textual.widgets import DataTable, Footer, Static, TabbedContent, TabPane
 from .api import AdminClient
 from .models import Bug, Subscriber, parse_bug_body
 
+# Colors chosen to stay readable on both light and dark backgrounds.
 STATUS_STYLES = {
-    "new": "bold yellow",
-    "ack": "cyan",
-    "in-progress": "bold cyan",
-    "fixed": "green",
+    "new": "bold #d75f00",
+    "ack": "#0087af",
+    "in-progress": "bold #0087af",
+    "fixed": "#008700",
     "wontfix": "dim",
     "spam": "dim red",
-    "contacted": "cyan",
-    "beta": "green",
+    "contacted": "#0087af",
+    "beta": "#008700",
     "unsubscribed": "dim",
 }
 
 
 def styled_status(status: str) -> Text:
     return Text(status, style=STATUS_STYLES.get(status, ""))
+
+
+def terminal_prefers_dark() -> bool:
+    """Best-effort terminal background detection via COLORFGBG
+    ("fg;bg", bg 0-6 or 8 = dark). Textual can't query the terminal
+    directly, so default to light when unknown."""
+    colorfgbg = os.environ.get("COLORFGBG", "")
+    _, _, bg = colorfgbg.rpartition(";")
+    return bg.isdigit() and (int(bg) < 7 or int(bg) == 8)
 
 
 class ListDetailPane(Vertical):
@@ -140,7 +150,7 @@ class BugsPane(ListDetailPane):
             bug.uploaded[:16].replace("T", " "),
             body.platform if body else "…",
             (body.email or "-") if body else "…",
-            body.first_line if body else "…",
+            body.first_line[:160] if body else "…",
         ]
 
     def refresh_bug_row(self, bug: Bug) -> None:
@@ -150,7 +160,7 @@ class BugsPane(ListDetailPane):
         for column_key, cell in zip(
             ("status", "date", "platform", "email", "summary"), self.row_cells(bug)
         ):
-            table.update_cell(bug.key, column_key, cell)
+            table.update_cell(bug.key, column_key, cell, update_width=True)
         current = self.current_bug()
         if current is bug:
             self.highlight_row(bug.key)
@@ -261,7 +271,7 @@ class SignupsPane(ListDetailPane):
         for column_key, cell in zip(
             ("status", "subscribed", "platforms", "email"), self.row_cells(sub)
         ):
-            self.table.update_cell(sub.email, column_key, cell)
+            self.table.update_cell(sub.email, column_key, cell, update_width=True)
         if self.current_subscriber() is sub:
             self.highlight_row(sub.email)
 
@@ -312,6 +322,7 @@ class AdminApp(App):
         Binding("b", "show_tab('bugs')", "bugs"),
         Binding("s", "show_tab('signups')", "signups"),
         Binding("r", "refresh", "refresh"),
+        Binding("ctrl+t", "toggle_dark", "light/dark", show=False),
         Binding("q,ctrl+c", "quit", "quit"),
     ]
 
@@ -329,6 +340,7 @@ class AdminApp(App):
         yield Footer()
 
     def on_mount(self) -> None:
+        self.theme = "textual-dark" if terminal_prefers_dark() else "textual-light"
         self.sub_title = self.base_url
         self.query_one(BugsPane).refresh_data()
         self.query_one(SignupsPane).refresh_data()
