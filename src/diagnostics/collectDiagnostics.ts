@@ -8,6 +8,7 @@
 
 import { Capacitor } from "@capacitor/core";
 import { listStoredCharts } from "../data/tile-store";
+import { editTapLog } from "../map/editTapDiag";
 import { connectionLog } from "../navigation/ConnectionEventLog";
 import { gpsDiagLog } from "../navigation/GPSDiagnosticLog";
 import { BackgroundGPS } from "../plugins/BackgroundGPS";
@@ -224,6 +225,15 @@ export function buildDefaultSections(
         return n > 0
           ? `${n} entries\n${appErrorLog.toText()}`
           : "(none recorded)";
+      },
+    },
+    {
+      title: "ROUTE EDIT TAPS",
+      collect: () => {
+        const n = editTapLog.entryCount;
+        return n > 0
+          ? `${n} entries\n${editTapLog.toText()}`
+          : "(no edit session recorded)";
       },
     },
     {

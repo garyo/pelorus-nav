@@ -21,6 +21,7 @@ import { formatLocalDateTime } from "../utils/format";
 import { formatBearing } from "../utils/magnetic";
 import { generateUUID } from "../utils/uuid";
 import { DraggablePoints } from "./DraggablePoints";
+import { startEditTapDiag } from "./editTapDiag";
 import { getMode, setMode } from "./InteractionMode";
 import { ensurePointIcons, pointRole, ROLE_ICON_EXPR } from "./point-icons";
 import type { RouteLayer } from "./RouteLayer";
@@ -65,6 +66,7 @@ export class RouteEditor {
   private draggable: DraggablePoints | null = null;
   private clickHandler: ((e: maplibregl.MapMouseEvent) => void) | null = null;
   private moveHandler: ((e: maplibregl.MapMouseEvent) => void) | null = null;
+  private stopTapDiag: (() => void) | null = null;
   private bar: HTMLDivElement;
   private barText: HTMLDivElement;
   private barActions: HTMLDivElement;
@@ -204,6 +206,11 @@ export class RouteEditor {
     this.updateBar();
     this.updateSources();
     this.setupDrag();
+    this.stopTapDiag = startEditTapDiag(
+      this.map,
+      { points: LAYER_POINTS, midpoints: LAYER_MIDPOINTS },
+      () => this.route?.waypoints ?? [],
+    );
 
     this.clickHandler = (e: maplibregl.MapMouseEvent) => {
       if (getMode() !== "route-edit" || !this.route) return;
@@ -400,6 +407,10 @@ export class RouteEditor {
     if (this.draggable) {
       this.draggable.destroy();
       this.draggable = null;
+    }
+    if (this.stopTapDiag) {
+      this.stopTapDiag();
+      this.stopTapDiag = null;
     }
     this.route = null;
     this.selectedIndex = null;

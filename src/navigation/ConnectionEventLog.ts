@@ -42,7 +42,8 @@ export type ConnectionEventType =
   | "watchdog-silent"
   | "bt-enabled"
   | "bt-disabled"
-  | "error"; // detail: message
+  | "error" // detail: message
+  | "diag"; // detail: free-form diagnostic line (e.g. edit-tap observer)
 
 export interface ConnectionEvent {
   t: number; // epoch ms
