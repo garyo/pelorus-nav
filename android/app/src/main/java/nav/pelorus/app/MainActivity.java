@@ -6,12 +6,14 @@ import android.view.MotionEvent;
 import com.getcapacitor.BridgeActivity;
 import com.getcapacitor.PluginHandle;
 import nav.pelorus.plugins.backgroundgps.BackgroundGPSPlugin;
+import nav.pelorus.plugins.btserial.BluetoothSerialPlugin;
 import nav.pelorus.plugins.hardwarekeys.HardwareKeysPlugin;
 
 public class MainActivity extends BridgeActivity {
     @Override
     public void onCreate(Bundle savedInstanceState) {
         registerPlugin(BackgroundGPSPlugin.class);
+        registerPlugin(BluetoothSerialPlugin.class);
         registerPlugin(HardwareKeysPlugin.class);
         super.onCreate(savedInstanceState);
         // Render at our exact CSS sizes regardless of the device's system font

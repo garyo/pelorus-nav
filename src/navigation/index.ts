@@ -2,6 +2,7 @@ export { BLENMEAProvider } from "./BLENMEAProvider";
 export { BrowserGeolocationProvider } from "./BrowserGeolocationProvider";
 export { CapacitorBLENMEAProvider } from "./CapacitorBLENMEAProvider";
 export { CapacitorGPSProvider } from "./CapacitorGPSProvider";
+export { CapacitorSPPNMEAProvider } from "./CapacitorSPPNMEAProvider";
 export type { GPSFilterConfig } from "./GPSFilter";
 export { GPSFilter } from "./GPSFilter";
 export type { QualitySignals } from "./GPSQualityDetector";

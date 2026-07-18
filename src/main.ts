@@ -73,6 +73,7 @@ import {
   BrowserGeolocationProvider,
   CapacitorBLENMEAProvider,
   CapacitorGPSProvider,
+  CapacitorSPPNMEAProvider,
   hasSatelliteDiagnostics,
   type NavigationData,
   NavigationDataManager,
@@ -144,6 +145,7 @@ import { SatelliteStatusPanel } from "./ui/SatelliteStatusPanel";
 import { maybeShowScreenTimeoutWarning } from "./ui/ScreenTimeoutDialog";
 import { SearchDialog } from "./ui/SearchDialog";
 import { createSettingsPanel } from "./ui/SettingsPanel";
+import { showSppDevicePicker } from "./ui/SppDevicePickerDialog";
 import { hideStatusBanner, showStatusBanner } from "./ui/StatusBanner";
 import { registerSurface } from "./ui/SurfaceManager";
 import { TimeBar } from "./ui/TimeBar";
@@ -484,6 +486,8 @@ const connectionLogPanel = new ConnectionLogPanel();
 // settings panel's Change… button and the banner actions need its
 // pickNewDevice/promptEnableBluetooth, which NavigationDataProvider omits.
 let bleProvider: CapacitorBLENMEAProvider | BLENMEAProvider | null = null;
+// Bluetooth Classic SPP receivers (e.g. Garmin GLO) — native builds only.
+let sppProvider: CapacitorSPPNMEAProvider | null = null;
 // Banner ids shown by any provider notice — hidden en masse on provider
 // switch so stale banners never linger on e-ink.
 const shownNoticeBanners = new Set<string>();
@@ -505,7 +509,11 @@ const settingsHandle = topbarMenu
         reconnect: () => navManager.reconnectActiveProvider(),
         reset: () => navManager.resetActiveProvider(),
         changeDevice: () => {
-          void bleProvider?.pickNewDevice();
+          if (getSettings().gpsSource === "bt-spp") {
+            void sppProvider?.pickNewDevice();
+          } else {
+            void bleProvider?.pickNewDevice();
+          }
         },
       },
       restartSimulator: () => {
@@ -795,6 +803,16 @@ if (Capacitor.isNativePlatform()) {
 } else if (BLENMEAProvider.isAvailable()) {
   bleProvider = new BLENMEAProvider(handleBleNotice);
   navManager.registerProvider(bleProvider);
+}
+// Bluetooth Classic SPP NMEA ("bt-spp"): native only — the WebView has no
+// Bluetooth Classic API at all. Devices pair in Android settings; the in-app
+// chooser lists the bonded ones.
+if (Capacitor.isNativePlatform()) {
+  sppProvider = new CapacitorSPPNMEAProvider(
+    showSppDevicePicker,
+    makeProviderNoticeHandler("spp", "Bluetooth GPS"),
+  );
+  navManager.registerProvider(sppProvider);
 }
 const signalK = new SignalKProvider(
   getSettings().signalkUrl,
@@ -1190,6 +1208,7 @@ const applyReconnectPacing = () => {
   const relaxed =
     document.visibilityState === "hidden" && !trackRecorder.isRecording();
   bleProvider?.setReconnectPacing(relaxed);
+  sppProvider?.setReconnectPacing(relaxed);
 };
 document.addEventListener("visibilitychange", () => {
   const visible = document.visibilityState === "visible";

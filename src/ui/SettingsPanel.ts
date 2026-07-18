@@ -619,6 +619,11 @@ function buildNavigationTab(
     { value: deviceGpsValue, label: "Device GPS" },
     { value: "web-serial", label: "USB GPS (Serial)" },
     { value: "ble-nmea", label: "Bluetooth GPS (BLE)" },
+    // Bluetooth Classic SPP (Garmin GLO etc.) needs the native plugin — the
+    // WebView has no Bluetooth Classic API.
+    ...(Capacitor.isNativePlatform()
+      ? [{ value: "bt-spp", label: "Bluetooth GPS (NMEA)" }]
+      : []),
     { value: "signalk", label: "Signal K" },
   ];
   tab.appendChild(
@@ -647,7 +652,7 @@ function buildNavigationTab(
     openConnectionLog(),
   );
   const updateBleRows = (src: string) => {
-    const display = src === "ble-nmea" ? "" : "none";
+    const display = src === "ble-nmea" || src === "bt-spp" ? "" : "none";
     linkRow.row.style.display = display;
     satRow.style.display = display;
     logRow.style.display = display;

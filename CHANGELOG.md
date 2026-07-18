@@ -7,6 +7,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Added
+- Bluetooth Classic NMEA GPS receivers (e.g. Garmin GLO 2) are now
+  supported on Android via the new "Bluetooth GPS (NMEA)" source. Pair
+  the receiver in Android's Bluetooth settings, then choose it from the
+  in-app device list.
+
 ### Changed
 - The maneuver markers in the track viewer are now small dots that grow
   as you zoom in, instead of large white circles. A new button in the
