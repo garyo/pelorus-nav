@@ -10,6 +10,7 @@ interface Env {
   ASSETS: Fetcher;
   TILES: R2Bucket;
   SUBSCRIBERS: KVNamespace;
+  ADMIN_META: KVNamespace;
   /** Bearer token for the read-only admin API (`wrangler secret put ADMIN_TOKEN`). */
   ADMIN_TOKEN?: string;
   /** ntfy endpoint incl. topic, e.g. https://ntfy.example.com/pelorus-signups. */
@@ -198,6 +199,18 @@ function notifyNtfy(
   );
 }
 
+/** Value shape stored in the SUBSCRIBERS KV (key = lowercased email). */
+interface SubscriberRecord {
+  email: string;
+  subscribedAt: string;
+  source: string;
+  platforms: string[];
+  note?: string;
+  /** CRM state set via the admin API; absent means "new". */
+  status?: string;
+  statusUpdatedAt?: string;
+}
+
 // Newsletter signup: store one KV entry per address (key = lowercased email,
 // so repeat signups are idempotent). Export with
 // `wrangler kv key list --namespace-id=<id>`.
@@ -240,7 +253,13 @@ async function handleSubscribe(
   const note =
     typeof body.note === "string" ? body.note.trim().slice(0, 200) : "";
   const key = email.toLowerCase();
-  const isNew = (await env.SUBSCRIBERS.get(key)) === null;
+  // A re-signup overwrites the record (latest platform choices win), but the
+  // CRM fields the admin tool sets must survive the overwrite.
+  const existingRaw = await env.SUBSCRIBERS.get(key);
+  const existing: SubscriberRecord | null = existingRaw
+    ? JSON.parse(existingRaw)
+    : null;
+  const isNew = existing === null;
   await env.SUBSCRIBERS.put(
     key,
     JSON.stringify({
@@ -249,6 +268,10 @@ async function handleSubscribe(
       source: "landing",
       platforms,
       ...(note ? { note } : {}),
+      ...(existing?.status ? { status: existing.status } : {}),
+      ...(existing?.statusUpdatedAt
+        ? { statusUpdatedAt: existing.statusUpdatedAt }
+        : {}),
     }),
   );
   notifyNtfy(env, ctx, {
@@ -340,10 +363,8 @@ async function handleSubscriberList(
   request: Request,
   env: Env,
 ): Promise<Response> {
-  const auth = request.headers.get("authorization");
-  if (!env.ADMIN_TOKEN || auth !== `Bearer ${env.ADMIN_TOKEN}`) {
-    return new Response("Unauthorized", { status: 401 });
-  }
+  const denied = requireAdmin(request, env);
+  if (denied) return denied;
   const records: unknown[] = [];
   let cursor: string | undefined;
   do {
@@ -355,6 +376,157 @@ async function handleSubscriberList(
     cursor = page.list_complete ? undefined : page.cursor;
   } while (cursor);
   return Response.json(records);
+}
+
+// ---------------------------------------------------------------------------
+// Admin API (/api/admin/*): browse and triage bug reports and signups.
+// Consumed by the tools/admin/ TUI, not by browsers — so no CORS headers.
+// Bug triage statuses live in the ADMIN_META KV keyed by the report's R2
+// object key; an absent key means "new". Subscriber statuses live inside the
+// subscriber record itself (see SubscriberRecord).
+// ---------------------------------------------------------------------------
+
+const BUG_STATUSES = ["new", "ack", "in-progress", "fixed", "wontfix", "spam"];
+const SUBSCRIBER_STATUSES = ["new", "contacted", "beta", "unsubscribed"];
+const BUG_REPORT_PREFIX = "bug-reports/";
+
+/** Bearer-token gate for admin routes; null means authorized. */
+function requireAdmin(request: Request, env: Env): Response | null {
+  const auth = request.headers.get("authorization");
+  if (!env.ADMIN_TOKEN || auth !== `Bearer ${env.ADMIN_TOKEN}`) {
+    return new Response("Unauthorized", { status: 401 });
+  }
+  return null;
+}
+
+/** The only user input that reaches R2 from the admin API. */
+function isValidBugKey(key: string): boolean {
+  return (
+    key.startsWith(BUG_REPORT_PREFIX) &&
+    key.endsWith(".txt") &&
+    !key.includes("..") &&
+    !key.includes("//")
+  );
+}
+
+// List bug reports: R2 listing (key/size/uploaded) merged with triage
+// statuses from ADMIN_META. Bodies are not read here — they're immutable, so
+// the TUI fetches each once via /api/admin/bug and caches it on disk.
+async function handleAdminBugList(env: Env): Promise<Response> {
+  const statuses = new Map<string, { status: string; updatedAt: string }>();
+  let kvCursor: string | undefined;
+  do {
+    const page = await env.ADMIN_META.list({
+      prefix: BUG_REPORT_PREFIX,
+      cursor: kvCursor,
+    });
+    for (const key of page.keys) {
+      const value = await env.ADMIN_META.get(key.name);
+      if (value) statuses.set(key.name, JSON.parse(value));
+    }
+    kvCursor = page.list_complete ? undefined : page.cursor;
+  } while (kvCursor);
+
+  const bugs: unknown[] = [];
+  let r2Cursor: string | undefined;
+  do {
+    const page = await env.TILES.list({
+      prefix: BUG_REPORT_PREFIX,
+      cursor: r2Cursor,
+    });
+    for (const object of page.objects) {
+      const meta = statuses.get(object.key);
+      bugs.push({
+        key: object.key,
+        size: object.size,
+        uploaded: object.uploaded.toISOString(),
+        status: meta?.status ?? "new",
+        statusUpdatedAt: meta?.updatedAt ?? null,
+      });
+    }
+    r2Cursor = page.truncated ? page.cursor : undefined;
+  } while (r2Cursor);
+
+  return Response.json({ bugs });
+}
+
+async function handleAdminBugGet(env: Env, url: URL): Promise<Response> {
+  const key = url.searchParams.get("key") ?? "";
+  if (!isValidBugKey(key)) {
+    return new Response("Bad Request", { status: 400 });
+  }
+  const object = await env.TILES.get(key);
+  if (!object) return new Response("Not found", { status: 404 });
+  return new Response(object.body, {
+    headers: { "content-type": "text/plain; charset=utf-8" },
+  });
+}
+
+async function handleAdminBugStatus(
+  request: Request,
+  env: Env,
+): Promise<Response> {
+  let body: { key?: unknown; status?: unknown };
+  try {
+    body = await request.json();
+  } catch {
+    return Response.json({ error: "invalid JSON" }, { status: 400 });
+  }
+  const key = typeof body.key === "string" ? body.key : "";
+  const status = typeof body.status === "string" ? body.status : "";
+  if (!isValidBugKey(key) || !BUG_STATUSES.includes(status)) {
+    return Response.json({ error: "invalid key or status" }, { status: 400 });
+  }
+  const updatedAt = new Date().toISOString();
+  await env.ADMIN_META.put(key, JSON.stringify({ status, updatedAt }));
+  return Response.json({ ok: true, status, updatedAt });
+}
+
+async function handleAdminSubscriberStatus(
+  request: Request,
+  env: Env,
+): Promise<Response> {
+  let body: { email?: unknown; status?: unknown };
+  try {
+    body = await request.json();
+  } catch {
+    return Response.json({ error: "invalid JSON" }, { status: 400 });
+  }
+  const email = typeof body.email === "string" ? body.email.trim() : "";
+  const status = typeof body.status === "string" ? body.status : "";
+  if (!email || !SUBSCRIBER_STATUSES.includes(status)) {
+    return Response.json({ error: "invalid email or status" }, { status: 400 });
+  }
+  const key = email.toLowerCase();
+  const raw = await env.SUBSCRIBERS.get(key);
+  if (!raw) return new Response("Not found", { status: 404 });
+  const record: SubscriberRecord = JSON.parse(raw);
+  record.status = status;
+  record.statusUpdatedAt = new Date().toISOString();
+  await env.SUBSCRIBERS.put(key, JSON.stringify(record));
+  return Response.json(record);
+}
+
+async function handleAdminRequest(
+  request: Request,
+  env: Env,
+  url: URL,
+): Promise<Response> {
+  const denied = requireAdmin(request, env);
+  if (denied) return denied;
+  const route = `${request.method} ${url.pathname}`;
+  switch (route) {
+    case "GET /api/admin/bugs":
+      return handleAdminBugList(env);
+    case "GET /api/admin/bug":
+      return handleAdminBugGet(env, url);
+    case "PUT /api/admin/bug-status":
+      return handleAdminBugStatus(request, env);
+    case "PUT /api/admin/subscriber-status":
+      return handleAdminSubscriberStatus(request, env);
+    default:
+      return new Response("Not found", { status: 404 });
+  }
 }
 
 export default {
@@ -385,6 +557,10 @@ export default {
         });
       }
       return new Response(null, { status: 204 });
+    }
+
+    if (url.pathname.startsWith("/api/admin/")) {
+      return handleAdminRequest(request, env, url);
     }
 
     if (url.pathname === "/api/subscribers") {

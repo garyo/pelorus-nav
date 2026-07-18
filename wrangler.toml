@@ -30,6 +30,12 @@ bucket_name = "pelorus-nav"
 binding = "SUBSCRIBERS"
 id = "56c1f5b0796f4b7ea89a27ace5ed04d4"
 
+# Admin metadata: bug-report triage statuses, keyed by R2 object key
+# (see the /api/admin/* routes in src/worker.ts)
+[[kv_namespaces]]
+binding = "ADMIN_META"
+id = "e2d02fba29e1434eb54082c355127e8a"
+
 [observability]
 enabled = true
 head_sampling_rate = 1

@@ -19,6 +19,7 @@
     "format": "biome format --write .",
     "typecheck": "tsc --noEmit && tsc -p tsconfig.worker.json --noEmit",
     "check": "bun run typecheck && bun run lint && bun run test",
+    "admin": "cd tools/admin && uv run pelorus-admin",
     "sprites": "bun tools/sprites/build-s52-sprites.ts",
     "sprites:catalog": "uv run --with reportlab --with svglib python tools/sprites/render-sprite-catalog.py",
     "tides:build": "bun tools/tides/build-bundle.ts",
