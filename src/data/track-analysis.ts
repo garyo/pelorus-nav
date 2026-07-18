@@ -342,16 +342,27 @@ export function detectManeuvers(a: TrackAnalysis): Maneuver[] {
         if (a.speedsKn[k] < minKn) minKn = a.speedsKn[k];
       }
       if (minKn >= MANEUVER_MIN_SPEED_KN) {
+        // A slow tack is often still swinging at the window's edge;
+        // absorb the rest of the same-direction rotation so the
+        // residue can't re-trigger as a second maneuver.
+        let end = j;
+        let total = turn;
+        while (end + 1 < n) {
+          const d = bearingDelta(a.coursesDeg[end + 1], a.coursesDeg[end]);
+          if (d * Math.sign(turn) <= 0) break;
+          total += d;
+          end++;
+        }
         // Round up so a gap-spanning pair marks the turn's completion
-        const mid = Math.min(i + Math.ceil((j - i) / 2), n - 1);
+        const mid = Math.min(i + Math.ceil((end - i) / 2), n - 1);
         maneuvers.push({
           index: mid,
           timestamp: a.times[mid],
           lat: a.points[mid].lat,
           lon: a.points[mid].lon,
-          turnDeg: turn,
+          turnDeg: total,
         });
-        i = j; // debounce: one event per turn
+        i = end; // debounce: one event per turn
         continue;
       }
     }

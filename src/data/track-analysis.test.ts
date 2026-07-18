@@ -284,6 +284,32 @@ describe("detectManeuvers", () => {
     expect(m[0].turnDeg).toBeCloseTo(80, 0);
   });
 
+  it("counts a slow wide tack spanning multiple windows once", () => {
+    // 120° turn at 20°/fix over 60s — longer than the 45s window, so the
+    // course is still swinging when the first window triggers. The
+    // detector must absorb the whole turn, not re-trigger on the residue.
+    const turning = Array.from({ length: 7 }, (_, i) => i * 20);
+    const a = analyzeTrack(
+      trackWithCourses([0, 0, 0, ...turning, 120, 120, 120, 120]),
+    );
+    if (!a) throw new Error("null analysis");
+    const m = detectManeuvers(a);
+    expect(m).toHaveLength(1);
+    expect(m[0].turnDeg).toBeCloseTo(120, 0);
+  });
+
+  it("still counts two separate tacks with straight legs between", () => {
+    const a = analyzeTrack(
+      trackWithCourses([
+        ...Array(8).fill(30),
+        ...Array(8).fill(120),
+        ...Array(8).fill(30),
+      ]),
+    );
+    if (!a) throw new Error("null analysis");
+    expect(detectManeuvers(a)).toHaveLength(2);
+  });
+
   it("ignores small course wander", () => {
     const a = analyzeTrack(trackWithCourses([30, 40, 35, 45, 30, 38, 42, 33]));
     if (!a) throw new Error("null analysis");

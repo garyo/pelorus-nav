@@ -12,6 +12,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/).
   as you zoom in, instead of large white circles. A new button in the
   viewer toolbar hides them entirely; the choice is remembered.
 
+### Fixed
+- A slow, wide tack no longer shows up as two maneuvers in the track
+  viewer.
+
 ## [0.14.0] - 2026-07-17
 
 ### Changed
