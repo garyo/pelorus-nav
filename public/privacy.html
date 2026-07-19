@@ -1,0 +1,159 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Privacy Policy — Pelorus Nav</title>
+<meta name="description" content="Privacy policy for the Pelorus Nav marine chartplotter app and website." />
+<style>
+@font-face {
+  font-family: "Outfit";
+  src: url("/landing/outfit.woff2") format("woff2");
+  font-weight: 100 900;
+  font-display: swap;
+}
+:root {
+  --navy-deep: #0a1526;
+  --navy: #12203a;
+  --wave: #85c1e9;
+  --cloth: #eef4f7;
+  --chrome: #3d6d94;
+  --body: #b9cddd;
+  --hairline: rgba(133, 193, 233, 0.16);
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  font-family: "Outfit", system-ui, sans-serif;
+  font-weight: 300;
+  background: radial-gradient(120% 80% at 50% -20%, var(--navy) 0%, var(--navy-deep) 75%);
+  color: var(--body);
+  line-height: 1.65;
+  -webkit-font-smoothing: antialiased;
+}
+.wrap { max-width: 760px; margin: 0 auto; padding: 48px 24px 64px; }
+a { color: var(--wave); }
+h1 { color: var(--cloth); font-weight: 600; font-size: 2rem; margin-bottom: 4px; }
+.updated { color: var(--chrome); font-size: 0.9rem; margin-bottom: 32px; }
+h2 { color: var(--cloth); font-weight: 500; font-size: 1.25rem; margin: 32px 0 8px; }
+p, ul { margin-bottom: 12px; }
+ul { padding-left: 22px; }
+li { margin-bottom: 4px; }
+.top { margin-bottom: 24px; }
+footer {
+  margin-top: 48px; padding-top: 20px; border-top: 1px solid var(--hairline);
+  color: var(--chrome); font-size: 0.9rem;
+}
+footer a { color: var(--chrome); }
+footer a:hover { color: var(--wave); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <p class="top"><a href="/">← pelorus-nav.com</a></p>
+  <h1>Privacy Policy</h1>
+  <p class="updated">Pelorus Nav · last updated July 19, 2026</p>
+
+  <p>Pelorus Nav is an open-source marine chartplotter made by Dark Star
+  Systems. It is designed to be local-first: your navigation data stays on
+  your device. There are no user accounts, no ads, and we never sell or
+  share personal data with third parties for their own use.</p>
+
+  <h2>Location data stays on your device</h2>
+  <p>Your GPS position — whether from your device's built-in GPS or an
+  external Bluetooth/Wi-Fi receiver — is processed entirely on your device
+  and is never transmitted to our servers. The same is true of everything
+  derived from it: recorded tracks, routes, waypoints, and instrument
+  readings. All of it is stored only in the app's local storage on your
+  device, and you can delete it at any time from within the app or by
+  uninstalling.</p>
+  <p>When you are recording a track or navigating, the app continues to
+  use your location in the background so your track has no gaps — that is
+  its purpose as a chartplotter. Background use follows the same rule as
+  everything above: the data never leaves your device. You can revoke the
+  app's location permission at any time in your device's system settings;
+  the app will simply have no position to display.</p>
+
+  <h2>Chart downloads</h2>
+  <p>When you view or download charts, the app fetches chart tiles from our
+  content delivery network (Cloudflare). Like any web server, this involves
+  standard transient request logs (IP address, requested file, user agent)
+  used solely to operate and secure the service. Chart requests are not
+  linked to you or used to build any profile, and once charts are
+  downloaded for offline use, viewing them involves no network traffic at
+  all.</p>
+
+  <h2>Website analytics</h2>
+  <p>The pelorus-nav.com website uses a self-hosted, privacy-respecting
+  analytics tool (Umami) to count visits. It uses no cookies, collects no
+  personal information, does not track you across sites, and the data never
+  leaves our own infrastructure. The Android and iOS apps send no analytics
+  at all.</p>
+
+  <h2>Newsletter signup (optional)</h2>
+  <p>If you sign up for project updates, we store the email address,
+  platform interests, and any note you choose to include. This is used only
+  to send you occasional project news and beta invitations. To unsubscribe
+  or have your address deleted, email us at the address below.</p>
+
+  <h2>Bug reports (optional)</h2>
+  <p>If you choose to send a bug report from within the app, it includes
+  your description, an optional contact email, and a technical diagnostics
+  snapshot of the app's state to help us reproduce the problem. Bug reports
+  are stored privately, used only to investigate and fix issues, and
+  deleted when no longer needed.</p>
+
+  <h2>Third parties</h2>
+  <p>We use Cloudflare as our hosting and content-delivery provider; the
+  data described above (server request logs, newsletter signups, bug
+  reports) is stored and processed on Cloudflare's infrastructure under
+  our control and Cloudflare's own privacy and security commitments, which
+  provide at least the same level of protection as this policy. No third
+  party receives your personal data for its own purposes — no advertising
+  networks, no data brokers, no third-party analytics services.</p>
+
+  <h2>Security</h2>
+  <p>All communication between the app or website and our servers is
+  encrypted in transit (HTTPS). The small amount of personal data we hold
+  (newsletter addresses, bug-report contents) is accessible only to the
+  project maintainer, protected by access-controlled credentials.</p>
+
+  <h2>Data retention and deletion</h2>
+  <ul>
+    <li><strong>Navigation data</strong> (position, tracks, routes,
+    waypoints): stored only on your device, kept until you delete it in
+    the app or uninstall. We never have it, so there is nothing for us to
+    retain.</li>
+    <li><strong>Newsletter addresses:</strong> kept until you unsubscribe
+    or ask us to delete them.</li>
+    <li><strong>Bug reports:</strong> kept while the issue is being
+    investigated, then deleted.</li>
+    <li><strong>Server request logs:</strong> transient and short-lived,
+    used only for operations and security.</li>
+    <li><strong>Website analytics:</strong> anonymous aggregate counts
+    only; they contain no personal data to delete.</li>
+  </ul>
+  <p>To request deletion of anything we hold about you (a newsletter
+  address or a bug report you sent), email us at the address below and we
+  will delete it promptly. You can revoke any permission you've granted
+  the app (location, Bluetooth) at any time in your device's system
+  settings.</p>
+
+  <h2>Children</h2>
+  <p>Pelorus Nav is a navigation tool and is not directed at children under 13.</p>
+
+  <h2>Changes</h2>
+  <p>If this policy changes, the updated version will be posted at this
+  address with a new date. Material changes will be noted in the project
+  changelog.</p>
+
+  <h2>Contact</h2>
+  <p>Questions or data requests: <a href="mailto:garyo@oberbrunner.com">garyo@oberbrunner.com</a></p>
+
+  <footer>
+    © 2026 Dark Star Systems ·
+    <a href="https://github.com/garyo/pelorus-nav">GitHub</a> ·
+    <a href="/">Home</a>
+  </footer>
+</div>
+</body>
+</html>

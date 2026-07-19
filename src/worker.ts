@@ -594,6 +594,13 @@ export default {
       );
     }
 
+    // Privacy policy at a clean URL (required by Play Store / App Store).
+    if (url.pathname === "/privacy") {
+      return env.ASSETS.fetch(
+        new Request(new URL("/privacy.html", url), request),
+      );
+    }
+
     // Serve PMTiles, coverage GeoJSON, and search indices from R2
     if (
       url.pathname.endsWith(".pmtiles") ||

@@ -150,6 +150,12 @@ export class AboutDialog {
       showTermsDialog();
     });
 
+    const privacyLink = document.createElement("a");
+    privacyLink.href = "https://pelorus-nav.com/privacy";
+    privacyLink.target = "_blank";
+    privacyLink.rel = "noopener";
+    privacyLink.textContent = "Privacy";
+
     links.append(
       siteLink,
       ghLink,
@@ -157,6 +163,7 @@ export class AboutDialog {
       changelogLink,
       licenseLink,
       termsLink,
+      privacyLink,
     );
 
     // Credits

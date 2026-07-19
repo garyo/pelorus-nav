@@ -106,6 +106,7 @@ export default defineConfig({
           "**/*.search.json",
           "landing.html",
           "landing/**",
+          "privacy.html",
         ],
         navigateFallback: "/index.html",
         // The app owns exactly /app; every other URL (the landing page at
