@@ -61,7 +61,8 @@ footer a:hover { color: var(--wave); }
   <h2>Location data stays on your device</h2>
   <p>Your GPS position — whether from your device's built-in GPS or an
   external Bluetooth/Wi-Fi receiver — is processed entirely on your device
-  and is never transmitted to our servers. The same is true of everything
+  and is not transmitted to our servers, with one exception you control:
+  sending a bug report (see below). The same is true of everything
   derived from it: recorded tracks, routes, waypoints, and instrument
   readings. All of it is stored only in the app's local storage on your
   device, and you can delete it at any time from within the app or by
@@ -98,9 +99,13 @@ footer a:hover { color: var(--wave); }
   <h2>Bug reports (optional)</h2>
   <p>If you choose to send a bug report from within the app, it includes
   your description, an optional contact email, and a technical diagnostics
-  snapshot of the app's state to help us reproduce the problem. Bug reports
-  are stored privately, used only to investigate and fix issues, and
-  deleted when no longer needed.</p>
+  snapshot of the app's state to help us reproduce the problem. The
+  snapshot includes device information, app settings, recent logs, and
+  recent GPS positions — this is the only case in which location data
+  leaves your device, it happens only when you tap Send, and the report
+  tells you what it contains before you send it. Bug reports are stored
+  privately, used only to investigate and fix issues, and deleted when no
+  longer needed.</p>
 
   <h2>Third parties</h2>
   <p>We use Cloudflare as our hosting and content-delivery provider; the
