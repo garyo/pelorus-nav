@@ -34,6 +34,7 @@
     "cap:sync": "CAPACITOR=1 bun run build && bunx cap sync android",
     "cap:run": "CAPACITOR=1 bun run build && bunx cap sync android && bunx cap run android",
     "cap:build": "CAPACITOR=1 bun run build && bunx cap sync android && cd android && ./gradlew clean assembleRelease",
+    "cap:build:aab": "CAPACITOR=1 bun run build && bunx cap sync android && cd android && ./gradlew clean bundleRelease",
     "cap:build:debug": "CAPACITOR=1 bun run build && bunx cap sync android && cd android && ./gradlew clean assembleDebug",
     "ios:version": "bun tools/sync-ios-version.ts",
     "cap:sync:ios": "bun run ios:version && CAPACITOR=1 bun run build && bunx cap sync ios",
