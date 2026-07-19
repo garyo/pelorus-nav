@@ -56,16 +56,33 @@ jobs:
           keyPassword=${{ secrets.ANDROID_KEY_PASSWORD }}
           EOF
 
-      - name: Build signed release APK
+      - name: Build signed release APK + AAB
         working-directory: android
-        run: ./gradlew assembleRelease
+        run: ./gradlew assembleRelease bundleRelease
+
+      # Publishes to the Play Store internal testing track. Promotion to
+      # closed/production stays a manual step in the Play Console. Skipped
+      # (not failed) while the PLAY_SERVICE_ACCOUNT_JSON secret is absent,
+      # so the release still works if Play publishing is ever unconfigured.
+      - name: Upload AAB to Play internal track
+        if: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON != '' }}
+        uses: r0adkll/upload-google-play@e738b9dd8f2476ea806d921b64aacd24f34515a5 # v1.1.5
+        with:
+          serviceAccountJsonPlainText: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+          packageName: nav.pelorus.app
+          releaseFiles: android/app/build/outputs/bundle/release/app-release.aab
+          track: internal
+          status: completed
 
       - name: Create GitHub Release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           mv android/app/build/outputs/apk/release/app-release.apk pelorus-nav.apk
+          mv android/app/build/outputs/bundle/release/app-release.aab \
+            "pelorus-nav-${ANDROID_VERSION_NAME}-${ANDROID_VERSION_CODE}.aab"
           gh release create "${{ github.ref_name }}" \
             pelorus-nav.apk \
+            "pelorus-nav-${ANDROID_VERSION_NAME}-${ANDROID_VERSION_CODE}.aab" \
             --title "Pelorus Nav ${{ github.ref_name }}" \
             --generate-notes
