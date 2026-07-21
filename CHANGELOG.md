@@ -21,8 +21,13 @@ The format follows [Keep a Changelog](https://keepachangelog.com/).
 ### Fixed
 - A slow, wide tack no longer shows up as two maneuvers in the track
   viewer.
-- Panning the chart while editing a route is more responsive: waypoint
-  drag handling no longer adds touch latency to every scroll gesture.
+- Chart panning is much smoother on phones: the top bar's overflow
+  layout no longer re-runs continuously in the background, and panning
+  near a chart-region boundary (e.g. the Boston area) no longer rebuilds
+  the chart style on every gesture.
+- Placing and editing route waypoints is more responsive: waypoint
+  auto-naming, tap handling, and drag handling all do far less work per
+  tap and no longer add touch latency to scroll gestures.
 
 ## [0.14.0] - 2026-07-17
 
