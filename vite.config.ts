@@ -68,7 +68,11 @@ export default defineConfig({
     },
   },
   optimizeDeps: {
-    exclude: [],
+    // maplibre-gl v6 loads its worker via `new URL(..., import.meta.url)`;
+    // prebundling rewrites the module so that URL resolves to a path the dev
+    // server answers with index.html (SPA fallback) — the worker then fails
+    // with "unsupported MIME type" and no vector tiles ever parse.
+    exclude: ["maplibre-gl"],
     entries: ["src/main.ts", "src/worker.ts"],
   },
   plugins: [
