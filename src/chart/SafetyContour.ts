@@ -15,6 +15,7 @@ import type maplibregl from "maplibre-gl";
 import type { FilterSpecification } from "maplibre-gl";
 import { getRegionLayerIds, getVectorSourceIds } from "../data/chart-catalog";
 import { getSettings, onSettingsChange } from "../settings";
+import { recordScan } from "../utils/scan-perf";
 import {
   createTrailingThrottle,
   type TrailingThrottle,
@@ -153,6 +154,8 @@ export class SafetyContour {
 
   /** Scan all loaded DEPCNT features and cache VALDCO values grouped by _cell_id. */
   private scanTiles(): void {
+    const scanStart = performance.now();
+    let featureCount = 0;
     this.lastScanViewport = this.gate.sig();
     const byCell = new Map<number, Set<number>>();
 
@@ -161,6 +164,7 @@ export class SafetyContour {
         const features = this.map.querySourceFeatures(srcId, {
           sourceLayer: "DEPCNT",
         });
+        featureCount += features.length;
         for (const f of features) {
           const cellId = (f.properties?._cell_id as number) ?? 0;
           const v = f.properties?.VALDCO;
@@ -183,6 +187,7 @@ export class SafetyContour {
     );
 
     this.resolveFromCache(getSettings().safetyDepth);
+    recordScan("safety-contour-scan", scanStart, featureCount);
   }
 
   /** Resolve the safety contour per cell from cached VALDCO values. */

@@ -13,6 +13,7 @@ import type maplibregl from "maplibre-gl";
 import { rasterChartAt } from "../chart/raster-charts";
 import { depthUnitLabel, getSettings, onSettingsChange } from "../settings";
 import { bearingModeLabel } from "../utils/magnetic";
+import { recordScan } from "../utils/scan-perf";
 
 function isEncFeature(f: maplibregl.MapGeoJSONFeature): boolean {
   return typeof f.source === "string" && f.source.startsWith("s57-vector");
@@ -89,9 +90,11 @@ export class ChartInUseReadout {
       [cx + 5, cy + 5],
     ];
     const rc = blend !== "vector" ? rasterChartAt(c.lng, c.lat) : null;
-    const encHere =
-      blend !== "raster" &&
-      this.map.queryRenderedFeatures(box).some(isEncFeature);
+    const qrfStart = performance.now();
+    const boxFeatures =
+      blend !== "raster" ? this.map.queryRenderedFeatures(box) : [];
+    recordScan("chart-in-use-qrf", qrfStart, boxFeatures.length);
+    const encHere = blend !== "raster" && boxFeatures.some(isEncFeature);
 
     let label: string | null = null;
     let overscale = false;

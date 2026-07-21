@@ -8,9 +8,11 @@
 import type { Feature } from "geojson";
 import type maplibregl from "maplibre-gl";
 import { getVectorSourceIds } from "../data/chart-catalog";
+import { recordScan } from "../utils/scan-perf";
 
 /** Query LIGHTS features from every s57 vector source (best-effort). */
 export function queryAllLights(map: maplibregl.Map): Feature[] {
+  const start = performance.now();
   const allLights: Feature[] = [];
   for (const srcId of getVectorSourceIds()) {
     try {
@@ -22,5 +24,6 @@ export function queryAllLights(map: maplibregl.Map): Feature[] {
       // source not loaded yet
     }
   }
+  recordScan("lights-query", start, allLights.length);
   return allLights;
 }
