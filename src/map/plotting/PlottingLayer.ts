@@ -3,7 +3,7 @@
  * Uses GeoJSON sources + MapLibre layers, with DraggablePoints for interaction.
  */
 
-import type maplibregl from "maplibre-gl";
+import type * as maplibregl from "maplibre-gl";
 import { getPlottingSheet, savePlottingSheet } from "../../data/db";
 import { getSettings, onSettingsChange } from "../../settings";
 import {

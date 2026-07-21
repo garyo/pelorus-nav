@@ -6,7 +6,7 @@
  */
 
 import type { Feature } from "geojson";
-import type maplibregl from "maplibre-gl";
+import type * as maplibregl from "maplibre-gl";
 import { getVectorSourceIds } from "../data/chart-catalog";
 import { recordScan } from "../utils/scan-perf";
 

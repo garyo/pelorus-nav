@@ -28,7 +28,7 @@ import type {
   SymbolLayerSpecification,
 } from "@maplibre/maplibre-gl-style-spec";
 import type { Feature, FeatureCollection, Point, Position } from "geojson";
-import type maplibregl from "maplibre-gl";
+import type * as maplibregl from "maplibre-gl";
 import { getRegionLayerIds } from "../data/chart-catalog";
 import { getSettings, onSettingsChange } from "../settings";
 import { queryAllLights } from "./lights-query";

@@ -10,7 +10,7 @@
  * course-up rotates the view.
  */
 
-import type maplibregl from "maplibre-gl";
+import type * as maplibregl from "maplibre-gl";
 import {
   fitMapToBounds,
   fitMapToBoundsIfNeeded,

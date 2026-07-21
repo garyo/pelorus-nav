@@ -9,7 +9,7 @@
  */
 
 import { Capacitor } from "@capacitor/core";
-import type maplibregl from "maplibre-gl";
+import type * as maplibregl from "maplibre-gl";
 import { HardwareKeys } from "../plugins/HardwareKeys";
 import { getSettings, onSettingsChange } from "../settings";
 

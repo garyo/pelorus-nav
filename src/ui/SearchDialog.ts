@@ -3,7 +3,7 @@
  * Displays autocomplete results and flies the map to the selected feature.
  */
 
-import type maplibregl from "maplibre-gl";
+import type * as maplibregl from "maplibre-gl";
 import type { SearchEntry } from "../data/search-index";
 import { fitMapToBounds } from "../map/fit-bounds";
 import { type SearchResult, searchFeatures } from "../search/feature-search";

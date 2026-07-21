@@ -7,7 +7,7 @@
  * animation. Active: the button pulses and a plain tap toggles the COB panel.
  */
 
-import type maplibregl from "maplibre-gl";
+import type * as maplibregl from "maplibre-gl";
 import { getSettings } from "../settings";
 import { iconLifeRing, setIcon } from "../ui/icons";
 import { attachHoldGesture } from "./hold-gesture";

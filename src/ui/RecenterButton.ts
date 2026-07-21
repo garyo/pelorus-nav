@@ -9,7 +9,7 @@
  *   north-up → follow
  */
 
-import type maplibregl from "maplibre-gl";
+import type * as maplibregl from "maplibre-gl";
 import type { ChartMode } from "../settings";
 import {
   iconChartFollow,

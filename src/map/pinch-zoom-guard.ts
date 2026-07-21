@@ -27,7 +27,7 @@
  *    stop() it in flight.
  */
 
-import type maplibregl from "maplibre-gl";
+import type * as maplibregl from "maplibre-gl";
 
 /**
  * Max zoom-level change a gesture-release ease may request. Double-tap and

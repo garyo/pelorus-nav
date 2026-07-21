@@ -4,7 +4,7 @@
  * MapLibre source/layer plumbing — callers compute the glow color and the
  * line (and, for routes, waypoint) coordinates.
  */
-import type maplibregl from "maplibre-gl";
+import type * as maplibregl from "maplibre-gl";
 import {
   GLOW_BLUR,
   GLOW_CIRCLE_BLUR,

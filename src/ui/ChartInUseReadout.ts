@@ -9,7 +9,7 @@
  * chart whose footprint contains the centre.
  */
 
-import type maplibregl from "maplibre-gl";
+import type * as maplibregl from "maplibre-gl";
 import { rasterChartAt } from "../chart/raster-charts";
 import { depthUnitLabel, getSettings, onSettingsChange } from "../settings";
 import { bearingModeLabel } from "../utils/magnetic";

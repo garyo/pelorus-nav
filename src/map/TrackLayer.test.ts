@@ -1,4 +1,4 @@
-import type maplibregl from "maplibre-gl";
+import type * as maplibregl from "maplibre-gl";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { getTrackPoints } from "../data/db";
 import type { TrackMeta, TrackPoint } from "../data/Track";

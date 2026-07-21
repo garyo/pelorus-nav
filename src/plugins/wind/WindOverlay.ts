@@ -13,7 +13,7 @@
  */
 
 import type { Feature, FeatureCollection } from "geojson";
-import type maplibregl from "maplibre-gl";
+import type * as maplibregl from "maplibre-gl";
 import type { MapOverlay, PluginHost, PluginMap } from "../types";
 import {
   displayLatticePointsInBounds,

@@ -49,11 +49,11 @@
     "@capacitor/core": "^8.2.0",
     "@capacitor/filesystem": "^8.1.2",
     "@capacitor/share": "^8.0.1",
-    "@maplibre/maplibre-gl-style-spec": "24.8.1",
+    "@maplibre/maplibre-gl-style-spec": "^25.0.0",
     "@neaps/tide-predictor": "^0.9.0",
     "@protomaps/basemaps": "^5.7.2",
     "magvar": "^2.0.1",
-    "maplibre-gl": "5.24.0",
+    "maplibre-gl": "6.0.0-22",
     "pmtiles": "^4.4.0"
   },
   "devDependencies": {

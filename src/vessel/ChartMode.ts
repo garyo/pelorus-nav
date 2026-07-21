@@ -3,7 +3,7 @@
  * Manages automatic map centering/rotation based on vessel position.
  */
 
-import type maplibregl from "maplibre-gl";
+import type * as maplibregl from "maplibre-gl";
 import type { SmoothedCourse } from "../navigation/CourseSmoothing";
 import type { NavigationData } from "../navigation/NavigationData";
 import type { ChartMode as ChartModeType } from "../settings";
@@ -164,7 +164,7 @@ export class ChartModeController {
     this.map.on("movestart", (e) => {
       if (
         this.mode !== "free" &&
-        (e as maplibregl.MapMouseEvent).originalEvent
+        (e as unknown as maplibregl.MapMouseEvent).originalEvent
       ) {
         this.modeBeforeFree = this.mode;
         this.setMode("free");

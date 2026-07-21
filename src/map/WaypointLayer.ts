@@ -3,7 +3,7 @@
  * Supports drag-to-move via DraggablePoints.
  */
 
-import type maplibregl from "maplibre-gl";
+import type * as maplibregl from "maplibre-gl";
 import { getAllWaypoints, saveWaypoint } from "../data/db";
 import type { StandaloneWaypoint } from "../data/Waypoint";
 import { DraggablePoints } from "./DraggablePoints";

@@ -13,7 +13,7 @@
  */
 
 import type { Feature, FeatureCollection } from "geojson";
-import type maplibregl from "maplibre-gl";
+import type * as maplibregl from "maplibre-gl";
 import type { FeatureInfo } from "../../chart/feature-info";
 import { s52Colour } from "../../chart/s52-colours";
 import { formatDepth, type SymbologyScheme } from "../../settings";

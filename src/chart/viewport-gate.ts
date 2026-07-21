@@ -10,7 +10,7 @@
  * since the consumer's last rebuild that the visible feature set may differ.
  */
 
-import type maplibregl from "maplibre-gl";
+import type * as maplibregl from "maplibre-gl";
 import { circularDistanceDeg } from "../navigation/CourseSmoothing";
 
 export interface ViewportSig {

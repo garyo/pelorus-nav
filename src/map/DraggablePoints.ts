@@ -3,7 +3,7 @@
  * Disables map.dragPan during drag and fires a callback with the new position.
  */
 
-import type maplibregl from "maplibre-gl";
+import type * as maplibregl from "maplibre-gl";
 
 export type DragCallback = (
   featureIndex: number,

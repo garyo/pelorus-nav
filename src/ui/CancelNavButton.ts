@@ -3,7 +3,7 @@
  * Follows the RecenterButton pattern (MapLibre IControl).
  */
 
-import type maplibregl from "maplibre-gl";
+import type * as maplibregl from "maplibre-gl";
 import type {
   ActiveNavigationInfo,
   ActiveNavigationManager,

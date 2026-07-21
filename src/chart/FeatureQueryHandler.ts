@@ -1,4 +1,4 @@
-import type maplibregl from "maplibre-gl";
+import type * as maplibregl from "maplibre-gl";
 import { getVectorSourceIds } from "../data/chart-catalog";
 import { getMode } from "../map/InteractionMode";
 import type { PickRegistry } from "../plugins/picking";
