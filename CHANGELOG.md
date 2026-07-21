@@ -28,6 +28,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/).
 - Placing and editing route waypoints is more responsive: waypoint
   auto-naming, tap handling, and drag handling all do far less work per
   tap and no longer add touch latency to scroll gestures.
+- Panning while anchored or stationary no longer hangs for up to a
+  second before responding: the battery-saving frame-rate cap now lifts
+  the instant a touch begins instead of waiting for the map to move.
+- A fresh install on a phone with an old Google backup of the app no
+  longer starts up on an ancient cached version: backups now exclude
+  the app's internal browser caches (routes and settings still back up).
 
 ## [0.14.0] - 2026-07-17
 
