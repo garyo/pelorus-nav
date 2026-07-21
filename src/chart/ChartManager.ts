@@ -1,5 +1,5 @@
 import maplibregl from "maplibre-gl";
-import { regionsInView } from "../data/chart-catalog";
+import { regionsInViewWithHysteresis } from "../data/chart-catalog";
 import { appErrorLog } from "../diagnostics/errorLog";
 import { applySlotAnchors } from "../plugins/slots";
 import type {
@@ -124,9 +124,10 @@ export class ChartManager {
     // style only carries in-view regions; the set rarely changes, so most
     // moveends are a no-op equality check.
     this.map.on("moveend", () => {
-      const ids = regionsInView(
+      const ids = regionsInViewWithHysteresis(
         this.viewportBounds(),
         getSettings().activeRegion,
+        this.lastRegionIds,
       );
       const covered = this.viewCoveredByBasemap();
       if (
@@ -376,9 +377,10 @@ export class ChartManager {
     // Limit chart layers to the regions in view (active + viewport overlaps).
     // `this.map` is undefined during the initial build (it's the `style` arg of
     // the Map constructor) → no bounds → active region only.
-    const regionIds = regionsInView(
+    const regionIds = regionsInViewWithHysteresis(
       this.map ? this.viewportBounds() : null,
       settings.activeRegion,
+      this.lastRegionIds,
     );
     this.lastRegionIds = regionIds;
     let layers = provider.getLayers(regionIds);

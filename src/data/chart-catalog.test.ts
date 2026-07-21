@@ -4,6 +4,7 @@ import {
   findRegionForPosition,
   getRegion,
   regionsInView,
+  regionsInViewWithHysteresis,
 } from "./chart-catalog";
 
 describe("bboxIntersects", () => {
@@ -47,6 +48,53 @@ describe("regionsInView", () => {
     );
     expect(ids).toContain("northern-new-england");
     expect(ids).toContain("southern-new-england");
+  });
+});
+
+describe("regionsInViewWithHysteresis", () => {
+  // Viewport just north of the NNE/SNE boundary (~42N): overlaps only NNE.
+  // Exact bounds stop north of SNE (north edge 42.0); the 50% pad reaches it.
+  const northOfLine: [number, number, number, number] = [
+    -71.1, 42.05, -70.9, 42.25,
+  ];
+
+  it("matches regionsInView when nothing was previously loaded", () => {
+    expect(
+      regionsInViewWithHysteresis(northOfLine, "northern-new-england", []),
+    ).toEqual(regionsInView(northOfLine, "northern-new-england"));
+  });
+
+  it("keeps a previously loaded region that is just out of view", () => {
+    const ids = regionsInViewWithHysteresis(
+      northOfLine,
+      "northern-new-england",
+      ["northern-new-england", "southern-new-england"],
+    );
+    expect(ids).toContain("southern-new-england");
+  });
+
+  it("drops a previously loaded region once it is far out of view", () => {
+    const ids = regionsInViewWithHysteresis(
+      [-70.0, 43.5, -69.8, 43.7], // mid-Maine coast, well north of SNE + pad
+      "northern-new-england",
+      ["northern-new-england", "southern-new-england"],
+    );
+    expect(ids).not.toContain("southern-new-england");
+  });
+
+  it("does not add an unloaded region that only touches the padded bounds", () => {
+    const ids = regionsInViewWithHysteresis(
+      northOfLine,
+      "northern-new-england",
+      ["northern-new-england"],
+    );
+    expect(ids).not.toContain("southern-new-england");
+  });
+
+  it("returns only the active region when bounds is null", () => {
+    expect(
+      regionsInViewWithHysteresis(null, "usvi", ["northern-new-england"]),
+    ).toEqual(["usvi"]);
   });
 });
 

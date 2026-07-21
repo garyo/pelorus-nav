@@ -196,6 +196,35 @@ function effectiveDistanceNM(e: SearchEntry, ref: [number, number]): number {
  *   enclosing area, which is what you want for a waypoint name.
  * - Ties within 30 m fall back to TYPE_PRIORITY.
  */
+/**
+ * Lat-sorted copies of entry arrays, built once per array identity so
+ * nearest-feature lookups can binary-search a narrow latitude band instead
+ * of scanning the whole merged all-region index (hundreds of thousands of
+ * entries) on every waypoint placement.
+ */
+const latSortedCache = new WeakMap<SearchEntry[], SearchEntry[]>();
+
+function latSorted(entries: SearchEntry[]): SearchEntry[] {
+  let sorted = latSortedCache.get(entries);
+  if (!sorted) {
+    sorted = [...entries].sort((a, b) => a.center[1] - b.center[1]);
+    latSortedCache.set(entries, sorted);
+  }
+  return sorted;
+}
+
+/** First index in lat-sorted `entries` with center lat >= `lat`. */
+function lowerBoundByLat(entries: SearchEntry[], lat: number): number {
+  let lo = 0;
+  let hi = entries.length;
+  while (lo < hi) {
+    const mid = (lo + hi) >> 1;
+    if (entries[mid].center[1] < lat) lo = mid + 1;
+    else hi = mid;
+  }
+  return lo;
+}
+
 export function findNearestNamedFeature(
   lon: number,
   lat: number,
@@ -204,26 +233,22 @@ export function findNearestNamedFeature(
 ): SearchEntry | null {
   const ref: [number, number] = [lon, lat];
   const maxNM = maxMeters / METERS_PER_NM;
-  // Degree-window prefilter: any entry that can score within maxNM must
-  // have its center within maxNM of the point (an area only wins when the
-  // point is inside a bbox whose half-diagonal — and hence center — is
-  // within maxNM), so this cheap reject is exact up to the slack factor.
-  // It matters because this scan runs synchronously on every waypoint
-  // placement, over the merged all-region index (hundreds of thousands of
-  // entries).
+  // Candidate window: any entry that can score within maxNM must have its
+  // center within maxNM of the point (an area only wins when the point is
+  // inside a bbox whose half-diagonal — and hence center — is within
+  // maxNM), so restricting to a lat band + lon check is exact up to the
+  // slack factor.
   const maxDegLat = (maxNM / 60) * 1.05;
   const maxDegLon = maxDegLat / Math.max(0.05, Math.cos((lat * Math.PI) / 180));
+  const sorted = latSorted(entries);
+  const end = lowerBoundByLat(sorted, lat + maxDegLat);
   let best: SearchEntry | null = null;
   let bestDist = Number.POSITIVE_INFINITY;
   let bestPri = Number.POSITIVE_INFINITY;
-  for (const e of entries) {
+  for (let i = lowerBoundByLat(sorted, lat - maxDegLat); i < end; i++) {
+    const e = sorted[i];
     if (!e.name || e.name.length === 0) continue;
-    if (
-      Math.abs(e.center[1] - lat) > maxDegLat ||
-      Math.abs(e.center[0] - lon) > maxDegLon
-    ) {
-      continue;
-    }
+    if (Math.abs(e.center[0] - lon) > maxDegLon) continue;
     const d = effectiveDistanceNM(e, ref);
     if (d > maxNM) continue;
     const pri = TYPE_PRIORITY[e.type] ?? 50;

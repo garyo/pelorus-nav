@@ -217,6 +217,40 @@ export function regionsInView(
   ).map((r) => r.id);
 }
 
+/**
+ * Like `regionsInView`, but with drop hysteresis: a region in `current` is
+ * kept while it still overlaps the viewport padded by `padFactor` of the
+ * viewport size on each side. Regions are still *added* only on true
+ * viewport overlap. Without this, panning along a region boundary (Boston
+ * Harbor sits near the northern/southern New England line) toggles the
+ * region set on nearly every gesture, and each toggle is a full style
+ * rebuild — a placement restart across every symbol layer.
+ */
+export function regionsInViewWithHysteresis(
+  bounds: [number, number, number, number] | null,
+  activeRegion: string,
+  current: string[],
+  padFactor = 0.5,
+): string[] {
+  if (bounds === null) return regionsInView(bounds, activeRegion);
+  const [w, s, e, n] = bounds;
+  const padLon = (e - w) * padFactor;
+  const padLat = (n - s) * padFactor;
+  const padded: [number, number, number, number] = [
+    w - padLon,
+    s - padLat,
+    e + padLon,
+    n + padLat,
+  ];
+  const cur = new Set(current);
+  return CHART_REGIONS.filter(
+    (r) =>
+      r.id === activeRegion ||
+      bboxIntersects(r.bbox, bounds) ||
+      (cur.has(r.id) && bboxIntersects(r.bbox, padded)),
+  ).map((r) => r.id);
+}
+
 /** MapLibre vector source IDs for all regions. */
 export function getVectorSourceIds(): string[] {
   return CHART_REGIONS.map((r) => `s57-vector-${r.id}`);

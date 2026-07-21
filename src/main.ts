@@ -362,10 +362,9 @@ new SafetyContour(chartManager.map);
 // "Chart in use" readout + overscale badge for the vector/raster quilt.
 new ChartInUseReadout(chartManager.map);
 
-// Dev-only: expose the map for browser-harness probes (no-op in prod build).
-if (import.meta.env.DEV) {
-  (window as unknown as { __map: unknown }).__map = chartManager.map;
-}
+// Expose the map for probes: browser-harness in dev, chrome://inspect
+// (or adb-forwarded CDP) diagnostics on device builds.
+(window as unknown as { __map: unknown }).__map = chartManager.map;
 
 // Dev-only render harness (?testChart=1): overlays the synthetic S-57 test
 // chart through the real nautical styles for headless render specs. Loaded
