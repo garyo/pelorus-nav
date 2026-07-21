@@ -34,6 +34,13 @@ const FRAME_INTERVAL_STATIONARY = 1000;
  */
 const FRAME_INTERVAL_EINK_SETTLING = 1500;
 
+/**
+ * How long raw input keeps the cap lifted. Long enough to bridge from the
+ * first touch to `isMoving()` turning true (which takes one render frame);
+ * once the camera is moving, the isMoving bypass takes over.
+ */
+const INPUT_GRACE_MS = 300;
+
 /** Replace the map's triggerRepaint with the throttled variant. */
 export function installRepaintThrottle(
   map: MapLibreMap,
@@ -45,12 +52,32 @@ export function installRepaintThrottle(
   let pendingFrame: ReturnType<typeof setTimeout> | null = null;
   let pendingDeadline = 0;
 
+  // Raw input lifts the cap BEFORE the camera moves. MapLibre applies
+  // gesture deltas inside the render frame that triggerRepaint schedules,
+  // so at the first frame of a new pan `isMoving()` is still false — with
+  // only that bypass, the opening frame waits out the idle interval (up
+  // to 1 s when stationary) and the pan visibly hangs, then snaps.
+  let inputActiveUntil = 0;
+  const noteInput = () => {
+    inputActiveUntil = performance.now() + INPUT_GRACE_MS;
+  };
+  const canvas = map.getCanvas();
+  canvas.addEventListener("pointerdown", noteInput, { passive: true });
+  canvas.addEventListener("touchstart", noteInput, { passive: true });
+  canvas.addEventListener("touchmove", noteInput, { passive: true });
+  canvas.addEventListener("wheel", noteInput, { passive: true });
+
   const throttledRepaint = () => {
     // During gestures (pinch/pan/rotate) and the inertia that follows,
     // run at full rate so the user sees what they're doing — otherwise
     // incremental deltas pile up in MapLibre's _changes queue and the
     // accumulated motion lands all at once (overshooting zoom limits, etc).
-    if (map.isMoving() || map.isZooming() || map.isRotating()) {
+    if (
+      performance.now() < inputActiveUntil ||
+      map.isMoving() ||
+      map.isZooming() ||
+      map.isRotating()
+    ) {
       if (pendingFrame) {
         clearTimeout(pendingFrame);
         pendingFrame = null;
