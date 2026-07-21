@@ -1,6 +1,10 @@
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, it } from "vitest";
-import { relayoutTopbar, type TopbarOverflowElements } from "./topbar-overflow";
+import {
+  initTopbarOverflow,
+  relayoutTopbar,
+  type TopbarOverflowElements,
+} from "./topbar-overflow";
 
 /** Build a bar whose menu holds the given children; "~Name" makes a
  *  non-action element (like the offline indicator, hidden by default to
@@ -144,5 +148,38 @@ describe("relayoutTopbar", () => {
 
     relayoutTopbar(els, promoted, { isNarrow: () => false });
     expect(labels(els.menu)).toEqual(["FULL", "Offline", "INFO", "SET"]);
+  });
+});
+
+describe("initTopbarOverflow", () => {
+  it("settles instead of relayouting forever from its own probe mutations", async () => {
+    // jsdom has no ResizeObserver; a no-op stand-in is fine — this test
+    // exercises the MutationObserver path.
+    globalThis.ResizeObserver ??= class {
+      observe(): void {}
+      unobserve(): void {}
+      disconnect(): void {}
+    } as unknown as typeof ResizeObserver;
+    const els = makeBar(["WPT", "PLOT", "RGNS"]);
+    document.body.appendChild(els.topBar);
+    // Overflow condition: the bar "fits" only while nothing is promoted, so
+    // every relayout probes (promote one, doesn't fit, demote it) — exactly
+    // the churn that must not feed the MutationObserver.
+    initTopbarOverflow(els, {
+      isNarrow: () => true,
+      fits: () => els.actions.children.length === 0,
+    });
+
+    // Let the initial relayout, observer microtasks, and any scheduled rAF
+    // relayouts play out, then count further menu mutations.
+    await new Promise((r) => setTimeout(r, 100));
+    let mutations = 0;
+    const counter = new MutationObserver((m) => {
+      mutations += m.length;
+    });
+    counter.observe(els.menu, { childList: true });
+    await new Promise((r) => setTimeout(r, 200));
+    counter.disconnect();
+    expect(mutations).toBe(0);
   });
 });

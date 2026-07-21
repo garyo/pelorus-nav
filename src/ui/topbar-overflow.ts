@@ -109,12 +109,23 @@ export function relayoutTopbar(
 
 /** Wire up the overflow manager: initial layout + relayout on resize and
  *  on menu mutations (plugins register their buttons asynchronously). */
-export function initTopbarOverflow(els: TopbarOverflowElements): void {
+export function initTopbarOverflow(
+  els: TopbarOverflowElements,
+  hooks: TopbarOverflowHooks = {},
+): void {
   const promoted: PromotedItem[] = [];
   let scheduled = false;
+  let selfMutating = false;
   const relayout = () => {
     scheduled = false;
-    relayoutTopbar(els, promoted);
+    selfMutating = true;
+    relayoutTopbar(els, promoted, hooks);
+    // Our own promote/demote mutations are delivered to the observer in a
+    // microtask queued before this one, so the flag is still set when the
+    // observer sees them and clear by the time any external mutation lands.
+    queueMicrotask(() => {
+      selfMutating = false;
+    });
   };
   const schedule = () => {
     if (scheduled) return;
@@ -123,9 +134,13 @@ export function initTopbarOverflow(els: TopbarOverflowElements): void {
   };
 
   new ResizeObserver(schedule).observe(els.topBar);
-  // Menu items can arrive after init (plugin actions); ignore our own
-  // promote/demote churn — relayout is idempotent so extra runs are safe.
-  new MutationObserver(schedule).observe(els.menu, { childList: true });
+  // Menu items can arrive after init (plugin actions). Our own promote/
+  // demote churn must NOT reschedule: when the bar is in overflow, every
+  // relayout probes by moving one item out and back, and reacting to that
+  // probe would re-run relayout every frame indefinitely.
+  new MutationObserver(() => {
+    if (!selfMutating) schedule();
+  }).observe(els.menu, { childList: true });
 
-  relayoutTopbar(els, promoted);
+  relayoutTopbar(els, promoted, hooks);
 }
