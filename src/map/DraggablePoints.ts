@@ -59,8 +59,10 @@ export class DraggablePoints {
     canvas.addEventListener("touchstart", this.onTouchStart, {
       passive: false,
     });
-    canvas.addEventListener("touchmove", this.onTouchMove, { passive: false });
     canvas.addEventListener("touchend", this.onTouchEnd);
+    // touchmove is attached only while dragging (see startDrag): a
+    // permanent non-passive touchmove listener would force the browser
+    // to wait on JS before compositing every pan frame.
   }
 
   destroy(): void {
@@ -176,13 +178,17 @@ export class DraggablePoints {
     this.dragging = true;
     this.dragIndex = index;
     this.map.dragPan.disable();
-    this.map.getCanvas().style.cursor = "grabbing";
+    const canvas = this.map.getCanvas();
+    canvas.addEventListener("touchmove", this.onTouchMove, { passive: false });
+    canvas.style.cursor = "grabbing";
   }
 
   private endDrag(): void {
     this.dragging = false;
     this.dragIndex = -1;
     this.map.dragPan.enable();
-    this.map.getCanvas().style.cursor = "";
+    const canvas = this.map.getCanvas();
+    canvas.removeEventListener("touchmove", this.onTouchMove);
+    canvas.style.cursor = "";
   }
 }

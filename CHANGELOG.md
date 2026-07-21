@@ -21,6 +21,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/).
 ### Fixed
 - A slow, wide tack no longer shows up as two maneuvers in the track
   viewer.
+- Panning the chart while editing a route is more responsive: waypoint
+  drag handling no longer adds touch latency to every scroll gesture.
 
 ## [0.14.0] - 2026-07-17
 
