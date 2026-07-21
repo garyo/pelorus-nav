@@ -16,8 +16,17 @@
  * - `near`: pixel distance to the nearest projected waypoint — consistently
  *   large means the tap coordinates are offset (viewport/scroll/scale skew).
  * Entries persist in a small ring buffer and ship in bug reports.
+ *
+ * The queryRenderedFeatures probes (`hits`/`mid`/`rendered`) run only on
+ * iOS, where the tap failure they discriminate lives (WKWebView). On dense
+ * ENC tiles each query walks the tile's whole feature grid before layer
+ * filtering, so three of them on every touchstart add real latency to the
+ * start of every gesture — too expensive as an always-on tax on platforms
+ * with no known bug. The geometric fields (`near`, rects) still log
+ * everywhere.
  */
 
+import { Capacitor } from "@capacitor/core";
 import type maplibregl from "maplibre-gl";
 import { ConnectionEventLog } from "../navigation/ConnectionEventLog";
 
@@ -78,10 +87,11 @@ export function startEditTapDiag(
         map.getLayer(layer)
           ? map.queryRenderedFeatures(geom, { layers: [layer] }).length
           : -1; // layer missing entirely
-      const hits = query(layers.points, box);
-      const mid = query(layers.midpoints, box);
+      const probe = Capacitor.getPlatform() === "ios";
+      const hits = probe ? query(layers.points, box) : -2; // -2 = not probed
+      const mid = probe ? query(layers.midpoints, box) : -2;
       // No geometry = whole viewport: how many edit symbols actually rendered.
-      const rendered = query(layers.points);
+      const rendered = probe ? query(layers.points) : -2;
       const wps = getWaypoints();
       let near = "";
       let best = Number.POSITIVE_INFINITY;

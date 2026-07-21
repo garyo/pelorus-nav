@@ -204,11 +204,26 @@ export function findNearestNamedFeature(
 ): SearchEntry | null {
   const ref: [number, number] = [lon, lat];
   const maxNM = maxMeters / METERS_PER_NM;
+  // Degree-window prefilter: any entry that can score within maxNM must
+  // have its center within maxNM of the point (an area only wins when the
+  // point is inside a bbox whose half-diagonal — and hence center — is
+  // within maxNM), so this cheap reject is exact up to the slack factor.
+  // It matters because this scan runs synchronously on every waypoint
+  // placement, over the merged all-region index (hundreds of thousands of
+  // entries).
+  const maxDegLat = (maxNM / 60) * 1.05;
+  const maxDegLon = maxDegLat / Math.max(0.05, Math.cos((lat * Math.PI) / 180));
   let best: SearchEntry | null = null;
   let bestDist = Number.POSITIVE_INFINITY;
   let bestPri = Number.POSITIVE_INFINITY;
   for (const e of entries) {
     if (!e.name || e.name.length === 0) continue;
+    if (
+      Math.abs(e.center[1] - lat) > maxDegLat ||
+      Math.abs(e.center[0] - lon) > maxDegLon
+    ) {
+      continue;
+    }
     const d = effectiveDistanceNM(e, ref);
     if (d > maxNM) continue;
     const pri = TYPE_PRIORITY[e.type] ?? 50;

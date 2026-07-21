@@ -1,8 +1,15 @@
 // @vitest-environment jsdom
 
 import type maplibregl from "maplibre-gl";
-import { beforeEach, describe, expect, it } from "vitest";
-import { editTapLog, startEditTapDiag } from "./editTapDiag";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+// The QRF probes are iOS-gated; run these tests as iOS so they exercise
+// the full logging path. The non-iOS case is covered explicitly below.
+const platform = { value: "ios" };
+vi.mock("@capacitor/core", () => ({
+  Capacitor: { getPlatform: () => platform.value },
+}));
+const { editTapLog, startEditTapDiag } = await import("./editTapDiag");
 
 const LAYERS = { points: "pts", midpoints: "mids" };
 
@@ -80,6 +87,25 @@ describe("startEditTapDiag", () => {
     tap(canvas, 10, 60);
     stop();
     expect(editTapLog.toText()).toContain("hits=-1 mid=-1 rendered=-1/0");
+  });
+
+  it("skips the queryRenderedFeatures probes off iOS", () => {
+    platform.value = "android";
+    try {
+      const { map, canvas } = fakeMap({
+        featuresAt: () => {
+          throw new Error("queryRenderedFeatures must not run off iOS");
+        },
+      });
+      const stop = startEditTapDiag(map, LAYERS, () => [{ lat: 1, lon: 1 }]);
+      tap(canvas, 103, 154);
+      stop();
+      const text = editTapLog.toText();
+      expect(text).toContain("hits=-2 mid=-2 rendered=-2/1");
+      expect(text).toContain("near#0=5px");
+    } finally {
+      platform.value = "ios";
+    }
   });
 
   it("stops observing after the stop function runs", () => {
