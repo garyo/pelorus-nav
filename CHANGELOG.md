@@ -5,7 +5,7 @@ Notable user-facing changes to Pelorus Nav. Downloads are on the
 
 The format follows [Keep a Changelog](https://keepachangelog.com/).
 
-## [Unreleased]
+## [0.15.0] - 2026-07-21
 
 ### Added
 - Bluetooth Classic NMEA GPS receivers (e.g. Garmin GLO 2) are now
