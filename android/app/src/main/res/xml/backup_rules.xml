@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Keep auto-backup for user data (routes/settings live in WebView
+     IndexedDB/localStorage) but exclude service-worker storage: a restored
+     SW registration + cache boots an ancient app build on fresh installs
+     (the cached build predates the startup SW-unregister). Both paths
+     covered: modern WebView uses Default/, older layouts don't. -->
+<full-backup-content>
+    <exclude domain="root" path="app_webview/Default/Service Worker" />
+    <exclude domain="root" path="app_webview/Service Worker" />
+</full-backup-content>
