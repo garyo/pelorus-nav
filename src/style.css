@@ -1984,6 +1984,12 @@ body {
   text-underline-offset: 2px;
 }
 
+/* Hovering the name of the selected waypoint keeps the selection yellow
+   (the rename-hint underline stays). */
+.route-list-wp.selected .route-list-wp-name:hover {
+  color: #ffcc00;
+}
+
 .route-waypoint-input {
   flex: 1;
   font: inherit;
