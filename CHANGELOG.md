@@ -41,6 +41,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/).
   instead of only after two.
 
 ### Fixed
+- Chart labels are no longer cut off where chart regions meet or along
+  shorelines.
 - Opening another panel (Sun, chart layers, …) while editing a route no
   longer dismisses the waypoint list; close it with its X if you want
   more room. Renaming a waypoint mid-edit no longer silently saves your
