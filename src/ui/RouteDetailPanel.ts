@@ -161,6 +161,9 @@ export class RouteDetailPanel {
     group: "routes",
     // Part of the route-planning workspace — see route-manager.
     closeOnOutsideClick: false,
+    // While editing, opening another panel (sun, charts…) must not evict
+    // the waypoint list out from under the user; its X still closes it.
+    pinned: () => this.isEditingThisRoute(),
     el: () => this.el,
     isOpen: () => this.el.classList.contains("open"),
     close: () => this.hide(),
@@ -517,9 +520,14 @@ export class RouteDetailPanel {
       const newName = cancel ? wp.name : input.value.trim();
       if (!cancel && newName && newName !== wp.name) {
         wp.name = newName;
-        await saveRoute(route);
-        // Refresh the on-map labels for this route.
-        this.routeLayer.updateRoute(route);
+        // While editing, the rename lives on the editor's live route:
+        // Done persists it, Cancel discards it. Saving here would commit
+        // in-progress geometry edits behind the user's back.
+        if (!this.isEditingThisRoute()) {
+          await saveRoute(route);
+          // Refresh the on-map labels for this route.
+          this.routeLayer.updateRoute(route);
+        }
       }
       this.editing = false;
       // Full re-render now that we're done editing — picks up the new

@@ -13,6 +13,9 @@
  *   its detail panel form a click-through pair).
  * - `priority` surfaces (COB) are never evicted or auto-closed and sit
  *   in a higher z band, so an emergency panel can't lose to a scrubber.
+ * - `pinned` surfaces are immune to eviction while their predicate holds
+ *   (e.g. the route detail panel during editing) but still close
+ *   normally by every other path.
  * - A tap/click outside any open surface closes it (touch devices have
  *   no Escape key); Escape closes the most recently opened one as a
  *   desktop convenience. Both respect per-surface opt-outs.
@@ -35,6 +38,11 @@ export interface SurfaceDecl {
   group?: string;
   /** Never evicted, never closed by outside-click/Escape, higher z. */
   priority?: boolean;
+  /** Queried at eviction time: while true, the surface is not evicted by
+   *  other groups opening in its slot (it still closes via its own X,
+   *  Escape, or outside click). For surfaces that are sometimes a
+   *  workspace — e.g. the route detail panel during route editing. */
+  pinned?: () => boolean;
   /** Close on tap/click outside the surface (default true; mode bars
    *  whose purpose is map interaction should pass false). */
   closeOnOutsideClick?: boolean;
@@ -77,7 +85,7 @@ function handleOpened(s: SurfaceDecl): void {
   for (const other of surfaces) {
     if (other === s || other.slot !== s.slot) continue;
     if ((other.group ?? other.id) === group) continue;
-    if (other.priority) continue;
+    if (other.priority || other.pinned?.()) continue;
     if (other.isOpen()) {
       other.close();
       noteClosed(other.id);

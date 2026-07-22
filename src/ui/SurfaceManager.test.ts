@@ -27,6 +27,7 @@ function makeSurface(
     slot: opts.slot ?? "top-right",
     group: opts.group,
     priority: opts.priority,
+    pinned: opts.pinned,
     closeOnOutsideClick: opts.closeOnOutsideClick,
     el: () => el,
     isOpen: () => fake.open,
@@ -74,6 +75,22 @@ describe("SurfaceManager", () => {
     bar.opened();
     expect(panel.open).toBe(true);
     expect(bar.open).toBe(true);
+  });
+
+  it("does not evict a pinned surface while its predicate holds", () => {
+    let editing = true;
+    const detail = makeSurface("detail", { pinned: () => editing });
+    const sun = makeSurface("sun");
+    detail.opened();
+    sun.opened();
+    expect(detail.open).toBe(true);
+    expect(sun.open).toBe(true);
+
+    // Predicate off → normal eviction resumes.
+    editing = false;
+    detail.opened();
+    sun.opened();
+    expect(detail.open).toBe(false);
   });
 
   it("never evicts or outside-closes a priority surface", async () => {
