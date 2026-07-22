@@ -94,6 +94,25 @@ When a chart update is published, downloaded regions show an
 panel footer shows total storage used. Downloaded charts can be removed
 individually or all at once.
 
+## Save your home port
+
+Worth doing on day one: make your slip or mooring a waypoint.
+
+1. Right-click / long-press your spot on the chart and choose
+   **Mark waypoint here**.
+2. Open **Waypoints** (WPT) and tap the pencil on the new waypoint.
+3. Name it, pick the **Anchorage** icon (an anchor symbol on the chart),
+   and add a note if you like — mooring number, harbormaster phone,
+   whatever. **Save**.
+
+![Editing the home-port waypoint](/images/home-waypoint.png)
+
+The icon sets the chart symbol — Anchorage, Hazard, Fuel, and POI are the
+other options. From now on, **Navigate to** on that waypoint gives you a
+live bearing and distance home from wherever you are — see
+[Following a route](/routes#following-a-route) for what the navigation
+instruments show.
+
 ## Next steps
 
 - [The Chart Display](/chart-display) — chart modes, layers, and detail

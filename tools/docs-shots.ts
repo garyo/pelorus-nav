@@ -95,6 +95,8 @@ interface Scene {
   width?: number; // viewport width; default 1000
   /** Seed the recorded demo track (only track scenes want it visible). */
   seedTrack?: boolean;
+  /** Seed the "Home" anchorage waypoint (waypoint scenes only). */
+  seedWaypoint?: boolean;
   /** Drive the UI after the chart settles; the screenshot follows. */
   actions?: (page: Page) => Promise<void>;
 }
@@ -177,6 +179,19 @@ const SCENES: Scene[] = [
     },
   },
   {
+    name: "home-waypoint",
+    zoom: 13.8,
+    center: [-71.028, 42.327],
+    seedWaypoint: true,
+    actions: async (page) => {
+      await clickTopbar(page, "Waypoints");
+      await page.waitForSelector(".waypoint-manager-panel.open");
+      await page.click('.waypoint-manager-panel button[title="Edit"]');
+      await page.waitForSelector(".waypoint-edit-form");
+      await page.waitForTimeout(500);
+    },
+  },
+  {
     name: "track-viewer",
     zoom: 12.4,
     seedTrack: true,
@@ -234,6 +249,7 @@ async function shoot(scene: Scene, browser: Browser) {
       vessel: [number, number];
       wpts: typeof ROUTE_WPTS;
       track: typeof SEED_TRACK | null;
+      waypoint: boolean;
     }) => {
       localStorage.setItem(
         "pelorus-nav-settings",
@@ -278,7 +294,7 @@ async function shoot(scene: Scene, browser: Browser) {
       req.onsuccess = () => {
         const db = req.result;
         const tx = db.transaction(
-          ["routes", "tracks", "trackPoints"],
+          ["routes", "tracks", "trackPoints", "waypoints"],
           "readwrite",
         );
         tx.objectStore("routes").put({
@@ -289,6 +305,18 @@ async function shoot(scene: Scene, browser: Browser) {
           visible: true,
           waypoints: cfg.wpts.map(([lat, lon, name]) => ({ lat, lon, name })),
         });
+        if (cfg.waypoint) {
+          tx.objectStore("waypoints").put({
+            id: "docs-shot-home",
+            lat: 42.3286,
+            lon: -71.0405,
+            name: "Home",
+            notes: "Mooring #12",
+            icon: "anchorage",
+            createdAt: Date.now(),
+            updatedAt: Date.now(),
+          });
+        }
         if (cfg.track) {
           tx.objectStore("tracks").put(cfg.track.meta);
           const ptStore = tx.objectStore("trackPoints");
@@ -305,6 +333,7 @@ async function shoot(scene: Scene, browser: Browser) {
       vessel: scene.vessel ?? VESSEL,
       wpts: ROUTE_WPTS,
       track: scene.seedTrack ? SEED_TRACK : null,
+      waypoint: scene.seedWaypoint ?? false,
     },
   );
 
