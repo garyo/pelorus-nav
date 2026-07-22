@@ -58,7 +58,7 @@ distance, so a plotted line doubles as a measurement.
 
 ## A worked example
 
-Here's a half hour of classic chartwork in Nantasket Roads — a 1400 fix,
+Here's a half hour of classic chartwork in President Roads — a 1400 fix,
 a DR track run out at 5 knots, and at 1430 a bearing of Deer Island Light
 giving a line of position; where the LOP disagrees with the 1430 DR, an
 EP square marks the better answer. A 0.4 NM danger arc rings the light,

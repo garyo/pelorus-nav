@@ -91,10 +91,12 @@ const SEED_TRACK = buildSeedTrack();
 // with computed magnetic bearings and distances itself.
 function buildPlotSheet() {
   const LIGHT = { lat: 42.33965, lon: -70.95455 }; // Deer Island Light
-  const A = { lat: 42.3245, lon: -71.001 }; // 1400 fix
-  const B = { lat: 42.3305, lon: -70.9445 }; // 1430 DR
+  // The DR track runs east mid-channel through President Roads — keep it
+  // in deep water; nobody wants a worked example aground on Nixes Mate.
+  const A = { lat: 42.3372, lon: -71.001 }; // 1400 fix
+  const B = { lat: 42.3348, lon: -70.9455 }; // 1430 DR
   const MID = { lat: (A.lat + B.lat) / 2, lon: (A.lon + B.lon) / 2 };
-  const EP = { lat: 42.3318, lon: -70.947 }; // LOP pushes the DR a bit N
+  const EP = { lat: 42.336, lon: -70.948 }; // LOP pushes the DR a bit N
 
   const brg = (
     from: { lat: number; lon: number },
@@ -155,14 +157,14 @@ function buildPlotSheet() {
       el(
         {
           type: "current-arrow",
-          lat: 42.32,
-          lon: -70.976,
+          lat: 42.3335,
+          lon: -70.986,
           setTrue: 235,
           driftKnots: 1.0,
         },
         8,
       ),
-      el({ type: "text", lat: 42.3185, lon: -70.9875, text: "Ebb 1.0 kn" }, 9),
+      el({ type: "text", lat: 42.332, lon: -70.9955, text: "Ebb 1.0 kn" }, 9),
     ],
   };
 }
@@ -183,6 +185,8 @@ interface Scene {
   seedWaypoint?: boolean;
   /** Seed the worked example plotting sheet (plotting scenes only). */
   seedPlot?: boolean;
+  /** Set false to omit the demo route (default true). */
+  seedRoute?: boolean;
   /** Extra fields merged into the seeded settings blob (e.g. layerGroups). */
   settings?: Record<string, unknown>;
   /** Screenshot only this element instead of the full page. */
@@ -270,10 +274,11 @@ const SCENES: Scene[] = [
   },
   {
     name: "plotting",
-    zoom: 13.1,
-    center: [-70.972, 42.3285],
+    zoom: 13.4,
+    center: [-70.974, 42.3345],
     vessel: [42.365, -70.905], // out of frame; the plot is the subject
     seedPlot: true,
+    seedRoute: false,
     actions: async (page) => {
       await clickTopbar(page, "Plot");
       await page.waitForSelector(".plot-toolbar");
@@ -415,7 +420,7 @@ async function shoot(scene: Scene, browser: Browser) {
       };
       version: string;
       vessel: [number, number];
-      wpts: typeof ROUTE_WPTS;
+      wpts: typeof ROUTE_WPTS | null;
       track: typeof SEED_TRACK | null;
       waypoint: boolean;
       plot: typeof SEED_PLOT | null;
@@ -468,14 +473,16 @@ async function shoot(scene: Scene, browser: Browser) {
           "readwrite",
         );
         if (cfg.plot) tx.objectStore("plottingSheets").put(cfg.plot);
-        tx.objectStore("routes").put({
-          id: "docs-shot-route",
-          name: "Outer Harbor",
-          createdAt: Date.now(),
-          color: "#ffcc00",
-          visible: true,
-          waypoints: cfg.wpts.map(([lat, lon, name]) => ({ lat, lon, name })),
-        });
+        if (cfg.wpts) {
+          tx.objectStore("routes").put({
+            id: "docs-shot-route",
+            name: "Outer Harbor",
+            createdAt: Date.now(),
+            color: "#ffcc00",
+            visible: true,
+            waypoints: cfg.wpts.map(([lat, lon, name]) => ({ lat, lon, name })),
+          });
+        }
         if (cfg.waypoint) {
           tx.objectStore("waypoints").put({
             id: "docs-shot-home",
@@ -502,7 +509,7 @@ async function shoot(scene: Scene, browser: Browser) {
       scene: scene,
       version: APP_VERSION,
       vessel: scene.vessel ?? VESSEL,
-      wpts: ROUTE_WPTS,
+      wpts: scene.seedRoute === false ? null : ROUTE_WPTS,
       track: scene.seedTrack ? SEED_TRACK : null,
       waypoint: scene.seedWaypoint ?? false,
       plot: scene.seedPlot ? SEED_PLOT : null,
