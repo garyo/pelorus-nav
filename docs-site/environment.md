@@ -15,7 +15,7 @@ Turn on the **Tides & Currents** layer group and zoom into a harbor:
   <img src="/images/icons/peltidg0.png" width="26" style="display:inline-block; vertical-align:middle; margin:0 3px" alt="tide gauge, low">
   <img src="/images/icons/peltidg2.png" width="26" style="display:inline-block; vertical-align:middle; margin:0 3px" alt="tide gauge, half">
   <img src="/images/icons/peltidg4.png" width="26" style="display:inline-block; vertical-align:middle; margin:0 3px" alt="tide gauge, high">
-  show the predicted water height with a trend arrow — `9ft ↑` means nine
+  show the predicted water height with a trend arrow — `6ft ↑` means six
   feet and rising. The icon fills with the tide: nearly empty at low
   water, full at high.
 - **Current stations**
