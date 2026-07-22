@@ -654,6 +654,20 @@ export default {
       );
     }
 
+    // Online user guide (VitePress, built into dist/doc/userguide by
+    // `bun run build`). html_handling is "none", so directory URLs must be
+    // rewritten to their index.html here; VitePress page links carry .html
+    // extensions and resolve as plain assets.
+    if (url.pathname === "/doc" || url.pathname === "/doc/") {
+      return Response.redirect(new URL("/doc/userguide/", url).toString(), 302);
+    }
+    if (/^\/doc\//.test(url.pathname) && !/\.[a-z0-9]+$/i.test(url.pathname)) {
+      const dir = url.pathname.replace(/\/$/, "");
+      return env.ASSETS.fetch(
+        new Request(new URL(`${dir}/index.html`, url), request),
+      );
+    }
+
     // Privacy policy at a clean URL (required by Play Store / App Store).
     if (url.pathname === "/privacy") {
       return env.ASSETS.fetch(

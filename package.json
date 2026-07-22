@@ -6,7 +6,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc && vite build && rm -f dist/*.pmtiles dist/*.coverage.geojson dist/*.search.json",
+    "build": "tsc && vite build && rm -f dist/*.pmtiles dist/*.coverage.geojson dist/*.search.json && ([ \"$CAPACITOR\" = \"1\" ] || bun run docs:build)",
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
@@ -19,6 +19,10 @@
     "format": "biome format --write .",
     "typecheck": "tsc --noEmit && tsc -p tsconfig.worker.json --noEmit",
     "check": "bun run typecheck && bun run lint && bun run test",
+    "docs:dev": "vitepress dev docs-site",
+    "docs:build": "vitepress build docs-site",
+    "docs:preview": "vitepress preview docs-site",
+    "docs:shots": "bun tools/docs-shots.ts",
     "admin": "cd tools/admin && uv run pelorus-admin",
     "sprites": "bun tools/sprites/build-s52-sprites.ts",
     "sprites:catalog": "uv run --with reportlab --with svglib python tools/sprites/render-sprite-catalog.py",
@@ -74,6 +78,7 @@
     "typescript": "^5.9.3",
     "vite": "^7.3.1",
     "vite-plugin-pwa": "^1.2.0",
+    "vitepress": "^1.6.4",
     "vitest": "^4.0.18",
     "wrangler": "^4.70.0",
     "ws": "8.18.0"

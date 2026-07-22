@@ -82,3 +82,7 @@ ios/.beta-config
 public/test-chart.pmtiles
 .dev.vars
 ios/version.xcconfig
+
+# VitePress user guide (docs-site/) build cache
+docs-site/.vitepress/cache/
+docs-site/.vitepress/dist/
