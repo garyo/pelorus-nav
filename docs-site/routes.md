@@ -56,8 +56,22 @@ the chart to the whole route.
 Per-route actions: navigate, preview (opens the route in the
 [Track Viewer](/tracks#the-track-viewer), where a planning speed gives you
 time estimates along it), export GPX, edit, show/hide on the chart, and
-delete. Routes can be
-organized into folders via the dropdown in the detail panel.
+delete.
+
+### Organizing with folders
+
+Once you have more than a handful of routes, put them in folders. Select a
+route and use the dropdown at the bottom of its detail panel — pick an
+existing folder or **New folder…** to create one:
+
+![Routes organized into folders](/images/route-folders.png)
+
+In the Routes panel, foldered routes group under collapsible headers with
+a route count — tap a header to expand or collapse it (the panel
+remembers which folders you keep closed). The eye button on a folder
+header shows or hides *every* route in it at once, so you can keep last
+summer's cruise legs filed away and invisible while today's routes stay
+on the chart. A route with no folder simply lists at the top.
 
 ### Export and import (GPX)
 

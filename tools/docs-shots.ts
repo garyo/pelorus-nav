@@ -191,6 +191,8 @@ interface Scene {
   seedPlot?: boolean;
   /** Set false to omit the demo route (default true). */
   seedRoute?: boolean;
+  /** Seed extra routes organized into folders (folder scenes only). */
+  seedFolders?: boolean;
   /** Extra fields merged into the seeded settings blob (e.g. layerGroups). */
   settings?: Record<string, unknown>;
   /** Screenshot only this element instead of the full page. */
@@ -385,6 +387,20 @@ const SCENES: Scene[] = [
     },
   },
   {
+    name: "route-folders",
+    zoom: 12.3,
+    center: [-70.97, 42.345],
+    seedFolders: true,
+    settings: { collapsedRouteFolders: ["Maine Cruise"] },
+    actions: async (page) => {
+      await openRoutePanel(page);
+      await page.click(
+        '.route-manager-panel .manager-item-name:has-text("Outer Harbor")',
+      );
+      await page.waitForSelector(".route-detail-panel.open");
+    },
+  },
+  {
     name: "route-navigation",
     zoom: 12.6,
     center: [-70.96, 42.34],
@@ -428,6 +444,7 @@ async function shoot(scene: Scene, browser: Browser) {
       track: typeof SEED_TRACK | null;
       waypoint: boolean;
       plot: typeof SEED_PLOT | null;
+      folders: boolean;
     }) => {
       localStorage.setItem(
         "pelorus-nav-settings",
@@ -477,6 +494,58 @@ async function shoot(scene: Scene, browser: Browser) {
           "readwrite",
         );
         if (cfg.plot) tx.objectStore("plottingSheets").put(cfg.plot);
+        if (cfg.folders) {
+          // Hidden filler routes; only their names/folders matter here.
+          const filler: Array<[string, string, [number, number][]]> = [
+            [
+              "Harbor Loop",
+              "Day Sails",
+              [
+                [42.34, -71.01],
+                [42.33, -70.99],
+              ],
+            ],
+            [
+              "Spectacle Is. Picnic",
+              "Day Sails",
+              [
+                [42.34, -71.02],
+                [42.325, -70.988],
+              ],
+            ],
+            [
+              "Gloucester → Isles of Shoals",
+              "Maine Cruise",
+              [
+                [42.61, -70.66],
+                [42.98, -70.62],
+              ],
+            ],
+            [
+              "Shoals → Portland",
+              "Maine Cruise",
+              [
+                [42.98, -70.62],
+                [43.65, -70.24],
+              ],
+            ],
+          ];
+          filler.forEach(([name, folder, pts], i) => {
+            tx.objectStore("routes").put({
+              id: `docs-folder-route-${i}`,
+              name,
+              folder,
+              createdAt: Date.now() - (i + 1) * 86_400_000,
+              color: "#44aacc",
+              visible: false,
+              waypoints: pts.map(([lat, lon], j) => ({
+                lat,
+                lon,
+                name: `WP${j + 1}`,
+              })),
+            });
+          });
+        }
         if (cfg.wpts) {
           tx.objectStore("routes").put({
             id: "docs-shot-route",
@@ -517,6 +586,7 @@ async function shoot(scene: Scene, browser: Browser) {
       track: scene.seedTrack ? SEED_TRACK : null,
       waypoint: scene.seedWaypoint ?? false,
       plot: scene.seedPlot ? SEED_PLOT : null,
+      folders: scene.seedFolders ?? false,
     },
   );
 
