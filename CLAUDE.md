@@ -26,9 +26,12 @@ Pelorus Nav — open-source web-based marine chartplotter (PWA). See PLAN.md for
 - `bun run docs:shots [scene ...]` — regenerate the guide's screenshots
   (`tools/docs-shots.ts` → `docs-site/public/images/`, committed to git).
   Deterministic: dev-only `?simMode=linear` pins the vessel; seeds mirror
-  `src/data/db.ts`. Needs the dev server running. **Re-run after UI changes
-  that alter documented screens**, and update the guide when user-visible
-  behavior it documents changes.
+  `src/data/db.ts`. Needs the dev server running (`DOCS_SHOTS_BASE` overrides
+  the default :5173 if the docs dev server holds that port). **Re-run after UI
+  changes that alter documented screens**, and update the guide when
+  user-visible behavior it documents changes.
+- `bun tools/docs-icons.ts` — enlarged chart-symbol PNGs for inline guide use,
+  rendered from the day-theme sprite SVGs (needs `bun run sprites` first)
 
 ## Code Conventions
 - Use `double quotes` and `semicolons` (enforced by Biome)
