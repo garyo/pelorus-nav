@@ -20,6 +20,15 @@ Pelorus Nav — open-source web-based marine chartplotter (PWA). See PLAN.md for
 - `bun run lint:fix` — auto-fix lint + format
 - `bun run typecheck` — TypeScript type checking
 - `bun run check` — run typecheck + lint + test (use before committing)
+- `bun run docs:dev` / `docs:build` — the online user guide (VitePress, `docs-site/`),
+  served in production at `/doc/userguide` (route in `src/worker.ts`; built into
+  `dist/doc/userguide` by `bun run build`, skipped when `CAPACITOR=1`)
+- `bun run docs:shots [scene ...]` — regenerate the guide's screenshots
+  (`tools/docs-shots.ts` → `docs-site/public/images/`, committed to git).
+  Deterministic: dev-only `?simMode=linear` pins the vessel; seeds mirror
+  `src/data/db.ts`. Needs the dev server running. **Re-run after UI changes
+  that alter documented screens**, and update the guide when user-visible
+  behavior it documents changes.
 
 ## Code Conventions
 - Use `double quotes` and `semicolons` (enforced by Biome)
