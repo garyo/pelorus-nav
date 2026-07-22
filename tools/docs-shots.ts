@@ -188,16 +188,6 @@ const SCENES: Scene[] = [
     actions: async (page) => {
       await clickTopbar(page, "Time forecast");
       await page.waitForSelector(".time-bar", { state: "visible" });
-      // Scrub 3 hours ahead so the labels clearly differ from "Now".
-      await page.evaluate(() => {
-        const slider =
-          document.querySelector<HTMLInputElement>(".time-bar-slider");
-        if (slider) {
-          slider.value = String(3 * 3_600_000);
-          slider.dispatchEvent(new Event("input", { bubbles: true }));
-          slider.dispatchEvent(new Event("change", { bubbles: true }));
-        }
-      });
       await page.waitForTimeout(4_000); // debounced prediction rebuild
     },
   },
