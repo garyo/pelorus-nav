@@ -39,6 +39,9 @@ function routeBbox(route: Route): [number, number, number, number] | null {
 export class RouteLayer {
   private readonly map: maplibregl.Map;
   private loadedRoutes = new Map<string, Route>();
+  /** Routes hidden in-session only (e.g. while being edited). The DB still
+   *  says visible, so reloadAll/updateRoute must not resurrect them. */
+  private hiddenIds = new Set<string>();
   private selectedRouteId: string | null = null;
   private readonly selectionHalo: SelectionHalo;
 
@@ -61,7 +64,7 @@ export class RouteLayer {
 
     const routes = await getAllRoutes();
     for (const route of routes) {
-      if (route.visible) {
+      if (route.visible && !this.hiddenIds.has(route.id)) {
         this.addRoute(route);
       }
       this.loadedRoutes.set(route.id, route);
@@ -85,9 +88,11 @@ export class RouteLayer {
     if (!route) return;
     route.visible = visible;
     if (visible) {
+      this.hiddenIds.delete(id);
       this.addRoute(route);
       reapplyOverlayDimming(this.map);
     } else {
+      this.hiddenIds.add(id);
       this.removeRoute(id);
     }
   }
@@ -95,7 +100,7 @@ export class RouteLayer {
   /** Update a route's display (e.g. during editing). */
   updateRoute(route: Route): void {
     this.loadedRoutes.set(route.id, route);
-    if (route.visible) {
+    if (route.visible && !this.hiddenIds.has(route.id)) {
       this.addRoute(route);
       reapplyOverlayDimming(this.map);
     }
