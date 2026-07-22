@@ -97,6 +97,8 @@ interface Scene {
   seedTrack?: boolean;
   /** Seed the "Home" anchorage waypoint (waypoint scenes only). */
   seedWaypoint?: boolean;
+  /** Extra fields merged into the seeded settings blob (e.g. layerGroups). */
+  settings?: Record<string, unknown>;
   /** Drive the UI after the chart settles; the screenshot follows. */
   actions?: (page: Page) => Promise<void>;
 }
@@ -179,6 +181,67 @@ const SCENES: Scene[] = [
     },
   },
   {
+    name: "tides-time",
+    zoom: 11.4,
+    center: [-70.95, 42.31],
+    settings: { layerGroups: { tidesCurrents: true } },
+    actions: async (page) => {
+      await clickTopbar(page, "Time forecast");
+      await page.waitForSelector(".time-bar", { state: "visible" });
+      // Scrub 3 hours ahead so the labels clearly differ from "Now".
+      await page.evaluate(() => {
+        const slider =
+          document.querySelector<HTMLInputElement>(".time-bar-slider");
+        if (slider) {
+          slider.value = String(3 * 3_600_000);
+          slider.dispatchEvent(new Event("input", { bubbles: true }));
+          slider.dispatchEvent(new Event("change", { bubbles: true }));
+        }
+      });
+      await page.waitForTimeout(4_000); // debounced prediction rebuild
+    },
+  },
+  {
+    name: "tide-station",
+    zoom: 12.4,
+    center: [-70.975, 42.295],
+    settings: { layerGroups: { tidesCurrents: true } },
+    actions: async (page) => {
+      // Tap the Nut Island reference tide station (NOAA 8444525) — an
+      // uncluttered spot so the pick doesn't land on other chart features.
+      await page.waitForTimeout(2_000); // stations debounce in after load
+      const pt = await page.evaluate(() => {
+        const map = (
+          window as unknown as {
+            __map: {
+              project(c: [number, number]): { x: number; y: number };
+            };
+          }
+        ).__map;
+        return map.project([-70.9533, 42.28]);
+      });
+      await page.mouse.click(pt.x, pt.y);
+      await page.waitForSelector(".feature-info-panel", { state: "visible" });
+      await page.waitForTimeout(1_000);
+    },
+  },
+  {
+    name: "wind-barbs",
+    zoom: 10.2,
+    center: [-70.8, 42.3],
+    settings: { layerGroups: { wind: true } },
+    actions: async (page) => {
+      await page.waitForTimeout(6_000); // Open-Meteo fetch + barb paint
+    },
+  },
+  {
+    name: "sun-times",
+    actions: async (page) => {
+      await clickTopbar(page, "Sun & twilight times");
+      await page.waitForSelector(".sun-popup");
+    },
+  },
+  {
     name: "home-waypoint",
     zoom: 13.8,
     center: [-71.028, 42.327],
@@ -244,7 +307,12 @@ async function shoot(scene: Scene, browser: Browser) {
 
   await page.addInitScript(
     (cfg: {
-      scene: { theme?: string; zoom?: number; center?: [number, number] };
+      scene: {
+        theme?: string;
+        zoom?: number;
+        center?: [number, number];
+        settings?: Record<string, unknown>;
+      };
       version: string;
       vessel: [number, number];
       wpts: typeof ROUTE_WPTS;
@@ -259,6 +327,7 @@ async function shoot(scene: Scene, browser: Browser) {
           chartMode: "free",
           showInstrumentHUD: true,
           displayTheme: cfg.scene.theme ?? "day",
+          ...cfg.scene.settings,
         }),
       );
       localStorage.setItem("pelorus-nav-last-seen-version", cfg.version);

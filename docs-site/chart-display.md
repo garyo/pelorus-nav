@@ -71,6 +71,13 @@ destroying your night vision:
 
 The E-ink theme is a high-contrast monochrome palette for e-paper devices.
 
+## Finding places
+
+**FIND** searches the charts by name — harbors, islands, buoys, lights —
+ranked with nearby results first. It works offline (the search index
+downloads with each chart region), and typing coordinates offers a "go to
+coordinates" result instead. Pick a result and the chart flies there.
+
 ## The map context menu
 
 Right-click (or long-press on touch screens) anywhere on the chart:

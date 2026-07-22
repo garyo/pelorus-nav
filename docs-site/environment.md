@@ -1,0 +1,72 @@
+# Tides, Currents, Wind & Sun
+
+Pelorus Nav overlays predicted conditions directly on the chart, and lets
+you scrub them up to 48 hours into the future. The tide and current
+overlays are enabled in Settings → **Charts & Layers** (off by default);
+sun times are always a tap away.
+
+## Tides & currents
+
+Turn on the **Tides & Currents** layer group and zoom into a harbor:
+
+![Tides and currents with the time bar](/images/tides-time.png)
+
+- **Tide stations** show the predicted water height with a trend arrow —
+  `9ft ↑` means nine feet and rising. The icon fills as the tide comes in.
+- **Current stations** draw an arrow pointing the direction the current
+  sets, sized by its strength, with the drift labeled as you zoom in
+  (e.g. `0.5 Kt`). At slack, a double-ended marker shows the flood and ebb
+  directions.
+
+Predictions are computed on the device from NOAA harmonic data bundled
+with the app, so they work fully offline — no signal required at anchor.
+
+Tap any station for its schedule:
+
+![A current station's schedule](/images/tide-station.png)
+
+The panel shows conditions right now, then the coming day's events — highs
+and lows for tide stations; max flood, slack, and max ebb for current
+stations. Secondary stations (predicted by offsets from a nearby reference
+station) are labeled as such and are approximate.
+
+## The time bar
+
+The chart normally shows conditions **now**. Tap **TIME** and a bar
+appears at the bottom of the chart: drag the slider (or step ±1h) to any
+point in the next 48 hours, and every prediction overlay — tide heights,
+current arrows, wind barbs — updates to show that moment. The readout
+shows the offset and wall-clock time (`+3h · Wed 06:18 PM EDT`).
+
+Answer questions like "which way will the current be running in the canal
+at 5 o'clock?" before you commit to it. **Now** (or closing the bar) snaps
+back to live conditions; your vessel and GPS always stay in real time.
+
+## Wind
+
+The **Wind** layer group draws standard meteorological wind barbs over the
+chart — the staff points from the direction the wind is coming *from*, a
+half barb is 5 knots, a full barb 10, a pennant 50:
+
+![Wind barbs over Massachusetts Bay](/images/wind-barbs.png)
+
+Forecasts come from Open-Meteo, so this overlay needs an internet
+connection (it fetches a 3-day forecast at a time, and the time bar scrubs
+within it without re-fetching). A status chip tells you when wind data
+isn't available.
+
+There's also a separate **Weather** layer group (temperature,
+precipitation, clouds, pressure raster overlays) which requires a free
+OpenWeatherMap API key — enter it in Settings → Charts & Layers if you
+want it.
+
+## Sun & twilight times
+
+Tap **SUN** for a week of dawn, sunrise, sunset, and dusk times at the
+chart's location (dawn/dusk are civil twilight — roughly when you can
+still see to work on deck):
+
+![Sun and twilight times](/images/sun-times.png)
+
+Computed offline, like the tides — handy for planning a dawn departure or
+making sure you clear the harbor entrance before dark.

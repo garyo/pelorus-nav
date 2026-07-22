@@ -26,6 +26,8 @@ tracks, tides and currents, and man-overboard.
 - [Routes](/routes) — creating, editing, and following routes.
 - [Tracks](/tracks) — recording where you went, and reliving it in the
   Track Viewer.
+- [Tides, Currents, Wind & Sun](/environment) — predicted conditions on
+  the chart, up to 48 hours ahead.
 
 The guide covers the interesting parts, not every menu item — most of the app
 is meant to be discoverable by tapping around, and nothing you do in a panel
