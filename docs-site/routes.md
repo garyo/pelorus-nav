@@ -54,9 +54,22 @@ a passage plan you can read off directly. The summary at the bottom zooms
 the chart to the whole route.
 
 Per-route actions: navigate, preview (zoom to it without navigating),
-export GPX, edit, show/hide on the chart, and delete. The panel header has
-GPX import/export for moving routes between apps, and routes can be
+export GPX, edit, show/hide on the chart, and delete. Routes can be
 organized into folders via the dropdown in the detail panel.
+
+### Export and import (GPX)
+
+The panel header's import/export buttons read and write standard GPX files,
+and each route row can be exported individually. Two reasons to use them:
+
+- **Backup** — routes live in the app's local storage on that device.
+  Export All every so often and you can't lose a season's planning to a
+  lost phone or a cleared browser.
+- **Moving between devices** — there's no cloud sync (by design; it works
+  offline). The comfortable workflow is to plan routes on a desktop with a
+  big screen and mouse, Export All, then import the file on the phone or
+  tablet you navigate with. GPX is the standard interchange format, so the
+  same files also move routes to and from other chartplotters and apps.
 
 ## Following a route
 
