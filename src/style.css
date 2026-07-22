@@ -1924,6 +1924,9 @@ body {
 /* Route detail panel (leg table) */
 .route-detail-panel {
   width: 320px;
+  /* Tighter than the shared 50vh cap: this panel stacks under the route
+     manager in the same slot; dvh avoids the iOS URL-bar viewport trap. */
+  max-height: min(50vh, 45dvh);
 }
 
 /* Interleaved waypoint+leg list. Each waypoint row is followed by an
@@ -1942,6 +1945,21 @@ body {
 
 .route-list-wp.active {
   color: #8fff8f;
+}
+
+/* During route editing, waypoint rows are clickable selection targets;
+   .selected mirrors the map's yellow highlight ring. */
+.route-list-wp.selectable {
+  cursor: pointer;
+}
+
+.route-list-wp.selectable:hover {
+  background: rgba(255, 204, 0, 0.08);
+}
+
+.route-list-wp.selected {
+  background: rgba(255, 204, 0, 0.16);
+  color: #ffcc00;
 }
 
 .route-list-wp-idx {

@@ -1,11 +1,13 @@
 /**
  * Panel showing a route's leg table: course, distance, and cumulative
- * distance for each leg.  Hovering/clicking a row highlights that leg
- * on the map.
+ * distance for each leg.  Hovering/clicking a leg row highlights that leg
+ * on the map.  While the route is being edited, waypoint rows become
+ * selection targets kept in two-way sync with the map's tap-to-select.
  */
 
 import { getAllRoutes, saveRoute } from "../data/db";
 import type { Route } from "../data/Route";
+import type { RouteEditor } from "../map/RouteEditor";
 import type { RouteLayer } from "../map/RouteLayer";
 import type {
   ActiveNavCallback,
@@ -69,8 +71,12 @@ export class RouteDetailPanel {
   private readonly body: HTMLDivElement;
   private readonly footer: HTMLDivElement;
   private readonly routeLayer: RouteLayer;
+  private readonly editor: RouteEditor;
   private activeNav: ActiveNavigationManager | null = null;
   private currentRoute: Route | null = null;
+  /** Last selected waypoint index scrolled into view; guards against
+   *  re-renders (drags, etc.) yanking the user's scroll position. */
+  private lastScrolledSel: number | null = null;
   private navCallback: ActiveNavCallback | null = null;
   private readonly navBtn: HTMLButtonElement;
   onEdit: ((route: Route) => void) | null = null;
@@ -81,8 +87,9 @@ export class RouteDetailPanel {
   onRename: ((route: Route) => void) | null = null;
   onFolderChange: ((route: Route) => void) | null = null;
 
-  constructor(routeLayer: RouteLayer) {
+  constructor(routeLayer: RouteLayer, editor: RouteEditor) {
     this.routeLayer = routeLayer;
+    this.editor = editor;
 
     this.el = document.createElement("div");
     this.el.className = "manager-panel route-detail-panel";
@@ -266,9 +273,10 @@ export class RouteDetailPanel {
 
     const legs = buildLegs(route);
 
-    if (legs.length === 0) {
-      this.body.innerHTML =
-        '<div class="manager-empty">No legs (need at least 2 waypoints)</div>';
+    if (route.waypoints.length === 0) {
+      this.body.innerHTML = this.isEditingThisRoute()
+        ? '<div class="manager-empty">No waypoints yet — tap the map to add some</div>'
+        : '<div class="manager-empty">No waypoints</div>';
       this.renderFooter(route, "");
       return;
     }
@@ -281,10 +289,33 @@ export class RouteDetailPanel {
     this.body.innerHTML = "";
     this.body.appendChild(this.buildRouteList(route, legs, activeLegIdx));
 
-    const totalDist = legs[legs.length - 1].cumDist;
     this.renderFooter(
       route,
-      `${legs.length} leg${legs.length !== 1 ? "s" : ""}, ${fmtDist(totalDist)} NM`,
+      legs.length === 0
+        ? ""
+        : `${legs.length} leg${legs.length !== 1 ? "s" : ""}, ${fmtDist(legs[legs.length - 1].cumDist)} NM`,
+    );
+
+    // Keep the selected waypoint's row visible, but only when the
+    // selection actually changed — other re-renders (drags, renames)
+    // must not yank the user's scroll position.
+    const sel = this.isEditingThisRoute()
+      ? this.editor.getSelectedIndex()
+      : null;
+    if (sel !== null && sel !== this.lastScrolledSel) {
+      this.body
+        .querySelector(".route-list-wp.selected")
+        ?.scrollIntoView({ block: "nearest" });
+    }
+    this.lastScrolledSel = sel;
+  }
+
+  /** True when the panel is showing the editor's live route. */
+  private isEditingThisRoute(): boolean {
+    return (
+      this.editor.isEditing() &&
+      this.currentRoute !== null &&
+      this.editor.getRoute() === this.currentRoute
     );
   }
 
@@ -368,6 +399,8 @@ export class RouteDetailPanel {
     const wrap = document.createElement("div");
     wrap.className = "route-list";
     const navigating = activeLegIdx >= 0;
+    const editing = this.isEditingThisRoute();
+    const selIdx = editing ? this.editor.getSelectedIndex() : null;
 
     for (let i = 0; i < route.waypoints.length; i++) {
       // ── waypoint row ────────────────────────────────────────────
@@ -386,6 +419,20 @@ export class RouteDetailPanel {
         this.renameWaypoint(route, i, name),
       );
       wpRow.append(idx, name);
+      if (editing) {
+        // Waypoint rows mirror the map's tap-to-select: clicking selects
+        // (yellow ring + Delete/Insert bar), clicking again deselects.
+        // Dblclick rename still works: its two clicks toggle selection
+        // twice (a no-op) before the dblclick fires.
+        wpRow.classList.add("selectable");
+        if (selIdx === i) wpRow.classList.add("selected");
+        wpRow.addEventListener("click", () => {
+          this.editor.setSelectedIndex(
+            this.editor.getSelectedIndex() === i ? null : i,
+            { reveal: true },
+          );
+        });
+      }
       wrap.appendChild(wpRow);
 
       // ── leg row (skip after the final waypoint) ─────────────────
@@ -428,12 +475,16 @@ export class RouteDetailPanel {
       cum.textContent = `Σ ${fmtDist(leg.cumDist)}`;
       legRow.append(course, dist, cum);
 
-      legRow.addEventListener("mouseenter", () =>
-        this.selectLeg(legRow, leg.index),
-      );
-      legRow.addEventListener("mouseleave", () => this.clearSelection());
+      // While editing, the route's normal display is hidden so the leg
+      // highlight would draw nothing — keep only the camera fit.
+      legRow.addEventListener("mouseenter", () => {
+        if (!editing) this.selectLeg(legRow, leg.index);
+      });
+      legRow.addEventListener("mouseleave", () => {
+        if (!editing) this.clearSelection();
+      });
       legRow.addEventListener("click", () => {
-        this.selectLeg(legRow, leg.index);
+        if (!editing) this.selectLeg(legRow, leg.index);
         this.routeLayer.fitLeg(route, leg.index);
       });
       wrap.appendChild(legRow);

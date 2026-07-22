@@ -57,7 +57,7 @@ export class RouteManagerPanel {
   constructor(routeLayer: RouteLayer, editor: RouteEditor) {
     this.routeLayer = routeLayer;
     this.editor = editor;
-    this.detailPanel = new RouteDetailPanel(routeLayer);
+    this.detailPanel = new RouteDetailPanel(routeLayer, editor);
     this.detailPanel.onFolderChange = () => {
       this.refresh().catch(console.error);
     };

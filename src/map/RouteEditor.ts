@@ -134,6 +134,28 @@ export class RouteEditor {
     return this.route;
   }
 
+  /** Currently selected waypoint index, or null. */
+  getSelectedIndex(): number | null {
+    return this.selectedIndex;
+  }
+
+  /** Select (or deselect with null) a waypoint programmatically — same
+   *  effect as tapping it on the map. With reveal, ease the map to the
+   *  waypoint if it's off-screen. */
+  setSelectedIndex(index: number | null, opts?: { reveal?: boolean }): void {
+    if (index === null) {
+      this.deselect();
+      return;
+    }
+    this.select(index);
+    if (opts?.reveal) {
+      const wp = this.route?.waypoints[this.selectedIndex ?? -1];
+      if (wp && !this.map.getBounds().contains([wp.lon, wp.lat])) {
+        this.map.easeTo({ center: [wp.lon, wp.lat], duration: 400 });
+      }
+    }
+  }
+
   /** Pick a default name for a new waypoint at (lat, lon): the nearest
    *  named chart feature within ~200 m, or the WP-N fallback. When the
    *  feature-derived name duplicates an adjacent waypoint close by (both
