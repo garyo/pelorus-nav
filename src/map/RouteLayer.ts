@@ -83,6 +83,13 @@ export class RouteLayer {
     reapplyOverlayDimming(this.map);
   }
 
+  /** Routes currently shown on the map (visible and not session-hidden). */
+  getVisibleRoutes(): Route[] {
+    return [...this.loadedRoutes.values()].filter(
+      (r) => r.visible && !this.hiddenIds.has(r.id),
+    );
+  }
+
   async toggleVisibility(id: string, visible: boolean): Promise<void> {
     const route = this.loadedRoutes.get(id);
     if (!route) return;

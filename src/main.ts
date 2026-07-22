@@ -1308,6 +1308,7 @@ routePanel.setOnPreviewRoute((route) => {
 // --- Waypoints + Active Navigation ---
 const activeNav = new ActiveNavigationManager(navManager);
 const waypointLayer = new WaypointLayer(chartManager.map);
+routeEditor.setSnapWaypointsProvider(() => waypointLayer.getWaypoints());
 const navHud = new NavigationHUD(
   chartManager.map,
   navManager,

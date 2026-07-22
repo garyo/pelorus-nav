@@ -14,6 +14,7 @@ import type maplibregl from "maplibre-gl";
 import { saveRoute } from "../data/db";
 import type { Route, Waypoint } from "../data/Route";
 import type { SearchEntry } from "../data/search-index";
+import type { StandaloneWaypoint } from "../data/Waypoint";
 import { findNearestNamedFeature } from "../search/feature-search";
 import { getSettings } from "../settings";
 import { haversineDistanceNM, initialBearingDeg } from "../utils/coordinates";
@@ -30,6 +31,12 @@ import { startEditTapDiag } from "./editTapDiag";
 import { getMode, setMode } from "./InteractionMode";
 import { ensurePointIcons, pointRole, ROLE_ICON_EXPR } from "./point-icons";
 import type { RouteLayer } from "./RouteLayer";
+import {
+  collectSnapCandidates,
+  findSnap,
+  type SnapCandidate,
+  type SnapOp,
+} from "./route-snap";
 
 /** Max fraction of first leg length for the prepend handle offset. */
 const PREPEND_MAX_FRACTION = 0.8;
@@ -58,6 +65,8 @@ const SOURCE_PREVIEW = "_route-edit-preview";
 const LAYER_PREVIEW = "_route-edit-preview";
 const SOURCE_HIGHLIGHT = "_route-edit-highlight";
 const LAYER_HIGHLIGHT = "_route-edit-highlight";
+const SOURCE_SNAP = "_route-edit-snap";
+const LAYER_SNAP = "_route-edit-snap";
 
 type EditorListener = () => void;
 type FinishListener = (route: Route) => void;
@@ -84,6 +93,11 @@ export class RouteEditor {
   private cancelListeners: ((existingId: string | null) => void)[] = [];
   /** Source of charted-feature names for waypoint auto-naming. */
   private getSearchEntries: (() => SearchEntry[]) | null = null;
+  /** Source of standalone waypoints for snap targets. */
+  private getSnapWaypoints: (() => readonly StandaloneWaypoint[]) | null = null;
+  /** Snap targets outside the editing route (other visible routes +
+   *  standalone waypoints), cached for the edit session. */
+  private snapExternal: SnapCandidate[] = [];
 
   constructor(map: maplibregl.Map, routeLayer: RouteLayer) {
     this.map = map;
@@ -155,6 +169,12 @@ export class RouteEditor {
    *  feature when one is close enough. */
   setSearchEntriesProvider(getter: () => SearchEntry[]): void {
     this.getSearchEntries = getter;
+  }
+
+  /** Provide a getter for standalone waypoints, used as snap targets when
+   *  placing or dragging route waypoints. */
+  setSnapWaypointsProvider(getter: () => readonly StandaloneWaypoint[]): void {
+    this.getSnapWaypoints = getter;
   }
 
   getRoute(): Route | null {
@@ -249,6 +269,15 @@ export class RouteEditor {
       this.routeLayer.fitRoute(route);
     }
 
+    // Cache external snap targets for the session — the route/waypoint set
+    // can't change while the editor owns the interaction mode. The edited
+    // route was hidden above, so getVisibleRoutes() already excludes it.
+    this.snapExternal = collectSnapCandidates(
+      this.routeLayer.getVisibleRoutes().filter((r) => r.id !== this.route?.id),
+      this.getSnapWaypoints?.() ?? [],
+      [],
+    );
+
     this.selectedIndex = null;
     setMode("route-edit");
     this.bar.style.display = "flex";
@@ -300,16 +329,21 @@ export class RouteEditor {
       }
 
       const fallback = `WP${this.route.waypoints.length + 1}`;
-      const wp: Waypoint = {
-        lat: e.lngLat.lat,
-        lon: e.lngLat.lng,
-        name: this.autoName(
-          e.lngLat.lat,
-          e.lngLat.lng,
-          fallback,
-          this.route.waypoints.slice(-1),
-        ),
-      };
+      const snap = this.findSnapAt(e.point, this.appendOp());
+      // Snapping copies the target's position and name — identical
+      // coordinates, but no linkage between routes.
+      const wp: Waypoint = snap
+        ? { lat: snap.lat, lon: snap.lon, name: snap.name || fallback }
+        : {
+            lat: e.lngLat.lat,
+            lon: e.lngLat.lng,
+            name: this.autoName(
+              e.lngLat.lat,
+              e.lngLat.lng,
+              fallback,
+              this.route.waypoints.slice(-1),
+            ),
+          };
       this.checkpoint();
       this.route.waypoints.push(wp);
       this.updateSources();
@@ -319,7 +353,11 @@ export class RouteEditor {
     this.map.on("click", this.clickHandler);
 
     this.moveHandler = (e: maplibregl.MapMouseEvent) => {
-      this.updatePreview(e.lngLat);
+      // Desktop hover feedback: ring the snap target and bend the preview
+      // line onto it, so the snap is visible before the click commits.
+      const snap = this.findSnapAt(e.point, this.appendOp());
+      this.showSnapIndicator(snap);
+      this.updatePreview(snap ? { lng: snap.lon, lat: snap.lat } : e.lngLat);
     };
     this.map.on("mousemove", this.moveHandler);
 
@@ -376,6 +414,47 @@ export class RouteEditor {
     wp.name = name;
     this.updateSources();
     this.updateBar();
+  }
+
+  private appendOp(): SnapOp {
+    return {
+      kind: "append",
+      lastIndex: (this.route?.waypoints.length ?? 0) - 1,
+    };
+  }
+
+  /** Nearest snap target to a screen point, or null. Merges the cached
+   *  external targets with the route's own (live) waypoints. */
+  private findSnapAt(
+    point: { x: number; y: number },
+    op: SnapOp,
+  ): SnapCandidate | null {
+    if (!this.route) return null;
+    const candidates = [
+      ...this.snapExternal,
+      ...collectSnapCandidates([], [], this.route.waypoints),
+    ];
+    return findSnap(candidates, op, point, (ll) => this.map.project(ll));
+  }
+
+  /** Show (or with null, hide) the ring marking the current snap target. */
+  private showSnapIndicator(c: SnapCandidate | null): void {
+    const src = this.map.getSource(SOURCE_SNAP) as
+      | maplibregl.GeoJSONSource
+      | undefined;
+    if (!src) return;
+    src.setData({
+      type: "FeatureCollection",
+      features: c
+        ? [
+            {
+              type: "Feature",
+              properties: {},
+              geometry: { type: "Point", coordinates: [c.lon, c.lat] },
+            },
+          ]
+        : [],
+    });
   }
 
   private select(index: number): void {
@@ -539,6 +618,11 @@ export class RouteEditor {
       data: { type: "FeatureCollection", features: [] },
     });
 
+    this.map.addSource(SOURCE_SNAP, {
+      type: "geojson",
+      data: { type: "FeatureCollection", features: [] },
+    });
+
     this.map.addLayer({
       id: LAYER_LINE,
       type: "line",
@@ -570,6 +654,20 @@ export class RouteEditor {
         "circle-radius": 18,
         "circle-color": "transparent",
         "circle-stroke-color": "#ffcc00",
+        "circle-stroke-width": 3,
+      },
+    });
+
+    // Snap-target ring: marks the waypoint a placed/dragged point will
+    // snap onto (see route-snap.ts).
+    this.map.addLayer({
+      id: LAYER_SNAP,
+      type: "circle",
+      source: SOURCE_SNAP,
+      paint: {
+        "circle-radius": 14,
+        "circle-color": "transparent",
+        "circle-stroke-color": "#00d0ff",
         "circle-stroke-width": 3,
       },
     });
@@ -610,8 +708,13 @@ export class RouteEditor {
         if (!this.route) return;
         const wp = this.route.waypoints[index];
         if (!wp) return;
-        wp.lat = lngLat.lat;
-        wp.lon = lngLat.lng;
+        const snap = this.findSnapAt(
+          this.map.project([lngLat.lng, lngLat.lat]),
+          { kind: "drag", index },
+        );
+        this.showSnapIndicator(snap);
+        wp.lat = snap ? snap.lat : lngLat.lat;
+        wp.lon = snap ? snap.lon : lngLat.lng;
         this.selectedIndex = index;
         this.updateSources();
         this.updateBar();
@@ -628,6 +731,8 @@ export class RouteEditor {
       },
       // One checkpoint per drag gesture, taken before the first movement.
       () => this.checkpoint(),
+      // Gesture over — the snap ring must not linger on the target.
+      () => this.showSnapIndicator(null),
     );
   }
 
@@ -727,7 +832,7 @@ export class RouteEditor {
     }
   }
 
-  private updatePreview(cursor: maplibregl.LngLat | null): void {
+  private updatePreview(cursor: { lng: number; lat: number } | null): void {
     const src = this.map.getSource(SOURCE_PREVIEW) as
       | maplibregl.GeoJSONSource
       | undefined;
@@ -781,6 +886,7 @@ export class RouteEditor {
       SOURCE_PREVIEW,
       SOURCE_MIDPOINTS,
       SOURCE_HIGHLIGHT,
+      SOURCE_SNAP,
     ]) {
       const src = this.map.getSource(sid) as
         | maplibregl.GeoJSONSource

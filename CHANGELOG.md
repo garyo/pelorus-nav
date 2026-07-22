@@ -20,6 +20,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/).
 - Bug report diagnostics now include a short log of recent UI actions
   (panels opened, map modes entered), which helps diagnose reported
   problems.
+- The route editor now snaps to existing waypoints: placing or dragging
+  a waypoint near a standalone waypoint or a waypoint of another visible
+  route snaps it to exactly that position (a ring marks the target).
+  Routes sharing a common stretch — e.g. the same harbor exit — now
+  render as one line instead of near-duplicates. Snapped waypoints are
+  copies, not links: moving one never affects other routes.
 - The route editor now has Undo: the toolbar shows an Undo button
   whenever there is something to undo (adding, inserting, deleting,
   dragging, or renaming a waypoint — one undo per drag). Ctrl/Cmd+Z

@@ -1,5 +1,9 @@
 import { defineConfig, devices } from "@playwright/test";
 
+// Override when another dev server (e.g. the VitePress docs site) holds
+// :5173 — same idea as DOCS_SHOTS_BASE for tools/docs-shots.ts.
+const baseURL = process.env.E2E_BASE_URL ?? "http://localhost:5173";
+
 export default defineConfig({
   testDir: "./tests/e2e",
   fullyParallel: true,
@@ -8,7 +12,7 @@ export default defineConfig({
   workers: process.env.CI ? 1 : undefined,
   reporter: "html",
   use: {
-    baseURL: "http://localhost:5173",
+    baseURL,
     trace: "on-first-retry",
   },
   projects: [
@@ -40,8 +44,8 @@ export default defineConfig({
     },
   ],
   webServer: {
-    command: "bun dev",
-    url: "http://localhost:5173",
+    command: `bun dev --port ${new URL(baseURL).port || "5173"} --strictPort`,
+    url: baseURL,
     reuseExistingServer: !process.env.CI,
   },
 });

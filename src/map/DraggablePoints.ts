@@ -16,6 +16,9 @@ export type TapCallback = (featureIndex: number) => void;
  *  the pointer actually moves. A plain click/tap never fires it. */
 export type DragStartCallback = () => void;
 
+/** Fired when a gesture ends (mouse up / touch end), including taps. */
+export type DragEndCallback = () => void;
+
 /** Finger-sized half-width for touch hit-testing (px). */
 const TOUCH_HIT_SLOP = 10;
 /** Movement below this (px) is a tap, not a drag. */
@@ -27,6 +30,7 @@ export class DraggablePoints {
   private readonly onDrag: DragCallback;
   private readonly onTap: TapCallback | null;
   private readonly onDragStart: DragStartCallback | null;
+  private readonly onDragEnd: DragEndCallback | null;
 
   private dragging = false;
   private dragIndex = -1;
@@ -46,12 +50,14 @@ export class DraggablePoints {
     onDrag: DragCallback,
     onTap: TapCallback | null = null,
     onDragStart: DragStartCallback | null = null,
+    onDragEnd: DragEndCallback | null = null,
   ) {
     this.map = map;
     this.layerId = layerId;
     this.onDrag = onDrag;
     this.onTap = onTap;
     this.onDragStart = onDragStart;
+    this.onDragEnd = onDragEnd;
 
     this.onMouseDown = this.onMouseDown.bind(this);
     this.onMouseMove = this.onMouseMove.bind(this);
@@ -208,5 +214,6 @@ export class DraggablePoints {
     const canvas = this.map.getCanvas();
     canvas.removeEventListener("touchmove", this.onTouchMove);
     canvas.style.cursor = "";
+    this.onDragEnd?.();
   }
 }

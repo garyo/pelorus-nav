@@ -44,6 +44,22 @@ While editing:
 
 **Done** saves; **Cancel** abandons all changes from this session.
 
+### Snapping to existing waypoints
+
+While placing or dragging a waypoint, moving close to an existing one — a
+standalone waypoint, or a waypoint of another visible route — snaps it to
+exactly that position; a ring marks the target before you commit. This is
+how you build several routes that share a common stretch (say, the passage
+out of your home harbor) without near-duplicate lines cluttering the chart:
+identical positions render as one line and one marker.
+
+Snapped waypoints are copies, not links — moving one later never affects
+other routes. The snap range is small and screen-based, so if it grabs a
+point you didn't want, just zoom in and place again; hiding a route also
+removes its waypoints as snap targets. A new waypoint can snap onto the
+route's own starting point, which is the easy way to close a loop that
+brings you home.
+
 ## The Routes panel
 
 ![The Routes panel and route detail](/images/route-manager.png)
