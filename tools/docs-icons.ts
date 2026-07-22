@@ -138,10 +138,7 @@ for (const shape of ["half-circle", "circle", "square", "triangle"]) {
         new Blob([arg.code], { type: "text/javascript" }),
       );
       const mod = (await import(url)) as {
-        SHAPE_DRAWERS: Record<
-          string,
-          (ctx: CanvasRenderingContext2D) => void
-        >;
+        SHAPE_DRAWERS: Record<string, (ctx: CanvasRenderingContext2D) => void>;
       };
       const ctx = document
         .querySelector<HTMLCanvasElement>("#c")
