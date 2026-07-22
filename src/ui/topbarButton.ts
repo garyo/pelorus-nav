@@ -3,6 +3,7 @@
  * On mobile, items inside #topbar-menu collapse into a dropdown — pass
  * `fullLabel` for the longer descriptive text shown there.
  */
+import { logUiAction } from "../diagnostics/uiActionLog";
 import { setIcon } from "./icons";
 
 export interface TopbarActionOpts {
@@ -20,6 +21,7 @@ export function buildTopbarAction(
 ): HTMLButtonElement {
   const btn = document.createElement("button");
   btn.className = `topbar-action${opts.extraClass ? ` ${opts.extraClass}` : ""}`;
+  btn.addEventListener("click", () => logUiAction(`topbar ${title}`));
   btn.title = title;
   btn.setAttribute("aria-label", title);
   setIcon(btn, icon);

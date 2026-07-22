@@ -7,6 +7,7 @@
 import { getAllRoutes, getAllWaypoints } from "../data/db";
 import type { Route, Waypoint } from "../data/Route";
 import type { StandaloneWaypoint } from "../data/Waypoint";
+import { logUiAction } from "../diagnostics/uiActionLog";
 import { getSettings } from "../settings";
 import {
   alongTrackDistanceNM,
@@ -271,6 +272,7 @@ export class ActiveNavigationManager {
   }
 
   startGoto(waypoint: StandaloneWaypoint | Waypoint): void {
+    logUiAction(`nav goto ${waypoint.name || "(unnamed)"}`);
     this.state = { type: "goto", waypoint };
     this.persist();
     this.recompute();
@@ -279,6 +281,7 @@ export class ActiveNavigationManager {
   startRoute(route: Route, startLeg?: number): void {
     if (route.waypoints.length < 2) return;
     const leg = startLeg ?? this.pickStartLeg(route);
+    logUiAction(`nav route ${route.name || "(unnamed)"} (leg ${leg})`);
     this.state = { type: "route", route, legIndex: leg };
     this.persist();
     this.recompute();
@@ -298,6 +301,7 @@ export class ActiveNavigationManager {
   }
 
   stop(): void {
+    if (this.state.type !== "idle") logUiAction("nav stop");
     this.state = { type: "idle" };
     this.lastInfo = null;
     this.persist();

@@ -4,6 +4,7 @@
  */
 
 import type maplibregl from "maplibre-gl";
+import { logUiAction } from "../diagnostics/uiActionLog";
 import type { SmoothedCourse } from "../navigation/CourseSmoothing";
 import type { NavigationData } from "../navigation/NavigationData";
 import type { ChartMode as ChartModeType } from "../settings";
@@ -214,6 +215,7 @@ export class ChartModeController {
 
   setMode(mode: ChartModeType): void {
     const changed = this.mode !== mode;
+    if (changed) logUiAction(`chart-mode ${this.mode} -> ${mode}`);
     this.mode = mode;
     if (mode !== "free") {
       this.modeBeforeFree = mode;
