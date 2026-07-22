@@ -30,7 +30,7 @@ On phones in landscape the instruments sit in a side column by default;
 Settings → Appearance → "Landscape instrument layout" can move them to a top
 bar instead.
 
-A separate small status strip in the bottom-left corner (tap ▲ to expand)
+A separate small status strip in the bottom-right corner (tap ▲ to expand)
 shows cursor coordinates, zoom level, and the raw GPS position, source, and
 update rate — useful for checking that an external GPS is feeding data.
 
