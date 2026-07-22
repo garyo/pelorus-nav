@@ -53,8 +53,10 @@ waypoint list with each leg's bearing, distance, and cumulative distance —
 a passage plan you can read off directly. The summary at the bottom zooms
 the chart to the whole route.
 
-Per-route actions: navigate, preview (zoom to it without navigating),
-export GPX, edit, show/hide on the chart, and delete. Routes can be
+Per-route actions: navigate, preview (opens the route in the
+[Track Viewer](/tracks#the-track-viewer), where a planning speed gives you
+time estimates along it), export GPX, edit, show/hide on the chart, and
+delete. Routes can be
 organized into folders via the dropdown in the detail panel.
 
 ### Export and import (GPX)
@@ -88,9 +90,9 @@ active leg:
 - **STR** — steer indicator: how far and which way to turn to point at the
   waypoint (`0°` means dead ahead; `←15°` means come left fifteen degrees).
 
-When you arrive at a waypoint (within the arrival radius, 0.1 NM by
-default), navigation advances to the next leg automatically. To start from
-a different leg — say you're joining a route halfway — open the route's
+When you arrive at a waypoint (within the arrival radius of 0.1 NM),
+navigation advances to the next leg automatically. To start from a
+different leg — say you're joining a route halfway — open the route's
 detail panel and tap the ► marker on the leg you want.
 
 Stop navigating with the **Cancel navigation** button that appears at the

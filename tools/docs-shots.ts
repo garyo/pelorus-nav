@@ -9,8 +9,9 @@
  */
 import { mkdirSync, readFileSync } from "node:fs";
 import { type Browser, chromium, type Page } from "playwright";
+import { REPLAY_TRACK } from "../src/navigation/replay-track";
 
-const BASE = "http://localhost:5173";
+const BASE = process.env.DOCS_SHOTS_BASE ?? "http://localhost:5173";
 const OUT = new URL("../docs-site/public/images", import.meta.url).pathname;
 const APP_VERSION = JSON.parse(
   readFileSync(new URL("../package.json", import.meta.url), "utf8"),
@@ -30,6 +31,59 @@ const ROUTE_WPTS: Array<[number, number, string]> = [
   [42.37055, -70.916631, "Outer Harbor"],
 ];
 
+// The recorded replay sail, seeded as a finished track so the Track Viewer
+// has something real to show. SOG/COG derived from consecutive positions.
+function buildSeedTrack() {
+  const R_NM = 3440.065;
+  const rad = (d: number) => (d * Math.PI) / 180;
+  const points: Array<{
+    lat: number;
+    lon: number;
+    timestamp: number;
+    sog: number | null;
+    cog: number | null;
+  }> = [];
+  const lastT = REPLAY_TRACK[REPLAY_TRACK.length - 1][0];
+  const endMs = Date.now();
+  const startMs = endMs - lastT * 1000;
+  let totalNm = 0;
+  for (let i = 0; i < REPLAY_TRACK.length; i++) {
+    const [t, lat, lon] = REPLAY_TRACK[i];
+    let sog: number | null = null;
+    let cog: number | null = null;
+    if (i > 0) {
+      const [pt, plat, plon] = REPLAY_TRACK[i - 1];
+      const dLat = rad(lat - plat);
+      const dLon = rad(lon - plon);
+      const a =
+        Math.sin(dLat / 2) ** 2 +
+        Math.cos(rad(plat)) * Math.cos(rad(lat)) * Math.sin(dLon / 2) ** 2;
+      const nm = 2 * R_NM * Math.asin(Math.sqrt(a));
+      totalNm += nm;
+      const dt = t - pt;
+      sog = dt > 0 ? (nm / dt) * 3600 : null;
+      const y = Math.sin(dLon) * Math.cos(rad(lat));
+      const x =
+        Math.cos(rad(plat)) * Math.sin(rad(lat)) -
+        Math.sin(rad(plat)) * Math.cos(rad(lat)) * Math.cos(dLon);
+      cog = ((Math.atan2(y, x) * 180) / Math.PI + 360) % 360;
+    }
+    points.push({ lat, lon, timestamp: startMs + t * 1000, sog, cog });
+  }
+  const meta = {
+    id: "docs-shot-track",
+    name: "Afternoon Sail",
+    createdAt: startMs,
+    color: "#2980b9",
+    visible: true,
+    pointCount: points.length,
+    durationMs: lastT * 1000,
+    totalDistanceNM: totalNm,
+  };
+  return { meta, points };
+}
+const SEED_TRACK = buildSeedTrack();
+
 interface Scene {
   name: string;
   theme?: "day" | "dusk" | "night" | "eink";
@@ -39,6 +93,8 @@ interface Scene {
   vessel?: [number, number];
   cog?: number;
   width?: number; // viewport width; default 1000
+  /** Seed the recorded demo track (only track scenes want it visible). */
+  seedTrack?: boolean;
   /** Drive the UI after the chart settles; the screenshot follows. */
   actions?: (page: Page) => Promise<void>;
 }
@@ -121,6 +177,27 @@ const SCENES: Scene[] = [
     },
   },
   {
+    name: "track-viewer",
+    zoom: 12.4,
+    seedTrack: true,
+    actions: async (page) => {
+      await clickTopbar(page, "Tracks");
+      await page.click('button[title="View track"]');
+      await page.waitForSelector(".track-viewer-panel");
+      // Scrub to ~55% so the cursor sits mid-track with the chart lit.
+      await page.evaluate(() => {
+        const slider = document.querySelector<HTMLInputElement>(
+          ".track-viewer-slider",
+        );
+        if (slider) {
+          slider.value = String(Math.round(Number(slider.max) * 0.55));
+          slider.dispatchEvent(new Event("input", { bubbles: true }));
+        }
+      });
+      await page.waitForTimeout(3_000);
+    },
+  },
+  {
     name: "route-navigation",
     zoom: 12.6,
     center: [-70.96, 42.34],
@@ -156,6 +233,7 @@ async function shoot(scene: Scene, browser: Browser) {
       version: string;
       vessel: [number, number];
       wpts: typeof ROUTE_WPTS;
+      track: typeof SEED_TRACK | null;
     }) => {
       localStorage.setItem(
         "pelorus-nav-settings",
@@ -199,7 +277,10 @@ async function shoot(scene: Scene, browser: Browser) {
       };
       req.onsuccess = () => {
         const db = req.result;
-        const tx = db.transaction("routes", "readwrite");
+        const tx = db.transaction(
+          ["routes", "tracks", "trackPoints"],
+          "readwrite",
+        );
         tx.objectStore("routes").put({
           id: "docs-shot-route",
           name: "Outer Harbor",
@@ -208,6 +289,13 @@ async function shoot(scene: Scene, browser: Browser) {
           visible: true,
           waypoints: cfg.wpts.map(([lat, lon, name]) => ({ lat, lon, name })),
         });
+        if (cfg.track) {
+          tx.objectStore("tracks").put(cfg.track.meta);
+          const ptStore = tx.objectStore("trackPoints");
+          for (const p of cfg.track.points) {
+            ptStore.add({ trackId: cfg.track.meta.id, ...p });
+          }
+        }
         tx.oncomplete = () => db.close();
       };
     },
@@ -216,6 +304,7 @@ async function shoot(scene: Scene, browser: Browser) {
       version: APP_VERSION,
       vessel: scene.vessel ?? VESSEL,
       wpts: ROUTE_WPTS,
+      track: scene.seedTrack ? SEED_TRACK : null,
     },
   );
 

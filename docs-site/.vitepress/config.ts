@@ -31,6 +31,7 @@ export default defineConfig({
           { text: "Getting Started", link: "/getting-started" },
           { text: "The Chart Display", link: "/chart-display" },
           { text: "Routes", link: "/routes" },
+          { text: "Tracks", link: "/tracks" },
         ],
       },
     ],

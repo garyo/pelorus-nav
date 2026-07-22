@@ -24,6 +24,8 @@ tracks, tides and currents, and man-overboard.
 - [The Chart Display](/chart-display) — chart modes, detail levels, layers,
   and the instrument display.
 - [Routes](/routes) — creating, editing, and following routes.
+- [Tracks](/tracks) — recording where you went, and reliving it in the
+  Track Viewer.
 
 The guide covers the interesting parts, not every menu item — most of the app
 is meant to be discoverable by tapping around, and nothing you do in a panel
