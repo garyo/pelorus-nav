@@ -96,18 +96,22 @@ function buildPlotSheet() {
   const A = { lat: 42.3372, lon: -71.001 }; // 1400 fix
   const B = { lat: 42.3348, lon: -70.9455 }; // 1430 DR
   const MID = { lat: (A.lat + B.lat) / 2, lon: (A.lon + B.lon) / 2 };
-  const EP = { lat: 42.336, lon: -70.948 }; // LOP pushes the DR a bit N
 
-  const brg = (
-    from: { lat: number; lon: number },
-    to: { lat: number; lon: number },
-  ) => {
-    const midLat = ((from.lat + to.lat) / 2) * (Math.PI / 180);
-    const x = (to.lon - from.lon) * Math.cos(midLat);
-    const y = to.lat - from.lat;
-    return (Math.atan2(x, y) * (180 / Math.PI) + 360) % 360;
-  };
-  const lopT = brg(LIGHT, EP); // anchored at the light, through the EP
+  // The 1430 LOP: 155°M from Deer Island Light (declination 12.9°W). The
+  // EP is the LOP's intersection with the course line — behind the DR,
+  // which is exactly what the ebb should do to us.
+  const lopT = 155 - 12.9;
+  const rad = (d: number) => d * (Math.PI / 180);
+  const cosf = Math.cos(rad(42.337));
+  const ax = A.lon * cosf;
+  const ex = B.lon * cosf - ax;
+  const ey = B.lat - A.lat;
+  const dx = Math.sin(rad(lopT));
+  const dy = Math.cos(rad(lopT));
+  const t =
+    ((LIGHT.lon * cosf - ax) * dy - (LIGHT.lat - A.lat) * dx) /
+    (ex * dy - ey * dx);
+  const EP = { lat: A.lat + t * ey, lon: (ax + t * ex) / cosf };
   const now = Date.now();
   const el = (e: Record<string, unknown>, i: number) => ({
     id: `docs-plot-${i}`,
