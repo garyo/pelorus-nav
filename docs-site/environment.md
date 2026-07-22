@@ -27,7 +27,7 @@ Turn on the **Tides & Currents** layer group and zoom into a harbor:
   points out the flood and ebb directions instead.
 
 Predictions are computed on the device from NOAA harmonic data bundled
-with the app, so they work fully offline — no signal required at anchor.
+with the app, so they work fully offline — no network signal required.
 
 Tap any station for its schedule:
 
@@ -52,9 +52,10 @@ back to live conditions; your vessel and GPS always stay in real time.
 
 ## Wind
 
-The **Wind** layer group draws standard meteorological wind barbs over the
-chart — the staff points from the direction the wind is coming *from*, a
-half barb is 5 knots, a full barb 10, a pennant 50:
+The **Wind** layer group draws standard meteorological wind barbs over
+the chart — the staff points from the direction the wind is coming
+*from* (so the arrow "flies with the wind"); a half barb is 5 knots, a
+full barb 10, a pennant 50. In the image below, the wind is 15 kts out of the south:
 
 ![Wind barbs over Massachusetts Bay](/images/wind-barbs.png)
 
@@ -62,11 +63,6 @@ Forecasts come from Open-Meteo, so this overlay needs an internet
 connection (it fetches a 3-day forecast at a time, and the time bar scrubs
 within it without re-fetching). A status chip tells you when wind data
 isn't available.
-
-There's also a separate **Weather** layer group (temperature,
-precipitation, clouds, pressure raster overlays) which requires a free
-OpenWeatherMap API key — enter it in Settings → Charts & Layers if you
-want it.
 
 ## Sun & twilight times
 
