@@ -31,6 +31,9 @@ export const SHAPE_LABELS: Record<PlotSymbolShape, string> = {
   triangle: "R.Fix",
 };
 
+/** Canvas edge length the drawers are calibrated to (see SHAPE_DRAWERS). */
+export const PLOT_ICON_SIZE = SIZE;
+
 const ICON_PREFIX = "_plot-sym-";
 
 /** Icon name for a given shape. */
@@ -51,12 +54,23 @@ const ARROW_ICON = "_plot-arrowhead";
 export function ensurePlotIcons(map: maplibregl.Map): void {
   if (map.hasImage(plotIconName("circle"))) return;
 
-  addPlotIcon(map, "half-circle", drawHalfCircle);
-  addPlotIcon(map, "circle", drawCircle);
-  addPlotIcon(map, "square", drawSquare);
-  addPlotIcon(map, "triangle", drawTriangle);
+  for (const shape of PLOT_SHAPES) {
+    addPlotIcon(map, shape, SHAPE_DRAWERS[shape]);
+  }
   addArrowheadIcon(map);
 }
+
+/** Drawing functions by shape — also used by offline tooling (user-guide
+ *  icons), so the guide's symbols can never drift from the chart's. */
+export const SHAPE_DRAWERS: Record<
+  PlotSymbolShape,
+  (ctx: CanvasRenderingContext2D) => void
+> = {
+  "half-circle": drawHalfCircle,
+  circle: drawCircle,
+  square: drawSquare,
+  triangle: drawTriangle,
+};
 
 function addPlotIcon(
   map: maplibregl.Map,

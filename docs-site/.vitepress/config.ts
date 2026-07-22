@@ -33,6 +33,7 @@ export default defineConfig({
           { text: "Routes", link: "/routes" },
           { text: "Tracks", link: "/tracks" },
           { text: "Tides, Wind & Sun", link: "/environment" },
+          { text: "Traditional Plotting", link: "/plotting" },
         ],
       },
     ],

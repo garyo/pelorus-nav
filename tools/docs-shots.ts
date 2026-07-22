@@ -84,6 +84,90 @@ function buildSeedTrack() {
 }
 const SEED_TRACK = buildSeedTrack();
 
+// A worked traditional plot for the plotting-tools section: a 1400 fix, a
+// DR track, a 1430 bearing LOP to Deer Island Light giving an EP, a danger
+// arc off the light, and a set/drift arrow. Geometry is computed so the
+// story is coherent on the chart. Bearings are TRUE; the app labels lines
+// with computed magnetic bearings and distances itself.
+function buildPlotSheet() {
+  const LIGHT = { lat: 42.33965, lon: -70.95455 }; // Deer Island Light
+  const A = { lat: 42.3245, lon: -71.001 }; // 1400 fix
+  const B = { lat: 42.3305, lon: -70.9445 }; // 1430 DR
+  const MID = { lat: (A.lat + B.lat) / 2, lon: (A.lon + B.lon) / 2 };
+  const EP = { lat: 42.3318, lon: -70.947 }; // LOP pushes the DR a bit N
+
+  const brg = (
+    from: { lat: number; lon: number },
+    to: { lat: number; lon: number },
+  ) => {
+    const midLat = ((from.lat + to.lat) / 2) * (Math.PI / 180);
+    const x = (to.lon - from.lon) * Math.cos(midLat);
+    const y = to.lat - from.lat;
+    return (Math.atan2(x, y) * (180 / Math.PI) + 360) % 360;
+  };
+  const lopT = brg(LIGHT, EP); // anchored at the light, through the EP
+  const now = Date.now();
+  const el = (e: Record<string, unknown>, i: number) => ({
+    id: `docs-plot-${i}`,
+    createdAt: now + i,
+    ...e,
+  });
+  return {
+    id: "default",
+    name: "Docs example",
+    createdAt: now,
+    elements: [
+      el({ type: "symbol", shape: "circle", label: "1400 FIX", ...A }, 1),
+      el(
+        {
+          type: "segment-line",
+          lat1: A.lat,
+          lon1: A.lon,
+          lat2: B.lat,
+          lon2: B.lon,
+          label: "S 5.0 kn",
+        },
+        2,
+      ),
+      el({ type: "symbol", shape: "half-circle", label: "1415 DR", ...MID }, 3),
+      el({ type: "symbol", shape: "half-circle", label: "1430 DR", ...B }, 4),
+      el(
+        {
+          type: "bearing-line",
+          ...LIGHT,
+          bearingTrue: lopT,
+          label: "1430",
+        },
+        5,
+      ),
+      el({ type: "symbol", shape: "square", label: "1430 EP", ...EP }, 6),
+      el(
+        {
+          type: "distance-arc",
+          ...LIGHT,
+          radiusNM: 0.4,
+          startAngle: 150,
+          endAngle: 290,
+          lineAngle: 220,
+        },
+        7,
+      ),
+      el(
+        {
+          type: "current-arrow",
+          lat: 42.32,
+          lon: -70.976,
+          setTrue: 235,
+          driftKnots: 1.0,
+        },
+        8,
+      ),
+      el({ type: "text", lat: 42.3185, lon: -70.9875, text: "Ebb 1.0 kn" }, 9),
+    ],
+  };
+}
+const SEED_PLOT = buildPlotSheet();
+
 interface Scene {
   name: string;
   theme?: "day" | "dusk" | "night" | "eink";
@@ -97,8 +181,12 @@ interface Scene {
   seedTrack?: boolean;
   /** Seed the "Home" anchorage waypoint (waypoint scenes only). */
   seedWaypoint?: boolean;
+  /** Seed the worked example plotting sheet (plotting scenes only). */
+  seedPlot?: boolean;
   /** Extra fields merged into the seeded settings blob (e.g. layerGroups). */
   settings?: Record<string, unknown>;
+  /** Screenshot only this element instead of the full page. */
+  element?: string;
   /** Drive the UI after the chart settles; the screenshot follows. */
   actions?: (page: Page) => Promise<void>;
 }
@@ -178,6 +266,28 @@ const SCENES: Scene[] = [
       // Select a mid-route waypoint: highlight ring + Delete / Insert After.
       await page.click(".route-detail-panel .route-list-wp >> nth=2");
       await page.waitForTimeout(1_000);
+    },
+  },
+  {
+    name: "plotting",
+    zoom: 13.1,
+    center: [-70.972, 42.3285],
+    vessel: [42.365, -70.905], // out of frame; the plot is the subject
+    seedPlot: true,
+    actions: async (page) => {
+      await clickTopbar(page, "Plot");
+      await page.waitForSelector(".plot-toolbar");
+      await page.waitForTimeout(1_500);
+    },
+  },
+  {
+    name: "plot-toolbar",
+    seedPlot: true,
+    element: ".plot-toolbar",
+    actions: async (page) => {
+      await clickTopbar(page, "Plot");
+      await page.waitForSelector(".plot-toolbar");
+      await page.waitForTimeout(500);
     },
   },
   {
@@ -308,6 +418,7 @@ async function shoot(scene: Scene, browser: Browser) {
       wpts: typeof ROUTE_WPTS;
       track: typeof SEED_TRACK | null;
       waypoint: boolean;
+      plot: typeof SEED_PLOT | null;
     }) => {
       localStorage.setItem(
         "pelorus-nav-settings",
@@ -353,9 +464,10 @@ async function shoot(scene: Scene, browser: Browser) {
       req.onsuccess = () => {
         const db = req.result;
         const tx = db.transaction(
-          ["routes", "tracks", "trackPoints", "waypoints"],
+          ["routes", "tracks", "trackPoints", "waypoints", "plottingSheets"],
           "readwrite",
         );
+        if (cfg.plot) tx.objectStore("plottingSheets").put(cfg.plot);
         tx.objectStore("routes").put({
           id: "docs-shot-route",
           name: "Outer Harbor",
@@ -393,6 +505,7 @@ async function shoot(scene: Scene, browser: Browser) {
       wpts: ROUTE_WPTS,
       track: scene.seedTrack ? SEED_TRACK : null,
       waypoint: scene.seedWaypoint ?? false,
+      plot: scene.seedPlot ? SEED_PLOT : null,
     },
   );
 
@@ -415,7 +528,11 @@ async function shoot(scene: Scene, browser: Browser) {
   await page.waitForTimeout(500);
 
   const path = `${OUT}/${scene.name}.png`;
-  await page.screenshot({ path });
+  if (scene.element) {
+    await page.locator(scene.element).screenshot({ path });
+  } else {
+    await page.screenshot({ path });
+  }
   console.log(`✓ ${path}`);
   await ctx.close();
 }

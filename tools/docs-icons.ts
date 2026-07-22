@@ -112,4 +112,76 @@ const barbPath = `${OUT}/wind-barb-s15.png`;
 await page.screenshot({ path: barbPath, omitBackground: true, clip: bounds });
 console.log(`✓ ${barbPath}`);
 
+// Plotting symbols (DR / Fix / EP / R.Fix), drawn by the app's own
+// SHAPE_DRAWERS at 3× their on-chart size.
+const plotBundle = await Bun.build({
+  entrypoints: [
+    new URL("../src/map/plotting/plot-icons.ts", import.meta.url).pathname,
+  ],
+  target: "browser",
+  format: "esm",
+});
+const plotScript = await plotBundle.outputs[0].text();
+const SCALE = 3;
+const plotPage = await browser.newPage({
+  viewport: { width: 24 * SCALE, height: 24 * SCALE },
+  deviceScaleFactor: 2,
+});
+for (const shape of ["half-circle", "circle", "square", "triangle"]) {
+  await plotPage.setContent(
+    "<style>body{margin:0}</style>" +
+      `<canvas id="c" width="${24 * SCALE * 2}" height="${24 * SCALE * 2}" style="width:${24 * SCALE}px;height:${24 * SCALE}px"></canvas>`,
+  );
+  const shapeBounds = await plotPage.evaluate(
+    async (arg: { code: string; shape: string; scale: number }) => {
+      const url = URL.createObjectURL(
+        new Blob([arg.code], { type: "text/javascript" }),
+      );
+      const mod = (await import(url)) as {
+        SHAPE_DRAWERS: Record<
+          string,
+          (ctx: CanvasRenderingContext2D) => void
+        >;
+      };
+      const ctx = document
+        .querySelector<HTMLCanvasElement>("#c")
+        ?.getContext("2d");
+      if (!ctx) throw new Error("no canvas context");
+      ctx.scale(2 * arg.scale, 2 * arg.scale);
+      mod.SHAPE_DRAWERS[arg.shape](ctx);
+
+      const n = 24 * arg.scale * 2;
+      const img = ctx.getImageData(0, 0, n, n);
+      let minX = n;
+      let minY = n;
+      let maxX = -1;
+      let maxY = -1;
+      for (let py = 0; py < n; py++) {
+        for (let px = 0; px < n; px++) {
+          if (img.data[(py * n + px) * 4 + 3] > 0) {
+            if (px < minX) minX = px;
+            if (py < minY) minY = py;
+            if (px > maxX) maxX = px;
+            if (py > maxY) maxY = py;
+          }
+        }
+      }
+      return {
+        x: Math.floor(minX / 2) - 1,
+        y: Math.floor(minY / 2) - 1,
+        width: Math.ceil((maxX - minX) / 2) + 2,
+        height: Math.ceil((maxY - minY) / 2) + 2,
+      };
+    },
+    { code: plotScript, shape, scale: SCALE },
+  );
+  const path = `${OUT}/plot-${shape}.png`;
+  await plotPage.screenshot({
+    path,
+    omitBackground: true,
+    clip: shapeBounds,
+  });
+  console.log(`✓ ${path}`);
+}
+
 await browser.close();
