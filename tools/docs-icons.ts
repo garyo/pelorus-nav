@@ -57,7 +57,7 @@ await page.setContent(
   "<style>body{margin:0}</style>" +
     '<canvas id="c" width="128" height="128" style="width:64px;height:64px"></canvas>',
 );
-await page.evaluate(async (code: string) => {
+const bounds = await page.evaluate(async (code: string) => {
   const url = URL.createObjectURL(
     new Blob([code], { type: "text/javascript" }),
   );
@@ -83,9 +83,33 @@ await page.evaluate(async (code: string) => {
   ctx.translate(64, 64);
   ctx.rotate(Math.PI);
   ctx.drawImage(tmp, -64, -64);
+
+  // Tight bounding box of the drawn pixels, in CSS px, so the saved PNG
+  // has no dead whitespace and centers properly when inlined in text.
+  const img = ctx.getImageData(0, 0, 128, 128);
+  let minX = 128;
+  let minY = 128;
+  let maxX = -1;
+  let maxY = -1;
+  for (let py = 0; py < 128; py++) {
+    for (let px = 0; px < 128; px++) {
+      if (img.data[(py * 128 + px) * 4 + 3] > 0) {
+        if (px < minX) minX = px;
+        if (py < minY) minY = py;
+        if (px > maxX) maxX = px;
+        if (py > maxY) maxY = py;
+      }
+    }
+  }
+  return {
+    x: Math.floor(minX / 2) - 1,
+    y: Math.floor(minY / 2) - 1,
+    width: Math.ceil((maxX - minX) / 2) + 2,
+    height: Math.ceil((maxY - minY) / 2) + 2,
+  };
 }, barbScript);
 const barbPath = `${OUT}/wind-barb-s15.png`;
-await page.locator("#c").screenshot({ path: barbPath, omitBackground: true });
+await page.screenshot({ path: barbPath, omitBackground: true, clip: bounds });
 console.log(`✓ ${barbPath}`);
 
 await browser.close();

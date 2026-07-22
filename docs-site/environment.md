@@ -56,7 +56,7 @@ The **Wind** layer group draws standard meteorological wind barbs over
 the chart — the staff points from the direction the wind is coming
 *from* (so the arrow "flies with the wind"); a half barb is 5 knots, a
 full barb 10, a pennant 50. This barb
-<img src="/images/icons/wind-barb-s15.png" width="34" style="display:inline-block; vertical-align:middle; margin:0 2px" alt="wind barb: 15 knots from the south">
+<img src="/images/icons/wind-barb-s15.png" height="30" style="display:inline-block; vertical-align:middle; margin:0 3px" alt="wind barb: 15 knots from the south">
 is 15 knots out of the south — a full barb plus a half barb, with the
 staff trailing toward the wind's source:
 
