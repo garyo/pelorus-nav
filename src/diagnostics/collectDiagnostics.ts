@@ -19,6 +19,7 @@ import {
 } from "../settings";
 import { formatBytes } from "../utils/format";
 import { appErrorLog } from "./errorLog";
+import { uiActionLog } from "./uiActionLog";
 
 export interface DiagnosticSection {
   /** Rendered as "=== TITLE ===". */
@@ -224,6 +225,17 @@ export function buildDefaultSections(
         const n = appErrorLog.entryCount;
         return n > 0
           ? `${n} entries\n${appErrorLog.toText()}`
+          : "(none recorded)";
+      },
+    },
+    {
+      title: "UI ACTIONS",
+      collect: () => {
+        const entries = uiActionLog.getEntries();
+        return entries.length > 0
+          ? entries
+              .map((e) => `${new Date(e.t).toISOString()} ${e.detail ?? ""}`)
+              .join("\n")
           : "(none recorded)";
       },
     },

@@ -3,6 +3,8 @@
  * Same pub-sub pattern as settings.ts.
  */
 
+import { logUiAction } from "../diagnostics/uiActionLog";
+
 export type MapInteractionMode =
   | "query"
   | "measure"
@@ -21,6 +23,7 @@ export function getMode(): MapInteractionMode {
 
 export function setMode(mode: MapInteractionMode): void {
   if (mode === current) return;
+  logUiAction(`mode ${current} -> ${mode}`);
   current = mode;
   for (const fn of listeners) {
     fn(current);

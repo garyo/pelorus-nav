@@ -12,6 +12,9 @@ The format follows [Keep a Changelog](https://keepachangelog.com/).
   dialog shows a preview with an "Include chart screenshot" checkbox
   (on by default) — uncheck it to send the report without revealing
   your position.
+- Bug report diagnostics now include a short log of recent UI actions
+  (panels opened, map modes entered), which helps diagnose reported
+  problems.
 
 ## [0.15.0] - 2026-07-21
 

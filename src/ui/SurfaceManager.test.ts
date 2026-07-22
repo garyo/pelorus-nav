@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, it } from "vitest";
+import { uiActionLog } from "../diagnostics/uiActionLog";
 import {
   registerSurface,
   resetSurfacesForTest,
@@ -152,5 +153,18 @@ describe("SurfaceManager", () => {
       new KeyboardEvent("keydown", { key: "Escape", bubbles: true }),
     );
     expect(a.open).toBe(true);
+  });
+
+  it("leaves a breadcrumb trail in the UI action log", () => {
+    uiActionLog.clear();
+    const a = makeSurface("a");
+    a.opened();
+    document.dispatchEvent(
+      new KeyboardEvent("keydown", { key: "Escape", bubbles: true }),
+    );
+    expect(uiActionLog.getEntries().map((e) => e.detail)).toEqual([
+      "open a",
+      "close a (esc)",
+    ]);
   });
 });

@@ -6,6 +6,7 @@ import {
   buildDefaultSections,
   collectDiagnostics,
 } from "../diagnostics/collectDiagnostics";
+import { logUiAction } from "../diagnostics/uiActionLog";
 import { showBugReportDialog } from "./BugReportDialog";
 import { showTermsDialog } from "./DisclaimerDialog";
 
@@ -277,6 +278,7 @@ export class AboutDialog {
   show(): void {
     if (this.visible) return;
     this.visible = true;
+    logUiAction("open about");
     this.overlay.style.display = "flex";
   }
 

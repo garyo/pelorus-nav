@@ -23,6 +23,8 @@
  * behavior.
  */
 
+import { logUiAction } from "../diagnostics/uiActionLog";
+
 export type SurfaceSlot = "top-right" | "bottom-center";
 
 export interface SurfaceDecl {
@@ -69,6 +71,7 @@ function noteClosed(id: string): void {
 }
 
 function handleOpened(s: SurfaceDecl): void {
+  logUiAction(`open ${s.id}`);
   // Evict other groups from the slot (priority surfaces are immune).
   const group = s.group ?? s.id;
   for (const other of surfaces) {
@@ -117,6 +120,7 @@ function onDocumentClick(e: MouseEvent): void {
         o.el()?.contains(target),
     );
     if (inSibling) continue;
+    logUiAction(`close ${s.id} (outside tap)`);
     s.close();
     noteClosed(s.id);
   }
@@ -139,6 +143,7 @@ function onKeydown(e: KeyboardEvent): void {
       continue;
     }
     if (s.priority) continue;
+    logUiAction(`close ${s.id} (esc)`);
     s.close();
     noteClosed(s.id);
     e.preventDefault();

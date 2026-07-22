@@ -9,6 +9,7 @@
 import { shareOrDownloadFile } from "../data/file-io";
 import { chartAssetBase } from "../data/remote-url";
 import { diagnosticsFilename } from "../diagnostics/collectDiagnostics";
+import { logUiAction } from "../diagnostics/uiActionLog";
 
 const UPLOAD_TIMEOUT_MS = 20_000;
 
@@ -24,6 +25,7 @@ export interface BugReportOptions {
 }
 
 export function showBugReportDialog(options: BugReportOptions): void {
+  logUiAction("open bug-report");
   const overlay = document.createElement("div");
   overlay.className = "about-overlay bugreport-overlay";
   overlay.style.display = "flex";
