@@ -16,6 +16,14 @@ The format follows [Keep a Changelog](https://keepachangelog.com/).
   (panels opened, map modes entered), which helps diagnose reported
   problems.
 
+### Changed
+- While editing a route, waypoint names in the route detail list are now
+  clickable and stay in sync with the map: clicking a name selects that
+  waypoint (same as tapping it on the map, with Delete / Insert After in
+  the bottom bar), and selecting a waypoint on the map highlights its row
+  in the list. The list also appears as soon as a route has one waypoint,
+  instead of only after two.
+
 ## [0.15.0] - 2026-07-21
 
 ### Added
