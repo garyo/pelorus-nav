@@ -901,13 +901,15 @@ body {
 
 .about-links {
   display: flex;
-  gap: 16px;
+  flex-wrap: wrap;
+  gap: 6px 16px;
   margin-bottom: 14px;
 }
 
 .about-links a {
   color: #6af;
   text-decoration: none;
+  white-space: nowrap;
 }
 
 .about-links a:hover {

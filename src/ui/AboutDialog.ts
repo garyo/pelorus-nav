@@ -120,6 +120,12 @@ export class AboutDialog {
     siteLink.rel = "noopener";
     siteLink.textContent = "Website";
 
+    const guideLink = document.createElement("a");
+    guideLink.href = "https://pelorus-nav.com/doc/userguide/";
+    guideLink.target = "_blank";
+    guideLink.rel = "noopener";
+    guideLink.textContent = "User Guide";
+
     const ghLink = document.createElement("a");
     ghLink.href = REPO_URL;
     ghLink.target = "_blank";
@@ -161,6 +167,7 @@ export class AboutDialog {
 
     links.append(
       siteLink,
+      guideLink,
       ghLink,
       releasesLink,
       changelogLink,
