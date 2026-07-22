@@ -179,6 +179,17 @@ export function getBasemapSources(
   };
 }
 
+/**
+ * Basemap label layers that should ride above the chart's fills (see
+ * applyUnderlay's underlayLabels): town names and street names straddling
+ * the shoreline must not be chopped by the opaque water fills. Water-body
+ * names stay low — the chart's own SEAARE labels cover charted water, and
+ * beyond chart coverage nothing occludes them anyway.
+ */
+export function isLiftedBasemapLabel(layer: LayerSpecification): boolean {
+  return layer.type === "symbol" && !layer.id.startsWith("basemap-water_");
+}
+
 /** Protomaps flavor per display theme. The e-ink panel is color (Kaleido). */
 function flavorName(theme: DisplayTheme): string {
   switch (theme) {

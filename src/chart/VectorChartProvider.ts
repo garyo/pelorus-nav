@@ -147,8 +147,16 @@ export class VectorChartProvider implements ChartProvider {
       }
     }
 
-    // Single unified coverage mask on top of all regions
-    allLayers.push({
+    // Draw order across regions: every region's fills/lines, then the
+    // unified coverage mask, then every region's symbol layers. Regions own
+    // disjoint tiles (tile-center ownership at z8+), so a label anchored
+    // near a region boundary overflows into the neighbouring region's
+    // tiles — its opaque fills must not paint later and chop the label
+    // mid-glyph at the seam.
+    const base = allLayers.filter((l) => l.type !== "symbol");
+    const symbols = allLayers.filter((l) => l.type === "symbol");
+
+    base.push({
       id: "s57-no-coverage",
       type: "fill" as const,
       source: UNIFIED_COVERAGE_SOURCE,
@@ -158,7 +166,7 @@ export class VectorChartProvider implements ChartProvider {
       },
     });
 
-    return allLayers;
+    return [...base, ...symbols];
   }
 
   getAttribution(): string {

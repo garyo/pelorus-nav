@@ -105,6 +105,7 @@ export function applyUnderlay(
   s57Layers: LayerSpecification[],
   underlayLayers: LayerSpecification[],
   landOpacity: number,
+  underlayLabels: LayerSpecification[] = [],
 ): LayerSpecification[] {
   const fallback: LayerSpecification[] = s57Layers
     .filter(
@@ -144,5 +145,17 @@ export function applyUnderlay(
     return layer;
   });
 
-  return [...fallback, ...underlayLayers, ...adjusted];
+  // Label layers ride above the chart's fills and lines — an underlay label
+  // straddling the shoreline would otherwise be chopped mid-glyph by the
+  // opaque water fills — but below the chart's own symbol layers, so chart
+  // text keeps collision priority and paints on top.
+  const firstSymbol = adjusted.findIndex((l) => l.type === "symbol");
+  const cut = firstSymbol < 0 ? adjusted.length : firstSymbol;
+  return [
+    ...fallback,
+    ...underlayLayers,
+    ...adjusted.slice(0, cut),
+    ...underlayLabels,
+    ...adjusted.slice(cut),
+  ];
 }

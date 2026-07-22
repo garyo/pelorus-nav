@@ -16,6 +16,7 @@ import {
   getBasemapLayers,
   getBasemapSources,
   hasStoredBasemap,
+  isLiftedBasemapLabel,
   isViewportCovered,
 } from "./basemap-underlay";
 import type { ChartProvider } from "./ChartProvider";
@@ -432,6 +433,7 @@ export class ChartManager {
           ...getBasemapSources(settings.activeRegion),
           [osm.id]: osm.source,
         };
+        const basemapLayers = getBasemapLayers(settings.displayTheme);
         layers = applyUnderlay(
           layers,
           [
@@ -439,9 +441,10 @@ export class ChartManager {
               settings.displayTheme,
               this.viewCoveredByBasemap() ? 10 : 24,
             ),
-            ...getBasemapLayers(settings.displayTheme),
+            ...basemapLayers.filter((l) => !isLiftedBasemapLabel(l)),
           ],
           0.3,
+          basemapLayers.filter(isLiftedBasemapLabel),
         );
       } else {
         const osm = getOSMUnderlaySource();
