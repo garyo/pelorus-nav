@@ -12,6 +12,10 @@ export type DragCallback = (
 
 export type TapCallback = (featureIndex: number) => void;
 
+/** Fired once per gesture, just before its first onDrag — i.e. only when
+ *  the pointer actually moves. A plain click/tap never fires it. */
+export type DragStartCallback = () => void;
+
 /** Finger-sized half-width for touch hit-testing (px). */
 const TOUCH_HIT_SLOP = 10;
 /** Movement below this (px) is a tap, not a drag. */
@@ -22,9 +26,12 @@ export class DraggablePoints {
   private readonly layerId: string;
   private readonly onDrag: DragCallback;
   private readonly onTap: TapCallback | null;
+  private readonly onDragStart: DragStartCallback | null;
 
   private dragging = false;
   private dragIndex = -1;
+  /** True once this gesture has produced an onDrag (gates onDragStart). */
+  private movedThisGesture = false;
   /** Pixel offset from mousedown to feature anchor, to avoid jump on pickup. */
   private dragOffsetX = 0;
   private dragOffsetY = 0;
@@ -38,11 +45,13 @@ export class DraggablePoints {
     layerId: string,
     onDrag: DragCallback,
     onTap: TapCallback | null = null,
+    onDragStart: DragStartCallback | null = null,
   ) {
     this.map = map;
     this.layerId = layerId;
     this.onDrag = onDrag;
     this.onTap = onTap;
+    this.onDragStart = onDragStart;
 
     this.onMouseDown = this.onMouseDown.bind(this);
     this.onMouseMove = this.onMouseMove.bind(this);
@@ -103,6 +112,7 @@ export class DraggablePoints {
       e.point.x + this.dragOffsetX,
       e.point.y + this.dragOffsetY,
     ]);
+    this.noteGestureMoved();
     this.onDrag(this.dragIndex, lngLat);
   }
 
@@ -163,7 +173,14 @@ export class DraggablePoints {
       touch.clientX - rect.left + this.dragOffsetX,
       touch.clientY - rect.top + this.dragOffsetY,
     ]);
+    this.noteGestureMoved();
     this.onDrag(this.dragIndex, lngLat);
+  }
+
+  private noteGestureMoved(): void {
+    if (this.movedThisGesture) return;
+    this.movedThisGesture = true;
+    this.onDragStart?.();
   }
 
   private onTouchEnd(): void {
@@ -177,6 +194,7 @@ export class DraggablePoints {
   private startDrag(index: number): void {
     this.dragging = true;
     this.dragIndex = index;
+    this.movedThisGesture = false;
     this.map.dragPan.disable();
     const canvas = this.map.getCanvas();
     canvas.addEventListener("touchmove", this.onTouchMove, { passive: false });

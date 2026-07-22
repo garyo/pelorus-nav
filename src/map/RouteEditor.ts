@@ -4,6 +4,10 @@
  * Ghost midpoints on legs allow inserting waypoints between existing ones.
  * Shows per-leg distance/bearing and running total.
  * Preview line follows cursor from last waypoint.
+ *
+ * Undo is snapshot-based: every mutation calls checkpoint() first, which
+ * pushes a deep copy of {waypoints, selectedIndex}; undo() pops and
+ * restores. Session-scoped — Cancel discards everything, Done resets.
  */
 
 import type maplibregl from "maplibre-gl";
@@ -19,6 +23,7 @@ import {
 } from "../utils/feature-name";
 import { formatLocalDateTime } from "../utils/format";
 import { formatBearing } from "../utils/magnetic";
+import { UndoStack } from "../utils/undo-stack";
 import { generateUUID } from "../utils/uuid";
 import { DraggablePoints } from "./DraggablePoints";
 import { startEditTapDiag } from "./editTapDiag";
@@ -70,6 +75,10 @@ export class RouteEditor {
   private bar: HTMLDivElement;
   private barText: HTMLDivElement;
   private barActions: HTMLDivElement;
+  private readonly undoStack = new UndoStack<{
+    waypoints: Waypoint[];
+    selectedIndex: number | null;
+  }>();
   private listeners: EditorListener[] = [];
   private finishListeners: FinishListener[] = [];
   private cancelListeners: ((existingId: string | null) => void)[] = [];
@@ -102,6 +111,24 @@ export class RouteEditor {
     this.bar
       .querySelector(".route-editor-btn--cancel")
       ?.addEventListener("click", () => this.cancel());
+
+    // Desktop convenience: Cmd/Ctrl+Z undoes while editing (inputs keep
+    // their own undo).
+    document.addEventListener("keydown", (e) => {
+      if (!this.route || !(e.ctrlKey || e.metaKey)) return;
+      if (e.key.toLowerCase() !== "z" || e.shiftKey) return;
+      const t = e.target;
+      if (
+        t instanceof HTMLElement &&
+        (t.tagName === "INPUT" ||
+          t.tagName === "TEXTAREA" ||
+          t.isContentEditable)
+      ) {
+        return;
+      }
+      e.preventDefault();
+      this.undo();
+    });
 
     map.on("style.load", () => this.setupLayers());
     if (map.isStyleLoaded()) this.setupLayers();
@@ -283,6 +310,7 @@ export class RouteEditor {
           this.route.waypoints.slice(-1),
         ),
       };
+      this.checkpoint();
       this.route.waypoints.push(wp);
       this.updateSources();
       this.updateBar();
@@ -318,6 +346,38 @@ export class RouteEditor {
     for (const fn of this.cancelListeners) fn(existingId);
   }
 
+  /** Snapshot state before a mutation; one Undo press restores it. */
+  private checkpoint(): void {
+    if (!this.route) return;
+    this.undoStack.push({
+      waypoints: structuredClone(this.route.waypoints),
+      selectedIndex: this.selectedIndex,
+    });
+  }
+
+  /** Restore the state before the last mutation (add/insert/delete/drag/
+   *  rename). No redo; session-scoped. */
+  undo(): void {
+    const snap = this.undoStack.pop();
+    if (!this.route || !snap) return;
+    this.route.waypoints = snap.waypoints;
+    this.selectedIndex = snap.selectedIndex;
+    this.updateSources();
+    this.updateBar();
+    this.setupDrag();
+  }
+
+  /** Rename a waypoint during editing. Undoable; Done persists it,
+   *  Cancel discards it. */
+  renameWaypoint(index: number, name: string): void {
+    const wp = this.route?.waypoints[index];
+    if (!wp || wp.name === name) return;
+    this.checkpoint();
+    wp.name = name;
+    this.updateSources();
+    this.updateBar();
+  }
+
   private select(index: number): void {
     if (!this.route || index < 0 || index >= this.route.waypoints.length)
       return;
@@ -334,6 +394,7 @@ export class RouteEditor {
 
   private deleteSelected(): void {
     if (!this.route || this.selectedIndex === null) return;
+    this.checkpoint();
     this.route.waypoints.splice(this.selectedIndex, 1);
     // Renumber names
     for (let i = 0; i < this.route.waypoints.length; i++) {
@@ -349,6 +410,7 @@ export class RouteEditor {
 
   private prependWaypoint(lat: number, lon: number): void {
     if (!this.route) return;
+    this.checkpoint();
     // Only the new waypoint gets an auto-name; existing waypoints keep
     // whatever names the user has set (renumbering would clobber custom
     // and feature-derived names).
@@ -375,6 +437,7 @@ export class RouteEditor {
     lon: number,
   ): void {
     if (!this.route) return;
+    this.checkpoint();
     const newWp: Waypoint = {
       lat,
       lon,
@@ -436,6 +499,7 @@ export class RouteEditor {
     }
     this.route = null;
     this.selectedIndex = null;
+    this.undoStack.clear();
     this.bar.style.display = "none";
     this.clearSources();
     if (getMode() === "route-edit") {
@@ -562,6 +626,8 @@ export class RouteEditor {
           this.select(index);
         }
       },
+      // One checkpoint per drag gesture, taken before the first movement.
+      () => this.checkpoint(),
     );
   }
 
@@ -723,6 +789,17 @@ export class RouteEditor {
     }
   }
 
+  /** Add an Undo action to the bar — only when there is something to undo. */
+  private appendUndoButton(): void {
+    if (this.undoStack.isEmpty) return;
+    const btn = document.createElement("button");
+    btn.className = "route-editor-btn route-editor-btn--secondary";
+    btn.textContent = "Undo";
+    btn.title = "Undo last change (Ctrl/Cmd+Z)";
+    btn.addEventListener("click", () => this.undo());
+    this.barActions.appendChild(btn);
+  }
+
   private updateBar(): void {
     if (!this.route) return;
     const wps = this.route.waypoints;
@@ -761,11 +838,13 @@ export class RouteEditor {
       insBtn.addEventListener("click", () => this.insertAfterSelected());
 
       this.barActions.append(delBtn, insBtn);
+      this.appendUndoButton();
       return;
     }
 
     // Normal mode: summary
     this.barActions.innerHTML = "";
+    this.appendUndoButton();
 
     if (wps.length === 0) {
       this.barText.textContent = "Click to place waypoints";

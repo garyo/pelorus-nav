@@ -15,6 +15,11 @@ The format follows [Keep a Changelog](https://keepachangelog.com/).
 - Bug report diagnostics now include a short log of recent UI actions
   (panels opened, map modes entered), which helps diagnose reported
   problems.
+- The route editor now has Undo: the toolbar shows an Undo button
+  whenever there is something to undo (adding, inserting, deleting,
+  dragging, or renaming a waypoint — one undo per drag). Ctrl/Cmd+Z
+  also works on desktop. History is per editing session; Cancel still
+  discards everything.
 
 ### Changed
 - While editing a route, waypoint names in the route detail list are now

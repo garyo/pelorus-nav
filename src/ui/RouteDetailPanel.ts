@@ -519,11 +519,13 @@ export class RouteDetailPanel {
       finished = true;
       const newName = cancel ? wp.name : input.value.trim();
       if (!cancel && newName && newName !== wp.name) {
-        wp.name = newName;
-        // While editing, the rename lives on the editor's live route:
-        // Done persists it, Cancel discards it. Saving here would commit
-        // in-progress geometry edits behind the user's back.
-        if (!this.isEditingThisRoute()) {
+        if (this.isEditingThisRoute()) {
+          // The rename lives on the editor's live route (undoable there):
+          // Done persists it, Cancel discards it. Saving here would commit
+          // in-progress geometry edits behind the user's back.
+          this.editor.renameWaypoint(index, newName);
+        } else {
+          wp.name = newName;
           await saveRoute(route);
           // Refresh the on-map labels for this route.
           this.routeLayer.updateRoute(route);
