@@ -8,6 +8,11 @@ The format follows [Keep a Changelog](https://keepachangelog.com/).
 ## [Unreleased]
 
 ### Added
+- An online user guide at
+  [pelorus-nav.com/doc/userguide](https://pelorus-nav.com/doc/userguide/),
+  covering getting started, the chart display, routes, tracks,
+  tides/wind/sun, and the traditional plotting tools. Linked from the
+  About dialog and the website.
 - Bug reports can now include a screenshot of the chart. The report
   dialog shows a preview with an "Include chart screenshot" checkbox
   (on by default) — uncheck it to send the report without revealing
