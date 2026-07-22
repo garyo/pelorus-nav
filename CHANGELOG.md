@@ -24,6 +24,14 @@ The format follows [Keep a Changelog](https://keepachangelog.com/).
   in the list. The list also appears as soon as a route has one waypoint,
   instead of only after two.
 
+### Fixed
+- Opening another panel (Sun, chart layers, …) while editing a route no
+  longer dismisses the waypoint list; close it with its X if you want
+  more room. Renaming a waypoint mid-edit no longer silently saves your
+  in-progress route changes (Done saves, Cancel discards, as expected),
+  and a chart style reload during editing no longer redraws the route's
+  old shape underneath the one being edited.
+
 ## [0.15.0] - 2026-07-21
 
 ### Added
