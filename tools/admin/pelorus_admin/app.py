@@ -10,6 +10,7 @@ import argparse
 import asyncio
 import dataclasses
 import os
+import subprocess
 import sys
 from pathlib import Path
 
@@ -95,6 +96,7 @@ class BugsPane(ListDetailPane):
     BINDINGS = [
         Binding("a", "toggle_actionable", "actionable only"),
         Binding("d", "download", "download"),
+        Binding("o", "open_screenshot", "screenshot"),
         Binding("k", "set_status('ack')", "ack"),
         Binding("i", "set_status('in-progress')", "in-prog"),
         Binding("f", "set_status('fixed')", "fixed"),
@@ -193,6 +195,10 @@ class BugsPane(ListDetailPane):
         header.append("status:   ").append_text(styled_status(bug.status))
         if bug.status_updated_at:
             header.append(f"  (set {bug.status_updated_at[:16].replace('T', ' ')})")
+        if bug.screenshot_key:
+            header.append("\nscreenshot: attached — press ")
+            header.append("o", style="bold")
+            header.append(" to open")
         header.append("\n\n")
         header.append(body.description, style="bold")
         header.append("\n\n--- DIAGNOSTICS ---\n", style="dim")
@@ -206,7 +212,8 @@ class BugsPane(ListDetailPane):
             "Showing actionable only" if self.actionable_only else "Showing all"
         )
 
-    def action_download(self) -> None:
+    @work(group="bug-download")
+    async def action_download(self) -> None:
         bug = self.current_bug()
         if bug is None or bug.body is None:
             return
@@ -218,7 +225,23 @@ class BugsPane(ListDetailPane):
             f"--- DIAGNOSTICS ---\n{bug.body.diagnostics}\n"
         )
         path.write_text(raw)
-        self.app.notify(f"Saved {path}")
+        saved = str(path)
+        if bug.screenshot_key:
+            cached = await self.client.get_bug_screenshot(bug.screenshot_key)
+            jpg = path.with_suffix(".jpg")
+            jpg.write_bytes(cached.read_bytes())
+            saved += " + .jpg"
+        self.app.notify(f"Saved {saved}")
+
+    @work(group="bug-screenshot")
+    async def action_open_screenshot(self) -> None:
+        bug = self.current_bug()
+        if bug is None or bug.screenshot_key is None:
+            self.app.notify("No screenshot on this report")
+            return
+        path = await self.client.get_bug_screenshot(bug.screenshot_key)
+        opener = "open" if sys.platform == "darwin" else "xdg-open"
+        subprocess.Popen([opener, str(path)])
 
     @work(group="bug-status")
     async def action_set_status(self, status: str) -> None:

@@ -287,11 +287,32 @@ async function handleSubscribe(
 }
 
 // In-app bug reports: description + optional reply address + the app's full
-// diagnostics dump. Stored whole in R2 under bug-reports/ — the tile-serving
-// routes only expose *.pmtiles/*.coverage.geojson/*.search.json, so reports
-// are unreachable from outside. Read with:
+// diagnostics dump, plus an optional chart screenshot (JPEG data URL). The
+// text is stored whole in R2 under bug-reports/ with the screenshot as a
+// sibling .jpg (same base name) — the tile-serving routes only expose
+// *.pmtiles/*.coverage.geojson/*.search.json, so reports are unreachable
+// from outside. Read with:
 //   wrangler r2 object get pelorus-nav bug-reports/<name> --remote
 const BUG_REPORT_MAX_BYTES = 1_000_000;
+const SCREENSHOT_DATA_URL_PREFIX = "data:image/jpeg;base64,";
+const SCREENSHOT_MAX_BYTES = 2_000_000;
+
+/** Decode a JPEG data URL to bytes; null if malformed or oversized. */
+function decodeScreenshot(value: unknown): Uint8Array | null {
+  if (
+    typeof value !== "string" ||
+    !value.startsWith(SCREENSHOT_DATA_URL_PREFIX) ||
+    value.length > SCREENSHOT_MAX_BYTES
+  ) {
+    return null;
+  }
+  try {
+    const b64 = value.slice(SCREENSHOT_DATA_URL_PREFIX.length);
+    return Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
+  } catch {
+    return null;
+  }
+}
 
 async function handleBugReport(
   request: Request,
@@ -307,9 +328,15 @@ async function handleBugReport(
   const jsonResponse = (data: unknown, status = 200) =>
     Response.json(data, { status, headers: corsHeaders });
 
-  if (Number(request.headers.get("content-length") ?? 0) > BUG_REPORT_MAX_BYTES)
+  const maxRequestBytes = BUG_REPORT_MAX_BYTES + SCREENSHOT_MAX_BYTES;
+  if (Number(request.headers.get("content-length") ?? 0) > maxRequestBytes)
     return jsonResponse({ error: "report too large" }, 413);
-  let body: { description?: unknown; email?: unknown; diagnostics?: unknown };
+  let body: {
+    description?: unknown;
+    email?: unknown;
+    diagnostics?: unknown;
+    screenshot?: unknown;
+  };
   try {
     body = await request.json();
   } catch {
@@ -327,11 +354,15 @@ async function handleBugReport(
       ? body.diagnostics.slice(0, BUG_REPORT_MAX_BYTES)
       : "";
 
+  const screenshot = decodeScreenshot(body.screenshot);
+
   const now = new Date();
-  const key = `bug-reports/${now.toISOString().replace(/[:.]/g, "-")}-${crypto.randomUUID().slice(0, 8)}.txt`;
+  const base = `bug-reports/${now.toISOString().replace(/[:.]/g, "-")}-${crypto.randomUUID().slice(0, 8)}`;
+  const key = `${base}.txt`;
   const text = [
     `date: ${now.toISOString()}`,
     `email: ${email || "(none)"}`,
+    `screenshot: ${screenshot ? `${base}.jpg` : "(none)"}`,
     "",
     "--- DESCRIPTION ---",
     description,
@@ -343,6 +374,11 @@ async function handleBugReport(
   await env.TILES.put(key, text, {
     httpMetadata: { contentType: "text/plain" },
   });
+  if (screenshot) {
+    await env.TILES.put(`${base}.jpg`, screenshot, {
+      httpMetadata: { contentType: "image/jpeg" },
+    });
+  }
 
   notifyNtfy(env, ctx, {
     title: "Pelorus bug report",
@@ -400,10 +436,10 @@ function requireAdmin(request: Request, env: Env): Response | null {
 }
 
 /** The only user input that reaches R2 from the admin API. */
-function isValidBugKey(key: string): boolean {
+function isValidBugKey(key: string, ext = ".txt"): boolean {
   return (
     key.startsWith(BUG_REPORT_PREFIX) &&
-    key.endsWith(".txt") &&
+    key.endsWith(ext) &&
     !key.includes("..") &&
     !key.includes("//")
   );
@@ -427,7 +463,10 @@ async function handleAdminBugList(env: Env): Promise<Response> {
     kvCursor = page.list_complete ? undefined : page.cursor;
   } while (kvCursor);
 
-  const bugs: unknown[] = [];
+  // One report can be two objects: the .txt body and an optional .jpg chart
+  // screenshot with the same base name. Only .txt objects become bug rows.
+  const reports: R2Object[] = [];
+  const screenshots = new Set<string>();
   let r2Cursor: string | undefined;
   do {
     const page = await env.TILES.list({
@@ -435,17 +474,24 @@ async function handleAdminBugList(env: Env): Promise<Response> {
       cursor: r2Cursor,
     });
     for (const object of page.objects) {
-      const meta = statuses.get(object.key);
-      bugs.push({
-        key: object.key,
-        size: object.size,
-        uploaded: object.uploaded.toISOString(),
-        status: meta?.status ?? "new",
-        statusUpdatedAt: meta?.updatedAt ?? null,
-      });
+      if (object.key.endsWith(".jpg")) screenshots.add(object.key);
+      else reports.push(object);
     }
     r2Cursor = page.truncated ? page.cursor : undefined;
   } while (r2Cursor);
+
+  const bugs = reports.map((object) => {
+    const meta = statuses.get(object.key);
+    const screenshotKey = object.key.replace(/\.txt$/, ".jpg");
+    return {
+      key: object.key,
+      size: object.size,
+      uploaded: object.uploaded.toISOString(),
+      status: meta?.status ?? "new",
+      statusUpdatedAt: meta?.updatedAt ?? null,
+      screenshotKey: screenshots.has(screenshotKey) ? screenshotKey : null,
+    };
+  });
 
   return Response.json({ bugs });
 }
@@ -459,6 +505,18 @@ async function handleAdminBugGet(env: Env, url: URL): Promise<Response> {
   if (!object) return new Response("Not found", { status: 404 });
   return new Response(object.body, {
     headers: { "content-type": "text/plain; charset=utf-8" },
+  });
+}
+
+async function handleAdminBugScreenshot(env: Env, url: URL): Promise<Response> {
+  const key = url.searchParams.get("key") ?? "";
+  if (!isValidBugKey(key, ".jpg")) {
+    return new Response("Bad Request", { status: 400 });
+  }
+  const object = await env.TILES.get(key);
+  if (!object) return new Response("Not found", { status: 404 });
+  return new Response(object.body, {
+    headers: { "content-type": "image/jpeg" },
   });
 }
 
@@ -520,6 +578,8 @@ async function handleAdminRequest(
       return handleAdminBugList(env);
     case "GET /api/admin/bug":
       return handleAdminBugGet(env, url);
+    case "GET /api/admin/bug-screenshot":
+      return handleAdminBugScreenshot(env, url);
     case "PUT /api/admin/bug-status":
       return handleAdminBugStatus(request, env);
     case "PUT /api/admin/subscriber-status":

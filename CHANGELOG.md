@@ -5,6 +5,14 @@ Notable user-facing changes to Pelorus Nav. Downloads are on the
 
 The format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [Unreleased]
+
+### Added
+- Bug reports can now include a screenshot of the chart. The report
+  dialog shows a preview with an "Include chart screenshot" checkbox
+  (on by default) — uncheck it to send the report without revealing
+  your position.
+
 ## [0.15.0] - 2026-07-21
 
 ### Added

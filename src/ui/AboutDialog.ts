@@ -69,6 +69,8 @@ export interface AboutDialogOptions {
     diagnosticsSnapshot(): string;
     requestDeviceDiag(): Promise<string | null>;
   };
+  /** Chart screenshot for bug reports (see BugReportOptions). */
+  captureScreenshot?: () => Promise<string | null>;
 }
 
 export class AboutDialog {
@@ -206,6 +208,7 @@ export class AboutDialog {
     shareDiagBtn.textContent = "Report a Bug…";
     shareDiagBtn.addEventListener("click", () => {
       showBugReportDialog({
+        captureScreenshot: options.captureScreenshot,
         collectDiagnostics: () =>
           collectDiagnostics(
             buildDefaultSections({

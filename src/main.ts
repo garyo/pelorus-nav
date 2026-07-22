@@ -12,6 +12,7 @@ import { installOverlayDimming } from "./app/overlayDimming";
 import { installRepaintThrottle } from "./app/repaintThrottle";
 import {
   ChartManager,
+  captureMapScreenshot,
   FeatureQueryHandler,
   NOAAChartProvider,
   NOAAECDISProvider,
@@ -1757,6 +1758,7 @@ if (topbarMenu) {
       diagnosticsSnapshot: () => navManager.diagnosticsSnapshot(),
       requestDeviceDiag: () => navManager.requestDeviceDiag(),
     },
+    captureScreenshot: () => captureMapScreenshot(chartManager.map),
   });
   idleCloseables.push(aboutDialog);
   const aboutBtn = buildTopbarAction(iconInfo, "INFO", "About", {

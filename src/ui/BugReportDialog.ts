@@ -15,6 +15,12 @@ const UPLOAD_TIMEOUT_MS = 20_000;
 export interface BugReportOptions {
   /** Produces the diagnostics text to attach (may take a few seconds). */
   collectDiagnostics: () => Promise<string>;
+  /**
+   * Captures the chart as a JPEG data URL (null if capture fails). Taken when
+   * the dialog opens; attached only if the user leaves the checkbox on — a
+   * chart screenshot reveals the vessel's position, so it's their call.
+   */
+  captureScreenshot?: () => Promise<string | null>;
 }
 
 export function showBugReportDialog(options: BugReportOptions): void {
@@ -63,6 +69,30 @@ export function showBugReportDialog(options: BugReportOptions): void {
     "App diagnostics are included automatically: device info, settings, " +
     "recent logs, and GPS data.";
 
+  // Chart screenshot: captured when the dialog opens (the overlay is DOM, so
+  // it never appears in the WebGL capture); the row stays hidden until the
+  // capture resolves so a failed capture just means no checkbox.
+  const screenshotRow = document.createElement("label");
+  screenshotRow.className = "bugreport-screenshot";
+  screenshotRow.style.display = "none";
+  const screenshotCheck = document.createElement("input");
+  screenshotCheck.type = "checkbox";
+  screenshotCheck.checked = true;
+  const screenshotLabel = document.createElement("span");
+  screenshotLabel.textContent = "Include chart screenshot";
+  const screenshotThumb = document.createElement("img");
+  screenshotThumb.className = "bugreport-screenshot-thumb";
+  screenshotThumb.alt = "Chart screenshot preview";
+  screenshotRow.append(screenshotCheck, screenshotLabel, screenshotThumb);
+
+  let screenshot: string | null = null;
+  options.captureScreenshot?.().then((dataUrl) => {
+    if (!dataUrl || !overlay.isConnected) return;
+    screenshot = dataUrl;
+    screenshotThumb.src = dataUrl;
+    screenshotRow.style.display = "";
+  });
+
   const status = document.createElement("div");
   status.className = "bugreport-status";
 
@@ -77,7 +107,7 @@ export function showBugReportDialog(options: BugReportOptions): void {
   sendBtn.textContent = "Send Report";
   buttons.append(cancelBtn, sendBtn);
 
-  card.append(title, description, email, note, status, buttons);
+  card.append(title, description, email, note, screenshotRow, status, buttons);
   document.body.appendChild(overlay);
   description.focus();
 
@@ -104,6 +134,7 @@ export function showBugReportDialog(options: BugReportOptions): void {
           description: text,
           email: email.value.trim(),
           diagnostics,
+          ...(screenshot && screenshotCheck.checked ? { screenshot } : {}),
         }),
         signal: AbortSignal.timeout(UPLOAD_TIMEOUT_MS),
       });

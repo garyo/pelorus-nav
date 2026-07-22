@@ -37,6 +37,7 @@ class AdminClient:
                 uploaded=b["uploaded"],
                 status=b["status"],
                 status_updated_at=b.get("statusUpdatedAt"),
+                screenshot_key=b.get("screenshotKey"),
             )
             for b in resp.json()["bugs"]
         ]
@@ -49,6 +50,16 @@ class AdminClient:
         resp.raise_for_status()
         cached.write_text(resp.text)
         return resp.text
+
+    async def get_bug_screenshot(self, key: str) -> Path:
+        """Fetch a report's chart screenshot to the disk cache; returns its path."""
+        cached = self._cache_dir / key.rsplit("/", 1)[-1]
+        if cached.exists():
+            return cached
+        resp = await self._client.get("/api/admin/bug-screenshot", params={"key": key})
+        resp.raise_for_status()
+        cached.write_bytes(resp.content)
+        return cached
 
     async def set_bug_status(self, key: str, status: str) -> None:
         resp = await self._client.put(

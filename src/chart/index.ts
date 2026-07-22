@@ -1,6 +1,7 @@
 export type { ChartManagerOptions } from "./ChartManager";
 export { ChartManager } from "./ChartManager";
 export type { ChartProvider } from "./ChartProvider";
+export { captureMapScreenshot } from "./captureMapScreenshot";
 export { FeatureQueryHandler } from "./FeatureQueryHandler";
 export type { FeatureInfo } from "./feature-info";
 export { formatFeatureInfo } from "./feature-info";

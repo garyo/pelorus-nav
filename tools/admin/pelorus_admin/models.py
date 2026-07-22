@@ -5,6 +5,7 @@ handleBugReport:
 
     date: <ISO>
     email: <email or "(none)">
+    screenshot: <sibling .jpg R2 key or "(none)">  (absent in older reports)
 
     --- DESCRIPTION ---
     <description>
@@ -70,6 +71,7 @@ class Bug:
     uploaded: str
     status: str
     status_updated_at: str | None = None
+    screenshot_key: str | None = None
     body: BugBody | None = None
 
     @property
