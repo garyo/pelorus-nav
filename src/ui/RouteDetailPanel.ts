@@ -476,7 +476,8 @@ export class RouteDetailPanel {
       legRow.append(course, dist, cum);
 
       // While editing, the route's normal display is hidden so the leg
-      // highlight would draw nothing — keep only the camera fit.
+      // highlight would draw nothing — clicking a leg selects its starting
+      // waypoint instead (the camera fit already frames the leg).
       legRow.addEventListener("mouseenter", () => {
         if (!editing) this.selectLeg(legRow, leg.index);
       });
@@ -484,7 +485,8 @@ export class RouteDetailPanel {
         if (!editing) this.clearSelection();
       });
       legRow.addEventListener("click", () => {
-        if (!editing) this.selectLeg(legRow, leg.index);
+        if (editing) this.editor.setSelectedIndex(leg.index);
+        else this.selectLeg(legRow, leg.index);
         this.routeLayer.fitLeg(route, leg.index);
       });
       wrap.appendChild(legRow);
