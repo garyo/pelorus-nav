@@ -11,12 +11,20 @@ Turn on the **Tides & Currents** layer group and zoom into a harbor:
 
 ![Tides and currents with the time bar](/images/tides-time.png)
 
-- **Tide stations** show the predicted water height with a trend arrow —
-  `9ft ↑` means nine feet and rising. The icon fills as the tide comes in.
-- **Current stations** draw an arrow pointing the direction the current
-  sets, sized by its strength, with the drift labeled as you zoom in
-  (e.g. `0.5 Kt`). At slack, a double-ended marker shows the flood and ebb
-  directions.
+- **Tide stations**
+  <img src="/images/icons/peltidg0.png" width="26" style="display:inline-block; vertical-align:middle; margin:0 3px" alt="tide gauge, low">
+  <img src="/images/icons/peltidg2.png" width="26" style="display:inline-block; vertical-align:middle; margin:0 3px" alt="tide gauge, half">
+  <img src="/images/icons/peltidg4.png" width="26" style="display:inline-block; vertical-align:middle; margin:0 3px" alt="tide gauge, high">
+  show the predicted water height with a trend arrow — `9ft ↑` means nine
+  feet and rising. The icon fills with the tide: nearly empty at low
+  water, full at high.
+- **Current stations**
+  <img src="/images/icons/pelcur03.png" width="26" style="display:inline-block; vertical-align:middle; margin:0 3px" alt="current arrow">
+  draw an arrow pointing the direction the current sets, its length scaled
+  by strength, with the drift labeled as you zoom in (e.g. `0.5 Kt`). At
+  slack, a pair of hollow arrows
+  <img src="/images/icons/pelslk01.png" width="26" style="display:inline-block; vertical-align:middle; margin:0 3px" alt="slack arrow">
+  points out the flood and ebb directions instead.
 
 Predictions are computed on the device from NOAA harmonic data bundled
 with the app, so they work fully offline — no signal required at anchor.
