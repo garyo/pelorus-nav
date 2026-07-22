@@ -67,9 +67,10 @@ and each route row can be exported individually. Two reasons to use them:
   lost phone or a cleared browser.
 - **Moving between devices** — there's no cloud sync (by design; it works
   offline). The comfortable workflow is to plan routes on a desktop with a
-  big screen and mouse, Export All, then import the file on the phone or
-  tablet you navigate with. GPX is the standard interchange format, so the
-  same files also move routes to and from other chartplotters and apps.
+  big screen and mouse, export — Export All, or a single route's own export
+  button — then import the file on the phone or tablet you navigate with.
+  GPX is the standard interchange format, so the same files also move
+  routes to and from other chartplotters and apps.
 
 ## Following a route
 

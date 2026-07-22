@@ -9,7 +9,15 @@ export default defineConfig({
   lang: "en-US",
   base: "/doc/userguide/",
   outDir: "../dist/doc/userguide",
+  // head hrefs are not base-prefixed automatically, so spell out the path.
+  head: [
+    [
+      "link",
+      { rel: "icon", type: "image/svg+xml", href: "/doc/userguide/icon.svg" },
+    ],
+  ],
   themeConfig: {
+    logo: "/icon.svg",
     siteTitle: "Pelorus Nav User Guide",
     nav: [
       { text: "Pelorus Nav", link: "https://pelorus-nav.com/" },
