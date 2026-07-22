@@ -18,6 +18,20 @@ Panning the chart by hand always switches to **free** mode; tap the button
 to lock back onto the vessel. The button's icon shows the current mode, and
 it dims when there's no GPS fix.
 
+Two behaviors make the following modes work like a dedicated plotter:
+
+- **Look-ahead offset** — while you're underway (above about a knot), the
+  vessel doesn't sit dead center: it slides back from center along your
+  course so most of the screen shows the water *ahead* of you, where the
+  next buoy is, rather than the water you've already crossed. Below a knot
+  the boat returns to center.
+- **Auto-return** — if you've panned away in free mode, a minute of no
+  interaction snaps the chart back to your vessel (and closes any open
+  panels), so a glance at the helm always shows your boat. This is the
+  "Close dialogs & recenter when idle" setting (Settings → Appearance, on
+  by default) — the same one worth
+  [turning off while exploring the app ashore](/getting-started#settings-worth-changing).
+
 ## Instruments
 
 The instrument panel (toggle with INST) shows large SOG and COG readouts,
