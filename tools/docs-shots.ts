@@ -182,9 +182,9 @@ const SCENES: Scene[] = [
   },
   {
     name: "tides-time",
-    zoom: 11.4,
-    center: [-70.95, 42.31],
-    settings: { layerGroups: { tidesCurrents: true } },
+    zoom: 13,
+    center: [-70.96, 42.345],
+    settings: { layerGroups: { tidesCurrents: true }, iconScale: 1.2 },
     actions: async (page) => {
       await clickTopbar(page, "Time forecast");
       await page.waitForSelector(".time-bar", { state: "visible" });
