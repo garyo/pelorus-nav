@@ -66,6 +66,7 @@ export function startEditTapDiag(
   map: maplibregl.Map,
   layers: EditTapDiagLayers,
   getWaypoints: () => { lat: number; lon: number }[],
+  isAdding?: () => boolean,
 ): () => void {
   const canvas = map.getCanvas();
   try {
@@ -108,7 +109,8 @@ export function startEditTapDiag(
         "diag",
         `${kind} (${round(x)},${round(y)}) hits=${hits} mid=${mid}` +
           ` rendered=${rendered}/${wps.length} ${near || "near=(no wps)"}` +
-          ` rect=${round(rect.left)},${round(rect.top)}`,
+          ` rect=${round(rect.left)},${round(rect.top)}` +
+          (isAdding ? ` add=${isAdding() ? "on" : "off"}` : ""),
       );
     } catch (err) {
       editTapLog.log("edit", "error", `tap-diag failed: ${String(err)}`);

@@ -37,6 +37,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/).
   discards everything.
 
 ### Changed
+- Editing a saved route no longer turns a tap on open water into a
+  waypoint. Adding is now an explicit **Add Points** toggle in the
+  editing toolbar, lit while it's on: a route you're drawing starts with
+  it on, an existing route opens with it off. Stray taps — including
+  ones aimed at a control and missed — can no longer hang an unwanted
+  waypoint off the end of a finished route.
 - While editing a route, waypoint names in the route detail list are now
   clickable and stay in sync with the map: clicking a name selects that
   waypoint (same as tapping it on the map, with Delete / Insert After in
@@ -45,6 +51,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/).
   instead of only after two.
 
 ### Fixed
+- Taps on route waypoints and on the ghost insert markers are now
+  reliable, especially just after panning the chart — previously a tap
+  could land on a waypoint and be treated as a tap on open water. The
+  ghost insert markers are also larger and easier to hit with a finger.
 - Bluetooth GPS (NMEA) receivers such as the Dual XGPS150A and Garmin
   GLO 2 now work on recent Android (12+) devices, handy for devices
   without their own GPS.

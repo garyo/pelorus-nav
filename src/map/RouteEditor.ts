@@ -1,9 +1,16 @@
 /**
- * Interactive route editor. Click to add waypoints, drag to reposition.
- * Tap a waypoint to select it (delete / insert after).
- * Ghost midpoints on legs allow inserting waypoints between existing ones.
- * Shows per-leg distance/bearing and running total.
- * Preview line follows cursor from last waypoint.
+ * Interactive route editor. Tap a waypoint to select it (delete / insert
+ * after), drag to reposition. Ghost midpoints on legs allow inserting
+ * waypoints between existing ones. Shows per-leg distance/bearing and
+ * running total. Preview line follows cursor from last waypoint.
+ *
+ * Taps on open water append only while the Add Points toggle is on — on for
+ * a route being drawn, off for a saved one being adjusted. Without that
+ * split every tap that missed a handle grew the route, which is what field
+ * reports of "spurious waypoints" turned out to be.
+ *
+ * Handles are hit-tested geometrically (see point-hit-test), not by querying
+ * rendered symbols, so a tap right after a pan lands where the user aimed.
  *
  * Undo is snapshot-based: every mutation calls checkpoint() first, which
  * pushes a deep copy of {waypoints, selectedIndex}; undo() pops and
@@ -29,6 +36,7 @@ import { generateUUID } from "../utils/uuid";
 import { DraggablePoints } from "./DraggablePoints";
 import { startEditTapDiag } from "./editTapDiag";
 import { getMode, setMode } from "./InteractionMode";
+import { nearestPointIndex } from "./point-hit-test";
 import { ensurePointIcons, pointRole, ROLE_ICON_EXPR } from "./point-icons";
 import type { RouteLayer } from "./RouteLayer";
 import {
@@ -42,6 +50,12 @@ import {
 const PREPEND_MAX_FRACTION = 0.8;
 /** Min offset in degrees (~440m at mid-latitudes). */
 const PREPEND_MIN_OFFSET_DEG = 0.004;
+
+/** Reach of the waypoint hit test (px): icon half-width plus finger slop. */
+const WAYPOINT_HIT_RADIUS = 22;
+/** Reach of the ghost-midpoint hit test (px). Matches the waypoints — the
+ *  handle draws smaller, but a smaller target is no easier to hit. */
+const MIDPOINT_HIT_RADIUS = 22;
 
 /** Compute the prepend handle position — offset from start, opposite the first leg. */
 function prependHandlePos(wps: Waypoint[]): [number, number] | null {
@@ -71,12 +85,28 @@ const LAYER_SNAP = "_route-edit-snap";
 type EditorListener = () => void;
 type FinishListener = (route: Route) => void;
 
+/** A ghost handle on the line: inserts after `insertAfter`, or prepends
+ *  when that is null. Kept alongside the rendered features so the hit test
+ *  and the drawn handles can never disagree. */
+interface MidHandle {
+  lat: number;
+  lon: number;
+  insertAfter: number | null;
+}
+
 export class RouteEditor {
   private readonly map: maplibregl.Map;
   private readonly routeLayer: RouteLayer;
   private route: Route | null = null;
   private editingExistingId: string | null = null;
   private selectedIndex: number | null = null;
+  /** Ghost handles currently on the line, in the order they are drawn. */
+  private midHandles: MidHandle[] = [];
+  /** While on, a tap on open water appends a waypoint. Off, the chart is
+   *  inert and only the handles respond — the difference between drawing a
+   *  route and adjusting one, and the reason a stray tap can no longer put a
+   *  spur on the end of a finished route. */
+  private addingPoints = true;
   private draggable: DraggablePoints | null = null;
   private clickHandler: ((e: maplibregl.MapMouseEvent) => void) | null = null;
   private moveHandler: ((e: maplibregl.MapMouseEvent) => void) | null = null;
@@ -279,6 +309,10 @@ export class RouteEditor {
     );
 
     this.selectedIndex = null;
+    // Under two waypoints there is no route to adjust yet, so taps place
+    // points. An existing route opens inert: that is what stops every
+    // mis-aimed tap from hanging a spur off someone's finished route.
+    this.addingPoints = this.route.waypoints.length < 2;
     setMode("route-edit");
     this.bar.style.display = "flex";
     this.updateBar();
@@ -288,45 +322,44 @@ export class RouteEditor {
       this.map,
       { points: LAYER_POINTS, midpoints: LAYER_MIDPOINTS },
       () => this.route?.waypoints ?? [],
+      () => this.addingPoints,
     );
 
     this.clickHandler = (e: maplibregl.MapMouseEvent) => {
       if (getMode() !== "route-edit" || !this.route) return;
 
-      // Check midpoint click first (insert between waypoints or prepend)
-      const midFeatures = this.map.queryRenderedFeatures(e.point, {
-        layers: [LAYER_MIDPOINTS],
-      });
-      if (midFeatures.length > 0) {
-        const props = midFeatures[0].properties;
-        if (props?.insertBefore === 0) {
-          this.prependWaypoint(e.lngLat.lat, e.lngLat.lng);
-        } else {
-          const insertAfter = (props?.insertAfter as number) ?? 0;
-          this.insertWaypointAfter(insertAfter, e.lngLat.lat, e.lngLat.lng);
-        }
-        return;
-      }
-
-      // Check waypoint click (select/deselect)
-      const wpFeatures = this.map.queryRenderedFeatures(e.point, {
-        layers: [LAYER_POINTS],
-      });
-      if (wpFeatures.length > 0) {
-        const clickedIndex = (wpFeatures[0].properties?.index as number) ?? -1;
-        if (this.selectedIndex === clickedIndex) {
+      // Waypoints first — they draw above the ghost handles, so on a short
+      // leg where the two overlap the hit test agrees with what's visible.
+      // (Touch never reaches here for a waypoint: DraggablePoints consumes
+      // the gesture and suppresses the synthetic click.)
+      const wpIndex = this.hitWaypoint(e.point);
+      if (wpIndex !== null) {
+        if (this.selectedIndex === wpIndex) {
           this.deselect();
         } else {
-          this.select(clickedIndex);
+          this.select(wpIndex);
         }
         return;
       }
 
-      // Background click: deselect if selected, otherwise append
+      // Ghost handle: insert between waypoints, or prepend.
+      const handle = this.hitMidHandle(e.point);
+      if (handle) {
+        if (handle.insertAfter === null) {
+          this.prependWaypoint(handle.lat, handle.lon);
+        } else {
+          this.insertWaypointAfter(handle.insertAfter, handle.lat, handle.lon);
+        }
+        return;
+      }
+
+      // Background click: deselect if selected, otherwise append — but only
+      // when the user has asked for adding.
       if (this.selectedIndex !== null) {
         this.deselect();
         return;
       }
+      if (!this.addingPoints) return;
 
       const fallback = `WP${this.route.waypoints.length + 1}`;
       const snap = this.findSnapAt(e.point, this.appendOp());
@@ -354,7 +387,10 @@ export class RouteEditor {
 
     this.moveHandler = (e: maplibregl.MapMouseEvent) => {
       // Desktop hover feedback: ring the snap target and bend the preview
-      // line onto it, so the snap is visible before the click commits.
+      // line onto it, so the snap is visible before the click commits. With
+      // adding off there is nothing to preview — a line trailing the cursor
+      // would promise a waypoint the click won't place.
+      if (!this.addingPoints) return;
       const snap = this.findSnapAt(e.point, this.appendOp());
       this.showSnapIndicator(snap);
       this.updatePreview(snap ? { lng: snap.lon, lat: snap.lat } : e.lngLat);
@@ -414,6 +450,28 @@ export class RouteEditor {
     wp.name = name;
     this.updateSources();
     this.updateBar();
+  }
+
+  /** Index of the waypoint under a screen point, or null. */
+  private hitWaypoint(point: { x: number; y: number }): number | null {
+    if (!this.route) return null;
+    return nearestPointIndex(
+      this.route.waypoints,
+      point,
+      (ll) => this.map.project(ll),
+      WAYPOINT_HIT_RADIUS,
+    );
+  }
+
+  /** Ghost handle under a screen point, or null. */
+  private hitMidHandle(point: { x: number; y: number }): MidHandle | null {
+    const index = nearestPointIndex(
+      this.midHandles,
+      point,
+      (ll) => this.map.project(ll),
+      MIDPOINT_HIT_RADIUS,
+    );
+    return index === null ? null : this.midHandles[index];
   }
 
   private appendOp(): SnapOp {
@@ -681,7 +739,7 @@ export class RouteEditor {
       source: SOURCE_MIDPOINTS,
       layout: {
         "icon-image": ROLE_ICON_EXPR,
-        "icon-size": 0.8,
+        "icon-size": 1,
         "icon-allow-overlap": true,
       },
     });
@@ -733,6 +791,10 @@ export class RouteEditor {
       () => this.checkpoint(),
       // Gesture over — the snap ring must not linger on the target.
       () => this.showSnapIndicator(null),
+      {
+        getPoints: () => this.route?.waypoints ?? [],
+        hitRadius: WAYPOINT_HIT_RADIUS,
+      },
     );
   }
 
@@ -770,28 +832,31 @@ export class RouteEditor {
     ptSrc.setData({ type: "FeatureCollection", features: points });
 
     // Ghost midpoints between consecutive waypoints + prepend handle
+    this.midHandles = [];
+    const prependPos = prependHandlePos(wps);
+    if (prependPos) {
+      this.midHandles.push({
+        lon: prependPos[0],
+        lat: prependPos[1],
+        insertAfter: null,
+      });
+    }
+    for (let i = 0; i < wps.length - 1; i++) {
+      this.midHandles.push({
+        lat: (wps[i].lat + wps[i + 1].lat) / 2,
+        lon: (wps[i].lon + wps[i + 1].lon) / 2,
+        insertAfter: i,
+      });
+    }
     if (midSrc) {
-      const midpoints: GeoJSON.Feature[] = [];
-
-      const prependPos = prependHandlePos(wps);
-      if (prependPos) {
-        midpoints.push({
+      midSrc.setData({
+        type: "FeatureCollection",
+        features: this.midHandles.map((h) => ({
           type: "Feature",
-          properties: { role: "midpoint", insertBefore: 0 },
-          geometry: { type: "Point", coordinates: prependPos },
-        });
-      }
-
-      for (let i = 0; i < wps.length - 1; i++) {
-        const midLat = (wps[i].lat + wps[i + 1].lat) / 2;
-        const midLon = (wps[i].lon + wps[i + 1].lon) / 2;
-        midpoints.push({
-          type: "Feature",
-          properties: { role: "midpoint", insertAfter: i },
-          geometry: { type: "Point", coordinates: [midLon, midLat] },
-        });
-      }
-      midSrc.setData({ type: "FeatureCollection", features: midpoints });
+          properties: { role: "midpoint" },
+          geometry: { type: "Point", coordinates: [h.lon, h.lat] },
+        })),
+      });
     }
 
     // Selection highlight
@@ -880,6 +945,7 @@ export class RouteEditor {
   }
 
   private clearSources(): void {
+    this.midHandles = [];
     for (const sid of [
       SOURCE_ID,
       SOURCE_LINE,
@@ -906,9 +972,39 @@ export class RouteEditor {
     this.barActions.appendChild(btn);
   }
 
+  /** Add the Add Points toggle — lit while taps place waypoints. It is the
+   *  only on-screen sign of which mode the chart is in, so it shows in both
+   *  bar states. */
+  private appendAddToggle(): void {
+    const btn = document.createElement("button");
+    btn.className = this.addingPoints
+      ? "route-editor-btn route-editor-btn--active"
+      : "route-editor-btn route-editor-btn--secondary";
+    btn.textContent = "Add Points";
+    btn.title = this.addingPoints
+      ? "Tapping the chart adds a waypoint — tap to stop"
+      : "Tap to add waypoints by tapping the chart";
+    btn.addEventListener("click", () =>
+      this.setAddingPoints(!this.addingPoints),
+    );
+    this.barActions.appendChild(btn);
+  }
+
+  /** Turn tap-to-append on or off. */
+  private setAddingPoints(on: boolean): void {
+    this.addingPoints = on;
+    // A trailing preview line would outlive the mode that draws it.
+    if (!on) {
+      this.updatePreview(null);
+      this.showSnapIndicator(null);
+    }
+    this.updateBar();
+  }
+
   private updateBar(): void {
     if (!this.route) return;
     const wps = this.route.waypoints;
+    this.barActions.innerHTML = "";
 
     // Selection mode: show selected WP info with leg course/distance
     if (this.selectedIndex !== null && wps[this.selectedIndex]) {
@@ -932,7 +1028,6 @@ export class RouteEditor {
         this.barText.appendChild(span);
       }
 
-      this.barActions.innerHTML = "";
       const delBtn = document.createElement("button");
       delBtn.className = "route-editor-btn route-editor-btn--danger";
       delBtn.textContent = "Delete";
@@ -944,16 +1039,17 @@ export class RouteEditor {
       insBtn.addEventListener("click", () => this.insertAfterSelected());
 
       this.barActions.append(delBtn, insBtn);
+      this.appendAddToggle();
       this.appendUndoButton();
       return;
     }
 
     // Normal mode: summary
-    this.barActions.innerHTML = "";
+    this.appendAddToggle();
     this.appendUndoButton();
 
     if (wps.length === 0) {
-      this.barText.textContent = "Click to place waypoints";
+      this.barText.textContent = "Tap the chart to place waypoints";
       return;
     }
 

@@ -31,9 +31,12 @@ alongside so you can work by name or by chart:
 
 While editing:
 
-- **Add** — tap open water to append a waypoint at the end.
+- **Add** — turn on **Add Points** in the toolbar, then tap open water to
+  append a waypoint at the end. It's lit while it's on. A route you're
+  drawing starts with it on; an existing route opens with it off, so a
+  mis-aimed tap can't hang a stray waypoint off the end.
 - **Move** — drag any waypoint.
-- **Insert** — small ghost markers appear at each leg's midpoint; tap one to
+- **Insert** — ghost markers appear at each leg's midpoint; tap one to
   insert a waypoint there, then drag it where you want. A ghost before the
   first waypoint prepends.
 - **Select** — tap a waypoint (on the chart or in the list) to select it.

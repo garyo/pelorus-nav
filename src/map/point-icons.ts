@@ -291,23 +291,24 @@ function drawWaypoint(ctx: CanvasRenderingContext2D): void {
   ctx.stroke();
 }
 
-/** Small semi-transparent circle with plus — ghost midpoint for insertion. */
+/** Semi-transparent circle with plus — ghost midpoint for insertion. Reads
+ *  as subordinate to a real waypoint, but stays a finger-sized target. */
 function drawMidpoint(ctx: CanvasRenderingContext2D): void {
   const cx = SIZE / 2;
-  const r = cx * 0.55;
+  const r = cx * 0.8;
 
   ctx.beginPath();
   ctx.arc(cx, cx, r, 0, Math.PI * 2);
-  ctx.fillStyle = "rgba(68, 136, 204, 0.5)";
+  ctx.fillStyle = "rgba(68, 136, 204, 0.65)";
   ctx.fill();
-  ctx.strokeStyle = "rgba(255, 255, 255, 0.6)";
-  ctx.lineWidth = 1.5;
+  ctx.strokeStyle = "rgba(255, 255, 255, 0.85)";
+  ctx.lineWidth = 2;
   ctx.stroke();
 
   // Plus sign
   const s = r * 0.55;
-  ctx.strokeStyle = "rgba(255, 255, 255, 0.8)";
-  ctx.lineWidth = 2;
+  ctx.strokeStyle = "rgba(255, 255, 255, 0.95)";
+  ctx.lineWidth = 2.5;
   ctx.beginPath();
   ctx.moveTo(cx - s, cx);
   ctx.lineTo(cx + s, cx);

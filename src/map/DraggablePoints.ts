@@ -1,9 +1,16 @@
 /**
  * Reusable helper for dragging GeoJSON point features on a MapLibre map.
  * Disables map.dragPan during drag and fires a callback with the new position.
+ *
+ * Hit-testing has two modes. By default the layer's rendered symbols are
+ * queried. Pass `getPoints` and handles are located by projecting those
+ * coordinates instead (see point-hit-test) — exact regardless of how far
+ * MapLibre's symbol placement lags the camera, which is what makes edit taps
+ * reliable right after a pan.
  */
 
 import type maplibregl from "maplibre-gl";
+import { type GeoPoint, nearestPointIndex } from "./point-hit-test";
 
 export type DragCallback = (
   featureIndex: number,
@@ -23,6 +30,25 @@ export type DragEndCallback = () => void;
 const TOUCH_HIT_SLOP = 10;
 /** Movement below this (px) is a tap, not a drag. */
 const TAP_MOVE_SLOP = 6;
+/** Default reach of the geometric hit test (px). */
+const DEFAULT_HIT_RADIUS = 22;
+
+export interface DraggablePointsOptions {
+  /** Handle positions, ordered to match each feature's `index` property.
+   *  Supplying this switches hit-testing from rendered-symbol queries to
+   *  geometry. */
+  getPoints: () => readonly GeoPoint[];
+  /** Reach of the geometric hit test in px (default 22 — an icon half-width
+   *  plus finger slop). */
+  hitRadius?: number;
+}
+
+/** A handle under the pointer: its feature index and, when known, the
+ *  anchor to measure the grab offset from. */
+interface Hit {
+  index: number;
+  anchor: [number, number] | null;
+}
 
 export class DraggablePoints {
   private readonly map: maplibregl.Map;
@@ -31,6 +57,8 @@ export class DraggablePoints {
   private readonly onTap: TapCallback | null;
   private readonly onDragStart: DragStartCallback | null;
   private readonly onDragEnd: DragEndCallback | null;
+  private readonly getPoints: (() => readonly GeoPoint[]) | null;
+  private readonly hitRadius: number;
 
   private dragging = false;
   private dragIndex = -1;
@@ -51,6 +79,7 @@ export class DraggablePoints {
     onTap: TapCallback | null = null,
     onDragStart: DragStartCallback | null = null,
     onDragEnd: DragEndCallback | null = null,
+    options?: DraggablePointsOptions,
   ) {
     this.map = map;
     this.layerId = layerId;
@@ -58,6 +87,8 @@ export class DraggablePoints {
     this.onTap = onTap;
     this.onDragStart = onDragStart;
     this.onDragEnd = onDragEnd;
+    this.getPoints = options?.getPoints ?? null;
+    this.hitRadius = options?.hitRadius ?? DEFAULT_HIT_RADIUS;
 
     this.onMouseDown = this.onMouseDown.bind(this);
     this.onMouseMove = this.onMouseMove.bind(this);
@@ -66,7 +97,10 @@ export class DraggablePoints {
     this.onTouchMove = this.onTouchMove.bind(this);
     this.onTouchEnd = this.onTouchEnd.bind(this);
 
-    map.on("mousedown", layerId, this.onMouseDown);
+    // Bound to the map, not the layer: with a geometric hit test there is no
+    // layer query to hang the handler off, and the query path applies the
+    // same finger slop the touch path always has.
+    map.on("mousedown", this.onMouseDown);
     map.on("mousemove", this.onMouseMove);
     map.on("mouseup", this.onMouseUp);
 
@@ -81,7 +115,7 @@ export class DraggablePoints {
   }
 
   destroy(): void {
-    this.map.off("mousedown", this.layerId, this.onMouseDown);
+    this.map.off("mousedown", this.onMouseDown);
     this.map.off("mousemove", this.onMouseMove);
     this.map.off("mouseup", this.onMouseUp);
 
@@ -91,26 +125,65 @@ export class DraggablePoints {
     canvas.removeEventListener("touchend", this.onTouchEnd);
   }
 
-  private onMouseDown(e: maplibregl.MapLayerMouseEvent): void {
-    const feature = e.features?.[0];
-    if (!feature || feature.geometry.type !== "Point") return;
-    e.preventDefault();
+  /** Locate a handle at a canvas-relative pixel, by geometry when the caller
+   *  supplied positions, otherwise by querying the rendered symbols. */
+  private hitTest(x: number, y: number): Hit | null {
+    const points = this.getPoints?.();
+    if (points) {
+      const index = nearestPointIndex(
+        points,
+        { x, y },
+        (lonLat) => this.map.project(lonLat),
+        this.hitRadius,
+      );
+      if (index === null) return null;
+      return { index, anchor: [points[index].lon, points[index].lat] };
+    }
+
+    // The layer can be briefly absent mid style-rebuild (refreshStyle re-adds
+    // overlays async) — querying then throws.
+    if (!this.map.getLayer(this.layerId)) return null;
+    const features = this.map.queryRenderedFeatures(
+      [
+        [x - TOUCH_HIT_SLOP, y - TOUCH_HIT_SLOP],
+        [x + TOUCH_HIT_SLOP, y + TOUCH_HIT_SLOP],
+      ],
+      { layers: [this.layerId] },
+    );
+    const feature = features[0];
+    if (!feature) return null;
+    const index = (feature.properties?.index as number) ?? 0;
+    if (feature.geometry.type !== "Point") return { index, anchor: null };
     const coords = feature.geometry.coordinates;
-    const featurePx = this.map.project([coords[0], coords[1]]);
-    this.dragOffsetX = featurePx.x - e.point.x;
-    this.dragOffsetY = featurePx.y - e.point.y;
-    this.startDrag((feature.properties?.index as number) ?? 0);
+    return { index, anchor: [coords[0], coords[1]] };
+  }
+
+  /** Record where the grab landed relative to the handle's anchor, so the
+   *  point doesn't jump under the cursor on pickup. */
+  private setGrabOffset(hit: Hit, x: number, y: number): void {
+    if (!hit.anchor) {
+      this.dragOffsetX = 0;
+      this.dragOffsetY = 0;
+      return;
+    }
+    const anchorPx = this.map.project(hit.anchor);
+    this.dragOffsetX = anchorPx.x - x;
+    this.dragOffsetY = anchorPx.y - y;
+  }
+
+  private onMouseDown(e: maplibregl.MapMouseEvent): void {
+    const hit = this.hitTest(e.point.x, e.point.y);
+    if (!hit) return;
+    e.preventDefault();
+    this.setGrabOffset(hit, e.point.x, e.point.y);
+    this.startDrag(hit.index);
   }
 
   private onMouseMove(e: maplibregl.MapMouseEvent): void {
     if (!this.dragging) {
-      // Hover cursor. The layer can be briefly absent mid style-rebuild
-      // (refreshStyle re-adds overlays async) — querying then throws.
-      if (!this.map.getLayer(this.layerId)) return;
-      const features = this.map.queryRenderedFeatures(e.point, {
-        layers: [this.layerId],
-      });
-      this.map.getCanvas().style.cursor = features.length > 0 ? "grab" : "";
+      // Hover cursor.
+      const hit = this.hitTest(e.point.x, e.point.y);
+      this.map.getCanvas().style.cursor = hit ? "grab" : "";
       return;
     }
     e.preventDefault();
@@ -129,38 +202,20 @@ export class DraggablePoints {
 
   private onTouchStart(e: TouchEvent): void {
     if (e.touches.length !== 1) return;
-    // Same guard as onMouseMove: the layer can be briefly absent
-    // mid style-rebuild — querying then throws.
-    if (!this.map.getLayer(this.layerId)) return;
     const touch = e.touches[0];
     const rect = this.map.getCanvas().getBoundingClientRect();
-    const point: [number, number] = [
-      touch.clientX - rect.left,
-      touch.clientY - rect.top,
-    ];
-    // Fingers are imprecise — hit-test a small box, not the exact pixel.
-    const features = this.map.queryRenderedFeatures(
-      [
-        [point[0] - TOUCH_HIT_SLOP, point[1] - TOUCH_HIT_SLOP],
-        [point[0] + TOUCH_HIT_SLOP, point[1] + TOUCH_HIT_SLOP],
-      ],
-      { layers: [this.layerId] },
-    );
-    if (features.length === 0) return;
-    const feature = features[0];
-    if (feature.geometry.type === "Point") {
-      const coords = feature.geometry.coordinates;
-      const featurePx = this.map.project([coords[0], coords[1]]);
-      this.dragOffsetX = featurePx.x - point[0];
-      this.dragOffsetY = featurePx.y - point[1];
-    }
+    const x = touch.clientX - rect.left;
+    const y = touch.clientY - rect.top;
+    const hit = this.hitTest(x, y);
+    if (!hit) return;
+    this.setGrabOffset(hit, x, y);
     // preventDefault also suppresses the synthetic click, so tap
     // handling is ours to do: see onTouchEnd.
     e.preventDefault();
     this.touchStartX = touch.clientX;
     this.touchStartY = touch.clientY;
     this.touchMoved = false;
-    this.startDrag((feature.properties?.index as number) ?? 0);
+    this.startDrag(hit.index);
   }
 
   private onTouchMove(e: TouchEvent): void {

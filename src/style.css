@@ -2593,6 +2593,18 @@ body {
   background: #555;
 }
 
+/* Lit while chart taps place waypoints — the waypoint colour, so the button
+   names what it produces. */
+.route-editor-btn--active {
+  background: #ff8800;
+  color: #1a1a1a;
+  font-weight: 600;
+}
+
+.route-editor-btn--active:hover {
+  background: #ffa033;
+}
+
 .route-editor-btn--secondary:hover {
   background: #777;
 }
