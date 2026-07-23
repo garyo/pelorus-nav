@@ -66,6 +66,19 @@ export function installRepaintThrottle(
   canvas.addEventListener("touchstart", noteInput, { passive: true });
   canvas.addEventListener("touchmove", noteInput, { passive: true });
   canvas.addEventListener("wheel", noteInput, { passive: true });
+  // Dragging an overlay handle (route waypoint, measurement pin, plotting
+  // symbol) is a gesture the camera never sees: those helpers disable
+  // dragPan, so isMoving() stays false and only the opening pointerdown
+  // lifted the cap — the rest of the drag ran at the 10 fps idle rate.
+  // A held button is the tell; a hovering pointer must not lift it, or
+  // desktop would never idle at all.
+  canvas.addEventListener(
+    "pointermove",
+    (e) => {
+      if (e.buttons !== 0) noteInput();
+    },
+    { passive: true },
+  );
 
   const throttledRepaint = () => {
     // During gestures (pinch/pan/rotate) and the inertia that follows,

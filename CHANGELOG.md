@@ -30,6 +30,11 @@ The format follows [Keep a Changelog](https://keepachangelog.com/).
   Routes sharing a common stretch — e.g. the same harbor exit — now
   render as one line instead of near-duplicates. Snapped waypoints are
   copies, not links: moving one never affects other routes.
+- Route editing gained an extend handle off each end of the route,
+  matching the insert handles on the legs — the one at the end is a
+  quicker way to add to a route than turning on Add Points. Dragging any
+  of these handles now creates the waypoint and moves it in a single
+  gesture, instead of tap-then-find-it-again.
 - The route editor now has Undo: the toolbar shows an Undo button
   whenever there is something to undo (adding, inserting, deleting,
   dragging, or renaming a waypoint — one undo per drag). Ctrl/Cmd+Z
@@ -51,6 +56,14 @@ The format follows [Keep a Changelog](https://keepachangelog.com/).
   instead of only after two.
 
 ### Fixed
+- Changing the theme, chart source, or detail level while editing a route
+  no longer makes the route being edited vanish from the chart.
+- While editing a route, the selection glow no longer lingers showing the
+  route's shape from before the edit started.
+- Dragging anything on the chart with a mouse — a route waypoint, a
+  measurement pin, a plotting symbol — ran at the idle frame rate after
+  the first fraction of a second, so it moved in visible steps. It now
+  keeps up with the pointer.
 - Taps on route waypoints and on the ghost insert markers are now
   reliable, especially just after panning the chart — previously a tap
   could land on a waypoint and be treated as a tap on open water. The
