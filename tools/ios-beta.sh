@@ -23,6 +23,13 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
+# Xcode's IPA-packaging step shells out to `rsync -E` (Apple extended
+# attributes). Apple's /usr/bin/rsync re-invokes `rsync` from PATH for its
+# other end, so a Homebrew rsync earlier in PATH answers instead and rejects
+# --extended-attributes — the export then dies with "Copy failed". Put the
+# system tools first for the whole build.
+export PATH="/usr/bin:/bin:/usr/sbin:/sbin:$PATH"
+
 CONFIG="ios/.beta-config"
 if [ ! -f "$CONFIG" ]; then
   echo "✗ Missing $CONFIG — see the setup notes at the top of tools/ios-beta.sh" >&2
