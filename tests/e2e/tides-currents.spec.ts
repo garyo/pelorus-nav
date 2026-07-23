@@ -4,6 +4,13 @@ import { acceptDisclaimer, suppressWhatsNew } from "./helpers";
 interface ProbeMap {
   getSource(id: string): unknown;
   querySourceFeatures(id: string): { properties: Record<string, unknown> }[];
+  queryRenderedFeatures(
+    geometry?: unknown,
+    options?: { layers: string[] },
+  ): {
+    properties: Record<string, unknown>;
+    geometry: { coordinates: [number, number] };
+  }[];
   project(lngLat: [number, number]): { x: number; y: number };
   getContainer(): HTMLElement;
 }
@@ -58,14 +65,50 @@ test("tides & currents overlay renders stations and shows event popup", async ({
   expect(counts.tide).toBeGreaterThan(0);
   expect(counts.current).toBeGreaterThan(0);
 
-  // Click a current station (BOS1111, Deer Island Light) via its projected
-  // screen position and verify the events popup appears.
+  // Wait until current stations are actually drawn (icons load after the
+  // source data arrives), not just present in the source.
+  await page.waitForFunction(
+    () => {
+      const map = (window as unknown as { __map: ProbeMap }).__map;
+      return (
+        map.queryRenderedFeatures(undefined, {
+          layers: [
+            "_current-arrows",
+            "_current-slack-flood",
+            "_current-slack-ebb",
+          ],
+        }).length > 0
+      );
+    },
+    { timeout: 20000 },
+  );
+
+  // Click a rendered current station and verify the events popup appears.
+  // Picked from the live map rather than hardcoded — station positions and
+  // ids shift when the tides bundle is regenerated. The one nearest screen
+  // center is least likely to sit under a HUD element.
   const point = await page.evaluate(() => {
     const map = (window as unknown as { __map: ProbeMap }).__map;
-    const p = map.project([-70.95578, 42.33778]);
+    const stations = map.queryRenderedFeatures(undefined, {
+      layers: ["_current-arrows", "_current-slack-flood", "_current-slack-ebb"],
+    });
     const rect = map.getContainer().getBoundingClientRect();
-    return { x: rect.left + p.x, y: rect.top + p.y };
+    const cx = rect.width / 2;
+    const cy = rect.height / 2;
+    let best: { x: number; y: number } | null = null;
+    let bestD = Number.POSITIVE_INFINITY;
+    for (const f of stations) {
+      const p = map.project(f.geometry.coordinates);
+      const d = (p.x - cx) ** 2 + (p.y - cy) ** 2;
+      if (d < bestD) {
+        bestD = d;
+        best = { x: rect.left + p.x, y: rect.top + p.y };
+      }
+    }
+    return best;
   });
+  expect(point).not.toBeNull();
+  if (!point) return;
   await page.mouse.click(point.x, point.y);
 
   const panel = page.locator(".feature-info-panel.visible", {

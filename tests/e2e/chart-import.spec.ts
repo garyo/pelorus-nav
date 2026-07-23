@@ -68,7 +68,7 @@ test("imported raster PMTiles becomes a rendered chart and can be removed", asyn
 
   // "Show on chart" flies to the fixture's bounds, clamped to its minZoom
   // (z10) — a plain fitBounds would land just below it and draw nothing.
-  await row.locator("button.manager-item-btn").first().click();
+  await row.locator('button[title^="Go to"]').click();
   await expect
     .poll(
       () =>
@@ -126,7 +126,7 @@ test("imported raster PMTiles becomes a rendered chart and can be removed", asyn
 
   // Delete removes the row and the style entries.
   page.on("dialog", (d) => d.accept());
-  await row.locator("button.manager-item-btn").last().click();
+  await row.locator('button[title="Remove offline copy"]').click();
   await expect(row).toHaveCount(0, { timeout: 15000 });
   await expect
     .poll(() =>
