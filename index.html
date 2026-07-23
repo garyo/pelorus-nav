@@ -14,6 +14,22 @@
       src="https://analytics.oberbrunner.com/script.js"
       data-website-id="83428bb2-35d8-48a5-83aa-2fa9b1109d3d"
       data-domains="pelorus-nav.com,www.pelorus-nav.com"></script>
+    <!-- Matomo (trial alongside Umami); cookie-less. Hostname guard keeps
+         the Capacitor app and dev servers untracked, like data-domains. -->
+    <script>
+      if (['pelorus-nav.com', 'www.pelorus-nav.com'].includes(location.hostname)) {
+        var _paq = (window._paq = window._paq || []);
+        _paq.push(['disableCookies']);
+        _paq.push(['trackPageView']);
+        _paq.push(['enableLinkTracking']);
+        _paq.push(['setTrackerUrl', 'https://matomo.oberbrunner.com/matomo.php']);
+        _paq.push(['setSiteId', '5']);
+        var mg = document.createElement('script');
+        mg.async = true;
+        mg.src = 'https://matomo.oberbrunner.com/matomo.js';
+        document.head.appendChild(mg);
+      }
+    </script>
   </head>
   <body>
     <header id="top-bar">
