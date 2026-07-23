@@ -18,13 +18,14 @@
          the Capacitor app and dev servers untracked, like data-domains. -->
     <script>
       if (['pelorus-nav.com', 'www.pelorus-nav.com'].includes(location.hostname)) {
-        var _paq = (window._paq = window._paq || []);
-        _paq.push(['disableCookies']);
-        _paq.push(['trackPageView']);
-        _paq.push(['enableLinkTracking']);
-        _paq.push(['setTrackerUrl', 'https://matomo.oberbrunner.com/matomo.php']);
-        _paq.push(['setSiteId', '5']);
-        var mg = document.createElement('script');
+        window._paq = window._paq || [];
+        const paq = window._paq;
+        paq.push(['disableCookies']);
+        paq.push(['trackPageView']);
+        paq.push(['enableLinkTracking']);
+        paq.push(['setTrackerUrl', 'https://matomo.oberbrunner.com/matomo.php']);
+        paq.push(['setSiteId', '5']);
+        const mg = document.createElement('script');
         mg.async = true;
         mg.src = 'https://matomo.oberbrunner.com/matomo.js';
         document.head.appendChild(mg);
