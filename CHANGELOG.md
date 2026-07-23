@@ -49,9 +49,9 @@ The format follows [Keep a Changelog](https://keepachangelog.com/).
   GLO 2 now work on recent Android (12+) devices, handy for devices
   without their own GPS.
 - Chart symbol fixes: restricted areas now show the correct no-entry /
-  no-anchoring / no-fishing symbol (most previously showed none),
-  footbridges no longer get the opening-bridge symbol, and unsurveyed
-  areas and dumping grounds are now tap-queryable like other areas.
+  no-anchoring / no-fishing symbol, footbridges no longer get the
+  opening-bridge symbol, and unsurveyed areas and dumping grounds are
+  now tap-queryable like other areas.
 - Chart labels are no longer cut off where chart regions meet or along
   shorelines.
 - Opening another panel (Sun, chart layers, …) while editing a route no
