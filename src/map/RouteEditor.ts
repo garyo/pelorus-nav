@@ -174,7 +174,14 @@ export class RouteEditor {
       this.undo();
     });
 
-    map.on("style.load", () => this.setupLayers());
+    map.on("style.load", () => {
+      this.setupLayers();
+      // A style rebuild (theme, chart source, detail level) drops every
+      // source; setupLayers re-adds ours empty. Without this an edit in
+      // progress silently loses its line and handles — the route looks
+      // deleted until the next mutation happens to redraw it.
+      if (this.route) this.updateSources();
+    });
     if (map.isStyleLoaded()) this.setupLayers();
   }
 
