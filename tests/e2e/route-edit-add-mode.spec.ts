@@ -36,6 +36,9 @@ declare global {
     __map: {
       project(c: [number, number]): { x: number; y: number };
       jumpTo(opts: { center: [number, number]; zoom: number }): void;
+      getSource(id: string): {
+        serialize(): { data: GeoJSON.FeatureCollection };
+      };
     };
   }
 }
@@ -125,16 +128,20 @@ test("editing a saved route ignores chart taps until Add Points is on", async ({
   // and map controls move with the viewport, and a click they swallow would
   // pass the "nothing happened" half of this test for the wrong reason.
   const spot = await page.evaluate(
-    ({ wps, clearance }) => {
-      const handles = wps.map((c) => window.__map.project(c));
-      for (let i = 0; i < wps.length - 1; i++) {
-        handles.push(
-          window.__map.project([
-            (wps[i][0] + wps[i + 1][0]) / 2,
-            (wps[i][1] + wps[i + 1][1]) / 2,
-          ]),
-        );
-      }
+    ({ clearance }) => {
+      // Read the live handles rather than recomputing them, so this stays
+      // correct as the editor gains or moves handles.
+      const handles = ["_route-edit-points", "_route-edit-midpoints"].flatMap(
+        (id) =>
+          window.__map
+            .getSource(id)
+            .serialize()
+            .data.features.map((f) =>
+              window.__map.project(
+                (f.geometry as GeoJSON.Point).coordinates as [number, number],
+              ),
+            ),
+      );
       const canvasEl = document.querySelector(
         ".maplibregl-map canvas",
       ) as HTMLCanvasElement;
@@ -157,10 +164,7 @@ test("editing a saved route ignores chart taps until Add Points is on", async ({
       }
       return null;
     },
-    {
-      wps: SEED_WPS.map((w) => [w.lon, w.lat] as [number, number]),
-      clearance: 80,
-    },
+    { clearance: 80 },
   );
   if (!spot) throw new Error("no clear water on screen to click");
   const emptyX = box.x + spot.x;

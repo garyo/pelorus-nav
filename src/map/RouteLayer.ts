@@ -43,6 +43,10 @@ export class RouteLayer {
    *  says visible, so reloadAll/updateRoute must not resurrect them. */
   private hiddenIds = new Set<string>();
   private selectedRouteId: string | null = null;
+  /** Halo painting suppressed while the route editor owns the screen. The
+   *  selected id is still tracked, so the halo comes back on the right
+   *  route — and at its real shape — once editing ends. */
+  private selectionHaloHidden = false;
   private readonly selectionHalo: SelectionHalo;
 
   constructor(map: maplibregl.Map) {
@@ -305,9 +309,30 @@ export class RouteLayer {
   private static readonly SELECTED_LAYER = "_route-selected-glow";
   private static readonly SELECTED_POINTS_LAYER = "_route-selected-glow-pts";
 
+  /**
+   * Hide the halo while the route editor draws its own geometry, or restore
+   * it for the current selection. The halo is a snapshot taken at selection
+   * time; leaving it up through an edit would freeze it at the pre-edit
+   * shape, under a route line that isn't being drawn.
+   */
+  setSelectionHaloHidden(hidden: boolean): void {
+    this.selectionHaloHidden = hidden;
+    if (hidden) {
+      this.selectionHalo.clear();
+      return;
+    }
+    const sel = this.selectedRouteId
+      ? this.loadedRoutes.get(this.selectedRouteId)
+      : null;
+    if (sel) this.selectRoute(sel);
+  }
+
   /** Draw a soft blur halo around the given route (line + waypoints). */
   selectRoute(route: Route): void {
     this.selectedRouteId = route.id;
+    // Selecting during an edit still records which route is selected; only
+    // the paint waits for the editor to finish.
+    if (this.selectionHaloHidden) return;
     const wps = route.waypoints;
     if (wps.length < 2) {
       this.clearSelectedRoute();

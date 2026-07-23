@@ -1,8 +1,9 @@
 /**
  * Interactive route editor. Tap a waypoint to select it (delete / insert
- * after), drag to reposition. Ghost midpoints on legs allow inserting
- * waypoints between existing ones. Shows per-leg distance/bearing and
- * running total. Preview line follows cursor from last waypoint.
+ * after), drag to reposition. Ghost handles insert a waypoint: one at each
+ * leg's midpoint, plus one just off either end of the route that extends it
+ * that way. Shows per-leg distance/bearing and running total. Preview line
+ * follows cursor from last waypoint.
  *
  * Taps on open water append only while the Add Points toggle is on — on for
  * a route being drawn, off for a saved one being adjusted. Without that
@@ -36,7 +37,7 @@ import { generateUUID } from "../utils/uuid";
 import { DraggablePoints } from "./DraggablePoints";
 import { startEditTapDiag } from "./editTapDiag";
 import { getMode, setMode } from "./InteractionMode";
-import { nearestPointIndex } from "./point-hit-test";
+import { type GeoPoint, nearestPointIndex } from "./point-hit-test";
 import { ensurePointIcons, pointRole, ROLE_ICON_EXPR } from "./point-icons";
 import type { RouteLayer } from "./RouteLayer";
 import {
@@ -51,22 +52,36 @@ const PREPEND_MAX_FRACTION = 0.8;
 /** Min offset in degrees (~440m at mid-latitudes). */
 const PREPEND_MIN_OFFSET_DEG = 0.004;
 
-/** Reach of the waypoint hit test (px): icon half-width plus finger slop. */
-const WAYPOINT_HIT_RADIUS = 22;
-/** Reach of the ghost-midpoint hit test (px). Matches the waypoints — the
- *  handle draws smaller, but a smaller target is no easier to hit. */
-const MIDPOINT_HIT_RADIUS = 22;
+/** Reach of the handle hit test (px): icon half-width plus finger slop. The
+ *  ghosts draw smaller than the waypoints, but a smaller target is no easier
+ *  to hit, so they share one radius and the nearest handle wins. */
+const HANDLE_HIT_RADIUS = 22;
 
-/** Compute the prepend handle position — offset from start, opposite the first leg. */
-function prependHandlePos(wps: Waypoint[]): [number, number] | null {
-  if (wps.length < 2) return null;
-  const dLat = wps[0].lat - wps[1].lat;
-  const dLon = wps[0].lon - wps[1].lon;
+/** A handle just beyond `end`, continuing the line away from `inner` —
+ *  the extend-the-route grip at either end of the route. */
+function extendHandlePos(
+  end: Waypoint,
+  inner: Waypoint,
+): [number, number] | null {
+  const dLat = end.lat - inner.lat;
+  const dLon = end.lon - inner.lon;
   const len = Math.sqrt(dLat * dLat + dLon * dLon);
   if (len === 0) return null;
   const scale =
     Math.min(PREPEND_MAX_FRACTION, PREPEND_MIN_OFFSET_DEG / len) * len;
-  return [wps[0].lon + (dLon / len) * scale, wps[0].lat + (dLat / len) * scale];
+  return [end.lon + (dLon / len) * scale, end.lat + (dLat / len) * scale];
+}
+
+/** Handle off the start of the route, opposite the first leg. */
+function prependHandlePos(wps: Waypoint[]): [number, number] | null {
+  if (wps.length < 2) return null;
+  return extendHandlePos(wps[0], wps[1]);
+}
+
+/** Handle off the end of the route, continuing the last leg. */
+function appendHandlePos(wps: Waypoint[]): [number, number] | null {
+  if (wps.length < 2) return null;
+  return extendHandlePos(wps[wps.length - 1], wps[wps.length - 2]);
 }
 
 const SOURCE_ID = "_route-edit-points";
@@ -107,6 +122,9 @@ export class RouteEditor {
    *  route and adjusting one, and the reason a stray tap can no longer put a
    *  spur on the end of a finished route. */
   private addingPoints = true;
+  /** True from a drag's first movement until the gesture ends. Those frames
+   *  take a reduced path through updateSources — see setDragActive. */
+  private dragActive = false;
   private draggable: DraggablePoints | null = null;
   private clickHandler: ((e: maplibregl.MapMouseEvent) => void) | null = null;
   private moveHandler: ((e: maplibregl.MapMouseEvent) => void) | null = null;
@@ -283,7 +301,9 @@ export class RouteEditor {
       this.cleanup();
     }
 
-    // Hide the existing route display while editing
+    // Hide the existing route display while editing — and its selection
+    // halo with it, so the only route shape on screen is the live one.
+    this.routeLayer.setSelectionHaloHidden(true);
     this.editingExistingId = route?.id ?? null;
     if (this.editingExistingId) {
       this.routeLayer.toggleVisibility(this.editingExistingId, false);
@@ -335,28 +355,14 @@ export class RouteEditor {
     this.clickHandler = (e: maplibregl.MapMouseEvent) => {
       if (getMode() !== "route-edit" || !this.route) return;
 
-      // Waypoints first — they draw above the ghost handles, so on a short
-      // leg where the two overlap the hit test agrees with what's visible.
-      // (Touch never reaches here for a waypoint: DraggablePoints consumes
-      // the gesture and suppresses the synthetic click.)
-      const wpIndex = this.hitWaypoint(e.point);
-      if (wpIndex !== null) {
-        if (this.selectedIndex === wpIndex) {
-          this.deselect();
-        } else {
-          this.select(wpIndex);
-        }
-        return;
-      }
-
-      // Ghost handle: insert between waypoints, or prepend.
-      const handle = this.hitMidHandle(e.point);
-      if (handle) {
-        if (handle.insertAfter === null) {
-          this.prependWaypoint(handle.lat, handle.lon);
-        } else {
-          this.insertWaypointAfter(handle.insertAfter, handle.lat, handle.lon);
-        }
+      // The mouse path. Touch never reaches here for a handle: DraggablePoints
+      // consumes the gesture and suppresses the synthetic click, so the tap
+      // and drag callbacks in setupDrag() mirror what happens here.
+      const hit = this.hitHandle(e.point);
+      if (hit) {
+        if ("ghost" in hit) this.insertAtHandle(hit.ghost);
+        else if (this.selectedIndex === hit.waypoint) this.deselect();
+        else this.select(hit.waypoint);
         return;
       }
 
@@ -388,7 +394,6 @@ export class RouteEditor {
       this.route.waypoints.push(wp);
       this.updateSources();
       this.updateBar();
-      this.setupDrag();
     };
     this.map.on("click", this.clickHandler);
 
@@ -445,7 +450,6 @@ export class RouteEditor {
     this.selectedIndex = snap.selectedIndex;
     this.updateSources();
     this.updateBar();
-    this.setupDrag();
   }
 
   /** Rename a waypoint during editing. Undoable; Done persists it,
@@ -459,26 +463,65 @@ export class RouteEditor {
     this.updateBar();
   }
 
-  /** Index of the waypoint under a screen point, or null. */
-  private hitWaypoint(point: { x: number; y: number }): number | null {
-    if (!this.route) return null;
-    return nearestPointIndex(
-      this.route.waypoints,
-      point,
-      (ll) => this.map.project(ll),
-      WAYPOINT_HIT_RADIUS,
-    );
+  /**
+   * Everything the user can grab, waypoints first then ghosts. One array
+   * feeds the drag helper, the click path and the touch path, so all three
+   * resolve a tap to the same handle — and a ghost's index in it is stable
+   * enough to hand back to DraggablePoints mid-gesture.
+   */
+  private grabHandles(): GeoPoint[] {
+    return [...(this.route?.waypoints ?? []), ...this.midHandles];
   }
 
-  /** Ghost handle under a screen point, or null. */
-  private hitMidHandle(point: { x: number; y: number }): MidHandle | null {
+  /** Split a grab-list index into the waypoint or ghost it refers to. */
+  private resolveGrab(
+    index: number,
+  ): { waypoint: number } | { ghost: MidHandle } | null {
+    const count = this.route?.waypoints.length ?? 0;
+    if (index < count) return { waypoint: index };
+    const ghost = this.midHandles[index - count];
+    return ghost ? { ghost } : null;
+  }
+
+  /** The handle under a screen point — nearest wins — or null. */
+  private hitHandle(point: {
+    x: number;
+    y: number;
+  }): { waypoint: number } | { ghost: MidHandle } | null {
     const index = nearestPointIndex(
-      this.midHandles,
+      this.grabHandles(),
       point,
       (ll) => this.map.project(ll),
-      MIDPOINT_HIT_RADIUS,
+      HANDLE_HIT_RADIUS,
     );
-    return index === null ? null : this.midHandles[index];
+    return index === null ? null : this.resolveGrab(index);
+  }
+
+  /**
+   * Enter or leave the drag fast path. A drag redraws on every pointer
+   * event, so those frames update only what has to move — the waypoints,
+   * the line and the selection ring. The ghost handles (a second symbol
+   * source, and so a second placement pass), the preview line and the
+   * waypoint list wait for the gesture to end. Worth about a third of the
+   * per-event main-thread cost; the toolbar readout stays live because it
+   * is what the drag is for.
+   */
+  private setDragActive(active: boolean): void {
+    if (this.dragActive === active) return;
+    this.dragActive = active;
+    if (!active) {
+      this.updateSources();
+      this.updateBar();
+    }
+  }
+
+  /** Turn a ghost handle into a real waypoint (and select it). */
+  private insertAtHandle(handle: MidHandle): void {
+    if (handle.insertAfter === null) {
+      this.prependWaypoint(handle.lat, handle.lon);
+    } else {
+      this.insertWaypointAfter(handle.insertAfter, handle.lat, handle.lon);
+    }
   }
 
   private appendOp(): SnapOp {
@@ -549,7 +592,6 @@ export class RouteEditor {
     this.selectedIndex = null;
     this.updateSources();
     this.updateBar();
-    this.setupDrag();
   }
 
   private prependWaypoint(lat: number, lon: number): void {
@@ -572,7 +614,6 @@ export class RouteEditor {
     this.selectedIndex = 0;
     this.updateSources();
     this.updateBar();
-    this.setupDrag();
   }
 
   private insertWaypointAfter(
@@ -597,7 +638,6 @@ export class RouteEditor {
     this.selectedIndex = afterIndex + 1;
     this.updateSources();
     this.updateBar();
-    this.setupDrag();
   }
 
   private insertAfterSelected(): void {
@@ -619,11 +659,13 @@ export class RouteEditor {
   }
 
   private cleanup(): void {
-    // Restore the original route display
+    // Restore the original route display, then the halo — in that order, so
+    // it anchors below a route line layer that exists again.
     if (this.editingExistingId) {
       this.routeLayer.toggleVisibility(this.editingExistingId, true);
       this.editingExistingId = null;
     }
+    this.routeLayer.setSelectionHaloHidden(false);
 
     if (this.clickHandler) {
       this.map.off("click", this.clickHandler);
@@ -764,6 +806,9 @@ export class RouteEditor {
     });
   }
 
+  /** One helper per edit session. It reads the handle positions through a
+   *  live getter, so mutations need not rebuild it — and rebuilding mid-drag
+   *  would drop the gesture that a ghost handle has just handed over. */
   private setupDrag(): void {
     if (this.draggable) this.draggable.destroy();
     this.draggable = new DraggablePoints(
@@ -782,35 +827,58 @@ export class RouteEditor {
         wp.lon = snap ? snap.lon : lngLat.lng;
         this.selectedIndex = index;
         this.updateSources();
+        // Keep the toolbar's live leg distance/bearing running: placing a
+        // waypoint at a distance and bearing is the point of the drag.
         this.updateBar();
       },
-      // Touch tap on a waypoint: DraggablePoints consumes the touch (its
-      // preventDefault suppresses the synthetic click, so clickHandler
-      // never sees it) — mirror the click path's select/deselect toggle.
+      // Touch tap on a handle: DraggablePoints consumes the touch (its
+      // preventDefault suppresses the synthetic click, so clickHandler never
+      // sees it) — mirror what the click path does with the same handle.
       (index) => {
-        if (this.selectedIndex === index) {
-          this.deselect();
-        } else {
-          this.select(index);
-        }
+        const hit = this.resolveGrab(index);
+        if (!hit) return;
+        if ("ghost" in hit) this.insertAtHandle(hit.ghost);
+        else if (this.selectedIndex === hit.waypoint) this.deselect();
+        else this.select(hit.waypoint);
       },
-      // One checkpoint per drag gesture, taken before the first movement.
-      () => this.checkpoint(),
-      // Gesture over — the snap ring must not linger on the target.
-      () => this.showSnapIndicator(null),
+      // First movement of a gesture. Dragging a ghost places its waypoint
+      // here and hands the gesture straight to it, so drag-from-a-ghost is
+      // one motion instead of tap-then-find-it-again. The insert takes its
+      // own checkpoint, so the whole gesture undoes in one step.
+      (index) => {
+        const hit = this.resolveGrab(index);
+        if (!hit || "waypoint" in hit) {
+          this.checkpoint();
+          this.setDragActive(true);
+          return;
+        }
+        // Materialise first: insertAtHandle needs the full redraw path.
+        this.insertAtHandle(hit.ghost);
+        const materialised = this.selectedIndex ?? undefined;
+        this.setDragActive(true);
+        return materialised;
+      },
+      // Gesture over — catch the deferred redraw up, and don't let the snap
+      // ring linger on the target.
+      () => {
+        this.setDragActive(false);
+        this.showSnapIndicator(null);
+      },
       {
-        getPoints: () => this.route?.waypoints ?? [],
-        hitRadius: WAYPOINT_HIT_RADIUS,
+        getPoints: () => this.grabHandles(),
+        hitRadius: HANDLE_HIT_RADIUS,
       },
     );
   }
 
   private updateSources(): void {
     if (!this.route) return;
-    this.notify();
-    // Drop any stale cursor-preview line (the next mousemove redraws it;
-    // touch devices never get one). Keeps the prepend-handle dash fresh.
-    this.updatePreview(null);
+    if (!this.dragActive) {
+      this.notify();
+      // Drop any stale cursor-preview line (the next mousemove redraws it;
+      // touch devices never get one). Keeps the prepend-handle dash fresh.
+      this.updatePreview(null);
+    }
     const wps = this.route.waypoints;
 
     const ptSrc = this.map.getSource(SOURCE_ID) as
@@ -855,7 +923,16 @@ export class RouteEditor {
         insertAfter: i,
       });
     }
-    if (midSrc) {
+    // Extending off the end is just an insert after the last waypoint.
+    const appendPos = appendHandlePos(wps);
+    if (appendPos) {
+      this.midHandles.push({
+        lon: appendPos[0],
+        lat: appendPos[1],
+        insertAfter: wps.length - 1,
+      });
+    }
+    if (midSrc && !this.dragActive) {
       midSrc.setData({
         type: "FeatureCollection",
         features: this.midHandles.map((h) => ({
@@ -936,14 +1013,19 @@ export class RouteEditor {
       });
     }
 
-    const prependPos = prependHandlePos(wps);
-    if (prependPos) {
+    // Dashed stubs tying each extend handle back to the end it grows from.
+    const stubs: [Waypoint, [number, number] | null][] = [
+      [wps[0], prependHandlePos(wps)],
+      [wps[wps.length - 1], appendHandlePos(wps)],
+    ];
+    for (const [from, pos] of stubs) {
+      if (!pos) continue;
       features.push({
         type: "Feature",
         properties: {},
         geometry: {
           type: "LineString",
-          coordinates: [[wps[0].lon, wps[0].lat], prependPos],
+          coordinates: [[from.lon, from.lat], pos],
         },
       });
     }

@@ -36,9 +36,11 @@ While editing:
   drawing starts with it on; an existing route opens with it off, so a
   mis-aimed tap can't hang a stray waypoint off the end.
 - **Move** — drag any waypoint.
-- **Insert** — ghost markers appear at each leg's midpoint; tap one to
-  insert a waypoint there, then drag it where you want. A ghost before the
-  first waypoint prepends.
+- **Insert** — ghost markers appear at each leg's midpoint, plus one just
+  off each end of the route. Tap one to drop a waypoint there, or **drag it
+  straight to where you want the waypoint** — the point is created and
+  follows your finger in one motion. The end markers extend the route,
+  before the first waypoint or after the last.
 - **Select** — tap a waypoint (on the chart or in the list) to select it.
   The toolbar shows its name and leg data, plus **Delete** and
   **Insert After** buttons.

@@ -19,9 +19,15 @@ export type DragCallback = (
 
 export type TapCallback = (featureIndex: number) => void;
 
-/** Fired once per gesture, just before its first onDrag — i.e. only when
- *  the pointer actually moves. A plain click/tap never fires it. */
-export type DragStartCallback = () => void;
+/**
+ * Fired once per gesture, just before its first onDrag — i.e. only when the
+ * pointer actually moves. A plain click/tap never fires it.
+ *
+ * Receives the index being dragged and may return a different one to drag
+ * instead, which lets a caller turn a placeholder handle into a real point
+ * at the moment the drag starts and carry the gesture over to it.
+ */
+export type DragStartCallback = (index: number) => number | void;
 
 /** Fired when a gesture ends (mouse up / touch end), including taps. */
 export type DragEndCallback = () => void;
@@ -241,7 +247,8 @@ export class DraggablePoints {
   private noteGestureMoved(): void {
     if (this.movedThisGesture) return;
     this.movedThisGesture = true;
-    this.onDragStart?.();
+    const replacement = this.onDragStart?.(this.dragIndex);
+    if (typeof replacement === "number") this.dragIndex = replacement;
   }
 
   private onTouchEnd(): void {
