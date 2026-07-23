@@ -832,13 +832,16 @@ export function getHazardLayers(ctx: StyleContext): LayerSpecification[] {
       },
       paint: {},
     },
-    // Current arrows — CURENT point symbol with rotation
+    // Current arrows — CURENT point symbol with rotation. These are the
+    // static currents charted on ENCs (Gulf Stream etc.), drawn from the
+    // zoom the tiles carry them at — offshore bands top out at z9, so a
+    // higher minzoom would hide them entirely in open water.
     {
       id: "s57-curent",
       type: "symbol",
       source: ctx.sourceId,
       "source-layer": "CURENT",
-      minzoom: 10,
+      minzoom: 6,
       layout: {
         "icon-image": "CURENT01",
         "icon-size": 0.7,
@@ -851,6 +854,32 @@ export function getHazardLayers(ctx: StyleContext): LayerSpecification[] {
         "icon-allow-overlap": true,
       },
       paint: {},
+    },
+    // Current velocity label (knots) beside the arrow, when charted
+    {
+      id: "s57-curent-label",
+      type: "symbol",
+      source: ctx.sourceId,
+      "source-layer": "CURENT",
+      minzoom: 8,
+      filter: ["has", "CURVEL"] as unknown as ExpressionSpecification,
+      layout: {
+        "text-field": [
+          "concat",
+          ["to-string", ["get", "CURVEL"]],
+          " kn",
+        ] as unknown as ExpressionSpecification,
+        "text-font": ["Noto Sans Italic"],
+        "text-size": scaledTextSize(10, ctx),
+        "text-offset": [0, 1.2] as [number, number],
+        "text-anchor": "top" as const,
+        "text-optional": true,
+      },
+      paint: {
+        "text-color": ctx.colour("CHBLK"),
+        "text-halo-color": ctx.colour("CHWHT"),
+        "text-halo-width": 1,
+      },
     },
     // Light float — LITFLT point symbol
     {

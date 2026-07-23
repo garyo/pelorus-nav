@@ -20,6 +20,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/).
 - Bug report diagnostics now include a short log of recent UI actions
   (panels opened, map modes entered), which helps diagnose reported
   problems.
+- A "Charted Currents" layer group (on by default) shows the static
+  current arrows charted on ENCs — notably the Gulf Stream, with set and
+  drift labels (e.g. "3.5 kn"). Distinct from the Tides & Currents
+  overlay's live predictions; useful offshore where there are no
+  prediction stations. Previously these arrows only appeared zoomed in
+  past the zoom where offshore charts carry them, i.e. never.
 - The route editor now snaps to existing waypoints: placing or dragging
   a waypoint near a standalone waypoint or a waypoint of another visible
   route snaps it to exactly that position (a ring marks the target).

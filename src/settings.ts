@@ -115,6 +115,9 @@ const STORAGE_KEY = "pelorus-nav-settings";
 
 export const LAYER_GROUP_LABELS: Record<string, string> = {
   routing: "Routing",
+  // Static current arrows charted on ENCs (e.g. the Gulf Stream) — distinct
+  // from the Tides & Currents overlay's live predictions.
+  chartedCurrents: "Charted Currents",
   restrictedAreas: "Restricted/Caution Areas",
   anchorage: "Anchorage",
   hazards: "Kelp, Overfalls & Fish Farms",

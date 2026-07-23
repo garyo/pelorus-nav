@@ -54,7 +54,8 @@ Cross-cutting behavior not visible in the table:
 | CRANES | `s57-cranes` | — | z13+ | z13+ | z12+ |
 | CTNARE | `s57-ctnare` | — | all | all | all |
 | CTNARE | `s57-ctnare-symbol` | — | z8+ | z8+ | z8+ |
-| CURENT | `s57-curent` | — | z10+ | z10+ | z10+ |
+| CURENT | `s57-curent` | — | z6+ | z6+ | z6+ |
+| CURENT | `s57-curent-label` | — | z8+ \* | z8+ \* | z8+ \* |
 | DAMCON | `s57-damcon` | — | all | all | all |
 | DAYMAR | `s57-daymar` | — | z8+ | z8+ | z8+ |
 | DEPARE | `s57-depare-deep` | all \* | all \* | all \* | all \* |

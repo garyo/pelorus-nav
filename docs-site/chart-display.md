@@ -69,6 +69,13 @@ routing measures, restricted and caution areas, anchorages, cables and
 pipelines, seabed characteristics, depth-contour labels, light sectors, and
 more, plus the Tides & Currents overlay.
 
+**Charted Currents** shows the static current arrows printed on the chart
+itself — notably the Gulf Stream along the US East Coast, with set and
+drift (e.g. "3.5 kn"). These are long-term averages from the chart, not
+live predictions; for predicted tidal currents at a station, use the
+Tides & Currents overlay. The charted arrows are most useful offshore,
+where there are no prediction stations.
+
 ![Settings — Charts & Layers tab](/images/settings-layers.png)
 
 Depth shading (the blue tint bands) is configured on the Appearance tab —
