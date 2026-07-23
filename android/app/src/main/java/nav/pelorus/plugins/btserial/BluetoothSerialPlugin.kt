@@ -138,8 +138,13 @@ class BluetoothSerialPlugin : Plugin() {
         Thread({
             try {
                 val device = adapter.getRemoteDevice(deviceId)
-                // Discovery starves RFCOMM connection attempts; always cancel first.
-                adapter.cancelDiscovery()
+                // Discovery starves RFCOMM connection attempts; cancel it if we
+                // can. On API 31+ cancelDiscovery() needs BLUETOOTH_SCAN, which
+                // this plugin never requests (SPP uses bonded devices only) —
+                // a SecurityException here must not kill the connect.
+                try {
+                    adapter.cancelDiscovery()
+                } catch (_: SecurityException) {}
                 val sock = device.createRfcommSocketToServiceRecord(SPP_UUID)
                 sock.connect()
                 synchronized(this) {

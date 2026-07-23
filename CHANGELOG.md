@@ -45,6 +45,9 @@ The format follows [Keep a Changelog](https://keepachangelog.com/).
   instead of only after two.
 
 ### Fixed
+- Bluetooth GPS (NMEA) receivers such as the Dual XGPS150A and Garmin
+  GLO 2 now work on recent Android (12+) devices, handy for devices
+  without their own GPS.
 - Chart symbol fixes: restricted areas now show the correct no-entry /
   no-anchoring / no-fishing symbol (most previously showed none),
   footbridges no longer get the opening-bridge symbol, and unsurveyed
