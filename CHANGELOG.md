@@ -20,12 +20,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/).
 - Bug report diagnostics now include a short log of recent UI actions
   (panels opened, map modes entered), which helps diagnose reported
   problems.
-- A "Charted Currents" layer group (on by default) shows the static
-  current arrows charted on ENCs — notably the Gulf Stream, with set and
-  drift labels (e.g. "3.5 kn"). Distinct from the Tides & Currents
-  overlay's live predictions; useful offshore where there are no
-  prediction stations. Previously these arrows only appeared zoomed in
-  past the zoom where offshore charts carry them, i.e. never.
+- A "Charted Currents" layer group shows the static current arrows
+  charted on ENCs (e.g. the Gulf Stream) with drift labels — distinct
+  from the Tides & Currents overlay's live predictions, and useful
+  offshore where there are no prediction stations.
 - The route editor now snaps to existing waypoints: placing or dragging
   a waypoint near a standalone waypoint or a waypoint of another visible
   route snaps it to exactly that position (a ring marks the target).
@@ -47,17 +45,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/).
   instead of only after two.
 
 ### Fixed
-- Restricted-area chart symbols now use the correct S-57 restriction
-  codes. Entry-prohibited/restricted areas and areas to be avoided show
-  the entry symbol, anchoring-prohibited areas the anchoring symbol, and
-  fishing/trawling-restricted areas the fishing symbol — previously the
-  code mapping was scrambled, so most restricted areas (including entry
-  restrictions in Boston Inner Harbor) showed no symbol at all.
-- Footbridges no longer show the opening-bridge symbol (it now appears
-  only for bridges that actually open: swing, lift, bascule, draw).
-- Unsurveyed areas (gray with dash pattern) and dumping grounds are now
-  tap-queryable like other chart areas, identified by name in the
-  feature info panel.
+- Chart symbol fixes: restricted areas now show the correct no-entry /
+  no-anchoring / no-fishing symbol (most previously showed none),
+  footbridges no longer get the opening-bridge symbol, and unsurveyed
+  areas and dumping grounds are now tap-queryable like other areas.
 - Chart labels are no longer cut off where chart regions meet or along
   shorelines.
 - Opening another panel (Sun, chart layers, …) while editing a route no
