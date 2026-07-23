@@ -41,6 +41,14 @@ The format follows [Keep a Changelog](https://keepachangelog.com/).
   instead of only after two.
 
 ### Fixed
+- Restricted-area chart symbols now use the correct S-57 restriction
+  codes. Entry-prohibited/restricted areas and areas to be avoided show
+  the entry symbol, anchoring-prohibited areas the anchoring symbol, and
+  fishing/trawling-restricted areas the fishing symbol — previously the
+  code mapping was scrambled, so most restricted areas (including entry
+  restrictions in Boston Inner Harbor) showed no symbol at all.
+- Footbridges no longer show the opening-bridge symbol (it now appears
+  only for bridges that actually open: swing, lift, bascule, draw).
 - Chart labels are no longer cut off where chart regions meet or along
   shorelines.
 - Opening another panel (Sun, chart layers, …) while editing a route no

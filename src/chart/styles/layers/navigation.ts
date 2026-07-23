@@ -98,10 +98,13 @@ export function getNavigationOverlayLayers(
         "text-opacity": 0.6,
       },
     },
-    // Restricted area symbols — S-52 CS(RESARE04)
-    // Anchoring prohibited (RESTRN contains 7 or 14)
+    // Restricted area symbols — S-52 CS(RESARE04), simplified: one symbol
+    // per area, picked by S-52 priority (entry > anchoring > fishing).
+    // S-57 RESTRN codes: 1/2 anchoring prohibited/restricted, 3/4 fishing,
+    // 5/6 trawling, 7/8 entry, 14 area to be avoided.
+    // Entry prohibited/restricted or area to be avoided (RESTRN 7, 8, 14)
     {
-      id: "s57-resare-anchor-prohib",
+      id: "s57-resare-entry-prohib",
       type: "symbol",
       source: ctx.sourceId,
       "source-layer": "RESARE",
@@ -109,7 +112,31 @@ export function getNavigationOverlayLayers(
       filter: [
         "any",
         listAttrContains("RESTRN", 7),
+        listAttrContains("RESTRN", 8),
         listAttrContains("RESTRN", 14),
+      ] as unknown as ExpressionSpecification,
+      layout: {
+        "icon-image": ctx.icon("entry-prohibited"),
+        "icon-size": 0.5,
+        "icon-allow-overlap": true,
+      },
+      paint: {
+        "icon-opacity": 0.75,
+      },
+    },
+    // Anchoring prohibited/restricted (RESTRN 1, 2), unless entry shown
+    {
+      id: "s57-resare-anchor-prohib",
+      type: "symbol",
+      source: ctx.sourceId,
+      "source-layer": "RESARE",
+      minzoom: ctx.detailMinzoom(10),
+      filter: [
+        "all",
+        ["any", listAttrContains("RESTRN", 1), listAttrContains("RESTRN", 2)],
+        ["!", listAttrContains("RESTRN", 7)],
+        ["!", listAttrContains("RESTRN", 8)],
+        ["!", listAttrContains("RESTRN", 14)],
       ] as unknown as ExpressionSpecification,
       layout: {
         "icon-image": ctx.icon("anchoring-prohibited"),
@@ -120,7 +147,8 @@ export function getNavigationOverlayLayers(
         "icon-opacity": 0.75,
       },
     },
-    // Fishing prohibited (RESTRN contains 2 or 6)
+    // Fishing/trawling prohibited/restricted (RESTRN 3–6), unless entry or
+    // anchoring shown
     {
       id: "s57-resare-fish-prohib",
       type: "symbol",
@@ -128,35 +156,22 @@ export function getNavigationOverlayLayers(
       "source-layer": "RESARE",
       minzoom: ctx.detailMinzoom(10),
       filter: [
-        "any",
-        listAttrContains("RESTRN", 2),
-        listAttrContains("RESTRN", 6),
-      ] as unknown as ExpressionSpecification,
-      layout: {
-        "icon-image": ctx.icon("fishing-prohibited"),
-        "icon-size": 0.5,
-        "icon-allow-overlap": true,
-      },
-      paint: {
-        "icon-opacity": 0.75,
-      },
-    },
-    // Entry prohibited/restricted (RESTRN contains 1)
-    {
-      id: "s57-resare-entry-prohib",
-      type: "symbol",
-      source: ctx.sourceId,
-      "source-layer": "RESARE",
-      minzoom: ctx.detailMinzoom(10),
-      filter: [
         "all",
-        listAttrContains("RESTRN", 1),
-        // Don't show entry symbol when anchoring or fishing symbol already shown
+        [
+          "any",
+          listAttrContains("RESTRN", 3),
+          listAttrContains("RESTRN", 4),
+          listAttrContains("RESTRN", 5),
+          listAttrContains("RESTRN", 6),
+        ],
         ["!", listAttrContains("RESTRN", 7)],
+        ["!", listAttrContains("RESTRN", 8)],
+        ["!", listAttrContains("RESTRN", 14)],
+        ["!", listAttrContains("RESTRN", 1)],
         ["!", listAttrContains("RESTRN", 2)],
       ] as unknown as ExpressionSpecification,
       layout: {
-        "icon-image": ctx.icon("entry-prohibited"),
+        "icon-image": ctx.icon("fishing-prohibited"),
         "icon-size": 0.5,
         "icon-allow-overlap": true,
       },

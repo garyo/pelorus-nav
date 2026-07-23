@@ -149,8 +149,9 @@ export function getLineLayers(ctx: StyleContext): LayerSpecification[] {
       },
     },
     // Opening bridge symbol — SY(BRIDGE01) concentric circles
-    // S-57 CATBRG codes for opening bridges:
-    //   2=opening, 3=swing, 4=lifting, 5=bascule, 7=drawbridge, 9=draw
+    // S-57 CATBRG codes for bridges that open:
+    //   2=opening, 3=swing, 4=lifting, 5=bascule, 7=draw
+    // (9 is a footbridge — fixed, no symbol)
     {
       id: "s57-bridge-opening",
       type: "symbol",
@@ -164,8 +165,7 @@ export function getLineLayers(ctx: StyleContext): LayerSpecification[] {
           "3", // swing
           "4", // lifting
           "5", // bascule
-          "7", // drawbridge
-          "9", // draw
+          "7", // draw
         ].map((v) => [
           "in",
           `,${v},`,
