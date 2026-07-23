@@ -261,6 +261,7 @@ export const LAYER_NAMES: Record<string, string> = {
   PIPARE: "Pipeline Area",
   PIPSOL: "Submarine Pipeline",
   DMPGRD: "Dumping Ground",
+  UNSARE: "Unsurveyed Area",
   HRBFAC: "Harbor Facility",
   OFSPLF: "Offshore Platform",
   SILTNK: "Silo/Tank",

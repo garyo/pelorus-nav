@@ -49,6 +49,9 @@ The format follows [Keep a Changelog](https://keepachangelog.com/).
   restrictions in Boston Inner Harbor) showed no symbol at all.
 - Footbridges no longer show the opening-bridge symbol (it now appears
   only for bridges that actually open: swing, lift, bascule, draw).
+- Unsurveyed areas (gray with dash pattern) and dumping grounds are now
+  tap-queryable like other chart areas, identified by name in the
+  feature info panel.
 - Chart labels are no longer cut off where chart regions meet or along
   shorelines.
 - Opening another panel (Sun, chart layers, …) while editing a route no
