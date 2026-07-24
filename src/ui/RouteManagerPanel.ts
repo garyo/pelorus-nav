@@ -127,6 +127,10 @@ export class RouteManagerPanel {
       // Re-show detail panel with editor's live route reference
       const liveRoute = this.editor.getRoute();
       if (liveRoute) this.detailPanel.show(liveRoute);
+      // Collapse the route list while editing — the detail panel is the
+      // editing workspace, and on a phone the two panels together crowd out
+      // the chart. Reopen the list from RTE when done.
+      this.hide();
     };
 
     this.detailPanel.onHide = () => this.clearSelection();
