@@ -2566,8 +2566,23 @@ body {
   flex: 1;
   /* Let the label shrink without wrapping into a tall sliver. */
   min-width: 0;
+  display: flex;
+  align-items: baseline;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+/* Selected-waypoint readout: the name gives way (ellipsis) so the leg's
+   distance/bearing stays pinned at the end within the allotted width. */
+.route-wp-name {
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.route-wp-leg {
+  flex: none;
   white-space: nowrap;
 }
 

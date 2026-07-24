@@ -1144,10 +1144,14 @@ export class RouteEditor {
       }
       this.barText.innerHTML = "";
       const strong = document.createElement("strong");
+      strong.className = "route-wp-name";
       strong.textContent = label;
       this.barText.appendChild(strong);
       if (legInfo) {
+        // Its own element, kept from shrinking (see CSS) so a long name
+        // ellipsises and the distance/bearing stays visible at the end.
         const span = document.createElement("span");
+        span.className = "route-wp-leg";
         span.textContent = legInfo;
         this.barText.appendChild(span);
       }
