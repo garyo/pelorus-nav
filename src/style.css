@@ -1894,11 +1894,13 @@ body {
   color: #fff;
 }
 
-.route-nav-btn.active {
+.route-nav-btn.active,
+.manager-item-btn.editing {
   color: #ff8800;
 }
 
-.route-nav-btn.active:hover {
+.route-nav-btn.active:hover,
+.manager-item-btn.editing:hover {
   color: #ffaa44;
 }
 

@@ -79,6 +79,7 @@ export class RouteDetailPanel {
   private lastScrolledSel: number | null = null;
   private navCallback: ActiveNavCallback | null = null;
   private readonly navBtn: HTMLButtonElement;
+  private readonly editBtn: HTMLButtonElement;
   onEdit: ((route: Route) => void) | null = null;
   /** Called whenever the panel hides (any path) — the manager clears the
    *  route selection halo here so it tracks the panel's lifetime. */
@@ -130,11 +131,11 @@ export class RouteDetailPanel {
       }
     });
 
-    const editBtn = this.el.querySelector(
+    this.editBtn = this.el.querySelector(
       ".route-detail-edit",
     ) as HTMLButtonElement;
-    setIcon(editBtn, iconEdit);
-    editBtn.addEventListener("click", () => {
+    setIcon(this.editBtn, iconEdit);
+    this.editBtn.addEventListener("click", () => {
       if (this.currentRoute && this.onEdit) this.onEdit(this.currentRoute);
     });
 
@@ -283,6 +284,12 @@ export class RouteDetailPanel {
   private render(): void {
     const route = this.currentRoute;
     if (!route) return;
+
+    // Light the pencil while this route is the one being edited — the edit
+    // session outlives the panel, so reopening it must show that state.
+    const editing = this.isEditingThisRoute();
+    this.editBtn.classList.toggle("editing", editing);
+    this.editBtn.title = editing ? "Editing this route" : "Edit";
 
     const legs = buildLegs(route);
 

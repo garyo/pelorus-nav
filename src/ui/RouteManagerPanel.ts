@@ -487,7 +487,12 @@ export class RouteManagerPanel {
     const editBtn = document.createElement("button");
     editBtn.className = "manager-item-btn";
     setIcon(editBtn, iconEdit);
-    editBtn.title = "Edit";
+    // Light this row's pencil while its route is the one being edited — the
+    // edit session outlives the panel, so reopening the list must show it.
+    const editingThis =
+      this.editor.isEditing() && this.editor.getRoute()?.id === route.id;
+    editBtn.classList.toggle("editing", editingThis);
+    editBtn.title = editingThis ? "Editing this route" : "Edit";
     editBtn.addEventListener("click", () => {
       this.editor.startEditing(route);
       // Auto-open detail panel with live route reference
@@ -512,6 +517,11 @@ export class RouteManagerPanel {
     deleteBtn.title = "Delete";
     deleteBtn.addEventListener("click", () => {
       if (!confirm(`Delete route "${route.name}"?`)) return;
+      // Discard an in-progress edit of this route first, so Done can't
+      // re-save the route just deleted (same guard as the detail panel's).
+      if (this.editor.isEditing() && this.editor.getRoute()?.id === route.id) {
+        this.editor.cancel();
+      }
       (async () => {
         if (this.selectedRouteId === route.id) this.clearSelection();
         await deleteRoute(route.id);
