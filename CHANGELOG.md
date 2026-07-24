@@ -54,8 +54,18 @@ The format follows [Keep a Changelog](https://keepachangelog.com/).
   the bottom bar), and selecting a waypoint on the map highlights its row
   in the list. The list also appears as soon as a route has one waypoint,
   instead of only after two.
+- Route editing leaves more chart visible on phones: the full route list
+  collapses while you edit (reopen it from the Routes button when done),
+  and the waypoint list is capped at 40% of the screen height.
+- Leg readouts now show course before distance everywhere (e.g.
+  `119°M / 2.3 NM`), matching the waypoint list.
 
 ### Fixed
+- Editing a route away from the vessel no longer snaps the chart back to
+  the boat on the next GPS fix while in follow mode.
+- A long waypoint name no longer collapses to a single letter in the
+  editing toolbar: the name gets its own row (ellipsised only if very
+  long) and the leg distance/bearing stays visible.
 - Changing the theme, chart source, or detail level while editing a route
   no longer makes the route being edited vanish from the chart.
 - While editing a route, the selection glow no longer lingers showing the
