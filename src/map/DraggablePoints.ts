@@ -77,6 +77,9 @@ export class DraggablePoints {
   private touchStartX = 0;
   private touchStartY = 0;
   private touchMoved = false;
+  /** Identifier of the finger that owns the current drag, so a second
+   *  finger touching or lifting elsewhere can't hijack or end it. */
+  private dragTouchId: number | null = null;
 
   constructor(
     map: maplibregl.Map,
@@ -102,33 +105,45 @@ export class DraggablePoints {
     this.onTouchStart = this.onTouchStart.bind(this);
     this.onTouchMove = this.onTouchMove.bind(this);
     this.onTouchEnd = this.onTouchEnd.bind(this);
+    this.onTouchCancel = this.onTouchCancel.bind(this);
 
     // Bound to the map, not the layer: with a geometric hit test there is no
     // layer query to hang the handler off, and the query path applies the
     // same finger slop the touch path always has.
     map.on("mousedown", this.onMouseDown);
     map.on("mousemove", this.onMouseMove);
-    map.on("mouseup", this.onMouseUp);
+    // mouseup on window, not the map: a release outside the canvas (drag ran
+    // off the edge) must still end the drag, or dragPan stays disabled.
+    window.addEventListener("mouseup", this.onMouseUp);
 
     const canvas = map.getCanvas();
     canvas.addEventListener("touchstart", this.onTouchStart, {
       passive: false,
     });
     canvas.addEventListener("touchend", this.onTouchEnd);
+    // touchcancel is not touchend: a system interruption (incoming call,
+    // edge-gesture, palm rejection — routine on a marine tablet) fires it
+    // instead, and without a handler the drag never ends and the map can't
+    // be panned for the rest of the session.
+    canvas.addEventListener("touchcancel", this.onTouchCancel);
     // touchmove is attached only while dragging (see startDrag): a
     // permanent non-passive touchmove listener would force the browser
     // to wait on JS before compositing every pan frame.
   }
 
   destroy(): void {
+    // A live gesture (finger still down while the owner tears us down) would
+    // otherwise leave dragPan disabled and the cursor stuck.
+    if (this.dragging) this.endDrag();
     this.map.off("mousedown", this.onMouseDown);
     this.map.off("mousemove", this.onMouseMove);
-    this.map.off("mouseup", this.onMouseUp);
+    window.removeEventListener("mouseup", this.onMouseUp);
 
     const canvas = this.map.getCanvas();
     canvas.removeEventListener("touchstart", this.onTouchStart);
     canvas.removeEventListener("touchmove", this.onTouchMove);
     canvas.removeEventListener("touchend", this.onTouchEnd);
+    canvas.removeEventListener("touchcancel", this.onTouchCancel);
   }
 
   /** Locate a handle at a canvas-relative pixel, by geometry when the caller
@@ -207,7 +222,9 @@ export class DraggablePoints {
   }
 
   private onTouchStart(e: TouchEvent): void {
-    if (e.touches.length !== 1) return;
+    // Only start on the first finger; a second finger landing mid-drag must
+    // not restart or hijack the gesture.
+    if (this.dragging || e.touches.length !== 1) return;
     const touch = e.touches[0];
     const rect = this.map.getCanvas().getBoundingClientRect();
     const x = touch.clientX - rect.left;
@@ -218,16 +235,26 @@ export class DraggablePoints {
     // preventDefault also suppresses the synthetic click, so tap
     // handling is ours to do: see onTouchEnd.
     e.preventDefault();
+    this.dragTouchId = touch.identifier;
     this.touchStartX = touch.clientX;
     this.touchStartY = touch.clientY;
     this.touchMoved = false;
     this.startDrag(hit.index);
   }
 
+  /** The finger owning the drag within a TouchList, or null if it's absent. */
+  private dragTouch(list: TouchList): Touch | null {
+    for (let i = 0; i < list.length; i++) {
+      if (list[i].identifier === this.dragTouchId) return list[i];
+    }
+    return null;
+  }
+
   private onTouchMove(e: TouchEvent): void {
-    if (!this.dragging || e.touches.length !== 1) return;
+    if (!this.dragging) return;
+    const touch = this.dragTouch(e.touches);
+    if (!touch) return;
     e.preventDefault();
-    const touch = e.touches[0];
     if (!this.touchMoved) {
       const dx = touch.clientX - this.touchStartX;
       const dy = touch.clientY - this.touchStartY;
@@ -251,12 +278,20 @@ export class DraggablePoints {
     if (typeof replacement === "number") this.dragIndex = replacement;
   }
 
-  private onTouchEnd(): void {
-    if (!this.dragging) return;
+  private onTouchEnd(e: TouchEvent): void {
+    // Only the drag's own finger lifting ends it — another finger's touchend
+    // must be ignored, or a two-finger interaction terminates the drag early.
+    if (!this.dragging || !this.dragTouch(e.changedTouches)) return;
     const wasTap = !this.touchMoved;
     const index = this.dragIndex;
     this.endDrag();
     if (wasTap) this.onTap?.(index);
+  }
+
+  private onTouchCancel(e: TouchEvent): void {
+    if (!this.dragging || !this.dragTouch(e.changedTouches)) return;
+    // Interrupted, not completed: end the drag but fire no tap.
+    this.endDrag();
   }
 
   private startDrag(index: number): void {
@@ -272,6 +307,7 @@ export class DraggablePoints {
   private endDrag(): void {
     this.dragging = false;
     this.dragIndex = -1;
+    this.dragTouchId = null;
     this.map.dragPan.enable();
     const canvas = this.map.getCanvas();
     canvas.removeEventListener("touchmove", this.onTouchMove);
