@@ -137,6 +137,11 @@ export class RouteManagerPanel {
 
     this.detailPanel.onDelete = (route) => {
       if (!confirm(`Delete route "${route.name}"?`)) return;
+      // Discard an in-progress edit of this route first — otherwise the
+      // editor keeps a live copy and Done would re-save the deleted route.
+      if (this.editor.isEditing() && this.editor.getRoute()?.id === route.id) {
+        this.editor.cancel();
+      }
       deleteRoute(route.id)
         .then(async () => {
           this.activeNav?.noteRouteDeleted(route.id);

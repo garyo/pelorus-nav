@@ -21,11 +21,14 @@ export type TapCallback = (featureIndex: number) => void;
 
 /**
  * Fired once per gesture, just before its first onDrag — i.e. only when the
- * pointer actually moves. A plain click/tap never fires it.
+ * pointer actually moves past the tap slop. A plain click/tap never fires it.
  *
  * Receives the index being dragged and may return a different one to drag
- * instead, which lets a caller turn a placeholder handle into a real point
- * at the moment the drag starts and carry the gesture over to it.
+ * instead, which lets a caller turn a placeholder handle into a real point at
+ * the moment the drag starts and carry the gesture over to it. The callback
+ * may mutate the array `getPoints()` returns (e.g. insert the new point), and
+ * the returned replacement index is interpreted against that *post-callback*
+ * array — subsequent onDrag calls index into it.
  */
 export type DragStartCallback = (index: number) => number | void;
 
@@ -73,6 +76,10 @@ export class DraggablePoints {
   /** Pixel offset from mousedown to feature anchor, to avoid jump on pickup. */
   private dragOffsetX = 0;
   private dragOffsetY = 0;
+  /** Mouse-down point and moved-past-slop flag, for tap-vs-drag on mouse. */
+  private mouseDownX = 0;
+  private mouseDownY = 0;
+  private mouseMoved = false;
   /** Touch-down point, for tap-vs-drag discrimination. */
   private touchStartX = 0;
   private touchStartY = 0;
@@ -129,6 +136,11 @@ export class DraggablePoints {
     // touchmove is attached only while dragging (see startDrag): a
     // permanent non-passive touchmove listener would force the browser
     // to wait on JS before compositing every pan frame.
+  }
+
+  /** True between a gesture's grab and its release (mouse or touch). */
+  isDragging(): boolean {
+    return this.dragging;
   }
 
   destroy(): void {
@@ -197,6 +209,9 @@ export class DraggablePoints {
     if (!hit) return;
     e.preventDefault();
     this.setGrabOffset(hit, e.point.x, e.point.y);
+    this.mouseDownX = e.point.x;
+    this.mouseDownY = e.point.y;
+    this.mouseMoved = false;
     this.startDrag(hit.index);
   }
 
@@ -208,6 +223,16 @@ export class DraggablePoints {
       return;
     }
     e.preventDefault();
+    if (!this.mouseMoved) {
+      // Below-slop jitter is a click, not a drag — treating it as a drag both
+      // nudges the point and, since it's under the browser's click tolerance,
+      // still emits a click that toggles selection. Wait for real movement so
+      // onDragStart (checkpoint / ghost-insert) doesn't fire on a stray tap.
+      const dx = e.point.x - this.mouseDownX;
+      const dy = e.point.y - this.mouseDownY;
+      if (dx * dx + dy * dy < TAP_MOVE_SLOP * TAP_MOVE_SLOP) return;
+      this.mouseMoved = true;
+    }
     const lngLat = this.map.unproject([
       e.point.x + this.dragOffsetX,
       e.point.y + this.dragOffsetY,

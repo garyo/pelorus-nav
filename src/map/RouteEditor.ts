@@ -140,9 +140,6 @@ export class RouteEditor {
   private getSearchEntries: (() => SearchEntry[]) | null = null;
   /** Source of standalone waypoints for snap targets. */
   private getSnapWaypoints: (() => readonly StandaloneWaypoint[]) | null = null;
-  /** Snap targets outside the editing route (other visible routes +
-   *  standalone waypoints), cached for the edit session. */
-  private snapExternal: SnapCandidate[] = [];
 
   constructor(map: maplibregl.Map, routeLayer: RouteLayer) {
     this.map = map;
@@ -333,15 +330,6 @@ export class RouteEditor {
       this.routeLayer.fitRoute(route);
     }
 
-    // Cache external snap targets for the session — the route/waypoint set
-    // can't change while the editor owns the interaction mode. The edited
-    // route was hidden above, so getVisibleRoutes() already excludes it.
-    this.snapExternal = collectSnapCandidates(
-      this.routeLayer.getVisibleRoutes().filter((r) => r.id !== this.route?.id),
-      this.getSnapWaypoints?.() ?? [],
-      [],
-    );
-
     this.selectedIndex = null;
     // Under two waypoints there is no route to adjust yet, so taps place
     // points. An existing route opens inert: that is what stops every
@@ -473,6 +461,10 @@ export class RouteEditor {
   /** Restore the state before the last mutation (add/insert/delete/drag/
    *  rename). No redo; session-scoped. */
   undo(): void {
+    // Undoing mid-drag would swap the waypoints array under the fixed index
+    // the gesture is moving — the drag would then edit whatever now sits at
+    // that index. Let the gesture finish first.
+    if (this.draggable?.isDragging()) return;
     const snap = this.undoStack.pop();
     if (!this.route || !snap) return;
     this.route.waypoints = snap.waypoints;
@@ -556,15 +548,27 @@ export class RouteEditor {
     };
   }
 
-  /** Nearest snap target to a screen point, or null. Merges the cached
-   *  external targets with the route's own (live) waypoints. */
+  /**
+   * Nearest snap target to a screen point, or null. External targets (other
+   * visible routes + standalone waypoints) are collected fresh each call
+   * rather than cached for the session: the route manager stays open while
+   * editing, so those sets can change under us — deleting or hiding a route
+   * mid-edit would otherwise leave it a live snap target (a ring over empty
+   * water, or a placed point inheriting a deleted route's position). The
+   * edited route is session-hidden, so getVisibleRoutes() already excludes
+   * it. Perf is a non-issue here (a few hundred points; see the drag trace).
+   */
   private findSnapAt(
     point: { x: number; y: number },
     op: SnapOp,
   ): SnapCandidate | null {
     if (!this.route) return null;
     const candidates = [
-      ...this.snapExternal,
+      ...collectSnapCandidates(
+        this.routeLayer.getVisibleRoutes(),
+        this.getSnapWaypoints?.() ?? [],
+        [],
+      ),
       ...collectSnapCandidates([], [], this.route.waypoints),
     ];
     return findSnap(candidates, op, point, (ll) => this.map.project(ll));

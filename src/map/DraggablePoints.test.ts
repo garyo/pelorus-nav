@@ -12,16 +12,21 @@ import type { GeoPoint } from "./point-hit-test";
  * panned for the rest of the session.
  */
 
-/** Minimal map: identity-ish projection, a tracked dragPan, a real canvas. */
+type MapHandler = (e: { point: { x: number; y: number } }) => void;
+
+/** Minimal map: identity-ish projection, a tracked dragPan, a real canvas,
+ *  and captured mouse handlers so tests can drive the mouse path. */
 function makeMap(): {
   map: MapLibreMap;
   canvas: HTMLCanvasElement;
   dragPanEnabled: () => boolean;
+  fire: (type: string, x: number, y: number) => void;
 } {
   const canvas = document.createElement("canvas");
   // getBoundingClientRect is 0×0 in jsdom by default — fine, screen coords
   // equal client coords, which is all the geometric hit test needs.
   let dragPanEnabled = true;
+  const handlers = new Map<string, MapHandler>();
   const map = {
     getCanvas: () => canvas,
     getLayer: () => ({}),
@@ -35,10 +40,15 @@ function makeMap(): {
         dragPanEnabled = false;
       },
     },
-    on: () => {},
+    on: (type: string, handler: MapHandler) => handlers.set(type, handler),
     off: () => {},
   } as unknown as MapLibreMap;
-  return { map, canvas, dragPanEnabled: () => dragPanEnabled };
+  const fire = (type: string, x: number, y: number) =>
+    handlers.get(type)?.({
+      point: { x, y },
+      preventDefault: () => {},
+    } as never);
+  return { map, canvas, dragPanEnabled: () => dragPanEnabled, fire };
 }
 
 /** Dispatch a touch event with the given touch points (as changedTouches
@@ -134,5 +144,17 @@ describe("DraggablePoints drag lifecycle", () => {
 
     window.dispatchEvent(new Event("mouseup"));
     expect(dragPanEnabled()).toBe(true);
+  });
+
+  it("absorbs a sub-slop mouse jiggle without dragging", () => {
+    const { map, fire } = makeMap();
+    const { onDrag } = makeDraggable(map);
+
+    fire("mousedown", 0, 0); // grab the point at (0,0)
+    fire("mousemove", 3, 3); // 4.2 px — under the 6 px tap slop
+    expect(onDrag).not.toHaveBeenCalled();
+
+    fire("mousemove", 8, 0); // now past slop
+    expect(onDrag).toHaveBeenCalledTimes(1);
   });
 });
