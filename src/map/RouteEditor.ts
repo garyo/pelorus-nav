@@ -1144,7 +1144,7 @@ export class RouteEditor {
         const prev = wps[this.selectedIndex - 1];
         const d = haversineDistanceNM(prev.lat, prev.lon, wp.lat, wp.lon);
         const b = initialBearingDeg(prev.lat, prev.lon, wp.lat, wp.lon);
-        legInfo = ` \u2014 ${d.toFixed(1)} NM / ${formatBearing(b, bearingMode, prev.lat, prev.lon)}`;
+        legInfo = ` \u2014 ${formatBearing(b, bearingMode, prev.lat, prev.lon)} / ${d.toFixed(1)} NM`;
       }
       this.barText.innerHTML = "";
       const strong = document.createElement("strong");
@@ -1205,7 +1205,7 @@ export class RouteEditor {
       );
       totalDist += d;
       legs.push(
-        `${d.toFixed(1)} NM / ${formatBearing(b, bearingMode, wps[i - 1].lat, wps[i - 1].lon)}`,
+        `${formatBearing(b, bearingMode, wps[i - 1].lat, wps[i - 1].lon)} / ${d.toFixed(1)} NM`,
       );
     }
 

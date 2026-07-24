@@ -577,8 +577,8 @@ export class PlottingLayer {
         const fmtBrg = formatBearing(brg, bearingMode, el.lat1, el.lon1);
         const distStr = formatDistanceNM(dist, depthUnit);
         const segLabel = el.label
-          ? `${el.label} — ${distStr} ${fmtBrg}`
-          : `${distStr} ${fmtBrg}`;
+          ? `${el.label} — ${fmtBrg} ${distStr}`
+          : `${fmtBrg} ${distStr}`;
 
         // Place segment label along the line
         lineLabels.push({
@@ -654,13 +654,13 @@ export class PlottingLayer {
           },
         });
 
-        // Distance & bearing label on the radial line
+        // Bearing & distance label on the radial line
         const { bearingMode, depthUnit } = getSettings();
         const fmtBrg = formatBearing(el.lineAngle, bearingMode, el.lat, el.lon);
         const distStr = formatDistanceNM(el.radiusNM, depthUnit);
         lineLabels.push({
           type: "Feature",
-          properties: { id: el.id, label: `${distStr} ${fmtBrg}` },
+          properties: { id: el.id, label: `${fmtBrg} ${distStr}` },
           geometry: {
             type: "LineString",
             coordinates: [[el.lon, el.lat], lineEnd],
@@ -762,7 +762,7 @@ export class PlottingLayer {
         const distStr = formatDistanceNM(el.distanceNM, depthUnit);
         lineLabels.push({
           type: "Feature",
-          properties: { id: el.id, label: `${distStr} ${fmtBrg}` },
+          properties: { id: el.id, label: `${fmtBrg} ${distStr}` },
           geometry: {
             type: "LineString",
             coordinates: [[el.lon, el.lat], tip],
