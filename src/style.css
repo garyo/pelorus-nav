@@ -2571,6 +2571,15 @@ body {
   white-space: nowrap;
 }
 
+/* On a narrow screen the action buttons fill the row and crush the label
+   (flex:1 min-width:0) down to a single ellipsised letter. Give the name +
+   leg readout its own full-width row; the buttons wrap beneath it. */
+@media (max-width: 640px) {
+  .route-editor-text {
+    flex-basis: 100%;
+  }
+}
+
 .route-editor-btn {
   background: #4488cc;
   border: none;
