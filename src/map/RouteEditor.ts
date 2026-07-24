@@ -122,9 +122,6 @@ export class RouteEditor {
    *  route and adjusting one, and the reason a stray tap can no longer put a
    *  spur on the end of a finished route. */
   private addingPoints = true;
-  /** True from a drag's first movement until the gesture ends. Those frames
-   *  take a reduced path through updateSources — see setDragActive. */
-  private dragActive = false;
   private draggable: DraggablePoints | null = null;
   private clickHandler: ((e: maplibregl.MapMouseEvent) => void) | null = null;
   private moveHandler: ((e: maplibregl.MapMouseEvent) => void) | null = null;
@@ -497,24 +494,6 @@ export class RouteEditor {
     return index === null ? null : this.resolveGrab(index);
   }
 
-  /**
-   * Enter or leave the drag fast path. A drag redraws on every pointer
-   * event, so those frames update only what has to move — the waypoints,
-   * the line and the selection ring. The ghost handles (a second symbol
-   * source, and so a second placement pass), the preview line and the
-   * waypoint list wait for the gesture to end. Worth about a third of the
-   * per-event main-thread cost; the toolbar readout stays live because it
-   * is what the drag is for.
-   */
-  private setDragActive(active: boolean): void {
-    if (this.dragActive === active) return;
-    this.dragActive = active;
-    if (!active) {
-      this.updateSources();
-      this.updateBar();
-    }
-  }
-
   /** Turn a ghost handle into a real waypoint (and select it). */
   private insertAtHandle(handle: MidHandle): void {
     if (handle.insertAfter === null) {
@@ -849,21 +828,13 @@ export class RouteEditor {
         const hit = this.resolveGrab(index);
         if (!hit || "waypoint" in hit) {
           this.checkpoint();
-          this.setDragActive(true);
           return;
         }
-        // Materialise first: insertAtHandle needs the full redraw path.
         this.insertAtHandle(hit.ghost);
-        const materialised = this.selectedIndex ?? undefined;
-        this.setDragActive(true);
-        return materialised;
+        return this.selectedIndex ?? undefined;
       },
-      // Gesture over — catch the deferred redraw up, and don't let the snap
-      // ring linger on the target.
-      () => {
-        this.setDragActive(false);
-        this.showSnapIndicator(null);
-      },
+      // Gesture over — the snap ring must not linger on the target.
+      () => this.showSnapIndicator(null),
       {
         getPoints: () => this.grabHandles(),
         hitRadius: HANDLE_HIT_RADIUS,
@@ -873,12 +844,10 @@ export class RouteEditor {
 
   private updateSources(): void {
     if (!this.route) return;
-    if (!this.dragActive) {
-      this.notify();
-      // Drop any stale cursor-preview line (the next mousemove redraws it;
-      // touch devices never get one). Keeps the prepend-handle dash fresh.
-      this.updatePreview(null);
-    }
+    this.notify();
+    // Drop any stale cursor-preview line (the next mousemove redraws it;
+    // touch devices never get one). Keeps the prepend-handle dash fresh.
+    this.updatePreview(null);
     const wps = this.route.waypoints;
 
     const ptSrc = this.map.getSource(SOURCE_ID) as
@@ -932,7 +901,7 @@ export class RouteEditor {
         insertAfter: wps.length - 1,
       });
     }
-    if (midSrc && !this.dragActive) {
+    if (midSrc) {
       midSrc.setData({
         type: "FeatureCollection",
         features: this.midHandles.map((h) => ({
