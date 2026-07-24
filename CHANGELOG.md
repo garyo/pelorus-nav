@@ -7,6 +7,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+Theme of this release: route editing improvements! People coming from OpenCPN should be more comfortable, with many bugs squashed and nice improvements (not just on iOS) like snapping to existing waypoints, undo, and clearer modes. See below. And remember, you can always edit routes on desktop and then export them to your cloud folder and import on the phone. Don't forget about route folders to organize your routes!
+
 ### Added
 - An online user guide at
   [pelorus-nav.com/doc/userguide](https://pelorus-nav.com/doc/userguide/),
@@ -54,7 +56,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/).
   the bottom bar), and selecting a waypoint on the map highlights its row
   in the list. The list also appears as soon as a route has one waypoint,
   instead of only after two.
-- Route editing leaves more chart visible on phones: the full route list
+- Route editing shows more chart visible on phones: the full route list
   collapses while you edit (reopen it from the Routes button when done),
   and the waypoint list is capped at 40% of the screen height.
 - Leg readouts now show course before distance everywhere (e.g.
