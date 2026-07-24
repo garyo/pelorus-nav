@@ -122,16 +122,7 @@ export class RouteManagerPanel {
       }
     });
 
-    this.detailPanel.onEdit = (route) => {
-      this.editor.startEditing(route);
-      // Re-show detail panel with editor's live route reference
-      const liveRoute = this.editor.getRoute();
-      if (liveRoute) this.detailPanel.show(liveRoute);
-      // Collapse the route list while editing — the detail panel is the
-      // editing workspace, and on a phone the two panels together crowd out
-      // the chart. Reopen the list from RTE when done.
-      this.hide();
-    };
+    this.detailPanel.onEdit = (route) => this.beginEdit(route);
 
     this.detailPanel.onHide = () => this.clearSelection();
 
@@ -216,6 +207,18 @@ export class RouteManagerPanel {
     // outlives it (eviction closes both — each is its own surface).
     this.el.classList.remove("open");
     this.editing = false;
+  }
+
+  /** Start editing a route: open its detail panel as the editing workspace
+   *  and collapse the route list. Both edit entry points (the detail panel's
+   *  pencil and each row's pencil) funnel through here so they stay
+   *  consistent — the list closing on edit shouldn't depend on which pencil
+   *  you tapped. */
+  private beginEdit(route: Route): void {
+    this.editor.startEditing(route);
+    const liveRoute = this.editor.getRoute();
+    if (liveRoute) this.detailPanel.show(liveRoute);
+    this.hide();
   }
 
   private clearSelection(): void {
@@ -493,12 +496,7 @@ export class RouteManagerPanel {
       this.editor.isEditing() && this.editor.getRoute()?.id === route.id;
     editBtn.classList.toggle("editing", editingThis);
     editBtn.title = editingThis ? "Editing this route" : "Edit";
-    editBtn.addEventListener("click", () => {
-      this.editor.startEditing(route);
-      // Auto-open detail panel with live route reference
-      const liveRoute = this.editor.getRoute();
-      if (liveRoute) this.detailPanel.show(liveRoute);
-    });
+    editBtn.addEventListener("click", () => this.beginEdit(route));
 
     const toggleBtn = document.createElement("button");
     toggleBtn.className = "manager-item-btn";
