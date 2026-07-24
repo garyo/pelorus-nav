@@ -7,6 +7,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.16.0] - 2026-07-24
+
 Theme of this release: route editing improvements! People coming from OpenCPN should be more comfortable, with many bugs squashed and nice improvements (not just on iOS) like snapping to existing waypoints, undo, and clearer modes. See below. And remember, you can always edit routes on desktop and then export them to your cloud folder and import on the phone. Don't forget about route folders to organize your routes!
 
 ### Added
@@ -56,30 +58,26 @@ Theme of this release: route editing improvements! People coming from OpenCPN sh
   the bottom bar), and selecting a waypoint on the map highlights its row
   in the list. The list also appears as soon as a route has one waypoint,
   instead of only after two.
-- Route editing shows more chart visible on phones: the full route list
-  collapses while you edit (reopen it from the Routes button when done),
-  and the waypoint list is capped at 40% of the screen height.
+- Route editing shows more visible chart area on phones: the full
+  route list collapses while you edit (reopen it from the Routes
+  button when done) and its height is capped.
 - Leg readouts now show course before distance everywhere (e.g.
   `119°M / 2.3 NM`), matching the waypoint list.
 
 ### Fixed
-- Editing a route away from the vessel no longer snaps the chart back to
-  the boat on the next GPS fix while in follow mode.
+- Editing a route while away from the vessel no longer snaps the chart
+  back to the boat on the next GPS fix while in follow mode.
 - A long waypoint name no longer collapses to a single letter in the
   editing toolbar: the name gets its own row (ellipsised only if very
   long) and the leg distance/bearing stays visible.
-- Changing the theme, chart source, or detail level while editing a route
-  no longer makes the route being edited vanish from the chart.
 - While editing a route, the selection glow no longer lingers showing the
   route's shape from before the edit started.
-- Dragging anything on the chart with a mouse — a route waypoint, a
-  measurement pin, a plotting symbol — ran at the idle frame rate after
-  the first fraction of a second, so it moved in visible steps. It now
-  keeps up with the pointer.
-- Taps on route waypoints and on the ghost insert markers are now
-  reliable, especially just after panning the chart — previously a tap
-  could land on a waypoint and be treated as a tap on open water. The
-  ghost insert markers are also larger and easier to hit with a finger.
+- Reduced initial lag while dragging anything on the chart with a
+  mouse — a route waypoint, a measurement pin, a plotting symbol.
+- In Route edit mode, taps on route waypoints and on the ghost insert
+  markers are now reliable, especially just after panning the chart.
+  The ghost insert markers are also larger and easier to hit with a
+  finger.
 - Bluetooth GPS (NMEA) receivers such as the Dual XGPS150A and Garmin
   GLO 2 now work on recent Android (12+) devices, handy for devices
   without their own GPS.
@@ -91,7 +89,8 @@ Theme of this release: route editing improvements! People coming from OpenCPN sh
   shorelines.
 - Opening another panel (Sun, chart layers, …) while editing a route no
   longer dismisses the waypoint list; close it with its X if you want
-  more room. Renaming a waypoint mid-edit no longer silently saves your
+  more room.
+- Renaming a waypoint mid-edit no longer silently saves your
   in-progress route changes (Done saves, Cancel discards, as expected),
   and a chart style reload during editing no longer redraws the route's
   old shape underneath the one being edited.
