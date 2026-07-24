@@ -322,6 +322,13 @@ export class RouteEditor {
       waypoints: [],
     };
 
+    // Editing is a look-away: drop the chart out of any follow/course-up
+    // mode so GPS ticks stop recentering on the vessel and yanking the map
+    // out from under the edit (worst when the route is nowhere near the
+    // boat). Same signal search / go-to fire. Do it before framing, so the
+    // fit below isn't immediately stomped by the next fix.
+    this.map.fire("pelorus:navigate" as never);
+
     // Frame an existing route before editing — appending to an off-screen
     // route drops waypoints sight-unseen. Single-waypoint routes (context
     // menu "start route here") skip it: the point is already on screen and
