@@ -108,6 +108,28 @@ export class RouteLayer {
     }
   }
 
+  /**
+   * Hide a route from the map for the current session only — used while it is
+   * being edited, so the editor draws the sole live copy. Unlike
+   * toggleVisibility this never touches the persisted `visible` flag, so a
+   * route the user had hidden stays hidden after the edit (and one they had
+   * shown comes back) rather than being force-shown.
+   */
+  suspendRoute(id: string): void {
+    this.hiddenIds.add(id);
+    this.removeRoute(id);
+  }
+
+  /** Undo suspendRoute: redraw only if the route's own visibility says so. */
+  resumeRoute(id: string): void {
+    this.hiddenIds.delete(id);
+    const route = this.loadedRoutes.get(id);
+    if (route?.visible) {
+      this.addRoute(route);
+      reapplyOverlayDimming(this.map);
+    }
+  }
+
   /** Update a route's display (e.g. during editing). */
   updateRoute(route: Route): void {
     this.loadedRoutes.set(route.id, route);

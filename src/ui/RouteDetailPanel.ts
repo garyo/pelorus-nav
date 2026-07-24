@@ -191,6 +191,16 @@ export class RouteDetailPanel {
   }
 
   show(route: Route): void {
+    // When this route is the one being edited, hold the editor's *live*
+    // object, not whatever copy the caller passed (the manager list hands
+    // over a fresh DB snapshot on every refresh). isEditingThisRoute() is a
+    // strict-identity check; a stale copy silently flips it false, which
+    // among other things routes a waypoint rename down the persist-to-DB
+    // branch and writes pre-edit geometry behind the edit's back.
+    if (this.editor.isEditing() && this.editor.getRoute()?.id === route.id) {
+      const live = this.editor.getRoute();
+      if (live) route = live;
+    }
     this.currentRoute = route;
     this.header.textContent = route.name;
     this.render();

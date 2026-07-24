@@ -190,14 +190,22 @@ export class RouteEditor {
     });
 
     map.on("style.load", () => {
+      // Register the canvas handle icons before the layers that reference
+      // them. On every style reload: a diff rebuild keeps our sources/layers
+      // but drops the images (handles would go invisible-but-still-tappable);
+      // a full rebuild needs them too. Once per style change, never per frame.
+      ensurePointIcons(this.map);
       this.setupLayers();
-      // A style rebuild (theme, chart source, detail level) drops every
-      // source; setupLayers re-adds ours empty. Without this an edit in
-      // progress silently loses its line and handles — the route looks
-      // deleted until the next mutation happens to redraw it.
-      if (this.route) this.updateSources();
+      // A style rebuild (theme, chart source, detail level) can drop every
+      // source; setupLayers re-adds ours empty. Replaying afterModelChange
+      // repaints the in-progress edit — without it the route looks deleted
+      // until the next mutation happens to redraw it.
+      if (this.route) this.afterModelChange();
     });
-    if (map.isStyleLoaded()) this.setupLayers();
+    if (map.isStyleLoaded()) {
+      ensurePointIcons(this.map);
+      this.setupLayers();
+    }
   }
 
   isEditing(): boolean {
@@ -300,10 +308,12 @@ export class RouteEditor {
 
     // Hide the existing route display while editing — and its selection
     // halo with it, so the only route shape on screen is the live one.
+    // suspendRoute is session-only: cancelling an edit of a route the user
+    // had hidden must not resurrect it (toggleVisibility would).
     this.routeLayer.setSelectionHaloHidden(true);
     this.editingExistingId = route?.id ?? null;
     if (this.editingExistingId) {
-      this.routeLayer.toggleVisibility(this.editingExistingId, false);
+      this.routeLayer.suspendRoute(this.editingExistingId);
     }
 
     this.route = route ?? {
@@ -339,8 +349,7 @@ export class RouteEditor {
     this.addingPoints = this.route.waypoints.length < 2;
     setMode("route-edit");
     this.bar.style.display = "flex";
-    this.updateBar();
-    this.updateSources();
+    this.afterModelChange();
     this.setupDrag();
     this.stopTapDiag = startEditTapDiag(
       this.map,
@@ -357,9 +366,7 @@ export class RouteEditor {
       // and drag callbacks in setupDrag() mirror what happens here.
       const hit = this.hitHandle(e.point);
       if (hit) {
-        if ("ghost" in hit) this.insertAtHandle(hit.ghost);
-        else if (this.selectedIndex === hit.waypoint) this.deselect();
-        else this.select(hit.waypoint);
+        this.tapHandle(hit);
         return;
       }
 
@@ -387,10 +394,9 @@ export class RouteEditor {
               this.route.waypoints.slice(-1),
             ),
           };
-      this.checkpoint();
-      this.route.waypoints.push(wp);
-      this.updateSources();
-      this.updateBar();
+      this.mutate((route) => {
+        route.waypoints.push(wp);
+      });
     };
     this.map.on("click", this.clickHandler);
 
@@ -405,8 +411,6 @@ export class RouteEditor {
       this.updatePreview(snap ? { lng: snap.lon, lat: snap.lat } : e.lngLat);
     };
     this.map.on("mousemove", this.moveHandler);
-
-    this.notify();
   }
 
   /** Save and exit editor. */
@@ -429,6 +433,34 @@ export class RouteEditor {
     for (const fn of this.cancelListeners) fn(existingId);
   }
 
+  /**
+   * The one path every waypoint edit takes: snapshot for undo, apply the
+   * change, then reflect it everywhere. Callers only describe the change —
+   * they cannot forget the checkpoint or the follow-up redraw, which is how
+   * past mutation sites drifted out of sync. `fn` receives the live route so
+   * it needn't re-null-check.
+   */
+  private mutate(fn: (route: Route) => void): void {
+    if (!this.route) return;
+    this.checkpoint();
+    fn(this.route);
+    this.afterModelChange();
+  }
+
+  /**
+   * Reflect a model change everywhere, in the one correct order: derive the
+   * handles, repaint the map, refresh the toolbar, then notify listeners
+   * (the detail panel). Selection-only changes and undo call this directly;
+   * waypoint edits reach it through mutate(). style.load replays it so a
+   * rebuilt style can't leave the edit half-drawn.
+   */
+  private afterModelChange(): void {
+    this.deriveHandles();
+    this.paintSources();
+    this.updateBar();
+    this.notify();
+  }
+
   /** Snapshot state before a mutation; one Undo press restores it. */
   private checkpoint(): void {
     if (!this.route) return;
@@ -445,8 +477,7 @@ export class RouteEditor {
     if (!this.route || !snap) return;
     this.route.waypoints = snap.waypoints;
     this.selectedIndex = snap.selectedIndex;
-    this.updateSources();
-    this.updateBar();
+    this.afterModelChange();
   }
 
   /** Rename a waypoint during editing. Undoable; Done persists it,
@@ -454,10 +485,9 @@ export class RouteEditor {
   renameWaypoint(index: number, name: string): void {
     const wp = this.route?.waypoints[index];
     if (!wp || wp.name === name) return;
-    this.checkpoint();
-    wp.name = name;
-    this.updateSources();
-    this.updateBar();
+    this.mutate(() => {
+      wp.name = name;
+    });
   }
 
   /**
@@ -500,6 +530,22 @@ export class RouteEditor {
       this.prependWaypoint(handle.lat, handle.lon);
     } else {
       this.insertWaypointAfter(handle.insertAfter, handle.lat, handle.lon);
+    }
+  }
+
+  /**
+   * Act on a tap that resolved to a handle: a ghost inserts, a waypoint
+   * toggles its selection. The single definition of tap semantics — the
+   * mouse click path and the touch tap callback both call it, so the two
+   * input paths can never drift apart (they did before this was shared).
+   */
+  private tapHandle(hit: { waypoint: number } | { ghost: MidHandle }): void {
+    if ("ghost" in hit) {
+      this.insertAtHandle(hit.ghost);
+    } else if (this.selectedIndex === hit.waypoint) {
+      this.deselect();
+    } else {
+      this.select(hit.waypoint);
     }
   }
 
@@ -548,51 +594,47 @@ export class RouteEditor {
     if (!this.route || index < 0 || index >= this.route.waypoints.length)
       return;
     this.selectedIndex = index;
-    this.updateSources();
-    this.updateBar();
+    this.afterModelChange();
   }
 
   private deselect(): void {
     this.selectedIndex = null;
-    this.updateSources();
-    this.updateBar();
+    this.afterModelChange();
   }
 
   private deleteSelected(): void {
-    if (!this.route || this.selectedIndex === null) return;
-    this.checkpoint();
-    this.route.waypoints.splice(this.selectedIndex, 1);
-    // Renumber names
-    for (let i = 0; i < this.route.waypoints.length; i++) {
-      if (this.route.waypoints[i].name.match(/^WP\d+$/)) {
-        this.route.waypoints[i].name = `WP${i + 1}`;
+    if (this.selectedIndex === null) return;
+    const at = this.selectedIndex;
+    this.mutate((route) => {
+      route.waypoints.splice(at, 1);
+      // Renumber only the auto-named waypoints; custom/feature names stay.
+      for (let i = 0; i < route.waypoints.length; i++) {
+        if (route.waypoints[i].name.match(/^WP\d+$/)) {
+          route.waypoints[i].name = `WP${i + 1}`;
+        }
       }
-    }
-    this.selectedIndex = null;
-    this.updateSources();
-    this.updateBar();
+      this.selectedIndex = null;
+    });
   }
 
   private prependWaypoint(lat: number, lon: number): void {
-    if (!this.route) return;
-    this.checkpoint();
-    // Only the new waypoint gets an auto-name; existing waypoints keep
-    // whatever names the user has set (renumbering would clobber custom
-    // and feature-derived names).
-    const newWp: Waypoint = {
-      lat,
-      lon,
-      name: this.autoName(
+    this.mutate((route) => {
+      // Only the new waypoint gets an auto-name; existing waypoints keep
+      // whatever names the user has set (renumbering would clobber custom
+      // and feature-derived names).
+      const newWp: Waypoint = {
         lat,
         lon,
-        `WP${this.route.waypoints.length + 1}`,
-        this.route.waypoints.slice(0, 1),
-      ),
-    };
-    this.route.waypoints.unshift(newWp);
-    this.selectedIndex = 0;
-    this.updateSources();
-    this.updateBar();
+        name: this.autoName(
+          lat,
+          lon,
+          `WP${route.waypoints.length + 1}`,
+          route.waypoints.slice(0, 1),
+        ),
+      };
+      route.waypoints.unshift(newWp);
+      this.selectedIndex = 0;
+    });
   }
 
   private insertWaypointAfter(
@@ -600,23 +642,21 @@ export class RouteEditor {
     lat: number,
     lon: number,
   ): void {
-    if (!this.route) return;
-    this.checkpoint();
-    const newWp: Waypoint = {
-      lat,
-      lon,
-      name: this.autoName(
+    this.mutate((route) => {
+      const newWp: Waypoint = {
         lat,
         lon,
-        `WP${this.route.waypoints.length + 1}`,
-        // both sides of the insertion point
-        this.route.waypoints.slice(afterIndex, afterIndex + 2),
-      ),
-    };
-    this.route.waypoints.splice(afterIndex + 1, 0, newWp);
-    this.selectedIndex = afterIndex + 1;
-    this.updateSources();
-    this.updateBar();
+        name: this.autoName(
+          lat,
+          lon,
+          `WP${route.waypoints.length + 1}`,
+          // both sides of the insertion point
+          route.waypoints.slice(afterIndex, afterIndex + 2),
+        ),
+      };
+      route.waypoints.splice(afterIndex + 1, 0, newWp);
+      this.selectedIndex = afterIndex + 1;
+    });
   }
 
   private insertAfterSelected(): void {
@@ -639,9 +679,10 @@ export class RouteEditor {
 
   private cleanup(): void {
     // Restore the original route display, then the halo — in that order, so
-    // it anchors below a route line layer that exists again.
+    // it anchors below a route line layer that exists again. resumeRoute
+    // redraws only if the route's own visibility says so.
     if (this.editingExistingId) {
-      this.routeLayer.toggleVisibility(this.editingExistingId, true);
+      this.routeLayer.resumeRoute(this.editingExistingId);
       this.editingExistingId = null;
     }
     this.routeLayer.setSelectionHaloHidden(false);
@@ -758,7 +799,9 @@ export class RouteEditor {
       },
     });
 
-    ensurePointIcons(this.map);
+    // Icons are registered by the callers (constructor + style.load), so a
+    // diff-style rebuild that skips this method's early return still gets
+    // them re-added.
 
     // Ghost midpoints (smaller, semi-transparent)
     this.map.addLayer({
@@ -805,20 +848,17 @@ export class RouteEditor {
         wp.lat = snap ? snap.lat : lngLat.lat;
         wp.lon = snap ? snap.lon : lngLat.lng;
         this.selectedIndex = index;
-        this.updateSources();
-        // Keep the toolbar's live leg distance/bearing running: placing a
-        // waypoint at a distance and bearing is the point of the drag.
-        this.updateBar();
+        // No checkpoint here — the gesture took one in onDragStart, so the
+        // whole drag undoes in one step. afterModelChange keeps the ghosts,
+        // line and the toolbar's live leg readout tracking the finger.
+        this.afterModelChange();
       },
       // Touch tap on a handle: DraggablePoints consumes the touch (its
       // preventDefault suppresses the synthetic click, so clickHandler never
-      // sees it) — mirror what the click path does with the same handle.
+      // sees it) — same tapHandle the mouse click path runs.
       (index) => {
         const hit = this.resolveGrab(index);
-        if (!hit) return;
-        if ("ghost" in hit) this.insertAtHandle(hit.ghost);
-        else if (this.selectedIndex === hit.waypoint) this.deselect();
-        else this.select(hit.waypoint);
+        if (hit) this.tapHandle(hit);
       },
       // First movement of a gesture. Dragging a ghost places its waypoint
       // here and hands the gesture straight to it, so drag-from-a-ghost is
@@ -842,9 +882,50 @@ export class RouteEditor {
     );
   }
 
-  private updateSources(): void {
+  /**
+   * Recompute the ghost handles from the current waypoints. Pure geometry,
+   * no map access. Runs before any paint or hit-test so the drawn ghosts and
+   * the grab list (grabHandles) can never lag the model — the failure that
+   * froze handles when a paint early-returned before deriving them.
+   */
+  private deriveHandles(): void {
+    this.midHandles = [];
+    const wps = this.route?.waypoints;
+    if (!wps) return;
+    // A ghost just off the start prepends; one at each leg midpoint inserts;
+    // one just off the end appends (an insert after the last waypoint).
+    const prependPos = prependHandlePos(wps);
+    if (prependPos) {
+      this.midHandles.push({
+        lon: prependPos[0],
+        lat: prependPos[1],
+        insertAfter: null,
+      });
+    }
+    for (let i = 0; i < wps.length - 1; i++) {
+      this.midHandles.push({
+        lat: (wps[i].lat + wps[i + 1].lat) / 2,
+        lon: (wps[i].lon + wps[i + 1].lon) / 2,
+        insertAfter: i,
+      });
+    }
+    const appendPos = appendHandlePos(wps);
+    if (appendPos) {
+      this.midHandles.push({
+        lon: appendPos[0],
+        lat: appendPos[1],
+        insertAfter: wps.length - 1,
+      });
+    }
+  }
+
+  /**
+   * Push the current model (waypoints + derived handles + selection) to the
+   * six edit sources. Assumes deriveHandles() already ran — call it through
+   * afterModelChange(), never directly, so derivation always precedes paint.
+   */
+  private paintSources(): void {
     if (!this.route) return;
-    this.notify();
     // Drop any stale cursor-preview line (the next mousemove redraws it;
     // touch devices never get one). Keeps the prepend-handle dash fresh.
     this.updatePreview(null);
@@ -875,32 +956,6 @@ export class RouteEditor {
     }));
     ptSrc.setData({ type: "FeatureCollection", features: points });
 
-    // Ghost midpoints between consecutive waypoints + prepend handle
-    this.midHandles = [];
-    const prependPos = prependHandlePos(wps);
-    if (prependPos) {
-      this.midHandles.push({
-        lon: prependPos[0],
-        lat: prependPos[1],
-        insertAfter: null,
-      });
-    }
-    for (let i = 0; i < wps.length - 1; i++) {
-      this.midHandles.push({
-        lat: (wps[i].lat + wps[i + 1].lat) / 2,
-        lon: (wps[i].lon + wps[i + 1].lon) / 2,
-        insertAfter: i,
-      });
-    }
-    // Extending off the end is just an insert after the last waypoint.
-    const appendPos = appendHandlePos(wps);
-    if (appendPos) {
-      this.midHandles.push({
-        lon: appendPos[0],
-        lat: appendPos[1],
-        insertAfter: wps.length - 1,
-      });
-    }
     if (midSrc) {
       midSrc.setData({
         type: "FeatureCollection",
