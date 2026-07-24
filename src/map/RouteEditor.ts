@@ -151,8 +151,8 @@ export class RouteEditor {
     this.bar.innerHTML =
       '<div class="route-editor-text"></div>' +
       '<div class="route-editor-actions"></div>' +
-      '<button class="route-editor-btn">Done</button>' +
-      '<button class="route-editor-btn route-editor-btn--cancel">Cancel</button>';
+      '<button class="route-editor-btn" title="Save the route and finish editing">Done</button>' +
+      '<button class="route-editor-btn route-editor-btn--cancel" title="Discard changes and stop editing">Cancel</button>';
     document.body.appendChild(this.bar);
 
     this.barText = this.bar.querySelector(
@@ -1148,11 +1148,13 @@ export class RouteEditor {
       const delBtn = document.createElement("button");
       delBtn.className = "route-editor-btn route-editor-btn--danger";
       delBtn.textContent = "Delete";
+      delBtn.title = "Delete this waypoint";
       delBtn.addEventListener("click", () => this.deleteSelected());
 
       const insBtn = document.createElement("button");
       insBtn.className = "route-editor-btn route-editor-btn--secondary";
       insBtn.textContent = "Insert After";
+      insBtn.title = "Add a new waypoint after this one";
       insBtn.addEventListener("click", () => this.insertAfterSelected());
 
       this.barActions.append(delBtn, insBtn);
