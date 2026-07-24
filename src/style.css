@@ -1931,6 +1931,16 @@ body {
   max-height: min(50vh, 45dvh);
 }
 
+/* On a phone the editing toolbar and this list together crowd out the chart.
+   Cap the list at 40% of the viewport, but never below ~a couple of
+   waypoint+leg rows (header 38 + ~3 rows + footer 31); the body scrolls past
+   that. The floor only bites in landscape, where 40dvh is tiny. */
+@media (max-width: 500px), (max-height: 500px) {
+  .route-detail-panel {
+    max-height: max(180px, 40dvh);
+  }
+}
+
 /* Interleaved waypoint+leg list. Each waypoint row is followed by an
    indented leg row carrying course / distance / cumulative total. */
 .route-list {
