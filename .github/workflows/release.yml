@@ -64,19 +64,22 @@ jobs:
         working-directory: android
         run: ./gradlew assembleRelease bundleRelease
 
-      # Publishes to the Play Store internal testing track. Promotion to
-      # closed/production stays a manual step in the Play Console. Skipped
-      # (not failed) while the PLAY_SERVICE_ACCOUNT_JSON secret is absent,
-      # so the release still works if Play publishing is ever unconfigured.
-      - name: Upload AAB to Play internal track
+      # Publishes to the Play Store closed testing (Alpha) track and submits
+      # for review — no manual promotion in the Play Console. The release
+      # reaches closed testers once Google's review passes (hours–days,
+      # unlike internal which was instant). Skipped (not failed) while the
+      # PLAY_SERVICE_ACCOUNT_JSON secret is absent, so the release still works
+      # if Play publishing is ever unconfigured.
+      - name: Upload AAB to Play closed testing (Alpha)
         if: ${{ env.PLAY_SERVICE_ACCOUNT_JSON != '' }}
         uses: r0adkll/upload-google-play@e738b9dd8f2476ea806d921b64aacd24f34515a5 # v1.1.5
         with:
           serviceAccountJsonPlainText: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
           packageName: nav.pelorus.app
           releaseFiles: android/app/build/outputs/bundle/release/app-release.aab
-          track: internal
+          track: alpha
           status: completed
+          changesNotSentForReview: false
 
       - name: Create GitHub Release
         env:
