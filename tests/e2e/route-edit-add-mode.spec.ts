@@ -123,52 +123,62 @@ test("editing a saved route ignores chart taps until Add Points is on", async ({
   const box = await canvas.boundingBox();
   if (!box) throw new Error("no map canvas");
 
-  // Open water: the first candidate that is clear of every edit handle and
-  // has nothing layered over it. Hard-coding a spot is brittle — the panels
-  // and map controls move with the viewport, and a click they swallow would
-  // pass the "nothing happened" half of this test for the wrong reason.
-  const spot = await page.evaluate(
-    ({ clearance }) => {
-      // Read the live handles rather than recomputing them, so this stays
-      // correct as the editor gains or moves handles.
-      const handles = ["_route-edit-points", "_route-edit-midpoints"].flatMap(
-        (id) =>
-          window.__map
-            .getSource(id)
-            .serialize()
-            .data.features.map((f) =>
-              window.__map.project(
-                (f.geometry as GeoJSON.Point).coordinates as [number, number],
+  // Open water: a candidate clear of every edit handle and with nothing
+  // layered over it. Recomputed each call from the live handles — the route
+  // gains a waypoint on each add, so a fixed spot would land on a point we
+  // just placed. Hard-coding is brittle anyway (panels/controls move with
+  // the viewport, and a swallowed click passes the "nothing happened" half
+  // for the wrong reason).
+  async function clearWater(): Promise<{ x: number; y: number }> {
+    if (!box) throw new Error("no map canvas");
+    const spot = await page.evaluate(
+      ({ clearance }) => {
+        const handles = ["_route-edit-points", "_route-edit-midpoints"].flatMap(
+          (id) =>
+            window.__map
+              .getSource(id)
+              .serialize()
+              .data.features.map((f) =>
+                window.__map.project(
+                  (f.geometry as GeoJSON.Point).coordinates as [number, number],
+                ),
               ),
-            ),
-      );
-      const canvasEl = document.querySelector(
-        ".maplibregl-map canvas",
-      ) as HTMLCanvasElement;
-      const rect = canvasEl.getBoundingClientRect();
-      for (const [fx, fy] of [
-        [0.25, 0.3],
-        [0.75, 0.75],
-        [0.25, 0.7],
-        [0.5, 0.3],
-      ]) {
-        const x = rect.width * fx;
-        const y = rect.height * fy;
-        const clear = handles.every(
-          (h) => Math.hypot(h.x - x, h.y - y) > clearance,
         );
-        if (!clear) continue;
-        if (document.elementFromPoint(rect.left + x, rect.top + y) !== canvasEl)
-          continue;
-        return { x, y };
-      }
-      return null;
-    },
-    { clearance: 80 },
-  );
-  if (!spot) throw new Error("no clear water on screen to click");
-  const emptyX = box.x + spot.x;
-  const emptyY = box.y + spot.y;
+        const canvasEl = document.querySelector(
+          ".maplibregl-map canvas",
+        ) as HTMLCanvasElement;
+        const rect = canvasEl.getBoundingClientRect();
+        for (const [fx, fy] of [
+          [0.25, 0.3],
+          [0.75, 0.75],
+          [0.25, 0.7],
+          [0.5, 0.3],
+          [0.6, 0.5],
+          [0.4, 0.6],
+        ]) {
+          const x = rect.width * fx;
+          const y = rect.height * fy;
+          const clear = handles.every(
+            (h) => Math.hypot(h.x - x, h.y - y) > clearance,
+          );
+          if (!clear) continue;
+          if (
+            document.elementFromPoint(rect.left + x, rect.top + y) !== canvasEl
+          )
+            continue;
+          return { x, y };
+        }
+        return null;
+      },
+      { clearance: 80 },
+    );
+    if (!spot) throw new Error("no clear water on screen to click");
+    return { x: box.x + spot.x, y: box.y + spot.y };
+  }
+
+  const first = await clearWater();
+  const emptyX = first.x;
+  const emptyY = first.y;
 
   // A saved route opens inert: the toggle is dark and the tap does nothing.
   const addBtn = page.getByRole("button", { name: "Add Points" });
@@ -186,6 +196,16 @@ test("editing a saved route ignores chart taps until Add Points is on", async ({
   await page.mouse.click(emptyX, emptyY);
   await expect(barText).toContainText("3 WPs");
 
+  // With a waypoint selected (as a drag leaves it), a tap on open water must
+  // still add — not merely deselect. Regression: the first such tap was a
+  // no-op because the background branch deselected and returned. Use a fresh
+  // clear spot: the tap above placed a waypoint at (emptyX, emptyY).
+  await page.locator(".route-list-wp.selectable").first().click();
+  await expect(barText).not.toContainText("WPs"); // now showing the selection
+  const second = await clearWater();
+  await page.mouse.click(second.x, second.y);
+  await expect(barText).toContainText("4 WPs"); // appended on the first tap
+
   await page.getByRole("button", { name: "Done" }).click();
-  expect((await page.evaluate(readRoute))?.waypoints).toHaveLength(3);
+  expect((await page.evaluate(readRoute))?.waypoints).toHaveLength(4);
 });

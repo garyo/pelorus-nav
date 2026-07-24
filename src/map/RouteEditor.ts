@@ -365,13 +365,16 @@ export class RouteEditor {
         return;
       }
 
-      // Background click: deselect if selected, otherwise append — but only
-      // when the user has asked for adding.
-      if (this.selectedIndex !== null) {
-        this.deselect();
+      // Background click. Not adding: a tap on open water just clears any
+      // selection. Adding: place a waypoint at the end — clearing a lingering
+      // selection (from a prior drag or tap) as part of the same tap, so the
+      // tap adds a point instead of merely deselecting. Deselect-first here
+      // was the "first click after Add Points does nothing" bug: dragging
+      // leaves a waypoint selected, so the first tap only cleared it.
+      if (!this.addingPoints) {
+        if (this.selectedIndex !== null) this.deselect();
         return;
       }
-      if (!this.addingPoints) return;
 
       const fallback = `WP${this.route.waypoints.length + 1}`;
       const snap = this.findSnapAt(e.point, this.appendOp());
@@ -390,6 +393,7 @@ export class RouteEditor {
             ),
           };
       this.mutate((route) => {
+        this.selectedIndex = null;
         route.waypoints.push(wp);
       });
     };
