@@ -955,6 +955,13 @@ body {
 }
 
 /* What's New dialog (reuses .about-overlay / .about-card). */
+.whatsnew-preamble {
+  margin: 6px 0 10px;
+  font-size: 13px;
+  color: #e0e0e0;
+  line-height: 1.5;
+}
+
 .whatsnew-list {
   list-style: disc;
   margin: 4px 0 12px 20px;

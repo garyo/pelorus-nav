@@ -59,4 +59,33 @@ describe("parseChangelogSection", () => {
       { title: "", items: ["bare item", "another"] },
     ]);
   });
+
+  it("has an empty preamble when the section starts with a group", () => {
+    expect(parseChangelogSection(SAMPLE, "0.10.0")?.preamble).toEqual([]);
+  });
+
+  it("captures a wrapped intro paragraph before the first group", () => {
+    const md =
+      "## [3.0.0] - 2026-08-01\n\nTheme of this release: routes!\nMuch nicer now.\n\n### Fixed\n- A fix.\n";
+    const s = parseChangelogSection(md, "3.0.0");
+    expect(s?.preamble).toEqual([
+      "Theme of this release: routes! Much nicer now.",
+    ]);
+    expect(s?.groups).toEqual([{ title: "Fixed", items: ["A fix."] }]);
+  });
+
+  it("keeps blank-line-separated preamble paragraphs distinct", () => {
+    const md = "## [3.1.0]\n\nFirst para.\n\nSecond para.\n\n### Added\n- x\n";
+    expect(parseChangelogSection(md, "3.1.0")?.preamble).toEqual([
+      "First para.",
+      "Second para.",
+    ]);
+  });
+
+  it("shows a section that has only a preamble and no items", () => {
+    const md = "## [3.2.0]\n\nJust a blurb, no bullet list.\n";
+    const s = parseChangelogSection(md, "3.2.0");
+    expect(s?.preamble).toEqual(["Just a blurb, no bullet list."]);
+    expect(s?.groups).toEqual([]);
+  });
 });

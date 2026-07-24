@@ -72,6 +72,13 @@ class WhatsNewDialog {
 
     card.append(title, sub);
 
+    for (const para of section.preamble) {
+      const p = document.createElement("p");
+      p.className = "whatsnew-preamble";
+      p.textContent = para;
+      card.appendChild(p);
+    }
+
     for (const group of section.groups) {
       if (group.title) {
         const h = document.createElement("div");

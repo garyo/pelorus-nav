@@ -17,6 +17,10 @@ export interface ChangelogSection {
   version: string;
   /** ISO date from the heading (`YYYY-MM-DD`), or null if absent. */
   date: string | null;
+  /** Free-form intro paragraphs between the version heading and the first
+   *  `### Group` — a per-release blurb, in the author's voice. One string
+   *  per paragraph (blank-line separated; wrapped lines joined). */
+  preamble: string[];
   groups: ChangelogGroup[];
 }
 
@@ -41,16 +45,25 @@ export function parseChangelogSection(
   const section: ChangelogSection = {
     version,
     date: dateMatch ? dateMatch[1] : null,
+    preamble: [],
     groups: [],
   };
 
   let group: ChangelogGroup | null = null;
+  // Preamble paragraph being accumulated (only before the first group).
+  let para = "";
+  const flushPara = () => {
+    if (para) section.preamble.push(para);
+    para = "";
+  };
+
   for (i += 1; i < lines.length; i++) {
     const line = lines[i];
     if (/^##\s/.test(line)) break; // reached the next version
 
     const head = line.match(/^###\s+(.+?)\s*$/);
     if (head) {
+      flushPara();
       group = { title: head[1], items: [] };
       section.groups.push(group);
       continue;
@@ -58,6 +71,7 @@ export function parseChangelogSection(
 
     const bullet = line.match(/^\s*[-*]\s+(.+?)\s*$/);
     if (bullet) {
+      flushPara();
       if (!group) {
         group = { title: "", items: [] };
         section.groups.push(group);
@@ -66,12 +80,25 @@ export function parseChangelogSection(
       continue;
     }
 
-    // A wrapped bullet: an indented non-empty line continues the item above it.
     const cont = line.trim();
-    if (cont && group && group.items.length > 0) {
-      group.items[group.items.length - 1] += ` ${cont}`;
+    if (!cont) {
+      flushPara(); // blank line ends a preamble paragraph
+      continue;
+    }
+    if (group) {
+      // A wrapped bullet: an indented line continues the item above it.
+      if (group.items.length > 0) {
+        group.items[group.items.length - 1] += ` ${cont}`;
+      }
+    } else {
+      // Prose before the first group — the release blurb; wrap-join it.
+      para = para ? `${para} ${cont}` : cont;
     }
   }
+  flushPara();
 
-  return section.groups.some((g) => g.items.length > 0) ? section : null;
+  const hasContent =
+    section.preamble.length > 0 ||
+    section.groups.some((g) => g.items.length > 0);
+  return hasContent ? section : null;
 }
