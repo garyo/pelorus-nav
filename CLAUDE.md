@@ -15,7 +15,12 @@ Pelorus Nav — open-source web-based marine chartplotter (PWA). See PLAN.md for
 - `bun dev` — start dev server
 - `bun run build` — production build
 - `bun run test` — unit tests (Vitest)
-- `bun run e2e` — E2E tests (Playwright, Chromium only by default)
+- `bun run e2e` — E2E tests (Playwright, Chromium only by default; ~30s)
+- `bun run e2e:chart-coverage` — the S-57 render-coverage harness
+  (`tests/e2e/render-test-chart.spec.ts`). Its own Playwright project, excluded
+  from the browser projects: it steps a map through all ~266 test-chart variants
+  and takes ~2 min, so it's run deliberately after symbology/style changes, not
+  on every `bun run e2e`. Writes `tools/s57-test-chart/out/render-report.md`.
 - `bun run lint` — check lint + format
 - `bun run lint:fix` — auto-fix lint + format
 - `bun run typecheck` — TypeScript type checking
