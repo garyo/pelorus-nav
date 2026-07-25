@@ -45,9 +45,35 @@ test("recording a track while the simulator moves produces a saved track with di
     page.getByRole("button", { name: "Stop recording" }),
   ).toBeVisible({ timeout: 5000 });
 
-  // Let the simulator (1 fix/sec, 50x speed => ~0.08 nm/fix) run long
-  // enough to clear the trivial-track thresholds with margin.
-  await page.waitForTimeout(9000);
+  // Let the simulator run until the track has actually cleared the
+  // trivial-track thresholds (>=3 points, >5s, >10m — isTrivialTrack in
+  // src/data/Track.ts), with margin. The recorder mirrors the live meta into
+  // localStorage on every point, so poll that rather than sleeping a fixed
+  // 9s: under CI load fixes arrive slower than 1/sec, and a blind sleep would
+  // stop the recording mid-way and silently produce a trivial track.
+  await expect
+    .poll(
+      async () => {
+        const meta = await page.evaluate(() => {
+          const raw = localStorage.getItem("pelorus-nav-active-track");
+          return raw
+            ? (JSON.parse(raw) as {
+                pointCount: number;
+                durationMs?: number;
+                totalDistanceNM?: number;
+              })
+            : null;
+        });
+        if (!meta) return false;
+        return (
+          meta.pointCount >= 5 &&
+          (meta.durationMs ?? 0) > 7000 &&
+          (meta.totalDistanceNM ?? 0) > 0.02
+        );
+      },
+      { timeout: 60000, intervals: [250] },
+    )
+    .toBe(true);
 
   await page.getByRole("button", { name: "Stop recording" }).click();
   await expect(page.getByRole("button", { name: "Record track" })).toBeVisible({

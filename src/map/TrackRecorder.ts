@@ -172,10 +172,17 @@ export class TrackRecorder {
     // no movement) — almost always an accidental Record→Stop, not real
     // data. Saves the user from a manager full of "0 sec · 0.0 nm" rows.
     const trivial = closingTrack !== null && isTrivialTrack(closingTrack);
+    // The write is deliberately not awaited (Stop stays instant), so listeners
+    // that re-read the store — the track manager's refresh() — can run before
+    // it commits and miss the track entirely. Notify again once it lands.
     if (closingTrack && !trivial) {
-      saveTrackMeta(closingTrack).catch(console.error);
+      saveTrackMeta(closingTrack)
+        .then(() => this.notify())
+        .catch(console.error);
     } else if (closingTrack && trivial) {
-      deleteTrack(closingTrack.id).catch(console.error);
+      deleteTrack(closingTrack.id)
+        .then(() => this.notify())
+        .catch(console.error);
     }
     this.currentTrack = null;
     this.trackPersisted = false;

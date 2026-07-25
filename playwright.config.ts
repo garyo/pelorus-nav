@@ -21,10 +21,14 @@ export default defineConfig({
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
-  // The specs are independent and short; swiftshader handles concurrent WebGL
-  // contexts fine. Capped in CI because hosted runners are small.
-  workers: process.env.CI ? 4 : undefined,
-  reporter: "html",
+  // Each spec drives a full MapLibre map through software WebGL (swiftshader),
+  // which is CPU-bound: over-subscribing workers doesn't make the suite race,
+  // it starves every test until they blow the timeout together. Two workers on
+  // a 4-core hosted runner leaves headroom for the dev server and the GPU
+  // threads, and the timeout is raised to match the slower machine.
+  workers: process.env.CI ? 2 : undefined,
+  timeout: process.env.CI ? 90_000 : 30_000,
+  reporter: process.env.CI ? [["github"], ["html", { open: "never" }]] : "html",
   use: {
     baseURL,
     trace: "on-first-retry",

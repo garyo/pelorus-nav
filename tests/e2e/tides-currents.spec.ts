@@ -44,26 +44,25 @@ test("tides & currents overlay renders stations and shows event popup", async ({
     timeout: 10000,
   });
 
-  // Wait for the overlay source to be populated with station features
-  await page.waitForFunction(
-    () => {
+  // Wait for the overlay source to hold BOTH station kinds. Waiting on a bare
+  // `length > 0` is not enough: querySourceFeatures reads whichever tiles have
+  // been parsed so far, so tides and currents can land a frame apart, and a
+  // plain assertion would then race whichever kind arrives second.
+  const countKind = (kind: string) =>
+    page.evaluate((k) => {
       const map = (window as unknown as { __map?: ProbeMap }).__map;
-      if (!map?.getSource("_tides-currents")) return false;
-      return map.querySourceFeatures("_tides-currents").length > 0;
-    },
-    { timeout: 20000 },
-  );
+      if (!map?.getSource("_tides-currents")) return 0;
+      return map
+        .querySourceFeatures("_tides-currents")
+        .filter((f) => f.properties._kind === k).length;
+    }, kind);
 
-  const counts = await page.evaluate(() => {
-    const map = (window as unknown as { __map: ProbeMap }).__map;
-    const features = map.querySourceFeatures("_tides-currents");
-    return {
-      tide: features.filter((f) => f.properties._kind === "tide").length,
-      current: features.filter((f) => f.properties._kind === "current").length,
-    };
-  });
-  expect(counts.tide).toBeGreaterThan(0);
-  expect(counts.current).toBeGreaterThan(0);
+  await expect
+    .poll(() => countKind("tide"), { timeout: 20000 })
+    .toBeGreaterThan(0);
+  await expect
+    .poll(() => countKind("current"), { timeout: 20000 })
+    .toBeGreaterThan(0);
 
   // Wait until current stations are actually drawn (icons load after the
   // source data arrives), not just present in the source.

@@ -7,6 +7,11 @@ The format follows [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Fixed
+- Stopping a track recording could leave the new track missing from the
+  Tracks panel until something else refreshed it. Short recordings (under
+  20 points) were affected most, since nothing later triggered a refresh.
+
 ## [0.16.0] - 2026-07-24
 
 Theme of this release: route editing improvements! People coming from OpenCPN should be more comfortable, with many bugs squashed and nice improvements (not just on iOS) like snapping to existing waypoints, undo, and clearer modes. See below. And remember, you can always edit routes on desktop and then export them to your cloud folder and import on the phone. Don't forget about route folders to organize your routes!
