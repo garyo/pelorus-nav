@@ -9,13 +9,8 @@
     <link rel="manifest" href="/manifest.json" />
     <title>Pelorus Nav</title>
     <script src="capacitor.js"></script>
-    <script
-      defer
-      src="https://analytics.oberbrunner.com/script.js"
-      data-website-id="83428bb2-35d8-48a5-83aa-2fa9b1109d3d"
-      data-domains="pelorus-nav.com,www.pelorus-nav.com"></script>
-    <!-- Matomo (trial alongside Umami); cookie-less. Hostname guard keeps
-         the Capacitor app and dev servers untracked, like data-domains. -->
+    <!-- Matomo analytics; cookie-less. Hostname guard keeps the Capacitor
+         app and dev servers untracked. -->
     <script>
       if (['pelorus-nav.com', 'www.pelorus-nav.com'].includes(location.hostname)) {
         window._paq = window._paq || [];
