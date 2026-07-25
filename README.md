@@ -153,6 +153,11 @@ bun run check        # typecheck + lint + test
 | `bun run tiles:upload` | Upload tiles to R2 |
 | `bun run deploy` | Build and deploy to Cloudflare Workers |
 
+The production web app deploys automatically on every push to `main`, so
+`bun run deploy` is only needed for out-of-band deploys. Note that CI
+(`ci.yml`) only runs checks — it is not what deploys the site. Tagged
+Android/iOS releases are described in CLAUDE.md.
+
 ## Architecture
 
 See [PLAN.md](PLAN.md) for the full roadmap and architecture decisions.
