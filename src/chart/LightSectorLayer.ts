@@ -9,7 +9,7 @@
 
 import type { ExpressionSpecification } from "@maplibre/maplibre-gl-style-spec";
 import type { Feature, FeatureCollection, LineString, Position } from "geojson";
-import type maplibregl from "maplibre-gl";
+import type * as maplibregl from "maplibre-gl";
 import { getSettings, onSettingsChange } from "../settings";
 import { queryAllLights } from "./lights-query";
 import { s52Colour } from "./s52-colours";

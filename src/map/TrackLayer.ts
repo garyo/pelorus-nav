@@ -3,7 +3,7 @@
  * Active track updates live; completed tracks loaded from IndexedDB on demand.
  */
 
-import type maplibregl from "maplibre-gl";
+import type * as maplibregl from "maplibre-gl";
 import { getAllTrackMetas, getTrackPoints } from "../data/db";
 import type { TrackMeta, TrackPoint } from "../data/Track";
 import type { NavigationData } from "../navigation/NavigationData";

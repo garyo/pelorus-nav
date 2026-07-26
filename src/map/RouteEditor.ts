@@ -18,7 +18,7 @@
  * restores. Session-scoped — Cancel discards everything, Done resets.
  */
 
-import type maplibregl from "maplibre-gl";
+import type * as maplibregl from "maplibre-gl";
 import { saveRoute } from "../data/db";
 import type { Route, Waypoint } from "../data/Route";
 import type { SearchEntry } from "../data/search-index";

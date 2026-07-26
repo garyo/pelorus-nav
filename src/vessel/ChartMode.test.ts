@@ -1,4 +1,4 @@
-import type maplibregl from "maplibre-gl";
+import type * as maplibregl from "maplibre-gl";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { NavigationData } from "../navigation/NavigationData";
 import {

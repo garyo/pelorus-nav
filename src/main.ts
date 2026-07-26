@@ -2,7 +2,11 @@
 // evaluates, so even module-init crashes land in the persistent error log.
 import "./diagnostics/errorCaptureBoot";
 import { Capacitor } from "@capacitor/core";
-import { type AddProtocolAction, addProtocol } from "maplibre-gl";
+import { type AddProtocolAction, addProtocol, setWorkerUrl } from "maplibre-gl";
+// maplibre-gl v6 loads its worker by URL at runtime; route it through Vite's
+// worker pipeline (`?worker&url` emits a self-contained bundle — the raw dist
+// file imports a sibling module that wouldn't be emitted alongside it).
+import maplibreWorkerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url";
 import { BackgroundGPS } from "./plugins/BackgroundGPS";
 import "maplibre-gl/dist/maplibre-gl.css";
 import { PMTiles, Protocol } from "pmtiles";
@@ -209,6 +213,8 @@ startAppUpdateNotifier(() => appUpdateBusy());
 // Block here until the user accepts the navigation disclaimer — nothing
 // chart/GPS-related is set up below until this resolves.
 await maybeShowDisclaimer();
+
+setWorkerUrl(maplibreWorkerUrl);
 
 // Register PMTiles protocol for vector tile sources. Every fetch outcome is
 // reported to the chart-load monitor from here — MapLibre fires no map

@@ -1,7 +1,7 @@
 /**
  * Map context menu — right-click / long-press menu with position actions.
  */
-import type maplibregl from "maplibre-gl";
+import type * as maplibregl from "maplibre-gl";
 import type { SearchEntry } from "../data/search-index";
 import type { StandaloneWaypoint } from "../data/Waypoint";
 import { getMode, setMode } from "../map/InteractionMode";

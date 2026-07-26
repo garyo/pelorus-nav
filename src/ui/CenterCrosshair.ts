@@ -8,7 +8,7 @@
  *    so a center crosshair there would mislead.)
  */
 
-import type maplibregl from "maplibre-gl";
+import type * as maplibregl from "maplibre-gl";
 import { formatLatLon } from "../utils/coordinates";
 
 const FLASH_DURATION_MS = 15000;

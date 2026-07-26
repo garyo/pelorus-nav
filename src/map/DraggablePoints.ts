@@ -9,7 +9,7 @@
  * reliable right after a pan.
  */
 
-import type maplibregl from "maplibre-gl";
+import type * as maplibregl from "maplibre-gl";
 import { type GeoPoint, nearestPointIndex } from "./point-hit-test";
 
 export type DragCallback = (

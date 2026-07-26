@@ -3,7 +3,7 @@
  * Accepts flexible coordinate formats (DMS, DDM, decimal, "deg" keyword, etc.)
  */
 
-import type maplibregl from "maplibre-gl";
+import type * as maplibregl from "maplibre-gl";
 import type { StandaloneWaypoint } from "../data/Waypoint";
 import type { WaypointLayer } from "../map/WaypointLayer";
 import { formatLatLon, parseLatLon } from "../utils/coordinates";

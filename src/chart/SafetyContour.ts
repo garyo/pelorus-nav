@@ -11,7 +11,7 @@
  * Based on OpenCPN's BuildDepthContourArray() + SetSafetyContour().
  */
 
-import type maplibregl from "maplibre-gl";
+import type * as maplibregl from "maplibre-gl";
 import type { FilterSpecification } from "maplibre-gl";
 import { getRegionLayerIds, getVectorSourceIds } from "../data/chart-catalog";
 import { getSettings, onSettingsChange } from "../settings";
@@ -210,7 +210,7 @@ export class SafetyContour {
       ["<", ["get", "DRVAL1"], safetyDepth],
       s52Colour("DEPMS"),
       s52Colour("DEPMD"),
-    ];
+    ] as maplibregl.DataDrivenPropertyValueSpecification<string>;
     forEachLayer(this.map, getRegionLayerIds("depare-medium"), (id) =>
       this.map.setPaintProperty(id, "fill-color", colorExpr),
     );
@@ -222,7 +222,7 @@ export class SafetyContour {
       ["<=", ["get", "DEPTH"], safetyDepth],
       s52Colour("SNDG2"),
       s52Colour("SNDG1"),
-    ];
+    ] as maplibregl.DataDrivenPropertyValueSpecification<string>;
     forEachLayer(this.map, getRegionLayerIds("soundg"), (id) =>
       this.map.setPaintProperty(id, "text-color", colorExpr),
     );

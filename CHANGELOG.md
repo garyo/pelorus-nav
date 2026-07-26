@@ -7,6 +7,11 @@ The format follows [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Changed
+- The chart engine is upgraded to MapLibre GL JS v6: charts render and
+  pan noticeably more smoothly, especially on lower-end tablets and
+  e-readers (symbol placement work is roughly halved).
+
 ### Added
 - When charts or the street basemap fail to load, the app now shows a
   message saying what failed and why, with a Retry button, instead of

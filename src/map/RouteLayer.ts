@@ -3,7 +3,7 @@
  * Per-route GeoJSON source with labeled waypoints and leg distances.
  */
 
-import type maplibregl from "maplibre-gl";
+import type * as maplibregl from "maplibre-gl";
 import { reapplyOverlayDimming } from "../app/overlayDimming";
 import { getAllRoutes } from "../data/db";
 import type { Route } from "../data/Route";

@@ -28,7 +28,7 @@
  *   the pill's warning) stand until the tiles actually load.
  */
 
-import type maplibregl from "maplibre-gl";
+import type * as maplibregl from "maplibre-gl";
 import { CHART_REGIONS } from "../data/chart-catalog";
 import { appErrorLog } from "../diagnostics/errorLog";
 import { hideStatusBanner, showStatusBanner } from "../ui/StatusBanner";

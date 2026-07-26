@@ -27,7 +27,7 @@
  */
 
 import { Capacitor } from "@capacitor/core";
-import type maplibregl from "maplibre-gl";
+import type * as maplibregl from "maplibre-gl";
 import { ConnectionEventLog } from "../navigation/ConnectionEventLog";
 
 /** Same finger slop as DraggablePoints' touch hit-test. */

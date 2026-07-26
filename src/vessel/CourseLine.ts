@@ -3,7 +3,7 @@
  * Uses shared CourseSmoothing for damped COG/SOG values.
  */
 
-import type maplibregl from "maplibre-gl";
+import type * as maplibregl from "maplibre-gl";
 import type { SmoothedCourse } from "../navigation/CourseSmoothing";
 import type { NavigationData } from "../navigation/NavigationData";
 import {

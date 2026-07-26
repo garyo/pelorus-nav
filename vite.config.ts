@@ -68,7 +68,6 @@ export default defineConfig({
     },
   },
   optimizeDeps: {
-    exclude: [],
     entries: ["src/main.ts", "src/worker.ts"],
   },
   plugins: [

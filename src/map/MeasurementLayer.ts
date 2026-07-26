@@ -3,7 +3,7 @@
  * Points are draggable; info panel shows distance (NM), bearing, and reverse bearing.
  */
 
-import type maplibregl from "maplibre-gl";
+import type * as maplibregl from "maplibre-gl";
 import { getSettings, onSettingsChange } from "../settings";
 import { haversineDistanceNM, initialBearingDeg } from "../utils/coordinates";
 import { formatBearing } from "../utils/magnetic";

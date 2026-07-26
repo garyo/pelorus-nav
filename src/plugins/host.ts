@@ -5,7 +5,7 @@
  * nav providers, data assets, and pickables into the app's registries.
  */
 
-import type maplibregl from "maplibre-gl";
+import type * as maplibregl from "maplibre-gl";
 import type { ChartManager } from "../chart/ChartManager";
 import type { ChartProvider } from "../chart/ChartProvider";
 import type { FeatureInfo } from "../chart/feature-info";

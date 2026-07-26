@@ -10,7 +10,7 @@
  *   TINY_FRACTION of the canvas in both dimensions is re-fit anyway.
  */
 
-import type maplibregl from "maplibre-gl";
+import type * as maplibregl from "maplibre-gl";
 
 /** [[west, south], [east, north]] */
 export type LonLatBounds = [[number, number], [number, number]];

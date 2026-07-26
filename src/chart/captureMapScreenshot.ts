@@ -8,7 +8,7 @@
  * capture, so it's safe to call while the bug-report dialog is open.
  */
 
-import type maplibregl from "maplibre-gl";
+import type * as maplibregl from "maplibre-gl";
 
 /** Longest edge of the captured image, px (hidpi canvases can be huge). */
 const MAX_DIMENSION = 1280;

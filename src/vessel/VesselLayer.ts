@@ -3,7 +3,7 @@
  * Canvas-drawn boat icon, rotated by heading/COG, with optional accuracy circle.
  */
 
-import type maplibregl from "maplibre-gl";
+import type * as maplibregl from "maplibre-gl";
 import type { SmoothedCourse } from "../navigation/CourseSmoothing";
 import type { NavigationData } from "../navigation/NavigationData";
 import { getSettings, onSettingsChange } from "../settings";

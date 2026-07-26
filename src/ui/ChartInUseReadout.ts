@@ -25,7 +25,7 @@
  *   when regions are downloaded.
  */
 
-import type maplibregl from "maplibre-gl";
+import type * as maplibregl from "maplibre-gl";
 import type { ChartLoadStatus } from "../chart/ChartLoadMonitor";
 import { rasterChartAt } from "../chart/raster-charts";
 import { depthUnitLabel, getSettings, onSettingsChange } from "../settings";

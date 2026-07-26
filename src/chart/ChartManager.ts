@@ -1,4 +1,4 @@
-import maplibregl from "maplibre-gl";
+import * as maplibregl from "maplibre-gl";
 import { regionsInViewWithHysteresis } from "../data/chart-catalog";
 import { applySlotAnchors } from "../plugins/slots";
 import type {

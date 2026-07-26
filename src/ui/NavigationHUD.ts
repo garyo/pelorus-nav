@@ -3,7 +3,7 @@
  * Compact overlay at bottom-left of the map.
  */
 
-import type maplibregl from "maplibre-gl";
+import type * as maplibregl from "maplibre-gl";
 import type { WaypointLayer } from "../map/WaypointLayer";
 import type { AdaptiveTier } from "../navigation/AdaptiveRate";
 import type { NavigationData } from "../navigation/NavigationData";
