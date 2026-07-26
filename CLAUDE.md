@@ -294,3 +294,8 @@ worker, and the old demo-server CDN 404'd some stacks.
 - **Always** run `bun run check` before committing — this runs typecheck + lint + test.
   Do not substitute individual commands (`typecheck`, `test`) — the full `check` catches
   formatting issues that `typecheck` alone misses.
+- **After every push to main, verify the CI workflow passes** (`gh run watch` or
+  `gh run list`) — a push isn't done until CI is green. CI runs the E2E suite in an
+  environment without the gitignored chart artifacts (`public/*.pmtiles` etc.), so it
+  catches environment-dependent failures that local runs can't. Never tag a release
+  on a main whose latest CI run is red.
