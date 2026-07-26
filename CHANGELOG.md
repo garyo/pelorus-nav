@@ -5,7 +5,7 @@ Notable user-facing changes to Pelorus Nav. Downloads are on the
 
 The format follows [Keep a Changelog](https://keepachangelog.com/).
 
-## [Unreleased]
+## [0.17.0] - 2026-07-26
 
 ### Changed
 - The chart engine is upgraded to MapLibre GL JS v6: charts render and
