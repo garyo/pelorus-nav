@@ -428,13 +428,17 @@ export class ChartCachePanel {
       deleteBtn.addEventListener("click", () => {
         if (!confirm(`Remove offline copy of "${region.name}"?`)) return;
         (async () => {
-          await deleteChart(stored.filename);
-          await deleteAuxFile(region.coverageFilename);
-          await deleteAuxFile(
-            region.filename.replace(".pmtiles", ".search.json"),
-          );
-          await this.onChartsChanged?.();
-          await this.refresh();
+          try {
+            await deleteChart(stored.filename);
+            await deleteAuxFile(region.coverageFilename);
+            await deleteAuxFile(
+              region.filename.replace(".pmtiles", ".search.json"),
+            );
+            await this.onChartsChanged?.();
+          } finally {
+            // Whatever happened above, never leave a stale row on screen
+            await this.refresh();
+          }
         })().catch(console.error);
       });
       actions.appendChild(deleteBtn);
@@ -496,9 +500,12 @@ export class ChartCachePanel {
       deleteBtn.addEventListener("click", () => {
         if (!confirm(`Remove offline basemap for "${region.name}"?`)) return;
         (async () => {
-          await deleteChart(stored.filename);
-          await this.onChartsChanged?.();
-          await this.refresh();
+          try {
+            await deleteChart(stored.filename);
+            await this.onChartsChanged?.();
+          } finally {
+            await this.refresh();
+          }
         })().catch(console.error);
       });
       actions.appendChild(deleteBtn);
@@ -592,17 +599,20 @@ export class ChartCachePanel {
       deleteBtn.addEventListener("click", () => {
         if (!confirm(`Remove offline copy of "${chart.name}"?`)) return;
         (async () => {
-          await deleteChart(stored.filename);
-          await deleteAuxFile(chart.coverageFilename);
-          // Don't let a deleted chart's id linger in the hidden list
-          const hidden = getSettings().hiddenRasterCharts;
-          if (hidden.includes(chart.id)) {
-            updateSettings({
-              hiddenRasterCharts: hidden.filter((id) => id !== chart.id),
-            });
+          try {
+            await deleteChart(stored.filename);
+            await deleteAuxFile(chart.coverageFilename);
+            // Don't let a deleted chart's id linger in the hidden list
+            const hidden = getSettings().hiddenRasterCharts;
+            if (hidden.includes(chart.id)) {
+              updateSettings({
+                hiddenRasterCharts: hidden.filter((id) => id !== chart.id),
+              });
+            }
+            await this.onChartsChanged?.();
+          } finally {
+            await this.refresh();
           }
-          await this.onChartsChanged?.();
-          await this.refresh();
         })().catch(console.error);
       });
       actions.appendChild(deleteBtn);
@@ -750,9 +760,12 @@ export class ChartCachePanel {
     deleteBtn.addEventListener("click", () => {
       if (!confirm(`Delete "${chart.filename}"?`)) return;
       (async () => {
-        await deleteChart(chart.filename);
-        await this.onChartsChanged?.();
-        await this.refresh();
+        try {
+          await deleteChart(chart.filename);
+          await this.onChartsChanged?.();
+        } finally {
+          await this.refresh();
+        }
       })().catch(console.error);
     });
 

@@ -2,7 +2,7 @@
 // evaluates, so even module-init crashes land in the persistent error log.
 import "./diagnostics/errorCaptureBoot";
 import { Capacitor } from "@capacitor/core";
-import { addProtocol } from "maplibre-gl";
+import { type AddProtocolAction, addProtocol } from "maplibre-gl";
 import { BackgroundGPS } from "./plugins/BackgroundGPS";
 import "maplibre-gl/dist/maplibre-gl.css";
 import { PMTiles, Protocol } from "pmtiles";
@@ -24,6 +24,7 @@ import {
   loadBasemapCoverage,
   setStoredBasemaps,
 } from "./chart/basemap-underlay";
+import { reportChartFetch } from "./chart/ChartLoadMonitor";
 import { deriveImportedRasterCharts } from "./chart/imported-charts";
 import { LightSectorLayer } from "./chart/LightSectorLayer";
 import { registerOSMTileProtocol } from "./chart/osm-tile-cache";
@@ -59,6 +60,7 @@ import type { Route } from "./data/Route";
 import { chartAssetBase } from "./data/remote-url";
 import { loadAllSearchIndices, type SearchEntry } from "./data/search-index";
 import { getChartFile, listStoredCharts } from "./data/tile-store";
+import { appErrorLog, formatErrorDetail } from "./diagnostics/errorLog";
 import { BearingLine } from "./map/BearingLine";
 import { MeasurementLayer } from "./map/MeasurementLayer";
 import { installPinchZoomGuard } from "./map/pinch-zoom-guard";
@@ -208,13 +210,41 @@ startAppUpdateNotifier(() => appUpdateBusy());
 // chart/GPS-related is set up below until this resolves.
 await maybeShowDisclaimer();
 
-// Register PMTiles protocol for vector tile sources
+// Register PMTiles protocol for vector tile sources. Every fetch outcome is
+// reported to the chart-load monitor from here — MapLibre fires no map
+// "error" event when a source's TileJSON/header fetch fails (the region
+// just silently never renders), so the protocol layer is the only reliable
+// place to see those. A "json" request is the source's TileJSON/header:
+// failing it kills the whole source, not one tile.
 const protocol = new Protocol({ metadata: true });
-addProtocol("pmtiles", protocol.tilev4);
+const monitored =
+  (handler: AddProtocolAction): AddProtocolAction =>
+  async (params, abortController) => {
+    // Reporting is observability — a bug there must never break tile
+    // loading itself, so both report calls are isolated.
+    try {
+      const result = await handler(params, abortController);
+      try {
+        reportChartFetch(params.url, true);
+      } catch {}
+      return result;
+    } catch (err) {
+      try {
+        reportChartFetch(
+          params.url,
+          false,
+          err instanceof Error ? err.message : String(err),
+          params.type === "json",
+        );
+      } catch {}
+      throw err;
+    }
+  };
+addProtocol("pmtiles", monitored(protocol.tilev4));
 // Overzoom variant for imported raster charts (fills mid-pyramid gaps in
 // multi-chart packed archives from ancestor tiles). Shares `protocol`'s
 // PMTiles instances, so OPFS-backed offline archives are reused.
-addProtocol(OVERZOOM_SCHEME, makeOverzoomHandler(protocol));
+addProtocol(OVERZOOM_SCHEME, monitored(makeOverzoomHandler(protocol)));
 
 // Glyph loader for the bundled font ranges (see CLAUDE.md "Fonts / glyphs").
 // A request for an unbundled range must FAIL so MapLibre falls back to
@@ -239,10 +269,28 @@ addProtocol("local-glyphs", async (params) => {
 const offlineProtocolKeys = new Set<string>();
 async function registerOfflineChart(filename: string): Promise<void> {
   const file = await getChartFile(filename);
-  if (!file) return;
+  if (!file) {
+    // Listed in chart metadata but the OPFS file is gone/unreadable — the
+    // region silently streams instead, so leave a trace in diagnostics.
+    appErrorLog.log(
+      "chart-load",
+      "error",
+      `stored chart missing from OPFS: ${filename} (falling back to streaming)`,
+    );
+    return;
+  }
   const key = `${chartAssetBase()}/${filename}`;
   protocol.add(new PMTiles(new OPFSSource(file, key)));
   offlineProtocolKeys.add(key);
+}
+// Retry hook for the chart-load failure banner: drop cached streaming
+// PMTiles instances so the style rebuild can refetch them — pmtiles caches
+// a rejected header promise forever, so after a network failure the cached
+// instance can never recover. OPFS-backed (downloaded) entries stay.
+function evictStreamingCharts(): void {
+  for (const key of protocol.tiles.keys()) {
+    if (!offlineProtocolKeys.has(key)) protocol.tiles.delete(key);
+  }
 }
 function pruneOfflineCharts(currentFilenames: string[]): void {
   const current = new Set(
@@ -274,8 +322,16 @@ try {
   setImportedRasterCharts(await deriveImportedRasterCharts(storedCharts));
   // Before the map exists, so the initial style gets the right OSM cap
   await loadBasemapCoverage(getSettings().activeRegion);
-} catch {
-  // OPFS not available or no stored charts — fall back to remote
+} catch (err) {
+  // OPFS not available or unreadable — charts fall back to streaming. Not
+  // fatal, but a user with downloaded charts and no internet sees a blank
+  // chart with no other clue, so record why.
+  appErrorLog.log(
+    "chart-load",
+    "error",
+    `offline chart startup failed: ${formatErrorDetail(err)}`,
+  );
+  console.warn("[chart-load] offline chart startup failed:", err);
 }
 
 // Apply display theme to body element
@@ -342,6 +398,8 @@ const chartManager = new ChartManager({
     vectorProvider,
   ],
   initialProviderId: "s57-vector",
+  hasOfflineCharts: () => offlineProtocolKeys.size > 0,
+  onChartRetry: evictStreamingCharts,
 });
 
 // Re-pin streaming regions when the server has newer charts. Runs once at
@@ -361,7 +419,7 @@ applyStreamingVersions().catch(() => {
 new SafetyContour(chartManager.map);
 
 // "Chart in use" readout + overscale badge for the vector/raster quilt.
-new ChartInUseReadout(chartManager.map);
+new ChartInUseReadout(chartManager.map, chartManager.loadStatus);
 
 // Expose the map for probes: browser-harness in dev, chrome://inspect
 // (or adb-forwarded CDP) diagnostics on device builds.
@@ -1737,21 +1795,6 @@ if (topbarMenu) {
     onSettingsChange((s) => updateLockBtnVisibility(s.volumeKeyControls));
     topbarMenu.insertBefore(lockBtn, settingsWrapper);
   }
-
-  // Offline indicator
-  const offlineIndicator = document.createElement("div");
-  offlineIndicator.className = "offline-indicator";
-  offlineIndicator.innerHTML =
-    '<div class="offline-dot"></div><span>Offline</span>';
-  offlineIndicator.style.display = "none";
-  topbarMenu.insertBefore(offlineIndicator, settingsWrapper);
-
-  const updateOnlineStatus = () => {
-    offlineIndicator.style.display = navigator.onLine ? "none" : "flex";
-  };
-  window.addEventListener("online", updateOnlineStatus);
-  window.addEventListener("offline", updateOnlineStatus);
-  updateOnlineStatus();
 
   // About button
   const aboutDialog = new AboutDialog({

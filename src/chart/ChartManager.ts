@@ -1,6 +1,5 @@
 import maplibregl from "maplibre-gl";
 import { regionsInViewWithHysteresis } from "../data/chart-catalog";
-import { appErrorLog } from "../diagnostics/errorLog";
 import { applySlotAnchors } from "../plugins/slots";
 import type {
   ChartBlend,
@@ -19,6 +18,10 @@ import {
   isLiftedBasemapLabel,
   isViewportCovered,
 } from "./basemap-underlay";
+import {
+  attachChartLoadMonitor,
+  type ChartLoadStatus,
+} from "./ChartLoadMonitor";
 import type { ChartProvider } from "./ChartProvider";
 import {
   applyOSMUnderlay,
@@ -36,6 +39,13 @@ export interface ChartManagerOptions {
   providers: ChartProvider[];
   /** ID of the provider to activate initially. Defaults to first provider. */
   initialProviderId?: string;
+  /** Whether any chart regions are downloaded for offline use — informs the
+   *  chart-load failure banner's wording. */
+  hasOfflineCharts?: () => boolean;
+  /** Called before a chart-load Retry rebuilds the style — the app evicts
+   *  poisoned streaming-source caches here (pmtiles caches a rejected
+   *  header promise forever, so a failed source can't recover without it). */
+  onChartRetry?: () => void;
 }
 
 /**
@@ -44,6 +54,8 @@ export interface ChartManagerOptions {
  */
 export class ChartManager {
   readonly map: maplibregl.Map;
+  /** Live chart-load failure state (for ambient UI like the chart pill). */
+  readonly loadStatus: ChartLoadStatus;
 
   private providers: Map<string, ChartProvider>;
   private activeProviderId: string | null = null;
@@ -97,18 +109,14 @@ export class ChartManager {
 
     this.activeProviderId = initialId;
 
-    // Funnel MapLibre source/tile errors into the persistent app error log —
-    // they surface only as map "error" events (not window errors or unhandled
-    // rejections), so without this they never appear in shared diagnostics.
-    // Deduped by message: a broken tile source repeats one error per tile.
-    const seenMapErrors = new Set<string>();
-    this.map.on("error", (e) => {
-      const msg = e.error?.message ?? String(e.error ?? "unknown map error");
-      const key = msg.slice(0, 200);
-      if (seenMapErrors.size < 50 && !seenMapErrors.has(key)) {
-        seenMapErrors.add(key);
-        appErrorLog.log("maplibre", "error", msg);
-      }
+    // Surface chart/basemap load failures (banner + persistent error log)
+    // and funnel remaining MapLibre errors into shared diagnostics.
+    this.loadStatus = attachChartLoadMonitor(this.map, {
+      retry: () => {
+        options.onChartRetry?.();
+        this.reloadStyle();
+      },
+      hasOfflineCharts: options.hasOfflineCharts,
     });
 
     this.map.addControl(new maplibregl.NavigationControl(), "top-right");
@@ -124,21 +132,14 @@ export class ChartManager {
     // so their layers appear (and out-of-view ones drop). Cheap now that the
     // style only carries in-view regions; the set rarely changes, so most
     // moveends are a no-op equality check.
-    this.map.on("moveend", () => {
-      const ids = regionsInViewWithHysteresis(
-        this.viewportBounds(),
-        getSettings().activeRegion,
-        this.lastRegionIds,
-      );
-      const covered = this.viewCoveredByBasemap();
-      if (
-        ids.join(",") !== this.lastRegionIds.join(",") ||
-        covered !== this.lastViewCovered
-      ) {
-        this.lastViewCovered = covered;
-        this.throttledRefreshStyle();
-      }
-    });
+    this.map.on("moveend", () => this.recomputeRegionsInView());
+    // The initial style is built before the map exists, so it carries the
+    // ACTIVE region's layers only. Recompute from real viewport bounds as
+    // soon as the map has them — a session restored outside the active
+    // region would otherwise render no chart until the first pan. (Online,
+    // the startup streaming-version refresh happened to mask this by
+    // rebuilding the style as a side effect; offline, nothing did.)
+    this.map.once("load", () => this.recomputeRegionsInView());
 
     const initial = getSettings();
     this.prevDepthUnit = initial.depthUnit;
@@ -227,6 +228,24 @@ export class ChartManager {
     }
   }
 
+  /** Rebuild the style iff the set of in-view regions (or basemap
+   *  coverage of the viewport) has changed. */
+  private recomputeRegionsInView(): void {
+    const ids = regionsInViewWithHysteresis(
+      this.viewportBounds(),
+      getSettings().activeRegion,
+      this.lastRegionIds,
+    );
+    const covered = this.viewCoveredByBasemap();
+    if (
+      ids.join(",") !== this.lastRegionIds.join(",") ||
+      covered !== this.lastViewCovered
+    ) {
+      this.lastViewCovered = covered;
+      this.throttledRefreshStyle();
+    }
+  }
+
   private refreshPending = false;
   private refreshTimer: ReturnType<typeof setTimeout> | null = null;
   private static readonly REFRESH_THROTTLE_MS = 250;
@@ -253,6 +272,23 @@ export class ChartManager {
     if (provider) {
       this.map.setStyle(this.buildStyle(provider), { diff: true });
     }
+  }
+
+  /**
+   * Rebuild the style from scratch, re-creating every source. The retry path
+   * for failed chart loads: a diffed refresh sees identical sources and
+   * re-fetches nothing, and MapLibre never re-requests an errored source
+   * header on its own.
+   */
+  reloadStyle(): void {
+    const provider = this.getActiveProvider();
+    if (!provider) return;
+    const center = this.map.getCenter();
+    const zoom = this.map.getZoom();
+    const bearing = this.map.getBearing();
+    const pitch = this.map.getPitch();
+    this.map.setStyle(this.buildStyle(provider), { diff: false });
+    this.map.jumpTo({ center, zoom, bearing, pitch });
   }
 
   /** Current map viewport as [west, south, east, north]. */
@@ -297,16 +333,10 @@ export class ChartManager {
     }
     if (providerId === this.activeProviderId) return;
 
-    // Use setStyle to replace the style. diff:false forces a full rebuild
-    // since sources change across providers (e.g. different pmtiles:// URLs).
-    const style = this.buildStyle(provider);
-    const center = this.map.getCenter();
-    const zoom = this.map.getZoom();
-    const bearing = this.map.getBearing();
-    const pitch = this.map.getPitch();
-    this.map.setStyle(style, { diff: false });
-    this.map.jumpTo({ center, zoom, bearing, pitch });
+    // Full rebuild (diff:false) since sources change across providers
+    // (e.g. different pmtiles:// URLs).
     this.activeProviderId = providerId;
+    this.reloadStyle();
   }
 
   /**

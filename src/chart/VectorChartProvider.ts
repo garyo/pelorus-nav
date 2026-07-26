@@ -186,6 +186,10 @@ export class VectorChartProvider implements ChartProvider {
       tiles: [`pmtiles://${url}/{z}/{x}/{y}`],
       minzoom: this.minZoom,
       maxzoom: this.maxZoom,
+      // Without bounds MapLibre requests this region's tiles across the
+      // whole viewport — wasted fetches (and phantom failures when the
+      // network is down) for every other in-style region.
+      bounds: region.bbox,
       attribution: this.getAttribution(),
     };
   }

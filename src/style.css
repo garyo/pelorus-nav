@@ -2857,23 +2857,6 @@ body {
   background: rgba(68, 136, 204, 0.15);
 }
 
-/* Offline indicator */
-.offline-indicator {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  font-size: 11px;
-  color: #ff8844;
-  white-space: nowrap;
-}
-
-.offline-dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: #ff8844;
-}
-
 /* ── Display theme overrides ─────────────────────────────────────── */
 
 /* Night: dark red-tinted UI for night vision preservation */
@@ -3621,11 +3604,6 @@ body {
     border-radius: 0;
     max-height: calc(100vh - var(--topbar-bottom));
     overflow-y: auto;
-  }
-
-  /* Offline indicator in menu */
-  .topbar-menu .offline-indicator {
-    padding: 6px 16px;
   }
 
   /* Nav HUD: smaller, show toggle */

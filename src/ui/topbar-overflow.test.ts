@@ -7,8 +7,8 @@ import {
 } from "./topbar-overflow";
 
 /** Build a bar whose menu holds the given children; "~Name" makes a
- *  non-action element (like the offline indicator, hidden by default to
- *  mirror the online case). The settings wrapper is always appended last. */
+ *  non-action element (e.g. a plugin status readout), hidden by default.
+ *  The settings wrapper is always appended last. */
 function makeBar(menuChildren: string[]): TopbarOverflowElements {
   const topBar = document.createElement("header");
   const actions = document.createElement("div");
@@ -18,7 +18,7 @@ function makeBar(menuChildren: string[]): TopbarOverflowElements {
   for (const label of menuChildren) {
     if (label.startsWith("~")) {
       const div = document.createElement("div");
-      div.className = "offline-indicator";
+      div.className = "menu-note";
       div.style.display = "none";
       div.textContent = label.slice(1);
       menu.appendChild(div);
@@ -85,13 +85,13 @@ describe("relayoutTopbar", () => {
     expect(labels(els.menu)).toContain("SET");
   });
 
-  it("keeps the hamburger when the offline indicator is showing", () => {
-    els = makeBar(["WPT", "~Offline"]);
+  it("keeps the hamburger when a non-action element is showing", () => {
+    els = makeBar(["WPT", "~Note"]);
     promoted = [];
-    const offline = els.menu.querySelector<HTMLElement>(".offline-indicator");
-    if (offline) offline.style.display = "flex"; // gone offline
+    const note = els.menu.querySelector<HTMLElement>(".menu-note");
+    if (note) note.style.display = "flex";
     relayoutTopbar(els, promoted, { fits: () => true, isNarrow: () => true });
-    // All actions + settings promoted, but the visible offline indicator
+    // All actions + settings promoted, but the visible non-action element
     // still needs the hamburger to reach it.
     expect(labels(els.actions)).toEqual(["WPT", "SET"]);
     expect(els.hamburger.style.display).toBe("");
@@ -140,14 +140,14 @@ describe("relayoutTopbar", () => {
   });
 
   it("promotes past non-action elements and restores their position", () => {
-    els = makeBar(["FULL", "~Offline", "INFO"]);
+    els = makeBar(["FULL", "~Note", "INFO"]);
     promoted = [];
     relayoutTopbar(els, promoted, { fits: () => true, isNarrow: () => true });
     expect(labels(els.actions)).toEqual(["FULL", "INFO", "SET"]);
-    expect(labels(els.menu)).toEqual(["Offline"]);
+    expect(labels(els.menu)).toEqual(["Note"]);
 
     relayoutTopbar(els, promoted, { isNarrow: () => false });
-    expect(labels(els.menu)).toEqual(["FULL", "Offline", "INFO", "SET"]);
+    expect(labels(els.menu)).toEqual(["FULL", "Note", "INFO", "SET"]);
   });
 });
 

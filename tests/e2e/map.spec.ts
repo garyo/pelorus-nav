@@ -60,3 +60,19 @@ test("page has correct title", async ({ page }) => {
   await page.goto("/");
   await expect(page).toHaveTitle("Pelorus Nav");
 });
+
+test("losing connectivity shows OFFLINE in the chart-in-use pill", async ({
+  page,
+  context,
+}) => {
+  await page.goto("/");
+  const pill = page.locator(".chart-in-use");
+  await expect(pill).toBeVisible({ timeout: 10000 });
+  await expect(pill).not.toContainText("OFFLINE");
+
+  await context.setOffline(true);
+  await expect(pill).toContainText("OFFLINE");
+
+  await context.setOffline(false);
+  await expect(pill).not.toContainText("OFFLINE");
+});

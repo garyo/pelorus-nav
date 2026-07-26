@@ -7,9 +7,26 @@
  * active chart is determined from what's really rendered at the map centre:
  * vector ENC features take precedence (vector-preferred), otherwise the raster
  * chart whose footprint contains the centre.
+ *
+ * Also carries a leading status segment — this pill is always visible,
+ * unlike the top bar (collapsed into the hamburger menu on phones), so it's
+ * where load/connectivity state belongs:
+ * - Tiles still arriving → amber "LOADING CHARTS…": on a slow connection
+ *   the basemap paints long before the chart detail, and the user must
+ *   know not to trust the bare-looking water yet. Outranks the failure
+ *   warning: during a slow Retry the honest state is "loading", and the
+ *   error re-asserts only if it survives the loading settling. (On a dead
+ *   network failures settle in milliseconds — the loading debounce never
+ *   trips, so the red warning stays stable.)
+ * - Tiles failing to load (per ChartLoadMonitor) → red warning, "OFFLINE"
+ *   when the browser is offline, "TILE LOAD ERROR" otherwise. The chart on
+ *   screen is wrong; tapping the segment (re)opens the explanation banner.
+ * - Offline with nothing failing → muted "OFFLINE" note: business as usual
+ *   when regions are downloaded.
  */
 
 import type maplibregl from "maplibre-gl";
+import type { ChartLoadStatus } from "../chart/ChartLoadMonitor";
 import { rasterChartAt } from "../chart/raster-charts";
 import { depthUnitLabel, getSettings, onSettingsChange } from "../settings";
 import { bearingModeLabel } from "../utils/magnetic";
@@ -26,9 +43,14 @@ export class ChartInUseReadout {
    *  re-render without re-querying the map. */
   private chartLabel: string | null = null;
   private overscale = false;
+  private offline = !navigator.onLine;
+  private chartsLoading = false;
+  private loadingDebounce: ReturnType<typeof setTimeout> | null = null;
+  private readonly loadStatus?: ChartLoadStatus;
 
-  constructor(map: maplibregl.Map) {
+  constructor(map: maplibregl.Map, loadStatus?: ChartLoadStatus) {
     this.map = map;
+    this.loadStatus = loadStatus;
     this.el = document.createElement("div");
     this.el.className = "chart-in-use";
     Object.assign(this.el.style, {
@@ -51,6 +73,43 @@ export class ChartInUseReadout {
     // shown — even over land with no chart — and re-renders on a units
     // change without waiting for the next map move.
     onSettingsChange(() => this.render());
+
+    const onConnectivity = () => {
+      this.offline = !navigator.onLine;
+      this.render();
+    };
+    window.addEventListener("online", onConnectivity);
+    window.addEventListener("offline", onConnectivity);
+    loadStatus?.subscribe(() => this.render());
+
+    // "Loading Charts…" while tiles are still arriving. Debounced on the
+    // way in (a quick pan on a fast connection shouldn't flash the note),
+    // instant on the way out. areTilesLoaded counts errored tiles as done,
+    // so a failure can't wedge this in the loading state.
+    const checkTilesLoaded = () => {
+      if (map.areTilesLoaded()) {
+        if (this.loadingDebounce) {
+          clearTimeout(this.loadingDebounce);
+          this.loadingDebounce = null;
+        }
+        if (this.chartsLoading) {
+          this.chartsLoading = false;
+          this.render();
+        }
+      } else if (!this.chartsLoading && !this.loadingDebounce) {
+        this.loadingDebounce = setTimeout(() => {
+          this.loadingDebounce = null;
+          if (!this.map.areTilesLoaded()) {
+            this.chartsLoading = true;
+            this.render();
+          }
+        }, 400);
+      }
+    };
+    map.on("dataloading", checkTilesLoaded);
+    map.on("sourcedata", checkTilesLoaded);
+    map.on("idle", checkTilesLoaded);
+    map.on("moveend", checkTilesLoaded);
 
     // Re-evaluate on move and whenever a source finishes loading tiles — the
     // map never goes fully "idle" here (vessel/overlay updates keep it busy),
@@ -124,7 +183,42 @@ export class ChartInUseReadout {
         ? `${this.chartLabel} · OVERSCALE`
         : this.chartLabel
       : null;
-    this.el.textContent = chart ? `${units}  ·  ${chart}` : units;
+    const text = chart ? `${units}  ·  ${chart}` : units;
+    this.el.textContent = "";
+    const failure = this.loadStatus?.current() ?? null;
+    if (this.chartsLoading) {
+      // Chart detail hasn't all arrived — don't trust bare-looking water.
+      // Shown even while failures stand: during a slow Retry "loading" is
+      // the honest state, and the warning re-asserts if it survives.
+      const loading = document.createElement("span");
+      loading.textContent = "LOADING CHARTS…";
+      Object.assign(loading.style, { color: "#ffd75e", fontWeight: "600" });
+      this.el.append(loading, `  ·  ${text}`);
+    } else if (failure) {
+      // Tiles are failing — the chart on screen is wrong. Red warning;
+      // tapping it (re)opens the explanation banner.
+      const warn = document.createElement("span");
+      warn.textContent = this.offline
+        ? "OFFLINE: MISSING CHARTS"
+        : "TILE LOAD ERROR";
+      Object.assign(warn.style, {
+        color: "#ff5555",
+        fontWeight: "700",
+        pointerEvents: "auto",
+        cursor: "pointer",
+      });
+      warn.title = "Tiles failed to load — tap for details";
+      warn.addEventListener("click", () => this.loadStatus?.reshowBanner());
+      this.el.append(warn, `  ·  ${text}`);
+    } else if (this.offline) {
+      // A quiet note, not an alarm — dimmer than the rest of the pill.
+      const off = document.createElement("span");
+      off.textContent = "OFFLINE";
+      off.style.opacity = "0.65";
+      this.el.append(off, `  ·  ${text}`);
+    } else {
+      this.el.textContent = text;
+    }
     this.el.style.background = this.overscale
       ? "rgba(200,120,0,0.85)"
       : "rgba(0,0,0,0.6)";

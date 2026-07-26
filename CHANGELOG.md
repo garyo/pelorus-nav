@@ -7,7 +7,29 @@ The format follows [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Added
+- When charts or the street basemap fail to load (no internet, server
+  trouble, or an unreadable downloaded chart), the app now shows a message
+  saying what failed and why, with a Retry button, instead of silently
+  leaving the chart blank. Chart-load failures are also recorded in the
+  diagnostics included with bug reports.
+- The chart readout pill at the bottom of the screen now shows load and
+  connectivity status: an amber LOADING CHARTS… note while chart detail
+  is still arriving (useful on slow connections — don't trust
+  bare-looking water yet), a red TILE LOAD ERROR or OFFLINE: MISSING
+  CHARTS warning while tiles are actually failing (tap it for details),
+  or a muted OFFLINE note when there's simply no internet — downloaded
+  charts keep working offline. The offline indicator formerly in the top
+  bar (where phones hid it inside the menu) is gone.
+
 ### Fixed
+- Opening the app offline could show an empty chart until the first
+  pan when the map was restored outside the active region.
+- Chart regions no longer request tiles for areas outside their own
+  coverage — less network traffic when several regions are on screen.
+- Deleting a downloaded region could leave it still showing as
+  downloaded — and an interrupted delete could leave a phantom
+  "downloaded" region whose chart never loads.
 - Stopping a track recording could leave the new track missing from the
   Tracks panel until something else refreshed it. Short recordings (under
   20 points) were affected most, since nothing later triggered a refresh.

@@ -264,17 +264,20 @@ export async function getChartFile(filename: string): Promise<File | null> {
   }
 }
 
-/** Delete a stored chart file and update metadata. */
+/** Delete a stored chart file and update metadata. Meta first: if this is
+ *  interrupted between the two steps, an orphaned FILE is invisible and
+ *  harmless (deleteAllCharts sweeps orphans; a re-download overwrites),
+ *  but an orphaned META ENTRY is a phantom "downloaded" region whose
+ *  chart can never load. */
 export async function deleteChart(filename: string): Promise<void> {
   const root = await getRoot();
   if (!root) return;
+  await withMeta((meta) => meta.filter((c) => c.filename !== filename));
   try {
     await root.removeEntry(filename);
   } catch {
     // file may not exist
   }
-
-  await withMeta((meta) => meta.filter((c) => c.filename !== filename));
 }
 
 /**

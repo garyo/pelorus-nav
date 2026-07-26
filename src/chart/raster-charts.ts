@@ -69,6 +69,9 @@ export function getRasterChartSources(): Record<string, SourceSpecification> {
       tileSize: 256,
       minzoom: chart.minZoom,
       maxzoom: chart.maxZoom,
+      // Without bounds MapLibre requests this chart's tiles worldwide —
+      // every off-chart view pays failed/empty tile lookups for it.
+      bounds: chart.bbox,
       attribution: chart.attribution ?? "NOAA RNC (public domain)",
     };
     // True traced footprint when available (stitched imports are irregular),

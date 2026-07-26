@@ -9,9 +9,9 @@
  * menu items into the visible row while they fit and demotes them back
  * when space shrinks, preserving menu order. The settings wrapper (gear)
  * promotes last, after all action buttons, so it stays reachable in the
- * dropdown whenever there IS overflow. When everything fits — nothing
- * left in the menu but a hidden offline indicator — the hamburger hides
- * entirely (an iPad in portrait shows the whole bar, no menu button).
+ * dropdown whenever there IS overflow. When everything fits — no visible
+ * element left in the menu — the hamburger hides entirely (an iPad in
+ * portrait shows the whole bar, no menu button).
  */
 
 export interface TopbarOverflowElements {
@@ -52,8 +52,8 @@ export function relayoutTopbar(
   const isNarrow =
     hooks.isNarrow ?? (() => window.matchMedia("(max-width: 768px)").matches);
 
-  // Next thing to promote: leading action buttons first (scanning past the
-  // offline indicator so it doesn't wall off later buttons), then the
+  // Next thing to promote: leading action buttons first (scanning past any
+  // non-action element so it doesn't wall off later buttons), then the
   // settings wrapper last — it should be the first to fall back into the
   // dropdown when space is tight, so it's promoted only once nothing else
   // is left in the menu.
@@ -76,8 +76,8 @@ export function relayoutTopbar(
   };
 
   // The hamburger is only needed if the menu still holds something the user
-  // must reach through it — a visible child (offline indicator when shown,
-  // or anything not yet promoted). A child's own `display` is independent of
+  // must reach through it — any visible child (a non-promotable element, or
+  // anything not yet promoted). A child's own `display` is independent of
   // the menu's collapsed display:none, so this reads correctly either way.
   const updateHamburger = () => {
     const needed = [...menu.children].some(
