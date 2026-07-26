@@ -84,10 +84,24 @@ export class ChartInUseReadout {
 
     // "Loading Charts…" while tiles are still arriving. Debounced on the
     // way in (a quick pan on a fast connection shouldn't flash the note),
-    // instant on the way out. areTilesLoaded counts errored tiles as done,
-    // so a failure can't wedge this in the loading state.
+    // instant on the way out. Errored tiles count as done, so a failure
+    // can't wedge this in the loading state.
+    //
+    // Only CHART sources count — not the `_`-prefixed app overlays. Those
+    // re-tile on every setData (dragging a route waypoint fires one per
+    // pointer move), and map.areTilesLoaded() would report the map
+    // "loading" through the whole gesture with no chart data in flight.
+    const chartTilesLoaded = (): boolean => {
+      const sources = map.getStyle()?.sources;
+      if (!sources) return true;
+      for (const id of Object.keys(sources)) {
+        if (id.startsWith("_")) continue;
+        if (!map.isSourceLoaded(id)) return false;
+      }
+      return true;
+    };
     const checkTilesLoaded = () => {
-      if (map.areTilesLoaded()) {
+      if (chartTilesLoaded()) {
         if (this.loadingDebounce) {
           clearTimeout(this.loadingDebounce);
           this.loadingDebounce = null;
@@ -99,16 +113,16 @@ export class ChartInUseReadout {
       } else if (!this.chartsLoading && !this.loadingDebounce) {
         this.loadingDebounce = setTimeout(() => {
           this.loadingDebounce = null;
-          if (!this.map.areTilesLoaded()) {
+          if (!chartTilesLoaded()) {
             this.chartsLoading = true;
             this.render();
           }
         }, 400);
       }
     };
-    // Coalesce the per-event checks: areTilesLoaded scans every source
-    // cache, and a zoomed-out tile burst (all regions in view) fires
-    // hundreds of dataloading/sourcedata events per second.
+    // Coalesce the per-event checks: the loaded check scans every chart
+    // source's tiles, and a zoomed-out tile burst (all regions in view)
+    // fires hundreds of dataloading/sourcedata events per second.
     let checkQueued = false;
     const queueCheck = () => {
       if (checkQueued) return;
