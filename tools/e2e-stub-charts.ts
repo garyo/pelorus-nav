@@ -15,9 +15,9 @@ import { join } from "node:path";
 
 const dir = process.env.STUB_DIR ?? "public";
 const fixture = "tests/e2e/fixtures/import-fixture.pmtiles";
-const regions = JSON.parse(
-  readFileSync("tools/regions.json", "utf8"),
-) as { id: string }[];
+const regions = JSON.parse(readFileSync("tools/regions.json", "utf8")) as {
+  id: string;
+}[];
 
 const pmtiles = [
   ...regions.map((r) => `nautical-${r.id}.pmtiles`),
