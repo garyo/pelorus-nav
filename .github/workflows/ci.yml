@@ -46,9 +46,14 @@ jobs:
       - name: Install Playwright Chromium
         run: bunx playwright install --with-deps chromium
 
-      # The suite needs no chart PMTiles (they're gitignored and absent here) —
-      # the specs drive the simulator, the tides bundle, and a tiny committed
-      # raster fixture, all of which are in the repo.
+      # Real chart PMTiles are gitignored and absent here, and the chart-load
+      # monitor (rightly) raises a failure banner when archives 404 — which
+      # can intercept unrelated clicks mid-test. Stub every catalog archive
+      # with the tiny committed e2e fixture so the app sees a healthy chart
+      # server. (No-op on a dev machine with real tiles built.)
+      - name: Stub chart artifacts
+        run: bun tools/e2e-stub-charts.ts
+
       - name: E2E
         run: bun run e2e
 
