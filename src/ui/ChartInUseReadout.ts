@@ -106,10 +106,23 @@ export class ChartInUseReadout {
         }, 400);
       }
     };
-    map.on("dataloading", checkTilesLoaded);
-    map.on("sourcedata", checkTilesLoaded);
+    // Coalesce the per-event checks: areTilesLoaded scans every source
+    // cache, and a zoomed-out tile burst (all regions in view) fires
+    // hundreds of dataloading/sourcedata events per second.
+    let checkQueued = false;
+    const queueCheck = () => {
+      if (checkQueued) return;
+      checkQueued = true;
+      setTimeout(() => {
+        checkQueued = false;
+        checkTilesLoaded();
+      }, 200);
+    };
+    map.on("dataloading", queueCheck);
+    map.on("sourcedata", queueCheck);
+    map.on("moveend", queueCheck);
+    // idle is rare and definitive — check immediately.
     map.on("idle", checkTilesLoaded);
-    map.on("moveend", checkTilesLoaded);
 
     // Re-evaluate on move and whenever a source finishes loading tiles — the
     // map never goes fully "idle" here (vessel/overlay updates keep it busy),
