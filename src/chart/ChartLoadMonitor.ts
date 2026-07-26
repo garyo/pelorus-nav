@@ -39,6 +39,7 @@ export type LoadFailureReason =
   | "offline"
   | "network"
   | "server"
+  | "missing"
   | "storage"
   | "unknown";
 
@@ -132,13 +133,12 @@ export function classifyLoadError(
   if (m.includes("notreadable") || m.includes("could not be read")) {
     return "storage";
   }
+  // The server answered "no such thing" — distinct from server trouble:
+  // the chart genuinely isn't available from this server.
+  if (/\b404\b/.test(m) || m.includes("not found")) return "missing";
   // "Wrong magic number" = the server answered with something that isn't a
   // PMTiles archive (e.g. an HTML error page) — a server problem.
-  if (
-    /\b(4\d\d|5\d\d)\b/.test(m) ||
-    m.includes("not found") ||
-    m.includes("magic number")
-  ) {
+  if (/\b(4\d\d|5\d\d)\b/.test(m) || m.includes("magic number")) {
     return "server";
   }
   if (
@@ -159,6 +159,7 @@ const REASON_PRIORITY: LoadFailureReason[] = [
   "offline",
   "storage",
   "server",
+  "missing",
   "network",
   "unknown",
 ];
@@ -281,6 +282,8 @@ export function composeFailureMessage(
       return `Can't load ${what} — network problem. Check your internet connection.`;
     case "server":
       return `Can't load ${what} — the chart server isn't responding. Try again later.`;
+    case "missing":
+      return `Some ${what} are not available from the chart server.`;
     case "storage":
       return "Can't read a downloaded chart from storage. Try re-downloading it in Chart Regions.";
     case "unknown":

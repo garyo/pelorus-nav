@@ -62,12 +62,13 @@ describe("classifyLoadError", () => {
     expect(classifyLoadError("Failed to fetch", false)).toBe("offline");
   });
 
-  it("classifies server responses", () => {
-    expect(classifyLoadError("Bad response code: 404", true)).toBe("server");
+  it("distinguishes missing charts from server trouble", () => {
+    expect(classifyLoadError("Bad response code: 404", true)).toBe("missing");
+    expect(classifyLoadError("Not Found", true)).toBe("missing");
+    expect(classifyLoadError("Bad response code: 503", true)).toBe("server");
     expect(classifyLoadError("AJAXError: Internal Error (500)", true)).toBe(
       "server",
     );
-    expect(classifyLoadError("Not Found", true)).toBe("server");
   });
 
   it("classifies network-level failures", () => {
