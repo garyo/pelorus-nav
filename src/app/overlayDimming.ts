@@ -43,7 +43,11 @@ function dimOverlayLayers(map: MapLibreMap, theme: string): void {
     }
   }
   for (const layer of map.getStyle().layers) {
-    if (layer.id.startsWith("_route-points-") && layer.type === "symbol") {
+    if (
+      (layer.id.startsWith("_route-points-") ||
+        layer.id.startsWith("_route-chevrons-")) &&
+      layer.type === "symbol"
+    ) {
       map.setPaintProperty(layer.id, "icon-opacity", opacity);
     }
   }

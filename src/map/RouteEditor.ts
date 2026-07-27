@@ -20,7 +20,12 @@
 
 import type * as maplibregl from "maplibre-gl";
 import { saveRoute } from "../data/db";
-import type { Route, Waypoint } from "../data/Route";
+import {
+  type Route,
+  renumberAutoNames,
+  reverseWaypoints,
+  type Waypoint,
+} from "../data/Route";
 import type { SearchEntry } from "../data/search-index";
 import type { StandaloneWaypoint } from "../data/Waypoint";
 import { findNearestNamedFeature } from "../search/feature-search";
@@ -38,7 +43,12 @@ import { DraggablePoints } from "./DraggablePoints";
 import { startEditTapDiag } from "./editTapDiag";
 import { getMode, setMode } from "./InteractionMode";
 import { type GeoPoint, nearestPointIndex } from "./point-hit-test";
-import { ensurePointIcons, pointRole, ROLE_ICON_EXPR } from "./point-icons";
+import {
+  ensurePointIcons,
+  POINT_ICON_CHEVRON,
+  pointRole,
+  ROLE_ICON_EXPR,
+} from "./point-icons";
 import type { RouteLayer } from "./RouteLayer";
 import {
   collectSnapCandidates,
@@ -47,10 +57,11 @@ import {
   type SnapOp,
 } from "./route-snap";
 
-/** Max fraction of first leg length for the prepend handle offset. */
-const PREPEND_MAX_FRACTION = 0.8;
-/** Min offset in degrees (~440m at mid-latitudes). */
-const PREPEND_MIN_OFFSET_DEG = 0.004;
+/** Screen-space offset of the extend handles beyond each end of the route
+ *  (px). Fixed in pixels so the grips stay grabbable at any zoom — a geo
+ *  offset collapses onto the end waypoint when zoomed out, where a tap
+ *  meant for the start could hit the prepend grip instead. */
+const EXTEND_HANDLE_OFFSET_PX = 40;
 
 /** Reach of the handle hit test (px): icon half-width plus finger slop. The
  *  ghosts draw smaller than the waypoints, but a smaller target is no easier
@@ -58,30 +69,49 @@ const PREPEND_MIN_OFFSET_DEG = 0.004;
 const HANDLE_HIT_RADIUS = 22;
 
 /** A handle just beyond `end`, continuing the line away from `inner` —
- *  the extend-the-route grip at either end of the route. */
+ *  the extend-the-route grip at either end of the route. Positioned in
+ *  screen space; `fallback` supplies the direction when the leg has no
+ *  on-screen extent (both waypoints on the same pixel). */
 function extendHandlePos(
+  map: maplibregl.Map,
   end: Waypoint,
   inner: Waypoint,
-): [number, number] | null {
-  const dLat = end.lat - inner.lat;
-  const dLon = end.lon - inner.lon;
-  const len = Math.sqrt(dLat * dLat + dLon * dLon);
-  if (len === 0) return null;
-  const scale =
-    Math.min(PREPEND_MAX_FRACTION, PREPEND_MIN_OFFSET_DEG / len) * len;
-  return [end.lon + (dLon / len) * scale, end.lat + (dLat / len) * scale];
+  fallback: [number, number],
+): [number, number] {
+  const pEnd = map.project([end.lon, end.lat]);
+  const pInner = map.project([inner.lon, inner.lat]);
+  let dx = pEnd.x - pInner.x;
+  let dy = pEnd.y - pInner.y;
+  const len = Math.hypot(dx, dy);
+  if (len < 1) {
+    [dx, dy] = fallback;
+  } else {
+    dx /= len;
+    dy /= len;
+  }
+  const ll = map.unproject([
+    pEnd.x + dx * EXTEND_HANDLE_OFFSET_PX,
+    pEnd.y + dy * EXTEND_HANDLE_OFFSET_PX,
+  ]);
+  return [ll.lng, ll.lat];
 }
 
 /** Handle off the start of the route, opposite the first leg. */
-function prependHandlePos(wps: Waypoint[]): [number, number] | null {
+function prependHandlePos(
+  map: maplibregl.Map,
+  wps: Waypoint[],
+): [number, number] | null {
   if (wps.length < 2) return null;
-  return extendHandlePos(wps[0], wps[1]);
+  return extendHandlePos(map, wps[0], wps[1], [-1, 0]);
 }
 
 /** Handle off the end of the route, continuing the last leg. */
-function appendHandlePos(wps: Waypoint[]): [number, number] | null {
+function appendHandlePos(
+  map: maplibregl.Map,
+  wps: Waypoint[],
+): [number, number] | null {
   if (wps.length < 2) return null;
-  return extendHandlePos(wps[wps.length - 1], wps[wps.length - 2]);
+  return extendHandlePos(map, wps[wps.length - 1], wps[wps.length - 2], [1, 0]);
 }
 
 const SOURCE_ID = "_route-edit-points";
@@ -90,6 +120,7 @@ const SOURCE_MIDPOINTS = "_route-edit-midpoints";
 const LAYER_MIDPOINTS = "_route-edit-midpoints";
 const SOURCE_LINE = "_route-edit-line";
 const LAYER_LINE = "_route-edit-line";
+const LAYER_LINE_CHEVRONS = "_route-edit-line-chevrons";
 const SOURCE_PREVIEW = "_route-edit-preview";
 const LAYER_PREVIEW = "_route-edit-preview";
 const SOURCE_HIGHLIGHT = "_route-edit-highlight";
@@ -125,6 +156,7 @@ export class RouteEditor {
   private draggable: DraggablePoints | null = null;
   private clickHandler: ((e: maplibregl.MapMouseEvent) => void) | null = null;
   private moveHandler: ((e: maplibregl.MapMouseEvent) => void) | null = null;
+  private moveEndHandler: (() => void) | null = null;
   private stopTapDiag: (() => void) | null = null;
   private bar: HTMLDivElement;
   private barText: HTMLDivElement;
@@ -410,6 +442,16 @@ export class RouteEditor {
       this.updatePreview(snap ? { lng: snap.lon, lat: snap.lat } : e.lngLat);
     };
     this.map.on("mousemove", this.moveHandler);
+
+    // The extend handles sit a fixed pixel distance off the route's ends,
+    // so their geo anchors go stale when the camera scale or bearing
+    // changes — re-derive after any camera move (cheap: a few points).
+    this.moveEndHandler = () => {
+      if (!this.route) return;
+      this.deriveHandles();
+      this.paintSources();
+    };
+    this.map.on("moveend", this.moveEndHandler);
   }
 
   /** Save and exit editor. */
@@ -623,12 +665,20 @@ export class RouteEditor {
     this.mutate((route) => {
       route.waypoints.splice(at, 1);
       // Renumber only the auto-named waypoints; custom/feature names stay.
-      for (let i = 0; i < route.waypoints.length; i++) {
-        if (route.waypoints[i].name.match(/^WP\d+$/)) {
-          route.waypoints[i].name = `WP${i + 1}`;
-        }
-      }
+      renumberAutoNames(route.waypoints);
       this.selectedIndex = null;
+    });
+  }
+
+  /** Reverse the route's direction (undoable). The selection follows its
+   *  waypoint to the mirrored index. */
+  reverseRoute(): void {
+    if (!this.route || this.route.waypoints.length < 2) return;
+    this.mutate((route) => {
+      reverseWaypoints(route);
+      if (this.selectedIndex !== null) {
+        this.selectedIndex = route.waypoints.length - 1 - this.selectedIndex;
+      }
     });
   }
 
@@ -710,6 +760,10 @@ export class RouteEditor {
       this.map.off("mousemove", this.moveHandler);
       this.moveHandler = null;
     }
+    if (this.moveEndHandler) {
+      this.map.off("moveend", this.moveEndHandler);
+      this.moveEndHandler = null;
+    }
     if (this.draggable) {
       this.draggable.destroy();
       this.draggable = null;
@@ -772,6 +826,24 @@ export class RouteEditor {
       paint: {
         "line-color": "#4488cc",
         "line-width": 2.5,
+      },
+    });
+
+    // Direction chevrons along the line — the only cue, besides the tiny
+    // start/finish icons, of which way the route runs. A route drawn in
+    // reverse is otherwise invisible until appends land on the "wrong" end.
+    this.map.addLayer({
+      id: LAYER_LINE_CHEVRONS,
+      type: "symbol",
+      source: SOURCE_LINE,
+      layout: {
+        "symbol-placement": "line",
+        "symbol-spacing": 120,
+        "icon-image": POINT_ICON_CHEVRON,
+        "icon-size": 1,
+        "icon-rotation-alignment": "map",
+        "icon-allow-overlap": true,
+        "icon-ignore-placement": true,
       },
     });
 
@@ -898,10 +970,12 @@ export class RouteEditor {
   }
 
   /**
-   * Recompute the ghost handles from the current waypoints. Pure geometry,
-   * no map access. Runs before any paint or hit-test so the drawn ghosts and
-   * the grab list (grabHandles) can never lag the model — the failure that
-   * froze handles when a paint early-returned before deriving them.
+   * Recompute the ghost handles from the current waypoints. Runs before any
+   * paint or hit-test so the drawn ghosts and the grab list (grabHandles)
+   * can never lag the model — the failure that froze handles when a paint
+   * early-returned before deriving them. The extend handles are projected
+   * through the camera (fixed pixel offset), so a zoom/rotate re-derives
+   * via the moveend handler as well.
    */
   private deriveHandles(): void {
     this.midHandles = [];
@@ -909,7 +983,7 @@ export class RouteEditor {
     if (!wps) return;
     // A ghost just off the start prepends; one at each leg midpoint inserts;
     // one just off the end appends (an insert after the last waypoint).
-    const prependPos = prependHandlePos(wps);
+    const prependPos = prependHandlePos(this.map, wps);
     if (prependPos) {
       this.midHandles.push({
         lon: prependPos[0],
@@ -924,7 +998,7 @@ export class RouteEditor {
         insertAfter: i,
       });
     }
-    const appendPos = appendHandlePos(wps);
+    const appendPos = appendHandlePos(this.map, wps);
     if (appendPos) {
       this.midHandles.push({
         lon: appendPos[0],
@@ -1054,8 +1128,8 @@ export class RouteEditor {
 
     // Dashed stubs tying each extend handle back to the end it grows from.
     const stubs: [Waypoint, [number, number] | null][] = [
-      [wps[0], prependHandlePos(wps)],
-      [wps[wps.length - 1], appendHandlePos(wps)],
+      [wps[0], prependHandlePos(this.map, wps)],
+      [wps[wps.length - 1], appendHandlePos(this.map, wps)],
     ];
     for (const [from, pos] of stubs) {
       if (!pos) continue;
@@ -1180,6 +1254,14 @@ export class RouteEditor {
 
     // Normal mode: summary
     this.appendAddToggle();
+    if (wps.length >= 2) {
+      const revBtn = document.createElement("button");
+      revBtn.className = "route-editor-btn route-editor-btn--secondary";
+      revBtn.textContent = "Reverse";
+      revBtn.title = "Reverse the route's direction (start ⇄ end)";
+      revBtn.addEventListener("click", () => this.reverseRoute());
+      this.barActions.appendChild(revBtn);
+    }
     this.appendUndoButton();
 
     if (wps.length === 0) {

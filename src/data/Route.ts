@@ -18,3 +18,20 @@ export interface Route {
   folder?: string;
   waypoints: Waypoint[];
 }
+
+/** Renumber auto-generated names (WP1, WP2, …) to match array order.
+ *  Custom and feature-derived names are left untouched. */
+export function renumberAutoNames(waypoints: Waypoint[]): void {
+  for (let i = 0; i < waypoints.length; i++) {
+    if (/^WP\d+$/.test(waypoints[i].name)) {
+      waypoints[i].name = `WP${i + 1}`;
+    }
+  }
+}
+
+/** Reverse the route's direction in place: last waypoint becomes the
+ *  start. Auto-names are renumbered to follow the new order. */
+export function reverseWaypoints(route: Route): void {
+  route.waypoints.reverse();
+  renumberAutoNames(route.waypoints);
+}

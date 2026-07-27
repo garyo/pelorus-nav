@@ -6,7 +6,7 @@
  */
 
 import { getAllRoutes, saveRoute } from "../data/db";
-import type { Route } from "../data/Route";
+import { type Route, reverseWaypoints } from "../data/Route";
 import type { RouteEditor } from "../map/RouteEditor";
 import type { RouteLayer } from "../map/RouteLayer";
 import type {
@@ -16,7 +16,14 @@ import type {
 import { getSettings } from "../settings";
 import { haversineDistanceNM, initialBearingDeg } from "../utils/coordinates";
 import { formatBearing } from "../utils/magnetic";
-import { iconEdit, iconNavigation, iconTrash, iconX, setIcon } from "./icons";
+import {
+  iconEdit,
+  iconNavigation,
+  iconReverse,
+  iconTrash,
+  iconX,
+  setIcon,
+} from "./icons";
 import { groupByFolder } from "./manager-folders";
 import { getPanelStack } from "./PanelStack";
 import { registerSurface } from "./SurfaceManager";
@@ -99,6 +106,7 @@ export class RouteDetailPanel {
       '<span class="route-detail-title"></span>' +
       '<div style="display:flex;gap:6px;align-items:center">' +
       '<button class="route-nav-btn manager-item-btn" title="Navigate route"></button>' +
+      '<button class="route-detail-reverse manager-item-btn" title="Reverse direction"></button>' +
       '<button class="route-detail-edit manager-item-btn" title="Edit"></button>' +
       '<button class="route-detail-delete manager-item-btn" title="Delete"></button>' +
       '<button class="manager-close"></button>' +
@@ -137,6 +145,14 @@ export class RouteDetailPanel {
     setIcon(this.editBtn, iconEdit);
     this.editBtn.addEventListener("click", () => {
       if (this.currentRoute && this.onEdit) this.onEdit(this.currentRoute);
+    });
+
+    const reverseBtn = this.el.querySelector(
+      ".route-detail-reverse",
+    ) as HTMLButtonElement;
+    setIcon(reverseBtn, iconReverse);
+    reverseBtn.addEventListener("click", () => {
+      this.reverseRoute().catch(console.error);
     });
 
     const deleteBtn = this.el.querySelector(
@@ -216,6 +232,27 @@ export class RouteDetailPanel {
       };
       this.activeNav.subscribe(this.navCallback);
     }
+  }
+
+  /** Reverse the displayed route's direction. Editing routes go through
+   *  the editor (undoable, live repaint); saved routes persist directly. */
+  private async reverseRoute(): Promise<void> {
+    const route = this.currentRoute;
+    if (!route || route.waypoints.length < 2) return;
+    // Reversing under active navigation would silently invert the leg the
+    // autopilot-following user is steering to.
+    if (this.isNavigatingCurrentRoute()) {
+      alert("Stop navigating this route before reversing it.");
+      return;
+    }
+    if (this.isEditingThisRoute()) {
+      this.editor.reverseRoute();
+      return; // editor notify → refreshIfOpen re-renders the list
+    }
+    reverseWaypoints(route);
+    await saveRoute(route);
+    this.routeLayer.updateRoute(route);
+    this.render();
   }
 
   private renameRoute(): void {

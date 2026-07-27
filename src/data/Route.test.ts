@@ -1,14 +1,18 @@
 /**
- * CRUD/persistence tests for routes. The `Route` type itself
- * (./Route.ts) is a pure interface with no logic, so these tests
- * exercise the route persistence functions in ./db.ts (saveRoute,
- * getAllRoutes, deleteRoute) against a fake IndexedDB, black-box —
- * only through their public save/list/delete contract, not db.ts's
- * connection-caching or migration internals.
+ * Tests for the Route helpers (reverse/renumber) and route persistence.
+ * Persistence goes through ./db.ts (saveRoute, getAllRoutes, deleteRoute)
+ * against a fake IndexedDB, black-box — only through the public
+ * save/list/delete contract, not db.ts's connection-caching or
+ * migration internals.
  */
 import { IDBFactory } from "fake-indexeddb";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { Route } from "./Route";
+import {
+  type Route,
+  renumberAutoNames,
+  reverseWaypoints,
+  type Waypoint,
+} from "./Route";
 
 // Fresh fake IndexedDB + fresh db.ts module (its connection promise is
 // cached at module scope) before every test, so tests can't see each
@@ -36,6 +40,49 @@ function makeRoute(over: Partial<Route> = {}): Route {
     ...over,
   };
 }
+
+describe("renumberAutoNames", () => {
+  const wps = (...names: string[]): Waypoint[] =>
+    names.map((name, i) => ({ lat: i, lon: i, name }));
+
+  it("renumbers only auto-generated WP names to match array order", () => {
+    const list = wps("WP3", "Marion Harbor", "WP1");
+    renumberAutoNames(list);
+    expect(list.map((w) => w.name)).toEqual(["WP1", "Marion Harbor", "WP3"]);
+  });
+
+  it("leaves names that merely contain WP alone", () => {
+    const list = wps("WP2 east", "SWP1");
+    renumberAutoNames(list);
+    expect(list.map((w) => w.name)).toEqual(["WP2 east", "SWP1"]);
+  });
+});
+
+describe("reverseWaypoints", () => {
+  it("reverses order in place and renumbers auto-names", () => {
+    const route = makeRoute({
+      waypoints: [
+        { lat: 1, lon: 1, name: "WP1" },
+        { lat: 2, lon: 2, name: "Gloucester" },
+        { lat: 3, lon: 3, name: "WP3" },
+      ],
+    });
+    reverseWaypoints(route);
+    expect(route.waypoints).toEqual([
+      { lat: 3, lon: 3, name: "WP1" },
+      { lat: 2, lon: 2, name: "Gloucester" },
+      { lat: 1, lon: 1, name: "WP3" },
+    ]);
+  });
+
+  it("round-trips back to the original", () => {
+    const route = makeRoute();
+    const original = structuredClone(route.waypoints);
+    reverseWaypoints(route);
+    reverseWaypoints(route);
+    expect(route.waypoints).toEqual(original);
+  });
+});
 
 describe("route persistence", () => {
   it("save then list returns the saved route", async () => {

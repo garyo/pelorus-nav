@@ -22,6 +22,8 @@ export const POINT_ICON_HAZARD = "_pt-hazard";
 export const POINT_ICON_FUEL = "_pt-fuel";
 export const POINT_ICON_POI = "_pt-poi";
 export const POINT_ICON_COB = "_pt-cob";
+export const POINT_ICON_CHEVRON = "_pt-chevron";
+export const POINT_ICON_CHEVRON_SUBTLE = "_pt-chevron-subtle";
 
 /** Register all point icons on the map. Safe to call multiple times. */
 export function ensurePointIcons(map: maplibregl.Map): void {
@@ -34,6 +36,8 @@ export function ensurePointIcons(map: maplibregl.Map): void {
   addIcon(map, POINT_ICON_FUEL, drawFuel);
   addIcon(map, POINT_ICON_POI, drawPoi);
   addIcon(map, POINT_ICON_COB, drawCob);
+  addIcon(map, POINT_ICON_CHEVRON, drawChevron);
+  addIcon(map, POINT_ICON_CHEVRON_SUBTLE, drawChevronSubtle);
 }
 
 /**
@@ -277,6 +281,42 @@ function drawStart(ctx: CanvasRenderingContext2D): void {
   ctx.closePath();
   ctx.fillStyle = "#fff";
   ctx.fill();
+}
+
+/** Small chevron pointing right (+x) for line-placed direction markers.
+ *  MapLibre rotates line symbols so +x follows the line's direction, so
+ *  this reads as "travel this way" along a route. White over a dark
+ *  casing keeps it legible on the blue edit line in every theme. */
+function strokeChevron(
+  ctx: CanvasRenderingContext2D,
+  s: number,
+  color: string,
+  width: number,
+): void {
+  const cx = SIZE / 2;
+  ctx.beginPath();
+  ctx.moveTo(cx - s * 0.5, cx - s);
+  ctx.lineTo(cx + s * 0.5, cx);
+  ctx.lineTo(cx - s * 0.5, cx + s);
+  ctx.strokeStyle = color;
+  ctx.lineWidth = width;
+  ctx.lineCap = "round";
+  ctx.lineJoin = "round";
+  ctx.stroke();
+}
+
+function drawChevron(ctx: CanvasRenderingContext2D): void {
+  const s = SIZE * 0.24;
+  strokeChevron(ctx, s, "#1a3a6c", 5.5);
+  strokeChevron(ctx, s, "#fff", 3);
+}
+
+/** Quieter sibling of the edit chevron for saved-route display: blue on a
+ *  thin white casing, sized to read as texture on the line, not a marker. */
+function drawChevronSubtle(ctx: CanvasRenderingContext2D): void {
+  const s = SIZE * 0.18;
+  strokeChevron(ctx, s, "#fff", 3.5);
+  strokeChevron(ctx, s, "#2b6cb0", 1.8);
 }
 
 /** Solid color circle with white border — the "normal" waypoint. */

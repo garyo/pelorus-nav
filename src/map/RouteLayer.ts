@@ -11,7 +11,12 @@ import { lightenHex } from "../utils/color";
 import { bboxOfCoords, haversineDistanceNM } from "../utils/coordinates";
 import { fitMapToBounds, fitMapToBoundsIfNeeded } from "./fit-bounds";
 import { belowVesselLayerId } from "./layer-order";
-import { ensurePointIcons, pointRole, ROLE_ICON_EXPR } from "./point-icons";
+import {
+  ensurePointIcons,
+  POINT_ICON_CHEVRON_SUBTLE,
+  pointRole,
+  ROLE_ICON_EXPR,
+} from "./point-icons";
 import { GLOW_LIGHTEN } from "./selection-glow";
 import { SelectionHalo } from "./selection-halo";
 
@@ -21,6 +26,10 @@ function sourceId(routeId: string): string {
 
 function lineLayerId(routeId: string): string {
   return `_route-line-${routeId}`;
+}
+
+function chevronLayerId(routeId: string): string {
+  return `_route-chevrons-${routeId}`;
 }
 
 function pointLayerId(routeId: string): string {
@@ -173,6 +182,27 @@ export class RouteLayer {
       beforeId,
     );
 
+    // Subtle direction chevrons along the line — the always-on cue for
+    // which way the route runs (the editor draws its own, bolder set).
+    this.map.addLayer(
+      {
+        id: chevronLayerId(route.id),
+        type: "symbol",
+        source: sid,
+        filter: ["==", ["geometry-type"], "LineString"],
+        layout: {
+          "symbol-placement": "line",
+          "symbol-spacing": 120,
+          "icon-image": POINT_ICON_CHEVRON_SUBTLE,
+          "icon-size": 1,
+          "icon-rotation-alignment": "map",
+          "icon-allow-overlap": true,
+          "icon-ignore-placement": true,
+        },
+      },
+      beforeId,
+    );
+
     this.map.addLayer(
       {
         id: pointLayerId(route.id),
@@ -215,7 +245,12 @@ export class RouteLayer {
   }
 
   private removeRoute(id: string): void {
-    for (const lid of [labelLayerId(id), pointLayerId(id), lineLayerId(id)]) {
+    for (const lid of [
+      labelLayerId(id),
+      pointLayerId(id),
+      chevronLayerId(id),
+      lineLayerId(id),
+    ]) {
       if (this.map.getLayer(lid)) this.map.removeLayer(lid);
     }
     const sid = sourceId(id);

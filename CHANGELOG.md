@@ -5,6 +5,22 @@ Notable user-facing changes to Pelorus Nav. Downloads are on the
 
 The format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [Unreleased]
+
+### Added
+- Routes can now be reversed: a Reverse button in the route editor bar
+  (undoable) and a reverse icon in the route detail panel swap the
+  start and end.
+- Route lines now show small direction chevrons — subtle ones on saved
+  routes, bolder ones while editing — so a route's direction is visible
+  at a glance.
+
+### Fixed
+- The "+" handles for extending a route at either end now keep a fixed
+  on-screen distance from the end waypoints at any zoom level. They
+  previously overlapped the start/end markers when zoomed out, so a tap
+  on an end waypoint could silently add a new point there instead.
+
 ## [0.17.0] - 2026-07-26
 
 ### Changed
