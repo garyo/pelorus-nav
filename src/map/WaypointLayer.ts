@@ -96,6 +96,26 @@ export class WaypointLayer {
     return this.waypoints;
   }
 
+  /** Standalone waypoints rendered within a screen-space box, topmost first. */
+  hitTest(
+    box: [maplibregl.PointLike, maplibregl.PointLike],
+  ): StandaloneWaypoint[] {
+    const layers = [POINTS_LAYER, LABELS_LAYER].filter((l) =>
+      this.map.getLayer(l),
+    );
+    if (layers.length === 0) return [];
+    const out: StandaloneWaypoint[] = [];
+    const seen = new Set<string>();
+    for (const f of this.map.queryRenderedFeatures(box, { layers })) {
+      const id = f.properties?.id;
+      if (typeof id !== "string" || seen.has(id)) continue;
+      seen.add(id);
+      const wp = this.waypoints.find((w) => w.id === id);
+      if (wp) out.push(wp);
+    }
+    return out;
+  }
+
   private async setup(): Promise<void> {
     this.waypoints = await getAllWaypoints();
 

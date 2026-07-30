@@ -8,6 +8,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/).
 ## [Unreleased]
 
 ### Added
+- Tapping a route or waypoint on the chart now identifies it: an info card
+  shows the route's length and waypoint count (or the waypoint's notes and
+  position), selects the tapped route, and offers a button to open it in
+  the Routes or Waypoints panel.
 - A "Waypoint size" slider in Settings scales waypoint and route markers
   and their labels (50%–200%), including route-editing handles.
 - Routes can now be reversed: a Reverse button in the route editor bar

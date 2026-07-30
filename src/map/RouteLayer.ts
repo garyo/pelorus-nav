@@ -159,6 +159,47 @@ export class RouteLayer {
     }
   }
 
+  /**
+   * Routes rendered within a screen-space box, topmost first, one entry per
+   * route. A hit on a waypoint marker or its label carries that waypoint's
+   * index; a line/chevron hit leaves it undefined.
+   */
+  hitTest(
+    box: [maplibregl.PointLike, maplibregl.PointLike],
+  ): Array<{ route: Route; waypointIndex?: number }> {
+    const layers: string[] = [];
+    for (const route of this.getVisibleRoutes()) {
+      for (const lid of [
+        pointLayerId(route.id),
+        labelLayerId(route.id),
+        lineLayerId(route.id),
+        chevronLayerId(route.id),
+      ]) {
+        if (this.map.getLayer(lid)) layers.push(lid);
+      }
+    }
+    if (layers.length === 0) return [];
+
+    const results: Array<{ route: Route; waypointIndex?: number }> = [];
+    const byRoute = new Map<string, { route: Route; waypointIndex?: number }>();
+    for (const f of this.map.queryRenderedFeatures(box, { layers })) {
+      // Every queried layer draws from a per-route source "_route-<id>".
+      const route = this.loadedRoutes.get(f.source.slice("_route-".length));
+      if (!route) continue;
+      let entry = byRoute.get(route.id);
+      if (!entry) {
+        entry = { route };
+        byRoute.set(route.id, entry);
+        results.push(entry);
+      }
+      const idx = f.properties?.index;
+      if (entry.waypointIndex == null && typeof idx === "number") {
+        entry.waypointIndex = idx;
+      }
+    }
+    return results;
+  }
+
   /** Update a route's display (e.g. during editing). */
   updateRoute(route: Route): void {
     this.loadedRoutes.set(route.id, route);

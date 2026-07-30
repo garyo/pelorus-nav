@@ -15,6 +15,22 @@ export interface PickPoint {
   y: number;
 }
 
+/** Half-width in px of the square hit-test box around a tapped point —
+ *  catches small icons, thin lines, and labels that are hard to tap
+ *  precisely. Shared by the chart query handler and all pick contributors
+ *  so every pickable answers to the same tap slop. */
+export const PICK_BBOX_SLOP = 10;
+
+/** Screen-space query box around a point, for map.queryRenderedFeatures. */
+export function pickBbox(
+  point: PickPoint,
+): [[number, number], [number, number]] {
+  return [
+    [point.x - PICK_BBOX_SLOP, point.y - PICK_BBOX_SLOP],
+    [point.x + PICK_BBOX_SLOP, point.y + PICK_BBOX_SLOP],
+  ];
+}
+
 export interface PickContributor {
   /** Feature infos at this screen point, topmost first; [] if none. */
   collect(point: PickPoint): FeatureInfo[];

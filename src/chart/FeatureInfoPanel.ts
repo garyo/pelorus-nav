@@ -118,6 +118,20 @@ export class FeatureInfoPanel {
       }
     }
 
+    // Action buttons (e.g. "Open in Routes panel")
+    if (info.actions && info.actions.length > 0) {
+      const actionsRow = document.createElement("div");
+      actionsRow.className = "feature-info-actions";
+      for (const action of info.actions) {
+        const btn = document.createElement("button");
+        btn.className = "feature-info-action-btn";
+        btn.textContent = action.label;
+        btn.addEventListener("click", () => action.run());
+        actionsRow.appendChild(btn);
+      }
+      this.body.appendChild(actionsRow);
+    }
+
     // Footer: navigation between stacked features
     if (totalCount > 1) {
       this.footerLabel.textContent = `${currentIndex + 1} of ${totalCount}`;

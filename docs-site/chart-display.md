@@ -92,6 +92,15 @@ destroying your night vision:
 
 The E-ink theme is a high-contrast monochrome palette for e-paper devices.
 
+## Identifying features
+
+Tap any charted object — a buoy, light, wreck, depth area — and an info
+panel shows its attributes. When several features overlap at the tapped
+point, arrows in the panel cycle through them. Your own routes and
+waypoints are tappable too: a route's card shows its length and waypoint
+count (and tapping selects the route, as in the Routes panel), and a
+button jumps straight to it in the Routes or Waypoints panel.
+
 ## Finding places
 
 **FIND** searches the charts by name — harbors, islands, buoys, lights —

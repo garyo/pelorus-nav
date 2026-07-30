@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   convertSpeed,
+  formatDistanceInSpeedUnits,
   formatDistanceNM,
   MS_TO_KNOTS,
   speedUnitLabel,
@@ -89,5 +90,27 @@ describe("formatDistanceNM", () => {
   it("rounds sub-0.1NM distances to whole units", () => {
     expect(formatDistanceNM(0.001, "meters")).toBe("2 m");
     expect(formatDistanceNM(0.001, "feet")).toBe("6 ft");
+  });
+});
+
+describe("formatDistanceInSpeedUnits", () => {
+  it("formats nautical miles for knots", () => {
+    expect(formatDistanceInSpeedUnits(3.26, "knots")).toBe("3.3 nm");
+    expect(formatDistanceInSpeedUnits(12.4, "knots")).toBe("12 nm");
+  });
+
+  it("formats kilometers for kph", () => {
+    expect(formatDistanceInSpeedUnits(1, "kph")).toBe("1.9 km");
+    expect(formatDistanceInSpeedUnits(10, "kph")).toBe("19 km");
+  });
+
+  it("formats statute miles for mph", () => {
+    expect(formatDistanceInSpeedUnits(1, "mph")).toBe("1.2 mi");
+    expect(formatDistanceInSpeedUnits(10, "mph")).toBe("12 mi");
+  });
+
+  it("switches from one decimal to whole numbers at 5 units", () => {
+    expect(formatDistanceInSpeedUnits(4.99, "knots")).toBe("5.0 nm");
+    expect(formatDistanceInSpeedUnits(5, "knots")).toBe("5 nm");
   });
 });

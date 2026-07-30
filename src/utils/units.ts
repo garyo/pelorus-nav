@@ -31,6 +31,26 @@ export function speedUnitLabel(unit: SpeedUnit): string {
 }
 
 /**
+ * Format a route/track distance in the unit family implied by the speed
+ * unit: km for "kph", statute miles for "mph", otherwise nautical miles.
+ * Whole numbers from 5 up, one decimal below.
+ */
+export function formatDistanceInSpeedUnits(
+  nm: number,
+  unit: SpeedUnit,
+): string {
+  if (unit === "kph") {
+    const km = nm * 1.852;
+    return km >= 5 ? `${Math.round(km)} km` : `${km.toFixed(1)} km`;
+  }
+  if (unit === "mph") {
+    const mi = nm * 1.15078;
+    return mi >= 5 ? `${Math.round(mi)} mi` : `${mi.toFixed(1)} mi`;
+  }
+  return nm >= 5 ? `${Math.round(nm)} nm` : `${nm.toFixed(1)} nm`;
+}
+
+/**
  * Format a distance in nautical miles for on-chart labels: below 0.1 NM
  * (where "NM" would round to "0.00") switches to feet or meters per the
  * depth-unit setting.

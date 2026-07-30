@@ -72,7 +72,8 @@ brings you home.
 Selecting a route in the Routes panel opens its detail panel: the full
 waypoint list with each leg's bearing, distance, and cumulative distance —
 a passage plan you can read off directly. The summary at the bottom zooms
-the chart to the whole route.
+the chart to the whole route. You can also tap a route right on the chart:
+its info card selects it and has a button to open it in this panel.
 
 Per-route actions: navigate, preview (opens the route in the
 [Track Viewer](/tracks#the-track-viewer), where a planning speed gives you

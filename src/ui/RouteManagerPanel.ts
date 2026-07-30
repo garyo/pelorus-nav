@@ -17,7 +17,8 @@ import type { RouteLayer } from "../map/RouteLayer";
 import type { WaypointLayer } from "../map/WaypointLayer";
 import type { ActiveNavigationManager } from "../navigation/ActiveNavigation";
 import { getSettings, updateSettings } from "../settings";
-import { haversineDistanceNM } from "../utils/coordinates";
+import { pathDistanceNM } from "../utils/coordinates";
+import { formatDistanceInSpeedUnits } from "../utils/units";
 import { openColorPicker } from "./color-picker";
 import {
   iconActivity,
@@ -219,6 +220,36 @@ export class RouteManagerPanel {
     const liveRoute = this.editor.getRoute();
     if (liveRoute) this.detailPanel.show(liveRoute);
     this.hide();
+  }
+
+  /**
+   * Select a route from outside the panel (map tap-to-identify). Shares the
+   * row-selection state a row click uses, but never toggles off or refits
+   * the map. The row highlight applies immediately if the list is open, and
+   * via refresh() whenever it opens later.
+   */
+  selectExternal(route: Route): void {
+    if (this.selectedRouteId === route.id) return;
+    this.selectedRouteId = route.id;
+    for (const row of this.body.querySelectorAll(".manager-item.selected")) {
+      row.classList.remove("selected");
+    }
+    this.body
+      .querySelector(`.manager-item[data-route-id="${route.id}"]`)
+      ?.classList.add("selected");
+    this.routeLayer.selectRoute(route);
+  }
+
+  /** Open the panel with the given route selected and scrolled into view. */
+  async openWithSelection(route: Route): Promise<void> {
+    this.selectExternal(route);
+    this.show();
+    // show() kicked off its own refresh; await one more so the row for a
+    // just-seeded route definitely exists before scrolling to it.
+    await this.refresh();
+    this.body
+      .querySelector(`.manager-item[data-route-id="${route.id}"]`)
+      ?.scrollIntoView({ block: "nearest" });
   }
 
   private clearSelection(): void {
@@ -430,13 +461,8 @@ export class RouteManagerPanel {
     const detail = document.createElement("div");
     detail.className = "manager-item-detail";
     const legs = Math.max(0, route.waypoints.length - 1);
-    let totalNM = 0;
-    for (let i = 1; i < route.waypoints.length; i++) {
-      const a = route.waypoints[i - 1];
-      const b = route.waypoints[i];
-      totalNM += haversineDistanceNM(a.lat, a.lon, b.lat, b.lon);
-    }
-    detail.textContent = `${legs} leg${legs !== 1 ? "s" : ""}, ${formatRouteDistance(totalNM)}`;
+    const totalNM = pathDistanceNM(route.waypoints);
+    detail.textContent = `${legs} leg${legs !== 1 ? "s" : ""}, ${formatDistanceInSpeedUnits(totalNM, getSettings().speedUnit)}`;
 
     info.append(name, detail);
 
@@ -628,18 +654,4 @@ export class RouteManagerPanel {
     }
     alert(`Imported ${parts.join(" and ")}.`);
   }
-}
-
-/** Format a distance in NM using the user's preferred unit system. */
-function formatRouteDistance(nm: number): string {
-  const unit = getSettings().speedUnit;
-  if (unit === "kph") {
-    const km = nm * 1.852;
-    return km >= 5 ? `${Math.round(km)} km` : `${km.toFixed(1)} km`;
-  }
-  if (unit === "mph") {
-    const mi = nm * 1.15078;
-    return mi >= 5 ? `${Math.round(mi)} mi` : `${mi.toFixed(1)} mi`;
-  }
-  return nm >= 5 ? `${Math.round(nm)} nm` : `${nm.toFixed(1)} nm`;
 }

@@ -56,6 +56,8 @@ export class WaypointManagerPanel {
    *  lose the rename. */
   private editing = false;
   private cobHooks: WaypointCobHooks | null = null;
+  /** Row highlighted by openWithSelection (map tap-to-identify). */
+  private selectedWaypointId: string | null = null;
 
   constructor(
     waypointLayer: WaypointLayer,
@@ -143,6 +145,16 @@ export class WaypointManagerPanel {
     this.editing = false;
   }
 
+  /** Open the panel with the given waypoint highlighted and scrolled into
+   *  view (map tap-to-identify). */
+  openWithSelection(waypointId: string): void {
+    this.selectedWaypointId = waypointId;
+    this.show(); // refresh() applies the row highlight
+    this.body
+      .querySelector(`.manager-item[data-waypoint-id="${waypointId}"]`)
+      ?.scrollIntoView({ block: "nearest" });
+  }
+
   refresh(): void {
     if (this.editing) return;
     const waypoints = this.waypointLayer.getWaypoints();
@@ -163,6 +175,8 @@ export class WaypointManagerPanel {
   private createWaypointItem(wp: StandaloneWaypoint): HTMLDivElement {
     const item = document.createElement("div");
     item.className = "manager-item";
+    item.dataset.waypointId = wp.id;
+    if (this.selectedWaypointId === wp.id) item.classList.add("selected");
 
     const iconDot = document.createElement("div");
     iconDot.className = "manager-item-color";

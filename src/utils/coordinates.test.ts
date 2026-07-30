@@ -7,6 +7,7 @@ import {
   haversineDistanceNM,
   initialBearingDeg,
   parseLatLon,
+  pathDistanceNM,
   projectPoint,
   toDegrees,
   toRadians,
@@ -319,6 +320,41 @@ describe("bearingDelta", () => {
   });
   it("handles 360-valued inputs", () => {
     expect(bearingDelta(360, 0)).toBe(0);
+  });
+});
+
+describe("pathDistanceNM", () => {
+  it("returns 0 for empty and single-point paths", () => {
+    expect(pathDistanceNM([])).toBe(0);
+    expect(pathDistanceNM([{ lat: 42, lon: -71 }])).toBe(0);
+  });
+
+  it("matches haversineDistanceNM for a two-point path", () => {
+    const a = { lat: 42.36, lon: -71.05 };
+    const b = { lat: 42.35, lon: -71.03 };
+    expect(pathDistanceNM([a, b])).toBeCloseTo(
+      haversineDistanceNM(a.lat, a.lon, b.lat, b.lon),
+      10,
+    );
+  });
+
+  it("sums consecutive legs", () => {
+    const a = { lat: 42.0, lon: -71.0 };
+    const b = { lat: 42.1, lon: -71.0 };
+    const c = { lat: 42.1, lon: -70.9 };
+    const expected =
+      haversineDistanceNM(a.lat, a.lon, b.lat, b.lon) +
+      haversineDistanceNM(b.lat, b.lon, c.lat, c.lon);
+    expect(pathDistanceNM([a, b, c])).toBeCloseTo(expected, 10);
+  });
+
+  it("one degree of latitude is ~60 NM", () => {
+    expect(
+      pathDistanceNM([
+        { lat: 42, lon: -71 },
+        { lat: 43, lon: -71 },
+      ]),
+    ).toBeCloseTo(60, 0);
   });
 });
 

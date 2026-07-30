@@ -31,6 +31,25 @@ export function haversineDistanceNM(
 }
 
 /**
+ * Total great-circle length of a path (e.g. a route's waypoints) in
+ * nautical miles. Zero for fewer than two points.
+ */
+export function pathDistanceNM(
+  points: readonly { lat: number; lon: number }[],
+): number {
+  let total = 0;
+  for (let i = 1; i < points.length; i++) {
+    total += haversineDistanceNM(
+      points[i - 1].lat,
+      points[i - 1].lon,
+      points[i].lat,
+      points[i].lon,
+    );
+  }
+  return total;
+}
+
+/**
  * Format decimal degrees as degrees, minutes, and decimal minutes.
  * Returns e.g. "42°21.60'N" or "071°03.60'W"
  */

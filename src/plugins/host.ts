@@ -34,7 +34,7 @@ import {
 } from "../state/displayTime";
 import { createTrailingThrottle } from "../utils/trailing-throttle";
 import type { LegendHost } from "./legend";
-import type { PickContributor, PickRegistry } from "./picking";
+import { type PickContributor, type PickRegistry, pickBbox } from "./picking";
 import { slotBeforeId } from "./slots";
 import { createTileCacheProtocol } from "./tile-cache";
 import type {
@@ -219,11 +219,9 @@ export function activatePlugin(plugin: Plugin, deps: HostDeps): ActivePlugin {
           collect(point) {
             const live = reg.layers.filter((id) => deps.map.getLayer(id));
             if (live.length === 0) return [];
-            const bbox: [maplibregl.PointLike, maplibregl.PointLike] = [
-              [point.x - 10, point.y - 10],
-              [point.x + 10, point.y + 10],
-            ];
-            const hits = deps.map.queryRenderedFeatures(bbox, { layers: live });
+            const hits = deps.map.queryRenderedFeatures(pickBbox(point), {
+              layers: live,
+            });
             const infos: FeatureInfo[] = [];
             const seen = new Set<string>();
             for (const hit of hits) {

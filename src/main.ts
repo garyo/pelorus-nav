@@ -71,6 +71,7 @@ import { installPinchZoomGuard } from "./map/pinch-zoom-guard";
 import { PlottingLayer } from "./map/plotting/PlottingLayer";
 import { RouteEditor } from "./map/RouteEditor";
 import { RouteLayer } from "./map/RouteLayer";
+import { registerRouteWaypointPick } from "./map/route-waypoint-pick";
 import { TrackLayer } from "./map/TrackLayer";
 import { TrackRecorder } from "./map/TrackRecorder";
 import { TrackViewerLayer } from "./map/TrackViewerLayer";
@@ -1385,6 +1386,16 @@ const waypointPanel = new WaypointManagerPanel(waypointLayer, activeNav);
 idleCloseables.push(waypointPanel);
 routePanel.setActiveNav(activeNav);
 routePanel.setWaypointLayer(waypointLayer);
+
+// Tap-to-identify for routes and standalone waypoints: contributes cards to
+// the unified feature-info list, sharing the Routes panel's selection.
+registerRouteWaypointPick(pickRegistry, routeLayer, waypointLayer, {
+  onRouteShown: (route) => routePanel.selectExternal(route),
+  openRoute: (route) => {
+    routePanel.openWithSelection(route).catch(console.error);
+  },
+  openWaypoint: (wp) => waypointPanel.openWithSelection(wp.id),
+});
 
 // --- Crew Overboard (COB) ---
 const cobAlarm = new CobAlarm();

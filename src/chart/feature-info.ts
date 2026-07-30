@@ -13,6 +13,11 @@ export interface FeatureInfo {
   details: { label: string; value: string; dir?: number }[];
   /** Child features grouped under this parent (e.g. lights on a buoy). */
   children?: FeatureInfo[];
+  /** Action buttons rendered under the details (e.g. "Open in Routes panel"). */
+  actions?: { label: string; run: () => void }[];
+  /** Called each time this card becomes the displayed card, including via
+   *  prev/next cycling — e.g. to select the tapped route. */
+  onDisplay?: () => void;
 }
 
 // S-57 attribute code lookup tables

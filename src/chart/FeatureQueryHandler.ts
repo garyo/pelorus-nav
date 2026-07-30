@@ -1,7 +1,7 @@
 import type * as maplibregl from "maplibre-gl";
 import { getVectorSourceIds } from "../data/chart-catalog";
 import { getMode } from "../map/InteractionMode";
-import type { PickRegistry } from "../plugins/picking";
+import { type PickRegistry, pickBbox } from "../plugins/picking";
 import type { ChartManager } from "./ChartManager";
 import { FeatureInfoPanel } from "./FeatureInfoPanel";
 import type { FeatureInfo } from "./feature-info";
@@ -375,10 +375,7 @@ export class FeatureQueryHandler {
     if (layers.length > 0) {
       // Query with a bbox to catch small icons, thin lines, and labels
       // that are hard to tap precisely.
-      const bbox: [maplibregl.PointLike, maplibregl.PointLike] = [
-        [e.point.x - 10, e.point.y - 10],
-        [e.point.x + 10, e.point.y + 10],
-      ];
+      const bbox = pickBbox(e.point);
       const features = deduplicateFeatures(
         this.map.queryRenderedFeatures(bbox, { layers }),
       );
@@ -481,6 +478,7 @@ export class FeatureQueryHandler {
     if (item.kind === "info") {
       this.clearHighlight();
       this.panel.show(item.info, this.currentIndex, this.currentItems.length);
+      item.info.onDisplay?.();
       return;
     }
 
