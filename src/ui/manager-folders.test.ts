@@ -26,11 +26,11 @@ describe("groupByFolder", () => {
       item("b", 2, ""),
       item("c", 3, "   "),
     ]);
-    expect(g.ungrouped.map((i) => i.name)).toEqual(["c", "b", "a"]);
+    expect(g.ungrouped.map((i) => i.name)).toEqual(["a", "b", "c"]);
     expect(g.folders.size).toBe(0);
   });
 
-  it("sorts ungrouped newest-first, folders alphabetically, contents newest-first", () => {
+  it("sorts ungrouped, folders, and folder contents by name", () => {
     const g = groupByFolder([
       item("old-loose", 1),
       item("usvi-1", 10, "USVI"),
@@ -41,8 +41,8 @@ describe("groupByFolder", () => {
     expect(g.ungrouped.map((i) => i.name)).toEqual(["new-loose", "old-loose"]);
     expect([...g.folders.keys()]).toEqual(["Maine", "USVI"]);
     expect(g.folders.get("USVI")?.map((i) => i.name)).toEqual([
-      "usvi-2",
       "usvi-1",
+      "usvi-2",
     ]);
   });
 

@@ -5,9 +5,9 @@
  */
 
 export interface FolderGroups<T> {
-  /** Items with no folder, newest first (the panel's top-level order). */
+  /** Items with no folder, sorted by name (the panel's top-level order). */
   ungrouped: T[];
-  /** Folder name → items newest first; insertion order is alphabetical. */
+  /** Folder name → items sorted by name; insertion order is alphabetical. */
   folders: Map<string, T[]>;
 }
 
