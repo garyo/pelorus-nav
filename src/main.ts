@@ -1794,10 +1794,11 @@ if (topbarMenu) {
     );
   }
 
-  // Lock screen (native only) — disables the touchscreen so accidental taps are
-  // ignored under way; a volume-key press unlocks. Shown only while the
-  // volume-key controls setting is on (unlock relies on that interception).
-  if (Capacitor.isNativePlatform()) {
+  // Lock screen (Android only, like the HardwareKeys plugin) — disables the
+  // touchscreen so accidental taps are ignored under way; a volume-key press
+  // unlocks. Shown only while the volume-key controls setting is on (unlock
+  // relies on that interception).
+  if (Capacitor.getPlatform() === "android") {
     const lockBtn = buildTopbarAction(iconLock, "LOCK", "Lock screen", {
       fullLabel: "Lock screen",
     });

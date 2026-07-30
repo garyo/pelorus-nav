@@ -21,7 +21,10 @@ export interface HardwareKeysHandle {
 }
 
 export function installHardwareKeys(map: maplibregl.Map): HardwareKeysHandle {
-  if (!Capacitor.isNativePlatform()) return { lock: () => {} };
+  // Android-only: the plugin has no iOS implementation, so even registering
+  // listeners there rejects with "not implemented" (an unhandled rejection
+  // in every iOS error log).
+  if (Capacitor.getPlatform() !== "android") return { lock: () => {} };
 
   const pushEnabled = (enabled: boolean): void => {
     HardwareKeys.setEnabled({ enabled }).catch((err) =>

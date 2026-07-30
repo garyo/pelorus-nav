@@ -97,7 +97,7 @@ export interface Settings {
   /** After a stretch of no interaction, close open dialogs and recenter on the vessel. */
   autoReturnWhenIdle: boolean;
   /**
-   * Use the device's volume keys for chart control (native only): single press
+   * Use the device's volume keys for chart control (Android only): single press
    * zooms in/out, and a "Lock screen" menu item locks the touchscreen (a volume
    * press unlocks). Off by default so the keys keep their normal volume
    * behaviour.
