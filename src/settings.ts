@@ -107,7 +107,8 @@ export interface Settings {
   textScale: number;
   /** Scale factor for chart icons (1 = default, multiplied with scheme/theme scale). */
   iconScale: number;
-  /** Scale factor for waypoint markers and their labels (1 = default). */
+  /** Scale factor for waypoint markers (1 = default); their name labels keep
+   *  the standard text size. */
   waypointScale: number;
   /** Per-plugin settings namespace, keyed by plugin id. */
   plugins?: Record<string, Record<string, unknown>>;

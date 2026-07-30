@@ -300,7 +300,7 @@ function buildAppearanceTab(
     }),
   );
 
-  // Waypoint size slider (waypoint/route markers and their labels)
+  // Waypoint size slider (waypoint/route markers; labels keep standard size)
   tab.appendChild(
     buildSliderRow({
       id: "settings-waypoint-scale",

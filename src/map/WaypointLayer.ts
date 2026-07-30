@@ -17,6 +17,9 @@ const POINTS_LAYER = "_waypoints-points";
 const LABELS_LAYER = "_waypoints-labels";
 const ICON_SIZE = 0.85;
 const LABEL_TEXT_SIZE = 11;
+/** Label offset is in ems of the (fixed) text size, so it scales with the
+ *  waypoint-size setting to stay clear of the marker, not with the text. */
+const LABEL_OFFSET_EM = -1.5;
 
 export class WaypointLayer {
   private readonly map: maplibregl.Map;
@@ -32,11 +35,10 @@ export class WaypointLayer {
     onWaypointScaleChange((scale) => {
       if (!this.map.getLayer(POINTS_LAYER)) return;
       this.map.setLayoutProperty(POINTS_LAYER, "icon-size", ICON_SIZE * scale);
-      this.map.setLayoutProperty(
-        LABELS_LAYER,
-        "text-size",
-        LABEL_TEXT_SIZE * scale,
-      );
+      this.map.setLayoutProperty(LABELS_LAYER, "text-offset", [
+        0,
+        LABEL_OFFSET_EM * scale,
+      ]);
     });
 
     // Disable waypoint dragging during route-edit (and other non-query modes)
@@ -160,8 +162,8 @@ export class WaypointLayer {
           "text-field": ["get", "name"],
           // Bundled stack — see RouteLayer label layer for why this is required
           "text-font": ["Noto Sans Regular"],
-          "text-size": LABEL_TEXT_SIZE * getWaypointScale(),
-          "text-offset": [0, -1.5],
+          "text-size": LABEL_TEXT_SIZE,
+          "text-offset": [0, LABEL_OFFSET_EM * getWaypointScale()],
           "text-allow-overlap": false,
         },
         paint: {

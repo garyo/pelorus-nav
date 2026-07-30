@@ -1,9 +1,10 @@
 /**
- * Waypoint marker/label scale — the "Waypoint size" settings slider.
+ * Waypoint marker scale — the "Waypoint size" settings slider.
  * Layers that draw waypoints (WaypointLayer, RouteLayer, RouteEditor)
- * multiply their base icon/text sizes by this, and re-apply live via
- * onWaypointScaleChange (the layers survive style rebuilds, so a settings
- * subscription is the one reliable update path).
+ * multiply their base icon sizes (and label offsets — name labels keep the
+ * standard text size) by this, and re-apply live via onWaypointScaleChange
+ * (the layers survive style rebuilds, so a settings subscription is the one
+ * reliable update path).
  */
 
 import { getSettings, onSettingsChange } from "../settings";

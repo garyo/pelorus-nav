@@ -23,6 +23,9 @@ import { getWaypointScale, onWaypointScaleChange } from "./waypoint-scale";
 
 const POINT_ICON_SIZE = 0.75;
 const LABEL_TEXT_SIZE = 11;
+/** Label offset is in ems of the (fixed) text size, so it scales with the
+ *  waypoint-size setting to stay clear of the marker, not with the text. */
+const LABEL_OFFSET_EM = -1.5;
 
 function sourceId(routeId: string): string {
   return `_route-${routeId}`;
@@ -80,11 +83,10 @@ export class RouteLayer {
           "icon-size",
           POINT_ICON_SIZE * scale,
         );
-        this.map.setLayoutProperty(
-          labelLayerId(id),
-          "text-size",
-          LABEL_TEXT_SIZE * scale,
-        );
+        this.map.setLayoutProperty(labelLayerId(id), "text-offset", [
+          0,
+          LABEL_OFFSET_EM * scale,
+        ]);
       }
     });
   }
@@ -291,9 +293,12 @@ export class RouteLayer {
           // MapLibre's default stack, whose glyph fetch 200s into index.html
           // (SPA fallback) and fails to parse.
           "text-font": ["Noto Sans Regular"],
-          "text-size": LABEL_TEXT_SIZE * getWaypointScale(),
-          "text-offset": [0, -1.5],
-          "text-allow-overlap": true,
+          "text-size": LABEL_TEXT_SIZE,
+          "text-offset": [0, LABEL_OFFSET_EM * getWaypointScale()],
+          // Crowded names thin out via symbol collision. These layers sit
+          // above the chart's own labels, which place later and yield — so
+          // in practice waypoint names only compete with each other.
+          "text-allow-overlap": false,
         },
         paint: {
           "text-color": "#fff",

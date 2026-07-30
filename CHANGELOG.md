@@ -13,7 +13,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/).
   position), selects the tapped route, and offers a button to open it in
   the Routes or Waypoints panel.
 - A "Waypoint size" slider in Settings scales waypoint and route markers
-  and their labels (50%–200%), including route-editing handles.
+  (50%–200%), including route-editing handles.
 - Routes can now be reversed: a Reverse button in the route editor bar
   (undoable) and a reverse icon in the route detail panel swap the
   start and end.
@@ -22,6 +22,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/).
   at a glance.
 
 ### Changed
+- Route waypoint names now hide instead of overprinting each other when
+  waypoints are densely placed or the chart is zoomed out.
 - Long names in the routes, waypoints, and tracks panels now use the full
   panel width, moving the row's action buttons to a second line instead of
   truncating the name beside them.
