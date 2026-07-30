@@ -13,9 +13,9 @@ export interface FolderGroups<T> {
 
 /** Group items by their optional folder. Empty/whitespace folders count as
  *  ungrouped; folder names sort with localeCompare. */
-export function groupByFolder<T extends { folder?: string; createdAt: number }>(
-  items: readonly T[],
-): FolderGroups<T> {
+export function groupByFolder<
+  T extends { folder?: string; createdAt: number; name: string },
+>(items: readonly T[]): FolderGroups<T> {
   const ungrouped: T[] = [];
   const byName = new Map<string, T[]>();
   for (const item of items) {
@@ -28,12 +28,12 @@ export function groupByFolder<T extends { folder?: string; createdAt: number }>(
       else byName.set(folder, [item]);
     }
   }
-  const newestFirst = (a: T, b: T) => b.createdAt - a.createdAt;
-  ungrouped.sort(newestFirst);
+  const sortByName = (a: T, b: T) => a.name.localeCompare(b.name);
+  ungrouped.sort(sortByName);
   const folders = new Map(
     [...byName.entries()]
       .sort(([a], [b]) => a.localeCompare(b))
-      .map(([name, list]) => [name, list.sort(newestFirst)] as const),
+      .map(([name, list]) => [name, list.sort(sortByName)] as const),
   );
   return { ungrouped, folders };
 }

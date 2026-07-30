@@ -153,8 +153,8 @@ export class WaypointManagerPanel {
     }
 
     this.body.innerHTML = "";
-    // Sort by creation time, newest first
-    const sorted = [...waypoints].sort((a, b) => b.createdAt - a.createdAt);
+    // Sort by name
+    const sorted = [...waypoints].sort((a, b) => a.name.localeCompare(b.name));
     for (const wp of sorted) {
       this.body.appendChild(this.createWaypointItem(wp));
     }
