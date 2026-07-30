@@ -29,6 +29,9 @@ The format follows [Keep a Changelog](https://keepachangelog.com/).
   truncating the name beside them.
 
 ### Fixed
+- Tapping a route or track color swatch no longer re-triggers itself,
+  which crashed the color picker with a script error on iOS and leaked
+  hidden elements on other platforms.
 - The "+" handles for extending a route at either end now keep a fixed
   on-screen distance from the end waypoints at any zoom level. They
   previously overlapped the start/end markers when zoomed out, so a tap

@@ -26,6 +26,10 @@ export function openColorPicker(
   // Runs after `change` on a committed pick (harmless double-cleanup) and
   // is the only cleanup that fires on a cancelled pick.
   input.addEventListener("blur", cleanup);
+  // The synthetic click below must not bubble to the anchor: the anchor's
+  // own click handler is what called us, so re-entry recurses (stack
+  // overflow on iOS, dozens of leaked inputs elsewhere).
+  input.addEventListener("click", (e) => e.stopPropagation());
 
   input.click();
 }
