@@ -24,8 +24,10 @@ import { getWaypointScale, onWaypointScaleChange } from "./waypoint-scale";
 const POINT_ICON_SIZE = 0.75;
 const LABEL_TEXT_SIZE = 11;
 /** Label offset is in ems of the (fixed) text size, so it scales with the
- *  waypoint-size setting to stay clear of the marker, not with the text. */
-const LABEL_OFFSET_EM = -1.5;
+ *  waypoint-size setting to stay clear of the marker, not with the text.
+ *  Anchored at the bottom of the text block, so a name that wraps grows
+ *  upward instead of its second line landing on the marker. */
+const LABEL_OFFSET_EM = -1;
 
 function sourceId(routeId: string): string {
   return `_route-${routeId}`;
@@ -294,6 +296,7 @@ export class RouteLayer {
           // (SPA fallback) and fails to parse.
           "text-font": ["Noto Sans Regular"],
           "text-size": LABEL_TEXT_SIZE,
+          "text-anchor": "bottom",
           "text-offset": [0, LABEL_OFFSET_EM * getWaypointScale()],
           // Crowded names thin out via symbol collision. These layers sit
           // above the chart's own labels, which place later and yield — so
