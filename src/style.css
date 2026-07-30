@@ -1765,7 +1765,10 @@ body {
 .manager-item {
   display: flex;
   align-items: center;
-  gap: 8px;
+  /* A long name takes the full panel width and pushes the action buttons
+     onto a second line (see .manager-item-info / -detail). */
+  flex-wrap: wrap;
+  gap: 2px 8px;
   padding: 6px 12px;
   border-bottom: 1px solid #333;
 }
@@ -1855,7 +1858,9 @@ body {
 }
 
 .manager-item-info {
-  flex: 1;
+  /* basis:auto so the name's natural width decides whether the action
+     buttons still fit on this line or wrap below */
+  flex: 1 1 auto;
   min-width: 0;
 }
 
@@ -1869,6 +1874,10 @@ body {
 .manager-item-detail {
   font-size: 11px;
   color: #999;
+  /* Contribute nothing to the row's intrinsic width — only a long *name*
+     should wrap the action buttons (waypoint notes can be arbitrarily long). */
+  width: 0;
+  min-width: 100%;
 }
 
 .manager-item-detail--update {
@@ -1886,6 +1895,8 @@ body {
 .manager-item-actions {
   display: flex;
   gap: 4px;
+  /* Keeps the buttons right-aligned when they wrap to their own line */
+  margin-left: auto;
 }
 
 .manager-item-btn {
