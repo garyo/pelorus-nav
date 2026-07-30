@@ -5,7 +5,7 @@ Notable user-facing changes to Pelorus Nav. Downloads are on the
 
 The format follows [Keep a Changelog](https://keepachangelog.com/).
 
-## [Unreleased]
+## [0.18.0] - 2026-07-30
 
 ### Added
 - Tapping a route or waypoint on the chart now identifies it: an info card
