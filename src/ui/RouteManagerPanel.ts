@@ -39,6 +39,7 @@ import { folderVisibility, groupByFolder } from "./manager-folders";
 import { getPanelStack } from "./PanelStack";
 import { RouteDetailPanel } from "./RouteDetailPanel";
 import { registerSurface } from "./SurfaceManager";
+import { wireSortToggle } from "./sort-toggle";
 
 export class RouteManagerPanel {
   private readonly el: HTMLDivElement;
@@ -69,6 +70,7 @@ export class RouteManagerPanel {
       '<div class="manager-header">' +
       "<span>Routes</span>" +
       '<div style="display:flex;gap:6px;align-items:center">' +
+      '<button class="manager-item-btn" id="route-sort-btn"></button>' +
       '<button class="manager-item-btn" id="route-import-btn" title="Import GPX"></button>' +
       '<button class="manager-item-btn" id="route-export-all-btn" title="Export All GPX"></button>' +
       '<button class="route-editor-btn" id="route-new-btn">New</button>' +
@@ -84,6 +86,13 @@ export class RouteManagerPanel {
       setIcon(closeBtn, iconX);
       closeBtn.addEventListener("click", () => this.hide());
     }
+    wireSortToggle(
+      this.el.querySelector("#route-sort-btn") as HTMLElement,
+      () => {
+        this.refresh().catch(console.error);
+      },
+    );
+
     const importBtn = this.el.querySelector("#route-import-btn") as HTMLElement;
     setIcon(importBtn, iconFolderOpen);
     importBtn.addEventListener("click", () => this.importGpx());
@@ -313,7 +322,10 @@ export class RouteManagerPanel {
       return;
     }
 
-    const { ungrouped, folders } = groupByFolder(routes);
+    const { ungrouped, folders } = groupByFolder(
+      routes,
+      getSettings().managerSort,
+    );
 
     // Prune collapse-state entries for folders that no longer exist.
     const stored = getSettings().collapsedRouteFolders;

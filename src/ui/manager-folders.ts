@@ -4,10 +4,22 @@
  * at least one item references it — there are no folder objects anywhere.
  */
 
+export type ManagerSort = "name" | "recent";
+
+/** Item comparator for the manager panels: name A–Z or newest first. */
+export function managerSortComparator<
+  T extends { createdAt: number; name: string },
+>(sort: ManagerSort): (a: T, b: T) => number {
+  return sort === "recent"
+    ? (a, b) => b.createdAt - a.createdAt
+    : (a, b) => a.name.localeCompare(b.name);
+}
+
 export interface FolderGroups<T> {
-  /** Items with no folder, sorted by name (the panel's top-level order). */
+  /** Items with no folder, in the requested sort (the panel's top-level order). */
   ungrouped: T[];
-  /** Folder name → items sorted by name; insertion order is alphabetical. */
+  /** Folder name → items in the requested sort; insertion order is
+   *  alphabetical regardless — recency-ordered headers would feel random. */
   folders: Map<string, T[]>;
 }
 
@@ -15,7 +27,7 @@ export interface FolderGroups<T> {
  *  ungrouped; folder names sort with localeCompare. */
 export function groupByFolder<
   T extends { folder?: string; createdAt: number; name: string },
->(items: readonly T[]): FolderGroups<T> {
+>(items: readonly T[], sort: ManagerSort = "name"): FolderGroups<T> {
   const ungrouped: T[] = [];
   const byName = new Map<string, T[]>();
   for (const item of items) {
@@ -28,12 +40,12 @@ export function groupByFolder<
       else byName.set(folder, [item]);
     }
   }
-  const sortByName = (a: T, b: T) => a.name.localeCompare(b.name);
-  ungrouped.sort(sortByName);
+  const cmp = managerSortComparator<T>(sort);
+  ungrouped.sort(cmp);
   const folders = new Map(
     [...byName.entries()]
       .sort(([a], [b]) => a.localeCompare(b))
-      .map(([name, list]) => [name, list.sort(sortByName)] as const),
+      .map(([name, list]) => [name, list.sort(cmp)] as const),
   );
   return { ungrouped, folders };
 }

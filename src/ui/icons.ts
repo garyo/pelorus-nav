@@ -201,6 +201,15 @@ export const iconClock = svg(
   '<circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>',
 );
 
+/** Down arrow with A over Z — sorted by name. */
+export const iconSortAlpha = svg(
+  '<path d="m3 16 4 4 4-4"/>' +
+    '<path d="M7 20V4"/>' +
+    '<path d="M20 8h-5"/>' +
+    '<path d="M15 10V6.5a2.5 2.5 0 0 1 5 0V10"/>' +
+    '<path d="M15 14h5l-5 6h5"/>',
+);
+
 /** Check in circle — downloaded / available offline. (A slashed cloud read
  * as "offline access failed" to testers, so the indicator is positive.) */
 export const iconCheckCircle = svg(

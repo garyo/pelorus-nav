@@ -5,6 +5,13 @@ Notable user-facing changes to Pelorus Nav. Downloads are on the
 
 The format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [Unreleased]
+
+### Added
+- A sort button in the Routes and Waypoints panel headers switches the
+  lists between name order and most-recent-first (one shared preference;
+  folders stay alphabetical either way).
+
 ## [0.18.0] - 2026-07-30
 
 ### Added

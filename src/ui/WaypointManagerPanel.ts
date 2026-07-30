@@ -9,6 +9,7 @@ import { parseGpx, waypointsToGpx } from "../data/gpx";
 import type { StandaloneWaypoint, WaypointIcon } from "../data/Waypoint";
 import type { WaypointLayer } from "../map/WaypointLayer";
 import type { ActiveNavigationManager } from "../navigation/ActiveNavigation";
+import { getSettings } from "../settings";
 import {
   iconEdit,
   iconExport,
@@ -19,8 +20,10 @@ import {
   setIcon,
 } from "./icons";
 import { startInlineRename } from "./inline-rename";
+import { managerSortComparator } from "./manager-folders";
 import { getPanelStack } from "./PanelStack";
 import { registerSurface } from "./SurfaceManager";
+import { wireSortToggle } from "./sort-toggle";
 
 const ICON_LABELS: Record<WaypointIcon, string> = {
   default: "Default",
@@ -79,6 +82,7 @@ export class WaypointManagerPanel {
       '<div class="manager-header">' +
       "<span>Waypoints</span>" +
       '<div style="display:flex;gap:6px;align-items:center">' +
+      '<button class="manager-item-btn" id="wp-sort-btn"></button>' +
       '<button class="manager-item-btn" id="wp-import-btn" title="Import GPX"></button>' +
       '<button class="manager-item-btn" id="wp-export-all-btn" title="Export All GPX"></button>' +
       '<button class="manager-close"></button>' +
@@ -88,6 +92,10 @@ export class WaypointManagerPanel {
     getPanelStack().appendChild(this.el);
 
     this.body = this.el.querySelector(".manager-body") as HTMLDivElement;
+
+    wireSortToggle(this.el.querySelector("#wp-sort-btn") as HTMLElement, () =>
+      this.refresh(),
+    );
 
     const importBtn = this.el.querySelector("#wp-import-btn") as HTMLElement;
     setIcon(importBtn, iconFolderOpen);
@@ -165,8 +173,9 @@ export class WaypointManagerPanel {
     }
 
     this.body.innerHTML = "";
-    // Sort by name
-    const sorted = [...waypoints].sort((a, b) => a.name.localeCompare(b.name));
+    const sorted = [...waypoints].sort(
+      managerSortComparator(getSettings().managerSort),
+    );
     for (const wp of sorted) {
       this.body.appendChild(this.createWaypointItem(wp));
     }

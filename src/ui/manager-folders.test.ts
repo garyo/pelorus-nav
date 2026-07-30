@@ -46,6 +46,25 @@ describe("groupByFolder", () => {
     ]);
   });
 
+  it("sorts items newest-first in recent mode, folders still alphabetical", () => {
+    const g = groupByFolder(
+      [
+        item("old-loose", 1),
+        item("usvi-1", 10, "USVI"),
+        item("new-loose", 5),
+        item("maine-1", 20, "Maine"),
+        item("usvi-2", 30, "USVI"),
+      ],
+      "recent",
+    );
+    expect(g.ungrouped.map((i) => i.name)).toEqual(["new-loose", "old-loose"]);
+    expect([...g.folders.keys()]).toEqual(["Maine", "USVI"]);
+    expect(g.folders.get("USVI")?.map((i) => i.name)).toEqual([
+      "usvi-2",
+      "usvi-1",
+    ]);
+  });
+
   it("trims folder names when grouping", () => {
     const g = groupByFolder([item("a", 1, " USVI "), item("b", 2, "USVI")]);
     expect([...g.folders.keys()]).toEqual(["USVI"]);

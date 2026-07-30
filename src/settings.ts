@@ -110,6 +110,8 @@ export interface Settings {
   /** Scale factor for waypoint markers (1 = default); their name labels keep
    *  the standard text size. */
   waypointScale: number;
+  /** Sort order for the routes & waypoints manager lists. */
+  managerSort: "name" | "recent";
   /** Per-plugin settings namespace, keyed by plugin id. */
   plugins?: Record<string, Record<string, unknown>>;
 }
@@ -288,6 +290,7 @@ const DEFAULTS: Settings = {
   textScale: 1,
   iconScale: 1,
   waypointScale: 1,
+  managerSort: "name",
 };
 
 type SettingsListener = (settings: Settings) => void;
@@ -315,6 +318,7 @@ export const ALLOWED_VALUES: Partial<
   chartBlend: ["auto", "vector", "raster"],
   wakeLock: ["off", "when-nav", "always"],
   instrumentLayout: ["standard", "side"],
+  managerSort: ["name", "recent"],
 };
 
 /** Structural keys with their own merge/validation, skipped by the generic pass. */
