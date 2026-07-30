@@ -300,6 +300,20 @@ function buildAppearanceTab(
     }),
   );
 
+  // Waypoint size slider (waypoint/route markers and their labels)
+  tab.appendChild(
+    buildSliderRow({
+      id: "settings-waypoint-scale",
+      label: "Waypoint size",
+      min: 0.5,
+      max: 2,
+      step: 0.05,
+      value: settings.waypointScale,
+      format: (v) => `${Math.round(v * 100)}%`,
+      commit: (v) => updateSettings({ waypointScale: v }),
+    }),
+  );
+
   // Instrument layout (affects landscape phones; portrait/desktop unchanged)
   const INSTRUMENT_LAYOUT_OPTIONS = [
     { value: "side", label: "Side column" },

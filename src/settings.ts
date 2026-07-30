@@ -107,6 +107,8 @@ export interface Settings {
   textScale: number;
   /** Scale factor for chart icons (1 = default, multiplied with scheme/theme scale). */
   iconScale: number;
+  /** Scale factor for waypoint markers and their labels (1 = default). */
+  waypointScale: number;
   /** Per-plugin settings namespace, keyed by plugin id. */
   plugins?: Record<string, Record<string, unknown>>;
 }
@@ -284,6 +286,7 @@ const DEFAULTS: Settings = {
   volumeKeyControls: false,
   textScale: 1,
   iconScale: 1,
+  waypointScale: 1,
 };
 
 type SettingsListener = (settings: Settings) => void;

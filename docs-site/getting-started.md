@@ -51,6 +51,8 @@ people change first, all on the **Appearance** tab:
   [detail levels](/chart-display#detail-levels).
 - **Chart text / icon size** — scale up chart labels and symbols for
   readability at a distance.
+- **Waypoint size** — scale waypoint and route markers (and their labels)
+  up or down, including the handles shown while editing a route.
 - **Depth shading** — the Shallow / Safety / Deep thresholds control the
   blue depth tinting. Set them for *your* boat — e.g. with a 6 ft draft you
   might use 8 ft shallow and 12 ft safety, so water you can't enter is

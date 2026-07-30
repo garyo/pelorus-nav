@@ -56,6 +56,7 @@ import {
   type SnapCandidate,
   type SnapOp,
 } from "./route-snap";
+import { getWaypointScale, onWaypointScaleChange } from "./waypoint-scale";
 
 /** Screen-space offset of the extend handles beyond each end of the route
  *  (px). Fixed in pixels so the grips stay grabbable at any zoom — a geo
@@ -127,6 +128,7 @@ const SOURCE_HIGHLIGHT = "_route-edit-highlight";
 const LAYER_HIGHLIGHT = "_route-edit-highlight";
 const SOURCE_SNAP = "_route-edit-snap";
 const LAYER_SNAP = "_route-edit-snap";
+const HANDLE_ICON_SIZE = 1;
 
 type EditorListener = () => void;
 type FinishListener = (route: Route) => void;
@@ -176,6 +178,13 @@ export class RouteEditor {
   constructor(map: maplibregl.Map, routeLayer: RouteLayer) {
     this.map = map;
     this.routeLayer = routeLayer;
+
+    onWaypointScaleChange((scale) => {
+      for (const id of [LAYER_POINTS, LAYER_MIDPOINTS]) {
+        if (!this.map.getLayer(id)) continue;
+        this.map.setLayoutProperty(id, "icon-size", HANDLE_ICON_SIZE * scale);
+      }
+    });
 
     this.bar = document.createElement("div");
     this.bar.className = "route-editor-bar";
@@ -897,7 +906,7 @@ export class RouteEditor {
       source: SOURCE_MIDPOINTS,
       layout: {
         "icon-image": ROLE_ICON_EXPR,
-        "icon-size": 1,
+        "icon-size": HANDLE_ICON_SIZE * getWaypointScale(),
         "icon-allow-overlap": true,
       },
     });
@@ -909,7 +918,7 @@ export class RouteEditor {
       source: SOURCE_ID,
       layout: {
         "icon-image": ROLE_ICON_EXPR,
-        "icon-size": 1,
+        "icon-size": HANDLE_ICON_SIZE * getWaypointScale(),
         "icon-allow-overlap": true,
       },
     });

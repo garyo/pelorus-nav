@@ -19,6 +19,10 @@ import {
 } from "./point-icons";
 import { GLOW_LIGHTEN } from "./selection-glow";
 import { SelectionHalo } from "./selection-halo";
+import { getWaypointScale, onWaypointScaleChange } from "./waypoint-scale";
+
+const POINT_ICON_SIZE = 0.75;
+const LABEL_TEXT_SIZE = 11;
 
 function sourceId(routeId: string): string {
   return `_route-${routeId}`;
@@ -67,6 +71,22 @@ export class RouteLayer {
     });
     map.on("style.load", () => this.reloadAll());
     if (map.isStyleLoaded()) this.reloadAll();
+
+    onWaypointScaleChange((scale) => {
+      for (const id of this.loadedRoutes.keys()) {
+        if (!this.map.getLayer(pointLayerId(id))) continue;
+        this.map.setLayoutProperty(
+          pointLayerId(id),
+          "icon-size",
+          POINT_ICON_SIZE * scale,
+        );
+        this.map.setLayoutProperty(
+          labelLayerId(id),
+          "text-size",
+          LABEL_TEXT_SIZE * scale,
+        );
+      }
+    });
   }
 
   async reloadAll(): Promise<void> {
@@ -211,7 +231,7 @@ export class RouteLayer {
         filter: ["==", ["geometry-type"], "Point"],
         layout: {
           "icon-image": ROLE_ICON_EXPR,
-          "icon-size": 0.75,
+          "icon-size": POINT_ICON_SIZE * getWaypointScale(),
           "icon-allow-overlap": true,
         },
       },
@@ -230,7 +250,7 @@ export class RouteLayer {
           // MapLibre's default stack, whose glyph fetch 200s into index.html
           // (SPA fallback) and fails to parse.
           "text-font": ["Noto Sans Regular"],
-          "text-size": 11,
+          "text-size": LABEL_TEXT_SIZE * getWaypointScale(),
           "text-offset": [0, -1.5],
           "text-allow-overlap": true,
         },

@@ -10,10 +10,13 @@ import { DraggablePoints } from "./DraggablePoints";
 import { onModeChange } from "./InteractionMode";
 import { belowVesselLayerId } from "./layer-order";
 import { ensurePointIcons, WAYPOINT_ICON_EXPR } from "./point-icons";
+import { getWaypointScale, onWaypointScaleChange } from "./waypoint-scale";
 
 const SOURCE_ID = "_waypoints";
 const POINTS_LAYER = "_waypoints-points";
 const LABELS_LAYER = "_waypoints-labels";
+const ICON_SIZE = 0.85;
+const LABEL_TEXT_SIZE = 11;
 
 export class WaypointLayer {
   private readonly map: maplibregl.Map;
@@ -25,6 +28,16 @@ export class WaypointLayer {
     this.map = map;
     map.on("style.load", () => this.setup());
     if (map.isStyleLoaded()) this.setup();
+
+    onWaypointScaleChange((scale) => {
+      if (!this.map.getLayer(POINTS_LAYER)) return;
+      this.map.setLayoutProperty(POINTS_LAYER, "icon-size", ICON_SIZE * scale);
+      this.map.setLayoutProperty(
+        LABELS_LAYER,
+        "text-size",
+        LABEL_TEXT_SIZE * scale,
+      );
+    });
 
     // Disable waypoint dragging during route-edit (and other non-query modes)
     onModeChange((mode) => {
@@ -111,7 +124,7 @@ export class WaypointLayer {
         source: SOURCE_ID,
         layout: {
           "icon-image": WAYPOINT_ICON_EXPR,
-          "icon-size": 0.85,
+          "icon-size": ICON_SIZE * getWaypointScale(),
           "icon-allow-overlap": true,
         },
       },
@@ -127,7 +140,7 @@ export class WaypointLayer {
           "text-field": ["get", "name"],
           // Bundled stack — see RouteLayer label layer for why this is required
           "text-font": ["Noto Sans Regular"],
-          "text-size": 11,
+          "text-size": LABEL_TEXT_SIZE * getWaypointScale(),
           "text-offset": [0, -1.5],
           "text-allow-overlap": false,
         },
