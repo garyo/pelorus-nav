@@ -31,14 +31,47 @@ function dedupeName(name: string, taken: Set<string>): string {
   return taken.has(name) ? name + IMPORTED_SUFFIX : name;
 }
 
-/** Save everything in a parsed GPX file. Returns what was written. */
+/** Longest folder name worth keeping from a file's own metadata. */
+const MAX_FOLDER_NAME = 40;
+
+/**
+ * The folder name to offer for a multi-route import: what the file calls
+ * itself, else the date it arrived.
+ *
+ * A file's `<metadata><name>` is the only self-description that survives every
+ * delivery route — a cloud provider can hand over a GPX with no filename at
+ * all (see filenameFromUrl) — but it's free text, so anything unreasonably
+ * long or blank falls back to the date.
+ */
+export function defaultImportFolder(
+  result: GpxImportResult,
+  now = new Date(),
+): string {
+  const name = result.metadataName?.trim();
+  if (name && name.length <= MAX_FOLDER_NAME) return name;
+  const when = now.toLocaleDateString(undefined, {
+    month: "short",
+    day: "numeric",
+  });
+  return `Imported ${when}`;
+}
+
+/**
+ * Save everything in a parsed GPX file. Returns what was written.
+ *
+ * `folder` files the imported routes, so a big import lands somewhere the
+ * Routes panel can hide in one tap. Routes that name their own folder (a
+ * Pelorus export round-tripping home) keep it.
+ */
 export async function saveGpxImport(
   result: GpxImportResult,
+  folder?: string,
 ): Promise<GpxImportCounts> {
   if (result.routes.length > 0) {
     const taken = new Set((await getAllRoutes()).map((r) => r.name));
     for (const route of result.routes) {
       route.name = dedupeName(route.name, taken);
+      if (folder && !route.folder) route.folder = folder;
     }
     await Promise.all(result.routes.map((route) => saveRoute(route)));
   }

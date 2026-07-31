@@ -178,6 +178,28 @@ describe("GPX import", () => {
     );
   });
 
+  it("reads the file's own name from <metadata>", () => {
+    const gpx = routeToGpx(sampleRoute);
+    expect(parseGpx(gpx).metadataName).toBe("Boston Harbor");
+  });
+
+  it("reports no name when <metadata> carries none", () => {
+    const gpx =
+      '<?xml version="1.0"?><gpx version="1.1" creator="test">' +
+      "<rte><name>Loose</name>" +
+      '<rtept lat="42.36" lon="-71.05"/></rte></gpx>';
+    expect(parseGpx(gpx).metadataName).toBeNull();
+  });
+
+  it("takes the file's name, not a route's, from a named file", () => {
+    const gpx =
+      '<?xml version="1.0"?><gpx version="1.1" creator="test">' +
+      "<metadata><name>Maine Cruise</name></metadata>" +
+      "<rte><name>Leg 1</name>" +
+      '<rtept lat="42.36" lon="-71.05"/></rte></gpx>';
+    expect(parseGpx(gpx).metadataName).toBe("Maine Cruise");
+  });
+
   it("round-trips a track with timestamps and sog/cog", () => {
     const gpx = trackToGpx(sampleTrackMeta, sampleTrackPoints);
     const result = parseGpx(gpx);

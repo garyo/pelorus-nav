@@ -201,6 +201,10 @@ export interface GpxImportResult {
   waypoints: StandaloneWaypoint[];
   /** Points/waypoints dropped for missing or out-of-range lat/lon. */
   skippedPoints: number;
+  /** The file's `<metadata><name>`, when it carries one. Names the folder a
+   *  multi-route import is offered — it travels inside the file, so it
+   *  survives arriving from a cloud drive with no usable filename. */
+  metadataName: string | null;
 }
 
 /**
@@ -399,5 +403,8 @@ export function parseGpx(xml: string): GpxImportResult {
     );
   }
 
-  return { routes, tracks, waypoints, skippedPoints };
+  const metadataEl = getElements(root, "metadata")[0];
+  const metadataName = metadataEl ? childText(metadataEl, "name") : null;
+
+  return { routes, tracks, waypoints, skippedPoints, metadataName };
 }

@@ -10,6 +10,7 @@
 import { GPX_ACCEPT, pickFile } from "../data/file-io";
 import { type GpxImportResult, parseGpx } from "../data/gpx";
 import {
+  defaultImportFolder,
   describeGpxImport,
   type GpxImportCounts,
   saveGpxImport,
@@ -69,12 +70,36 @@ export async function pickAndParseGpx(): Promise<GpxImportResult | null> {
   return parseGpxOrAlert(xml);
 }
 
+/**
+ * Offer to file a multi-route import in a folder, and return the name chosen.
+ *
+ * One GPX can carry a whole season's routes, and sixty loose routes bury the
+ * chart with no way to clear them but sixty taps of the eye. A folder gives
+ * the Routes panel's existing bulk-visibility eye something to act on, so the
+ * moment to ask is while the import is still in the user's hands.
+ *
+ * Only multi-route files ask: a single route is not clutter, and routes that
+ * carry their own folder are left alone by saveGpxImport either way. An empty
+ * answer or a cancel means "leave them loose" — declining must be as easy as
+ * accepting.
+ */
+export function askImportFolder(result: GpxImportResult): string | undefined {
+  if (result.routes.length < 2) return undefined;
+  const answer = prompt(
+    `Put these ${result.routes.length} routes in a folder?\n` +
+      "You can hide or show a folder's routes together. " +
+      "Leave it empty to skip.",
+    defaultImportFolder(result),
+  );
+  return answer?.trim() || undefined;
+}
+
 /** The Import button on every manager panel. */
 export async function importGpxFromPicker(): Promise<void> {
   const result = await pickAndParseGpx();
   if (!result) return;
 
-  const counts = await saveGpxImport(result);
+  const counts = await saveGpxImport(result, askImportFolder(result));
   await reloadImportedLayers(counts);
 
   const what = describeGpxImport(counts);

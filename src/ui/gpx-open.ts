@@ -12,7 +12,7 @@ import { type OpenedFile, onFileOpen } from "../app/fileOpenQueue";
 import { deleteInboxCopy } from "../data/file-io";
 import { parseGpx } from "../data/gpx";
 import { describeGpxImport, saveGpxImport } from "../data/gpx-import";
-import { reloadImportedLayers } from "./gpx-import";
+import { askImportFolder, reloadImportedLayers } from "./gpx-import";
 import { showStatusBanner } from "./StatusBanner";
 import { showUpdateNotice } from "./updateNotice";
 
@@ -107,7 +107,10 @@ async function handleOpenedFile(
       void (async () => {
         let counts: Awaited<ReturnType<typeof saveGpxImport>>;
         try {
-          counts = await saveGpxImport(result);
+          // The one modal in this flow, and only for a multi-route file. It
+          // answers the Import tap the user just made, so it doesn't break the
+          // rule above: nothing interrupts until they've asked for something.
+          counts = await saveGpxImport(result, askImportFolder(result));
           await reloadImportedLayers(counts);
         } catch (e) {
           console.error("GPX import failed:", e);

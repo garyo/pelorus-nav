@@ -7,6 +7,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Added
+- Importing a GPX file that holds more than one route offers to file them in
+  a folder, named after the file when it says what it is. A folder's eye
+  hides or shows all its routes at once, so a big import no longer buries
+  the chart in routes you have to hide one at a time.
+
 ## [0.19.0] - 2026-07-31
 
 ### Added

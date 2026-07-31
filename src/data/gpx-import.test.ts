@@ -13,6 +13,7 @@ vi.mock("./db", () => mocks);
 
 import type { GpxImportResult } from "./gpx";
 import {
+  defaultImportFolder,
   describeGpxImport,
   type GpxImportCounts,
   saveGpxImport,
@@ -66,6 +67,7 @@ function result(partial: Partial<GpxImportResult>): GpxImportResult {
     tracks: [],
     waypoints: [],
     skippedPoints: 0,
+    metadataName: null,
     ...partial,
   };
 }
@@ -160,6 +162,73 @@ describe("saveGpxImport", () => {
       waypoints: 0,
       skippedPoints: 0,
     });
+  });
+});
+
+describe("saveGpxImport folders", () => {
+  beforeEach(() => {
+    for (const fn of Object.values(mocks)) fn.mockReset();
+    mocks.getAllRoutes.mockResolvedValue([]);
+    mocks.saveRoute.mockResolvedValue(undefined);
+  });
+
+  it("files imported routes in the given folder", async () => {
+    const a = route("Passage");
+    const b = route("Return");
+
+    await saveGpxImport(result({ routes: [a, b] }), "ActiveCaptain");
+
+    expect(a.folder).toBe("ActiveCaptain");
+    expect(b.folder).toBe("ActiveCaptain");
+  });
+
+  it("leaves a route's own folder alone", async () => {
+    const own = { ...route("Passage"), folder: "Maine Cruise" };
+
+    await saveGpxImport(result({ routes: [own] }), "ActiveCaptain");
+
+    expect(own.folder).toBe("Maine Cruise");
+  });
+
+  it("leaves routes unfiled when no folder is given", async () => {
+    const loose = route("Passage");
+
+    await saveGpxImport(result({ routes: [loose] }));
+
+    expect(loose.folder).toBeUndefined();
+  });
+});
+
+describe("defaultImportFolder", () => {
+  const june = new Date("2026-06-04T12:00:00Z");
+
+  it("uses the file's own name", () => {
+    expect(defaultImportFolder(result({ metadataName: "Maine Cruise" }))).toBe(
+      "Maine Cruise",
+    );
+  });
+
+  it("trims the file's name", () => {
+    expect(defaultImportFolder(result({ metadataName: "  Day Sails " }))).toBe(
+      "Day Sails",
+    );
+  });
+
+  it("falls back to the date when the file names itself blankly", () => {
+    expect(defaultImportFolder(result({ metadataName: "   " }), june)).toBe(
+      `Imported ${june.toLocaleDateString(undefined, { month: "short", day: "numeric" })}`,
+    );
+  });
+
+  it("falls back to the date when the file has no name", () => {
+    expect(defaultImportFolder(result({}), june)).toMatch(/^Imported /);
+  });
+
+  it("falls back to the date rather than use an unwieldy name", () => {
+    const long = "A very long description of this file".repeat(3);
+    expect(defaultImportFolder(result({ metadataName: long }), june)).toMatch(
+      /^Imported /,
+    );
   });
 });
 
