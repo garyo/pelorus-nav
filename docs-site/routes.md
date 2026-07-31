@@ -98,7 +98,18 @@ on the chart. A route with no folder simply lists at the top.
 ### Export and import (GPX)
 
 The panel header's import/export buttons read and write standard GPX files,
-and each route row can be exported individually. Two reasons to use them:
+and each route row can be exported individually:
+
+![The Routes panel's import and export buttons](/images/route-export.png)
+
+The open-folder button imports; the button beside it exports every route at
+once. The same export glyph appears on each route row, third along, for that
+route on its own. In the phone and tablet apps it's the share mark shown
+here, and it opens the usual share sheet — on iPhone and iPad, **Save to
+Files** puts the GPX where you want it. In a browser it's a download arrow
+instead, and the file lands in your downloads folder.
+
+Two reasons to use them:
 
 - **Backup** — routes live in the app's local storage on that device.
   Export All every so often and you can't lose a season's planning to a
@@ -109,6 +120,15 @@ and each route row can be exported individually. Two reasons to use them:
   button — then import the file on the phone or tablet you navigate with.
   GPX is the standard interchange format, so the same files also move
   routes to and from other chartplotters and apps.
+
+Importing needn't start in the app: open a `.gpx` file from Files, Mail, or a
+cloud drive and choose Pelorus Nav, and it loads straight in.
+
+A file carrying more than one route offers to put them in a folder, named
+after the file if it says what it is. Worth accepting for a big import — a
+download of somebody's cruising routes can be dozens at once, and a folder
+keeps them together and lets you clear them off the chart with one tap of its
+eye. Leave the name empty to skip, and the routes simply list on their own.
 
 ## Following a route
 

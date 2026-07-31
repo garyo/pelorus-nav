@@ -10,6 +10,7 @@
 import { mkdirSync, readFileSync } from "node:fs";
 import { type Browser, chromium, type Page } from "playwright";
 import { REPLAY_TRACK } from "../src/navigation/replay-track";
+import { iconShare } from "../src/ui/icons";
 
 const BASE = process.env.DOCS_SHOTS_BASE ?? "http://localhost:5173";
 const OUT = new URL("../docs-site/public/images", import.meta.url).pathname;
@@ -197,6 +198,8 @@ interface Scene {
   settings?: Record<string, unknown>;
   /** Screenshot only this element instead of the full page. */
   element?: string;
+  /** Show the export glyph the way the phone/tablet apps do (see useAppIcons). */
+  appIcons?: boolean;
   /** Drive the UI after the chart settles; the screenshot follows. */
   actions?: (page: Page) => Promise<void>;
 }
@@ -215,6 +218,37 @@ async function clickTopbar(page: Page, title: string) {
 async function openRoutePanel(page: Page) {
   await clickTopbar(page, "Routes");
   await page.waitForSelector(".route-manager-panel.open");
+}
+
+/**
+ * Redraw the export buttons with the share glyph the native apps use.
+ *
+ * `iconExport` (src/ui/icons.ts) is the download tray on the web and the share
+ * mark on Capacitor, matching what the button does on each platform. These
+ * shots come from the web build, but most readers navigate with the phone or
+ * tablet app, so guide images of the export controls have to show the app's
+ * glyph or they send readers hunting for an arrow their device never draws.
+ *
+ * The panels rebuild their rows whenever a layer changes, so the swap
+ * re-applies rather than running once.
+ */
+async function useAppIcons(page: Page) {
+  await page.evaluate((share) => {
+    const apply = () => {
+      for (const b of document.querySelectorAll<HTMLElement>(
+        'button[title="Export GPX"], button[title="Export All GPX"]',
+      )) {
+        if (b.dataset.appIcon) continue;
+        b.innerHTML = share;
+        b.dataset.appIcon = "1";
+      }
+    };
+    apply();
+    new MutationObserver(apply).observe(document.body, {
+      childList: true,
+      subtree: true,
+    });
+  }, iconShare);
 }
 
 const SCENES: Scene[] = [
@@ -399,6 +433,19 @@ const SCENES: Scene[] = [
       );
       await page.waitForSelector(".route-detail-panel.open");
     },
+  },
+  {
+    // Panel-only crop for the GPX section: the header's import/export pair and
+    // a row's own export button, drawn as the apps draw them (appIcons).
+    name: "route-export",
+    zoom: 12.3,
+    center: [-70.97, 42.345],
+    seedFolders: true,
+    // Collapsed so the panel ends on a whole row rather than a clipped one.
+    settings: { collapsedRouteFolders: ["Maine Cruise"] },
+    element: ".route-manager-panel",
+    appIcons: true,
+    actions: openRoutePanel,
   },
   {
     name: "route-navigation",
@@ -606,6 +653,7 @@ async function shoot(scene: Scene, browser: Browser) {
   await page.waitForTimeout(6_000); // tiles + sprites settle
 
   await scene.actions?.(page);
+  if (scene.appIcons) await useAppIcons(page);
   await page.waitForTimeout(500);
 
   const path = `${OUT}/${scene.name}.png`;
