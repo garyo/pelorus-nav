@@ -9,13 +9,21 @@ import { Share } from "@capacitor/share";
 export const GPX_MIME = "application/gpx+xml";
 
 /**
- * `accept` filter for GPX file pickers. `.gpx` has no system-registered UTI on
- * iOS, so a bare ".gpx" makes WebKit's Files picker grey out iCloud Drive and
- * cloud-provider items it can't type-resolve. Listing resolvable MIME types
- * alongside keeps those sources selectable; the GPX parser rejects non-GPX
- * input, so a stray .xml pick still fails cleanly.
+ * `accept` filter for GPX file pickers — deliberately empty, so every file
+ * stays selectable.
+ *
+ * iOS registers no UTI for `.gpx` (it isn't in CoreTypes, and a stock device
+ * has no app that declares it), so a GPX file resolves to a dynamic type
+ * conforming only to `public.data`. WebKit's picker also drops extension
+ * entries from `accept` as soon as any MIME type is listed, and then filters
+ * on the MIME-derived types alone — so *any* MIME type here greys out every
+ * real GPX file on iPhone and iPad, in the app and in Safari alike.
+ *
+ * Filtering by extension only would work today, but an unfiltered picker
+ * can't be defeated by a provider that types files unhelpfully. Nothing is
+ * lost: pickAndParseGpx reports non-GPX input cleanly.
  */
-export const GPX_ACCEPT = ".gpx,application/gpx+xml,application/xml,text/xml";
+export const GPX_ACCEPT = "";
 
 export type ShareOutcome = "shared" | "downloaded" | "cancelled";
 

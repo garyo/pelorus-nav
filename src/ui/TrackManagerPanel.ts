@@ -9,14 +9,8 @@ import {
   getTrackPoints,
   saveTrackMeta,
 } from "../data/db";
-import {
-  downloadFile,
-  GPX_ACCEPT,
-  GPX_MIME,
-  pickFile,
-  sanitizeFilename,
-} from "../data/file-io";
-import { exportAllToGpx, parseGpx, trackToGpx } from "../data/gpx";
+import { downloadFile, GPX_MIME, sanitizeFilename } from "../data/file-io";
+import { exportAllToGpx, trackToGpx } from "../data/gpx";
 import {
   computeTrackAggregates,
   isTrivialTrack,
@@ -27,6 +21,7 @@ import type { TrackRecorder } from "../map/TrackRecorder";
 import { updateSettings } from "../settings";
 import { formatDistanceShort, formatDurationShort } from "../utils/format";
 import { openColorPicker } from "./color-picker";
+import { pickAndParseGpx } from "./gpx-import";
 import {
   iconActivity,
   iconExport,
@@ -506,14 +501,9 @@ export class TrackManagerPanel {
   }
 
   private async importGpx(): Promise<void> {
-    let xml: string;
-    try {
-      xml = await pickFile(GPX_ACCEPT);
-    } catch {
-      return; // cancelled
-    }
+    const result = await pickAndParseGpx();
+    if (!result) return;
 
-    const result = parseGpx(xml);
     if (result.tracks.length === 0) {
       alert("No tracks found in this GPX file.");
       return;

@@ -3,14 +3,8 @@
  */
 
 import { deleteRoute, getAllRoutes, saveRoute, saveWaypoint } from "../data/db";
-import {
-  downloadFile,
-  GPX_ACCEPT,
-  GPX_MIME,
-  pickFile,
-  sanitizeFilename,
-} from "../data/file-io";
-import { exportAllToGpx, parseGpx, routeToGpx } from "../data/gpx";
+import { downloadFile, GPX_MIME, sanitizeFilename } from "../data/file-io";
+import { exportAllToGpx, routeToGpx } from "../data/gpx";
 import type { Route } from "../data/Route";
 import type { RouteEditor } from "../map/RouteEditor";
 import type { RouteLayer } from "../map/RouteLayer";
@@ -20,6 +14,7 @@ import { getSettings, updateSettings } from "../settings";
 import { pathDistanceNM } from "../utils/coordinates";
 import { formatDistanceInSpeedUnits } from "../utils/units";
 import { openColorPicker } from "./color-picker";
+import { pickAndParseGpx } from "./gpx-import";
 import {
   iconActivity,
   iconChevronDown,
@@ -620,14 +615,9 @@ export class RouteManagerPanel {
   }
 
   private async importGpx(): Promise<void> {
-    let xml: string;
-    try {
-      xml = await pickFile(GPX_ACCEPT);
-    } catch {
-      return; // cancelled
-    }
+    const result = await pickAndParseGpx();
+    if (!result) return;
 
-    const result = parseGpx(xml);
     if (result.routes.length === 0 && result.waypoints.length === 0) {
       alert("No routes or waypoints found in this GPX file.");
       return;

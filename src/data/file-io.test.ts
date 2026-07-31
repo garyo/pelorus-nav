@@ -18,7 +18,16 @@ vi.mock("@capacitor/share", () => ({
   Share: { share: mocks.share },
 }));
 
-import { shareOrDownloadFile } from "./file-io";
+import { GPX_ACCEPT, shareOrDownloadFile } from "./file-io";
+
+describe("GPX_ACCEPT", () => {
+  // iOS has no UTI for .gpx, and WebKit's picker ignores extension entries
+  // once any MIME type is listed — so a MIME type here greys out every real
+  // GPX file on iPhone and iPad. Keep the picker unfiltered.
+  it("lists no MIME types", () => {
+    expect(GPX_ACCEPT).not.toMatch(/\//);
+  });
+});
 
 describe("shareOrDownloadFile (native)", () => {
   beforeEach(() => {

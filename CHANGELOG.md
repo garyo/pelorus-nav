@@ -7,6 +7,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Fixed
+- GPX import works again on iPhone and iPad: the file picker greyed out
+  every .gpx file, in the app and in Safari, so nothing could be selected.
+
 ### Added
 - A sort button in the Routes and Waypoints panel headers switches the
   lists between name order and most-recent-first (one shared preference;

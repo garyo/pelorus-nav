@@ -4,12 +4,13 @@
  */
 
 import { deleteWaypoint, getAllWaypoints, saveWaypoint } from "../data/db";
-import { downloadFile, GPX_ACCEPT, GPX_MIME, pickFile } from "../data/file-io";
-import { parseGpx, waypointsToGpx } from "../data/gpx";
+import { downloadFile, GPX_MIME } from "../data/file-io";
+import { waypointsToGpx } from "../data/gpx";
 import type { StandaloneWaypoint, WaypointIcon } from "../data/Waypoint";
 import type { WaypointLayer } from "../map/WaypointLayer";
 import type { ActiveNavigationManager } from "../navigation/ActiveNavigation";
 import { getSettings } from "../settings";
+import { pickAndParseGpx } from "./gpx-import";
 import {
   iconEdit,
   iconExport,
@@ -293,14 +294,9 @@ export class WaypointManagerPanel {
   }
 
   private async importGpx(): Promise<void> {
-    let xml: string;
-    try {
-      xml = await pickFile(GPX_ACCEPT);
-    } catch {
-      return; // cancelled
-    }
+    const result = await pickAndParseGpx();
+    if (!result) return;
 
-    const result = parseGpx(xml);
     if (result.waypoints.length === 0) {
       alert("No waypoints found in this GPX file.");
       return;
