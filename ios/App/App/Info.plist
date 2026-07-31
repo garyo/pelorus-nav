@@ -30,6 +30,51 @@
 	<true/>
 	<key>LSSupportsOpeningDocumentsInPlace</key>
 	<true/>
+	<!-- iOS has no built-in UTI for .gpx. Importing (not exporting) the type
+	     registers it on devices where Pelorus is installed, so the app appears
+	     in "Open with". LSHandlerRank Alternate keeps dedicated GPS apps ahead
+	     of us. See the GPX_ACCEPT comment in src/data/file-io.ts — this
+	     declaration makes a MIME-filtered picker *look* fixed on this device
+	     while it stays broken everywhere else. -->
+	<key>UTImportedTypeDeclarations</key>
+	<array>
+		<dict>
+			<key>UTTypeIdentifier</key>
+			<string>com.topografix.gpx</string>
+			<key>UTTypeDescription</key>
+			<string>GPS Exchange Format</string>
+			<key>UTTypeConformsTo</key>
+			<array>
+				<string>public.xml</string>
+			</array>
+			<key>UTTypeTagSpecification</key>
+			<dict>
+				<key>public.filename-extension</key>
+				<array>
+					<string>gpx</string>
+				</array>
+				<key>public.mime-type</key>
+				<array>
+					<string>application/gpx+xml</string>
+				</array>
+			</dict>
+		</dict>
+	</array>
+	<key>CFBundleDocumentTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeName</key>
+			<string>GPX Route/Track File</string>
+			<key>CFBundleTypeRole</key>
+			<string>Viewer</string>
+			<key>LSHandlerRank</key>
+			<string>Alternate</string>
+			<key>LSItemContentTypes</key>
+			<array>
+				<string>com.topografix.gpx</string>
+			</array>
+		</dict>
+	</array>
 	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
 	<string>Pelorus Nav records your vessel's GPS track in the background — including with the screen off — so your voyage is logged even when the app isn't open.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>

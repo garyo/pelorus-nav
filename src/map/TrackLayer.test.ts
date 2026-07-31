@@ -294,3 +294,38 @@ describe("TrackLayer live buffer — seeding race", () => {
     ]);
   });
 });
+
+describe("TrackLayer change bus", () => {
+  useFakeLocalStorage();
+
+  function makeLayer(): TrackLayer {
+    const nav = new FakeNavManager();
+    const recorder = new TrackRecorder(nav as unknown as NavigationDataManager);
+    return new TrackLayer(
+      new FakeMap() as unknown as maplibregl.Map,
+      nav as unknown as NavigationDataManager,
+      recorder,
+    );
+  }
+
+  it("notifies subscribers when the track set reloads", async () => {
+    const layer = makeLayer();
+    const seen = vi.fn();
+    layer.onChange(seen);
+
+    await layer.reloadAll();
+    expect(seen).toHaveBeenCalledTimes(1);
+  });
+
+  it("notifies every subscriber", async () => {
+    const layer = makeLayer();
+    const first = vi.fn();
+    const second = vi.fn();
+    layer.onChange(first);
+    layer.onChange(second);
+
+    await layer.reloadAll();
+    expect(first).toHaveBeenCalledTimes(1);
+    expect(second).toHaveBeenCalledTimes(1);
+  });
+});

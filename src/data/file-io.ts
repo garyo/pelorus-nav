@@ -22,6 +22,12 @@ export const GPX_MIME = "application/gpx+xml";
  * Filtering by extension only would work today, but an unfiltered picker
  * can't be defeated by a provider that types files unhelpfully. Nothing is
  * lost: pickAndParseGpx reports non-GPX input cleanly.
+ *
+ * Do not trust a device with Pelorus installed to disprove this: the app's own
+ * `com.topografix.gpx` declaration (ios/App/App/Info.plist) registers the type
+ * device-wide, so a MIME-filtered picker starts working *there* while staying
+ * broken for fresh installs, for Safari on devices without the app, and for
+ * providers that report `application/octet-stream` regardless.
  */
 export const GPX_ACCEPT = "";
 
@@ -84,6 +90,58 @@ export function downloadFile(
   void shareOrDownloadFile(content, filename, mimeType).catch((e) => {
     console.warn("downloadFile failed:", String(e));
   });
+}
+
+/**
+ * Read a file the OS handed us through an "open with" intent, as text.
+ *
+ * The URL is whatever the platform delivered — a `content://` URI on Android,
+ * a `file://` URL on iOS — so it goes to Filesystem verbatim. `Encoding.UTF8`
+ * is required: without it the plugin returns base64. The fetch fallback covers
+ * URLs the plugin's own resolver rejects.
+ */
+export async function readFileUrl(url: string): Promise<string> {
+  try {
+    const result = await Filesystem.readFile({
+      path: url,
+      encoding: Encoding.UTF8,
+    });
+    return String(result.data);
+  } catch (e) {
+    try {
+      const response = await fetch(Capacitor.convertFileSrc(url));
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      return await response.text();
+    } catch {
+      throw e instanceof Error ? e : new Error(String(e));
+    }
+  }
+}
+
+/** Display name from an open-with URL, or null when it carries none. */
+export function filenameFromUrl(url: string): string | null {
+  const path = url.split(/[?#]/)[0];
+  const segment = path.split("/").pop();
+  if (!segment) return null;
+  try {
+    return decodeURIComponent(segment) || null;
+  } catch {
+    return segment;
+  }
+}
+
+/**
+ * Delete the copy iOS drops in Documents/Inbox for an "open with". Those are
+ * visible to the user in the Files app (UIFileSharingEnabled), so they'd
+ * accumulate as clutter. No-op for in-place opens and on Android.
+ */
+export async function deleteInboxCopy(url: string): Promise<void> {
+  if (!url.includes("/Documents/Inbox/")) return;
+  try {
+    await Filesystem.deleteFile({ path: url });
+  } catch {
+    // Best-effort cleanup; a leftover file is not worth surfacing.
+  }
 }
 
 /** Open a file picker and return the selected file's text content. */

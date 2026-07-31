@@ -10,7 +10,7 @@ import type { StandaloneWaypoint, WaypointIcon } from "../data/Waypoint";
 import type { WaypointLayer } from "../map/WaypointLayer";
 import type { ActiveNavigationManager } from "../navigation/ActiveNavigation";
 import { getSettings } from "../settings";
-import { pickAndParseGpx } from "./gpx-import";
+import { importGpxFromPicker } from "./gpx-import";
 import {
   iconEdit,
   iconExport,
@@ -100,7 +100,9 @@ export class WaypointManagerPanel {
 
     const importBtn = this.el.querySelector("#wp-import-btn") as HTMLElement;
     setIcon(importBtn, iconFolderOpen);
-    importBtn.addEventListener("click", () => this.importGpx());
+    importBtn.addEventListener("click", () => {
+      void importGpxFromPicker();
+    });
 
     const exportAllBtn = this.el.querySelector(
       "#wp-export-all-btn",
@@ -291,25 +293,6 @@ export class WaypointManagerPanel {
     }
     const gpx = waypointsToGpx(waypoints);
     downloadFile(gpx, "pelorus-waypoints.gpx", GPX_MIME);
-  }
-
-  private async importGpx(): Promise<void> {
-    const result = await pickAndParseGpx();
-    if (!result) return;
-
-    if (result.waypoints.length === 0) {
-      alert("No waypoints found in this GPX file.");
-      return;
-    }
-
-    await Promise.all(result.waypoints.map((wp) => saveWaypoint(wp)));
-    for (const wp of result.waypoints) {
-      this.waypointLayer.addWaypoint(wp);
-    }
-    this.refresh();
-    alert(
-      `Imported ${result.waypoints.length} waypoint${result.waypoints.length !== 1 ? "s" : ""}.`,
-    );
   }
 
   private showEditDialog(wp: StandaloneWaypoint): void {

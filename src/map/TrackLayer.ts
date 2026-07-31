@@ -68,6 +68,7 @@ export class TrackLayer {
    *  IndexedDB read. */
   private seedingTrackId: string | null = null;
   private readonly selectionHalo: SelectionHalo;
+  private changeListeners: Array<() => void> = [];
 
   constructor(
     map: maplibregl.Map,
@@ -155,6 +156,19 @@ export class TrackLayer {
     }
   }
 
+  /**
+   * Subscribe to changes in the track set (reload, visibility). This is where
+   * list-UIs stay in sync from — callers that mutate tracks never poke the
+   * panel themselves.
+   */
+  onChange(fn: () => void): void {
+    this.changeListeners.push(fn);
+  }
+
+  private notifyChange(): void {
+    for (const fn of this.changeListeners) fn();
+  }
+
   async reloadAll(): Promise<void> {
     // Remove old track layers
     for (const [id] of this.loadedTracks) {
@@ -176,6 +190,7 @@ export class TrackLayer {
       if (sel) await this.selectTrack(sel);
       else this.selectedTrackId = null;
     }
+    this.notifyChange();
   }
 
   async toggleTrackVisibility(id: string, visible: boolean): Promise<void> {
@@ -187,6 +202,7 @@ export class TrackLayer {
     } else {
       this.removeTrackLayer(id);
     }
+    this.notifyChange();
   }
 
   private async loadTrack(meta: TrackMeta): Promise<void> {

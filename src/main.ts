@@ -11,6 +11,7 @@ import { BackgroundGPS } from "./plugins/BackgroundGPS";
 import "maplibre-gl/dist/maplibre-gl.css";
 import { PMTiles, Protocol } from "pmtiles";
 import "./style.css";
+import { installFileOpenCapture } from "./app/fileOpenQueue";
 import { type IdleCloseable, runIdleAutoReturn } from "./app/idleAutoReturn";
 import { installOverlayDimming } from "./app/overlayDimming";
 import { installRepaintThrottle } from "./app/repaintThrottle";
@@ -126,6 +127,8 @@ import { startChartUpdateNotifier } from "./ui/ChartUpdateNotifier";
 import { ConnectionLogPanel } from "./ui/ConnectionLogPanel";
 import { createContextMenu } from "./ui/ContextMenu";
 import { maybeShowDisclaimer } from "./ui/DisclaimerDialog";
+import { setImportLayers } from "./ui/gpx-import";
+import { installGpxFileOpen } from "./ui/gpx-open";
 import { installHardwareKeys } from "./ui/HardwareKeysController";
 import { createIdleDetector } from "./ui/IdleDetector";
 import { createInstrumentHUD, INSTRUMENTS } from "./ui/InstrumentHUD";
@@ -210,6 +213,12 @@ if (Capacitor.isNativePlatform() && "serviceWorker" in navigator) {
 // top-level awaits can't hit their TDZ.
 let appUpdateBusy = () => false;
 startAppUpdateNotifier(() => appUpdateBusy());
+
+// Start capturing "open with" file events before the disclaimer parks this
+// module — a cold start via a file association delivers one immediately, and
+// the read has to happen while Android's URI grant is still fresh. The
+// consumer is registered much further down, once the layers exist.
+installFileOpenCapture();
 
 // Block here until the user accepts the navigation disclaimer — nothing
 // chart/GPS-related is set up below until this resolves.
@@ -1385,7 +1394,9 @@ new BearingLine(chartManager.map, activeNav, navManager);
 const waypointPanel = new WaypointManagerPanel(waypointLayer, activeNav);
 idleCloseables.push(waypointPanel);
 routePanel.setActiveNav(activeNav);
-routePanel.setWaypointLayer(waypointLayer);
+
+// GPX imports (panel buttons and OS "open with") draw into these.
+setImportLayers({ routeLayer, trackLayer, waypointLayer });
 
 // Tap-to-identify for routes and standalone waypoints: contributes cards to
 // the unified feature-info list, sharing the Routes panel's selection.
@@ -1864,6 +1875,14 @@ maybeShowWhatsNew();
 // Dim overlay layers (routes, waypoints, bearing line) in night/dusk themes.
 // See src/app/overlayDimming.ts (wires its own settings + style.load hooks).
 installOverlayDimming(chartManager.map);
+
+// Import GPX files opened from Files/Mail/Drive. Last, so a first-run
+// What's New dialog isn't competing with the import prompt.
+installGpxFileOpen({
+  showRoutes: () => routePanel.show(),
+  showTracks: () => trackPanel.show(),
+  showWaypoints: () => waypointPanel.show(),
+});
 
 // ── GPS diagnostic logging ─────────────────────────────────────────
 // Expose on window for console/adb access:

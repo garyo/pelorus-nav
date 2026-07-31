@@ -12,6 +12,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/).
   every .gpx file, in the app and in Safari, so nothing could be selected.
 
 ### Added
+- Open a .gpx file from the Files app, an email attachment, or a cloud
+  drive and Pelorus offers to import it — no need to find it again through
+  the app's own file picker.
+- Importing a GPX file now brings in everything it holds. Any of the three
+  Import buttons takes the routes, tracks and waypoints from the file;
+  previously each panel kept only its own kind and quietly dropped the rest.
 - A sort button in the Routes and Waypoints panel headers switches the
   lists between name order and most-recent-first (one shared preference;
   folders stay alphabetical either way).

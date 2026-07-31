@@ -66,6 +66,7 @@ export class RouteLayer {
    *  route — and at its real shape — once editing ends. */
   private selectionHaloHidden = false;
   private readonly selectionHalo: SelectionHalo;
+  private changeListeners: Array<() => void> = [];
 
   constructor(map: maplibregl.Map) {
     this.map = map;
@@ -93,6 +94,22 @@ export class RouteLayer {
     });
   }
 
+  /**
+   * Subscribe to changes in the route set (reload, visibility). This is where
+   * list-UIs stay in sync from — callers that mutate routes never poke the
+   * panel themselves.
+   *
+   * Deliberately not fired by updateRoute: that runs per drag frame while the
+   * editor owns the route, and the editor has its own change bus.
+   */
+  onChange(fn: () => void): void {
+    this.changeListeners.push(fn);
+  }
+
+  private notifyChange(): void {
+    for (const fn of this.changeListeners) fn();
+  }
+
   async reloadAll(): Promise<void> {
     for (const [id] of this.loadedRoutes) {
       this.removeRoute(id);
@@ -118,6 +135,7 @@ export class RouteLayer {
     // for the current theme (the settings-driven sweep won't re-run since
     // the theme itself hasn't changed).
     reapplyOverlayDimming(this.map);
+    this.notifyChange();
   }
 
   /** Routes currently shown on the map (visible and not session-hidden). */
@@ -139,6 +157,7 @@ export class RouteLayer {
       this.hiddenIds.add(id);
       this.removeRoute(id);
     }
+    this.notifyChange();
   }
 
   /**

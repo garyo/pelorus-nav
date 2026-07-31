@@ -41,7 +41,7 @@ function makeFakeRecorder(): TrackRecorder {
 }
 
 function makeFakeTrackLayer(): TrackLayer {
-  return {} as unknown as TrackLayer;
+  return { onChange: () => {} } as unknown as TrackLayer;
 }
 
 async function flush(times = 5): Promise<void> {

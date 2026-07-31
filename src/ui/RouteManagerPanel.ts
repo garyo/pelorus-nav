@@ -2,19 +2,18 @@
  * Floating panel for listing, toggling, editing, and deleting routes.
  */
 
-import { deleteRoute, getAllRoutes, saveRoute, saveWaypoint } from "../data/db";
+import { deleteRoute, getAllRoutes, saveRoute } from "../data/db";
 import { downloadFile, GPX_MIME, sanitizeFilename } from "../data/file-io";
 import { exportAllToGpx, routeToGpx } from "../data/gpx";
 import type { Route } from "../data/Route";
 import type { RouteEditor } from "../map/RouteEditor";
 import type { RouteLayer } from "../map/RouteLayer";
-import type { WaypointLayer } from "../map/WaypointLayer";
 import type { ActiveNavigationManager } from "../navigation/ActiveNavigation";
 import { getSettings, updateSettings } from "../settings";
 import { pathDistanceNM } from "../utils/coordinates";
 import { formatDistanceInSpeedUnits } from "../utils/units";
 import { openColorPicker } from "./color-picker";
-import { pickAndParseGpx } from "./gpx-import";
+import { importGpxFromPicker } from "./gpx-import";
 import {
   iconActivity,
   iconChevronDown,
@@ -42,7 +41,6 @@ export class RouteManagerPanel {
   private readonly routeLayer: RouteLayer;
   private readonly editor: RouteEditor;
   private readonly detailPanel: RouteDetailPanel;
-  private waypointLayer: WaypointLayer | null = null;
   private onPreviewRoute?: (route: Route) => void;
   private activeNav: ActiveNavigationManager | null = null;
   private selectedRouteId: string | null = null;
@@ -90,7 +88,9 @@ export class RouteManagerPanel {
 
     const importBtn = this.el.querySelector("#route-import-btn") as HTMLElement;
     setIcon(importBtn, iconFolderOpen);
-    importBtn.addEventListener("click", () => this.importGpx());
+    importBtn.addEventListener("click", () => {
+      void importGpxFromPicker();
+    });
 
     const exportAllBtn = this.el.querySelector(
       "#route-export-all-btn",
@@ -107,6 +107,10 @@ export class RouteManagerPanel {
     editor.onEditorChange(() => {
       this.refreshSoon();
       this.detailPanel.refreshIfOpen();
+    });
+
+    routeLayer.onChange(() => {
+      if (this.el.classList.contains("open")) this.refreshSoon();
     });
 
     editor.onFinish((route) => {
@@ -152,10 +156,6 @@ export class RouteManagerPanel {
         })
         .catch(console.error);
     };
-  }
-
-  setWaypointLayer(waypointLayer: WaypointLayer): void {
-    this.waypointLayer = waypointLayer;
   }
 
   setActiveNav(activeNav: ActiveNavigationManager): void {
@@ -612,48 +612,5 @@ export class RouteManagerPanel {
     }
     const gpx = exportAllToGpx(routes, [], []);
     downloadFile(gpx, "pelorus-routes.gpx", GPX_MIME);
-  }
-
-  private async importGpx(): Promise<void> {
-    const result = await pickAndParseGpx();
-    if (!result) return;
-
-    if (result.routes.length === 0 && result.waypoints.length === 0) {
-      alert("No routes or waypoints found in this GPX file.");
-      return;
-    }
-
-    // Check for name conflicts
-    const existing = await getAllRoutes();
-    const existingNames = new Set(existing.map((r) => r.name));
-    for (const route of result.routes) {
-      if (existingNames.has(route.name)) {
-        route.name += " (imported)";
-      }
-    }
-
-    await Promise.all([
-      ...result.routes.map((route) => saveRoute(route)),
-      ...result.waypoints.map((wp) => saveWaypoint(wp)),
-    ]);
-
-    await this.routeLayer.reloadAll();
-    if (result.waypoints.length > 0) {
-      await this.waypointLayer?.reloadAll();
-    }
-    await this.refresh();
-
-    const parts: string[] = [];
-    if (result.routes.length > 0) {
-      parts.push(
-        `${result.routes.length} route${result.routes.length !== 1 ? "s" : ""}`,
-      );
-    }
-    if (result.waypoints.length > 0) {
-      parts.push(
-        `${result.waypoints.length} waypoint${result.waypoints.length !== 1 ? "s" : ""}`,
-      );
-    }
-    alert(`Imported ${parts.join(" and ")}.`);
   }
 }

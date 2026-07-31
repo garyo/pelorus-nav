@@ -3,7 +3,6 @@
  */
 
 import {
-  appendTrackPoints,
   deleteTrack,
   getAllTrackMetas,
   getTrackPoints,
@@ -21,7 +20,7 @@ import type { TrackRecorder } from "../map/TrackRecorder";
 import { updateSettings } from "../settings";
 import { formatDistanceShort, formatDurationShort } from "../utils/format";
 import { openColorPicker } from "./color-picker";
-import { pickAndParseGpx } from "./gpx-import";
+import { importGpxFromPicker } from "./gpx-import";
 import {
   iconActivity,
   iconExport,
@@ -89,7 +88,9 @@ export class TrackManagerPanel {
 
     const importBtn = this.el.querySelector("#track-import-btn") as HTMLElement;
     setIcon(importBtn, iconFolderOpen);
-    importBtn.addEventListener("click", () => this.importGpx());
+    importBtn.addEventListener("click", () => {
+      void importGpxFromPicker();
+    });
 
     const exportAllBtn = this.el.querySelector(
       "#track-export-all-btn",
@@ -114,6 +115,12 @@ export class TrackManagerPanel {
     recorder.onRecordingChange(() => {
       this.updateRecordBtn();
       this.updateActiveCount();
+    });
+
+    trackLayer.onChange(() => {
+      if (this.el.classList.contains("open")) {
+        this.refresh().catch(console.error);
+      }
     });
   }
 
@@ -498,36 +505,6 @@ export class TrackManagerPanel {
         })().catch(console.error);
       },
     );
-  }
-
-  private async importGpx(): Promise<void> {
-    const result = await pickAndParseGpx();
-    if (!result) return;
-
-    if (result.tracks.length === 0) {
-      alert("No tracks found in this GPX file.");
-      return;
-    }
-
-    // Avoid name conflicts
-    const existing = await getAllTrackMetas();
-    const existingNames = new Set(existing.map((t) => t.name));
-
-    for (const { meta, points } of result.tracks) {
-      if (existingNames.has(meta.name)) {
-        meta.name += " (imported)";
-      }
-      // Sort points by timestamp before saving
-      points.sort((a, b) => a.timestamp - b.timestamp);
-      await saveTrackMeta(meta);
-      await appendTrackPoints(meta.id, points);
-    }
-
-    await this.trackLayer.reloadAll();
-    await this.refresh();
-
-    const n = result.tracks.length;
-    alert(`Imported ${n} track${n !== 1 ? "s" : ""}.`);
   }
 }
 
