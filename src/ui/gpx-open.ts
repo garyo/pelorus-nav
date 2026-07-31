@@ -44,7 +44,11 @@ async function handleOpenedFile(
   let xml: string;
   try {
     xml = await file.text;
-  } catch {
+  } catch (e) {
+    // Worth logging the URL: whether a provider hands back an in-place URL
+    // outside our container (iCloud, Drive) decides whether a read can
+    // succeed at all, and that's invisible from the message alone.
+    console.error(`GPX open: couldn't read ${file.url}:`, e);
     showStatusBanner({
       id: BANNER_ID,
       message: `Couldn't read ${describeFile(file)}.`,
