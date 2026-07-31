@@ -1,5 +1,6 @@
 package nav.pelorus.app;
 
+import android.content.Intent;
 import android.os.Bundle;
 import android.view.KeyEvent;
 import android.view.MotionEvent;
@@ -15,6 +16,7 @@ public class MainActivity extends BridgeActivity {
         registerPlugin(BackgroundGPSPlugin.class);
         registerPlugin(BluetoothSerialPlugin.class);
         registerPlugin(HardwareKeysPlugin.class);
+        discardReplayedIntent(savedInstanceState);
         super.onCreate(savedInstanceState);
         // Render at our exact CSS sizes regardless of the device's system font
         // scale (e-ink readers often ship below 100%). The WebView otherwise
@@ -22,6 +24,28 @@ public class MainActivity extends BridgeActivity {
         // digits while vw-based widths (e.g. the side column) stay fixed —
         // leaving small numbers floating in too-wide panels.
         getBridge().getWebView().getSettings().setTextZoom(100);
+    }
+
+    private static boolean isFileOpen(Intent intent) {
+        return intent != null
+            && Intent.ACTION_VIEW.equals(intent.getAction())
+            && intent.getData() != null;
+    }
+
+    // A task keeps the intent that started it, and Android replays it verbatim
+    // when the process is reclaimed and the user returns through Recents — same
+    // action, same data, same flags, with no FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY
+    // to tell the two apart (measured on One UI / Android 16). Left alone, an
+    // "open with .gpx" re-offers its import on every task restore, forever.
+    //
+    // What does distinguish them is the saved instance state: a restore hands
+    // one back, a fresh open from a file manager never does. Replace the stale
+    // intent before BridgeActivity.load() reads it, so appUrlOpen doesn't fire.
+    // Must run before super.onCreate().
+    private void discardReplayedIntent(Bundle savedInstanceState) {
+        if (savedInstanceState != null && isFileOpen(getIntent())) {
+            setIntent(new Intent(Intent.ACTION_MAIN));
+        }
     }
 
     // Volume-key control: let the HardwareKeys plugin consume volume keys

@@ -118,16 +118,27 @@ export async function readFileUrl(url: string): Promise<string> {
   }
 }
 
-/** Display name from an open-with URL, or null when it carries none. */
+/**
+ * Display name from an open-with URL, or null when it carries none worth
+ * showing. Cloud providers often end their content:// URIs in an opaque
+ * token (Google Drive hands back `enc=encoded=W2x…`, hundreds of chars), so
+ * anything that doesn't look like a real filename is reported as no name at
+ * all rather than shown to the user.
+ */
 export function filenameFromUrl(url: string): string | null {
   const path = url.split(/[?#]/)[0];
   const segment = path.split("/").pop();
   if (!segment) return null;
+
+  let name: string;
   try {
-    return decodeURIComponent(segment) || null;
+    name = decodeURIComponent(segment);
   } catch {
-    return segment;
+    name = segment;
   }
+  if (!name || name.length > 64) return null;
+  // A plain extension is the cheapest signal that this is a real name.
+  return /\.[A-Za-z0-9]{1,8}$/.test(name) ? name : null;
 }
 
 /**

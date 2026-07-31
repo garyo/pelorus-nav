@@ -96,6 +96,22 @@ describe("filenameFromUrl", () => {
   it("returns null when there is no filename", () => {
     expect(filenameFromUrl("content://provider/")).toBeNull();
   });
+
+  // Google Drive ends its content URIs in an opaque token, which is worse
+  // than showing no name at all.
+  it("rejects an opaque provider token", () => {
+    expect(
+      filenameFromUrl(
+        `content://com.google.android.apps.docs.storage/document/enc%3Dencoded%3D${"W2x".repeat(
+          40,
+        )}`,
+      ),
+    ).toBeNull();
+  });
+
+  it("rejects a segment with no extension", () => {
+    expect(filenameFromUrl("content://provider/document/12345")).toBeNull();
+  });
 });
 
 describe("deleteInboxCopy", () => {

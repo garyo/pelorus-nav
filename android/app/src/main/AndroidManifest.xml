@@ -57,28 +57,43 @@
 
             <!-- "Open with" for GPX files. Providers that type GPX correctly.
                  Kept separate from the filter below because <data> attributes
-                 cross-product within a single filter. -->
+                 cross-product within a single filter.
+
+                 GPX has no registered IANA type, so file managers invent one:
+                 Solid Explorer and others send application/gpx or text/gpx
+                 rather than the +xml form. All of these name GPX explicitly,
+                 so claiming them costs nothing. -->
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data android:scheme="content" />
                 <data android:mimeType="application/gpx+xml" />
+                <data android:mimeType="application/gpx" />
+                <data android:mimeType="application/vnd.google-earth.gpx+xml" />
+                <data android:mimeType="application/vnd.google-earth.gpx" />
+                <data android:mimeType="text/gpx+xml" />
+                <data android:mimeType="text/gpx" />
+                <data android:mimeType="text/xml+gpx" />
                 <data android:mimeType="application/xml" />
                 <data android:mimeType="text/xml" />
             </intent-filter>
 
-            <!-- Cloud providers hand back a generic type, and their content://
-                 URIs carry no filename, so matching is by MIME alone — which
-                 means we're offered for any untyped blob. GpxFileOpen sniffs
-                 for "<gpx" and declines anything else. Without this, Pelorus
-                 never appears for Drive or Gmail, the common cases. -->
+            <!-- Types that aren't GPX-specific, but are what the file actually
+                 arrives as. Cloud providers report octet-stream and their
+                 content:// URIs carry no filename, so MIME is all there is to
+                 match on; Solid Explorer reports text/plain (GPX Viewer claims
+                 it for the same reason). The cost is being offered for
+                 unrelated blobs and text files — gpx-open sniffs for "<gpx"
+                 and declines those with a plain message. Without these,
+                 Pelorus is absent from Drive and half the file managers. -->
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data android:scheme="content" />
                 <data android:mimeType="application/octet-stream" />
+                <data android:mimeType="text/plain" />
             </intent-filter>
 
             <!-- Legacy file:// senders (rare since Android 7). Here pathPattern

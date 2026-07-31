@@ -33,8 +33,15 @@ function looksLikeGpx(xml: string): boolean {
   return xml.slice(0, SNIFF_BYTES).includes("<gpx");
 }
 
+/** How the file reads mid-sentence, when a message is about a problem. */
 function describeFile(file: OpenedFile): string {
   return file.name ?? "that file";
+}
+
+/** How the file reads as a heading. Cloud providers often supply no usable
+ *  name (see filenameFromUrl), and "GPX file" beats an opaque token. */
+function labelFile(file: OpenedFile): string {
+  return file.name ?? "GPX file";
 }
 
 async function handleOpenedFile(
@@ -94,7 +101,7 @@ async function handleOpenedFile(
 
   showUpdateNotice({
     id: NOTICE_ID,
-    message: `${describeFile(file)}: ${found}`,
+    message: `${labelFile(file)}: ${found}`,
     actionLabel: "Import",
     onAction: () => {
       void (async () => {
