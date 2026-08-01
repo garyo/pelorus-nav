@@ -162,6 +162,7 @@ export class ManagerSelection<T> {
 
     this.allBtn = document.createElement("button");
     this.allBtn.className = "route-editor-btn manager-selection-all";
+    this.setAllBtnLabel(false);
     this.allBtn.addEventListener("click", () => {
       this.selectAll().catch(console.error);
     });
@@ -251,6 +252,13 @@ export class ManagerSelection<T> {
     )) {
       (btn as HTMLButtonElement).disabled = n === 0;
     }
+    this.setAllBtnLabel(n > 0);
+  }
+
+  /** Offer the action that isn't already done: clear a selection, or make one. */
+  private setAllBtnLabel(anySelected: boolean): void {
+    this.allBtn.textContent = anySelected ? "None" : "All";
+    this.allBtn.title = anySelected ? "Clear the selection" : "Select all";
   }
 
   /**

@@ -211,6 +211,23 @@ describe("ManagerSelection", () => {
     expect(bar?.textContent).toBe("1 route selected");
   });
 
+  it("labels the select-all button by what it will do", () => {
+    const sel = makeSelection(host());
+    sel.enter();
+    const all = document.querySelector(
+      ".manager-selection-all",
+    ) as HTMLButtonElement;
+    expect(all.textContent).toBe("All");
+
+    sel.enter(); // no-op while active
+    const item = { id: "a", visible: true };
+    const el = row();
+    sel.decorateRow(item, el);
+    el.click();
+
+    expect(all.textContent).toBe("None");
+  });
+
   it("disables the actions when nothing is selected", () => {
     const sel = makeSelection(host());
     sel.enter();
