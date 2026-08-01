@@ -1930,7 +1930,10 @@ body {
 /* Shared manager panel styles (track & route) */
 .manager-panel {
   display: none;
-  width: 300px;
+  /* Folder indentation (.manager-item--sub) costs ~2 characters of name
+     space, so the lists are a little wider than they'd otherwise need to be.
+     Capped for narrow phones. */
+  width: min(330px, 92vw);
   max-height: 50vh;
   background: rgba(30, 30, 50, 0.95);
   border: 1px solid #444;
@@ -2441,12 +2444,6 @@ body {
 /* Route header uses space-between instead of gap */
 .route-manager-panel .manager-header {
   justify-content: space-between;
-}
-
-/* A bit wider than the base panel: folder indentation (.manager-item--sub)
- * costs ~2 characters of route-name space. Capped for narrow phones. */
-.route-manager-panel {
-  width: min(330px, 92vw);
 }
 
 .route-editor-bar {
