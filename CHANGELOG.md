@@ -30,6 +30,9 @@ The format follows [Keep a Changelog](https://keepachangelog.com/).
   checkboxes, and a bar at the bottom moves everything ticked to a folder,
   shows or hides it, or deletes it in one go. Select All takes everything in
   the panel, and a folder's own checkbox takes its whole contents.
+- A folder can be deleted with everything in it, from a trash button on its
+  header row. The confirmation names the folder and how many items go with it,
+  since a folder exists only as a label on its contents.
 - Waypoints can be hidden: each row has a show/hide eye, and waypoints and
   tracks can now go in folders like routes do, with the folder's eye showing
   or hiding everything in it at once. Folders travel with exported GPX files.

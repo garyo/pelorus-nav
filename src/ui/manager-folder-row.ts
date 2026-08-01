@@ -14,6 +14,7 @@ import {
   iconChevronRight,
   iconEye,
   iconEyeOff,
+  iconTrash,
   setIcon,
 } from "./icons";
 import { folderVisibility } from "./manager-folders";
@@ -32,6 +33,9 @@ export interface FolderRowOptions<T extends { visible: boolean }> {
   selecting?: boolean;
   /** Ticks the folder's contents when the panel is in selection mode. */
   decorateSelection?: (contents: T[], row: HTMLDivElement) => void;
+  /** Delete the folder's whole contents. Confirmation is the panel's, since
+   *  only it can name what is about to go. Omit for no delete button. */
+  onDelete?: (contents: T[]) => void;
   /** Re-render after a bulk show/hide. */
   refresh: () => Promise<void>;
 }
@@ -80,6 +84,18 @@ export function createFolderRow<T extends { visible: boolean }>(
     })().catch(console.error);
   });
   actions.appendChild(eyeBtn);
+
+  if (opts.onDelete) {
+    const deleteBtn = document.createElement("button");
+    deleteBtn.className = "manager-item-btn";
+    setIcon(deleteBtn, iconTrash);
+    deleteBtn.title = "Delete folder and its contents";
+    deleteBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      opts.onDelete?.(contents);
+    });
+    actions.appendChild(deleteBtn);
+  }
 
   // In selection mode the row belongs to the selection: collapsing here would
   // fire alongside it (at the target, listeners run in registration order —

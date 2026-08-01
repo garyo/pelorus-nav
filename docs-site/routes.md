@@ -95,6 +95,10 @@ header shows or hides *every* route in it at once, so you can keep last
 summer's cruise legs filed away and invisible while today's routes stay
 on the chart. A route with no folder simply lists at the top.
 
+A folder header also has a trash button, which deletes the folder *and
+everything in it* — the confirmation says how many, because a folder is only a
+label on its contents and there'd be nothing left of it otherwise.
+
 Waypoints and tracks work the same way, with their own folders and their
 own collapse state.
 

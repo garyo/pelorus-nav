@@ -82,14 +82,7 @@ export class TrackManagerPanel {
       }
       await saveTrackMetas(metas);
     },
-    removeAll: async (metas) => {
-      for (const meta of metas) {
-        if (this.selectedTrackId === meta.id) this.clearSelection();
-      }
-      // The layer drops removed tracks on its next reloadAll, which
-      // afterBulkChange runs once for the whole selection.
-      await deleteTracks(metas.map((m) => m.id));
-    },
+    removeAll: (metas) => this.removeTracks(metas),
     allItems: () => getAllTrackMetas(),
     folders: async () => [
       ...groupByFolder(await getAllTrackMetas()).folders.keys(),
@@ -343,6 +336,7 @@ export class TrackManagerPanel {
           selecting: this.selection.isActive(),
           decorateSelection: (contents, row) =>
             this.selection.decorateFolderRow(contents, row),
+          onDelete: (contents) => this.deleteFolder(name, contents),
           refresh: () => this.refresh(),
         }),
       );
@@ -409,6 +403,26 @@ export class TrackManagerPanel {
     } finally {
       this.fillsInFlight.delete(meta.id);
     }
+  }
+
+  /** Delete many tracks and their points at once. The layer drops them on
+   *  its next reloadAll, which the caller runs once for the whole set. */
+  private async removeTracks(metas: TrackMeta[]): Promise<void> {
+    for (const meta of metas) {
+      if (this.selectedTrackId === meta.id) this.clearSelection();
+    }
+    await deleteTracks(metas.map((m) => m.id));
+  }
+
+  /** The folder row's delete: everything in it, once confirmed. */
+  private deleteFolder(name: string, contents: TrackMeta[]): void {
+    const what = `${contents.length} track${contents.length === 1 ? "" : "s"}`;
+    if (!confirm(`Delete "${name}" and its ${what}?`)) return;
+    (async () => {
+      await this.removeTracks(contents);
+      await this.trackLayer.reloadAll();
+      await this.refresh();
+    })().catch(console.error);
   }
 
   /** Show or hide many tracks: one write, one redraw. */

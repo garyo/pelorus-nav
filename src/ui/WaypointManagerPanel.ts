@@ -101,15 +101,7 @@ export class WaypointManagerPanel {
       }
       await saveWaypoints(wps);
     },
-    removeAll: async (wps) => {
-      for (const wp of wps) {
-        if (this.cobHooks?.isCobWaypoint(wp.id)) {
-          this.cobHooks.noteWaypointDeleted(wp.id);
-        }
-        this.activeNav.noteWaypointDeleted(wp.id);
-      }
-      await deleteWaypoints(wps.map((wp) => wp.id));
-    },
+    removeAll: (wps) => this.removeWaypoints(wps),
     allItems: () => getAllWaypoints(),
     folders: async () => [
       ...groupByFolder(await getAllWaypoints()).folders.keys(),
@@ -274,6 +266,7 @@ export class WaypointManagerPanel {
           selecting: this.selection.isActive(),
           decorateSelection: (contents, row) =>
             this.selection.decorateFolderRow(contents, row),
+          onDelete: (contents) => this.deleteFolder(name, contents),
           refresh: async () => this.refresh(),
         }),
       );
@@ -283,6 +276,38 @@ export class WaypointManagerPanel {
         }
       }
     }
+  }
+
+  /**
+   * Delete many waypoints at once, with the side effects a single delete has:
+   * end a COB emergency whose waypoint is going, and stop navigating to one.
+   * Shared by the selection bar and the folder's delete.
+   */
+  private async removeWaypoints(wps: StandaloneWaypoint[]): Promise<void> {
+    for (const wp of wps) {
+      if (this.cobHooks?.isCobWaypoint(wp.id)) {
+        this.cobHooks.noteWaypointDeleted(wp.id);
+      }
+      this.activeNav.noteWaypointDeleted(wp.id);
+    }
+    await deleteWaypoints(wps.map((wp) => wp.id));
+  }
+
+  /** The folder row's delete: everything in it, once confirmed. A COB point
+   *  inside makes the warning explicit — deleting it ends the emergency. */
+  private deleteFolder(name: string, contents: StandaloneWaypoint[]): void {
+    const n = contents.length;
+    const what = `${n} waypoint${n === 1 ? "" : "s"}`;
+    const cob = contents.some((wp) => this.cobHooks?.isCobWaypoint(wp.id));
+    const warning = cob
+      ? " One of them is the active crew-overboard point; deleting it ENDS the COB emergency."
+      : "";
+    if (!confirm(`Delete "${name}" and its ${what}?${warning}`)) return;
+    (async () => {
+      await this.removeWaypoints(contents);
+      await this.waypointLayer.reloadAll();
+      this.refresh();
+    })().catch(console.error);
   }
 
   /** Show or hide many waypoints: one write, one redraw. */

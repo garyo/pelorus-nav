@@ -115,6 +115,35 @@ describe("createFolderRow", () => {
     expect(el.title).toBe("Select this folder");
   });
 
+  it("has no delete button unless the panel offers one", () => {
+    const el = row([item("a", true)]);
+    expect(el.querySelectorAll("button")).toHaveLength(1); // the eye only
+  });
+
+  it("hands the folder's whole contents to the panel's delete", () => {
+    const onDelete = vi.fn();
+    const contents = [item("a", true), item("b", false)];
+    const el = row(contents, { onDelete });
+
+    const del = el.querySelector<HTMLButtonElement>(
+      'button[title="Delete folder and its contents"]',
+    );
+    del?.click();
+
+    expect(onDelete).toHaveBeenCalledWith(contents);
+  });
+
+  it("deleting does not also collapse the folder", () => {
+    const onToggleCollapse = vi.fn();
+    const el = row([item("a", true)], { onDelete: vi.fn(), onToggleCollapse });
+
+    el.querySelector<HTMLButtonElement>(
+      'button[title="Delete folder and its contents"]',
+    )?.click();
+
+    expect(onToggleCollapse).not.toHaveBeenCalled();
+  });
+
   it("collapses on a row click but not on an eye click", () => {
     const onToggleCollapse = vi.fn();
     const el = row([item("a", true)], { onToggleCollapse });

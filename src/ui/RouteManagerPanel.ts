@@ -426,6 +426,7 @@ export class RouteManagerPanel {
       selecting: this.selection.isActive(),
       decorateSelection: (contents, row) =>
         this.selection.decorateFolderRow(contents, row),
+      onDelete: (contents) => this.deleteFolder(name, contents),
       refresh: () => this.refresh(),
     });
   }
@@ -449,6 +450,35 @@ export class RouteManagerPanel {
       }
     }
     if (this.selectedRouteId === route.id) this.clearSelection();
+  }
+
+  /**
+   * Delete many routes at once, with the side effects a single delete has:
+   * discard an in-progress edit of one of them (the editor holds a live copy
+   * and Done would re-save it), drop the selection glow, and stop navigating
+   * one that's gone. Shared by the selection bar and the folder's delete.
+   */
+  private async removeRoutes(routes: Route[]): Promise<void> {
+    for (const route of routes) {
+      if (this.editor.isEditing() && this.editor.getRoute()?.id === route.id) {
+        this.editor.cancel();
+      }
+      if (this.selectedRouteId === route.id) this.clearSelection();
+      this.activeNav?.noteRouteDeleted(route.id);
+      if (this.detailPanel.isOpen()) this.detailPanel.hide();
+    }
+    await deleteRoutes(routes.map((r) => r.id));
+  }
+
+  /** The folder row's delete: everything in it, once confirmed. */
+  private deleteFolder(name: string, contents: Route[]): void {
+    const what = `${contents.length} route${contents.length === 1 ? "" : "s"}`;
+    if (!confirm(`Delete "${name}" and its ${what}?`)) return;
+    (async () => {
+      await this.removeRoutes(contents);
+      await this.routeLayer.reloadAll();
+      await this.refresh();
+    })().catch(console.error);
   }
 
   /** Show or hide many routes: one write, one redraw. */
