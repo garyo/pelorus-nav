@@ -539,6 +539,8 @@ export class TrackManagerPanel {
 
     actions.append(viewBtn, exportBtn, toggleBtn, deleteBtn);
     item.append(color, info, actions);
+    this.selection.track(meta);
+    this.selection.decorateRow(meta, item, actions);
     return item;
   }
 
