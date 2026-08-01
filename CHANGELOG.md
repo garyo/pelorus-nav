@@ -24,6 +24,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/).
   says what the file holds and how much of it is already up to date before
   anything is written, and your folders, colours and hidden/shown state are
   kept when an item is updated.
+- Routes, waypoints and tracks can be organized in bulk: a Select button in
+  each panel header (or a long press on any row) turns the list into
+  checkboxes, and a bar at the bottom moves everything ticked to a folder,
+  shows or hides it, or deletes it in one go.
 - Waypoints can be hidden: each row has a show/hide eye, and waypoints and
   tracks can now go in folders like routes do, with the folder's eye showing
   or hiding everything in it at once. Folders travel with exported GPX files.

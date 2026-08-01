@@ -1170,6 +1170,107 @@ body {
   background: #4570b0;
 }
 
+/* Bulk-selection mode: the bar, and rows while it's on. */
+.manager-selection-bar {
+  display: none;
+  position: fixed;
+  bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+  left: 50%;
+  transform: translateX(-50%);
+  align-items: center;
+  gap: 14px;
+  padding: 8px 14px;
+  background: rgba(30, 30, 50, 0.95);
+  border: 1px solid #555;
+  border-radius: 8px;
+  color: #eee;
+  font:
+    13px system-ui,
+    -apple-system,
+    sans-serif;
+  max-width: 92vw;
+}
+
+.manager-selection-bar.open {
+  display: flex;
+}
+
+.manager-selection-count {
+  white-space: nowrap;
+  min-width: 5.5em;
+}
+
+.manager-selection-actions {
+  display: flex;
+  gap: 4px;
+}
+
+.manager-selection-btn {
+  background: none;
+  border: none;
+  color: #ddd;
+  cursor: pointer;
+  /* Comfortable target on a bouncing boat; the panel rows are tighter
+     because they're read more than they're pressed. */
+  padding: 8px 10px;
+  font-size: 17px;
+}
+
+.manager-selection-btn:hover:not(:disabled) {
+  color: #fff;
+}
+
+.manager-selection-btn:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.manager-select-box {
+  margin: 0 8px 0 0;
+  width: 18px;
+  height: 18px;
+  flex: none;
+  accent-color: #4a90d9;
+}
+
+.manager-item--selectable {
+  cursor: pointer;
+}
+
+/* Folder chooser for a bulk move (reuses .about-overlay / .about-card). */
+.folder-picker-card {
+  width: 320px;
+  max-width: 92vw;
+}
+
+.folder-picker-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 14px;
+  max-height: 44vh;
+  overflow-y: auto;
+}
+
+.folder-picker-choice {
+  background: #2a2a3e;
+  color: #eee;
+  border: 1px solid #555;
+  border-radius: 4px;
+  padding: 10px 12px;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.folder-picker-choice:hover {
+  background: #36364e;
+}
+
+.folder-picker-none {
+  color: #bbb;
+}
+
 /* GPX import confirmation (reuses .about-overlay / .about-card). */
 .import-card {
   width: 400px;
@@ -3356,6 +3457,23 @@ body {
 [data-theme="eink"] .about-card .disclaimer-body,
 [data-theme="eink"] .about-card .screen-timeout-body {
   color: #1a1a1a;
+}
+
+[data-theme="eink"] .manager-selection-bar {
+  background: #ffffff;
+  border: 2px solid #000000;
+  border-radius: 0;
+  color: #000000;
+}
+
+[data-theme="eink"] .manager-selection-btn {
+  color: #000000;
+}
+
+[data-theme="eink"] .folder-picker-choice {
+  background: #ffffff;
+  color: #000000;
+  border-color: #000000;
 }
 
 [data-theme="eink"] .about-card .import-body {

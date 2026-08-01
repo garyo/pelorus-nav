@@ -227,6 +227,12 @@ export const iconNavigation = svg(
   '<polygon points="3 11 22 2 13 21 11 13 3 11"/>',
 );
 
+/** Ticked box — enter selection mode. */
+export const iconCheckSquare = svg(
+  '<polyline points="9 11 12 14 20 6"/>' +
+    '<path d="M20 12v7a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h9"/>',
+);
+
 /** Square with X / stop-cancel. */
 export const iconSquare = svg(
   '<rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>',

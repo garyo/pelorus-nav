@@ -23,6 +23,7 @@ import { openColorPicker } from "./color-picker";
 import { importGpxFromPicker } from "./gpx-import";
 import {
   iconActivity,
+  iconCheckSquare,
   iconExport,
   iconEye,
   iconEyeOff,
@@ -38,6 +39,7 @@ import {
   toggleCollapsed,
 } from "./manager-folder-row";
 import { groupByFolder } from "./manager-folders";
+import { ManagerSelection } from "./manager-selection";
 import { getPanelStack } from "./PanelStack";
 import { registerSurface } from "./SurfaceManager";
 
@@ -58,6 +60,32 @@ export class TrackManagerPanel {
   private editing = false;
   private onViewTrack?: (meta: TrackMeta) => void;
 
+  private readonly selection = new ManagerSelection<TrackMeta>({
+    noun: "track",
+    surfaceId: "track-selection",
+    group: "tracks",
+    idOf: (meta) => meta.id,
+    refresh: () => this.refresh(),
+    setVisible: (meta, visible) => this.setTrackVisible(meta, visible),
+    setFolder: async (meta, folder) => {
+      if (folder) meta.folder = folder;
+      else delete meta.folder;
+      await saveTrackMeta(meta);
+    },
+    remove: async (meta) => {
+      if (this.selectedTrackId === meta.id) this.clearSelection();
+      await deleteTrack(meta.id);
+      // The layer drops removed tracks on its next reloadAll, which
+      // afterBulkChange runs once for the whole selection.
+    },
+    folders: async () => [
+      ...groupByFolder(await getAllTrackMetas()).folders.keys(),
+    ],
+    afterBulkChange: async () => {
+      await this.trackLayer.reloadAll();
+    },
+  });
+
   constructor(trackLayer: TrackLayer, recorder: TrackRecorder) {
     this.trackLayer = trackLayer;
     this.recorder = recorder;
@@ -68,6 +96,7 @@ export class TrackManagerPanel {
       '<div class="manager-header">' +
       "<span>Tracks</span>" +
       '<div style="display:flex;gap:6px;align-items:center">' +
+      '<button class="manager-item-btn" id="track-select-btn" title="Select several"></button>' +
       '<button class="manager-item-btn" id="track-import-btn" title="Import GPX"></button>' +
       '<button class="manager-item-btn" id="track-export-all-btn" title="Export All GPX"></button>' +
       '<button class="manager-item-btn" id="track-delete-all-btn" title="Delete All Tracks"></button>' +
@@ -91,6 +120,10 @@ export class TrackManagerPanel {
       // actual start()/stop().
       updateSettings({ trackRecordingEnabled: !this.recorder.isRecording() });
     });
+
+    const selectBtn = this.el.querySelector("#track-select-btn") as HTMLElement;
+    setIcon(selectBtn, iconCheckSquare);
+    selectBtn.addEventListener("click", () => this.selection.toggleMode());
 
     const importBtn = this.el.querySelector("#track-import-btn") as HTMLElement;
     setIcon(importBtn, iconFolderOpen);

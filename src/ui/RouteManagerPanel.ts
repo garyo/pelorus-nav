@@ -16,6 +16,7 @@ import { openColorPicker } from "./color-picker";
 import { importGpxFromPicker } from "./gpx-import";
 import {
   iconActivity,
+  iconCheckSquare,
   iconEdit,
   iconExport,
   iconEye,
@@ -33,6 +34,7 @@ import {
   toggleCollapsed,
 } from "./manager-folder-row";
 import { groupByFolder } from "./manager-folders";
+import { ManagerSelection } from "./manager-selection";
 import { getPanelStack } from "./PanelStack";
 import { RouteDetailPanel } from "./RouteDetailPanel";
 import { registerSurface } from "./SurfaceManager";
@@ -52,6 +54,34 @@ export class RouteManagerPanel {
    *  input mid-edit and silently lose the rename. */
   private editing = false;
 
+  private readonly selection = new ManagerSelection<Route>({
+    noun: "route",
+    surfaceId: "route-selection",
+    group: "routes",
+    idOf: (route) => route.id,
+    refresh: () => this.refresh(),
+    setVisible: (route, visible) => this.setRouteVisible(route, visible),
+    setFolder: async (route, folder) => {
+      if (folder) route.folder = folder;
+      else delete route.folder;
+      await saveRoute(route);
+    },
+    remove: async (route) => {
+      if (this.editor.isEditing() && this.editor.getRoute()?.id === route.id) {
+        this.editor.cancel();
+      }
+      if (this.selectedRouteId === route.id) this.clearSelection();
+      await deleteRoute(route.id);
+      this.activeNav?.noteRouteDeleted(route.id);
+    },
+    folders: async () => [
+      ...groupByFolder(await getAllRoutes()).folders.keys(),
+    ],
+    afterBulkChange: async () => {
+      await this.routeLayer.reloadAll();
+    },
+  });
+
   constructor(routeLayer: RouteLayer, editor: RouteEditor) {
     this.routeLayer = routeLayer;
     this.editor = editor;
@@ -66,6 +96,7 @@ export class RouteManagerPanel {
       '<div class="manager-header">' +
       "<span>Routes</span>" +
       '<div style="display:flex;gap:6px;align-items:center">' +
+      '<button class="manager-item-btn" id="route-select-btn" title="Select several"></button>' +
       '<button class="manager-item-btn" id="route-sort-btn"></button>' +
       '<button class="manager-item-btn" id="route-import-btn" title="Import GPX"></button>' +
       '<button class="manager-item-btn" id="route-export-all-btn" title="Export All GPX"></button>' +
@@ -82,6 +113,10 @@ export class RouteManagerPanel {
       setIcon(closeBtn, iconX);
       closeBtn.addEventListener("click", () => this.hide());
     }
+    const selectBtn = this.el.querySelector("#route-select-btn") as HTMLElement;
+    setIcon(selectBtn, iconCheckSquare);
+    selectBtn.addEventListener("click", () => this.selection.toggleMode());
+
     wireSortToggle(
       this.el.querySelector("#route-sort-btn") as HTMLElement,
       () => {
@@ -536,6 +571,8 @@ export class RouteManagerPanel {
       deleteBtn,
     );
     item.append(color, info, actions);
+    this.selection.track(route);
+    this.selection.decorateRow(route, item, actions);
     return item;
   }
 

@@ -12,6 +12,7 @@ import type { ActiveNavigationManager } from "../navigation/ActiveNavigation";
 import { getSettings, updateSettings } from "../settings";
 import { importGpxFromPicker } from "./gpx-import";
 import {
+  iconCheckSquare,
   iconEdit,
   iconExport,
   iconEye,
@@ -29,6 +30,7 @@ import {
   toggleCollapsed,
 } from "./manager-folder-row";
 import { groupByFolder } from "./manager-folders";
+import { ManagerSelection } from "./manager-selection";
 import { getPanelStack } from "./PanelStack";
 import { registerSurface } from "./SurfaceManager";
 import { wireSortToggle } from "./sort-toggle";
@@ -70,6 +72,34 @@ export class WaypointManagerPanel {
   /** Row highlighted by openWithSelection (map tap-to-identify). */
   private selectedWaypointId: string | null = null;
 
+  private readonly selection = new ManagerSelection<StandaloneWaypoint>({
+    noun: "waypoint",
+    surfaceId: "waypoint-selection",
+    group: "waypoints",
+    idOf: (wp) => wp.id,
+    refresh: () => this.refresh(),
+    setVisible: (wp, visible) => this.setWaypointVisible(wp, visible),
+    setFolder: async (wp, folder) => {
+      if (folder) wp.folder = folder;
+      else delete wp.folder;
+      wp.updatedAt = Date.now();
+      await saveWaypoint(wp);
+    },
+    remove: async (wp) => {
+      if (this.cobHooks?.isCobWaypoint(wp.id)) {
+        this.cobHooks.noteWaypointDeleted(wp.id);
+      }
+      this.activeNav.noteWaypointDeleted(wp.id);
+      await deleteWaypoint(wp.id);
+    },
+    folders: async () => [
+      ...groupByFolder(await getAllWaypoints()).folders.keys(),
+    ],
+    afterBulkChange: async () => {
+      await this.waypointLayer.reloadAll();
+    },
+  });
+
   constructor(
     waypointLayer: WaypointLayer,
     activeNav: ActiveNavigationManager,
@@ -90,6 +120,7 @@ export class WaypointManagerPanel {
       '<div class="manager-header">' +
       "<span>Waypoints</span>" +
       '<div style="display:flex;gap:6px;align-items:center">' +
+      '<button class="manager-item-btn" id="wp-select-btn" title="Select several"></button>' +
       '<button class="manager-item-btn" id="wp-sort-btn"></button>' +
       '<button class="manager-item-btn" id="wp-import-btn" title="Import GPX"></button>' +
       '<button class="manager-item-btn" id="wp-export-all-btn" title="Export All GPX"></button>' +
@@ -100,6 +131,10 @@ export class WaypointManagerPanel {
     getPanelStack().appendChild(this.el);
 
     this.body = this.el.querySelector(".manager-body") as HTMLDivElement;
+
+    const selectBtn = this.el.querySelector("#wp-select-btn") as HTMLElement;
+    setIcon(selectBtn, iconCheckSquare);
+    selectBtn.addEventListener("click", () => this.selection.toggleMode());
 
     wireSortToggle(this.el.querySelector("#wp-sort-btn") as HTMLElement, () =>
       this.refresh(),
@@ -319,6 +354,8 @@ export class WaypointManagerPanel {
 
     actions.append(navBtn, editBtn, toggleBtn, deleteBtn);
     item.append(iconDot, info, actions);
+    this.selection.track(wp);
+    this.selection.decorateRow(wp, item, actions);
     return item;
   }
 
