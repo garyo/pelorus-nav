@@ -217,7 +217,7 @@ describe("ManagerSelection", () => {
     const all = document.querySelector(
       ".manager-selection-all",
     ) as HTMLButtonElement;
-    expect(all.textContent).toBe("All");
+    expect(all.textContent).toBe("Select All");
 
     sel.enter(); // no-op while active
     const item = { id: "a", visible: true };
@@ -225,7 +225,7 @@ describe("ManagerSelection", () => {
     sel.decorateRow(item, el);
     el.click();
 
-    expect(all.textContent).toBe("None");
+    expect(all.textContent).toBe("Select None");
   });
 
   it("disables the actions when nothing is selected", () => {

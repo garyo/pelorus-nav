@@ -255,10 +255,10 @@ export class ManagerSelection<T> {
     this.setAllBtnLabel(n > 0);
   }
 
-  /** Offer the action that isn't already done: clear a selection, or make one. */
+  /** Offer the action that isn't already done: clear a selection, or make one.
+   *  Both words, because "None" on its own reads as a state, not a button. */
   private setAllBtnLabel(anySelected: boolean): void {
-    this.allBtn.textContent = anySelected ? "None" : "All";
-    this.allBtn.title = anySelected ? "Clear the selection" : "Select all";
+    this.allBtn.textContent = anySelected ? "Select None" : "Select All";
   }
 
   /**

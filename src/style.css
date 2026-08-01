@@ -1195,9 +1195,31 @@ body {
   display: flex;
 }
 
+/* The bar hugs its content on one line where there's room. A phone can't fit
+   the count, four actions and two buttons across, so below that it spans the
+   screen and wraps into two tidy rows — better than shrinking touch targets
+   or abbreviating the labels. (Width has to be explicit here: the max-content
+   size of a *wrapping* flex container is its widest single item, not the
+   unwrapped row, so leaving it to auto gives a narrow column.) */
+@media (max-width: 560px) {
+  .manager-selection-bar {
+    flex-wrap: wrap;
+    justify-content: center;
+    row-gap: 8px;
+    width: calc(100vw - 24px);
+  }
+}
+
 .manager-selection-count {
   white-space: nowrap;
-  min-width: 5.5em;
+  /* Nothing in the bar may shrink: a squeezed button wraps its own label
+     ("Select / None") and a squeezed count collides with the first icon. */
+  flex: none;
+}
+
+.manager-selection-bar > button {
+  flex: none;
+  white-space: nowrap;
 }
 
 .manager-selection-actions {
