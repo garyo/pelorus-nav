@@ -5,40 +5,34 @@ Notable user-facing changes to Pelorus Nav. Downloads are on the
 
 The format follows [Keep a Changelog](https://keepachangelog.com/).
 
-## [Unreleased]
+## [0.20.0] - 2026-08-01
+
+### Added
+- Re-importing a GPX file you have imported before now updates what is already
+  there instead of adding a second copy of everything, so the same file can be
+  used to keep two devices in step. The import dialog says what the file holds
+  and how much is already up to date before anything is written; your folders,
+  colours and shown/hidden state survive an update.
+- Routes, waypoints and tracks can be organized in bulk. The Select button in
+  a panel header — or a long press on any row — turns the list into
+  checkboxes, and a bar along the bottom moves everything ticked to a folder,
+  shows or hides it, or deletes it in one go.
+- Waypoints can be hidden without deleting them, and waypoints and tracks can
+  go in folders like routes do. A folder's eye shows or hides everything in it
+  at once, and folders travel with exported GPX files.
+- A folder can be deleted with its whole contents, from the trash button on
+  its header row.
+- GPX files keep what other chartplotters put in them — OpenCPN's planned
+  speed and arrival radii, the depth and water temperature a Garmin recorded
+  at a mark — and write it back out on export, so a file that goes home to the
+  app it came from arrives intact.
 
 ### Changed
 - On iPhone and iPad the export buttons now show the iOS share symbol (the box
   with an up arrow) instead of the Android one.
 
-### Added
-- GPX files keep what other chartplotters put in them. Details Pelorus doesn't
-  itself use — OpenCPN's planned speed and arrival radii, Garmin's recorded
-  depth and water temperature at a mark, and each app's own identifiers — are
-  carried through an import and written back out on export, so a file that
-  goes home to the app it came from arrives intact and is recognized as its
-  own data rather than duplicated.
-- Importing a GPX file you have imported before now updates what is already
-  there instead of adding a second copy of everything — so a file you sync
-  between devices can be re-imported as often as you like. The import dialog
-  says what the file holds and how much of it is already up to date before
-  anything is written, and your folders, colours and hidden/shown state are
-  kept when an item is updated. A file bringing in several new items offers
-  to put them in a folder, named after the file when it says what it is.
-- Routes, waypoints and tracks can be organized in bulk: a Select button in
-  each panel header (or a long press on any row) turns the list into
-  checkboxes, and a bar at the bottom moves everything ticked to a folder,
-  shows or hides it, or deletes it in one go. Select All takes everything in
-  the panel, and a folder's own checkbox takes its whole contents.
-- A folder can be deleted with everything in it, from a trash button on its
-  header row. The confirmation names the folder and how many items go with it,
-  since a folder exists only as a label on its contents.
-- Waypoints can be hidden: each row has a show/hide eye, and waypoints and
-  tracks can now go in folders like routes do, with the folder's eye showing
-  or hiding everything in it at once. Folders travel with exported GPX files.
-
 ### Fixed
-- Obstruction areas are drawn on the chart. From zoom 12 up, each one gets a
+- Obstruction areas are drawn on the chart. From zoom 12 up each one gets a
   dotted boundary and, where the survey gives a depth, its sounding at the
   centre. Areas that were charted but drew nothing — most often submerged
   structures along a waterfront — are now visible rather than only clickable.
