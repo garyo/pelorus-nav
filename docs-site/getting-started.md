@@ -116,6 +116,11 @@ live bearing and distance home from wherever you are — see
 [Following a route](/routes#following-a-route) for what the navigation
 instruments show.
 
+Each waypoint row also has an eye to take it off the chart without deleting
+it, and waypoints can be put in folders and selected in bulk the same way
+[routes can](/routes#organizing-with-folders) — worth knowing before you
+import a few hundred marks from another chartplotter.
+
 ## Next steps
 
 - [The Chart Display](/chart-display) — chart modes, layers, and detail

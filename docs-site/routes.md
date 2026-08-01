@@ -95,6 +95,28 @@ header shows or hides *every* route in it at once, so you can keep last
 summer's cruise legs filed away and invisible while today's routes stay
 on the chart. A route with no folder simply lists at the top.
 
+Waypoints and tracks work the same way, with their own folders and their
+own collapse state.
+
+### Working on several at once
+
+Filing routes one at a time is fine for a few and hopeless for fifty. The
+ticked-box button in the panel header — or a long press on any row — turns
+the list into checkboxes:
+
+![Selecting several routes at once](/images/route-selection.png)
+
+Tick what you want and the bar along the bottom acts on all of it: move to a
+folder, show, hide, or delete. **Select All** takes everything in the panel,
+including whatever is inside collapsed folders, and a folder header's own
+checkbox takes just that folder — which is the quick way to deal with an
+import you no longer want. **Done** (or the Escape key) leaves the mode; so
+does closing the panel.
+
+While you're selecting, each row's own buttons step aside, so a tap can only
+ever mean "select this one". The Waypoints and Tracks panels have the same
+button and the same bar.
+
 ### Export and import (GPX)
 
 The panel header's import/export buttons read and write standard GPX files,
@@ -125,11 +147,38 @@ Two reasons to use them:
 Importing needn't start in the app: open a `.gpx` file from Files, Mail, or a
 cloud drive and choose Pelorus Nav, and it loads straight in.
 
-A file carrying more than one route offers to put them in a folder, named
-after the file if it says what it is. Worth accepting for a big import — a
-download of somebody's cruising routes can be dozens at once, and a folder
-keeps them together and lets you clear them off the chart with one tap of its
-eye. Leave the name empty to skip, and the routes simply list on their own.
+#### What happens when you import
+
+Importing shows you what the file holds and what it means for what you already
+have, before writing anything:
+
+![The import dialog](/images/import-dialog.png)
+
+If the file brings several new items, it offers to put them in a folder, named
+after the file when the file says what it is. Worth accepting for a big
+import — a download of somebody's cruising routes can be dozens at once, and a
+folder keeps them together and lets you clear them off the chart with one tap
+of its eye. Empty the name to skip it and they simply list on their own.
+
+#### Re-importing the same file
+
+Importing a file you have imported before does **not** give you a second copy
+of everything. Pelorus recognizes what it has already seen — by the identifier
+the file carries where there is one, and by the route's name and shape where
+there isn't — and updates those items in place instead of adding them again.
+An unchanged file writes nothing at all, and says so: *"55 routes and 308
+waypoints already up to date."*
+
+That makes a shared file a workable way to keep two devices in step: export
+from one, import on the other, as often as you like. When an item has changed
+on the far side, the file's version wins for the name and the shape, while
+this device keeps how *you* filed it — its folder, its colour, and whether
+it's currently shown on the chart.
+
+A file from another chartplotter also keeps the things Pelorus itself doesn't
+use — OpenCPN's planned speed and arrival radii, the depth and water
+temperature a Garmin recorded at a mark — and writes them back out on export,
+so a file that goes home to the app it came from arrives intact.
 
 ## Following a route
 

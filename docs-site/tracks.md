@@ -22,8 +22,16 @@ Click the color dot to change the track's color; double-click the name to
 rename it. The header buttons import GPX files and export or delete all
 tracks at once.
 
+A season of recordings gets long, so tracks can go in folders and be worked
+on in bulk exactly as [routes can](/routes#organizing-with-folders): a
+folder's eye shows or hides everything in it, and the ticked-box button in
+the header (or a long press on a row) lets you select several and move, show,
+hide, or delete them together.
+
 As with routes, tracks live only on the device — export now and then for
-backup, or to move a track to another device or app.
+backup, or to move a track to another device or app. Re-importing a file you
+have imported before updates what is already there rather than duplicating
+it, so the same file can be used to keep two devices in step.
 
 ## The Track Viewer
 

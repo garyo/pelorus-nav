@@ -7,7 +7,8 @@
  * Run: bun run docs:shots [scene ...]   (no args = all scenes)
  * Output: docs-site/public/images/<name>.png (committed to git).
  */
-import { mkdirSync, readFileSync } from "node:fs";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { type Browser, chromium, type Page } from "playwright";
 import { REPLAY_TRACK } from "../src/navigation/replay-track";
 import { iconShareIOS } from "../src/ui/icons";
@@ -174,6 +175,23 @@ function buildPlotSheet() {
   };
 }
 const SEED_PLOT = buildPlotSheet();
+
+/** Two routes and a waypoint, with a file name of its own — enough for the
+ *  import dialog to have something to say. Fed through the real picker. */
+const IMPORT_FIXTURE =
+  '<?xml version="1.0" encoding="UTF-8"?>\n' +
+  '<gpx version="1.1" creator="ActiveCaptain" xmlns="http://www.topografix.com/GPX/1/1">\n' +
+  "  <metadata><name>Maine Cruise</name></metadata>\n" +
+  '  <wpt lat="43.79" lon="-69.63"><name>Boothbay</name></wpt>\n' +
+  "  <rte><name>Casco Bay Passage</name>\n" +
+  '    <rtept lat="43.65" lon="-70.24"><name>Portland</name></rtept>\n' +
+  '    <rtept lat="43.79" lon="-69.63"><name>Boothbay</name></rtept>\n' +
+  "  </rte>\n" +
+  "  <rte><name>Muscongus Run</name>\n" +
+  '    <rtept lat="43.79" lon="-69.63"><name>Boothbay</name></rtept>\n' +
+  '    <rtept lat="43.92" lon="-69.36"><name>Port Clyde</name></rtept>\n' +
+  "  </rte>\n" +
+  "</gpx>\n";
 
 interface Scene {
   name: string;
@@ -448,6 +466,41 @@ const SCENES: Scene[] = [
     element: ".route-manager-panel",
     appIcons: true,
     actions: openRoutePanel,
+  },
+  {
+    // Selection mode: checkboxes on the rows and the bulk bar at the bottom.
+    name: "route-selection",
+    zoom: 12.3,
+    center: [-70.97, 42.345],
+    seedFolders: true,
+    actions: async (page) => {
+      await openRoutePanel(page);
+      await page.click("#route-select-btn");
+      await page.waitForSelector(".manager-selection-bar.open");
+      // Two ticked, so the count and the enabled actions both read true.
+      const boxes = page.locator(
+        ".route-manager-panel .manager-item:not(.manager-folder) .manager-select-box",
+      );
+      await boxes.nth(0).click();
+      await boxes.nth(1).click();
+      await page.waitForTimeout(400);
+    },
+  },
+  {
+    // The import confirmation, driven through the real file picker.
+    name: "import-dialog",
+    zoom: 12.3,
+    center: [-70.97, 42.345],
+    element: ".import-card",
+    actions: async (page) => {
+      const path = `${tmpdir()}/pelorus-docs-import.gpx`;
+      writeFileSync(path, IMPORT_FIXTURE);
+      await openRoutePanel(page);
+      const chooser = page.waitForEvent("filechooser");
+      await page.click("#route-import-btn");
+      await (await chooser).setFiles(path);
+      await page.waitForSelector(".import-card");
+    },
   },
   {
     name: "route-navigation",
