@@ -76,9 +76,14 @@ function standaloneWaypointXml(wp: StandaloneWaypoint): string {
   if (wp.icon && wp.icon !== "default") {
     xml += `    <sym>${escapeXml(wp.icon)}</sym>\n`;
   }
-  if (wp.folder) {
+  if (wp.folder || wp.id) {
     xml += `    <extensions>\n`;
-    xml += `      <pelorus:folder>${escapeXml(wp.folder)}</pelorus:folder>\n`;
+    if (wp.id) {
+      xml += `      <pelorus:id>${escapeXml(wp.id)}</pelorus:id>\n`;
+    }
+    if (wp.folder) {
+      xml += `      <pelorus:folder>${escapeXml(wp.folder)}</pelorus:folder>\n`;
+    }
     xml += `    </extensions>\n`;
   }
   xml += "  </wpt>\n";
@@ -88,8 +93,11 @@ function standaloneWaypointXml(wp: StandaloneWaypoint): string {
 function routeXml(route: Route): string {
   let xml = "  <rte>\n";
   xml += `    <name>${escapeXml(route.name)}</name>\n`;
-  if (route.color || route.folder) {
+  if (route.color || route.folder || route.id) {
     xml += `    <extensions>\n`;
+    if (route.id) {
+      xml += `      <pelorus:id>${escapeXml(route.id)}</pelorus:id>\n`;
+    }
     if (route.color) {
       xml += `      <pelorus:color>${escapeXml(route.color)}</pelorus:color>\n`;
     }
@@ -140,8 +148,11 @@ function trackPointXml(pt: TrackPoint): string {
 function trackXml(meta: TrackMeta, points: TrackPoint[]): string {
   let xml = "  <trk>\n";
   xml += `    <name>${escapeXml(meta.name)}</name>\n`;
-  if (meta.color || meta.folder) {
+  if (meta.color || meta.folder || meta.id) {
     xml += `    <extensions>\n`;
+    if (meta.id) {
+      xml += `      <pelorus:id>${escapeXml(meta.id)}</pelorus:id>\n`;
+    }
     if (meta.color) {
       xml += `      <pelorus:color>${escapeXml(meta.color)}</pelorus:color>\n`;
     }
@@ -264,6 +275,23 @@ function pelorusExt(parent: Element, localName: string): string | null {
   return null;
 }
 
+/**
+ * The id an item carries from wherever it came from, for re-import matching
+ * (see gpx-merge.ts). Ours is `pelorus:id`; Garmin writes `uuidx:uuid`, which
+ * is read by local name so any producer using that convention works without
+ * hard-coding another namespace URI.
+ */
+function sourceIdOf(el: Element): string | undefined {
+  const own = pelorusExt(el, "id");
+  if (own) return own;
+  for (const ext of el.getElementsByTagName("*")) {
+    if (ext.localName === "uuid" && ext.textContent?.trim()) {
+      return ext.textContent.trim();
+    }
+  }
+  return undefined;
+}
+
 /** Get *direct* child elements matching a local name (see `childText`). */
 function getElements(parent: Element, localName: string): Element[] {
   return Array.from(parent.children).filter((c) => c.localName === localName);
@@ -312,8 +340,10 @@ export function parseGpx(xml: string): GpxImportResult {
       continue;
     }
     const wptFolder = pelorusExt(wptEl, "folder");
+    const wptSourceId = sourceIdOf(wptEl);
     waypoints.push({
       id: generateUUID(),
+      ...(wptSourceId ? { sourceId: wptSourceId } : {}),
       lat: latLon.lat,
       lon: latLon.lon,
       name: childText(wptEl, "name") ?? "Imported Waypoint",
@@ -345,8 +375,10 @@ export function parseGpx(xml: string): GpxImportResult {
     }
 
     const folder = pelorusExt(rteEl, "folder");
+    const sourceId = sourceIdOf(rteEl);
     return {
       id: generateUUID(),
+      ...(sourceId ? { sourceId } : {}),
       name: childText(rteEl, "name") ?? `Imported Route ${i + 1}`,
       createdAt: now,
       color: parseColor(rteEl, i),
@@ -396,9 +428,11 @@ export function parseGpx(xml: string): GpxImportResult {
       }
 
       const id = generateUUID();
+      const trkSourceId = sourceIdOf(trkEl);
       return {
         meta: {
           id,
+          ...(trkSourceId ? { sourceId: trkSourceId } : {}),
           name: childText(trkEl, "name") ?? `Imported Track ${i + 1}`,
           createdAt: now,
           color: parseColor(trkEl, i),

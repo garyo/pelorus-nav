@@ -10,6 +10,10 @@ export interface Waypoint {
 
 export interface Route {
   id: string;
+  /** The id this item carried in the file it was imported from (our own
+   *  `pelorus:id`, or a Garmin `uuidx:uuid`). Lets a re-import of the same
+   *  file update this item instead of duplicating it — see gpx-merge.ts. */
+  sourceId?: string;
   name: string;
   createdAt: number;
   color: string;

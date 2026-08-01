@@ -1170,6 +1170,81 @@ body {
   background: #4570b0;
 }
 
+/* GPX import confirmation (reuses .about-overlay / .about-card). */
+.import-card {
+  width: 400px;
+  max-width: 92vw;
+}
+
+.import-body {
+  font-size: 13px;
+  color: #ddd;
+  line-height: 1.5;
+  margin-bottom: 14px;
+}
+
+.import-body p {
+  margin: 0 0 8px;
+}
+
+.import-detail {
+  color: #aaa;
+}
+
+.import-folder {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 12px;
+}
+
+.import-folder input {
+  background: #1e1e2e;
+  color: #eee;
+  border: 1px solid #555;
+  border-radius: 4px;
+  padding: 7px 9px;
+  font: inherit;
+  /* 16px keeps iOS Safari from zooming the page on focus. */
+  font-size: 16px;
+}
+
+.import-buttons {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.import-btn {
+  background: #2a2a3e;
+  color: #ddd;
+  border: 1px solid #555;
+  border-radius: 4px;
+  padding: 6px 14px;
+  font: inherit;
+  cursor: pointer;
+}
+
+.import-btn:hover {
+  background: #36364e;
+  color: #fff;
+}
+
+.import-btn.primary {
+  background: #36578a;
+  border-color: #6688cc;
+  color: #fff;
+}
+
+.import-btn.primary:hover {
+  background: #4570b0;
+}
+
+.import-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
 /* Navigation disclaimer dialog (reuses .about-overlay / .about-card). Higher
    z-index than other dialogs since it must always be the topmost thing on
    screen if one ever manages to fire while it's still up. */
@@ -3281,6 +3356,20 @@ body {
 [data-theme="eink"] .about-card .disclaimer-body,
 [data-theme="eink"] .about-card .screen-timeout-body {
   color: #1a1a1a;
+}
+
+[data-theme="eink"] .about-card .import-body {
+  color: #1a1a1a;
+}
+
+[data-theme="eink"] .about-card .import-detail {
+  color: #444444;
+}
+
+[data-theme="eink"] .import-folder input {
+  background: #ffffff;
+  color: #000000;
+  border-color: #000000;
 }
 
 [data-theme="eink"] .about-card .disclaimer-body .ua-notice {

@@ -25,6 +25,8 @@ export interface TrackPoint {
 
 export interface TrackMeta {
   id: string;
+  /** Id carried in the file this was imported from — see gpx-merge.ts. */
+  sourceId?: string;
   name: string;
   createdAt: number;
   color: string;

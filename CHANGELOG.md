@@ -12,6 +12,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/).
   with an up arrow) instead of the Android one.
 
 ### Added
+- Importing a GPX file you have imported before now updates what is already
+  there instead of adding a second copy of everything — so a file you sync
+  between devices can be re-imported as often as you like. The import dialog
+  says what the file holds and how much of it is already up to date before
+  anything is written, and your folders, colours and hidden/shown state are
+  kept when an item is updated.
 - Waypoints can be hidden: each row has a show/hide eye, and waypoints and
   tracks can now go in folders like routes do, with the folder's eye showing
   or hiding everything in it at once. Folders travel with exported GPX files.

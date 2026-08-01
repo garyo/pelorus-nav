@@ -150,10 +150,21 @@ describe("GPX export", () => {
     expect(gpx).toContain("<pelorus:folder>USVI A &amp; B</pelorus:folder>");
   });
 
-  it("emits no folder element (and no empty extensions) without one", () => {
+  it("emits no folder element without one (the id is always written)", () => {
     const gpx = routeToGpx({ ...sampleRoute, color: "" });
     expect(gpx).not.toContain("pelorus:folder");
-    expect(gpx).not.toContain("<extensions>");
+    expect(gpx).toContain("<pelorus:id>r1</pelorus:id>");
+  });
+
+  it("writes each item's id so a re-import can recognize it", () => {
+    const gpx = exportAllToGpx(
+      [sampleRoute],
+      [{ meta: sampleTrackMeta, points: sampleTrackPoints }],
+      sampleWaypoints,
+    );
+    expect(gpx).toContain("<pelorus:id>r1</pelorus:id>");
+    expect(gpx).toContain("<pelorus:id>t1</pelorus:id>");
+    expect(gpx).toContain("<pelorus:id>w1</pelorus:id>");
   });
 });
 
@@ -493,9 +504,28 @@ describe("GPX folder round-trip", () => {
     expect(meta.color).toBe("#cc4444");
   });
 
-  it("emits no extensions for a folderless waypoint", () => {
+  it("emits no folder element for a folderless waypoint", () => {
     const gpx = waypointsToGpx([sampleWaypoints[0]]);
-    expect(gpx).not.toContain("<extensions>");
+    expect(gpx).not.toContain("pelorus:folder");
+  });
+
+  it("round-trips an item's id as the sourceId a re-import matches on", () => {
+    const parsed = parseGpx(routeToGpx(sampleRoute));
+    expect(parsed.routes[0].sourceId).toBe("r1");
+    // ...and the local id is fresh, so nothing collides if it is a new import.
+    expect(parsed.routes[0].id).not.toBe("r1");
+  });
+
+  it("reads a Garmin uuid extension as the sourceId", () => {
+    const gpx =
+      '<?xml version="1.0"?><gpx version="1.1" creator="Garmin" ' +
+      'xmlns:uuidx="http://www.garmin.com/xmlschemas/IdentifierExtension/v1">' +
+      '<wpt lat="42.36" lon="-71.05"><name>RANDY</name>' +
+      "<extensions><uuidx:uuid>225a11e5-5050-45df-a263-b744e13fa975</uuidx:uuid>" +
+      "</extensions></wpt></gpx>";
+    expect(parseGpx(gpx).waypoints[0].sourceId).toBe(
+      "225a11e5-5050-45df-a263-b744e13fa975",
+    );
   });
 
   it("imports waypoints visible", () => {

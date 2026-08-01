@@ -11,8 +11,14 @@
 import { type OpenedFile, onFileOpen } from "../app/fileOpenQueue";
 import { deleteInboxCopy } from "../data/file-io";
 import { parseGpx } from "../data/gpx";
-import { describeGpxImport, saveGpxImport } from "../data/gpx-import";
-import { askImportFolder, reloadImportedLayers } from "./gpx-import";
+import {
+  describeGpxContents,
+  describeGpxImport,
+  type GpxImportCounts,
+  isGpxImportEmpty,
+} from "../data/gpx-import";
+import type { MergeCounts } from "../data/gpx-merge";
+import { confirmAndImport } from "./gpx-import";
 import { showStatusBanner } from "./StatusBanner";
 import { showUpdateNotice } from "./updateNotice";
 
@@ -85,12 +91,7 @@ async function handleOpenedFile(
     return;
   }
 
-  const found = describeGpxImport({
-    routes: result.routes.length,
-    tracks: result.tracks.length,
-    waypoints: result.waypoints.length,
-    skippedPoints: result.skippedPoints,
-  });
+  const found = describeGpxContents(result);
   if (!found) {
     showStatusBanner({
       id: BANNER_ID,
@@ -105,13 +106,16 @@ async function handleOpenedFile(
     actionLabel: "Import",
     onAction: () => {
       void (async () => {
-        let counts: Awaited<ReturnType<typeof saveGpxImport>>;
+        let counts: GpxImportCounts | null;
         try {
-          // The one modal in this flow, and only for a multi-route file. It
-          // answers the Import tap the user just made, so it doesn't break the
-          // rule above: nothing interrupts until they've asked for something.
-          counts = await saveGpxImport(result, askImportFolder(result));
-          await reloadImportedLayers(counts);
+          // The one modal in this flow. It answers the Import tap the user
+          // just made, so it doesn't break the rule above: nothing interrupts
+          // until they've asked for something.
+          counts = await confirmAndImport(result, file.name);
+          if (!counts) {
+            void deleteInboxCopy(file.url);
+            return;
+          }
         } catch (e) {
           console.error("GPX import failed:", e);
           showStatusBanner({
@@ -121,15 +125,21 @@ async function handleOpenedFile(
           return;
         }
 
+        const written = counts;
+        const touched = (c: MergeCounts) => c.added + c.updated;
         showUpdateNotice({
           id: NOTICE_ID,
-          message: `Imported ${describeGpxImport(counts)}`,
+          message: isGpxImportEmpty(written)
+            ? "Already up to date"
+            : describeGpxImport(written),
           actionLabel: "Show",
           onAction: () => {
             // Whichever kind dominates the file is what the user came for.
-            if (counts.routes >= counts.tracks && counts.routes > 0) {
+            const routes = touched(written.routes);
+            const tracks = touched(written.tracks);
+            if (routes >= tracks && routes > 0) {
               targets.showRoutes();
-            } else if (counts.tracks > 0) {
+            } else if (tracks > 0) {
               targets.showTracks();
             } else {
               targets.showWaypoints();

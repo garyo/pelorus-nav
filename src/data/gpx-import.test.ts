@@ -7,6 +7,8 @@ const mocks = vi.hoisted(() => ({
   saveTrackMeta: vi.fn(),
   appendTrackPoints: vi.fn(),
   saveWaypoint: vi.fn(),
+  getAllWaypoints: vi.fn(),
+  replaceTrackPoints: vi.fn(),
 }));
 
 vi.mock("./db", () => mocks);
@@ -14,10 +16,14 @@ vi.mock("./db", () => mocks);
 import type { GpxImportResult } from "./gpx";
 import {
   defaultImportFolder,
+  describeGpxContents,
   describeGpxImport,
+  describeGpxUnchanged,
   type GpxImportCounts,
+  isGpxImportEmpty,
   saveGpxImport,
 } from "./gpx-import";
+import type { MergeCounts } from "./gpx-merge";
 import type { Route } from "./Route";
 import type { TrackMeta, TrackPoint } from "./Track";
 import type { StandaloneWaypoint } from "./Waypoint";
@@ -78,9 +84,11 @@ describe("saveGpxImport", () => {
     for (const fn of Object.values(mocks)) fn.mockReset();
     mocks.getAllRoutes.mockResolvedValue([]);
     mocks.getAllTrackMetas.mockResolvedValue([]);
+    mocks.getAllWaypoints.mockResolvedValue([]);
     mocks.saveRoute.mockResolvedValue(undefined);
     mocks.saveTrackMeta.mockResolvedValue(undefined);
     mocks.appendTrackPoints.mockResolvedValue(undefined);
+    mocks.replaceTrackPoints.mockResolvedValue(undefined);
     mocks.saveWaypoint.mockResolvedValue(undefined);
   });
 
@@ -98,15 +106,19 @@ describe("saveGpxImport", () => {
     expect(mocks.appendTrackPoints).toHaveBeenCalledWith("t-Sail", [point(1)]);
     expect(mocks.saveWaypoint).toHaveBeenCalledTimes(1);
     expect(counts).toEqual({
-      routes: 1,
-      tracks: 1,
-      waypoints: 1,
+      routes: { added: 1, updated: 0, unchanged: 0 },
+      tracks: { added: 1, updated: 0, unchanged: 0 },
+      waypoints: { added: 1, updated: 0, unchanged: 0 },
       skippedPoints: 0,
     });
   });
 
-  it("suffixes route names that collide with existing ones", async () => {
-    mocks.getAllRoutes.mockResolvedValue([route("Passage")]);
+  it("suffixes the name of a different route that happens to share one", async () => {
+    // Same name, different geometry — a genuinely separate route, so it's
+    // added rather than merged, and the suffix keeps the two apart.
+    const existing = { ...route("Passage"), id: "stored-1" };
+    existing.waypoints = [{ lat: 1, lon: 1, name: "elsewhere" }];
+    mocks.getAllRoutes.mockResolvedValue([existing]);
     const imported = route("Passage");
 
     await saveGpxImport(result({ routes: [imported, route("Fresh")] }));
@@ -115,8 +127,42 @@ describe("saveGpxImport", () => {
     expect(mocks.saveRoute.mock.calls[1][0].name).toBe("Fresh");
   });
 
-  it("suffixes track names that collide with existing ones", async () => {
-    mocks.getAllTrackMetas.mockResolvedValue([trackMeta("Sail")]);
+  it("re-importing an unchanged file writes nothing", async () => {
+    const stored = { ...route("Passage"), id: "stored-1" };
+    mocks.getAllRoutes.mockResolvedValue([stored]);
+    mocks.getAllWaypoints.mockResolvedValue([
+      { ...waypoint("Buoy"), id: "stored-w" },
+    ]);
+
+    const counts = await saveGpxImport(
+      result({ routes: [route("Passage")], waypoints: [waypoint("Buoy")] }),
+    );
+
+    expect(mocks.saveRoute).not.toHaveBeenCalled();
+    expect(mocks.saveWaypoint).not.toHaveBeenCalled();
+    expect(counts.routes).toEqual({ added: 0, updated: 0, unchanged: 1 });
+    expect(counts.waypoints).toEqual({ added: 0, updated: 0, unchanged: 1 });
+  });
+
+  it("updates a stored route in place when the file's copy changed", async () => {
+    const stored = { ...route("Passage"), id: "stored-1", folder: "Maine" };
+    mocks.getAllRoutes.mockResolvedValue([stored]);
+    const changed = { ...route("Passage"), sourceId: "stored-1" };
+    changed.waypoints = [{ lat: 42, lon: -71, name: "new" }];
+
+    const counts = await saveGpxImport(result({ routes: [changed] }));
+
+    expect(counts.routes).toEqual({ added: 0, updated: 1, unchanged: 0 });
+    const saved = mocks.saveRoute.mock.calls[0][0];
+    expect(saved.id).toBe("stored-1");
+    expect(saved.folder).toBe("Maine");
+    expect(saved.waypoints).toEqual(changed.waypoints);
+  });
+
+  it("suffixes the name of a different track that happens to share one", async () => {
+    mocks.getAllTrackMetas.mockResolvedValue([
+      { ...trackMeta("Sail"), id: "stored-t", pointCount: 99 },
+    ]);
     const meta = trackMeta("Sail");
 
     await saveGpxImport(result({ tracks: [{ meta, points: [] }] }));
@@ -158,9 +204,9 @@ describe("saveGpxImport", () => {
     expect(mocks.saveRoute).not.toHaveBeenCalled();
     expect(mocks.saveWaypoint).not.toHaveBeenCalled();
     expect(counts).toEqual({
-      routes: 0,
-      tracks: 0,
-      waypoints: 0,
+      routes: { added: 0, updated: 0, unchanged: 0 },
+      tracks: { added: 0, updated: 0, unchanged: 0 },
+      waypoints: { added: 0, updated: 0, unchanged: 0 },
       skippedPoints: 0,
     });
   });
@@ -170,7 +216,10 @@ describe("saveGpxImport folders", () => {
   beforeEach(() => {
     for (const fn of Object.values(mocks)) fn.mockReset();
     mocks.getAllRoutes.mockResolvedValue([]);
+    mocks.getAllTrackMetas.mockResolvedValue([]);
+    mocks.getAllWaypoints.mockResolvedValue([]);
     mocks.saveRoute.mockResolvedValue(undefined);
+    mocks.saveWaypoint.mockResolvedValue(undefined);
   });
 
   it("files imported routes in the given folder", async () => {
@@ -233,36 +282,98 @@ describe("defaultImportFolder", () => {
   });
 });
 
+const mc = (p: Partial<MergeCounts> = {}): MergeCounts => ({
+  added: 0,
+  updated: 0,
+  unchanged: 0,
+  ...p,
+});
+
+const counts = (p: Partial<GpxImportCounts> = {}): GpxImportCounts => ({
+  routes: mc(),
+  tracks: mc(),
+  waypoints: mc(),
+  skippedPoints: 0,
+  ...p,
+});
+
 describe("describeGpxImport", () => {
-  const counts = (p: Partial<GpxImportCounts>): GpxImportCounts => ({
-    routes: 0,
-    tracks: 0,
-    waypoints: 0,
-    skippedPoints: 0,
-    ...p,
+  it("is empty when nothing was written", () => {
+    expect(describeGpxImport(counts())).toBe("");
   });
 
-  it("is empty when nothing was imported", () => {
-    expect(describeGpxImport(counts({}))).toBe("");
-  });
-
-  it("uses the singular for one", () => {
-    expect(describeGpxImport(counts({ routes: 1 }))).toBe("1 route");
-  });
-
-  it("pluralizes", () => {
-    expect(describeGpxImport(counts({ waypoints: 3 }))).toBe("3 waypoints");
-  });
-
-  it("joins two kinds with 'and'", () => {
-    expect(describeGpxImport(counts({ routes: 2, waypoints: 1 }))).toBe(
-      "2 routes and 1 waypoint",
+  it("stays empty when everything matched and nothing changed", () => {
+    expect(describeGpxImport(counts({ routes: mc({ unchanged: 9 }) }))).toBe(
+      "",
     );
   });
 
-  it("joins three kinds with commas and a final 'and'", () => {
+  it("uses the singular for one", () => {
+    expect(describeGpxImport(counts({ routes: mc({ added: 1 }) }))).toBe(
+      "1 route added",
+    );
+  });
+
+  it("reports added and updated separately", () => {
     expect(
-      describeGpxImport(counts({ routes: 2, tracks: 1, waypoints: 5 })),
-    ).toBe("2 routes, 1 track and 5 waypoints");
+      describeGpxImport(counts({ routes: mc({ added: 5, updated: 8 }) })),
+    ).toBe("5 routes added and 8 routes updated");
+  });
+
+  it("joins kinds with commas and a final 'and'", () => {
+    expect(
+      describeGpxImport(
+        counts({
+          routes: mc({ added: 2 }),
+          tracks: mc({ added: 1 }),
+          waypoints: mc({ added: 5 }),
+        }),
+      ),
+    ).toBe("2 routes added, 1 track added and 5 waypoints added");
+  });
+});
+
+describe("describeGpxUnchanged", () => {
+  it("names what was recognized and left alone", () => {
+    expect(
+      describeGpxUnchanged(
+        counts({
+          routes: mc({ unchanged: 42 }),
+          waypoints: mc({ unchanged: 296 }),
+        }),
+      ),
+    ).toBe("42 routes and 296 waypoints");
+  });
+
+  it("is empty when nothing matched", () => {
+    expect(describeGpxUnchanged(counts())).toBe("");
+  });
+});
+
+describe("isGpxImportEmpty", () => {
+  it("is true when every kind is unchanged — the everyday re-sync", () => {
+    expect(isGpxImportEmpty(counts({ routes: mc({ unchanged: 55 }) }))).toBe(
+      true,
+    );
+  });
+
+  it("is false as soon as one item would be written", () => {
+    expect(isGpxImportEmpty(counts({ waypoints: mc({ updated: 1 }) }))).toBe(
+      false,
+    );
+  });
+});
+
+describe("describeGpxContents", () => {
+  it("says what a file holds", () => {
+    expect(
+      describeGpxContents(
+        result({ routes: [route("A")], waypoints: [waypoint("B")] }),
+      ),
+    ).toBe("1 route and 1 waypoint");
+  });
+
+  it("is empty for a file with nothing importable", () => {
+    expect(describeGpxContents(result({}))).toBe("");
   });
 });

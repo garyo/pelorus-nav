@@ -12,6 +12,8 @@ export type WaypointIcon =
 
 export interface StandaloneWaypoint {
   id: string;
+  /** Id carried in the file this was imported from — see gpx-merge.ts. */
+  sourceId?: string;
   lat: number;
   lon: number;
   name: string;

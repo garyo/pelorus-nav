@@ -10,14 +10,17 @@
 import { GPX_ACCEPT, pickFile } from "../data/file-io";
 import { type GpxImportResult, parseGpx } from "../data/gpx";
 import {
-  defaultImportFolder,
+  describeGpxContents,
   describeGpxImport,
   type GpxImportCounts,
+  planGpxImport,
   saveGpxImport,
 } from "../data/gpx-import";
+import type { MergeCounts } from "../data/gpx-merge";
 import type { RouteLayer } from "../map/RouteLayer";
 import type { TrackLayer } from "../map/TrackLayer";
 import type { WaypointLayer } from "../map/WaypointLayer";
+import { showImportDialog } from "./ImportDialog";
 
 export interface ImportLayers {
   routeLayer: RouteLayer;
@@ -40,9 +43,10 @@ export async function reloadImportedLayers(
   counts: GpxImportCounts,
 ): Promise<void> {
   if (!layers) return;
-  if (counts.routes > 0) await layers.routeLayer.reloadAll();
-  if (counts.tracks > 0) await layers.trackLayer.reloadAll();
-  if (counts.waypoints > 0) await layers.waypointLayer.reloadAll();
+  const touched = (c: MergeCounts) => c.added + c.updated > 0;
+  if (touched(counts.routes)) await layers.routeLayer.reloadAll();
+  if (touched(counts.tracks)) await layers.trackLayer.reloadAll();
+  if (touched(counts.waypoints)) await layers.waypointLayer.reloadAll();
 }
 
 /** Parse GPX text, reporting bad input rather than throwing. */
@@ -71,27 +75,23 @@ export async function pickAndParseGpx(): Promise<GpxImportResult | null> {
 }
 
 /**
- * Offer to file a multi-route import in a folder, and return the name chosen.
+ * Confirm and run an import: plan it against what's stored, show the user
+ * what that means, and write only if they agree.
  *
- * One GPX can carry a whole season's routes, and sixty loose routes bury the
- * chart with no way to clear them but sixty taps of the eye. A folder gives
- * the Routes panel's existing bulk-visibility eye something to act on, so the
- * moment to ask is while the import is still in the user's hands.
- *
- * Only multi-route files ask: a single route is not clutter, and routes that
- * carry their own folder are left alone by saveGpxImport either way. An empty
- * answer or a cancel means "leave them loose" — declining must be as easy as
- * accepting.
+ * Shared by the panel Import buttons and the open-with flow so both report
+ * the same thing. Returns what was written, or null if nothing was.
  */
-export function askImportFolder(result: GpxImportResult): string | undefined {
-  if (result.routes.length < 2) return undefined;
-  const answer = prompt(
-    `Put these ${result.routes.length} routes in a folder?\n` +
-      "You can hide or show a folder's routes together. " +
-      "Leave it empty to skip.",
-    defaultImportFolder(result),
-  );
-  return answer?.trim() || undefined;
+export async function confirmAndImport(
+  result: GpxImportResult,
+  fileName?: string | null,
+): Promise<GpxImportCounts | null> {
+  const plan = await planGpxImport(result);
+  const choice = await showImportDialog(result, plan, fileName);
+  if (!choice) return null;
+
+  const counts = await saveGpxImport(result, choice.folder, plan);
+  await reloadImportedLayers(counts);
+  return counts;
 }
 
 /** The Import button on every manager panel. */
@@ -99,13 +99,16 @@ export async function importGpxFromPicker(): Promise<void> {
   const result = await pickAndParseGpx();
   if (!result) return;
 
-  const counts = await saveGpxImport(result, askImportFolder(result));
-  await reloadImportedLayers(counts);
+  if (!describeGpxContents(result)) {
+    alert("No routes, tracks or waypoints found in this GPX file.");
+    return;
+  }
 
+  const counts = await confirmAndImport(result);
+  if (!counts) return;
+
+  // Silent on a no-op: a sync that changed nothing is the expected outcome,
+  // and the dialog already said so before it ran.
   const what = describeGpxImport(counts);
-  alert(
-    what
-      ? `Imported ${what}.`
-      : "No routes, tracks or waypoints found in this GPX file.",
-  );
+  if (what) alert(`${what[0].toUpperCase()}${what.slice(1)}.`);
 }
