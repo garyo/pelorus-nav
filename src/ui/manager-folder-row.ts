@@ -27,6 +27,9 @@ export interface FolderRowOptions<T extends { visible: boolean }> {
   /** Show or hide the folder's whole contents in one pass — one write and
    *  one redraw, not one per item (a 300-waypoint folder is common). */
   setVisible: (items: T[], visible: boolean) => Promise<void>;
+  /** True while the panel is in selection mode: the row selects its contents
+   *  rather than collapsing, so one tap can't mean two things. */
+  selecting?: boolean;
   /** Ticks the folder's contents when the panel is in selection mode. */
   decorateSelection?: (contents: T[], row: HTMLDivElement) => void;
   /** Re-render after a bulk show/hide. */
@@ -40,7 +43,11 @@ export function createFolderRow<T extends { visible: boolean }>(
 
   const item = document.createElement("div");
   item.className = "manager-item manager-folder";
-  item.title = isCollapsed ? "Expand folder" : "Collapse folder";
+  item.title = opts.selecting
+    ? "Select this folder"
+    : isCollapsed
+      ? "Expand folder"
+      : "Collapse folder";
 
   const chevron = document.createElement("span");
   chevron.className = "manager-folder-chevron";
@@ -74,7 +81,12 @@ export function createFolderRow<T extends { visible: boolean }>(
   });
   actions.appendChild(eyeBtn);
 
-  item.addEventListener("click", () => opts.onToggleCollapse(name));
+  // In selection mode the row belongs to the selection: collapsing here would
+  // fire alongside it (at the target, listeners run in registration order —
+  // a capture-phase handler added later does not get to go first).
+  if (!opts.selecting) {
+    item.addEventListener("click", () => opts.onToggleCollapse(name));
+  }
 
   item.append(chevron, info, actions);
   opts.decorateSelection?.(contents, item);

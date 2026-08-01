@@ -103,6 +103,18 @@ describe("createFolderRow", () => {
     expect(setVisible).toHaveBeenCalledWith(contents, true);
   });
 
+  it("selects instead of collapsing while the panel is in selection mode", () => {
+    // Both would otherwise fire on one tap: at the target, listeners run in
+    // registration order, so a later capture-phase handler doesn't win.
+    const onToggleCollapse = vi.fn();
+    const el = row([item("a", true)], { onToggleCollapse, selecting: true });
+
+    el.click();
+
+    expect(onToggleCollapse).not.toHaveBeenCalled();
+    expect(el.title).toBe("Select this folder");
+  });
+
   it("collapses on a row click but not on an eye click", () => {
     const onToggleCollapse = vi.fn();
     const el = row([item("a", true)], { onToggleCollapse });

@@ -420,6 +420,7 @@ export class RouteManagerPanel {
         this.refresh().catch(console.error);
       },
       setVisible: (routes, visible) => this.setRoutesVisible(routes, visible),
+      selecting: this.selection.isActive(),
       decorateSelection: (contents, row) =>
         this.selection.decorateFolderRow(contents, row),
       refresh: () => this.refresh(),

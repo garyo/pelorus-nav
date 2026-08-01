@@ -332,22 +332,23 @@ export class ManagerSelection<T> {
    */
   decorateFolderRow(contents: T[], row: HTMLElement): void {
     if (!this.active) return;
+    const all =
+      contents.length > 0 && contents.every((item) => this.isSelected(item));
     const box = document.createElement("input");
     box.type = "checkbox";
     box.className = "manager-select-box";
-    box.checked =
-      contents.length > 0 && contents.every((item) => this.isSelected(item));
+    box.checked = all;
+    box.title = all ? "Clear this folder" : "Select this folder";
     box.addEventListener("click", (e) => e.stopPropagation());
     box.addEventListener("change", () => this.toggleFolder(contents));
     row.prepend(box);
-    row.addEventListener(
-      "click",
-      (e) => {
-        e.stopPropagation();
-        this.toggleFolder(contents);
-      },
-      true,
-    );
+
+    // The folder's own eye stands down like a row's actions do — Show and
+    // Hide are on the selection bar while the mode is on.
+    const actions = row.querySelector<HTMLElement>(".manager-item-actions");
+    if (actions) actions.style.display = "none";
+
+    row.addEventListener("click", () => this.toggleFolder(contents));
   }
 
   /** Remember the live object behind an id, so actions use fresh data. */

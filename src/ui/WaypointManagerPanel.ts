@@ -268,6 +268,7 @@ export class WaypointManagerPanel {
             this.refresh();
           },
           setVisible: (wps, visible) => this.setWaypointsVisible(wps, visible),
+          selecting: this.selection.isActive(),
           decorateSelection: (contents, row) =>
             this.selection.decorateFolderRow(contents, row),
           refresh: async () => this.refresh(),

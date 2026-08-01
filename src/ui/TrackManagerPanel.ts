@@ -337,6 +337,7 @@ export class TrackManagerPanel {
             this.refresh().catch(console.error);
           },
           setVisible: (metas, vis) => this.setTracksVisible(metas, vis),
+          selecting: this.selection.isActive(),
           decorateSelection: (contents, row) =>
             this.selection.decorateFolderRow(contents, row),
           refresh: () => this.refresh(),
