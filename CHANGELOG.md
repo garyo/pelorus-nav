@@ -23,19 +23,16 @@ The format follows [Keep a Changelog](https://keepachangelog.com/).
   between devices can be re-imported as often as you like. The import dialog
   says what the file holds and how much of it is already up to date before
   anything is written, and your folders, colours and hidden/shown state are
-  kept when an item is updated.
+  kept when an item is updated. A file bringing in several new items offers
+  to put them in a folder, named after the file when it says what it is.
 - Routes, waypoints and tracks can be organized in bulk: a Select button in
   each panel header (or a long press on any row) turns the list into
   checkboxes, and a bar at the bottom moves everything ticked to a folder,
-  shows or hides it, or deletes it in one go. All / None selects everything
-  at once, and a folder's own checkbox takes its whole contents.
+  shows or hides it, or deletes it in one go. Select All takes everything in
+  the panel, and a folder's own checkbox takes its whole contents.
 - Waypoints can be hidden: each row has a show/hide eye, and waypoints and
   tracks can now go in folders like routes do, with the folder's eye showing
   or hiding everything in it at once. Folders travel with exported GPX files.
-- Importing a GPX file that holds more than one route offers to file them in
-  a folder, named after the file when it says what it is. A folder's eye
-  hides or shows all its routes at once, so a big import no longer buries
-  the chart in routes you have to hide one at a time.
 
 ### Fixed
 - Obstruction areas are drawn on the chart. From zoom 12 up, each one gets a
