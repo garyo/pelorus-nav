@@ -4,9 +4,11 @@
 
 import {
   deleteTrack,
+  deleteTracks,
   getAllTrackMetas,
   getTrackPoints,
   saveTrackMeta,
+  saveTrackMetas,
 } from "../data/db";
 import { downloadFile, GPX_MIME, sanitizeFilename } from "../data/file-io";
 import { exportAllToGpx, trackToGpx } from "../data/gpx";
@@ -66,18 +68,29 @@ export class TrackManagerPanel {
     group: "tracks",
     idOf: (meta) => meta.id,
     refresh: () => this.refresh(),
-    setVisible: (meta, visible) => this.setTrackVisible(meta, visible),
-    setFolder: async (meta, folder) => {
-      if (folder) meta.folder = folder;
-      else delete meta.folder;
-      await saveTrackMeta(meta);
+    setVisibleAll: async (metas, visible) => {
+      for (const meta of metas) {
+        meta.visible = visible;
+        if (!visible && this.selectedTrackId === meta.id) this.clearSelection();
+      }
+      await saveTrackMetas(metas);
     },
-    remove: async (meta) => {
-      if (this.selectedTrackId === meta.id) this.clearSelection();
-      await deleteTrack(meta.id);
+    setFolderAll: async (metas, folder) => {
+      for (const meta of metas) {
+        if (folder) meta.folder = folder;
+        else delete meta.folder;
+      }
+      await saveTrackMetas(metas);
+    },
+    removeAll: async (metas) => {
+      for (const meta of metas) {
+        if (this.selectedTrackId === meta.id) this.clearSelection();
+      }
       // The layer drops removed tracks on its next reloadAll, which
       // afterBulkChange runs once for the whole selection.
+      await deleteTracks(metas.map((m) => m.id));
     },
+    allItems: () => getAllTrackMetas(),
     folders: async () => [
       ...groupByFolder(await getAllTrackMetas()).folders.keys(),
     ],
@@ -323,7 +336,9 @@ export class TrackManagerPanel {
             });
             this.refresh().catch(console.error);
           },
-          setVisible: (meta, vis) => this.setTrackVisible(meta, vis),
+          setVisible: (metas, vis) => this.setTracksVisible(metas, vis),
+          decorateSelection: (contents, row) =>
+            this.selection.decorateFolderRow(contents, row),
           refresh: () => this.refresh(),
         }),
       );
@@ -390,6 +405,19 @@ export class TrackManagerPanel {
     } finally {
       this.fillsInFlight.delete(meta.id);
     }
+  }
+
+  /** Show or hide many tracks: one write, one redraw. */
+  private async setTracksVisible(
+    metas: TrackMeta[],
+    visible: boolean,
+  ): Promise<void> {
+    for (const meta of metas) {
+      meta.visible = visible;
+      if (!visible && this.selectedTrackId === meta.id) this.clearSelection();
+    }
+    await saveTrackMetas(metas);
+    await this.trackLayer.reloadAll();
   }
 
   /** Show or hide one track on the chart. Hiding a selected track clears the

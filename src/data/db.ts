@@ -114,6 +114,44 @@ export async function deleteTrack(id: string): Promise<void> {
   });
 }
 
+/** Write many track metas in one transaction (see saveRoutes). */
+export async function saveTrackMetas(
+  metas: readonly TrackMeta[],
+): Promise<void> {
+  if (metas.length === 0) return;
+  const db = await openDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction("tracks", "readwrite");
+    const store = tx.objectStore("tracks");
+    for (const meta of metas) store.put(meta);
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+}
+
+/** Delete many tracks and their points in one transaction (see saveRoutes). */
+export async function deleteTracks(ids: readonly string[]): Promise<void> {
+  if (ids.length === 0) return;
+  const db = await openDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(["tracks", "trackPoints"], "readwrite");
+    const points = tx.objectStore("trackPoints").index("byTrack");
+    for (const id of ids) {
+      tx.objectStore("tracks").delete(id);
+      const cursorReq = points.openCursor(IDBKeyRange.only(id));
+      cursorReq.onsuccess = () => {
+        const cursor = cursorReq.result;
+        if (cursor) {
+          cursor.delete();
+          cursor.continue();
+        }
+      };
+    }
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+}
+
 export async function appendTrackPoints(
   trackId: string,
   points: TrackPoint[],
@@ -226,6 +264,39 @@ export async function saveRoute(route: Route): Promise<void> {
   });
 }
 
+/**
+ * Write many routes in one transaction.
+ *
+ * Bulk actions used to write one record at a time, which on a few hundred
+ * items meant a few hundred transactions — and, worse, a few hundred layer
+ * redraws and panel re-renders behind them. One transaction per action keeps
+ * the whole thing to a single round trip.
+ */
+export async function saveRoutes(routes: readonly Route[]): Promise<void> {
+  if (routes.length === 0) return;
+  const db = await openDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction("routes", "readwrite");
+    const store = tx.objectStore("routes");
+    for (const route of routes) store.put(route);
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+}
+
+/** Delete many routes in one transaction (see saveRoutes). */
+export async function deleteRoutes(ids: readonly string[]): Promise<void> {
+  if (ids.length === 0) return;
+  const db = await openDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction("routes", "readwrite");
+    const store = tx.objectStore("routes");
+    for (const id of ids) store.delete(id);
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+}
+
 export async function getAllRoutes(): Promise<Route[]> {
   const db = await openDB();
   return new Promise((resolve, reject) => {
@@ -253,6 +324,34 @@ export async function saveWaypoint(wp: StandaloneWaypoint): Promise<void> {
   return new Promise((resolve, reject) => {
     const tx = db.transaction("waypoints", "readwrite");
     tx.objectStore("waypoints").put(wp);
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+}
+
+/** Write many waypoints in one transaction (see saveRoutes). */
+export async function saveWaypoints(
+  waypoints: readonly StandaloneWaypoint[],
+): Promise<void> {
+  if (waypoints.length === 0) return;
+  const db = await openDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction("waypoints", "readwrite");
+    const store = tx.objectStore("waypoints");
+    for (const wp of waypoints) store.put(wp);
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+}
+
+/** Delete many waypoints in one transaction (see saveRoutes). */
+export async function deleteWaypoints(ids: readonly string[]): Promise<void> {
+  if (ids.length === 0) return;
+  const db = await openDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction("waypoints", "readwrite");
+    const store = tx.objectStore("waypoints");
+    for (const id of ids) store.delete(id);
     tx.oncomplete = () => resolve();
     tx.onerror = () => reject(tx.error);
   });

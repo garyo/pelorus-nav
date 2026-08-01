@@ -27,7 +27,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/).
 - Routes, waypoints and tracks can be organized in bulk: a Select button in
   each panel header (or a long press on any row) turns the list into
   checkboxes, and a bar at the bottom moves everything ticked to a folder,
-  shows or hides it, or deletes it in one go.
+  shows or hides it, or deletes it in one go. All / None selects everything
+  at once, and a folder's own checkbox takes its whole contents.
 - Waypoints can be hidden: each row has a show/hide eye, and waypoints and
   tracks can now go in folders like routes do, with the folder's eye showing
   or hiding everything in it at once. Folders travel with exported GPX files.

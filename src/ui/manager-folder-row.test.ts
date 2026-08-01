@@ -81,24 +81,26 @@ describe("createFolderRow", () => {
     expect(btn?.title).toBe("Hide all");
   });
 
-  it("hides every item when the folder is fully visible", async () => {
-    const setVisible = vi.fn(async (_item: Item, _visible: boolean) => {});
-    const el = row([item("a", true), item("b", true)], { setVisible });
+  it("hides the whole folder in one call, not one per item", async () => {
+    const setVisible = vi.fn(async (_items: Item[], _visible: boolean) => {});
+    const contents = [item("a", true), item("b", true)];
+    const el = row(contents, { setVisible });
+
     el.querySelector("button")?.click();
-    await vi.waitFor(() => expect(setVisible).toHaveBeenCalledTimes(2));
-    expect(
-      setVisible.mock.calls.every(([, visible]) => visible === false),
-    ).toBe(true);
+    await vi.waitFor(() => expect(setVisible).toHaveBeenCalledTimes(1));
+
+    expect(setVisible).toHaveBeenCalledWith(contents, false);
   });
 
-  it("shows every item when none is visible", async () => {
-    const setVisible = vi.fn(async (_item: Item, _visible: boolean) => {});
-    const el = row([item("a", false), item("b", false)], { setVisible });
+  it("shows the whole folder when none of it is visible", async () => {
+    const setVisible = vi.fn(async (_items: Item[], _visible: boolean) => {});
+    const contents = [item("a", false), item("b", false)];
+    const el = row(contents, { setVisible });
+
     el.querySelector("button")?.click();
-    await vi.waitFor(() => expect(setVisible).toHaveBeenCalledTimes(2));
-    expect(setVisible.mock.calls.every(([, visible]) => visible === true)).toBe(
-      true,
-    );
+    await vi.waitFor(() => expect(setVisible).toHaveBeenCalledTimes(1));
+
+    expect(setVisible).toHaveBeenCalledWith(contents, true);
   });
 
   it("collapses on a row click but not on an eye click", () => {

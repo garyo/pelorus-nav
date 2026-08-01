@@ -101,11 +101,15 @@ export interface SelectionHost<T> {
   idOf: (item: T) => string;
   /** Re-render the panel after the selection or the data changed. */
   refresh: () => void | Promise<void>;
-  setVisible: (item: T, visible: boolean) => Promise<void>;
-  /** Persist a folder change (undefined clears it). */
-  setFolder: (item: T, folder: string | undefined) => Promise<void>;
-  /** Delete one item; confirmation has already happened. */
-  remove: (item: T) => Promise<void>;
+  /** Show or hide every item in one pass — one write, one redraw. Acting
+   *  per item is what made hiding 300 waypoints take 16 seconds of winking. */
+  setVisibleAll: (items: T[], visible: boolean) => Promise<void>;
+  /** File every item (undefined clears the folder), in one pass. */
+  setFolderAll: (items: T[], folder: string | undefined) => Promise<void>;
+  /** Delete every item in one pass; confirmation has already happened. */
+  removeAll: (items: T[]) => Promise<void>;
+  /** Everything the panel could list, including inside collapsed folders. */
+  allItems: () => Promise<T[]>;
   /** Folder names currently in use for this kind of item. */
   folders: () => Promise<string[]>;
   /** Redraw the chart after a bulk change, if the panel needs it. */
@@ -116,6 +120,7 @@ export class ManagerSelection<T> {
   private readonly host: SelectionHost<T>;
   private readonly bar: HTMLDivElement;
   private readonly countEl: HTMLSpanElement;
+  private readonly allBtn: HTMLButtonElement;
   private readonly surface: SurfaceHandle;
   private active = false;
   private readonly selected = new Set<string>();
@@ -155,12 +160,18 @@ export class ManagerSelection<T> {
       this.deleteAll().catch(console.error);
     });
 
+    this.allBtn = document.createElement("button");
+    this.allBtn.className = "route-editor-btn manager-selection-all";
+    this.allBtn.addEventListener("click", () => {
+      this.selectAll().catch(console.error);
+    });
+
     const done = document.createElement("button");
     done.className = "route-editor-btn manager-selection-done";
     done.textContent = "Done";
     done.addEventListener("click", () => this.exit());
 
-    this.bar.append(this.countEl, actions, done);
+    this.bar.append(this.countEl, actions, this.allBtn, done);
     document.body.appendChild(this.bar);
 
     this.surface = registerSurface({
@@ -232,7 +243,9 @@ export class ManagerSelection<T> {
 
   private updateCount(): void {
     const n = this.selected.size;
-    this.countEl.textContent = `${n} selected`;
+    // Name the kind: the bar can be the only thing on screen once a panel is
+    // scrolled away, and "4 selected" doesn't say four of what.
+    this.countEl.textContent = `${n} ${this.host.noun}${n === 1 ? "" : "s"} selected`;
     for (const btn of this.bar.querySelectorAll(
       "button.manager-selection-btn",
     )) {
@@ -277,6 +290,66 @@ export class ManagerSelection<T> {
     });
   }
 
+  /**
+   * Tick everything, or clear the lot if it's already all ticked.
+   *
+   * Reads the full list rather than the rendered rows: a collapsed folder
+   * shows no rows, and "Select all" that skipped it would be a quiet lie —
+   * the folder the user just filed 300 waypoints into is exactly the one
+   * they want to act on.
+   */
+  private async selectAll(): Promise<void> {
+    const all = await this.host.allItems();
+    const everything = all.length > 0 && this.selected.size === all.length;
+    this.selected.clear();
+    if (!everything) {
+      for (const item of all) {
+        this.items.set(this.host.idOf(item), item);
+        this.selected.add(this.host.idOf(item));
+      }
+    }
+    this.updateCount();
+    await this.host.refresh();
+  }
+
+  /** Tick or clear one folder's contents (its header row in selection mode). */
+  private toggleFolder(contents: T[]): void {
+    const all = contents.every((item) => this.isSelected(item));
+    for (const item of contents) {
+      const id = this.host.idOf(item);
+      this.items.set(id, item);
+      if (all) this.selected.delete(id);
+      else this.selected.add(id);
+    }
+    this.updateCount();
+    void this.host.refresh();
+  }
+
+  /**
+   * Put a checkbox on a folder header so a whole folder is one tap. In
+   * selection mode the header's collapse-on-click is suppressed — the
+   * checkbox is what a tap there means.
+   */
+  decorateFolderRow(contents: T[], row: HTMLElement): void {
+    if (!this.active) return;
+    const box = document.createElement("input");
+    box.type = "checkbox";
+    box.className = "manager-select-box";
+    box.checked =
+      contents.length > 0 && contents.every((item) => this.isSelected(item));
+    box.addEventListener("click", (e) => e.stopPropagation());
+    box.addEventListener("change", () => this.toggleFolder(contents));
+    row.prepend(box);
+    row.addEventListener(
+      "click",
+      (e) => {
+        e.stopPropagation();
+        this.toggleFolder(contents);
+      },
+      true,
+    );
+  }
+
   /** Remember the live object behind an id, so actions use fresh data. */
   track(item: T): void {
     this.items.set(this.host.idOf(item), item);
@@ -293,9 +366,7 @@ export class ManagerSelection<T> {
 
   private setAllVisible(visible: boolean): void {
     (async () => {
-      for (const item of this.chosen()) {
-        await this.host.setVisible(item, visible);
-      }
+      await this.host.setVisibleAll(this.chosen(), visible);
       await this.host.afterBulkChange?.();
       this.exit();
     })().catch(console.error);
@@ -310,9 +381,7 @@ export class ManagerSelection<T> {
       this.host.noun,
     );
     if (!choice) return;
-    for (const item of items) {
-      await this.host.setFolder(item, choice.folder);
-    }
+    await this.host.setFolderAll(items, choice.folder);
     await this.host.afterBulkChange?.();
     this.exit();
   }
@@ -322,9 +391,7 @@ export class ManagerSelection<T> {
     if (items.length === 0) return;
     const what = `${items.length} ${this.host.noun}${items.length === 1 ? "" : "s"}`;
     if (!confirm(`Delete ${what}?`)) return;
-    for (const item of items) {
-      await this.host.remove(item);
-    }
+    await this.host.removeAll(items);
     await this.host.afterBulkChange?.();
     this.exit();
   }

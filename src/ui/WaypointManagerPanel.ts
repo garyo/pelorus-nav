@@ -3,7 +3,13 @@
  * Follows the RouteManagerPanel pattern.
  */
 
-import { deleteWaypoint, getAllWaypoints, saveWaypoint } from "../data/db";
+import {
+  deleteWaypoint,
+  deleteWaypoints,
+  getAllWaypoints,
+  saveWaypoint,
+  saveWaypoints,
+} from "../data/db";
 import { downloadFile, GPX_MIME } from "../data/file-io";
 import { waypointsToGpx } from "../data/gpx";
 import type { StandaloneWaypoint, WaypointIcon } from "../data/Waypoint";
@@ -78,20 +84,33 @@ export class WaypointManagerPanel {
     group: "waypoints",
     idOf: (wp) => wp.id,
     refresh: () => this.refresh(),
-    setVisible: (wp, visible) => this.setWaypointVisible(wp, visible),
-    setFolder: async (wp, folder) => {
-      if (folder) wp.folder = folder;
-      else delete wp.folder;
-      wp.updatedAt = Date.now();
-      await saveWaypoint(wp);
-    },
-    remove: async (wp) => {
-      if (this.cobHooks?.isCobWaypoint(wp.id)) {
-        this.cobHooks.noteWaypointDeleted(wp.id);
+    setVisibleAll: async (wps, visible) => {
+      const now = Date.now();
+      for (const wp of wps) {
+        wp.visible = visible;
+        wp.updatedAt = now;
       }
-      this.activeNav.noteWaypointDeleted(wp.id);
-      await deleteWaypoint(wp.id);
+      await saveWaypoints(wps);
     },
+    setFolderAll: async (wps, folder) => {
+      const now = Date.now();
+      for (const wp of wps) {
+        if (folder) wp.folder = folder;
+        else delete wp.folder;
+        wp.updatedAt = now;
+      }
+      await saveWaypoints(wps);
+    },
+    removeAll: async (wps) => {
+      for (const wp of wps) {
+        if (this.cobHooks?.isCobWaypoint(wp.id)) {
+          this.cobHooks.noteWaypointDeleted(wp.id);
+        }
+        this.activeNav.noteWaypointDeleted(wp.id);
+      }
+      await deleteWaypoints(wps.map((wp) => wp.id));
+    },
+    allItems: () => getAllWaypoints(),
     folders: async () => [
       ...groupByFolder(await getAllWaypoints()).folders.keys(),
     ],
@@ -248,7 +267,9 @@ export class WaypointManagerPanel {
             });
             this.refresh();
           },
-          setVisible: (wp, visible) => this.setWaypointVisible(wp, visible),
+          setVisible: (wps, visible) => this.setWaypointsVisible(wps, visible),
+          decorateSelection: (contents, row) =>
+            this.selection.decorateFolderRow(contents, row),
           refresh: async () => this.refresh(),
         }),
       );
@@ -258,6 +279,20 @@ export class WaypointManagerPanel {
         }
       }
     }
+  }
+
+  /** Show or hide many waypoints: one write, one redraw. */
+  private async setWaypointsVisible(
+    wps: StandaloneWaypoint[],
+    visible: boolean,
+  ): Promise<void> {
+    const now = Date.now();
+    for (const wp of wps) {
+      wp.visible = visible;
+      wp.updatedAt = now;
+    }
+    await saveWaypoints(wps);
+    await this.waypointLayer.reloadAll();
   }
 
   /** Show or hide one waypoint on the chart. No-op when already set, so a

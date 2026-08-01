@@ -2,7 +2,13 @@
  * Floating panel for listing, toggling, editing, and deleting routes.
  */
 
-import { deleteRoute, getAllRoutes, saveRoute } from "../data/db";
+import {
+  deleteRoute,
+  deleteRoutes,
+  getAllRoutes,
+  saveRoute,
+  saveRoutes,
+} from "../data/db";
 import { downloadFile, GPX_MIME, sanitizeFilename } from "../data/file-io";
 import { exportAllToGpx, routeToGpx } from "../data/gpx";
 import type { Route } from "../data/Route";
@@ -60,20 +66,34 @@ export class RouteManagerPanel {
     group: "routes",
     idOf: (route) => route.id,
     refresh: () => this.refresh(),
-    setVisible: (route, visible) => this.setRouteVisible(route, visible),
-    setFolder: async (route, folder) => {
-      if (folder) route.folder = folder;
-      else delete route.folder;
-      await saveRoute(route);
-    },
-    remove: async (route) => {
-      if (this.editor.isEditing() && this.editor.getRoute()?.id === route.id) {
-        this.editor.cancel();
+    setVisibleAll: async (routes, visible) => {
+      for (const route of routes) {
+        route.visible = visible;
+        this.noteRouteHidden(route, visible);
       }
-      if (this.selectedRouteId === route.id) this.clearSelection();
-      await deleteRoute(route.id);
-      this.activeNav?.noteRouteDeleted(route.id);
+      await saveRoutes(routes);
     },
+    setFolderAll: async (routes, folder) => {
+      for (const route of routes) {
+        if (folder) route.folder = folder;
+        else delete route.folder;
+      }
+      await saveRoutes(routes);
+    },
+    removeAll: async (routes) => {
+      for (const route of routes) {
+        if (
+          this.editor.isEditing() &&
+          this.editor.getRoute()?.id === route.id
+        ) {
+          this.editor.cancel();
+        }
+        if (this.selectedRouteId === route.id) this.clearSelection();
+        this.activeNav?.noteRouteDeleted(route.id);
+      }
+      await deleteRoutes(routes.map((r) => r.id));
+    },
+    allItems: () => getAllRoutes(),
     folders: async () => [
       ...groupByFolder(await getAllRoutes()).folders.keys(),
     ],
@@ -399,7 +419,9 @@ export class RouteManagerPanel {
         });
         this.refresh().catch(console.error);
       },
-      setVisible: (route, visible) => this.setRouteVisible(route, visible),
+      setVisible: (routes, visible) => this.setRoutesVisible(routes, visible),
+      decorateSelection: (contents, row) =>
+        this.selection.decorateFolderRow(contents, row),
       refresh: () => this.refresh(),
     });
   }
@@ -408,20 +430,40 @@ export class RouteManagerPanel {
    *  hiding the actively navigated route stops navigation, and hiding the
    *  selected route clears the selection glow. No-op if already set; does
    *  not refresh the list. */
-  private async setRouteVisible(route: Route, visible: boolean): Promise<void> {
-    if (route.visible === visible) return;
-    route.visible = visible;
-    if (!visible && this.activeNav) {
+  /**
+   * The in-memory consequences of hiding a route: stop navigating it, and
+   * drop the selection glow that would otherwise linger without a line under
+   * it. Split out so a bulk hide can run it per route without also doing a
+   * write and a redraw per route.
+   */
+  private noteRouteHidden(route: Route, visible: boolean): void {
+    if (visible) return;
+    if (this.activeNav) {
       const st = this.activeNav.getState();
       if (st.type === "route" && st.route.id === route.id) {
         this.activeNav.stop();
       }
     }
-    // Hiding a selected route clears selection so the glow doesn't
-    // linger without the crisp line under it.
-    if (!visible && this.selectedRouteId === route.id) {
-      this.clearSelection();
+    if (this.selectedRouteId === route.id) this.clearSelection();
+  }
+
+  /** Show or hide many routes: one write, one redraw. */
+  private async setRoutesVisible(
+    routes: Route[],
+    visible: boolean,
+  ): Promise<void> {
+    for (const route of routes) {
+      route.visible = visible;
+      this.noteRouteHidden(route, visible);
     }
+    await saveRoutes(routes);
+    await this.routeLayer.reloadAll();
+  }
+
+  private async setRouteVisible(route: Route, visible: boolean): Promise<void> {
+    if (route.visible === visible) return;
+    route.visible = visible;
+    this.noteRouteHidden(route, visible);
     await saveRoute(route);
     await this.routeLayer.toggleVisibility(route.id, visible);
   }

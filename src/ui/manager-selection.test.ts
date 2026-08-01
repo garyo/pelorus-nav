@@ -24,17 +24,18 @@ function host(over: Partial<SelectionHost<Item>> = {}): TestHost {
     group: "routes",
     idOf: (i: Item) => i.id,
     refresh: vi.fn(),
-    setVisible: vi.fn(async (item: Item, visible: boolean) => {
-      item.visible = visible;
+    setVisibleAll: vi.fn(async (items: Item[], visible: boolean) => {
+      for (const item of items) item.visible = visible;
     }),
-    setFolder: vi.fn(async (item: Item, folder: string | undefined) => {
-      item.folder = folder;
+    setFolderAll: vi.fn(async (items: Item[], folder: string | undefined) => {
+      for (const item of items) item.folder = folder;
     }),
-    remove: vi.fn(async () => {}),
+    removeAll: vi.fn(async () => {}),
+    allItems: vi.fn(async () => [] as Item[]),
     folders: vi.fn(async () => ["Maine Cruise"]),
     afterBulkChange: vi.fn(async () => {}),
     ...over,
-  } as TestHost;
+  } as unknown as TestHost;
 }
 
 function makeSelection(h: TestHost) {
@@ -207,7 +208,7 @@ describe("ManagerSelection", () => {
     const a = { id: "a", visible: true };
     sel.enter(a);
     const bar = document.querySelector(".manager-selection-count");
-    expect(bar?.textContent).toBe("1 selected");
+    expect(bar?.textContent).toBe("1 route selected");
   });
 
   it("disables the actions when nothing is selected", () => {

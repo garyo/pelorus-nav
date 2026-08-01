@@ -24,9 +24,11 @@ export interface FolderRowOptions<T extends { visible: boolean }> {
   isCollapsed: boolean;
   /** Persist the new collapse state and re-render. */
   onToggleCollapse: (name: string) => void;
-  /** Show or hide one item; awaited in order so panels can run their own
-   *  side effects (stopping navigation on a hidden route, say). */
-  setVisible: (item: T, visible: boolean) => Promise<void>;
+  /** Show or hide the folder's whole contents in one pass — one write and
+   *  one redraw, not one per item (a 300-waypoint folder is common). */
+  setVisible: (items: T[], visible: boolean) => Promise<void>;
+  /** Ticks the folder's contents when the panel is in selection mode. */
+  decorateSelection?: (contents: T[], row: HTMLDivElement) => void;
   /** Re-render after a bulk show/hide. */
   refresh: () => Promise<void>;
 }
@@ -66,10 +68,7 @@ export function createFolderRow<T extends { visible: boolean }>(
   eyeBtn.addEventListener("click", (e) => {
     e.stopPropagation();
     (async () => {
-      const show = folderVisibility(contents) === "none";
-      for (const entry of contents) {
-        await opts.setVisible(entry, show);
-      }
+      await opts.setVisible(contents, folderVisibility(contents) === "none");
       await opts.refresh();
     })().catch(console.error);
   });
@@ -78,6 +77,7 @@ export function createFolderRow<T extends { visible: boolean }>(
   item.addEventListener("click", () => opts.onToggleCollapse(name));
 
   item.append(chevron, info, actions);
+  opts.decorateSelection?.(contents, item);
   return item;
 }
 
