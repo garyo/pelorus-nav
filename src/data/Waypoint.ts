@@ -26,4 +26,8 @@ export interface StandaloneWaypoint {
   visible: boolean;
   /** Optional one-level grouping in the waypoint manager. Absent = top level. */
   folder?: string;
+  /** The `<extensions>` this item arrived with, serialized and kept verbatim
+   *  so an export can hand it back to the app that wrote it — see
+   *  captureExtensions in gpx.ts. Not interpreted here. */
+  sourceExtensions?: string;
 }

@@ -34,6 +34,10 @@ export interface TrackMeta {
   pointCount: number;
   /** Optional one-level grouping in the track manager. Absent = top level. */
   folder?: string;
+  /** The `<extensions>` this item arrived with, serialized and kept verbatim
+   *  so an export can hand it back to the app that wrote it — see
+   *  captureExtensions in gpx.ts. Not interpreted here. */
+  sourceExtensions?: string;
   /** Set true after the Stop-time RTS post-processor has run. Implies
    *  every point has rawLat/rawLon and the lat/lon fields are smoothed. */
   smoothed?: boolean;

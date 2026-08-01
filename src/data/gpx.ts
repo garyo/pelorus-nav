@@ -41,11 +41,15 @@ function escapeXml(s: string): string {
     .replace(/'/g, "&apos;");
 }
 
-function gpxHeader(name: string): string {
+function gpxHeader(name: string, hoisted?: Map<string, string>): string {
+  const extra = [...(hoisted?.entries() ?? [])]
+    .map(([prefix, uri]) => `     xmlns:${prefix}="${uri}"\n`)
+    .join("");
   return (
     `<?xml version="1.0" encoding="UTF-8"?>\n` +
     `<gpx version="1.1" creator="Pelorus Nav"\n` +
     `     xmlns="${GPX_NS}"\n` +
+    `${extra}` +
     `     xmlns:pelorus="${PELORUS_NS}">\n` +
     `  <metadata>\n` +
     `    <name>${escapeXml(name)}</name>\n` +
@@ -56,16 +60,47 @@ function gpxHeader(name: string): string {
 
 const GPX_FOOTER = "</gpx>\n";
 
-function waypointXml(wp: Waypoint, indent: string): string {
+function waypointXml(
+  wp: Waypoint,
+  indent: string,
+  hoisted?: Map<string, string>,
+): string {
   let xml = `${indent}<rtept lat="${wp.lat}" lon="${wp.lon}">\n`;
   if (wp.name) {
     xml += `${indent}  <name>${escapeXml(wp.name)}</name>\n`;
   }
+  // A route point's own extensions (arrival radius, range rings, the
+  // producer's id for that point) belong to the point, not the route.
+  xml += extensionsXml("", wp.sourceExtensions, `${indent}  `, hoisted);
   xml += `${indent}</rtept>\n`;
   return xml;
 }
 
-function standaloneWaypointXml(wp: StandaloneWaypoint): string {
+/**
+ * The `<extensions>` block for an item: what we own, then whatever it arrived
+ * with. Ours come first so a reader hitting `pelorus:id` doesn't have to scan
+ * past a producer's whole payload to find it.
+ */
+function extensionsXml(
+  own: string,
+  preserved: string | undefined,
+  indent: string,
+  hoisted: Map<string, string> = new Map(),
+): string {
+  if (!own && !preserved) return "";
+  let xml = `${indent}<extensions>\n`;
+  xml += own;
+  if (preserved) {
+    xml += `${indentExtensions(stripHoisted(preserved, hoisted), `${indent}  `)}\n`;
+  }
+  xml += `${indent}</extensions>\n`;
+  return xml;
+}
+
+function standaloneWaypointXml(
+  wp: StandaloneWaypoint,
+  hoisted?: Map<string, string>,
+): string {
   let xml = `  <wpt lat="${wp.lat}" lon="${wp.lon}">\n`;
   if (wp.name) {
     xml += `    <name>${escapeXml(wp.name)}</name>\n`;
@@ -76,38 +111,28 @@ function standaloneWaypointXml(wp: StandaloneWaypoint): string {
   if (wp.icon && wp.icon !== "default") {
     xml += `    <sym>${escapeXml(wp.icon)}</sym>\n`;
   }
-  if (wp.folder || wp.id) {
-    xml += `    <extensions>\n`;
-    if (wp.id) {
-      xml += `      <pelorus:id>${escapeXml(wp.id)}</pelorus:id>\n`;
-    }
-    if (wp.folder) {
-      xml += `      <pelorus:folder>${escapeXml(wp.folder)}</pelorus:folder>\n`;
-    }
-    xml += `    </extensions>\n`;
+  let own = `      <pelorus:id>${escapeXml(wp.id)}</pelorus:id>\n`;
+  if (wp.folder) {
+    own += `      <pelorus:folder>${escapeXml(wp.folder)}</pelorus:folder>\n`;
   }
+  xml += extensionsXml(own, wp.sourceExtensions, "    ", hoisted);
   xml += "  </wpt>\n";
   return xml;
 }
 
-function routeXml(route: Route): string {
+function routeXml(route: Route, hoisted?: Map<string, string>): string {
   let xml = "  <rte>\n";
   xml += `    <name>${escapeXml(route.name)}</name>\n`;
-  if (route.color || route.folder || route.id) {
-    xml += `    <extensions>\n`;
-    if (route.id) {
-      xml += `      <pelorus:id>${escapeXml(route.id)}</pelorus:id>\n`;
-    }
-    if (route.color) {
-      xml += `      <pelorus:color>${escapeXml(route.color)}</pelorus:color>\n`;
-    }
-    if (route.folder) {
-      xml += `      <pelorus:folder>${escapeXml(route.folder)}</pelorus:folder>\n`;
-    }
-    xml += `    </extensions>\n`;
+  let own = `      <pelorus:id>${escapeXml(route.id)}</pelorus:id>\n`;
+  if (route.color) {
+    own += `      <pelorus:color>${escapeXml(route.color)}</pelorus:color>\n`;
   }
+  if (route.folder) {
+    own += `      <pelorus:folder>${escapeXml(route.folder)}</pelorus:folder>\n`;
+  }
+  xml += extensionsXml(own, route.sourceExtensions, "    ", hoisted);
   for (const wp of route.waypoints) {
-    xml += waypointXml(wp, "    ");
+    xml += waypointXml(wp, "    ", hoisted);
   }
   xml += "  </rte>\n";
   return xml;
@@ -145,22 +170,21 @@ function trackPointXml(pt: TrackPoint): string {
   return xml;
 }
 
-function trackXml(meta: TrackMeta, points: TrackPoint[]): string {
+function trackXml(
+  meta: TrackMeta,
+  points: TrackPoint[],
+  hoisted?: Map<string, string>,
+): string {
   let xml = "  <trk>\n";
   xml += `    <name>${escapeXml(meta.name)}</name>\n`;
-  if (meta.color || meta.folder || meta.id) {
-    xml += `    <extensions>\n`;
-    if (meta.id) {
-      xml += `      <pelorus:id>${escapeXml(meta.id)}</pelorus:id>\n`;
-    }
-    if (meta.color) {
-      xml += `      <pelorus:color>${escapeXml(meta.color)}</pelorus:color>\n`;
-    }
-    if (meta.folder) {
-      xml += `      <pelorus:folder>${escapeXml(meta.folder)}</pelorus:folder>\n`;
-    }
-    xml += `    </extensions>\n`;
+  let own = `      <pelorus:id>${escapeXml(meta.id)}</pelorus:id>\n`;
+  if (meta.color) {
+    own += `      <pelorus:color>${escapeXml(meta.color)}</pelorus:color>\n`;
   }
+  if (meta.folder) {
+    own += `      <pelorus:folder>${escapeXml(meta.folder)}</pelorus:folder>\n`;
+  }
+  xml += extensionsXml(own, meta.sourceExtensions, "    ", hoisted);
   xml += "    <trkseg>\n";
   for (const pt of points) {
     // Outliers flagged by the post-processor are kept in IDB for debug
@@ -176,19 +200,22 @@ function trackXml(meta: TrackMeta, points: TrackPoint[]): string {
 
 /** Serialize a single route to a complete GPX XML string. */
 export function routeToGpx(route: Route): string {
-  return gpxHeader(route.name) + routeXml(route) + GPX_FOOTER;
+  const ns = collectNamespaces(allPreserved([route], [], []));
+  return gpxHeader(route.name, ns) + routeXml(route, ns) + GPX_FOOTER;
 }
 
 /** Serialize a single track (with loaded points) to GPX. */
 export function trackToGpx(meta: TrackMeta, points: TrackPoint[]): string {
-  return gpxHeader(meta.name) + trackXml(meta, points) + GPX_FOOTER;
+  const ns = collectNamespaces([meta.sourceExtensions]);
+  return gpxHeader(meta.name, ns) + trackXml(meta, points, ns) + GPX_FOOTER;
 }
 
 /** Serialize standalone waypoints to GPX. */
 export function waypointsToGpx(waypoints: StandaloneWaypoint[]): string {
-  let xml = gpxHeader("Waypoints");
+  const ns = collectNamespaces(waypoints.map((w) => w.sourceExtensions));
+  let xml = gpxHeader("Waypoints", ns);
   for (const wp of waypoints) {
-    xml += standaloneWaypointXml(wp);
+    xml += standaloneWaypointXml(wp, ns);
   }
   xml += GPX_FOOTER;
   return xml;
@@ -200,15 +227,16 @@ export function exportAllToGpx(
   tracks: Array<{ meta: TrackMeta; points: TrackPoint[] }>,
   waypoints: StandaloneWaypoint[],
 ): string {
-  let xml = gpxHeader("Pelorus Nav Export");
+  const ns = collectNamespaces(allPreserved(routes, tracks, waypoints));
+  let xml = gpxHeader("Pelorus Nav Export", ns);
   for (const wp of waypoints) {
-    xml += standaloneWaypointXml(wp);
+    xml += standaloneWaypointXml(wp, ns);
   }
   for (const route of routes) {
-    xml += routeXml(route);
+    xml += routeXml(route, ns);
   }
   for (const { meta, points } of tracks) {
-    xml += trackXml(meta, points);
+    xml += trackXml(meta, points, ns);
   }
   xml += GPX_FOOTER;
   return xml;
@@ -284,12 +312,107 @@ function pelorusExt(parent: Element, localName: string): string | null {
 function sourceIdOf(el: Element): string | undefined {
   const own = pelorusExt(el, "id");
   if (own) return own;
+  // Producers name their identifier differently — Garmin uuidx:uuid, OpenCPN
+  // opencpn:guid — so match on the local name and let the namespace be
+  // whatever it is.
   for (const ext of el.getElementsByTagName("*")) {
-    if (ext.localName === "uuid" && ext.textContent?.trim()) {
+    const local = ext.localName;
+    if ((local === "uuid" || local === "guid") && ext.textContent?.trim()) {
       return ext.textContent.trim();
     }
   }
   return undefined;
+}
+
+/**
+ * Extension elements we drop rather than carry: ones whose meaning we now own
+ * on this device, so handing the file's stale value back would contradict
+ * what the user has since done here.
+ */
+const NOT_PRESERVED = new Set(["viz"]);
+
+/**
+ * The item's `<extensions>` children, serialized, minus our own and minus
+ * anything in NOT_PRESERVED.
+ *
+ * Kept verbatim and written back out on export so a file that goes home to
+ * the app it came from arrives intact: OpenCPN's planned speed and departure,
+ * a waypoint's arrival radius and range rings, Garmin's display mode — none
+ * of which Pelorus models, and all of which the far side loses forever if we
+ * quietly drop it. The producer's own identifier travels in here too, which
+ * is what lets that app match its own data instead of duplicating it.
+ *
+ * Each element is serialized standalone so its namespace declaration comes
+ * with it, making the stored string self-contained: it survives in IndexedDB
+ * across sessions with no document-level prefix map to keep in step.
+ */
+function captureExtensions(el: Element): string | undefined {
+  const ext = getElements(el, "extensions")[0];
+  if (!ext) return undefined;
+  const serializer = new XMLSerializer();
+  const kept: string[] = [];
+  for (const child of Array.from(ext.children)) {
+    if (child.namespaceURI === PELORUS_NS) continue;
+    if (NOT_PRESERVED.has(child.localName)) continue;
+    kept.push(serializer.serializeToString(child));
+  }
+  return kept.length > 0 ? kept.join("\n") : undefined;
+}
+
+/** Re-indent preserved extension XML to sit inside our output. */
+function indentExtensions(xml: string, indent: string): string {
+  return xml
+    .split("\n")
+    .map((line) => `${indent}${line.trim()}`)
+    .join("\n");
+}
+
+/**
+ * Namespace declarations carried inside preserved extension strings.
+ *
+ * Each stored chunk repeats its own `xmlns:` so it stands alone in the
+ * database, but a file with a few hundred of them repeating the same handful
+ * of URIs is noise. Exports hoist the distinct ones to the root element and
+ * drop them from the chunks — same document, a good deal smaller.
+ */
+const XMLNS_DECL = /\s+xmlns:([A-Za-z][\w.-]*)="([^"]+)"/g;
+
+function collectNamespaces(
+  items: readonly (string | undefined)[],
+): Map<string, string> {
+  const found = new Map<string, string>();
+  for (const xml of items) {
+    if (!xml) continue;
+    for (const [, prefix, uri] of xml.matchAll(XMLNS_DECL)) {
+      // First declaration of a prefix wins; a second URI for the same prefix
+      // keeps its inline declaration rather than being silently rebound.
+      if (!found.has(prefix)) found.set(prefix, uri);
+    }
+  }
+  return found;
+}
+
+/** Drop declarations the header now carries; leave any that would rebind. */
+function stripHoisted(xml: string, hoisted: Map<string, string>): string {
+  return xml.replace(XMLNS_DECL, (decl, prefix, uri) =>
+    hoisted.get(prefix) === uri ? "" : decl,
+  );
+}
+
+/** Every preserved extension string in an export, route points included. */
+function allPreserved(
+  routes: readonly Route[],
+  tracks: ReadonlyArray<{ meta: TrackMeta }>,
+  waypoints: readonly StandaloneWaypoint[],
+): Array<string | undefined> {
+  return [
+    ...routes.flatMap((r) => [
+      r.sourceExtensions,
+      ...r.waypoints.map((w) => w.sourceExtensions),
+    ]),
+    ...tracks.map((t) => t.meta.sourceExtensions),
+    ...waypoints.map((w) => w.sourceExtensions),
+  ];
 }
 
 /** Get *direct* child elements matching a local name (see `childText`). */
@@ -341,6 +464,7 @@ export function parseGpx(xml: string): GpxImportResult {
     }
     const wptFolder = pelorusExt(wptEl, "folder");
     const wptSourceId = sourceIdOf(wptEl);
+    const wptExt = captureExtensions(wptEl);
     waypoints.push({
       id: generateUUID(),
       ...(wptSourceId ? { sourceId: wptSourceId } : {}),
@@ -353,6 +477,7 @@ export function parseGpx(xml: string): GpxImportResult {
       updatedAt: now,
       visible: true,
       ...(wptFolder ? { folder: wptFolder } : {}),
+      ...(wptExt ? { sourceExtensions: wptExt } : {}),
     });
   }
 
@@ -367,15 +492,18 @@ export function parseGpx(xml: string): GpxImportResult {
         skippedPoints++;
         continue;
       }
+      const ptExt = captureExtensions(ptEl);
       routeWaypoints.push({
         lat: latLon.lat,
         lon: latLon.lon,
         name: childText(ptEl, "name") ?? "",
+        ...(ptExt ? { sourceExtensions: ptExt } : {}),
       });
     }
 
     const folder = pelorusExt(rteEl, "folder");
     const sourceId = sourceIdOf(rteEl);
+    const rteExt = captureExtensions(rteEl);
     return {
       id: generateUUID(),
       ...(sourceId ? { sourceId } : {}),
@@ -384,6 +512,7 @@ export function parseGpx(xml: string): GpxImportResult {
       color: parseColor(rteEl, i),
       visible: true,
       ...(folder ? { folder } : {}),
+      ...(rteExt ? { sourceExtensions: rteExt } : {}),
       waypoints: routeWaypoints,
     };
   });
@@ -438,6 +567,9 @@ export function parseGpx(xml: string): GpxImportResult {
           color: parseColor(trkEl, i),
           visible: true,
           pointCount: points.length,
+          ...(captureExtensions(trkEl)
+            ? { sourceExtensions: captureExtensions(trkEl) as string }
+            : {}),
           ...(pelorusExt(trkEl, "folder")
             ? { folder: pelorusExt(trkEl, "folder") as string }
             : {}),

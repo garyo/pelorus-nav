@@ -12,6 +12,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/).
   with an up arrow) instead of the Android one.
 
 ### Added
+- GPX files keep what other chartplotters put in them. Details Pelorus doesn't
+  itself use — OpenCPN's planned speed and arrival radii, Garmin's recorded
+  depth and water temperature at a mark, and each app's own identifiers — are
+  carried through an import and written back out on export, so a file that
+  goes home to the app it came from arrives intact and is recognized as its
+  own data rather than duplicated.
 - Importing a GPX file you have imported before now updates what is already
   there instead of adding a second copy of everything — so a file you sync
   between devices can be re-imported as often as you like. The import dialog

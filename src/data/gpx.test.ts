@@ -475,6 +475,82 @@ describe("GPX import", () => {
   });
 });
 
+describe("preserving another app's extensions", () => {
+  const OPENCPN =
+    '<?xml version="1.0"?><gpx version="1.1" creator="OpenCPN" ' +
+    'xmlns="http://www.topografix.com/GPX/1/1" ' +
+    'xmlns:gpxx="http://www.garmin.com/xmlschemas/GpxExtensions/v3" ' +
+    'xmlns:opencpn="http://www.opencpn.org">' +
+    "<rte><extensions>" +
+    "<opencpn:guid>57ac3bd9-d91a-44ef-a8a4-5f5d7bd4c553</opencpn:guid>" +
+    "<opencpn:viz>1</opencpn:viz>" +
+    "<opencpn:planned_speed>4.50</opencpn:planned_speed>" +
+    "<gpxx:RouteExtension><gpxx:IsAutoNamed>false</gpxx:IsAutoNamed>" +
+    "</gpxx:RouteExtension>" +
+    "</extensions>" +
+    '<rtept lat="42.3691995" lon="-71.0499287"><name>001</name><extensions>' +
+    "<opencpn:guid>4de74d4e-1909-4119-9fa4-b2b15972709f</opencpn:guid>" +
+    "<opencpn:arrival_radius>0.050</opencpn:arrival_radius>" +
+    "</extensions></rtept>" +
+    '<rtept lat="42.3688915" lon="-71.0488" /></rte></gpx>';
+
+  it("hands a route's extensions back on export", () => {
+    const out = exportAllToGpx(parseGpx(OPENCPN).routes, [], []);
+    expect(out).toContain(
+      "<opencpn:guid>57ac3bd9-d91a-44ef-a8a4-5f5d7bd4c553</opencpn:guid>",
+    );
+    expect(out).toContain(
+      "<opencpn:planned_speed>4.50</opencpn:planned_speed>",
+    );
+    expect(out).toContain("<gpxx:IsAutoNamed>false</gpxx:IsAutoNamed>");
+  });
+
+  it("keeps each route point's own extensions with that point", () => {
+    const out = exportAllToGpx(parseGpx(OPENCPN).routes, [], []);
+    const firstPt = out.slice(out.indexOf("<rtept"), out.indexOf("</rtept>"));
+    expect(firstPt).toContain(
+      "<opencpn:guid>4de74d4e-1909-4119-9fa4-b2b15972709f</opencpn:guid>",
+    );
+    expect(firstPt).toContain("<opencpn:arrival_radius>0.050");
+  });
+
+  it("declares each namespace once, on the root", () => {
+    const out = exportAllToGpx(parseGpx(OPENCPN).routes, [], []);
+    expect(out.match(/xmlns:opencpn=/g)).toHaveLength(1);
+    expect(out.indexOf("xmlns:opencpn=")).toBeLessThan(out.indexOf("<rte>"));
+  });
+
+  it("drops visibility, which the app now owns locally", () => {
+    // Re-emitting the file's stale viz would tell OpenCPN a route is shown
+    // when the user has since hidden it here.
+    const out = exportAllToGpx(parseGpx(OPENCPN).routes, [], []);
+    expect(out).not.toContain("opencpn:viz");
+  });
+
+  it("does not duplicate our own elements into the preserved block", () => {
+    const once = routeToGpx({ ...sampleRoute, folder: "USVI" });
+    const twice = routeToGpx(parseGpx(once).routes[0]);
+    expect(twice.match(/pelorus:folder/g)).toHaveLength(2); // open + close
+    expect(twice.match(/pelorus:id/g)).toHaveLength(2);
+  });
+
+  it("survives a second trip unchanged", () => {
+    const first = exportAllToGpx(parseGpx(OPENCPN).routes, [], []);
+    const second = exportAllToGpx(parseGpx(first).routes, [], []);
+    const strip = (s: string) =>
+      s.replace(/<time>[^<]*<\/time>/g, "").replace(/<pelorus:id>[^<]*</g, "<");
+    expect(strip(second)).toBe(strip(first));
+  });
+
+  it("adds no extensions block to an item that had none", () => {
+    const gpx =
+      '<?xml version="1.0"?><gpx version="1.1" creator="test">' +
+      '<wpt lat="42.36" lon="-71.05"><name>Plain</name></wpt></gpx>';
+    const wp = parseGpx(gpx).waypoints[0];
+    expect(wp.sourceExtensions).toBeUndefined();
+  });
+});
+
 describe("GPX folder round-trip", () => {
   it("preserves the folder through export and import", () => {
     const gpx = routeToGpx({ ...sampleRoute, folder: "USVI" });

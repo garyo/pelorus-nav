@@ -6,6 +6,10 @@ export interface Waypoint {
   lat: number;
   lon: number;
   name: string;
+  /** The `<extensions>` this item arrived with, serialized and kept verbatim
+   *  so an export can hand it back to the app that wrote it — see
+   *  captureExtensions in gpx.ts. Not interpreted here. */
+  sourceExtensions?: string;
 }
 
 export interface Route {
@@ -20,6 +24,10 @@ export interface Route {
   visible: boolean;
   /** Optional one-level grouping in the route manager. Absent = top level. */
   folder?: string;
+  /** The `<extensions>` this item arrived with, serialized and kept verbatim
+   *  so an export can hand it back to the app that wrote it — see
+   *  captureExtensions in gpx.ts. Not interpreted here. */
+  sourceExtensions?: string;
   waypoints: Waypoint[];
 }
 

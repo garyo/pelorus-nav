@@ -162,6 +162,9 @@ export function mergeRoute(stored: Route, incoming: Route): Route {
     id: stored.id,
     createdAt: stored.createdAt,
     sourceId: incoming.sourceId ?? stored.sourceId,
+    // A file that has dropped its extensions shouldn't erase what we're
+    // holding for its producer — the far side still wants it back.
+    sourceExtensions: incoming.sourceExtensions ?? stored.sourceExtensions,
     visible: stored.visible,
     color: stored.color,
     ...(stored.folder ? { folder: stored.folder } : {}),
@@ -178,6 +181,7 @@ export function mergeWaypoint(
     createdAt: stored.createdAt,
     updatedAt: Date.now(),
     sourceId: incoming.sourceId ?? stored.sourceId,
+    sourceExtensions: incoming.sourceExtensions ?? stored.sourceExtensions,
     visible: stored.visible,
     ...(stored.folder ? { folder: stored.folder } : {}),
   };
@@ -192,6 +196,7 @@ export function mergeTrackMeta(
     id: stored.id,
     createdAt: stored.createdAt,
     sourceId: incoming.sourceId ?? stored.sourceId,
+    sourceExtensions: incoming.sourceExtensions ?? stored.sourceExtensions,
     visible: stored.visible,
     color: stored.color,
     ...(stored.folder ? { folder: stored.folder } : {}),
