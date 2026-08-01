@@ -221,6 +221,9 @@ export class TrackManagerPanel {
     this.el.classList.remove("open");
     this.editing = false;
     this.clearSelection();
+    // A selection has no meaning without its list: closing the panel must
+    // take the bar with it.
+    this.selection.exit();
   }
 
   private clearSelection(): void {

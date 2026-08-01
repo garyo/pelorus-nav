@@ -12,9 +12,9 @@ import {
   getAllTrackMetas,
   getAllWaypoints,
   replaceTrackPoints,
-  saveRoute,
-  saveTrackMeta,
-  saveWaypoint,
+  saveRoutes,
+  saveTrackMetas,
+  saveWaypoints,
 } from "./db";
 import type { GpxImportResult } from "./gpx";
 import {
@@ -137,12 +137,17 @@ export async function saveGpxImport(
     const taken = new Set((await getAllRoutes()).map((r) => r.name));
     for (const route of merged.routes.add) {
       route.name = dedupeName(route.name, taken);
+      // Names claimed by this file count too, or two same-named new routes
+      // would both keep the name.
+      taken.add(route.name);
       if (folder && !route.folder) route.folder = folder;
-      await saveRoute(route);
     }
-    for (const { stored, incoming } of merged.routes.update) {
-      await saveRoute(mergeRoute(stored, incoming));
-    }
+    await saveRoutes([
+      ...merged.routes.add,
+      ...merged.routes.update.map(({ stored, incoming }) =>
+        mergeRoute(stored, incoming),
+      ),
+    ]);
   }
 
   for (const { points } of result.tracks) {
@@ -154,25 +159,34 @@ export async function saveGpxImport(
       result.tracks.find((t) => t.meta.id === id)?.points ?? [];
     for (const meta of merged.tracks.add) {
       meta.name = dedupeName(meta.name, taken);
+      taken.add(meta.name);
       if (folder && !meta.folder) meta.folder = folder;
-      await saveTrackMeta(meta);
+    }
+    const updated = merged.tracks.update.map(({ stored, incoming }) => ({
+      meta: mergeTrackMeta(stored, incoming),
+      incomingId: incoming.id,
+    }));
+    await saveTrackMetas([...merged.tracks.add, ...updated.map((u) => u.meta)]);
+    // Points can't share a transaction with the metas — each track's set is
+    // written (or replaced) on its own.
+    for (const meta of merged.tracks.add) {
       await appendTrackPoints(meta.id, pointsFor(meta.id));
     }
-    for (const { stored, incoming } of merged.tracks.update) {
-      const next = mergeTrackMeta(stored, incoming);
-      await saveTrackMeta(next);
+    for (const { meta, incomingId } of updated) {
       // The points are the track; a changed signature means re-recording it.
-      await replaceTrackPoints(next.id, pointsFor(incoming.id));
+      await replaceTrackPoints(meta.id, pointsFor(incomingId));
     }
   }
 
   for (const wp of merged.waypoints.add) {
     if (folder && !wp.folder) wp.folder = folder;
-    await saveWaypoint(wp);
   }
-  for (const { stored, incoming } of merged.waypoints.update) {
-    await saveWaypoint(mergeWaypoint(stored, incoming));
-  }
+  await saveWaypoints([
+    ...merged.waypoints.add,
+    ...merged.waypoints.update.map(({ stored, incoming }) =>
+      mergeWaypoint(stored, incoming),
+    ),
+  ]);
 
   return {
     routes: countsOf(merged.routes),

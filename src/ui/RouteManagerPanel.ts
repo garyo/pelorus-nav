@@ -270,6 +270,9 @@ export class RouteManagerPanel {
     // outlives it (eviction closes both — each is its own surface).
     this.el.classList.remove("open");
     this.editing = false;
+    // A selection has no meaning without its list: closing the panel must
+    // take the bar with it.
+    this.selection.exit();
   }
 
   /** Start editing a route: open its detail panel as the editing workspace

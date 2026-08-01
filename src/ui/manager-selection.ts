@@ -216,6 +216,9 @@ export class ManagerSelection<T> {
     if (!this.active) return;
     this.active = false;
     this.selected.clear();
+    // Drop the item references too: the map gathers every row ever rendered,
+    // which for a few hundred waypoints is worth releasing.
+    this.items.clear();
     this.bar.classList.remove("open");
     document.removeEventListener("keydown", this.onKeyDown);
     void this.host.refresh();

@@ -215,6 +215,9 @@ export class WaypointManagerPanel {
   hide(): void {
     this.el.classList.remove("open");
     this.editing = false;
+    // A selection has no meaning without its list: closing the panel must
+    // take the bar with it.
+    this.selection.exit();
   }
 
   /** Open the panel with the given waypoint highlighted and scrolled into

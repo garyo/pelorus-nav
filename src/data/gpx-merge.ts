@@ -65,11 +65,6 @@ export function countsOf<T>(plan: MergePlan<T>): MergeCounts {
   };
 }
 
-/** Total items a plan touches, for "nothing to do" checks. */
-export function isNoOp(...plans: Array<MergePlan<unknown>>): boolean {
-  return plans.every((p) => p.add.length === 0 && p.update.length === 0);
-}
-
 /** Content signature of a route: name plus its ordered points. */
 export function routeSignature(route: Route): string {
   const pts = route.waypoints

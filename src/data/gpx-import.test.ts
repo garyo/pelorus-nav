@@ -3,13 +3,18 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
   getAllRoutes: vi.fn(),
   getAllTrackMetas: vi.fn(),
-  saveRoute: vi.fn(),
-  saveTrackMeta: vi.fn(),
-  appendTrackPoints: vi.fn(),
-  saveWaypoint: vi.fn(),
   getAllWaypoints: vi.fn(),
+  saveRoutes: vi.fn(),
+  saveTrackMetas: vi.fn(),
+  saveWaypoints: vi.fn(),
+  appendTrackPoints: vi.fn(),
   replaceTrackPoints: vi.fn(),
 }));
+
+/** Everything handed to a bulk writer across all its calls. */
+function written(mock: { mock: { calls: unknown[][] } }): unknown[] {
+  return mock.mock.calls.flatMap((call) => call[0] as unknown[]);
+}
 
 vi.mock("./db", () => mocks);
 
@@ -85,11 +90,11 @@ describe("saveGpxImport", () => {
     mocks.getAllRoutes.mockResolvedValue([]);
     mocks.getAllTrackMetas.mockResolvedValue([]);
     mocks.getAllWaypoints.mockResolvedValue([]);
-    mocks.saveRoute.mockResolvedValue(undefined);
-    mocks.saveTrackMeta.mockResolvedValue(undefined);
+    mocks.saveRoutes.mockResolvedValue(undefined);
+    mocks.saveTrackMetas.mockResolvedValue(undefined);
     mocks.appendTrackPoints.mockResolvedValue(undefined);
     mocks.replaceTrackPoints.mockResolvedValue(undefined);
-    mocks.saveWaypoint.mockResolvedValue(undefined);
+    mocks.saveWaypoints.mockResolvedValue(undefined);
   });
 
   it("saves routes, tracks and waypoints from one file", async () => {
@@ -101,10 +106,12 @@ describe("saveGpxImport", () => {
       }),
     );
 
-    expect(mocks.saveRoute).toHaveBeenCalledTimes(1);
-    expect(mocks.saveTrackMeta).toHaveBeenCalledTimes(1);
+    // One write per kind, not one per item.
+    expect(mocks.saveRoutes).toHaveBeenCalledTimes(1);
+    expect(written(mocks.saveRoutes)).toHaveLength(1);
+    expect(mocks.saveTrackMetas).toHaveBeenCalledTimes(1);
     expect(mocks.appendTrackPoints).toHaveBeenCalledWith("t-Sail", [point(1)]);
-    expect(mocks.saveWaypoint).toHaveBeenCalledTimes(1);
+    expect(written(mocks.saveWaypoints)).toHaveLength(1);
     expect(counts).toEqual({
       routes: { added: 1, updated: 0, unchanged: 0 },
       tracks: { added: 1, updated: 0, unchanged: 0 },
@@ -124,7 +131,9 @@ describe("saveGpxImport", () => {
     await saveGpxImport(result({ routes: [imported, route("Fresh")] }));
 
     expect(imported.name).toBe("Passage (imported)");
-    expect(mocks.saveRoute.mock.calls[1][0].name).toBe("Fresh");
+    expect((written(mocks.saveRoutes)[1] as { name: string }).name).toBe(
+      "Fresh",
+    );
   });
 
   it("re-importing an unchanged file writes nothing", async () => {
@@ -138,8 +147,8 @@ describe("saveGpxImport", () => {
       result({ routes: [route("Passage")], waypoints: [waypoint("Buoy")] }),
     );
 
-    expect(mocks.saveRoute).not.toHaveBeenCalled();
-    expect(mocks.saveWaypoint).not.toHaveBeenCalled();
+    expect(written(mocks.saveRoutes)).toHaveLength(0);
+    expect(written(mocks.saveWaypoints)).toHaveLength(0);
     expect(counts.routes).toEqual({ added: 0, updated: 0, unchanged: 1 });
     expect(counts.waypoints).toEqual({ added: 0, updated: 0, unchanged: 1 });
   });
@@ -153,7 +162,11 @@ describe("saveGpxImport", () => {
     const counts = await saveGpxImport(result({ routes: [changed] }));
 
     expect(counts.routes).toEqual({ added: 0, updated: 1, unchanged: 0 });
-    const saved = mocks.saveRoute.mock.calls[0][0];
+    const saved = written(mocks.saveRoutes)[0] as {
+      id: string;
+      folder?: string;
+      waypoints: unknown[];
+    };
     expect(saved.id).toBe("stored-1");
     expect(saved.folder).toBe("Maine");
     expect(saved.waypoints).toEqual(changed.waypoints);
@@ -201,8 +214,8 @@ describe("saveGpxImport", () => {
 
     expect(mocks.getAllRoutes).not.toHaveBeenCalled();
     expect(mocks.getAllTrackMetas).not.toHaveBeenCalled();
-    expect(mocks.saveRoute).not.toHaveBeenCalled();
-    expect(mocks.saveWaypoint).not.toHaveBeenCalled();
+    expect(written(mocks.saveRoutes)).toHaveLength(0);
+    expect(written(mocks.saveWaypoints)).toHaveLength(0);
     expect(counts).toEqual({
       routes: { added: 0, updated: 0, unchanged: 0 },
       tracks: { added: 0, updated: 0, unchanged: 0 },
@@ -218,8 +231,8 @@ describe("saveGpxImport folders", () => {
     mocks.getAllRoutes.mockResolvedValue([]);
     mocks.getAllTrackMetas.mockResolvedValue([]);
     mocks.getAllWaypoints.mockResolvedValue([]);
-    mocks.saveRoute.mockResolvedValue(undefined);
-    mocks.saveWaypoint.mockResolvedValue(undefined);
+    mocks.saveRoutes.mockResolvedValue(undefined);
+    mocks.saveWaypoints.mockResolvedValue(undefined);
   });
 
   it("files imported routes in the given folder", async () => {

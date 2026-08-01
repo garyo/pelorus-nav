@@ -293,14 +293,43 @@ function childText(parent: Element, localName: string): string | null {
   return null;
 }
 
-/** Get text from a Pelorus extension element. */
-function pelorusExt(parent: Element, localName: string): string | null {
-  const el = parent.getElementsByTagNameNS(PELORUS_NS, localName)[0];
-  if (el?.textContent) return el.textContent.trim();
-  // Fall back to bare prefixed name
-  const bare = parent.getElementsByTagName(`pelorus:${localName}`)[0];
-  if (bare?.textContent) return bare.textContent.trim();
+/**
+ * Get text from an extension element belonging to *this* element.
+ *
+ * Scoped to the element's own `<extensions>` and its direct children:
+ * searching descendants would let a route adopt a value from one of its route
+ * points — its colour, its folder, or (worse) its identity, since a route
+ * point carries an id of its own in every file that has ids at all.
+ *
+ * `ns` null matches a bare prefixed element, for producers that write
+ * `pelorus:x` without declaring the namespace.
+ */
+function extText(
+  parent: Element,
+  localName: string,
+  ns: string | null,
+): string | null {
+  const ext = getElements(parent, "extensions")[0];
+  if (!ext) return null;
+  for (const child of Array.from(ext.children)) {
+    if (child.localName !== localName) continue;
+    if (ns !== null && child.namespaceURI !== ns) continue;
+    const text = child.textContent?.trim();
+    if (text) return text;
+  }
   return null;
+}
+
+/** Get text from a Pelorus extension element (see extText). */
+function pelorusExt(parent: Element, localName: string): string | null {
+  return (
+    extText(parent, localName, PELORUS_NS) ??
+    // Bare `pelorus:x` with no namespace declared.
+    getElements(getElements(parent, "extensions")[0] ?? parent, localName)
+      .find((el) => el.tagName === `pelorus:${localName}`)
+      ?.textContent?.trim() ??
+    null
+  );
 }
 
 /**
@@ -314,14 +343,9 @@ function sourceIdOf(el: Element): string | undefined {
   if (own) return own;
   // Producers name their identifier differently — Garmin uuidx:uuid, OpenCPN
   // opencpn:guid — so match on the local name and let the namespace be
-  // whatever it is.
-  for (const ext of el.getElementsByTagName("*")) {
-    const local = ext.localName;
-    if ((local === "uuid" || local === "guid") && ext.textContent?.trim()) {
-      return ext.textContent.trim();
-    }
-  }
-  return undefined;
+  // whatever it is. Own extensions only: a route's <rtept> children carry
+  // ids too, and the route must not adopt one of them as its own.
+  return extText(el, "uuid", null) ?? extText(el, "guid", null) ?? undefined;
 }
 
 /**
@@ -558,6 +582,7 @@ export function parseGpx(xml: string): GpxImportResult {
 
       const id = generateUUID();
       const trkSourceId = sourceIdOf(trkEl);
+      const trkFolder = pelorusExt(trkEl, "folder");
       return {
         meta: {
           id,
@@ -570,9 +595,7 @@ export function parseGpx(xml: string): GpxImportResult {
           ...(captureExtensions(trkEl)
             ? { sourceExtensions: captureExtensions(trkEl) as string }
             : {}),
-          ...(pelorusExt(trkEl, "folder")
-            ? { folder: pelorusExt(trkEl, "folder") as string }
-            : {}),
+          ...(trkFolder ? { folder: trkFolder } : {}),
         },
         points,
       };
