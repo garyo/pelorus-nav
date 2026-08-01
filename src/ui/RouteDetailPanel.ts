@@ -445,8 +445,14 @@ export class RouteDetailPanel {
   /**
    * Render the route as an interleaved list: each waypoint, then the leg
    * info to the next waypoint (indented). Gives a top-to-bottom overview
-   * with the rhumb-line course / distance / running total inline between
-   * each pair of waypoints.
+   * with the course / distance / running total inline between each pair of
+   * waypoints.
+   *
+   * Great-circle, like every distance and bearing in the app (see
+   * haversineDistanceNM / initialBearingDeg): the course shown is the leg's
+   * *initial* bearing, not a constant course to steer. Identical to a rhumb
+   * line on coastal legs — they diverge by 0.1° over 44 nm — but on an ocean
+   * passage the two part company well before the distances do.
    */
   private buildRouteList(
     route: Route,
