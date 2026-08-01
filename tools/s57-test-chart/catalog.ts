@@ -297,6 +297,11 @@ const SPECS: Spec[] = [
     profiles: [
       { name: "submerged", props: { CATOBS: 6, WATLEV: 3, VALSOU: 2.1 } },
       { name: "foul-ground", props: { CATOBS: 7, WATLEV: 3 } },
+      // No CATOBS at all — the commonest NOAA area obstruction, and the
+      // profile that exercises the plain-area boundary rather than the
+      // foul-ground pattern.
+      { name: "plain", props: { WATLEV: 3 } },
+      { name: "plain-sounded", props: { WATLEV: 3, VALSOU: 2.1 } },
     ],
   },
   {

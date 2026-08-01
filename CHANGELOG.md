@@ -37,6 +37,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/).
   hides or shows all its routes at once, so a big import no longer buries
   the chart in routes you have to hide one at a time.
 
+### Fixed
+- Obstruction areas are drawn on the chart. From zoom 12 up, each one gets a
+  dotted boundary and, where the survey gives a depth, its sounding at the
+  centre. Areas that were charted but drew nothing — most often submerged
+  structures along a waterfront — are now visible rather than only clickable.
+
 ## [0.19.0] - 2026-07-31
 
 ### Added

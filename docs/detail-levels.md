@@ -113,8 +113,8 @@ Cross-cutting behavior not visible in the table:
 | NAVLNE | `s57-navlne` | — | all | all | all |
 | OBSTRN | `s57-obstrn` | z10+ \* | z10+ \* | z10+ \* | z10+ \* |
 | OBSTRN | `s57-obstrn-area` | z11+ \* | z11+ \* | z11+ \* | z11+ \* |
+| OBSTRN | `s57-obstrn-area-outline` | z12+ \* | z12+ \* | z12+ \* | z12+ \* |
 | OBSTRN | `s57-obstrn-foul` | z10+ \* | z10+ \* | z10+ \* | z10+ \* |
-| OBSTRN | `s57-obstrn-foul-outline` | z10+ \* | z10+ \* | z10+ \* | z10+ \* |
 | OBSTRN | `s57-obstrn-isodgr` | z10+ \* | z10+ \* | z10+ \* | z10+ \* |
 | OBSTRN | `s57-obstrn-line` | z11+ \* | z11+ \* | z11+ \* | z11+ \* |
 | OBSTRN | `s57-obstrn-sounding` | z12+ \* | z12+ \* | z12+ \* | z12+ \* |
