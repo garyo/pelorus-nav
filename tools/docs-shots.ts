@@ -10,7 +10,7 @@
 import { mkdirSync, readFileSync } from "node:fs";
 import { type Browser, chromium, type Page } from "playwright";
 import { REPLAY_TRACK } from "../src/navigation/replay-track";
-import { iconShare } from "../src/ui/icons";
+import { iconShareIOS } from "../src/ui/icons";
 
 const BASE = process.env.DOCS_SHOTS_BASE ?? "http://localhost:5173";
 const OUT = new URL("../docs-site/public/images", import.meta.url).pathname;
@@ -221,13 +221,15 @@ async function openRoutePanel(page: Page) {
 }
 
 /**
- * Redraw the export buttons with the share glyph the native apps use.
+ * Redraw the export buttons with the share glyph the apps use.
  *
- * `iconExport` (src/ui/icons.ts) is the download tray on the web and the share
- * mark on Capacitor, matching what the button does on each platform. These
- * shots come from the web build, but most readers navigate with the phone or
- * tablet app, so guide images of the export controls have to show the app's
- * glyph or they send readers hunting for an arrow their device never draws.
+ * `iconExport` (src/ui/icons.ts) is a download tray on the web and the host
+ * platform's share mark on Capacitor, matching what the button does on each.
+ * These shots come from the web build, but most readers navigate with the
+ * phone or tablet app, so guide images of the export controls have to show a
+ * share mark or they send readers hunting for an arrow their device never
+ * draws. iOS's box-and-arrow stands in for both apps — the guide text says the
+ * symbol follows the device, and Android users read it as share regardless.
  *
  * The panels rebuild their rows whenever a layer changes, so the swap
  * re-applies rather than running once.
@@ -248,7 +250,7 @@ async function useAppIcons(page: Page) {
       childList: true,
       subtree: true,
     });
-  }, iconShare);
+  }, iconShareIOS);
 }
 
 const SCENES: Scene[] = [

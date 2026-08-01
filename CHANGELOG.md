@@ -7,6 +7,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Changed
+- On iPhone and iPad the export buttons now show the iOS share symbol (the box
+  with an up arrow) instead of the Android one.
+
 ### Added
 - Importing a GPX file that holds more than one route offers to file them in
   a folder, named after the file when it says what it is. A folder's eye

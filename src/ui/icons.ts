@@ -237,7 +237,7 @@ export const iconFolderOpen = svg(
   '<path d="M6 14l1.45-2.9A2 2 0 0 1 9.24 10H20a2 2 0 0 1 1.94 2.5l-1.55 6a2 2 0 0 1-1.94 1.5H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h3.9a2 2 0 0 1 1.69.9l.81 1.2a2 2 0 0 0 1.67.9H18a2 2 0 0 1 2 2v2"/>',
 );
 
-/** Share (three nodes connected in Y) / export on native. */
+/** Share (three nodes connected in Y) — Android's share mark. */
 export const iconShare = svg(
   '<circle cx="18" cy="5" r="3"/>' +
     '<circle cx="6" cy="12" r="3"/>' +
@@ -246,14 +246,26 @@ export const iconShare = svg(
     '<line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/>',
 );
 
+/** Share (box with an up arrow) — iOS's share mark. */
+export const iconShareIOS = svg(
+  '<path d="M8 10H6a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-7a2 2 0 0 0-2-2h-2"/>' +
+    '<polyline points="8 6 12 2 16 6"/>' +
+    '<line x1="12" y1="2" x2="12" y2="15"/>',
+);
+
 /**
- * Export icon — share on Capacitor (triggers native share sheet),
- * download on web (triggers browser file download). Matches what
- * `downloadFile()` in data/file-io.ts actually does on each platform.
+ * Export icon — the platform's own share mark on Capacitor (the button opens
+ * the native share sheet), a download arrow on the web (it downloads a file).
+ * Matches what `downloadFile()` in data/file-io.ts actually does, in the
+ * symbol each platform's users already read as "send this somewhere": iOS
+ * users look for the box-and-arrow and skip right past the Android Y.
  */
-export const iconExport = Capacitor.isNativePlatform()
-  ? iconShare
-  : iconDownload;
+export const iconExport =
+  Capacitor.getPlatform() === "ios"
+    ? iconShareIOS
+    : Capacitor.isNativePlatform()
+      ? iconShare
+      : iconDownload;
 
 /** Maximize / fullscreen (expand corners). */
 export const iconMaximize = svg(

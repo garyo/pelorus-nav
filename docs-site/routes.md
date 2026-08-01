@@ -103,11 +103,12 @@ and each route row can be exported individually:
 ![The Routes panel's import and export buttons](/images/route-export.png)
 
 The open-folder button imports; the button beside it exports every route at
-once. The same export glyph appears on each route row, third along, for that
-route on its own. In the phone and tablet apps it's the share mark shown
-here, and it opens the usual share sheet — on iPhone and iPad, **Save to
-Files** puts the GPX where you want it. In a browser it's a download arrow
-instead, and the file lands in your downloads folder.
+once. The same export button appears on each route row, third along, for that
+route on its own. In the phone and tablet apps it's your device's share
+symbol — the box with an up arrow on iPhone and iPad, the three joined dots on
+Android — and it opens the usual share sheet, where **Save to Files** puts the
+GPX where you want it. In a browser it's a download arrow instead, and the
+file lands in your downloads folder.
 
 Two reasons to use them:
 
