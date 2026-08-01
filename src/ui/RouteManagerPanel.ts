@@ -16,8 +16,6 @@ import { openColorPicker } from "./color-picker";
 import { importGpxFromPicker } from "./gpx-import";
 import {
   iconActivity,
-  iconChevronDown,
-  iconChevronRight,
   iconEdit,
   iconExport,
   iconEye,
@@ -29,7 +27,12 @@ import {
   setIcon,
 } from "./icons";
 import { startInlineRename } from "./inline-rename";
-import { folderVisibility, groupByFolder } from "./manager-folders";
+import {
+  createFolderRow,
+  pruneCollapsed,
+  toggleCollapsed,
+} from "./manager-folder-row";
+import { groupByFolder } from "./manager-folders";
 import { getPanelStack } from "./PanelStack";
 import { RouteDetailPanel } from "./RouteDetailPanel";
 import { registerSurface } from "./SurfaceManager";
@@ -322,11 +325,10 @@ export class RouteManagerPanel {
       getSettings().managerSort,
     );
 
-    // Prune collapse-state entries for folders that no longer exist.
     const stored = getSettings().collapsedRouteFolders;
-    const collapsed = stored.filter((f) => folders.has(f));
-    if (collapsed.length !== stored.length) {
-      updateSettings({ collapsedRouteFolders: collapsed });
+    const collapsed = pruneCollapsed(stored, folders);
+    if (collapsed !== stored) {
+      updateSettings({ collapsedRouteFolders: [...collapsed] });
     }
 
     this.body.innerHTML = "";
@@ -344,64 +346,27 @@ export class RouteManagerPanel {
     }
   }
 
-  /** Header row for a folder: chevron + name + count + bulk-visibility eye.
-   *  Clicking the row collapses/expands (list-only); the eye shows/hides all
-   *  contained routes on the map. */
   private createFolderRow(
     name: string,
     contents: Route[],
     isCollapsed: boolean,
   ): HTMLDivElement {
-    const item = document.createElement("div");
-    item.className = "manager-item manager-folder";
-    item.title = isCollapsed ? "Expand folder" : "Collapse folder";
-
-    const chevron = document.createElement("span");
-    chevron.className = "manager-folder-chevron";
-    setIcon(chevron, isCollapsed ? iconChevronRight : iconChevronDown);
-
-    const info = document.createElement("div");
-    info.className = "manager-item-info";
-    const nameEl = document.createElement("div");
-    nameEl.className = "manager-item-name";
-    nameEl.textContent = name;
-    const count = document.createElement("span");
-    count.className = "manager-folder-count";
-    count.textContent = ` (${contents.length})`;
-    nameEl.appendChild(count);
-    info.appendChild(nameEl);
-
-    const actions = document.createElement("div");
-    actions.className = "manager-item-actions";
-    const eyeBtn = document.createElement("button");
-    eyeBtn.className = "manager-item-btn";
-    const vis = folderVisibility(contents);
-    setIcon(eyeBtn, vis === "none" ? iconEyeOff : iconEye);
-    eyeBtn.classList.toggle("mixed", vis === "mixed");
-    eyeBtn.title = vis === "none" ? "Show all" : "Hide all";
-    eyeBtn.addEventListener("click", (e) => {
-      e.stopPropagation();
-      (async () => {
-        const show = folderVisibility(contents) === "none";
-        for (const route of contents) {
-          await this.setRouteVisible(route, show);
-        }
-        await this.refresh();
-      })().catch(console.error);
+    return createFolderRow({
+      name,
+      contents,
+      isCollapsed,
+      onToggleCollapse: (folder) => {
+        updateSettings({
+          collapsedRouteFolders: toggleCollapsed(
+            getSettings().collapsedRouteFolders,
+            folder,
+          ),
+        });
+        this.refresh().catch(console.error);
+      },
+      setVisible: (route, visible) => this.setRouteVisible(route, visible),
+      refresh: () => this.refresh(),
     });
-    actions.appendChild(eyeBtn);
-
-    item.addEventListener("click", () => {
-      const current = getSettings().collapsedRouteFolders;
-      const next = current.includes(name)
-        ? current.filter((f) => f !== name)
-        : [...current, name];
-      updateSettings({ collapsedRouteFolders: next });
-      this.refresh().catch(console.error);
-    });
-
-    item.append(chevron, info, actions);
-    return item;
   }
 
   /** Set a route's map visibility with the panel's usual side effects:

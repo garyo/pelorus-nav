@@ -76,6 +76,11 @@ function standaloneWaypointXml(wp: StandaloneWaypoint): string {
   if (wp.icon && wp.icon !== "default") {
     xml += `    <sym>${escapeXml(wp.icon)}</sym>\n`;
   }
+  if (wp.folder) {
+    xml += `    <extensions>\n`;
+    xml += `      <pelorus:folder>${escapeXml(wp.folder)}</pelorus:folder>\n`;
+    xml += `    </extensions>\n`;
+  }
   xml += "  </wpt>\n";
   return xml;
 }
@@ -135,9 +140,14 @@ function trackPointXml(pt: TrackPoint): string {
 function trackXml(meta: TrackMeta, points: TrackPoint[]): string {
   let xml = "  <trk>\n";
   xml += `    <name>${escapeXml(meta.name)}</name>\n`;
-  if (meta.color) {
+  if (meta.color || meta.folder) {
     xml += `    <extensions>\n`;
-    xml += `      <pelorus:color>${escapeXml(meta.color)}</pelorus:color>\n`;
+    if (meta.color) {
+      xml += `      <pelorus:color>${escapeXml(meta.color)}</pelorus:color>\n`;
+    }
+    if (meta.folder) {
+      xml += `      <pelorus:folder>${escapeXml(meta.folder)}</pelorus:folder>\n`;
+    }
     xml += `    </extensions>\n`;
   }
   xml += "    <trkseg>\n";
@@ -301,6 +311,7 @@ export function parseGpx(xml: string): GpxImportResult {
       skippedPoints++;
       continue;
     }
+    const wptFolder = pelorusExt(wptEl, "folder");
     waypoints.push({
       id: generateUUID(),
       lat: latLon.lat,
@@ -310,6 +321,8 @@ export function parseGpx(xml: string): GpxImportResult {
       icon: parseWaypointIcon(childText(wptEl, "sym")),
       createdAt: now,
       updatedAt: now,
+      visible: true,
+      ...(wptFolder ? { folder: wptFolder } : {}),
     });
   }
 
@@ -391,6 +404,9 @@ export function parseGpx(xml: string): GpxImportResult {
           color: parseColor(trkEl, i),
           visible: true,
           pointCount: points.length,
+          ...(pelorusExt(trkEl, "folder")
+            ? { folder: pelorusExt(trkEl, "folder") as string }
+            : {}),
         },
         points,
       };

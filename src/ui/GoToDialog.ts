@@ -160,6 +160,7 @@ export class GoToDialog {
       icon: "default",
       createdAt: Date.now(),
       updatedAt: Date.now(),
+      visible: true,
     };
     this.waypointLayer.addWaypoint(wp).catch(console.error);
     this.hide();

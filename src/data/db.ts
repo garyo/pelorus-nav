@@ -263,7 +263,16 @@ export async function getAllWaypoints(): Promise<StandaloneWaypoint[]> {
   return new Promise((resolve, reject) => {
     const tx = db.transaction("waypoints", "readonly");
     const req = tx.objectStore("waypoints").getAll();
-    req.onsuccess = () => resolve(req.result as StandaloneWaypoint[]);
+    // `visible` postdates the store, so records written by older builds have
+    // no value. Defaulting here rather than migrating keeps every consumer
+    // (and folderVisibility) working with a plain boolean.
+    req.onsuccess = () =>
+      resolve(
+        (req.result as StandaloneWaypoint[]).map((wp) => ({
+          ...wp,
+          visible: wp.visible ?? true,
+        })),
+      );
     req.onerror = () => reject(req.error);
   });
 }

@@ -9,11 +9,13 @@ import { waypointsToGpx } from "../data/gpx";
 import type { StandaloneWaypoint, WaypointIcon } from "../data/Waypoint";
 import type { WaypointLayer } from "../map/WaypointLayer";
 import type { ActiveNavigationManager } from "../navigation/ActiveNavigation";
-import { getSettings } from "../settings";
+import { getSettings, updateSettings } from "../settings";
 import { importGpxFromPicker } from "./gpx-import";
 import {
   iconEdit,
   iconExport,
+  iconEye,
+  iconEyeOff,
   iconFolderOpen,
   iconNavigation,
   iconTrash,
@@ -21,7 +23,12 @@ import {
   setIcon,
 } from "./icons";
 import { startInlineRename } from "./inline-rename";
-import { managerSortComparator } from "./manager-folders";
+import {
+  createFolderRow,
+  pruneCollapsed,
+  toggleCollapsed,
+} from "./manager-folder-row";
+import { groupByFolder } from "./manager-folders";
 import { getPanelStack } from "./PanelStack";
 import { registerSurface } from "./SurfaceManager";
 import { wireSortToggle } from "./sort-toggle";
@@ -175,18 +182,69 @@ export class WaypointManagerPanel {
       return;
     }
 
-    this.body.innerHTML = "";
-    const sorted = [...waypoints].sort(
-      managerSortComparator(getSettings().managerSort),
+    const { ungrouped, folders } = groupByFolder(
+      waypoints,
+      getSettings().managerSort,
     );
-    for (const wp of sorted) {
+
+    const stored = getSettings().collapsedWaypointFolders;
+    const collapsed = pruneCollapsed(stored, folders);
+    if (collapsed !== stored) {
+      updateSettings({ collapsedWaypointFolders: [...collapsed] });
+    }
+
+    this.body.innerHTML = "";
+    for (const wp of ungrouped) {
       this.body.appendChild(this.createWaypointItem(wp));
+    }
+    for (const [name, contents] of folders) {
+      const isCollapsed = collapsed.includes(name);
+      this.body.appendChild(
+        createFolderRow({
+          name,
+          contents,
+          isCollapsed,
+          onToggleCollapse: (folder) => {
+            updateSettings({
+              collapsedWaypointFolders: toggleCollapsed(
+                getSettings().collapsedWaypointFolders,
+                folder,
+              ),
+            });
+            this.refresh();
+          },
+          setVisible: (wp, visible) => this.setWaypointVisible(wp, visible),
+          refresh: async () => this.refresh(),
+        }),
+      );
+      if (!isCollapsed) {
+        for (const wp of contents) {
+          this.body.appendChild(this.createWaypointItem(wp, true));
+        }
+      }
     }
   }
 
-  private createWaypointItem(wp: StandaloneWaypoint): HTMLDivElement {
+  /** Show or hide one waypoint on the chart. No-op when already set, so a
+   *  folder's bulk eye doesn't rewrite every record it touches. */
+  private async setWaypointVisible(
+    wp: StandaloneWaypoint,
+    visible: boolean,
+  ): Promise<void> {
+    if (wp.visible === visible) return;
+    wp.visible = visible;
+    wp.updatedAt = Date.now();
+    await this.waypointLayer.updateWaypoint(wp);
+  }
+
+  private createWaypointItem(
+    wp: StandaloneWaypoint,
+    inFolder = false,
+  ): HTMLDivElement {
     const item = document.createElement("div");
-    item.className = "manager-item";
+    item.className = inFolder
+      ? "manager-item manager-item--sub"
+      : "manager-item";
     item.dataset.waypointId = wp.id;
     if (this.selectedWaypointId === wp.id) item.classList.add("selected");
 
@@ -230,6 +288,17 @@ export class WaypointManagerPanel {
       this.showEditDialog(wp);
     });
 
+    const toggleBtn = document.createElement("button");
+    toggleBtn.className = "manager-item-btn";
+    setIcon(toggleBtn, wp.visible ? iconEye : iconEyeOff);
+    toggleBtn.title = wp.visible ? "Hide" : "Show";
+    toggleBtn.addEventListener("click", () => {
+      (async () => {
+        await this.setWaypointVisible(wp, !wp.visible);
+        this.refresh();
+      })().catch(console.error);
+    });
+
     const deleteBtn = document.createElement("button");
     deleteBtn.className = "manager-item-btn";
     setIcon(deleteBtn, iconTrash);
@@ -248,7 +317,7 @@ export class WaypointManagerPanel {
       })().catch(console.error);
     });
 
-    actions.append(navBtn, editBtn, deleteBtn);
+    actions.append(navBtn, editBtn, toggleBtn, deleteBtn);
     item.append(iconDot, info, actions);
     return item;
   }

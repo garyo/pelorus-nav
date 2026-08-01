@@ -52,8 +52,10 @@ export interface Settings {
   layerGroups: Record<string, boolean>;
   /** Raster chart ids (catalog RNCs or imports) the user has hidden. */
   hiddenRasterCharts: string[];
-  /** Route-manager folder names the user has collapsed (list-only). */
+  /** Manager folder names the user has collapsed (list-only), per panel. */
   collapsedRouteFolders: string[];
+  collapsedWaypointFolders: string[];
+  collapsedTrackFolders: string[];
   showInstrumentHUD: boolean;
   /** Instrument HUD layout on landscape phones. */
   instrumentLayout: InstrumentLayout;
@@ -263,6 +265,8 @@ const DEFAULTS: Settings = {
   layerGroups: { ...DEFAULT_LAYER_GROUPS },
   hiddenRasterCharts: [],
   collapsedRouteFolders: [],
+  collapsedWaypointFolders: [],
+  collapsedTrackFolders: [],
   showInstrumentHUD: false,
   instrumentLayout: "side",
   instrumentCells: ["sog", "cog"],
@@ -327,6 +331,8 @@ const STRUCTURAL_KEYS = new Set<keyof Settings>([
   "instrumentCells",
   "hiddenRasterCharts",
   "collapsedRouteFolders",
+  "collapsedWaypointFolders",
+  "collapsedTrackFolders",
   "plugins",
 ]);
 
@@ -375,10 +381,16 @@ function sanitize(parsed: Partial<Settings>): void {
       delete rec.hiddenRasterCharts;
     }
   }
-  if ("collapsedRouteFolders" in rec) {
-    const names = rec.collapsedRouteFolders;
-    if (!Array.isArray(names) || names.some((v) => typeof v !== "string")) {
-      delete rec.collapsedRouteFolders;
+  for (const key of [
+    "collapsedRouteFolders",
+    "collapsedWaypointFolders",
+    "collapsedTrackFolders",
+  ] as const) {
+    if (key in rec) {
+      const names = rec[key];
+      if (!Array.isArray(names) || names.some((v) => typeof v !== "string")) {
+        delete rec[key];
+      }
     }
   }
   if ("plugins" in rec && !isPlainObject(rec.plugins)) {

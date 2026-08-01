@@ -318,6 +318,7 @@ export function createContextMenu(deps: ContextMenuDeps): ContextMenuHandle {
       icon: "default",
       createdAt: Date.now(),
       updatedAt: Date.now(),
+      visible: true,
     };
     waypointLayer.addWaypoint(wp).then(onWaypointAdded).catch(console.error);
   });

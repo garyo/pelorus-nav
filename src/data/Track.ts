@@ -30,6 +30,8 @@ export interface TrackMeta {
   color: string;
   visible: boolean;
   pointCount: number;
+  /** Optional one-level grouping in the track manager. Absent = top level. */
+  folder?: string;
   /** Set true after the Stop-time RTS post-processor has run. Implies
    *  every point has rawLat/rawLon and the lat/lon fields are smoothed. */
   smoothed?: boolean;

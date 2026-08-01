@@ -17,7 +17,7 @@ import {
 } from "../data/Track";
 import type { TrackLayer } from "../map/TrackLayer";
 import type { TrackRecorder } from "../map/TrackRecorder";
-import { updateSettings } from "../settings";
+import { getSettings, updateSettings } from "../settings";
 import { formatDistanceShort, formatDurationShort } from "../utils/format";
 import { openColorPicker } from "./color-picker";
 import { importGpxFromPicker } from "./gpx-import";
@@ -32,6 +32,12 @@ import {
   setIcon,
 } from "./icons";
 import { startInlineRename } from "./inline-rename";
+import {
+  createFolderRow,
+  pruneCollapsed,
+  toggleCollapsed,
+} from "./manager-folder-row";
+import { groupByFolder } from "./manager-folders";
 import { getPanelStack } from "./PanelStack";
 import { registerSurface } from "./SurfaceManager";
 
@@ -255,9 +261,44 @@ export class TrackManagerPanel {
       return;
     }
 
+    // Tracks keep their inherent newest-first order within each group.
+    const { ungrouped, folders } = groupByFolder(visible, "recent");
+
+    const stored = getSettings().collapsedTrackFolders;
+    const collapsed = pruneCollapsed(stored, folders);
+    if (collapsed !== stored) {
+      updateSettings({ collapsedTrackFolders: [...collapsed] });
+    }
+
     this.body.innerHTML = "";
-    for (const meta of visible) {
+    for (const meta of ungrouped) {
       this.body.appendChild(this.createTrackItem(meta));
+    }
+    for (const [name, contents] of folders) {
+      const isCollapsed = collapsed.includes(name);
+      this.body.appendChild(
+        createFolderRow({
+          name,
+          contents,
+          isCollapsed,
+          onToggleCollapse: (folder) => {
+            updateSettings({
+              collapsedTrackFolders: toggleCollapsed(
+                getSettings().collapsedTrackFolders,
+                folder,
+              ),
+            });
+            this.refresh().catch(console.error);
+          },
+          setVisible: (meta, vis) => this.setTrackVisible(meta, vis),
+          refresh: () => this.refresh(),
+        }),
+      );
+      if (!isCollapsed) {
+        for (const meta of contents) {
+          this.body.appendChild(this.createTrackItem(meta, true));
+        }
+      }
     }
 
     // Lazy-fill duration / distance for legacy tracks recorded before
@@ -318,9 +359,27 @@ export class TrackManagerPanel {
     }
   }
 
-  private createTrackItem(meta: TrackMeta): HTMLDivElement {
+  /** Show or hide one track on the chart. Hiding a selected track clears the
+   *  selection so the glow doesn't linger without the crisp line under it.
+   *  No-op when already set, so a folder's bulk eye skips untouched rows. */
+  private async setTrackVisible(
+    meta: TrackMeta,
+    visible: boolean,
+  ): Promise<void> {
+    if (meta.visible === visible) return;
+    meta.visible = visible;
+    if (!visible && this.selectedTrackId === meta.id) {
+      this.clearSelection();
+    }
+    await saveTrackMeta(meta);
+    await this.trackLayer.toggleTrackVisibility(meta.id, visible);
+  }
+
+  private createTrackItem(meta: TrackMeta, inFolder = false): HTMLDivElement {
     const item = document.createElement("div");
-    item.className = "manager-item";
+    item.className = inFolder
+      ? "manager-item manager-item--sub"
+      : "manager-item";
     item.dataset.trackId = meta.id;
     if (this.selectedTrackId === meta.id) item.classList.add("selected");
 
@@ -397,14 +456,7 @@ export class TrackManagerPanel {
     toggleBtn.title = meta.visible ? "Hide" : "Show";
     toggleBtn.addEventListener("click", () => {
       (async () => {
-        meta.visible = !meta.visible;
-        // Hiding a selected track clears selection so the glow doesn't
-        // linger without the crisp line under it.
-        if (!meta.visible && this.selectedTrackId === meta.id) {
-          this.clearSelection();
-        }
-        await saveTrackMeta(meta);
-        await this.trackLayer.toggleTrackVisibility(meta.id, meta.visible);
+        await this.setTrackVisible(meta, !meta.visible);
         await this.refresh();
       })().catch(console.error);
     });

@@ -12,6 +12,9 @@ The format follows [Keep a Changelog](https://keepachangelog.com/).
   with an up arrow) instead of the Android one.
 
 ### Added
+- Waypoints can be hidden: each row has a show/hide eye, and waypoints and
+  tracks can now go in folders like routes do, with the folder's eye showing
+  or hiding everything in it at once. Folders travel with exported GPX files.
 - Importing a GPX file that holds more than one route offers to file them in
   a folder, named after the file when it says what it is. A folder's eye
   hides or shows all its routes at once, so a big import no longer buries

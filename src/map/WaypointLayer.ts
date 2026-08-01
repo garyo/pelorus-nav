@@ -208,10 +208,15 @@ export class WaypointLayer {
   }
 
   private buildGeoJSON(): GeoJSON.FeatureCollection {
-    return {
-      type: "FeatureCollection",
-      features: this.waypoints.map((wp, i) => ({
-        type: "Feature" as const,
+    const features: GeoJSON.Feature[] = [];
+    // `index` addresses this.waypoints, which DraggablePoints indexes into on
+    // drop — so hidden waypoints are skipped without renumbering the rest.
+    // Dropping them from the source also takes them out of hitTest and
+    // dragging, which both go through queryRenderedFeatures.
+    this.waypoints.forEach((wp, i) => {
+      if (!wp.visible) return;
+      features.push({
+        type: "Feature",
         properties: {
           id: wp.id,
           name: wp.name,
@@ -219,11 +224,12 @@ export class WaypointLayer {
           index: i,
         },
         geometry: {
-          type: "Point" as const,
+          type: "Point",
           coordinates: [wp.lon, wp.lat],
         },
-      })),
-    };
+      });
+    });
+    return { type: "FeatureCollection", features };
   }
 
   destroy(): void {

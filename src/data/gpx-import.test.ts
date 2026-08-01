@@ -58,6 +58,7 @@ function waypoint(name: string): StandaloneWaypoint {
     icon: "default",
     createdAt: 0,
     updatedAt: 0,
+    visible: true,
   };
 }
 

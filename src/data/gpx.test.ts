@@ -49,6 +49,7 @@ const sampleWaypoints: StandaloneWaypoint[] = [
     icon: "anchorage",
     createdAt: 1700000000000,
     updatedAt: 1700000000000,
+    visible: true,
   },
   {
     id: "w2",
@@ -59,6 +60,7 @@ const sampleWaypoints: StandaloneWaypoint[] = [
     icon: "fuel",
     createdAt: 1700000000000,
     updatedAt: 1700000000000,
+    visible: true,
   },
 ];
 
@@ -472,5 +474,32 @@ describe("GPX folder round-trip", () => {
   it("round-trips escaped folder names", () => {
     const gpx = routeToGpx({ ...sampleRoute, folder: 'Trip <"A&B">' });
     expect(parseGpx(gpx).routes[0].folder).toBe('Trip <"A&B">');
+  });
+
+  it("preserves a waypoint's folder", () => {
+    const gpx = waypointsToGpx([
+      { ...sampleWaypoints[0], folder: "Maine Cruise" },
+    ]);
+    expect(parseGpx(gpx).waypoints[0].folder).toBe("Maine Cruise");
+  });
+
+  it("preserves a track's folder alongside its color", () => {
+    const gpx = trackToGpx(
+      { ...sampleTrackMeta, folder: "Deliveries" },
+      sampleTrackPoints,
+    );
+    const meta = parseGpx(gpx).tracks[0].meta;
+    expect(meta.folder).toBe("Deliveries");
+    expect(meta.color).toBe("#cc4444");
+  });
+
+  it("emits no extensions for a folderless waypoint", () => {
+    const gpx = waypointsToGpx([sampleWaypoints[0]]);
+    expect(gpx).not.toContain("<extensions>");
+  });
+
+  it("imports waypoints visible", () => {
+    const gpx = waypointsToGpx(sampleWaypoints);
+    expect(parseGpx(gpx).waypoints.every((w) => w.visible)).toBe(true);
   });
 });

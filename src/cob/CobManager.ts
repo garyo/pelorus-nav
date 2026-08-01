@@ -95,6 +95,7 @@ export class CobManager {
       icon: "cob",
       createdAt: startedAt,
       updatedAt: startedAt,
+      visible: true,
     };
     this.state = {
       startedAt,

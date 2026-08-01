@@ -19,4 +19,9 @@ export interface StandaloneWaypoint {
   icon: WaypointIcon;
   createdAt: number;
   updatedAt: number;
+  /** Drawn on the chart. Records written before this field existed have no
+   *  value; getAllWaypoints defaults them to visible. */
+  visible: boolean;
+  /** Optional one-level grouping in the waypoint manager. Absent = top level. */
+  folder?: string;
 }
