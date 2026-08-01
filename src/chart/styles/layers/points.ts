@@ -574,22 +574,27 @@ export function getHazardLayers(ctx: StyleContext): LayerSpecification[] {
         "fill-pattern": ctx.icon("foul-pattern"),
       },
     },
+    // Area obstruction boundary — S-52 CS(OBSTRN04) LS(DOTT,2,CHBLK), drawn
+    // around every area obstruction whether or not it is foul ground. It is
+    // what makes a plain area (no CATOBS, no VALSOU) visible at all: the fill
+    // above is DEPVS at 20% alpha, which vanishes over shallow water. From
+    // z12 only — lower down it retraces the drying-area edge it usually sits
+    // on, which reads as texture rather than information.
     {
-      id: "s57-obstrn-foul-outline",
+      id: "s57-obstrn-area-outline",
       type: "line",
       source: ctx.sourceId,
       "source-layer": "OBSTRN",
-      minzoom: 10,
+      minzoom: 12,
       filter: [
-        "all",
-        ["==", ["geometry-type"], "Polygon"],
-        ["in", listAttrFirstNumber("CATOBS"), ["literal", [6, 7]]],
+        "==",
+        ["geometry-type"],
+        "Polygon",
       ] as unknown as ExpressionSpecification,
       paint: {
-        "line-color": ctx.colour("CHGRD"),
-        "line-width": 1,
-        "line-dasharray": [4, 2],
-        "line-opacity": 0.6,
+        "line-color": ctx.colour("CHBLK"),
+        "line-width": 1.2,
+        "line-dasharray": [1, 2],
       },
     },
     // Obstructions — line (piling rows, submerged walls, etc.)
@@ -659,18 +664,15 @@ export function getHazardLayers(ctx: StyleContext): LayerSpecification[] {
       ),
       paint: {},
     },
-    // Obstructions — VALSOU depth sounding (shown inside dotted oval)
+    // Obstructions — VALSOU depth sounding. On points it sits inside the
+    // dotted oval; on areas MapLibre places it at the polygon's centre.
     {
       id: "s57-obstrn-sounding",
       type: "symbol" as const,
       source: ctx.sourceId,
       "source-layer": "OBSTRN",
       minzoom: 12,
-      filter: [
-        "all",
-        ["==", ["geometry-type"], "Point"],
-        ["has", "VALSOU"],
-      ] as unknown as ExpressionSpecification,
+      filter: ["has", "VALSOU"] as unknown as ExpressionSpecification,
       layout: {
         "text-font": ["Noto Sans Regular"],
         "text-field": valsouTextField(ctx.depthUnit),

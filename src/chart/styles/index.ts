@@ -171,6 +171,8 @@ export const LAYER_CATEGORIES: Record<
   "s57-obstrn": "DISPLAYBASE",
   "s57-obstrn-sounding": "DISPLAYBASE",
   "s57-obstrn-area": "DISPLAYBASE",
+  "s57-obstrn-area-outline": "DISPLAYBASE",
+  "s57-obstrn-foul": "DISPLAYBASE",
   "s57-obstrn-line": "DISPLAYBASE",
   "s57-uwtroc": "DISPLAYBASE",
   "s57-uwtroc-sounding": "DISPLAYBASE",

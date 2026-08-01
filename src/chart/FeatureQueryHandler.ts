@@ -53,6 +53,8 @@ const INTERACTIVE_SUFFIXES = [
   "-obstrn",
   "-obstrn-isodgr",
   "-obstrn-area",
+  "-obstrn-area-outline",
+  "-obstrn-foul",
   "-obstrn-line",
   "-uwtroc",
   "-uwtroc-isodgr",
