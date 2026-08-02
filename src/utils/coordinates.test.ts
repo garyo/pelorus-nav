@@ -3,7 +3,10 @@ import {
   alongTrackDistanceNM,
   bboxOfCoords,
   bearingDelta,
+  densifyGreatCircle,
+  densifyGreatCirclePath,
   formatLatLon,
+  greatCirclePoint,
   haversineDistanceNM,
   initialBearingDeg,
   parseLatLon,
@@ -376,5 +379,145 @@ describe("bboxOfCoords", () => {
       [-71.31, 42.0],
     ];
     expect(bboxOfCoords(coords)).toEqual([-71.31, 41.49, -70.9, 42.36]);
+  });
+});
+
+describe("greatCirclePoint", () => {
+  it("returns the endpoints exactly", () => {
+    const a = greatCirclePoint(42, -71, 38, -28, 0);
+    expect(a.lat).toBeCloseTo(42, 6);
+    expect(a.lon).toBeCloseTo(-71, 6);
+    const b = greatCirclePoint(42, -71, 38, -28, 1);
+    expect(b.lat).toBeCloseTo(38, 6);
+    expect(b.lon).toBeCloseTo(-28, 6);
+  });
+
+  it("puts the halfway point equidistant from both ends", () => {
+    const mid = greatCirclePoint(41.49, -71.31, 38.53, -28.63, 0.5);
+    const toStart = haversineDistanceNM(mid.lat, mid.lon, 41.49, -71.31);
+    const toEnd = haversineDistanceNM(mid.lat, mid.lon, 38.53, -28.63);
+    expect(toStart).toBeCloseTo(toEnd, 3);
+  });
+
+  it("bows poleward of the straight line in the northern hemisphere", () => {
+    // The whole point of the feature: a great circle between two mid-latitude
+    // points passes north of their mean latitude.
+    const mid = greatCirclePoint(41.49, -71.31, 38.53, -28.63, 0.5);
+    expect(mid.lat).toBeGreaterThan((41.49 + 38.53) / 2);
+  });
+
+  it("handles coincident points without dividing by zero", () => {
+    const p = greatCirclePoint(42, -71, 42, -71, 0.5);
+    expect(p.lat).toBeCloseTo(42, 9);
+    expect(p.lon).toBeCloseTo(-71, 9);
+  });
+});
+
+describe("densifyGreatCircle", () => {
+  const from = { lat: 41.49, lon: -71.31 }; // Newport
+  const azores = { lat: 38.53, lon: -28.63 };
+
+  it("leaves a coastal leg as two points", () => {
+    const pts = densifyGreatCircle(
+      { lat: 42.98, lon: -70.62 },
+      { lat: 43.65, lon: -70.24 },
+    );
+    expect(pts).toEqual([
+      [-70.62, 42.98],
+      [-70.24, 43.65],
+    ]);
+  });
+
+  it("subdivides an ocean leg", () => {
+    const pts = densifyGreatCircle(from, azores);
+    expect(pts.length).toBeGreaterThan(8);
+    expect(pts[0]).toEqual([from.lon, from.lat]);
+    expect(pts[pts.length - 1][0]).toBeCloseTo(azores.lon, 6);
+    expect(pts[pts.length - 1][1]).toBeCloseTo(azores.lat, 6);
+  });
+
+  it("keeps every drawn segment within the offset tolerance of the arc", () => {
+    const tol = 0.5;
+    const pts = densifyGreatCircle(from, azores, tol);
+    for (let i = 1; i < pts.length; i++) {
+      const [lon1, lat1] = pts[i - 1];
+      const [lon2, lat2] = pts[i];
+      const straightMid = { lat: (lat1 + lat2) / 2, lon: (lon1 + lon2) / 2 };
+      const arcMid = greatCirclePoint(lat1, lon1, lat2, lon2, 0.5);
+      const off = haversineDistanceNM(
+        straightMid.lat,
+        straightMid.lon,
+        arcMid.lat,
+        arcMid.lon,
+      );
+      expect(off).toBeLessThanOrEqual(tol);
+    }
+  });
+
+  it("tightening the tolerance adds points", () => {
+    const coarse = densifyGreatCircle(from, azores, 5);
+    const fine = densifyGreatCircle(from, azores, 0.1);
+    expect(fine.length).toBeGreaterThan(coarse.length);
+  });
+
+  it("keeps longitude continuous across the antimeridian", () => {
+    // Tokyo → San Francisco. Wrapping to ±180 here would draw the leg back
+    // across the whole world instead of over the Pacific.
+    const pts = densifyGreatCircle(
+      { lat: 35.68, lon: 139.77 },
+      { lat: 37.77, lon: -122.42 },
+    );
+    for (let i = 1; i < pts.length; i++) {
+      expect(Math.abs(pts[i][0] - pts[i - 1][0])).toBeLessThan(180);
+    }
+    // The end point is expressed past +180 rather than jumping negative.
+    expect(pts[pts.length - 1][0]).toBeCloseTo(237.58, 1);
+  });
+
+  it("crosses the antimeridian westbound too", () => {
+    const pts = densifyGreatCircle(
+      { lat: 37.77, lon: -122.42 },
+      { lat: 35.68, lon: 139.77 },
+    );
+    for (let i = 1; i < pts.length; i++) {
+      expect(Math.abs(pts[i][0] - pts[i - 1][0])).toBeLessThan(180);
+    }
+    expect(pts[pts.length - 1][0]).toBeCloseTo(-220.23, 1);
+  });
+});
+
+describe("densifyGreatCirclePath", () => {
+  it("joins legs without repeating the shared waypoint", () => {
+    const pts = densifyGreatCirclePath([
+      { lat: 42.98, lon: -70.62 },
+      { lat: 43.65, lon: -70.24 },
+      { lat: 44.1, lon: -69.1 },
+    ]);
+    expect(pts).toEqual([
+      [-70.62, 42.98],
+      [-70.24, 43.65],
+      [-69.1, 44.1],
+    ]);
+  });
+
+  it("stays continuous when several legs cross the antimeridian", () => {
+    // Per-leg unwrapping alone gives 170 → 190 then −170 → −150, and the join
+    // draws straight back across the world.
+    const pts = densifyGreatCirclePath([
+      { lat: 20, lon: 170 },
+      { lat: 21, lon: -170 },
+      { lat: 22, lon: -150 },
+    ]);
+    for (let i = 1; i < pts.length; i++) {
+      expect(Math.abs(pts[i][0] - pts[i - 1][0])).toBeLessThan(180);
+    }
+    expect(pts[pts.length - 1][0]).toBeGreaterThan(180);
+  });
+
+  it("handles degenerate input", () => {
+    expect(densifyGreatCirclePath([])).toEqual([]);
+    expect(densifyGreatCirclePath([{ lat: 42, lon: -71 }])).toEqual([
+      [-71, 42],
+    ]);
   });
 });

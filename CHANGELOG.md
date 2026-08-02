@@ -5,6 +5,13 @@ Notable user-facing changes to Pelorus Nav. Downloads are on the
 
 The format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [Unreleased]
+
+### Changed
+- Long route legs are drawn as great-circle arcs, matching the distances and
+  bearings the app has always computed. Coastal legs look exactly as before —
+  the two only diverge visibly past a few hundred miles.
+
 ## [0.20.0] - 2026-08-01
 
 ### Added

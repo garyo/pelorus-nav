@@ -8,7 +8,11 @@ import { reapplyOverlayDimming } from "../app/overlayDimming";
 import { getAllRoutes } from "../data/db";
 import type { Route } from "../data/Route";
 import { lightenHex } from "../utils/color";
-import { bboxOfCoords, haversineDistanceNM } from "../utils/coordinates";
+import {
+  bboxOfCoords,
+  densifyGreatCirclePath,
+  haversineDistanceNM,
+} from "../utils/coordinates";
 import { fitMapToBounds, fitMapToBoundsIfNeeded } from "./fit-bounds";
 import { belowVesselLayerId } from "./layer-order";
 import {
@@ -524,9 +528,11 @@ export class RouteLayer {
     const features: GeoJSON.Feature[] = [];
     const wps = route.waypoints;
 
-    // Line through all waypoints
+    // Line through all waypoints, following the great circle each leg is
+    // measured along. Short legs come back as their two endpoints, so a
+    // coastal route's geometry is exactly what it always was.
     if (wps.length >= 2) {
-      const coords = wps.map((w) => [w.lon, w.lat]);
+      const coords = densifyGreatCirclePath(wps);
       features.push({
         type: "Feature",
         properties: {},

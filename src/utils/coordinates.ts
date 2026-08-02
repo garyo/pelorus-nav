@@ -50,6 +50,148 @@ export function pathDistanceNM(
 }
 
 /**
+ * Interpolate along the great circle between two points, at fraction `t`.
+ *
+ * Spherical linear interpolation, so the result lies on the shortest arc.
+ * Antipodal points have no unique arc; the caller's `t=0`/`t=1` cases are
+ * exact, and anything between is arbitrary but stable.
+ */
+export function greatCirclePoint(
+  lat1: number,
+  lon1: number,
+  lat2: number,
+  lon2: number,
+  t: number,
+): { lat: number; lon: number } {
+  const phi1 = toRadians(lat1);
+  const lam1 = toRadians(lon1);
+  const phi2 = toRadians(lat2);
+  const lam2 = toRadians(lon2);
+
+  const dPhi = phi2 - phi1;
+  const dLam = lam2 - lam1;
+  const h =
+    Math.sin(dPhi / 2) ** 2 +
+    Math.cos(phi1) * Math.cos(phi2) * Math.sin(dLam / 2) ** 2;
+  const delta = 2 * Math.asin(Math.min(1, Math.sqrt(h)));
+  // Coincident points: every fraction is the same point, and the sines below
+  // would divide by zero.
+  if (delta === 0) return { lat: lat1, lon: lon1 };
+
+  const a = Math.sin((1 - t) * delta) / Math.sin(delta);
+  const b = Math.sin(t * delta) / Math.sin(delta);
+  const x =
+    a * Math.cos(phi1) * Math.cos(lam1) + b * Math.cos(phi2) * Math.cos(lam2);
+  const y =
+    a * Math.cos(phi1) * Math.sin(lam1) + b * Math.cos(phi2) * Math.sin(lam2);
+  const z = a * Math.sin(phi1) + b * Math.sin(phi2);
+
+  return {
+    lat: toDegrees(Math.atan2(z, Math.sqrt(x * x + y * y))),
+    lon: toDegrees(Math.atan2(y, x)),
+  };
+}
+
+/** Below this, a leg is drawn as one straight segment (see densifyGreatCircle). */
+const DEFAULT_MAX_OFFSET_NM = 0.5;
+
+/**
+ * The points to draw for one leg so it follows the great circle rather than
+ * the straight line a Mercator projection would give.
+ *
+ * Every distance and bearing in the app is great-circle, but MapLibre draws a
+ * LineString as straight segments in projected space — which in Mercator is a
+ * rhumb line. On coastal legs the two are the same to well under a pixel; on
+ * an ocean passage they visibly part company (a 1950 nm leg bows about 120 nm
+ * off the straight line). Densifying only where it shows keeps short routes
+ * byte-identical to before.
+ *
+ * Subdivision halves until each segment's midpoint is within `maxOffsetNM` of
+ * the true arc. Returns `[from, to]` untouched when one segment already is.
+ *
+ * Longitudes are emitted *unwrapped* — continuing past ±180 rather than
+ * jumping — because a leg that crosses the antimeridian would otherwise draw
+ * as a line straight back across the world. MapLibre handles out-of-range
+ * longitudes as long as they're continuous.
+ */
+export function densifyGreatCircle(
+  from: { lat: number; lon: number },
+  to: { lat: number; lon: number },
+  maxOffsetNM = DEFAULT_MAX_OFFSET_NM,
+): Array<[number, number]> {
+  const straightMid = {
+    lat: (from.lat + to.lat) / 2,
+    lon: (from.lon + unwrapLon(to.lon, from.lon)) / 2,
+  };
+  const arcMid = greatCirclePoint(from.lat, from.lon, to.lat, to.lon, 0.5);
+  const offset = haversineDistanceNM(
+    straightMid.lat,
+    straightMid.lon,
+    arcMid.lat,
+    arcMid.lon,
+  );
+  if (offset <= maxOffsetNM) {
+    return [
+      [from.lon, from.lat],
+      [unwrapLon(to.lon, from.lon), to.lat],
+    ];
+  }
+
+  // One subdivision at a time, recursing into each half: the offset falls as
+  // roughly the square of the segment length, so this bottoms out quickly.
+  const mid = { lat: arcMid.lat, lon: arcMid.lon };
+  const left = densifyGreatCircle(from, mid, maxOffsetNM);
+  const right = densifyGreatCircle(mid, to, maxOffsetNM);
+  // Drop the shared midpoint, and carry the left half's unwrapping into the
+  // right so the whole leg stays continuous.
+  const shift = left[left.length - 1][0] - mid.lon;
+  return [
+    ...left,
+    ...right
+      .slice(1)
+      .map(([lon, lat]) => [lon + shift, lat] as [number, number]),
+  ];
+}
+
+/**
+ * The same for a whole path, staying continuous *between* legs as well as
+ * within them.
+ *
+ * Doing this per leg isn't enough: each leg unwraps against its own start, so
+ * a route crossing the antimeridian in several hops (170 → −170 → −150) would
+ * hand back 190 followed by −170, and MapLibre would draw the join straight
+ * back across the world. Each leg is shifted onto the running position
+ * instead.
+ */
+export function densifyGreatCirclePath(
+  points: readonly { lat: number; lon: number }[],
+  maxOffsetNM = DEFAULT_MAX_OFFSET_NM,
+): Array<[number, number]> {
+  if (points.length === 0) return [];
+  if (points.length === 1) return [[points[0].lon, points[0].lat]];
+
+  const out: Array<[number, number]> = [];
+  for (let i = 1; i < points.length; i++) {
+    const leg = densifyGreatCircle(points[i - 1], points[i], maxOffsetNM);
+    if (i === 1) {
+      out.push(...leg);
+      continue;
+    }
+    const shift = unwrapLon(leg[0][0], out[out.length - 1][0]) - leg[0][0];
+    for (const [lon, lat] of leg.slice(1)) out.push([lon + shift, lat]);
+  }
+  return out;
+}
+
+/** `lon` expressed as the value nearest `reference`, continuing past ±180. */
+function unwrapLon(lon: number, reference: number): number {
+  let out = lon;
+  while (out - reference > 180) out -= 360;
+  while (out - reference < -180) out += 360;
+  return out;
+}
+
+/**
  * Format decimal degrees as degrees, minutes, and decimal minutes.
  * Returns e.g. "42°21.60'N" or "071°03.60'W"
  */

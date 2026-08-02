@@ -5,7 +5,11 @@
 
 import type * as maplibregl from "maplibre-gl";
 import { getSettings, onSettingsChange } from "../settings";
-import { haversineDistanceNM, initialBearingDeg } from "../utils/coordinates";
+import {
+  densifyGreatCircle,
+  haversineDistanceNM,
+  initialBearingDeg,
+} from "../utils/coordinates";
 import { formatBearing } from "../utils/magnetic";
 import { formatDistanceNM } from "../utils/units";
 import { DraggablePoints } from "./DraggablePoints";
@@ -205,10 +209,13 @@ export class MeasurementLayer {
             properties: {},
             geometry: {
               type: "LineString",
-              coordinates: [
-                [this.pointA.lng, this.pointA.lat],
-                [endPoint.lng, endPoint.lat],
-              ],
+              // Follows the great circle the readout measures along, so a
+              // long measurement can't draw a straight line beside a route's
+              // arc and contradict it. Short ones are still two points.
+              coordinates: densifyGreatCircle(
+                { lat: this.pointA.lat, lon: this.pointA.lng },
+                { lat: endPoint.lat, lon: endPoint.lng },
+              ),
             },
           },
         ],
