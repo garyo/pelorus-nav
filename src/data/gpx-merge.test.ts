@@ -7,6 +7,7 @@ import {
   planMerge,
   routeSignature,
   trackMetaSignature,
+  waypointIdentity,
   waypointSignature,
 } from "./gpx-merge";
 import type { Route } from "./Route";
@@ -243,5 +244,132 @@ describe("merge keeps local organization", () => {
     const stored = route({ sourceId: "garmin-abc" });
     const merged = mergeRoute(stored, route({ id: "fresh", name: "Edited" }));
     expect(merged.sourceId).toBe("garmin-abc");
+  });
+});
+
+/**
+ * The everyday case for a file that carries no ids: a GPX hand-edited or
+ * exported by an app that writes none, re-imported after a symbol change.
+ * Keyed on content alone, every such edit arrived as a second copy of a mark
+ * the user already had.
+ */
+describe("planMerge — editing an id-less file", () => {
+  /** What the parser produces on re-import: a brand-new local id, no sourceId. */
+  const reparsed = (over: Partial<StandaloneWaypoint> = {}) =>
+    waypoint({ id: "fresh-uuid", ...over });
+
+  it("updates the mark when its colour changes", () => {
+    const stored = [waypoint({ icon: "triangle", color: "red" })];
+    const incoming = [reparsed({ icon: "triangle", color: "green" })];
+
+    const plan = planMerge(
+      incoming,
+      stored,
+      waypointSignature,
+      waypointIdentity,
+    );
+
+    expect(plan.add).toHaveLength(0);
+    expect(plan.update).toHaveLength(1);
+    expect(plan.update[0].stored.id).toBe("local-w");
+    expect(plan.update[0].incoming.color).toBe("green");
+  });
+
+  it("updates the mark when its symbol or notes change", () => {
+    const stored = [waypoint({ icon: "default", notes: "" })];
+    const incoming = [reparsed({ icon: "anchorage", notes: "Good holding" })];
+
+    const plan = planMerge(
+      incoming,
+      stored,
+      waypointSignature,
+      waypointIdentity,
+    );
+
+    expect(plan.add).toHaveLength(0);
+    expect(plan.update).toHaveLength(1);
+  });
+
+  it("still writes nothing when the file has not changed at all", () => {
+    const stored = [waypoint({ icon: "triangle", color: "red" })];
+    const incoming = [reparsed({ icon: "triangle", color: "red" })];
+
+    const plan = planMerge(
+      incoming,
+      stored,
+      waypointSignature,
+      waypointIdentity,
+    );
+
+    expect(plan.unchanged).toHaveLength(1);
+    expect(plan.add).toHaveLength(0);
+    expect(plan.update).toHaveLength(0);
+  });
+
+  /** Real exports do this: two marks called ROBISN half a mile apart. */
+  it("keeps same-named marks at different positions apart", () => {
+    const stored = [
+      waypoint({ id: "w1", name: "ROBISN", lat: 41.443889, lon: -70.792407 }),
+      waypoint({ id: "w2", name: "ROBISN", lat: 41.441002, lon: -70.781764 }),
+    ];
+    const incoming = [
+      reparsed({
+        name: "ROBISN",
+        lat: 41.443889,
+        lon: -70.792407,
+        icon: "flag",
+      }),
+      reparsed({ name: "ROBISN", lat: 41.441002, lon: -70.781764 }),
+    ];
+
+    const plan = planMerge(
+      incoming,
+      stored,
+      waypointSignature,
+      waypointIdentity,
+    );
+
+    expect(plan.add).toHaveLength(0);
+    // Only the one whose symbol changed is rewritten, and it's the one at its
+    // own position — not its namesake.
+    expect(plan.update).toHaveLength(1);
+    expect(plan.update[0].stored.id).toBe("w1");
+    expect(plan.unchanged).toHaveLength(1);
+  });
+
+  /**
+   * Position is half of what identifies an id-less mark, so a moved one is a
+   * new one. Nothing in the file can say otherwise — that is what ids are for.
+   */
+  it("treats a moved mark as a new one", () => {
+    const stored = [waypoint({ lat: 42.36, lon: -71.05 })];
+    const incoming = [reparsed({ lat: 42.4, lon: -71.05 })];
+
+    const plan = planMerge(
+      incoming,
+      stored,
+      waypointSignature,
+      waypointIdentity,
+    );
+
+    expect(plan.add).toHaveLength(1);
+    expect(plan.update).toHaveLength(0);
+  });
+
+  it("matches on the id when the file carries one, wherever the mark has moved to", () => {
+    const stored = [waypoint({ sourceId: "gid-1" })];
+    const incoming = [
+      reparsed({ sourceId: "gid-1", lat: 42.4, name: "Renamed" }),
+    ];
+
+    const plan = planMerge(
+      incoming,
+      stored,
+      waypointSignature,
+      waypointIdentity,
+    );
+
+    expect(plan.add).toHaveLength(0);
+    expect(plan.update).toHaveLength(1);
   });
 });

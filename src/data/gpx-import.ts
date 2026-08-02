@@ -27,6 +27,7 @@ import {
   planMerge,
   routeSignature,
   trackMetaSignature,
+  waypointIdentity,
   waypointSignature,
 } from "./gpx-merge";
 import type { Route } from "./Route";
@@ -99,7 +100,12 @@ export async function planGpxImport(
 
   return {
     routes: planMerge(result.routes, storedRoutes, routeSignature),
-    waypoints: planMerge(result.waypoints, storedWaypoints, waypointSignature),
+    waypoints: planMerge(
+      result.waypoints,
+      storedWaypoints,
+      waypointSignature,
+      waypointIdentity,
+    ),
     // Tracks match on their metadata (name, point count), so the plan never
     // loads stored points — a signature that had to read them would mean
     // fetching every recorded fix on the device to import one file. The metas

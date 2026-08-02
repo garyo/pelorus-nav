@@ -16,6 +16,17 @@
  *   ~1 m, well below GPS noise but far above the float wobble of a
  *   serialize/parse round trip.
  *
+ * Which means content matching needs two keys, not one. *Identity* is name
+ * and geometry — what makes this the same mark. *Content* is everything that
+ * can change about it — notes, symbol, colour. Matching on identity and then
+ * comparing content is what lets an edited symbol update the mark it belongs
+ * to; keyed on content alone, an edit matches nothing and arrives as a second
+ * copy of a mark the user already has.
+ *
+ * A mark that has *moved* still arrives as a new one, because position is
+ * half of what identifies it and nothing else in an id-less file can say
+ * otherwise. That is what ids are for, and our own exports carry one.
+ *
  * A match means the stored item is updated in place, keeping the organization
  * the user built on this device — folder, visibility, colour — because those
  * are local decisions a synced file shouldn't overwrite (and for most imports
@@ -73,10 +84,16 @@ export function routeSignature(route: Route): string {
   return `${route.name}|${pts}`;
 }
 
+/** What makes a waypoint the same waypoint: what it is called and where it
+ *  is. Everything else about it is content the file may have edited. */
+export function waypointIdentity(wp: StandaloneWaypoint): string {
+  return `${wp.name}|${coord(wp.lat)},${coord(wp.lon)}`;
+}
+
 /** Content signature of a standalone waypoint: name, position, notes, symbol. */
 export function waypointSignature(wp: StandaloneWaypoint): string {
   const sym = wp.color ? `${wp.icon},${wp.color}` : wp.icon;
-  return `${wp.name}|${coord(wp.lat)},${coord(wp.lon)}|${wp.notes}|${sym}`;
+  return `${waypointIdentity(wp)}|${wp.notes}|${sym}`;
 }
 
 /**
@@ -94,27 +111,30 @@ export function trackMetaSignature(meta: TrackMeta): string {
 /**
  * Match incoming items against stored ones.
  *
- * Identity wins over content: an item whose id is known is that item even if
- * it was renamed and re-drawn. Content matching is the fallback for files
- * carrying no ids, and each stored item can be claimed only once, so two
- * identical incoming items can't both collapse onto it.
+ * An id wins over everything: an item whose id is known is that item even if
+ * it was renamed and re-drawn. `identityOf` is the fallback for files carrying
+ * no ids, and defaults to the content signature for kinds whose content *is*
+ * their identity (a route is its name and its points — there is nothing else
+ * to edit). Each stored item can be claimed only once, so two identical
+ * incoming items can't both collapse onto it.
  */
 export function planMerge<T extends Identified>(
   incoming: readonly T[],
   stored: readonly T[],
   signature: (item: T) => string,
+  identityOf: (item: T) => string = signature,
 ): MergePlan<T> {
   const byId = new Map<string, T>();
   for (const item of stored) {
     byId.set(item.id, item);
     if (item.sourceId) byId.set(item.sourceId, item);
   }
-  const bySignature = new Map<string, T[]>();
+  const byIdentity = new Map<string, T[]>();
   for (const item of stored) {
-    const key = signature(item);
-    const list = bySignature.get(key);
+    const key = identityOf(item);
+    const list = byIdentity.get(key);
     if (list) list.push(item);
-    else bySignature.set(key, [item]);
+    else byIdentity.set(key, [item]);
   }
 
   const claimed = new Set<string>();
@@ -128,7 +148,7 @@ export function planMerge<T extends Identified>(
     if (byIdHit && !claimed.has(byIdHit.id)) match = byIdHit;
 
     if (!match) {
-      const candidates = bySignature.get(signature(item)) ?? [];
+      const candidates = byIdentity.get(identityOf(item)) ?? [];
       match = candidates.find((c) => !claimed.has(c.id));
     }
 

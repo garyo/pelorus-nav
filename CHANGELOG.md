@@ -27,6 +27,13 @@ The format follows [Keep a Changelog](https://keepachangelog.com/).
   unchanged — waypoints there still drag on contact during edits.
 - After a waypoint is moved, a message offers to undo the move.
 
+### Fixed
+- Re-importing a GPX whose waypoint symbols, colors or notes you have edited
+  now updates those waypoints instead of adding a second copy of each. Files
+  that carry no identifiers of their own are matched on name and position, so
+  a waypoint that has *moved* still arrives as a new one — our own exports
+  carry an identifier and are matched by it wherever they have moved to.
+
 ## [0.20.0] - 2026-08-01
 
 ### Added
