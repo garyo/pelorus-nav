@@ -514,6 +514,40 @@ describe("densifyGreatCirclePath", () => {
     expect(pts[pts.length - 1][0]).toBeGreaterThan(180);
   });
 
+  it("stays finite and bounded on degenerate geometry", () => {
+    // Antipodal points have no unique shortest arc, and sin(delta) → 0 in the
+    // interpolation. Nothing here has a "right" answer; it must simply not
+    // produce NaN or subdivide forever.
+    const cases: Array<
+      [{ lat: number; lon: number }, { lat: number; lon: number }]
+    > = [
+      [
+        { lat: 0, lon: 0 },
+        { lat: 0, lon: 180 },
+      ],
+      [
+        { lat: 0, lon: 0 },
+        { lat: 0.001, lon: 179.999 },
+      ],
+      [
+        { lat: 45, lon: 0 },
+        { lat: -45, lon: 180 },
+      ],
+      [
+        { lat: 90, lon: 0 },
+        { lat: -90, lon: 0 },
+      ],
+    ];
+    for (const [from, to] of cases) {
+      const pts = densifyGreatCircle(from, to);
+      expect(pts.length).toBeLessThan(500);
+      for (const [lon, lat] of pts) {
+        expect(Number.isFinite(lon)).toBe(true);
+        expect(Number.isFinite(lat)).toBe(true);
+      }
+    }
+  });
+
   it("handles degenerate input", () => {
     expect(densifyGreatCirclePath([])).toEqual([]);
     expect(densifyGreatCirclePath([{ lat: 42, lon: -71 }])).toEqual([
