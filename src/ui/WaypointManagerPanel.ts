@@ -358,9 +358,25 @@ export class WaypointManagerPanel {
     const name = document.createElement("div");
     name.className = "manager-item-name";
     name.textContent = wp.name;
-    name.title = "Double-click to rename";
+    name.title = "Click to show on chart, double-click to rename";
     name.style.cursor = "pointer";
-    name.addEventListener("dblclick", () => this.rename(wp, name));
+    // Same single/double-click split as the route and track lists: the first
+    // click waits out the double-click window before acting.
+    let clickTimer: ReturnType<typeof setTimeout> | null = null;
+    name.addEventListener("click", () => {
+      if (clickTimer) return; // second click of a dblclick — ignore
+      clickTimer = setTimeout(() => {
+        clickTimer = null;
+        this.showOnChart(wp);
+      }, 250);
+    });
+    name.addEventListener("dblclick", () => {
+      if (clickTimer) {
+        clearTimeout(clickTimer);
+        clickTimer = null;
+      }
+      this.rename(wp, name);
+    });
 
     const detail = document.createElement("div");
     detail.className = "manager-item-detail";
@@ -421,6 +437,22 @@ export class WaypointManagerPanel {
     this.selection.track(wp);
     this.selection.decorateRow(wp, item, actions);
     return item;
+  }
+
+  /** Center the chart on a waypoint and highlight its row, so the list and
+   *  the chart agree about which one is being talked about. */
+  private showOnChart(wp: StandaloneWaypoint): void {
+    this.selectedWaypointId = wp.id;
+    for (const row of this.body.querySelectorAll(".manager-item")) {
+      row.classList.toggle(
+        "selected",
+        (row as HTMLElement).dataset.waypointId === wp.id,
+      );
+    }
+    // reloadAll (via updateWaypoint, when a hidden waypoint is shown) fires
+    // onChange, which refreshes the list and repaints the highlight from
+    // selectedWaypointId — set above so the refresh keeps it.
+    this.waypointLayer.revealWaypoint(wp).catch(console.error);
   }
 
   private iconColor(icon: WaypointIcon): string {

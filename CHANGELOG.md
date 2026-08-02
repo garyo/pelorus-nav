@@ -7,8 +7,19 @@ The format follows [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Added
+- Tapping a waypoint's name in the Waypoints panel centers the chart on it and
+  rings it, so you can find a waypoint you have scrolled to in the list. A
+  hidden waypoint is shown first.
+
 ### Changed
 - Long route legs are drawn as great-circle arcs, matching the underlying computations.
+- Moving a waypoint on the chart is now press-and-hold: hold it until it rings
+  (and the device buzzes, where it can), then drag. Waypoints used to be picked
+  up the instant you touched one, so a pan that happened to start on a waypoint
+  could silently drag it miles from where it belonged. Route editing is
+  unchanged — waypoints there still drag on contact during edits.
+- After a waypoint is moved, a message offers to undo the move.
 
 ## [0.20.0] - 2026-08-01
 

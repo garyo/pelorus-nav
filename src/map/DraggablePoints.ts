@@ -7,10 +7,17 @@
  * coordinates instead (see point-hit-test) — exact regardless of how far
  * MapLibre's symbol placement lags the camera, which is what makes edit taps
  * reliable right after a pan.
+ *
+ * Grabbing has two modes too. By default a press on a handle picks it up
+ * immediately, which is what a dedicated editing mode wants. Pass `holdMs` and
+ * the handle is picked up only after the press has been held still that long —
+ * for handles that live on the ordinary chart, where every pan starts on top of
+ * something and an immediate grab silently moves the user's data.
  */
 
 import type * as maplibregl from "maplibre-gl";
 import { type GeoPoint, nearestPointIndex } from "./point-hit-test";
+import { claimMapPress, releaseMapPress } from "./press-claim";
 
 export type DragCallback = (
   featureIndex: number,
@@ -39,6 +46,10 @@ export type DragEndCallback = () => void;
 const TOUCH_HIT_SLOP = 10;
 /** Movement below this (px) is a tap, not a drag. */
 const TAP_MOVE_SLOP = 6;
+/** Movement above this (px) during a hold means the user is panning, not
+ *  reaching for a handle — the hold is abandoned. Looser than the tap slop:
+ *  a press held on a boat underway is never perfectly still. */
+const HOLD_MOVE_SLOP = 10;
 /** Default reach of the geometric hit test (px). */
 const DEFAULT_HIT_RADIUS = 22;
 
@@ -46,10 +57,22 @@ export interface DraggablePointsOptions {
   /** Handle positions, ordered to match each feature's `index` property.
    *  Supplying this switches hit-testing from rendered-symbol queries to
    *  geometry. */
-  getPoints: () => readonly GeoPoint[];
+  getPoints?: () => readonly GeoPoint[];
   /** Reach of the geometric hit test in px (default 22 — an icon half-width
    *  plus finger slop). */
   hitRadius?: number;
+  /**
+   * Hold the press this long (ms) before a handle is picked up. 0 (the
+   * default) picks it up on contact.
+   *
+   * Must stay below the map's own long-press interval so this hold arms
+   * first and claims the press (see press-claim.ts), or a hold on a handle
+   * would also open the chart's context menu.
+   */
+  holdMs?: number;
+  /** The hold armed and the handle is now live — for the cue that tells the
+   *  user they have picked something up. Never fires when `holdMs` is 0. */
+  onGrab?: (index: number) => void;
 }
 
 /** A handle under the pointer: its feature index and, when known, the
@@ -68,6 +91,23 @@ export class DraggablePoints {
   private readonly onDragEnd: DragEndCallback | null;
   private readonly getPoints: (() => readonly GeoPoint[]) | null;
   private readonly hitRadius: number;
+  private readonly holdMs: number;
+  private readonly onGrab: ((index: number) => void) | null;
+
+  /** Pending hold: the press that may yet become a grab. Null whenever no
+   *  hold is in flight, which is always the case when holdMs is 0. */
+  private hold: {
+    timer: ReturnType<typeof setTimeout>;
+    hit: Hit;
+    /** Canvas-relative press point, to arm from once the timer fires. */
+    x: number;
+    y: number;
+    /** Press point in client coords — what movement is measured against. */
+    clientX: number;
+    clientY: number;
+    /** The finger's identifier, or null for a mouse press. */
+    touchId: number | null;
+  } | null = null;
 
   private dragging = false;
   private dragIndex = -1;
@@ -105,8 +145,12 @@ export class DraggablePoints {
     this.onDragEnd = onDragEnd;
     this.getPoints = options?.getPoints ?? null;
     this.hitRadius = options?.hitRadius ?? DEFAULT_HIT_RADIUS;
+    this.holdMs = options?.holdMs ?? 0;
+    this.onGrab = options?.onGrab ?? null;
 
     this.onMouseDown = this.onMouseDown.bind(this);
+    this.onHoldMouseMove = this.onHoldMouseMove.bind(this);
+    this.onHoldTouchMove = this.onHoldTouchMove.bind(this);
     this.onMouseMove = this.onMouseMove.bind(this);
     this.onMouseUp = this.onMouseUp.bind(this);
     this.onTouchStart = this.onTouchStart.bind(this);
@@ -144,6 +188,9 @@ export class DraggablePoints {
   }
 
   destroy(): void {
+    // A pending hold would otherwise arm after teardown, on a map this
+    // instance no longer owns.
+    this.cancelHold();
     // A live gesture (finger still down while the owner tears us down) would
     // otherwise leave dragPan disabled and the cursor stuck.
     if (this.dragging) this.endDrag();
@@ -204,9 +251,113 @@ export class DraggablePoints {
     this.dragOffsetY = anchorPx.y - y;
   }
 
+  // ── Press-and-hold arming ───────────────────────────────────────────
+  //
+  // While a hold is pending the press is left entirely alone: not
+  // preventDefault-ed, dragPan still enabled. So a press that turns out to be
+  // a pan pans from its first pixel, and one that turns out to be a tap still
+  // produces the click the rest of the app listens for. Only when the hold
+  // arms do we take the gesture over.
+
+  /** Begin the hold for a press on `hit`. */
+  private beginHold(
+    hit: Hit,
+    x: number,
+    y: number,
+    client: { x: number; y: number },
+    touchId: number | null,
+  ): void {
+    this.cancelHold();
+    this.hold = {
+      timer: setTimeout(() => this.armHold(), this.holdMs),
+      hit,
+      x,
+      y,
+      clientX: client.x,
+      clientY: client.y,
+      touchId,
+    };
+    // Raw DOM events, not the map's: MapLibre stops firing its own mousemove
+    // once a drag gesture engages, so a hold watching those would never see
+    // the pan it is supposed to stand down for. Window, not canvas, so a
+    // pointer that leaves the map still cancels.
+    if (touchId === null) {
+      window.addEventListener("mousemove", this.onHoldMouseMove, true);
+    } else {
+      this.map
+        .getCanvas()
+        .addEventListener("touchmove", this.onHoldTouchMove, { passive: true });
+    }
+  }
+
+  private cancelHold(): void {
+    if (!this.hold) return;
+    clearTimeout(this.hold.timer);
+    this.map.getCanvas().removeEventListener("touchmove", this.onHoldTouchMove);
+    window.removeEventListener("mousemove", this.onHoldMouseMove, true);
+    this.hold = null;
+  }
+
+  /** The hold survived: take the gesture over and pick the handle up. */
+  private armHold(): void {
+    const hold = this.hold;
+    if (!hold) return;
+    this.cancelHold();
+
+    this.setGrabOffset(hold.hit, hold.x, hold.y);
+    if (hold.touchId !== null) {
+      this.dragTouchId = hold.touchId;
+      this.touchStartX = hold.clientX;
+      this.touchStartY = hold.clientY;
+      this.touchMoved = false;
+    } else {
+      this.mouseDownX = hold.x;
+      this.mouseDownY = hold.y;
+      this.mouseMoved = false;
+    }
+    // The map's own long-press must not also fire on this press.
+    claimMapPress();
+    this.startDrag(hold.hit.index);
+    this.onGrab?.(hold.hit.index);
+  }
+
+  /** Movement past the slop means this press is a pan — let the map have it. */
+  private movedPastHoldSlop(clientX: number, clientY: number): boolean {
+    if (!this.hold) return false;
+    const dx = clientX - this.hold.clientX;
+    const dy = clientY - this.hold.clientY;
+    return dx * dx + dy * dy > HOLD_MOVE_SLOP * HOLD_MOVE_SLOP;
+  }
+
+  private onHoldMouseMove(e: MouseEvent): void {
+    if (this.movedPastHoldSlop(e.clientX, e.clientY)) this.cancelHold();
+  }
+
+  private onHoldTouchMove(e: TouchEvent): void {
+    if (!this.hold) return;
+    // A second finger (pinch) is never the start of a drag.
+    if (e.touches.length !== 1) {
+      this.cancelHold();
+      return;
+    }
+    const touch = e.touches[0];
+    if (this.movedPastHoldSlop(touch.clientX, touch.clientY)) this.cancelHold();
+  }
+
   private onMouseDown(e: maplibregl.MapMouseEvent): void {
     const hit = this.hitTest(e.point.x, e.point.y);
     if (!hit) return;
+    if (this.holdMs > 0) {
+      const src = e.originalEvent;
+      this.beginHold(
+        hit,
+        e.point.x,
+        e.point.y,
+        { x: src.clientX, y: src.clientY },
+        null,
+      );
+      return;
+    }
     e.preventDefault();
     this.setGrabOffset(hit, e.point.x, e.point.y);
     this.mouseDownX = e.point.x;
@@ -242,6 +393,7 @@ export class DraggablePoints {
   }
 
   private onMouseUp(): void {
+    this.cancelHold();
     if (!this.dragging) return;
     this.endDrag();
   }
@@ -249,13 +401,26 @@ export class DraggablePoints {
   private onTouchStart(e: TouchEvent): void {
     // Only start on the first finger; a second finger landing mid-drag must
     // not restart or hijack the gesture.
-    if (this.dragging || e.touches.length !== 1) return;
+    if (this.dragging || e.touches.length !== 1) {
+      this.cancelHold();
+      return;
+    }
     const touch = e.touches[0];
     const rect = this.map.getCanvas().getBoundingClientRect();
     const x = touch.clientX - rect.left;
     const y = touch.clientY - rect.top;
     const hit = this.hitTest(x, y);
     if (!hit) return;
+    if (this.holdMs > 0) {
+      this.beginHold(
+        hit,
+        x,
+        y,
+        { x: touch.clientX, y: touch.clientY },
+        touch.identifier,
+      );
+      return;
+    }
     this.setGrabOffset(hit, x, y);
     // preventDefault also suppresses the synthetic click, so tap
     // handling is ours to do: see onTouchEnd.
@@ -304,6 +469,9 @@ export class DraggablePoints {
   }
 
   private onTouchEnd(e: TouchEvent): void {
+    // A lift before the hold armed is a tap: abandon the hold and leave the
+    // press to the click handlers, which never saw it suppressed.
+    this.cancelHold();
     // Only the drag's own finger lifting ends it — another finger's touchend
     // must be ignored, or a two-finger interaction terminates the drag early.
     if (!this.dragging || !this.dragTouch(e.changedTouches)) return;
@@ -314,6 +482,7 @@ export class DraggablePoints {
   }
 
   private onTouchCancel(e: TouchEvent): void {
+    this.cancelHold();
     if (!this.dragging || !this.dragTouch(e.changedTouches)) return;
     // Interrupted, not completed: end the drag but fire no tap.
     this.endDrag();
@@ -333,6 +502,7 @@ export class DraggablePoints {
     this.dragging = false;
     this.dragIndex = -1;
     this.dragTouchId = null;
+    releaseMapPress();
     this.map.dragPan.enable();
     const canvas = this.map.getCanvas();
     canvas.removeEventListener("touchmove", this.onTouchMove);

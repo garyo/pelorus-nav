@@ -124,3 +124,21 @@ Right-click (or long-press on touch screens) anywhere on the chart:
 - **Plot ▸** — manual plotting tools (bearing lines, distance arcs,
   position symbols) for traditional chartwork.
 - **Go to…** — type coordinates and the chart flies there.
+
+## Waypoints on the chart
+
+A waypoint dropped from the context menu — or brought in from another
+chartplotter by [importing a GPX file](/routes#export-and-import-gpx) — sits
+on the chart until you move or delete it.
+
+**To move one, press and hold it** until it rings and the device buzzes, then
+drag it where you want and lift. The hold is deliberate: waypoints sit on the
+same chart you pan, and without it a pan that started on top of a waypoint
+would take the waypoint with it. If a move wasn't what you meant, the message
+that appears afterwards will undo it.
+
+The **Waypoints** panel lists them all, with the same folders, bulk selection,
+and GPX import/export the [Routes panel](/routes#the-routes-panel) has.
+Tapping a waypoint's name there centers the chart on it and rings it — the
+quick way to see where one of a long list actually is — and double-tapping the
+name renames it.

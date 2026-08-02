@@ -3036,6 +3036,42 @@ body {
   background: rgba(68, 136, 204, 0.15);
 }
 
+/* Transient toast (Toast.ts) — reports a change just made and offers to undo
+   it. Shares the update-notice shape; sits above it so a toast fired while an
+   update offer is up stays readable. */
+.app-toast {
+  position: fixed;
+  bottom: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  max-width: min(90vw, 480px);
+  padding: 10px 14px;
+  background: rgba(30, 30, 30, 0.95);
+  border: 1px solid #444;
+  border-radius: 8px;
+  color: #ddd;
+  font-size: 13px;
+  z-index: 10002;
+}
+
+.app-toast button {
+  flex-shrink: 0;
+  padding: 4px 10px;
+  background: none;
+  border: 1px solid #4488cc;
+  border-radius: 4px;
+  color: #4488cc;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.app-toast button:hover {
+  background: rgba(68, 136, 204, 0.15);
+}
+
 /* Keyed status banners (StatusBanner.ts) — persistent, high-contrast,
    top-center so they don't collide with the bottom-center update notice. */
 .status-banner-stack {

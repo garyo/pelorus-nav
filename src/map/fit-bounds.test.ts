@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { needsFit, TINY_FRACTION } from "./fit-bounds";
+import {
+  needsFit,
+  POINT_REVEAL_ZOOM,
+  pointRevealZoom,
+  TINY_FRACTION,
+} from "./fit-bounds";
 
 const CANVAS = { canvasWidth: 1000, canvasHeight: 800 };
 
@@ -40,5 +45,20 @@ describe("needsFit", () => {
     };
     expect(needsFit(atThreshold)).toBe(false); // at threshold = big enough
     expect(needsFit({ ...atThreshold, pxWidth: 99, pxHeight: 79 })).toBe(true);
+  });
+});
+
+describe("pointRevealZoom", () => {
+  it("zooms in to the reveal zoom from a wider view", () => {
+    expect(pointRevealZoom(9)).toBe(POINT_REVEAL_ZOOM);
+  });
+
+  it("never zooms out — harbour detail already on screen is kept", () => {
+    expect(pointRevealZoom(17)).toBe(17);
+  });
+
+  it("honours a caller's own minimum", () => {
+    expect(pointRevealZoom(9, 12)).toBe(12);
+    expect(pointRevealZoom(13, 12)).toBe(13);
   });
 });

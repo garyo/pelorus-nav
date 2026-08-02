@@ -7,6 +7,7 @@ import type { StandaloneWaypoint } from "../data/Waypoint";
 import { getMode, setMode } from "../map/InteractionMode";
 import type { MeasurementLayer } from "../map/MeasurementLayer";
 import type { PlottingLayer } from "../map/plotting/PlottingLayer";
+import { isMapPressClaimed } from "../map/press-claim";
 import type { RouteEditor } from "../map/RouteEditor";
 import type { WaypointLayer } from "../map/WaypointLayer";
 import type { ActiveNavigationManager } from "../navigation/ActiveNavigation";
@@ -191,6 +192,9 @@ export function createContextMenu(deps: ContextMenuDeps): ContextMenuHandle {
 
         longPressTimer = setTimeout(() => {
           longPressTimer = null;
+          // A shorter hold on a waypoint arms first and claims the press:
+          // picking a waypoint up must not also open the chart menu.
+          if (isMapPressClaimed()) return;
           const rect = canvas.getBoundingClientRect();
           const lngLat = map.unproject([
             touchStartX - rect.left,

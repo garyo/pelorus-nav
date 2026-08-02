@@ -43,6 +43,47 @@ export function needsFit(args: {
   );
 }
 
+/**
+ * Zoom level a single point is revealed at when the map is currently wider
+ * than that. Close enough to read the surrounding chart detail, not so close
+ * that the user loses the context they were looking at.
+ */
+export const POINT_REVEAL_ZOOM = 14;
+
+/**
+ * The zoom to reveal a point at: never zoom *out* to show it. A user already
+ * looking at harbour detail asked where a waypoint is, not to be pulled back
+ * to a passage view.
+ */
+export function pointRevealZoom(
+  currentZoom: number,
+  minZoom = POINT_REVEAL_ZOOM,
+): number {
+  return Math.max(currentZoom, minZoom);
+}
+
+/**
+ * Center the map on a single point, zooming in if the view is wider than
+ * `minZoom`.
+ *
+ * Unlike the bounds fits, this always recenters, even when the point is
+ * already on screen: a point has no extent to judge "well framed" by, and the
+ * request came from a list, where the answer being sought is *where* — which a
+ * point sitting unremarked in a corner doesn't give.
+ */
+export function focusMapOnPoint(
+  map: maplibregl.Map,
+  lonLat: [number, number],
+  options?: { minZoom?: number; duration?: number },
+): void {
+  map.setPadding({ top: 0, bottom: 0, left: 0, right: 0 });
+  map.easeTo({
+    center: lonLat,
+    zoom: pointRevealZoom(map.getZoom(), options?.minZoom),
+    duration: options?.duration ?? DEFAULT_OPTIONS.duration,
+  });
+}
+
 /** Fit the map to bounds, clearing any stale look-ahead padding first. */
 export function fitMapToBounds(
   map: maplibregl.Map,

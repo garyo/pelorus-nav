@@ -1,9 +1,10 @@
 // @vitest-environment jsdom
 
 import type { Map as MapLibreMap } from "maplibre-gl";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { DraggablePoints } from "./DraggablePoints";
 import type { GeoPoint } from "./point-hit-test";
+import { isMapPressClaimed, releaseMapPress } from "./press-claim";
 
 /**
  * Focused lifecycle tests. The concern is not the happy-path drag (covered by
@@ -26,7 +27,9 @@ function makeMap(): {
   // getBoundingClientRect is 0×0 in jsdom by default — fine, screen coords
   // equal client coords, which is all the geometric hit test needs.
   let dragPanEnabled = true;
-  const handlers = new Map<string, MapHandler>();
+  // Arrays, not one handler per type: DraggablePoints registers a second
+  // mousemove listener while a hold is pending, and real MapLibre fires both.
+  const handlers = new Map<string, MapHandler[]>();
   const map = {
     getCanvas: () => canvas,
     getLayer: () => ({}),
@@ -40,14 +43,30 @@ function makeMap(): {
         dragPanEnabled = false;
       },
     },
-    on: (type: string, handler: MapHandler) => handlers.set(type, handler),
-    off: () => {},
+    on: (type: string, handler: MapHandler) => {
+      const list = handlers.get(type);
+      if (list) list.push(handler);
+      else handlers.set(type, [handler]);
+    },
+    off: (type: string, handler: MapHandler) => {
+      const list = handlers.get(type);
+      if (list)
+        handlers.set(
+          type,
+          list.filter((h) => h !== handler),
+        );
+    },
   } as unknown as MapLibreMap;
-  const fire = (type: string, x: number, y: number) =>
-    handlers.get(type)?.({
-      point: { x, y },
-      preventDefault: () => {},
-    } as never);
+  // getBoundingClientRect is 0x0 in jsdom, so canvas coords are client coords.
+  const fire = (type: string, x: number, y: number) => {
+    for (const handler of handlers.get(type) ?? []) {
+      handler({
+        point: { x, y },
+        originalEvent: { clientX: x, clientY: y },
+        preventDefault: () => {},
+      } as never);
+    }
+  };
   return { map, canvas, dragPanEnabled: () => dragPanEnabled, fire };
 }
 
@@ -156,5 +175,176 @@ describe("DraggablePoints drag lifecycle", () => {
 
     fire("mousemove", 8, 0); // now past slop
     expect(onDrag).toHaveBeenCalledTimes(1);
+  });
+});
+
+/**
+ * The hold gate (holdMs) for handles that live on the ordinary chart. What
+ * matters is that a press which turns out to be a pan never picks anything
+ * up — the failure mode is silent data loss, not a stuck gesture.
+ */
+describe("DraggablePoints press-and-hold gate", () => {
+  const HOLD_MS = 350;
+
+  function makeHoldDraggable(map: MapLibreMap) {
+    const onDrag = vi.fn();
+    const onTap = vi.fn();
+    const onGrab = vi.fn();
+    const dp = new DraggablePoints(map, "layer", onDrag, onTap, null, null, {
+      getPoints: () => [POINT],
+      hitRadius: 20,
+      holdMs: HOLD_MS,
+      onGrab,
+    });
+    return { dp, onDrag, onTap, onGrab };
+  }
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    releaseMapPress();
+  });
+
+  it("does not grab until the hold has elapsed", () => {
+    const { map, canvas, dragPanEnabled } = makeMap();
+    const { onGrab } = makeHoldDraggable(map);
+
+    touch(canvas, "touchstart", [{ id: 1, x: 0, y: 0 }]);
+    // Still the map's gesture: a pan starting here must pan from pixel one.
+    expect(dragPanEnabled()).toBe(true);
+    expect(onGrab).not.toHaveBeenCalled();
+
+    vi.advanceTimersByTime(HOLD_MS);
+    expect(dragPanEnabled()).toBe(false);
+    expect(onGrab).toHaveBeenCalledWith(0);
+  });
+
+  it("abandons the hold when the finger moves — the press was a pan", () => {
+    const { map, canvas, dragPanEnabled } = makeMap();
+    const { onGrab, onDrag } = makeHoldDraggable(map);
+
+    touch(canvas, "touchstart", [{ id: 1, x: 0, y: 0 }]);
+    touch(canvas, "touchmove", [{ id: 1, x: 30, y: 0 }]);
+    vi.advanceTimersByTime(HOLD_MS * 2);
+
+    expect(onGrab).not.toHaveBeenCalled();
+    expect(onDrag).not.toHaveBeenCalled();
+    expect(dragPanEnabled()).toBe(true);
+  });
+
+  it("keeps the hold through sub-slop jitter", () => {
+    const { map, canvas } = makeMap();
+    const { onGrab } = makeHoldDraggable(map);
+
+    touch(canvas, "touchstart", [{ id: 1, x: 0, y: 0 }]);
+    touch(canvas, "touchmove", [{ id: 1, x: 4, y: 4 }]); // 5.7 px, under slop
+    vi.advanceTimersByTime(HOLD_MS);
+
+    expect(onGrab).toHaveBeenCalledWith(0);
+  });
+
+  it("abandons the hold when a second finger lands (pinch)", () => {
+    const { map, canvas } = makeMap();
+    const { onGrab } = makeHoldDraggable(map);
+
+    touch(canvas, "touchstart", [{ id: 1, x: 0, y: 0 }]);
+    touch(canvas, "touchmove", [
+      { id: 1, x: 0, y: 0 },
+      { id: 2, x: 60, y: 60 },
+    ]);
+    vi.advanceTimersByTime(HOLD_MS);
+
+    expect(onGrab).not.toHaveBeenCalled();
+  });
+
+  it("lifting before the hold arms is a plain tap, not a grab", () => {
+    const { map, canvas, dragPanEnabled } = makeMap();
+    const { onGrab, onTap } = makeHoldDraggable(map);
+
+    touch(canvas, "touchstart", [{ id: 1, x: 0, y: 0 }]);
+    touch(canvas, "touchend", [{ id: 1, x: 0, y: 0 }]);
+    vi.advanceTimersByTime(HOLD_MS * 2);
+
+    expect(onGrab).not.toHaveBeenCalled();
+    // No drag was ever started, so the press is left to the click handlers
+    // rather than consumed here.
+    expect(onTap).not.toHaveBeenCalled();
+    expect(dragPanEnabled()).toBe(true);
+  });
+
+  it("claims the press while grabbed and releases it on drop", () => {
+    const { map, canvas } = makeMap();
+    makeHoldDraggable(map);
+
+    touch(canvas, "touchstart", [{ id: 1, x: 0, y: 0 }]);
+    vi.advanceTimersByTime(HOLD_MS);
+    // The chart's own long-press must stand down for this press.
+    expect(isMapPressClaimed()).toBe(true);
+
+    touch(canvas, "touchend", [{ id: 1, x: 0, y: 0 }]);
+    expect(isMapPressClaimed()).toBe(false);
+  });
+
+  it("does not arm a hold left pending when destroyed", () => {
+    const { map, canvas, dragPanEnabled } = makeMap();
+    const { dp, onGrab } = makeHoldDraggable(map);
+
+    touch(canvas, "touchstart", [{ id: 1, x: 0, y: 0 }]);
+    dp.destroy();
+    vi.advanceTimersByTime(HOLD_MS * 2);
+
+    expect(onGrab).not.toHaveBeenCalled();
+    expect(dragPanEnabled()).toBe(true);
+  });
+
+  it("holds on the mouse path too, then drags from the press point", () => {
+    const { map, fire, dragPanEnabled } = makeMap();
+    const { onGrab, onDrag } = makeHoldDraggable(map);
+
+    fire("mousedown", 0, 0);
+    expect(dragPanEnabled()).toBe(true);
+
+    vi.advanceTimersByTime(HOLD_MS);
+    expect(onGrab).toHaveBeenCalledWith(0);
+
+    fire("mousemove", 20, 0);
+    expect(onDrag).toHaveBeenCalledTimes(1);
+  });
+
+  /**
+   * Regression: the hold used to watch the map's own mousemove, which
+   * MapLibre stops firing once a drag gesture engages — so a press that began
+   * panning still armed after the delay and dragged the handle away mid-pan.
+   * The cancel must come from raw DOM events, which nothing suppresses.
+   */
+  it("abandons a mouse hold on a raw DOM mousemove the map never reports", () => {
+    const { map, fire } = makeMap();
+    const { onGrab, onDrag } = makeHoldDraggable(map);
+
+    fire("mousedown", 0, 0);
+    // Deliberately NOT fire("mousemove", ...) — the map is silent here.
+    window.dispatchEvent(
+      new MouseEvent("mousemove", { clientX: 40, clientY: 0 }),
+    );
+    vi.advanceTimersByTime(HOLD_MS * 2);
+
+    expect(onGrab).not.toHaveBeenCalled();
+    expect(onDrag).not.toHaveBeenCalled();
+  });
+
+  it("keeps a mouse hold through sub-slop pointer jitter", () => {
+    const { map, fire } = makeMap();
+    const { onGrab } = makeHoldDraggable(map);
+
+    fire("mousedown", 0, 0);
+    window.dispatchEvent(
+      new MouseEvent("mousemove", { clientX: 4, clientY: 4 }),
+    );
+    vi.advanceTimersByTime(HOLD_MS);
+
+    expect(onGrab).toHaveBeenCalledWith(0);
   });
 });
