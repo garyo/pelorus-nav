@@ -8,6 +8,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/).
 ## [Unreleased]
 
 ### Added
+- Waypoints can be marked with a shape — triangle, circle, square, diamond,
+  flag, pin or house — in any of six colors, alongside the existing Anchorage,
+  Hazard, Fuel and POI symbols. These are the shapes and colors Garmin and
+  ActiveCaptain use, so an imported GPX now keeps the coding it arrived with
+  instead of turning every mark into an identical dot, and exports go back out
+  under names those chartplotters recognize.
 - Tapping a waypoint's name in the Waypoints panel centers the chart on it and
   rings it, so you can find a waypoint you have scrolled to in the list. A
   hidden waypoint is shown first.

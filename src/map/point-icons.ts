@@ -9,6 +9,16 @@
 
 import type { ExpressionSpecification } from "@maplibre/maplibre-gl-style-spec";
 import type * as maplibregl from "maplibre-gl";
+import type { WaypointIcon } from "../data/Waypoint";
+import {
+  DEFAULT_WAYPOINT_COLOR,
+  GEOMETRIC_ICONS,
+  type GeometricIcon,
+  isGeometricIcon,
+  WAYPOINT_COLOR_NAMES,
+  WAYPOINT_COLORS,
+  type WaypointColor,
+} from "../data/waypoint-symbols";
 
 const SIZE = 28;
 
@@ -38,6 +48,138 @@ export function ensurePointIcons(map: maplibregl.Map): void {
   addIcon(map, POINT_ICON_COB, drawCob);
   addIcon(map, POINT_ICON_CHEVRON, drawChevron);
   addIcon(map, POINT_ICON_CHEVRON_SUBTLE, drawChevronSubtle);
+  ensureShapeIcons(map);
+}
+
+// --- Geometric waypoint icons (shape × colour) ---
+
+/**
+ * One registered image per shape/colour pair rather than one SDF image tinted
+ * per feature: an SDF icon is a single colour with no outline of its own, and
+ * these need a light-on-dark *and* dark-on-light edge to stay readable over
+ * both water and land. Forty-odd 28px canvases, drawn once per style load.
+ */
+function ensureShapeIcons(map: maplibregl.Map): void {
+  for (const shape of GEOMETRIC_ICONS) {
+    for (const color of WAYPOINT_COLOR_NAMES) {
+      addIcon(map, shapeIconName(shape, color), (ctx) =>
+        drawShape(ctx, shape, WAYPOINT_COLORS[color]),
+      );
+    }
+  }
+}
+
+function shapeIconName(shape: GeometricIcon, color: WaypointColor): string {
+  return `_pt-${shape}-${color}`;
+}
+
+/**
+ * The registered image for a waypoint — resolved here rather than in a style
+ * expression, because the shape/colour pairing is a lookup with a fallback and
+ * that reads better in TypeScript than in nested `match` arrays.
+ */
+export function waypointIconImage(
+  icon: WaypointIcon,
+  color: WaypointColor | undefined,
+): string {
+  if (isGeometricIcon(icon)) {
+    return shapeIconName(icon, color ?? DEFAULT_WAYPOINT_COLOR);
+  }
+  switch (icon) {
+    case "anchorage":
+      return POINT_ICON_ANCHOR;
+    case "hazard":
+      return POINT_ICON_HAZARD;
+    case "fuel":
+      return POINT_ICON_FUEL;
+    case "poi":
+      return POINT_ICON_POI;
+    case "cob":
+      return POINT_ICON_COB;
+    default:
+      return POINT_ICON_WAYPOINT;
+  }
+}
+
+/** Trace a shape's outline, centred, leaving it as the current path. */
+function traceShape(
+  ctx: CanvasRenderingContext2D,
+  shape: GeometricIcon,
+  r: number,
+): void {
+  const c = SIZE / 2;
+  ctx.beginPath();
+  switch (shape) {
+    case "circle":
+      ctx.arc(c, c, r, 0, Math.PI * 2);
+      break;
+    case "square":
+      ctx.rect(c - r * 0.85, c - r * 0.85, r * 1.7, r * 1.7);
+      break;
+    case "diamond":
+      ctx.moveTo(c, c - r);
+      ctx.lineTo(c + r, c);
+      ctx.lineTo(c, c + r);
+      ctx.lineTo(c - r, c);
+      ctx.closePath();
+      break;
+    case "triangle":
+      // Sat slightly low so the visual centre of mass lands on the position.
+      ctx.moveTo(c, c - r);
+      ctx.lineTo(c + r * 0.95, c + r * 0.75);
+      ctx.lineTo(c - r * 0.95, c + r * 0.75);
+      ctx.closePath();
+      break;
+    case "flag":
+      ctx.moveTo(c - r * 0.7, c + r);
+      ctx.lineTo(c - r * 0.7, c - r);
+      ctx.lineTo(c + r * 0.9, c - r * 0.45);
+      ctx.lineTo(c - r * 0.7, c + r * 0.1);
+      ctx.closePath();
+      break;
+    case "pin":
+      // Teardrop: a round head over a point at the position itself.
+      ctx.arc(c, c - r * 0.25, r * 0.72, Math.PI * 0.85, Math.PI * 0.15);
+      ctx.lineTo(c, c + r);
+      ctx.closePath();
+      break;
+    case "house":
+      ctx.moveTo(c, c - r);
+      ctx.lineTo(c + r, c - r * 0.1);
+      ctx.lineTo(c + r * 0.7, c - r * 0.1);
+      ctx.lineTo(c + r * 0.7, c + r * 0.8);
+      ctx.lineTo(c - r * 0.7, c + r * 0.8);
+      ctx.lineTo(c - r * 0.7, c - r * 0.1);
+      ctx.lineTo(c - r, c - r * 0.1);
+      ctx.closePath();
+      break;
+  }
+}
+
+/**
+ * A filled shape with a white outer edge and a thin dark inner one. The pair
+ * is what keeps a yellow mark readable on sand and a blue one on water —
+ * whichever edge the background swallows, the other still reads.
+ */
+function drawShape(
+  ctx: CanvasRenderingContext2D,
+  shape: GeometricIcon,
+  fill: string,
+): void {
+  const r = SIZE / 2 - 3;
+  ctx.lineJoin = "round";
+
+  traceShape(ctx, shape, r);
+  ctx.strokeStyle = "#fff";
+  ctx.lineWidth = 4;
+  ctx.stroke();
+
+  ctx.fillStyle = fill;
+  ctx.fill();
+
+  ctx.strokeStyle = "rgba(0,0,0,0.55)";
+  ctx.lineWidth = 1.25;
+  ctx.stroke();
 }
 
 /**
@@ -55,26 +197,6 @@ export const ROLE_ICON_EXPR: ExpressionSpecification = [
   POINT_ICON_FINISH,
   "midpoint",
   POINT_ICON_MIDPOINT,
-  POINT_ICON_WAYPOINT, // default
-];
-
-/**
- * MapLibre expression that maps a standalone waypoint's "icon" property
- * to the correct icon name. Falls back to the default waypoint icon.
- */
-export const WAYPOINT_ICON_EXPR: ExpressionSpecification = [
-  "match",
-  ["get", "icon"],
-  "anchorage",
-  POINT_ICON_ANCHOR,
-  "hazard",
-  POINT_ICON_HAZARD,
-  "fuel",
-  POINT_ICON_FUEL,
-  "poi",
-  POINT_ICON_POI,
-  "cob",
-  POINT_ICON_COB,
   POINT_ICON_WAYPOINT, // default
 ];
 

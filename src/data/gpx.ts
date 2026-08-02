@@ -6,7 +6,8 @@
 import { generateUUID } from "../utils/uuid";
 import type { Route, Waypoint } from "./Route";
 import type { TrackMeta, TrackPoint } from "./Track";
-import type { StandaloneWaypoint, WaypointIcon } from "./Waypoint";
+import type { StandaloneWaypoint } from "./Waypoint";
+import { formatWaypointSym, parseWaypointSym } from "./waypoint-symbols";
 
 const GPX_NS = "http://www.topografix.com/GPX/1/1";
 const PELORUS_NS = "https://pelorus-nav.app/gpx/1";
@@ -109,7 +110,7 @@ function standaloneWaypointXml(
     xml += `    <desc>${escapeXml(wp.notes)}</desc>\n`;
   }
   if (wp.icon && wp.icon !== "default") {
-    xml += `    <sym>${escapeXml(wp.icon)}</sym>\n`;
+    xml += `    <sym>${escapeXml(formatWaypointSym(wp.icon, wp.color))}</sym>\n`;
   }
   let own = `      <pelorus:id>${escapeXml(wp.id)}</pelorus:id>\n`;
   if (wp.folder) {
@@ -450,18 +451,6 @@ function parseColor(el: Element, fallbackIndex: number): string {
   return IMPORT_COLORS[fallbackIndex % IMPORT_COLORS.length];
 }
 
-function parseWaypointIcon(sym: string | null): WaypointIcon {
-  if (!sym) return "default";
-  const lower = sym.toLowerCase();
-  if (lower === "anchorage" || lower === "anchor") return "anchorage";
-  if (lower === "hazard" || lower === "danger") return "hazard";
-  if (lower === "fuel" || lower === "gas station") return "fuel";
-  if (lower === "poi" || lower === "flag") return "poi";
-  if (lower === "cob" || lower === "mob" || lower === "man overboard")
-    return "cob";
-  return "default";
-}
-
 /** Parse a GPX XML string into app data structures. New UUIDs are assigned. */
 export function parseGpx(xml: string): GpxImportResult {
   const parser = new DOMParser();
@@ -486,6 +475,7 @@ export function parseGpx(xml: string): GpxImportResult {
       skippedPoints++;
       continue;
     }
+    const sym = parseWaypointSym(childText(wptEl, "sym"));
     const wptFolder = pelorusExt(wptEl, "folder");
     const wptSourceId = sourceIdOf(wptEl);
     const wptExt = captureExtensions(wptEl);
@@ -496,7 +486,8 @@ export function parseGpx(xml: string): GpxImportResult {
       lon: latLon.lon,
       name: childText(wptEl, "name") ?? "Imported Waypoint",
       notes: childText(wptEl, "desc") ?? "",
-      icon: parseWaypointIcon(childText(wptEl, "sym")),
+      icon: sym.icon,
+      ...(sym.color ? { color: sym.color } : {}),
       createdAt: now,
       updatedAt: now,
       visible: true,

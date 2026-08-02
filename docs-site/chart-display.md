@@ -142,3 +142,17 @@ and GPX import/export the [Routes panel](/routes#the-routes-panel) has.
 Tapping a waypoint's name there centers the chart on it and rings it — the
 quick way to see where one of a long list actually is — and double-tapping the
 name renames it.
+
+### Symbols
+
+Edit a waypoint to change its symbol. There are two kinds:
+
+- **Meaning** — Anchorage, Hazard, Fuel, POI. Each has its own fixed color, so
+  a red mark is always a hazard and a blue one always an anchorage.
+- **Shape** — triangle, circle, square, diamond, flag, pin, house, in any of
+  six colors you choose. These mean whatever you decide: red triangles for
+  lobster pots, green flags for good anchorages.
+
+The shapes and colors are the ones Garmin and ActiveCaptain use, so an
+imported GPX keeps the coding you already had — a red triangle stays a red
+triangle — and exports go back out under names those chartplotters recognize.

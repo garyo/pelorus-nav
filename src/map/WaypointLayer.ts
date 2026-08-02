@@ -16,7 +16,7 @@ import { DraggablePoints } from "./DraggablePoints";
 import { focusMapOnPoint } from "./fit-bounds";
 import { onModeChange } from "./InteractionMode";
 import { belowVesselLayerId } from "./layer-order";
-import { ensurePointIcons, WAYPOINT_ICON_EXPR } from "./point-icons";
+import { ensurePointIcons, waypointIconImage } from "./point-icons";
 import { SelectionHalo } from "./selection-halo";
 import { getWaypointScale, onWaypointScaleChange } from "./waypoint-scale";
 
@@ -191,7 +191,7 @@ export class WaypointLayer {
         type: "symbol",
         source: SOURCE_ID,
         layout: {
-          "icon-image": WAYPOINT_ICON_EXPR,
+          "icon-image": ["get", "iconImage"],
           "icon-size": ICON_SIZE * getWaypointScale(),
           "icon-allow-overlap": true,
         },
@@ -358,7 +358,8 @@ export class WaypointLayer {
         properties: {
           id: wp.id,
           name: wp.name,
-          icon: wp.icon,
+          // Resolved here, not in a style expression — see waypointIconImage.
+          iconImage: waypointIconImage(wp.icon, wp.color),
           index: i,
         },
         geometry: {

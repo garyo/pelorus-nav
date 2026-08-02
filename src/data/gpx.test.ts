@@ -112,9 +112,11 @@ describe("GPX export", () => {
     expect(gpx).toContain("<wpt");
     expect(gpx).toContain("<name>Anchorage A</name>");
     expect(gpx).toContain("<desc>Good holding</desc>");
-    expect(gpx).toContain("<sym>anchorage</sym>");
+    // The names other chartplotters know, not our internal ones — `<sym>` is
+    // free text, so an unrecognized name lands on the far side's default.
+    expect(gpx).toContain("<sym>Anchor</sym>");
     expect(gpx).toContain("<name>Fuel Dock</name>");
-    expect(gpx).toContain("<sym>fuel</sym>");
+    expect(gpx).toContain("<sym>Gas Station</sym>");
     // Empty notes should not produce <desc>
     expect(gpx).not.toContain("<desc></desc>");
   });

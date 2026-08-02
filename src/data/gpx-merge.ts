@@ -73,9 +73,10 @@ export function routeSignature(route: Route): string {
   return `${route.name}|${pts}`;
 }
 
-/** Content signature of a standalone waypoint: name, position, notes, icon. */
+/** Content signature of a standalone waypoint: name, position, notes, symbol. */
 export function waypointSignature(wp: StandaloneWaypoint): string {
-  return `${wp.name}|${coord(wp.lat)},${coord(wp.lon)}|${wp.notes}|${wp.icon}`;
+  const sym = wp.color ? `${wp.icon},${wp.color}` : wp.icon;
+  return `${wp.name}|${coord(wp.lat)},${coord(wp.lon)}|${wp.notes}|${sym}`;
 }
 
 /**

@@ -13,6 +13,14 @@ import {
 import { downloadFile, GPX_MIME } from "../data/file-io";
 import { waypointsToGpx } from "../data/gpx";
 import type { StandaloneWaypoint, WaypointIcon } from "../data/Waypoint";
+import {
+  DEFAULT_WAYPOINT_COLOR,
+  GEOMETRIC_ICONS,
+  isGeometricIcon,
+  isWaypointColor,
+  WAYPOINT_COLOR_NAMES,
+  waypointColorHex,
+} from "../data/waypoint-symbols";
 import type { WaypointLayer } from "../map/WaypointLayer";
 import type { ActiveNavigationManager } from "../navigation/ActiveNavigation";
 import { getSettings, updateSettings } from "../settings";
@@ -48,6 +56,13 @@ const ICON_LABELS: Record<WaypointIcon, string> = {
   fuel: "Fuel",
   poi: "POI",
   cob: "COB / MOB",
+  triangle: "Triangle",
+  circle: "Circle",
+  square: "Square",
+  diamond: "Diamond",
+  flag: "Flag",
+  pin: "Pin",
+  house: "House",
 };
 
 /** Icons assignable in the edit dialog — "cob" is set only by the COB flow. */
@@ -57,6 +72,7 @@ const PICKABLE_ICONS: readonly WaypointIcon[] = [
   "hazard",
   "fuel",
   "poi",
+  ...GEOMETRIC_ICONS,
 ];
 
 /** Hooks into the COB manager so deleting the active COB waypoint is never silent. */
@@ -349,7 +365,7 @@ export class WaypointManagerPanel {
 
     const iconDot = document.createElement("div");
     iconDot.className = "manager-item-color";
-    iconDot.style.backgroundColor = this.iconColor(wp.icon);
+    iconDot.style.backgroundColor = this.iconColor(wp);
     iconDot.title = ICON_LABELS[wp.icon];
 
     const info = document.createElement("div");
@@ -455,8 +471,9 @@ export class WaypointManagerPanel {
     this.waypointLayer.revealWaypoint(wp).catch(console.error);
   }
 
-  private iconColor(icon: WaypointIcon): string {
-    switch (icon) {
+  private iconColor(wp: StandaloneWaypoint): string {
+    if (isGeometricIcon(wp.icon)) return waypointColorHex(wp.color);
+    switch (wp.icon) {
       case "anchorage":
         return "#3366cc";
       case "hazard":
@@ -505,6 +522,7 @@ export class WaypointManagerPanel {
       '<label>Name <input type="text" class="wp-edit-name map-context-input" /></label>' +
       '<label>Notes <input type="text" class="wp-edit-notes map-context-input" /></label>' +
       '<label>Icon <select class="wp-edit-icon map-context-input"></select></label>' +
+      '<label class="wp-edit-color-row">Color <select class="wp-edit-color map-context-input"></select></label>' +
       '<div class="wp-edit-actions">' +
       '<button class="route-editor-btn wp-edit-save">Save</button>' +
       '<button class="route-editor-btn wp-edit-cancel">Cancel</button>' +
@@ -530,10 +548,39 @@ export class WaypointManagerPanel {
       iconSelect.appendChild(opt);
     }
 
+    const colorRow = form.querySelector(
+      ".wp-edit-color-row",
+    ) as HTMLLabelElement;
+    const colorSelect = form.querySelector(
+      ".wp-edit-color",
+    ) as HTMLSelectElement;
+    for (const value of WAYPOINT_COLOR_NAMES) {
+      const opt = document.createElement("option");
+      opt.value = value;
+      opt.textContent = value[0].toUpperCase() + value.slice(1);
+      if (value === (wp.color ?? DEFAULT_WAYPOINT_COLOR)) opt.selected = true;
+      colorSelect.appendChild(opt);
+    }
+    // Only the geometric shapes are the user's to colour — the semantic icons
+    // own theirs, so offering a choice there would promise something the
+    // chart won't do.
+    const syncColorRow = () => {
+      colorRow.style.display = isGeometricIcon(iconSelect.value as WaypointIcon)
+        ? ""
+        : "none";
+    };
+    syncColorRow();
+    iconSelect.addEventListener("change", syncColorRow);
+
     const save = async () => {
       wp.name = nameInput.value.trim() || wp.name;
       wp.notes = notesInput.value.trim();
       wp.icon = iconSelect.value as WaypointIcon;
+      if (isGeometricIcon(wp.icon) && isWaypointColor(colorSelect.value)) {
+        wp.color = colorSelect.value;
+      } else {
+        delete wp.color;
+      }
       wp.updatedAt = Date.now();
       await saveWaypoint(wp);
       await this.waypointLayer.updateWaypoint(wp);
