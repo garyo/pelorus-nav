@@ -15,7 +15,11 @@ Pelorus Nav — open-source web-based marine chartplotter (PWA). See PLAN.md for
 - `bun dev` — start dev server
 - `bun run build` — production build
 - `bun run test` — unit tests (Vitest)
-- `bun run e2e` — E2E tests (Playwright, Chromium only by default; ~30s)
+- `bun run e2e` — E2E tests (Playwright, Chromium only by default; ~45s). Worker
+  count is capped in playwright.config.ts rather than left to Playwright's
+  default: the specs are CPU-bound through software WebGL, so more workers
+  inflates each test's wall-clock toward the timeout without finishing the
+  suite any sooner.
 - `bun run e2e:chart-coverage` — the S-57 render-coverage harness
   (`tests/e2e/render-test-chart.spec.ts`). Its own Playwright project, excluded
   from the browser projects: it steps a map through all ~266 test-chart variants

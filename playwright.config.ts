@@ -1,3 +1,4 @@
+import { cpus } from "node:os";
 import { defineConfig, devices } from "@playwright/test";
 
 // Override when another dev server (e.g. the VitePress docs site) holds
@@ -26,8 +27,20 @@ export default defineConfig({
   // it starves every test until they blow the timeout together. Two workers on
   // a 4-core hosted runner leaves headroom for the dev server and the GPU
   // threads, and the timeout is raised to match the slower machine.
-  workers: process.env.CI ? 2 : undefined,
-  timeout: process.env.CI ? 90_000 : 30_000,
+  //
+  // Locally the same budget, rather than Playwright's default of half the
+  // cores — which scales the *wrong* way here, since a bigger machine then
+  // runs more swiftshader instances against the same fixed timeout. Measured
+  // on a 10-core Mac: at 5 workers (the old default) the two heaviest specs
+  // took 26.3 s and 29.7 s against a 30 s cap, and anything else running on
+  // the machine tipped them over; at 3 they take 14.7 s and 21.0 s *and* the
+  // whole suite finishes sooner (38.6 s vs 42.4 s). Past ~3 there is no
+  // throughput left to win — only latency to lose.
+  workers: process.env.CI ? 2 : Math.max(2, Math.floor(cpus().length / 3)),
+  // Local runs share the machine with whatever else the developer has open
+  // (a dev server, a browser, an editor's language server), so the cap is not
+  // as tight as the measured times suggest it could be.
+  timeout: process.env.CI ? 90_000 : 60_000,
   reporter: process.env.CI ? [["github"], ["html", { open: "never" }]] : "html",
   use: {
     baseURL,
