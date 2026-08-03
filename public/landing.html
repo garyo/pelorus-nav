@@ -255,21 +255,22 @@ footer a { color: var(--chrome); text-decoration: none; }
 footer a:hover { color: var(--wave); }
 footer nav { display: flex; gap: 22px; }
 </style>
-<!-- Matomo analytics; cookie-less, prod hostnames only -->
+<!-- featherstat analytics; cookie-less, prod hostnames only. Kept in step with
+     index.html. -->
 <script>
   if (['pelorus-nav.com', 'www.pelorus-nav.com'].includes(location.hostname)) {
-    window._paq = window._paq || [];
-    const paq = window._paq;
-    paq.push(['disableCookies']);
-    paq.push(['enableHeartBeatTimer', 15]);
-    paq.push(['trackPageView']);
-    paq.push(['enableLinkTracking']);
-    paq.push(['setTrackerUrl', 'https://analytics.oberbrunner.com/matomo.php']);
-    paq.push(['setSiteId', '5']);
-    const mg = document.createElement('script');
-    mg.async = true;
-    mg.src = 'https://analytics.oberbrunner.com/matomo.js';
-    document.head.appendChild(mg);
+    import('https://analytics.oberbrunner.com/tracker.js').then(({ init, page }) => {
+      init({
+        site: 5,
+        endpoint: 'https://analytics.oberbrunner.com/api/collect',
+        autoPageviews: false,
+      });
+      document.querySelector('meta[name="featherstat:missing"]')
+        ? page(new URL('/404', location.origin).href, document.title, {
+            missing: location.pathname.slice(0, 200),
+          })
+        : page();
+    });
   }
 </script>
 </head>
