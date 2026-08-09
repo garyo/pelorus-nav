@@ -21,6 +21,11 @@ export default {
     // to measure and no `window` to measure it with.
     if (typeof window === "undefined") return;
 
+    // The same hostname guard the app shell and the landing page carry, and for
+    // the same reason: prevent local doc builds from counting as page hits.
+    if (!["pelorus-nav.com", "www.pelorus-nav.com"].includes(location.hostname))
+      return;
+
     // A remote ESM module: there is nothing on disk for TypeScript to resolve,
     // and the tracker is deliberately served rather than bundled so a fix
     // reaches every site without rebuilding any of them.
