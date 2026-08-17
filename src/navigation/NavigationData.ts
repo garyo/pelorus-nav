@@ -107,6 +107,12 @@ export interface NavigationDataProvider {
    * already-chosen device where possible, so no device picker.
    */
   reconnect?(): void;
+  /**
+   * Optional: the external device's battery level (0–1), for receivers that
+   * report it in their data stream (e.g. Dual XGPS via $GPPWR). Null until
+   * the device has reported — most devices never do.
+   */
+  batteryFraction?(): number | null;
   /** Subscribe to navigation data updates */
   subscribe(callback: NavigationDataCallback): void;
   /** Unsubscribe from updates */

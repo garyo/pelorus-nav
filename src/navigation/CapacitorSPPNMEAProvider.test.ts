@@ -174,6 +174,21 @@ describe("CapacitorSPPNMEAProvider", () => {
     expect(fixes[0].source).toBe("bt-spp");
   });
 
+  it("reports device battery from $GPPWR, clearing it on disconnect", async () => {
+    const provider = makeProvider();
+    provider.connect();
+    await flush();
+
+    expect(provider.batteryFraction()).toBeNull();
+    fake.dataCallback?.({
+      data: "$GPPWR,026A,0,1,1,0,00,5,S,60,212,000*7A\r\n",
+    });
+    expect(provider.batteryFraction()).toBeCloseTo(0.745, 2);
+
+    provider.disconnect();
+    expect(provider.batteryFraction()).toBeNull();
+  });
+
   it("reconnects silently after a link drop", async () => {
     const provider = makeProvider();
     provider.connect();

@@ -7,6 +7,11 @@ The format follows [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Added
+- A small low-battery marker appears next to the GPS status dot when a
+  connected Bluetooth GPS reports less than 10% charge. Only Dual XGPS
+  receivers report battery level; other devices are unaffected.
+
 ### Changed
 - Tide and current station popups now list three days of upcoming events
   (was about one day); the list scrolls when it doesn't fit.

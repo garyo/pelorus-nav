@@ -317,6 +317,11 @@ export class NavigationDataManager {
     this.activeProvider?.reconnect?.();
   }
 
+  /** Active GPS device's battery (0–1), or null when it doesn't report one. */
+  gpsBatteryFraction(): number | null {
+    return this.activeProvider?.batteryFraction?.() ?? null;
+  }
+
   /**
    * Hard-reset the active provider's connection — a full disconnect then
    * connect, the programmatic equivalent of toggling the GPS source off/on to

@@ -22,6 +22,26 @@ import { SatelliteTracker } from "./satellite-status";
 // yields one coherent frame per epoch instead of one per sentence.
 const SAT_BURST_QUIET_MS = 200;
 
+/**
+ * Battery level from a Dual XGPS150/160 proprietary $GPPWR sentence
+ * ("$GPPWR,026A,0,1,…"), as a 0–1 fraction, or null if the line isn't a
+ * parseable $GPPWR. Decode per Dual's own SDK (XGPS-SDK-Android
+ * NmeaParser.java): field 1 is a hex battery-ADC reading — the XGPS160
+ * reports it doubled, but the two devices' ranges are disjoint, so
+ * halve anything implausibly large — clamped to the ADC range [543, 644],
+ * scaled to volts (×330∕512∕100), then mapped linearly from the LiPo
+ * discharge span 3.5 V → 0 %, 4.15 V → 100 %.
+ */
+export function parseGppwrBattery(line: string): number | null {
+  const hex = line.split(",")[1];
+  if (!hex || !/^[0-9a-fA-F]{3,4}$/.test(hex)) return null;
+  let raw = Number.parseInt(hex, 16);
+  if (raw > 900) raw /= 2; // XGPS160 doubles the ADC value
+  raw = Math.min(644, Math.max(543, raw));
+  const volts = (raw * 330) / 512 / 100;
+  return Math.min(1, Math.max(0, (volts - 3.5) / 0.65));
+}
+
 interface PendingFix {
   timestamp: number;
   latitude: number;
@@ -49,6 +69,10 @@ export class NMEAStream {
 
   /** Consumer for $PPELD pod-status lines (set by the owning provider). */
   onPodDiag?: (line: string) => void;
+
+  /** Consumer for device battery level (0–1) from proprietary sentences
+   *  ($GPPWR, Dual XGPS receivers); set by the owning provider. */
+  onBattery?: (fraction: number) => void;
 
   constructor(
     source: string,
@@ -103,6 +127,13 @@ export class NMEAStream {
     // hand it to the waiting consumer; it's device telemetry, not a fix.
     if (line.startsWith("$PPELD")) {
       this.onPodDiag?.(line);
+      return;
+    }
+
+    // Dual XGPS battery telemetry — device state, not a fix.
+    if (line.startsWith("$GPPWR")) {
+      const fraction = parseGppwrBattery(line);
+      if (fraction !== null) this.onBattery?.(fraction);
       return;
     }
 

@@ -92,9 +92,14 @@ export function createInstrumentHUD(
   gpsBadge.className = "instrument-gps";
   const gpsDot = document.createElement("span");
   gpsDot.className = "instrument-gps-dot";
+  // Low-battery marker for GPS devices that report charge in their stream
+  // (e.g. Dual XGPS): hidden unless the device says it's nearly empty.
+  const gpsBatt = document.createElement("span");
+  gpsBatt.className = "instrument-gps-batt";
+  gpsBatt.title = "GPS battery low";
   const gpsText = document.createElement("span");
   gpsText.className = "instrument-gps-text";
-  gpsBadge.append(gpsDot, gpsText);
+  gpsBadge.append(gpsDot, gpsBatt, gpsText);
 
   let lastData: NavigationData | null = null;
   let navActive = false;
@@ -109,12 +114,20 @@ export function createInstrumentHUD(
     "no-fix": "NO FIX",
   } as const;
 
+  // Hysteresis so a battery bouncing around the threshold under load
+  // doesn't blink the marker: show below 10%, clear above 15%.
+  let gpsBattLow = false;
   const updateGpsStatus = (stale: boolean) => {
     gpsBadge.dataset.conn = stale ? "bad" : "ok";
     gpsDot.textContent = stale ? "✕" : "●"; // ✕ / ●
     gpsText.textContent = stale
       ? FIXLESS_LABEL[navManager.fixlessState()]
       : "GPS";
+    const batt = navManager.gpsBatteryFraction();
+    if (stale || batt === null) gpsBattLow = false;
+    else if (batt < 0.1) gpsBattLow = true;
+    else if (batt > 0.15) gpsBattLow = false;
+    gpsBadge.dataset.batt = gpsBattLow ? "low" : "";
   };
 
   /** Brief pulse on the dot for each received fix — a live "fix" cue. */

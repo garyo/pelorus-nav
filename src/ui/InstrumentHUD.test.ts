@@ -10,6 +10,9 @@ class FakeNavManager {
   isFixStale(): boolean {
     return false;
   }
+  gpsBatteryFraction(): number | null {
+    return null;
+  }
 }
 
 function makeNavManager(): NavigationDataManager {

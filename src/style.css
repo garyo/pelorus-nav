@@ -1675,6 +1675,49 @@ body {
   color: #e53935; /* red — no GPS */
 }
 
+/* Low-battery marker beside the fix dot — a tiny drained battery outline.
+   Only shown when the GPS device itself reports <10% charge. */
+.instrument-gps-batt {
+  display: none;
+  position: relative;
+  width: 11px;
+  height: 7px;
+  border: 1.5px solid #e53935;
+  border-radius: 1.5px;
+}
+.instrument-gps-batt::before {
+  /* the terminal nub */
+  content: "";
+  position: absolute;
+  right: -3.5px;
+  top: 1px;
+  width: 2px;
+  height: 3px;
+  background: #e53935;
+}
+.instrument-gps-batt::after {
+  /* the last sliver of charge */
+  content: "";
+  position: absolute;
+  left: 0.5px;
+  top: 0.5px;
+  bottom: 0.5px;
+  width: 2px;
+  background: #e53935;
+}
+.instrument-gps[data-batt="low"] .instrument-gps-batt {
+  display: inline-block;
+}
+[data-theme="eink"] .instrument-gps-batt,
+[data-theme="eink"] .instrument-gps-batt::before,
+[data-theme="eink"] .instrument-gps-batt::after {
+  border-color: currentColor;
+  background: currentColor;
+}
+[data-theme="eink"] .instrument-gps-batt {
+  background: none;
+}
+
 /* One quick pulse on each received fix. */
 @keyframes instrument-gps-ping {
   0%,

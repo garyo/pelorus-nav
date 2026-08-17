@@ -46,6 +46,7 @@ export class CapacitorSPPNMEAProvider
   private listeners: NavigationDataCallback[] = [];
   private satListeners: SatelliteStatusCallback[] = [];
   private device: SavedDevice | null = null;
+  private battery: number | null = null;
   private pluginListenersReady = false;
   private btPollTimer: ReturnType<typeof setTimeout> | null = null;
   private readonly core: ReconnectingTransport;
@@ -68,6 +69,9 @@ export class CapacitorSPPNMEAProvider
         for (const fn of this.satListeners) fn(status);
       },
     );
+    this.stream.onBattery = (fraction) => {
+      this.battery = fraction;
+    };
     this.core = new ReconnectingTransport(
       { providerId: this.id, logLabel: "SPP GPS" },
       {
@@ -105,9 +109,14 @@ export class CapacitorSPPNMEAProvider
     void this.startConnect();
   }
 
+  batteryFraction(): number | null {
+    return this.battery;
+  }
+
   disconnect(): void {
     this.core.noteDisconnectRequested();
     this.device = null;
+    this.battery = null;
     this.stream.reset();
     this.stopBtPoll();
     void BluetoothSerial.disconnect().catch(() => {});
@@ -275,6 +284,8 @@ export class CapacitorSPPNMEAProvider
 
   private handleEstablished(): void {
     this.stream.reset();
+    // A fresh link may be a different physical device; wait for it to report.
+    this.battery = null;
     this.stopBtPoll();
     connectionLog.log(this.id, "connected", this.device?.name);
     this.onNotice?.({ kind: "connected" });

@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { NavigationData } from "./NavigationData";
-import { NMEAStream } from "./nmea-stream";
+import { NMEAStream, parseGppwrBattery } from "./nmea-stream";
 
 /** Compute the NMEA checksum and return the full `$...*HH` sentence. */
 function withChecksum(body: string): string {
@@ -143,5 +143,44 @@ describe("NMEAStream", () => {
     stream.onPodDiag = undefined;
     stream.push("$PPELD,121,1,35,5800,500,600,V*4B\r\n"); // no consumer — dropped
     expect(diags).toHaveLength(1);
+  });
+
+  it("routes $GPPWR battery lines to onBattery, not the fix pipeline", () => {
+    const { stream, fixes } = collect();
+    const levels: number[] = [];
+    stream.onBattery = (f) => levels.push(f);
+    // Real XGPS150 sentence from Dual's SDK comments
+    stream.push("$GPPWR,026A,0,1,1,0,00,5,S,60,212,000*7A\r\n");
+    stream.push(`${rmc("123519")}\r\n${gga("123519")}\r\n`);
+    expect(levels).toHaveLength(1);
+    expect(levels[0]).toBeCloseTo(0.745, 2);
+    expect(fixes).toHaveLength(1); // the surrounding epoch still parses normally
+  });
+});
+
+describe("parseGppwrBattery", () => {
+  it("decodes the XGPS150 hex ADC reading to a charge fraction", () => {
+    // 0x026A = 618 → 3.98 V → ~74% through the 3.5–4.15 V span
+    expect(
+      parseGppwrBattery("$GPPWR,026A,0,1,1,0,00,5,S,60,212,000*7A"),
+    ).toBeCloseTo(0.745, 2);
+  });
+
+  it("halves the XGPS160's doubled ADC reading", () => {
+    // 0x04C0 = 1216 → 608 → 3.92 V → ~65%
+    expect(
+      parseGppwrBattery("$GPPWR,04C0,1,1,0,1,00,0,S,2B,29,S00*73"),
+    ).toBeCloseTo(0.645, 2);
+  });
+
+  it("clamps below the discharge span to 0 and above it to 1", () => {
+    expect(parseGppwrBattery("$GPPWR,0200,0*00")).toBe(0); // 512 → floor
+    expect(parseGppwrBattery("$GPPWR,0290,0*00")).toBe(1); // 656 → ceiling
+  });
+
+  it("returns null for malformed sentences", () => {
+    expect(parseGppwrBattery("$GPPWR")).toBeNull();
+    expect(parseGppwrBattery("$GPPWR,")).toBeNull();
+    expect(parseGppwrBattery("$GPPWR,zzzz,0*00")).toBeNull();
   });
 });
