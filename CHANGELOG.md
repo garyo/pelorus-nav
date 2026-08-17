@@ -7,6 +7,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Changed
+- The Bluetooth GPS (NMEA) device chooser now explains that a device missing
+  from the list must first be paired in Android's Bluetooth settings.
+
 ## [0.21.0] - 2026-08-17
 
 ### Added

@@ -23,6 +23,14 @@ export function showSppDevicePicker(
     title.textContent = "Choose Bluetooth GPS";
     card.appendChild(title);
 
+    // Classic SPP can't scan/pair in-app, so a device missing from this list
+    // (e.g. a receiver paired only with some other tablet) needs OS pairing
+    const hint = document.createElement("div");
+    hint.className = "goto-hint";
+    hint.textContent =
+      "Don't see your device? Pair it in Android's Bluetooth settings first, then choose it here.";
+    card.appendChild(hint);
+
     const close = (choice: SPPDevice | null) => {
       overlay.remove();
       resolve(choice);
