@@ -19,6 +19,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/).
   hidden waypoint is shown first.
 
 ### Changed
+- The offline street basemap now shows much more detail when zoomed in: icons
+  for restaurants, marinas, parks and other points of interest (day and dusk
+  themes), clearly visible building outlines and docks, and house numbers from
+  zoom 16. Existing downloaded basemaps get all of this without re-downloading.
 - Long route legs are drawn as great-circle arcs, matching the underlying computations.
 - Moving a waypoint on the chart is now press-and-hold: hold it until it rings
   (and the device buzzes, where it can), then drag. Waypoints used to be picked

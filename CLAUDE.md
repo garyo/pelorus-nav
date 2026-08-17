@@ -253,7 +253,10 @@ formatters). Toggled by the "Tides & Currents" layer group (default off).
   (bundled for Noto Sans Regular).
 
 ## Sprites
-The app uses a single sprite system: **IHO S-52** (the only symbology scheme).
+The style carries two named sprites: **`default`** — the IHO S-52 chart symbols
+(the only symbology scheme) — and **`basemap`** — the Protomaps sheet the street
+underlay's POI/shield/townspot icons resolve against (icon refs prefixed
+`basemap:` in `src/chart/basemap-underlay.ts`).
 
 **S-52 sprites** (`tools/sprites/s52/source/`) — SVGs go in `tools/sprites/s52/source/`, use CSS
 color classes (`fCHBLK`, `sCHMGD`, `fISDNG`, etc.) that are replaced per-theme (day/dusk/night/eink).
@@ -261,7 +264,11 @@ Named with S-52 symbol codes (e.g., `ISODGR01.svg`). Built into per-theme sheets
 (`public/sprites/s52-{day,dusk,night,eink}.{json,png}` + `@2x`).
 Color class reference: `tools/sprites/s52/daySvgStyle.css` and `tools/sprites/s52/colours.json`.
 
-**Rebuild sprites** after any change: `bun run sprites`
+**Basemap sprites** (`public/sprites/basemap-{light,dark,black}.{json,png}` + `@2x`) — downloaded
+from Protomaps' published assets by `bun tools/sprites/fetch-basemap-sprites.ts` and committed;
+re-fetch only to pick up upstream icon additions. The black (night) sheet has no POI icons upstream.
+
+**Rebuild S-52 sprites** after any change: `bun run sprites`
 
 The active display theme selects which S-52 sheet MapLibre loads. If a symbol is referenced in a
 layer's `icon-image` but missing from the sprite sheet, MapLibre will log

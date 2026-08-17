@@ -203,24 +203,111 @@ function flavorName(theme: DisplayTheme): string {
 }
 
 /**
+ * Basename of the theme's bundled Protomaps sprite sheet under /sprites/
+ * (downloaded by tools/sprites/fetch-basemap-sprites.ts). Registered in the
+ * style as the "basemap" sprite alongside the default S-52 sheet; icon
+ * references are prefixed accordingly. The black (night) sheet carries no
+ * POI icons upstream — night POIs render as text only.
+ */
+export function basemapSpriteName(theme: DisplayTheme): string {
+  return `basemap-${flavorName(theme)}`;
+}
+
+/**
+ * Rewrite an icon-image value to resolve against the "basemap" sprite.
+ * Expressions can yield "" ("no icon", e.g. places_locality past z8);
+ * that must stay "" rather than become a "basemap:" lookup.
+ */
+function prefixIconImage(value: unknown): unknown {
+  if (typeof value === "string") return value ? `basemap:${value}` : value;
+  // A zoom step must stay top-level, so prefix its output branches
+  // (["step", input, out0, stop, out1, ...] — outputs at even indices ≥ 2)
+  if (
+    Array.isArray(value) &&
+    value[0] === "step" &&
+    JSON.stringify(value[1]) === '["zoom"]'
+  ) {
+    return value.map((v, i) =>
+      i >= 2 && i % 2 === 0 ? prefixIconImage(v) : v,
+    );
+  }
+  return [
+    "let",
+    "icon",
+    ["to-string", value],
+    [
+      "case",
+      ["==", ["var", "icon"], ""],
+      "",
+      ["concat", "basemap:", ["var", "icon"]],
+    ],
+  ];
+}
+
+/**
  * Stock Protomaps gates some labels later than raster OSM shows them; pull
- * them earlier so street names appear at approach/docking zooms.
+ * them earlier so street names and house numbers appear at approach/docking
+ * zooms (address_label is z18 stock).
  */
 const MINZOOM_OVERRIDES: Record<string, number> = {
   roads_labels_minor: 13,
+  address_label: 16,
+};
+
+/**
+ * Stock Protomaps buildings and piers are painted a few percent off the land
+ * color, and the chart's semi-transparent land fill washes them out further —
+ * where raster OSM shows distinct building blocks, the underlay showed
+ * near-uniform land. Repaint them with osm-carto-like contrast: opaque fills
+ * clearly separated from the flavor's earth color, plus a darker outline.
+ */
+const CONTRAST_PAINT: Record<
+  string,
+  Record<string, Record<string, unknown>>
+> = {
+  light: {
+    buildings: {
+      "fill-color": "#cdc5ba",
+      "fill-opacity": 1,
+      "fill-outline-color": "#a89d8e",
+    },
+    landuse_pier: { "fill-color": "#b9b2a7" },
+    roads_pier: { "line-color": "#b9b2a7" },
+  },
+  dark: {
+    buildings: {
+      "fill-color": "#3d3d3d",
+      "fill-opacity": 1,
+      "fill-outline-color": "#4d4d4d",
+    },
+    landuse_pier: { "fill-color": "#454545" },
+    roads_pier: { "line-color": "#454545" },
+  },
+  black: {
+    buildings: {
+      "fill-color": "#2a2a2a",
+      "fill-opacity": 1,
+      "fill-outline-color": "#363636",
+    },
+    landuse_pier: { "fill-color": "#303030" },
+    roads_pier: { "line-color": "#303030" },
+  },
 };
 
 /**
  * Themed, trimmed Protomaps layer set for the underlay:
  * - no background layer (empty tiles must fall through to the chart fallback)
- * - no icon symbols (POIs, highway shields — sprites aren't bundled)
+ * - icon references prefixed to the bundled "basemap" sprite sheet
  * - text-font remapped to the bundled Noto Sans glyph stacks
+ * - buildings and piers repainted for contrast (see CONTRAST_PAINT)
  * - denser labels than stock to match raster OSM: minor street names from
- *   z13 in a smaller, tighter-spaced font; POI names (marinas, landmarks)
- *   one zoom earlier; street names placed before POIs so they win collisions
+ *   z13 in a smaller, tighter-spaced font; house numbers from z16; named POIs
+ *   (marinas, landmarks) one zoom earlier and nameless street furniture one
+ *   later; street names placed before POIs so they win collisions
  */
 export function getBasemapLayers(theme: DisplayTheme): LayerSpecification[] {
-  const flavor = namedFlavor(flavorName(theme));
+  const flavorKey = flavorName(theme);
+  const flavor = namedFlavor(flavorKey);
   const result: LayerSpecification[] = [];
   for (const layer of protomapsLayers(BASEMAP_SOURCE_ID, flavor, {
     lang: "en",
@@ -231,8 +318,9 @@ export function getBasemapLayers(theme: DisplayTheme): LayerSpecification[] {
     if (layer.type === "symbol") {
       const layout = { ...layer.layout };
       if (layout["icon-image"]) {
-        if (!layout["text-field"]) continue; // icon-only (POIs, shields)
-        delete layout["icon-image"];
+        layout["icon-image"] = prefixIconImage(
+          layout["icon-image"],
+        ) as (typeof layout)["icon-image"];
       }
       if (layout["text-font"]) {
         layout["text-font"] = remapFonts(layout["text-font"] as string[]);
@@ -270,8 +358,24 @@ export function getBasemapLayers(theme: DisplayTheme): LayerSpecification[] {
           16,
         ];
       }
+      if (layer.id === "address_label") {
+        // Small house numbers (stock is a flat 12px) — background detail
+        // that must stay subordinate to street names and POIs
+        layout["text-size"] = [
+          "interpolate",
+          ["linear"],
+          ["zoom"],
+          16,
+          8,
+          19,
+          11,
+        ];
+      }
       if (layer.id === "pois") {
-        filter = offsetFeatureMinZoom(filter, -1);
+        // Named POIs (marinas, restaurants, landmarks) one zoom earlier than
+        // stock; nameless street furniture (benches, trees, crossings) one
+        // later — icon-only clutter nobody can identify at approach zooms.
+        filter = offsetFeatureMinZoom(filter, ["case", ["has", "name"], -1, 1]);
       }
       result.push({
         ...layer,
@@ -282,7 +386,12 @@ export function getBasemapLayers(theme: DisplayTheme): LayerSpecification[] {
       });
       continue;
     }
-    result.push({ ...layer, id: `basemap-${layer.id}` });
+    const paint = CONTRAST_PAINT[flavorKey]?.[layer.id];
+    result.push({
+      ...layer,
+      id: `basemap-${layer.id}`,
+      ...(paint && { paint: { ...layer.paint, ...paint } }),
+    } as LayerSpecification);
   }
   // Symbol placement priority is topmost-first: keep POIs below the street
   // label layers so street names win collisions in dense areas.
@@ -300,12 +409,13 @@ export function getBasemapLayers(theme: DisplayTheme): LayerSpecification[] {
 /**
  * Protomaps gates POI visibility per-feature via a
  * `[">=", ["zoom"], ["+", ["get", "min_zoom"], 0]]` filter clause.
- * Rewrite the offset so features appear `offset` zoom levels earlier —
- * the same idea as the chart pipeline's zoom-shift.
+ * Rewrite the offset (a number or a numeric expression) so features shift
+ * by that many zoom levels — the same idea as the chart pipeline's
+ * zoom-shift, negative = earlier.
  */
 function offsetFeatureMinZoom(
   filter: unknown,
-  offset: number,
+  offset: number | unknown[],
 ): FilterSpecification {
   const walk = (node: unknown): unknown => {
     if (!Array.isArray(node)) return node;

@@ -4,6 +4,7 @@ import {
   BASEMAP_SOURCE_ID,
   basemapFilename,
   basemapRegionsFromFilenames,
+  basemapSpriteName,
   getBasemapLayers,
   getBasemapSources,
   hasStoredBasemap,
@@ -38,6 +39,15 @@ describe("stored basemap registry", () => {
     expect(hasStoredBasemap("northern-new-england")).toBe(false);
     setStoredBasemaps(new Set());
     expect(hasStoredBasemap("usvi")).toBe(false);
+  });
+});
+
+describe("basemapSpriteName", () => {
+  it("maps display themes to bundled Protomaps flavors", () => {
+    expect(basemapSpriteName("day")).toBe("basemap-light");
+    expect(basemapSpriteName("eink")).toBe("basemap-light");
+    expect(basemapSpriteName("dusk")).toBe("basemap-dark");
+    expect(basemapSpriteName("night")).toBe("basemap-black");
   });
 });
 
@@ -78,12 +88,24 @@ describe("getBasemapLayers", () => {
     expect(layers.some((l) => l.type === "background")).toBe(false);
   });
 
-  it("contains no icon-image references (sprites not bundled)", () => {
+  it("resolves every icon-image against the bundled basemap sprite", () => {
+    let icons = 0;
     for (const layer of layers) {
-      if (layer.type === "symbol") {
-        expect(layer.layout?.["icon-image"]).toBeUndefined();
+      if (layer.type !== "symbol") continue;
+      const icon = layer.layout?.["icon-image"];
+      if (icon === undefined) continue;
+      icons++;
+      if (typeof icon === "string") {
+        expect(icon.startsWith("basemap:")).toBe(true);
+      } else {
+        // Expression form: prefixes non-empty results, passes "" through
+        const json = JSON.stringify(icon);
+        expect(json).toContain('"basemap:"');
+        expect(json).toContain('"case"');
       }
     }
+    // POIs, oneway arrows, shields, locality townspots
+    expect(icons).toBeGreaterThanOrEqual(4);
   });
 
   it("remaps every text-font to a bundled Noto Sans stack", () => {
@@ -103,6 +125,25 @@ describe("getBasemapLayers", () => {
       }
     }
     expect(labelled).toBeGreaterThan(0);
+  });
+
+  it("repaints buildings and piers for contrast in every theme", () => {
+    for (const theme of ["day", "dusk", "night", "eink"] as const) {
+      const themed = getBasemapLayers(theme);
+      const buildings = themed.find((l) => l.id === "basemap-buildings");
+      if (buildings?.type !== "fill") throw new Error("expected fill layer");
+      // Stock Protomaps buildings are half-transparent and near-invisible
+      // under the chart's land wash; the override must be opaque + outlined
+      expect(buildings.paint?.["fill-opacity"]).toBe(1);
+      expect(buildings.paint?.["fill-outline-color"]).toBeDefined();
+      const pier = themed.find((l) => l.id === "basemap-landuse_pier");
+      if (pier?.type !== "fill") throw new Error("expected fill layer");
+      const earth = themed.find((l) => l.id === "basemap-earth");
+      if (earth?.type !== "fill") throw new Error("expected fill layer");
+      expect(pier.paint?.["fill-color"]).not.toEqual(
+        earth.paint?.["fill-color"],
+      );
+    }
   });
 
   it("themes per display theme", () => {
@@ -132,12 +173,21 @@ describe("getBasemapLayers", () => {
     }
   });
 
-  it("shows POI names one zoom earlier than stock", () => {
+  it("shows named POIs a zoom earlier and nameless furniture a zoom later", () => {
     const pois = layers.find((l) => l.id === "basemap-pois");
     if (pois?.type !== "symbol") throw new Error("expected symbol layer");
     expect(JSON.stringify(pois.filter)).toContain(
-      '[">=",["zoom"],["+",["get","min_zoom"],-1]]',
+      '[">=",["zoom"],["+",["get","min_zoom"],["case",["has","name"],-1,1]]]',
     );
+  });
+
+  it("shows house numbers from z16, smaller than street names", () => {
+    const addr = layers.find((l) => l.id === "basemap-address_label");
+    expect(addr?.minzoom).toBe(16);
+    if (addr?.type !== "symbol") throw new Error("expected symbol layer");
+    const size = JSON.stringify(addr.layout?.["text-size"]);
+    expect(size).toContain("interpolate");
+    expect(size).toContain("16,8");
   });
 
   it("places POIs below street labels so streets win collisions", () => {

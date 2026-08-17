@@ -11,6 +11,7 @@ import type {
 } from "../settings";
 import { getSettings, onSettingsChange } from "../settings";
 import {
+  basemapSpriteName,
   getBasemapCoverage,
   getBasemapLayers,
   getBasemapSources,
@@ -349,7 +350,11 @@ export class ChartManager {
     let warningShown = false;
     let resetTimer: ReturnType<typeof setTimeout> | null = null;
 
-    this.map.on("styleimagemissing", () => {
+    this.map.on("styleimagemissing", (e) => {
+      // Basemap POI icons are best-effort: the Protomaps sheets don't cover
+      // every POI kind in the tiles, so misses there are normal, not a sign
+      // the S-52 sheet failed to load.
+      if (e.id.startsWith("basemap:")) return;
       missingCount++;
       // A few missing images can be normal; a burst means the sheet failed
       if (missingCount >= 5 && !warningShown) {
@@ -485,7 +490,15 @@ export class ChartManager {
 
     return {
       version: 8,
-      sprite: `${window.location.origin}/sprites/${sprite}`,
+      // "default" is the S-52 sheet (unprefixed icon refs); "basemap" is the
+      // Protomaps sheet the street-underlay icons resolve against.
+      sprite: [
+        { id: "default", url: `${window.location.origin}/sprites/${sprite}` },
+        {
+          id: "basemap",
+          url: `${window.location.origin}/sprites/${basemapSpriteName(settings.displayTheme)}`,
+        },
+      ],
       glyphs: "local-glyphs://{fontstack}/{range}",
       sources,
       // Invisible anchor layers demarcate the z-order bands plugin overlays
