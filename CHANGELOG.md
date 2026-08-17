@@ -7,6 +7,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.21.0] - 2026-08-17
+
 ### Added
 - Waypoints can be marked with a shape — triangle, circle, square, diamond,
   flag, pin or house — in any of six colors, alongside the existing Anchorage,
