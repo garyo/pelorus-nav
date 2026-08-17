@@ -53,6 +53,17 @@ describe("tideState — reference station (Boston 8443970)", () => {
   const state = tideState(boston, index, START, 48);
   if (!state) throw new Error("no state");
 
+  it("covers a full 72 h window (station popup)", () => {
+    const wide = tideState(boston, index, START, 72);
+    if (!wide) throw new Error("no state");
+    const hrs = (t: Date) => (t.getTime() - START.getTime()) / 3600000;
+    const last = wide.events[wide.events.length - 1];
+    expect(hrs(last.time)).toBeGreaterThan(60);
+    expect(hrs(last.time)).toBeLessThanOrEqual(72);
+    // Semidiurnal: ~4 highs/lows per day
+    expect(wide.events.length).toBeGreaterThanOrEqual(10);
+  });
+
   it("matches NOAA published high/low events", () => {
     compareEvents(bostonHilo as NoaaHilo, state.events, 5, 0.03);
   });

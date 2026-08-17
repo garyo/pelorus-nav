@@ -49,8 +49,10 @@ const SLACK_PRECISION_MS = 30 * 1000;
 // ── Reference-station event computation (cached windows) ─────────────
 //
 // Computing a station's events runs an extremes prediction plus a few
-// bisections, so windows of [at−12h, at+36h] are cached per station and
-// reused until `at` drifts outside the comfortably-covered range.
+// bisections, so windows of [at−12h, at + max(36h, window+10h)] are cached
+// per station and reused until `at` drifts outside the comfortably-covered
+// range (or a caller asks for a longer window than the cached span holds,
+// e.g. the 72 h station popup after the short-window map icons).
 
 interface EventWindow {
   startMs: number;
@@ -61,26 +63,34 @@ interface EventWindow {
 const eventCache = new Map<string, EventWindow>();
 
 const SPAN_BACK_MS = 12 * HOUR_MS;
-const SPAN_FWD_MS = 36 * HOUR_MS;
+const SPAN_FWD_MARGIN_MS = 10 * HOUR_MS;
+/** Every computed span covers at least this far ahead, whatever the caller's
+ *  window — it is also the fixed horizon for cycleMaxKn, so the map icons'
+ *  "% of max" arrow scaling doesn't depend on which span happens to be
+ *  cached. */
+const MIN_SPAN_FWD_MS = 36 * HOUR_MS;
 
 function refEvents(
   ref: CurrentRefStation,
   names: string[],
   at: Date,
+  windowHrs: number,
 ): CurrentEvent[] {
   const key = `${ref.id}_${ref.bin}`;
   const cached = eventCache.get(key);
-  // Reuse while [at−6h, at+26h] stays inside the cached span.
+  // Reuse while [at−6h, at+window] stays inside the cached span.
   if (
     cached &&
     at.getTime() - 6 * HOUR_MS >= cached.startMs &&
-    at.getTime() + 26 * HOUR_MS <= cached.endMs
+    at.getTime() + windowHrs * HOUR_MS <= cached.endMs
   ) {
     return cached.events;
   }
 
   const startMs = at.getTime() - SPAN_BACK_MS;
-  const endMs = at.getTime() + SPAN_FWD_MS;
+  const endMs =
+    at.getTime() +
+    Math.max(MIN_SPAN_FWD_MS, windowHrs * HOUR_MS + SPAN_FWD_MARGIN_MS);
   const p = getPredictor(`c:${key}`, names, ref.amp, ref.phase, false);
 
   const extremes = p.getExtremesPrediction({
@@ -209,7 +219,7 @@ export function currentState(
   let signedKn: number;
   let allEvents: CurrentEvent[];
   if (isCurrentRef(station)) {
-    allEvents = refEvents(station, names, at);
+    allEvents = refEvents(station, names, at, windowHrs);
     const p = getPredictor(
       `c:${station.id}_${station.bin}`,
       names,
@@ -221,7 +231,7 @@ export function currentState(
   } else {
     const ref = index.currentRefByKey.get(`${station.refId}_${station.refBin}`);
     if (!ref) return null;
-    allEvents = subEvents(station, refEvents(ref, names, at));
+    allEvents = subEvents(station, refEvents(ref, names, at, windowHrs));
     signedKn = interpolateSpeed(allEvents, at);
   }
 
@@ -240,9 +250,10 @@ export function currentState(
         : station.floodDir;
 
   const end = new Date(at.getTime() + windowHrs * HOUR_MS);
+  const cycleMax = new Date(at.getTime() + MIN_SPAN_FWD_MS);
   const cycleMaxKn = Math.max(
     Math.abs(signedKn),
-    ...allEvents.map((e) => e.speedKn),
+    ...allEvents.filter((e) => e.time <= cycleMax).map((e) => e.speedKn),
   );
   return {
     speedKn: Math.abs(signedKn),

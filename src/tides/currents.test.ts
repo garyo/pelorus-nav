@@ -103,6 +103,32 @@ describe("currentState — reference station (BOS1111)", () => {
   });
 });
 
+describe("currentState — multi-day window (station popup)", () => {
+  it("covers a full 72 h window, beyond the old fixed 36 h span", () => {
+    const state = currentState(bos1111, index, START, 72);
+    if (!state) throw new Error("no state");
+    const hrs = (t: Date) => (t.getTime() - START.getTime()) / 3600000;
+    const last = state.events[state.events.length - 1];
+    expect(hrs(last.time)).toBeGreaterThan(60);
+    expect(hrs(last.time)).toBeLessThanOrEqual(72);
+    // ~4 max + ~4 slack per day
+    expect(state.events.length).toBeGreaterThanOrEqual(20);
+    for (let i = 1; i < state.events.length; i++) {
+      expect(state.events[i].time.getTime()).toBeGreaterThan(
+        state.events[i - 1].time.getTime(),
+      );
+    }
+  });
+
+  it("a later short-window call still sees a consistent cycle max", () => {
+    const wide = currentState(bos1111, index, START, 72);
+    const short = currentState(bos1111, index, START, 1);
+    // cycleMaxKn is pinned to a fixed 36 h horizon, so the popup's wider
+    // cached span must not change the icons' arrow scaling
+    expect(short?.cycleMaxKn).toBe(wide?.cycleMaxKn);
+  });
+});
+
 describe("currentState — subordinate station (ACT0926)", () => {
   it("matches NOAA published events via reference + offsets", () => {
     const state = currentState(act0926, index, START, 44);

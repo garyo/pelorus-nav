@@ -8,6 +8,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/).
 ## [Unreleased]
 
 ### Changed
+- Tide and current station popups now list three days of upcoming events
+  (was about one day); the list scrolls when it doesn't fit.
 - The Bluetooth GPS (NMEA) device chooser now explains that a device missing
   from the list must first be paired in Android's Bluetooth settings.
 

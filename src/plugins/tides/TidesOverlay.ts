@@ -63,8 +63,9 @@ const MAX_STATIONS = 400;
 const REFRESH_MS = 5 * 60 * 1000;
 const REFRESH_EINK_MS = 15 * 60 * 1000;
 
-/** Hours of upcoming events to list in the station popup. */
-const POPUP_WINDOW_HRS = 26;
+/** Hours of upcoming events to list in the station popup (the popup body
+ *  scrolls, so three days of tides/currents fit without crowding the map). */
+const POPUP_WINDOW_HRS = 72;
 
 interface SpriteSet {
   tideNeutral: string;
