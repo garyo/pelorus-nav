@@ -14,6 +14,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/).
   Only Dual XGPS receivers report battery level; other devices are
   unaffected.
 
+### Fixed
+- On screens a bit wider than a phone (e.g. an e-ink tablet in landscape),
+  enabling the volume-key Lock button could push top-bar buttons off the
+  edge of the screen with no menu to reach them. The top bar now collapses
+  into the hamburger menu whenever its buttons don't fit, at any width.
+
 ### Changed
 - Tide and current station popups now list three days of upcoming events
   (was about one day); the list scrolls when it doesn't fit.

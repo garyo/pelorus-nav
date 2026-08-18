@@ -1,17 +1,19 @@
 /**
- * Priority+ overflow for the top bar on narrow screens.
+ * Priority+ overflow for the top bar.
  *
- * Desktop (>768px) shows every menu item inline via CSS (`display:
- * contents` on #topbar-menu), so this module stands down there. On
- * narrow screens the CSS collapses the menu into the hamburger dropdown
- * and only the core #topbar-actions buttons stay visible — but many
- * widths (e.g. iPad portrait at 744px) have room for more. This promotes
- * menu items into the visible row while they fit and demotes them back
- * when space shrinks, preserving menu order. The settings wrapper (gear)
- * promotes last, after all action buttons, so it stays reachable in the
- * dropdown whenever there IS overflow. When everything fits — no visible
- * element left in the menu — the hamburger hides entirely (an iPad in
- * portrait shows the whole bar, no menu button).
+ * The bar has two presentations, owned here via the `topbar-collapsed`
+ * class on the bar (see style.css): inline (every menu item flows in the
+ * bar via `display: contents`, no hamburger) and collapsed (menu items
+ * live in the hamburger dropdown). Wide screens whose full inline row
+ * fits stay inline. Everything else — narrow screens (≤768px), and wider
+ * ones where optional buttons (e.g. Lock) overflow the inline row —
+ * collapses, then promotes menu items into the visible row while they
+ * fit and demotes them back when space shrinks, preserving menu order.
+ * The settings wrapper (gear) promotes last, after all action buttons,
+ * so it stays reachable in the dropdown whenever there IS overflow. When
+ * everything fits — no visible element left in the menu — the hamburger
+ * hides entirely (an iPad in portrait shows the whole bar, no menu
+ * button).
  */
 
 export interface TopbarOverflowElements {
@@ -86,13 +88,16 @@ export function relayoutTopbar(
     hamburger.style.display = needed ? "" : "none";
   };
 
-  // Wide mode: CSS renders the whole menu inline — restore canonical order
-  // and let CSS hide the hamburger.
-  if (!isNarrow()) {
-    while (promoted.length > 0) demote();
-    hamburger.style.display = "";
-    return;
-  }
+  // Try the inline presentation first: canonical order, no collapse. On a
+  // wide screen whose full row fits, that's the final state (CSS hides the
+  // hamburger). Narrow screens always collapse; a wide screen whose inline
+  // row overflows (e.g. optional buttons enabled) collapses too, so every
+  // item stays reachable through the dropdown.
+  while (promoted.length > 0) demote();
+  topBar.classList.remove("topbar-collapsed");
+  hamburger.style.display = "";
+  if (!isNarrow() && fits()) return;
+  topBar.classList.add("topbar-collapsed");
 
   // Grow while there's room (may overshoot by one item)…
   let candidate = nextPromotable();
@@ -134,13 +139,22 @@ export function initTopbarOverflow(
   };
 
   new ResizeObserver(schedule).observe(els.topBar);
-  // Menu items can arrive after init (plugin actions). Our own promote/
-  // demote churn must NOT reschedule: when the bar is in overflow, every
-  // relayout probes by moving one item out and back, and reacting to that
-  // probe would re-run relayout every frame indefinitely.
-  new MutationObserver(() => {
+  // Menu items can arrive after init (plugin actions), and existing items
+  // can be shown/hidden via style.display (the Lock button follows a
+  // setting) — width changes no resize or childList event reports, so
+  // watch style attributes across the whole bar (a shown/hidden item may
+  // currently be promoted into the actions row). Our own promote/demote
+  // churn must NOT reschedule: when the bar is in overflow, every relayout
+  // probes by moving one item out and back, and reacting to that probe
+  // would re-run relayout every frame indefinitely.
+  const onMutation = () => {
     if (!selfMutating) schedule();
-  }).observe(els.menu, { childList: true });
+  };
+  new MutationObserver(onMutation).observe(els.menu, { childList: true });
+  new MutationObserver(onMutation).observe(els.topBar, {
+    subtree: true,
+    attributeFilter: ["style"],
+  });
 
   relayoutTopbar(els, promoted, hooks);
 }

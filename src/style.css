@@ -3854,84 +3854,90 @@ body {
   float: right;
 }
 
+/* ── Collapsed top bar ───────────────────────────────────────────────
+   Applied by topbar-overflow.ts as the `topbar-collapsed` class whenever the
+   bar can't show every item inline — always on narrow screens (≤768px), and
+   on any wider screen where the full inline row overflows (e.g. a tablet in
+   landscape with optional buttons like Lock enabled). The class, not a media
+   query, owns this presentation so those two cases render identically. */
+.topbar-collapsed .hamburger-btn {
+  display: block;
+  margin-left: auto;
+}
+
+.topbar-collapsed .topbar-menu {
+  display: none;
+  position: absolute;
+  top: 100%;
+  right: 0;
+  width: 220px;
+  flex-direction: column;
+  background: rgba(26, 26, 46, 0.95);
+  border: 1px solid #444;
+  border-radius: 0 0 6px 6px;
+  z-index: 30;
+  padding: 4px 0;
+}
+
+.topbar-collapsed .topbar-menu.open {
+  display: flex;
+}
+
+/* Scoped to the dropdown: buttons promoted into the visible row keep
+   their compact icon + short-label look. */
+.topbar-collapsed .topbar-menu .topbar-menu-label {
+  display: inline;
+  margin-left: 8px;
+  font-size: 13px;
+  font-weight: normal;
+  letter-spacing: normal;
+  text-transform: none;
+  opacity: 1;
+}
+
+/* In the dropdown, drop the small uppercase label — the full descriptive
+   label takes its place. */
+.topbar-collapsed .topbar-menu .topbar-action-label {
+  display: none;
+}
+
+/* Menu items: touch-friendly rows that fill the dropdown width. */
+.topbar-collapsed .topbar-menu .topbar-action {
+  flex-direction: row;
+  justify-content: flex-start;
+  align-items: center;
+  padding: 10px 16px;
+  min-width: 44px;
+  min-height: 44px;
+  width: 100%;
+  text-align: left;
+  border-radius: 0;
+  gap: 0;
+}
+
+.topbar-collapsed .topbar-menu .topbar-action:hover {
+  background: rgba(100, 130, 200, 0.2);
+}
+
+/* Settings wrapper (badges + gear) fills the menu width when collapsed.
+   The gear inside provides its own touch padding via .topbar-action. */
+.topbar-collapsed .topbar-menu .settings-wrapper {
+  margin-left: 0;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  padding: 0 16px;
+  gap: 6px;
+}
+
+.topbar-collapsed .topbar-menu .settings-wrapper .topbar-action {
+  margin-left: auto;
+  padding: 10px 0;
+  width: auto;
+}
+
 /* ── Mobile (≤768px) ─────────────────────────────────────────────── */
 @media (max-width: 768px) {
-  .hamburger-btn {
-    display: block;
-    margin-left: auto;
-  }
-
-  .topbar-menu {
-    display: none;
-    position: absolute;
-    top: 100%;
-    right: 0;
-    width: 220px;
-    flex-direction: column;
-    background: rgba(26, 26, 46, 0.95);
-    border: 1px solid #444;
-    border-radius: 0 0 6px 6px;
-    z-index: 30;
-    padding: 4px 0;
-  }
-
-  .topbar-menu.open {
-    display: flex;
-  }
-
-  /* Scoped to the dropdown: buttons promoted into the visible row keep
-     their compact icon + short-label look. */
-  .topbar-menu .topbar-menu-label {
-    display: inline;
-    margin-left: 8px;
-    font-size: 13px;
-    font-weight: normal;
-    letter-spacing: normal;
-    text-transform: none;
-    opacity: 1;
-  }
-
-  /* In the dropdown, drop the small uppercase label — the full descriptive
-     label takes its place. */
-  .topbar-menu .topbar-action-label {
-    display: none;
-  }
-
-  /* Menu items: touch-friendly rows that fill the dropdown width. */
-  .topbar-menu .topbar-action {
-    flex-direction: row;
-    justify-content: flex-start;
-    align-items: center;
-    padding: 10px 16px;
-    min-width: 44px;
-    min-height: 44px;
-    width: 100%;
-    text-align: left;
-    border-radius: 0;
-    gap: 0;
-  }
-
-  .topbar-menu .topbar-action:hover {
-    background: rgba(100, 130, 200, 0.2);
-  }
-
-  /* Settings wrapper (badges + gear) fills the menu width on mobile.
-     The gear inside provides its own touch padding via .topbar-action. */
-  .topbar-menu .settings-wrapper {
-    margin-left: 0;
-    width: 100%;
-    display: flex;
-    align-items: center;
-    padding: 0 16px;
-    gap: 6px;
-  }
-
-  .topbar-menu .settings-wrapper .topbar-action {
-    margin-left: auto;
-    padding: 10px 0;
-    width: auto;
-  }
-
   /* Settings panel: full-width overlay on mobile */
   .settings-panel {
     top: var(--topbar-bottom);

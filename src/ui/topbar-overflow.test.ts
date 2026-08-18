@@ -121,6 +121,24 @@ describe("relayoutTopbar", () => {
     ]);
     // Wide mode clears the inline display so CSS hides the hamburger.
     expect(els.hamburger.style.display).toBe("");
+    expect(els.topBar.classList.contains("topbar-collapsed")).toBe(false);
+  });
+
+  it("marks the bar collapsed on narrow screens", () => {
+    relayoutTopbar(els, promoted, { fits: () => true, isNarrow: () => true });
+    expect(els.topBar.classList.contains("topbar-collapsed")).toBe(true);
+  });
+
+  it("collapses a wide bar whose inline row overflows (e.g. Lock enabled)", () => {
+    // Inline never fits; once collapsed, two promotions fit.
+    const fits = () =>
+      els.topBar.classList.contains("topbar-collapsed") && promoted.length <= 2;
+    relayoutTopbar(els, promoted, { fits, isNarrow: () => false });
+    expect(els.topBar.classList.contains("topbar-collapsed")).toBe(true);
+    expect(labels(els.actions)).toEqual(["WPT", "PLOT"]);
+    // The rest stays reachable through the hamburger.
+    expect(els.hamburger.style.display).toBe("");
+    expect(labels(els.menu)).toEqual(["RGNS", "FIND", "TIME", "SET"]);
   });
 
   it("keeps nothing promoted when even the first item overflows", () => {
@@ -181,5 +199,27 @@ describe("initTopbarOverflow", () => {
     await new Promise((r) => setTimeout(r, 200));
     counter.disconnect();
     expect(mutations).toBe(0);
+  });
+
+  it("relayouts when a bar item is shown via style.display (Lock button)", async () => {
+    globalThis.ResizeObserver ??= class {
+      observe(): void {}
+      unobserve(): void {}
+      disconnect(): void {}
+    } as unknown as typeof ResizeObserver;
+    const els = makeBar(["WPT", "~Note"]);
+    document.body.appendChild(els.topBar);
+    initTopbarOverflow(els, { isNarrow: () => true, fits: () => true });
+    await new Promise((r) => setTimeout(r, 100));
+    // Everything promotable fits → hamburger hidden.
+    expect(els.hamburger.style.display).toBe("none");
+
+    // A hidden menu element becomes visible (as the Lock button does when
+    // volume-key controls turn on) — the bar must notice and relayout.
+    const note = els.menu.querySelector<HTMLElement>(".menu-note");
+    if (!note) throw new Error("missing note");
+    note.style.display = "flex";
+    await new Promise((r) => setTimeout(r, 100));
+    expect(els.hamburger.style.display).toBe("");
   });
 });
