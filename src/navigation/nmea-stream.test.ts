@@ -147,35 +147,35 @@ describe("NMEAStream", () => {
 
   it("routes $GPPWR battery lines to onBattery, not the fix pipeline", () => {
     const { stream, fixes } = collect();
-    const levels: number[] = [];
-    stream.onBattery = (f) => levels.push(f);
+    const levels: { volts: number; fraction: number }[] = [];
+    stream.onBattery = (b) => levels.push(b);
     // Real XGPS150 sentence from Dual's SDK comments
     stream.push("$GPPWR,026A,0,1,1,0,00,5,S,60,212,000*7A\r\n");
     stream.push(`${rmc("123519")}\r\n${gga("123519")}\r\n`);
     expect(levels).toHaveLength(1);
-    expect(levels[0]).toBeCloseTo(0.745, 2);
+    expect(levels[0].fraction).toBeCloseTo(0.745, 2);
     expect(fixes).toHaveLength(1); // the surrounding epoch still parses normally
   });
 });
 
 describe("parseGppwrBattery", () => {
-  it("decodes the XGPS150 hex ADC reading to a charge fraction", () => {
+  it("decodes the XGPS150 hex ADC reading to volts and charge fraction", () => {
     // 0x026A = 618 → 3.98 V → ~74% through the 3.5–4.15 V span
-    expect(
-      parseGppwrBattery("$GPPWR,026A,0,1,1,0,00,5,S,60,212,000*7A"),
-    ).toBeCloseTo(0.745, 2);
+    const b = parseGppwrBattery("$GPPWR,026A,0,1,1,0,00,5,S,60,212,000*7A");
+    expect(b?.volts).toBeCloseTo(3.98, 2);
+    expect(b?.fraction).toBeCloseTo(0.745, 2);
   });
 
   it("halves the XGPS160's doubled ADC reading", () => {
     // 0x04C0 = 1216 → 608 → 3.92 V → ~65%
-    expect(
-      parseGppwrBattery("$GPPWR,04C0,1,1,0,1,00,0,S,2B,29,S00*73"),
-    ).toBeCloseTo(0.645, 2);
+    const b = parseGppwrBattery("$GPPWR,04C0,1,1,0,1,00,0,S,2B,29,S00*73");
+    expect(b?.volts).toBeCloseTo(3.92, 2);
+    expect(b?.fraction).toBeCloseTo(0.645, 2);
   });
 
   it("clamps below the discharge span to 0 and above it to 1", () => {
-    expect(parseGppwrBattery("$GPPWR,0200,0*00")).toBe(0); // 512 → floor
-    expect(parseGppwrBattery("$GPPWR,0290,0*00")).toBe(1); // 656 → ceiling
+    expect(parseGppwrBattery("$GPPWR,0200,0*00")?.fraction).toBe(0); // 512 → floor
+    expect(parseGppwrBattery("$GPPWR,0290,0*00")?.fraction).toBe(1); // 656 → ceiling
   });
 
   it("returns null for malformed sentences", () => {

@@ -123,10 +123,10 @@ export function createInstrumentHUD(
     gpsText.textContent = stale
       ? FIXLESS_LABEL[navManager.fixlessState()]
       : "GPS";
-    const batt = navManager.gpsBatteryFraction();
+    const batt = navManager.gpsBatteryInfo();
     if (stale || batt === null) gpsBattLow = false;
-    else if (batt < 0.1) gpsBattLow = true;
-    else if (batt > 0.15) gpsBattLow = false;
+    else if (batt.fraction < 0.1) gpsBattLow = true;
+    else if (batt.fraction > 0.15) gpsBattLow = false;
     gpsBadge.dataset.batt = gpsBattLow ? "low" : "";
   };
 

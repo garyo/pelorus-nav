@@ -10,7 +10,7 @@ class FakeNavManager {
   isFixStale(): boolean {
     return false;
   }
-  gpsBatteryFraction(): number | null {
+  gpsBatteryInfo(): null {
     return null;
   }
 }

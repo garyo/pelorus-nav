@@ -14,6 +14,7 @@ import { gpsDiagLog } from "./GPSDiagnosticLog";
 import { GPSFilter } from "./GPSFilter";
 import { GPSQualityDetector } from "./GPSQualityDetector";
 import type {
+  GpsBatteryInfo,
   NavigationData,
   NavigationDataCallback,
   NavigationDataProvider,
@@ -317,9 +318,9 @@ export class NavigationDataManager {
     this.activeProvider?.reconnect?.();
   }
 
-  /** Active GPS device's battery (0–1), or null when it doesn't report one. */
-  gpsBatteryFraction(): number | null {
-    return this.activeProvider?.batteryFraction?.() ?? null;
+  /** Active GPS device's battery state, or null when it doesn't report one. */
+  gpsBatteryInfo(): GpsBatteryInfo | null {
+    return this.activeProvider?.batteryInfo?.() ?? null;
   }
 
   /**

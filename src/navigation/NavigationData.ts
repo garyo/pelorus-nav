@@ -81,6 +81,13 @@ export function hasSatelliteDiagnostics(
   );
 }
 
+/** Battery state of an external GPS device, as reported in its data stream. */
+export interface GpsBatteryInfo {
+  volts: number;
+  /** Charge level, 0–1. */
+  fraction: number;
+}
+
 export interface NavigationDataProvider {
   /** Unique identifier */
   readonly id: string;
@@ -108,11 +115,11 @@ export interface NavigationDataProvider {
    */
   reconnect?(): void;
   /**
-   * Optional: the external device's battery level (0–1), for receivers that
+   * Optional: the external device's battery state, for receivers that
    * report it in their data stream (e.g. Dual XGPS via $GPPWR). Null until
    * the device has reported — most devices never do.
    */
-  batteryFraction?(): number | null;
+  batteryInfo?(): GpsBatteryInfo | null;
   /** Subscribe to navigation data updates */
   subscribe(callback: NavigationDataCallback): void;
   /** Unsubscribe from updates */

@@ -74,6 +74,8 @@ interface StatusRow {
   dot: HTMLElement;
   text: HTMLElement;
   action: HTMLElement;
+  /** All grid cells of the row, for hiding it entirely. */
+  cells: HTMLElement[];
 }
 
 interface SatBar {
@@ -91,6 +93,7 @@ export class SatelliteStatusPanel {
   private readonly rowAccuracy: StatusRow;
   private readonly rowPosition: StatusRow;
   private readonly rowMotion: StatusRow;
+  private readonly rowBattery: StatusRow;
   private readonly reconnectBtn: HTMLButtonElement;
   private readonly resumeBtn: HTMLButtonElement;
   private readonly satHeader: HTMLDivElement;
@@ -143,6 +146,10 @@ export class SatelliteStatusPanel {
     this.rowAccuracy = this.addRow(grid, "Accuracy");
     this.rowPosition = this.addRow(grid, "Position");
     this.rowMotion = this.addRow(grid, "Motion");
+    // Only some receivers report battery (Dual XGPS via $GPPWR) — the row
+    // stays hidden until the device has said something.
+    this.rowBattery = this.addRow(grid, "Battery");
+    this.setRowVisible(this.rowBattery, false);
 
     // Source/Accuracy/Position/Motion carry no traffic-light state.
     for (const r of [
@@ -345,6 +352,25 @@ export class SatelliteStatusPanel {
         : "Satellites · acquiring…";
     }
 
+    // Battery telemetry (volts + charge) from receivers that report it in
+    // their stream. The stored reading survives a link drop, but it's stale
+    // then — show it only while connected.
+    const battery = connected ? (provider.batteryInfo?.() ?? null) : null;
+    this.setRowVisible(this.rowBattery, battery !== null);
+    if (battery !== null) {
+      const state: DotState =
+        battery.fraction < 0.1
+          ? "red"
+          : battery.fraction < 0.3
+            ? "amber"
+            : "green";
+      this.set(
+        this.rowBattery,
+        state,
+        `${battery.volts.toFixed(2)} V · ${Math.round(battery.fraction * 100)}%`,
+      );
+    }
+
     if (data) {
       this.set(
         this.rowPosition,
@@ -379,7 +405,11 @@ export class SatelliteStatusPanel {
     action.className = "sat-status-action";
 
     grid.append(labelEl, value, action);
-    return { dot, text, action };
+    return { dot, text, action, cells: [labelEl, value, action] };
+  }
+
+  private setRowVisible(row: StatusRow, visible: boolean): void {
+    for (const cell of row.cells) cell.style.display = visible ? "" : "none";
   }
 
   private makeInlineButton(

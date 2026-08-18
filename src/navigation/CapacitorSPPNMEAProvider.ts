@@ -18,6 +18,7 @@
 import { BluetoothSerial } from "../plugins/BluetoothSerial";
 import { connectionLog } from "./ConnectionEventLog";
 import type {
+  GpsBatteryInfo,
   NavigationDataCallback,
   NavigationDataProvider,
   SatelliteDiagnostics,
@@ -46,7 +47,7 @@ export class CapacitorSPPNMEAProvider
   private listeners: NavigationDataCallback[] = [];
   private satListeners: SatelliteStatusCallback[] = [];
   private device: SavedDevice | null = null;
-  private battery: number | null = null;
+  private battery: GpsBatteryInfo | null = null;
   private pluginListenersReady = false;
   private btPollTimer: ReturnType<typeof setTimeout> | null = null;
   private readonly core: ReconnectingTransport;
@@ -69,8 +70,8 @@ export class CapacitorSPPNMEAProvider
         for (const fn of this.satListeners) fn(status);
       },
     );
-    this.stream.onBattery = (fraction) => {
-      this.battery = fraction;
+    this.stream.onBattery = (battery) => {
+      this.battery = battery;
     };
     this.core = new ReconnectingTransport(
       { providerId: this.id, logLabel: "SPP GPS" },
@@ -109,7 +110,7 @@ export class CapacitorSPPNMEAProvider
     void this.startConnect();
   }
 
-  batteryFraction(): number | null {
+  batteryInfo(): GpsBatteryInfo | null {
     return this.battery;
   }
 
