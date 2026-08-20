@@ -1840,16 +1840,31 @@ body {
   color: #444;
 }
 
-/* Caption strip above the nav row. Plain text, full width, modest size —
-   less important than the numbers but worth showing. */
+/* Caption strip above the nav row: next-waypoint name left, distance to
+   the route's destination right. Modest size — less important than the
+   numbers but worth showing. */
 .instrument-next-wp {
-  padding: 3px 16px 1px;
-  font-size: 13px;
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 5px 16px 3px;
+  font-size: 16px;
   font-weight: 500;
   color: #555;
+}
+
+.instrument-next-wp-name {
+  min-width: 0;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.instrument-next-wp-dest {
+  flex: none;
+  white-space: nowrap;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
 }
 
 .instrument-nav-row .instrument-cell--bordered {
@@ -4267,7 +4282,7 @@ body {
      of the box), so long waypoint names must ellipsize before reaching it —
      70px clears the widest state, "✕ NO DATA". */
   body:not([data-instrument-layout="side"]) .instrument-next-wp {
-    padding: 2px 70px 1px 10px;
+    padding: 4px 70px 2px 10px;
   }
 
   /* 2×2 grid filling the group's pinned width and remaining height. */

@@ -3,6 +3,7 @@ import {
   convertSpeed,
   formatDistanceInSpeedUnits,
   formatDistanceNM,
+  formatNavDistanceNM,
   MS_TO_KNOTS,
   speedUnitLabel,
 } from "./units";
@@ -90,6 +91,15 @@ describe("formatDistanceNM", () => {
   it("rounds sub-0.1NM distances to whole units", () => {
     expect(formatDistanceNM(0.001, "meters")).toBe("2 m");
     expect(formatDistanceNM(0.001, "feet")).toBe("6 ft");
+  });
+});
+
+describe("formatNavDistanceNM", () => {
+  it("uses hundredths below 10 NM and tenths above", () => {
+    expect(formatNavDistanceNM(2.345)).toBe("2.35");
+    expect(formatNavDistanceNM(9.999)).toBe("10.00");
+    expect(formatNavDistanceNM(10)).toBe("10.0");
+    expect(formatNavDistanceNM(123.45)).toBe("123.5");
   });
 });
 

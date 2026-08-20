@@ -13,7 +13,11 @@ import type { NavigationDataManager } from "../navigation/NavigationDataManager"
 import type { Settings } from "../settings";
 import { getSettings, onSettingsChange } from "../settings";
 import { applyDeclination, bearingModeLabel } from "../utils/magnetic";
-import { convertSpeed, speedUnitLabel } from "../utils/units";
+import {
+  convertSpeed,
+  formatNavDistanceNM,
+  speedUnitLabel,
+} from "../utils/units";
 
 export interface InstrumentDef {
   id: string;
@@ -147,6 +151,8 @@ export function createInstrumentHUD(
   let navCells: CellRef[] = [];
   let navGroup: HTMLDivElement | null = null;
   let nextWpEl: HTMLDivElement | null = null;
+  let nextWpNameEl: HTMLSpanElement | null = null;
+  let nextWpDestEl: HTMLSpanElement | null = null;
   let activeNavRef: ActiveNavigationManager | null = null;
 
   /** Rebuild DOM structure (only when cell config or nav active state changes). */
@@ -156,6 +162,8 @@ export function createInstrumentHUD(
     navCells = [];
     navGroup = null;
     nextWpEl = null;
+    nextWpNameEl = null;
+    nextWpDestEl = null;
     const s = getSettings();
     const baseIds = s.instrumentCells;
 
@@ -174,10 +182,16 @@ export function createInstrumentHUD(
       navGroup.addEventListener("click", () => {
         if (navCellClickCallback) navCellClickCallback();
       });
-      // Full-width caption for the upcoming waypoint — text-only, hidden
-      // when there is no next waypoint (final leg or goto mode).
+      // Full-width caption strip: next waypoint name on the left, distance
+      // to the route's destination on the right. Hidden when neither
+      // applies (unnamed goto target).
       nextWpEl = document.createElement("div");
       nextWpEl.className = "instrument-next-wp";
+      nextWpNameEl = document.createElement("span");
+      nextWpNameEl.className = "instrument-next-wp-name";
+      nextWpDestEl = document.createElement("span");
+      nextWpDestEl.className = "instrument-next-wp-dest";
+      nextWpEl.append(nextWpNameEl, nextWpDestEl);
       navGroup.appendChild(nextWpEl);
       // Row containing DTW / BRG / VMG / STEER. Sized smaller than the
       // primary SOG/COG row.
@@ -218,15 +232,16 @@ export function createInstrumentHUD(
       c.valuEl.textContent = f.value;
       c.unitEl.textContent = f.unit;
     }
-    if (nextWpEl) {
-      const name = activeNavRef?.getInfo()?.nextWaypointName ?? null;
-      if (name) {
-        nextWpEl.textContent = `Next: ${name}`;
-        nextWpEl.style.display = "";
-      } else {
-        nextWpEl.textContent = "";
-        nextWpEl.style.display = "none";
-      }
+    if (nextWpEl && nextWpNameEl && nextWpDestEl) {
+      const info = activeNavRef?.getInfo() ?? null;
+      const name = info?.nextWaypointName ?? null;
+      // Dest distance is position-derived, so blank it on a stale fix just
+      // like the DTW cell.
+      const dest = data ? (info?.destDistanceNM ?? null) : null;
+      nextWpNameEl.textContent = name ? `Next: ${name}` : "";
+      nextWpDestEl.textContent =
+        dest != null ? `Dest: ${formatNavDistanceNM(dest)} NM` : "";
+      nextWpEl.style.display = name || dest != null ? "" : "none";
     }
   };
 

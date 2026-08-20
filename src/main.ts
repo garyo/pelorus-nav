@@ -173,7 +173,11 @@ import { maybeShowWhatsNew } from "./ui/WhatsNewDialog";
 import { diag } from "./utils/diag";
 import { applyDeclination, bearingModeLabel } from "./utils/magnetic";
 import { createThermalMonitor } from "./utils/thermal";
-import { convertSpeed, speedUnitLabel } from "./utils/units";
+import {
+  convertSpeed,
+  formatNavDistanceNM,
+  speedUnitLabel,
+} from "./utils/units";
 import { ChartModeController } from "./vessel/ChartMode";
 import { CourseLine } from "./vessel/CourseLine";
 import { type CourseSnapshot, courseChanged } from "./vessel/course-gate";
@@ -1551,13 +1555,7 @@ INSTRUMENTS.set("dtw", {
     const info = activeNav.getInfo();
     // Blank on a stale fix (data null) — see the BRG formatter.
     if (!info || !data) return { value: "--", unit: "NM" };
-    return {
-      value:
-        info.distanceNM < 10
-          ? info.distanceNM.toFixed(2)
-          : info.distanceNM.toFixed(1),
-      unit: "NM",
-    };
+    return { value: formatNavDistanceNM(info.distanceNM), unit: "NM" };
   },
 });
 

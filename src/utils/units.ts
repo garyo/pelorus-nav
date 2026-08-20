@@ -51,6 +51,14 @@ export function formatDistanceInSpeedUnits(
 }
 
 /**
+ * Format a nav-instrument distance in NM (digits only, no unit):
+ * hundredths below 10 NM, tenths above — the DTW cell's precision.
+ */
+export function formatNavDistanceNM(nm: number): string {
+  return nm < 10 ? nm.toFixed(2) : nm.toFixed(1);
+}
+
+/**
  * Format a distance in nautical miles for on-chart labels: below 0.1 NM
  * (where "NM" would round to "0.00") switches to feet or meters per the
  * depth-unit setting.

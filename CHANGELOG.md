@@ -7,6 +7,11 @@ The format follows [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Added
+- The instrument bar now shows distance to the route's destination while
+  navigating, on the right of the "Next:" caption line. The caption text
+  is slightly larger, too.
+
 ### Fixed
 - Preferred-channel (junction) buoys now show their contrasting band on
   the chart — a green can with a red band is no longer drawn identical to

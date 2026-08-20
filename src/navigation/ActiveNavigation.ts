@@ -14,6 +14,7 @@ import {
   bearingDelta,
   haversineDistanceNM,
   initialBearingDeg,
+  pathDistanceNM,
 } from "../utils/coordinates";
 import type { NavigationData } from "./NavigationData";
 import type { NavigationDataManager } from "./NavigationDataManager";
@@ -121,6 +122,12 @@ export interface ActiveNavigationInfo {
   steerDeg: number | null;
   /** Name of the waypoint currently being navigated to (the active target). */
   nextWaypointName: string | null;
+  /**
+   * Distance to the route's final waypoint (via the remaining legs), in NM.
+   * Equals distanceNM on the final leg; null in goto mode, where the target
+   * is the destination.
+   */
+  destDistanceNM: number | null;
 }
 
 export type ActiveNavCallback = (
@@ -160,6 +167,7 @@ export class ActiveNavigationManager {
       targetLon: target.lon,
       ...this.deriveCourseInfo(result.bearingDeg, data),
       nextWaypointName: this.getNextWaypointName(),
+      destDistanceNM: this.destDistanceNM(result.distanceNM),
     };
 
     // Route mode: auto-advance on arrival or perpendicular crossing
@@ -226,6 +234,7 @@ export class ActiveNavigationManager {
               targetLon: newTarget.lon,
               ...this.deriveCourseInfo(newResult.bearingDeg, data),
               nextWaypointName: this.getNextWaypointName(),
+              destDistanceNM: this.destDistanceNM(newResult.distanceNM),
             };
           }
         } else {
@@ -250,6 +259,16 @@ export class ActiveNavigationManager {
     const steer = bearingDelta(bearingDeg, cog);
     const vmg = sog != null ? sog * Math.cos((steer * Math.PI) / 180) : null;
     return { vmgKn: vmg, steerDeg: steer };
+  }
+
+  /**
+   * Distance to the route's final waypoint: vessel→target plus the legs
+   * beyond it. null in goto mode.
+   */
+  private destDistanceNM(targetDistNM: number): number | null {
+    if (this.state.type !== "route") return null;
+    const remaining = this.state.route.waypoints.slice(this.state.legIndex);
+    return targetDistNM + pathDistanceNM(remaining);
   }
 
   /** Name of the waypoint currently being navigated to. */
@@ -414,6 +433,7 @@ export class ActiveNavigationManager {
           vmgKn: null,
           steerDeg: null,
           nextWaypointName: this.getNextWaypointName(),
+          destDistanceNM: this.destDistanceNM(0),
         };
       }
       this.notify();

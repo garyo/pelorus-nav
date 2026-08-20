@@ -231,3 +231,72 @@ describe("stop-on-delete", () => {
     expect(nav.getState().type).toBe("idle");
   });
 });
+
+describe("destDistanceNM", () => {
+  beforeEach(() => {
+    vi.stubGlobal("localStorage", {
+      getItem: () => null,
+      setItem: () => {},
+      removeItem: () => {},
+    });
+  });
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  // Three waypoints stacked north along a meridian: each 0.1° leg ≈ 6 NM.
+  const route: Route = {
+    id: "r2",
+    name: "Meridian route",
+    color: "#ff0000",
+    visible: true,
+    waypoints: [
+      { id: "w1", name: "A", lat: 42.0, lon: -71.0 },
+      { id: "w2", name: "B", lat: 42.1, lon: -71.0 },
+      { id: "w3", name: "C", lat: 42.3, lon: -71.0 },
+    ],
+    createdAt: 0,
+    updatedAt: 0,
+  } as unknown as Route;
+
+  function makeNavWithFix(lat: number, lon: number) {
+    const navManager = {
+      subscribe: () => {},
+      getLastData: () => ({
+        latitude: lat,
+        longitude: lon,
+        sog: 5,
+        cog: 0,
+        heading: null,
+      }),
+    } as unknown as ConstructorParameters<typeof ActiveNavigationManager>[0];
+    return new ActiveNavigationManager(navManager);
+  }
+
+  it("sums vessel→target with the remaining legs", () => {
+    // Vessel halfway up leg A→B: 3 NM to B, plus B→C ≈ 12 NM.
+    const nav = makeNavWithFix(42.05, -71.0);
+    nav.startRoute(route, 1);
+    const info = nav.getInfo();
+    expect(info?.destDistanceNM).toBeCloseTo(
+      (info?.distanceNM ?? 0) +
+        computeNavigation(42.1, -71.0, 42.3, -71.0).distanceNM,
+      6,
+    );
+    expect(info?.destDistanceNM).toBeGreaterThan(14.5);
+    expect(info?.destDistanceNM).toBeLessThan(15.5);
+  });
+
+  it("equals distanceNM on the final leg", () => {
+    const nav = makeNavWithFix(42.25, -71.0);
+    nav.startRoute(route, 2);
+    const info = nav.getInfo();
+    expect(info?.destDistanceNM).toBeCloseTo(info?.distanceNM ?? -1, 6);
+  });
+
+  it("is null in goto mode", () => {
+    const nav = makeNavWithFix(42.05, -71.0);
+    nav.startGoto({ id: "w9", name: "WP", lat: 42.0, lon: -71.0 });
+    expect(nav.getInfo()?.destDistanceNM).toBeNull();
+  });
+});
