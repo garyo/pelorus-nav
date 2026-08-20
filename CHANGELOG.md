@@ -43,6 +43,11 @@ The format follows [Keep a Changelog](https://keepachangelog.com/).
   collapses into the hamburger whenever its buttons don't fit.
 
 ### Changed
+- Dredged-area outlines are now a new "Dredged Area Outlines" layer
+  toggle, off by default — harbors tiled with dredge basins (like Boston
+  inner harbor) were a lattice of dashed lines. When enabled they render
+  as a pale dashed grey per S-52, not the previous bright green (which
+  also turned near-black on e-ink).
 - Tide and current station popups list three days of events (was about
   one day); the list scrolls when needed.
 - On phones, the menu button (☰) becomes ✕ while Settings is open — it

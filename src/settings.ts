@@ -134,11 +134,15 @@ export const LAYER_GROUP_LABELS: Record<string, string> = {
   seabed: "Seabed",
   daymarksTopmarks: "Daymarks & Topmarks",
   lightSectors: "Light Sectors",
+  dredgedOutlines: "Dredged Area Outlines",
 };
 
 const DEFAULT_LAYER_GROUPS: Record<string, boolean> = {
   ...Object.fromEntries(Object.keys(LAYER_GROUP_LABELS).map((k) => [k, true])),
   lightSectors: false,
+  // Purely informational, and harbors tiled with dredge basins (Boston)
+  // become a lattice of dashes — opt-in.
+  dredgedOutlines: false,
 };
 
 /** A toggleable layer group contributed by a plugin (see `registerLayerGroup`). */

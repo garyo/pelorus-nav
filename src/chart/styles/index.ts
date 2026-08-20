@@ -54,6 +54,7 @@ export const LAYER_GROUPS: Record<string, string> = {
   "s57-tsezne-outline": "routing",
   "s57-twrtpt": "routing",
   "s57-twrtpt-outline": "routing",
+  "s57-drgare-outline": "dredgedOutlines",
   "s57-resare": "restrictedAreas",
   "s57-resare-anchor-prohib": "restrictedAreas",
   "s57-resare-fish-prohib": "restrictedAreas",

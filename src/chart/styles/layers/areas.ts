@@ -184,7 +184,18 @@ export function getAreaLayers(ctx: StyleContext): LayerSpecification[] {
       "source-layer": "DRGARE",
       layout: { "line-sort-key": SCALE_SORT_KEY },
       paint: {
-        "line-color": ctx.colour("RADHI"),
+        // Standard S-52 (CS DEPARE01) draws this boundary LS(DASH,1,CHGRF),
+        // but even that grey turns tiled dredge basins (Boston inner
+        // harbor) into a lattice — so the group is off by default
+        // ("Dredged Area Outlines"), and when enabled it renders paler
+        // than CHGRF on the light themes. Dark themes keep CHGRF (already
+        // dim there); CHGRF itself is shared and can't be lightened.
+        "line-color":
+          ctx.theme === "eink"
+            ? "#dde3e5"
+            : ctx.theme === "day"
+              ? "#adbcc3"
+              : ctx.colour("CHGRF"),
         "line-width": 1,
         "line-dasharray": [4, 3],
       },
