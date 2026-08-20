@@ -299,6 +299,15 @@ export interface ChartLoadMonitorOptions {
   /** Whether any chart regions are downloaded for offline use — gates the
    *  "Downloaded regions still work" reassurance. */
   hasOfflineCharts?: () => boolean;
+  /**
+   * Whether the active region's offline street basemap is downloaded. When
+   * it is, the network OSM raster underneath it is a best-effort extra —
+   * its tile failures (routine when offline/offshore) must not alarm the
+   * user with a "can't load street maps" banner while the downloaded
+   * basemap is doing the job. Failures of the downloaded basemap itself
+   * still report normally.
+   */
+  hasStoredStreetBasemap?: () => boolean;
 }
 
 /** Live view of the chart-load failure state, for ambient UI. */
@@ -428,7 +437,12 @@ export function attachChartLoadMonitor(
   const viewportRelevant = (): ((key: string) => boolean) => {
     const b = map.getBounds();
     const vp: Bbox = [b.getWest(), b.getSouth(), b.getEast(), b.getNorth()];
+    // OSM raster failures stop mattering while a downloaded street basemap
+    // covers for it (including ones latched before the basemap was
+    // recognized); entries are kept, so they count again if it's deleted.
+    const osmCovered = options.hasStoredStreetBasemap?.() ?? false;
     return (key) => {
+      if (osmCovered && key.startsWith("osm")) return false;
       const bb = boundsForKey(key);
       return !bb || bboxIntersects(bb, vp);
     };
@@ -493,6 +507,12 @@ export function attachChartLoadMonitor(
     }
     const reason = classifyLoadError(msg, navigator.onLine);
     if (!reason) return;
+    // The network OSM raster is only an enhancement beneath a downloaded
+    // street basemap — don't let its (expected) offline failures raise the
+    // street-maps banner when the stored basemap is covering for it.
+    if (sourceId.startsWith("osm") && options.hasStoredStreetBasemap?.()) {
+      return;
+    }
     // Archive-backed sources are already logged by the protocol channel.
     if (!sourceArchive(sourceId)) {
       logFailure("chart-load", `${sourceId}: ${msg} [${reason}]`);

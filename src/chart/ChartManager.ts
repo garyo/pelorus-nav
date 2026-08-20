@@ -118,6 +118,8 @@ export class ChartManager {
         this.reloadStyle();
       },
       hasOfflineCharts: options.hasOfflineCharts,
+      hasStoredStreetBasemap: () =>
+        hasStoredBasemap(getSettings().activeRegion),
     });
 
     this.map.addControl(new maplibregl.NavigationControl(), "top-right");
