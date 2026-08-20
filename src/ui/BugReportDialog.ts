@@ -6,7 +6,10 @@
  * offshore), falls back to sharing the same report as a file.
  */
 
-import { queueBugReport, sendBugReport } from "../data/bug-report-outbox";
+import {
+  queueAndScheduleBugReport,
+  sendBugReport,
+} from "../data/bug-report-outbox";
 import { shareOrDownloadFile } from "../data/file-io";
 import { diagnosticsFilename } from "../diagnostics/collectDiagnostics";
 import { logUiAction } from "../diagnostics/uiActionLog";
@@ -143,7 +146,7 @@ export function showBugReportDialog(options: BugReportOptions): void {
       // file for reaching the developer by other means.
       let queued = false;
       try {
-        await queueBugReport(report);
+        await queueAndScheduleBugReport(report);
         queued = true;
       } catch {
         // IndexedDB unavailable — fall through to file-only fallback

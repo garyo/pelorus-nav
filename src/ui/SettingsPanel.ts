@@ -99,6 +99,10 @@ export interface SettingsPanelHandle {
   isOpen(): boolean;
   /** Register a callback invoked when the settings panel opens. */
   onOpen(fn: () => void): void;
+  /** Register a callback invoked whenever the panel opens OR closes —
+   *  closing happens via several paths (hide, surface eviction, outside
+   *  click), so this watches the panel itself. */
+  onOpenChange(fn: (open: boolean) => void): void;
 }
 
 export function createSettingsPanel(
@@ -123,6 +127,14 @@ export function createSettingsPanel(
   container.appendChild(wrapper);
 
   const openListeners: (() => void)[] = [];
+  const openChangeListeners: ((open: boolean) => void)[] = [];
+  let wasOpen = false;
+  new MutationObserver(() => {
+    const open = panel.classList.contains("open");
+    if (open === wasOpen) return;
+    wasOpen = open;
+    for (const fn of openChangeListeners) fn(open);
+  }).observe(panel, { attributeFilter: ["class"] });
 
   // Slot registration: opening evicts whatever else holds the top-right
   // corner, fixes the z-order, and closes on outside click / Escape.
@@ -154,6 +166,9 @@ export function createSettingsPanel(
     },
     onOpen(fn: () => void) {
       openListeners.push(fn);
+    },
+    onOpenChange(fn: (open: boolean) => void) {
+      openChangeListeners.push(fn);
     },
   };
 }

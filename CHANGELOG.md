@@ -14,7 +14,11 @@ The format follows [Keep a Changelog](https://keepachangelog.com/).
   Only Dual XGPS receivers report battery level; other devices are
   unaffected.
 - Bug reports written while offline are saved on the device and sent
-  automatically once the network is back.
+  automatically once the network is back — retried on a timer and on
+  returning to the app, since Android doesn't reliably announce the
+  network's return.
+- On phones, the menu button (☰) becomes an ✕ while Settings is open —
+  it acts as the close button there.
 - Stopping navigation (map button or Escape) now asks for confirmation —
   the floating button was too easy to hit by accident underway.
 - Holding (or right-clicking) a point on the chart now acts on what's

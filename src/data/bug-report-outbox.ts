@@ -47,10 +47,25 @@ export async function queueBugReport(report: BugReportPayload): Promise<void> {
 }
 
 let flushing = false;
+let retryTimer: ReturnType<typeof setTimeout> | null = null;
+
+/** While reports remain queued, retry this often — the Android WebView's
+ *  `online` event is unreliable (never fires on some devices), so timed
+ *  retries are the delivery guarantee, not an optimization. */
+const RETRY_MS = 60_000;
+
+function scheduleRetry(): void {
+  if (retryTimer !== null) return;
+  retryTimer = setTimeout(() => {
+    retryTimer = null;
+    void flushBugReportOutbox();
+  }, RETRY_MS);
+}
 
 /**
  * Try to upload every queued report, oldest first. Stops at the first
- * network failure (still offline); safe to call opportunistically.
+ * network failure and schedules a timed retry; safe to call
+ * opportunistically from any trigger.
  */
 export async function flushBugReportOutbox(): Promise<void> {
   if (flushing) return;
@@ -75,7 +90,8 @@ export async function flushBugReportOutbox(): Promise<void> {
           await outboxDelete(key);
           continue;
         }
-        return; // still offline — leave the rest for the next trigger
+        scheduleRetry(); // still offline — keep trying on a timer
+        return;
       }
       await outboxDelete(key);
     }
@@ -86,10 +102,22 @@ export async function flushBugReportOutbox(): Promise<void> {
   }
 }
 
+/** Queue a report and immediately schedule delivery attempts. */
+export async function queueAndScheduleBugReport(
+  report: BugReportPayload,
+): Promise<void> {
+  await queueBugReport(report);
+  scheduleRetry();
+}
+
 /** Wire the automatic flush triggers (call once at startup). */
 export function initBugReportOutbox(): void {
   window.addEventListener("online", () => void flushBugReportOutbox());
-  setTimeout(() => {
-    if (navigator.onLine) void flushBugReportOutbox();
-  }, STARTUP_FLUSH_DELAY_MS);
+  // Returning to the app is the moment connectivity has most likely
+  // changed (airplane mode toggled from quick settings, app backgrounded)
+  // — and the WebView may have missed the online event entirely.
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible") void flushBugReportOutbox();
+  });
+  setTimeout(() => void flushBugReportOutbox(), STARTUP_FLUSH_DELAY_MS);
 }

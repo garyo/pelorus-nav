@@ -646,6 +646,13 @@ if (hamburgerBtn && topbarMenu) {
     topbarMenu.classList.toggle("open");
     if (opening) menuSurface.opened();
   });
+
+  // While Settings fills a phone screen the hamburger is functionally its
+  // close button (the click handler above) — show it as one.
+  settingsHandle?.onOpenChange((open) => {
+    hamburgerBtn.textContent = open ? "✕" : "☰";
+    hamburgerBtn.setAttribute("aria-label", open ? "Close settings" : "Menu");
+  });
 }
 
 // Clicking the map to dismiss an open click-outside panel (Settings, or the
