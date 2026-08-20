@@ -76,6 +76,14 @@ export interface DraggablePointsOptions {
   /** The hold armed and the handle is now live — for the cue that tells the
    *  user they have picked something up. Never fires when `holdMs` is 0. */
   onGrab?: (index: number) => void;
+  /**
+   * Queried when a hold is about to arm (canvas-relative press point).
+   * Returning false abandons the hold without claiming the press — the
+   * map's own long-press then fires instead. Lets a waypoint decline its
+   * direct grab when a route point shares the spot, so the targeted menu
+   * can disambiguate (see docs/gesture-model.md).
+   */
+  canGrab?: (index: number, x: number, y: number) => boolean;
 }
 
 /** A handle under the pointer: its feature index and, when known, the
@@ -96,6 +104,9 @@ export class DraggablePoints {
   private readonly hitRadius: number;
   private readonly holdMs: number;
   private readonly onGrab: ((index: number) => void) | null;
+  private readonly canGrab:
+    | ((index: number, x: number, y: number) => boolean)
+    | null;
 
   /** Pending hold: the press that may yet become a grab. Null whenever no
    *  hold is in flight, which is always the case when holdMs is 0. */
@@ -150,6 +161,7 @@ export class DraggablePoints {
     this.hitRadius = options?.hitRadius ?? DEFAULT_HIT_RADIUS;
     this.holdMs = options?.holdMs ?? 0;
     this.onGrab = options?.onGrab ?? null;
+    this.canGrab = options?.canGrab ?? null;
 
     this.onMouseDown = this.onMouseDown.bind(this);
     this.onHoldMouseMove = this.onHoldMouseMove.bind(this);
@@ -306,6 +318,7 @@ export class DraggablePoints {
     const hold = this.hold;
     if (!hold) return;
     this.cancelHold();
+    if (this.canGrab && !this.canGrab(hold.hit.index, hold.x, hold.y)) return;
 
     this.setGrabOffset(hold.hit, hold.x, hold.y);
     if (hold.touchId !== null) {
@@ -502,6 +515,10 @@ export class DraggablePoints {
     this.dragging = true;
     this.dragIndex = index;
     this.movedThisGesture = false;
+    // Every engaged drag owns its press — a motionless hold on a grabbed
+    // handle must not also fire the chart's long-press menu. (endDrag
+    // releases; armHold's claim for held grabs is the same call, idempotent.)
+    claimMapPress();
     this.map.dragPan.disable();
     const canvas = this.map.getCanvas();
     canvas.addEventListener("touchmove", this.onTouchMove, { passive: false });

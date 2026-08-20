@@ -1466,9 +1466,14 @@ const guardNavCancel = (): boolean => {
 // --- Context menu (right-click on map) ---
 const plottingLayer = new PlottingLayer(chartManager.map);
 const measurementLayer = new MeasurementLayer(chartManager.map);
+// A hold on a waypoint that shares its spot with a route point opens the
+// targeted menu instead of grabbing (see docs/gesture-model.md).
+waypointLayer.setRouteSource(() => routeLayer.getVisibleRoutes());
+
 const contextMenu = createContextMenu({
   map: chartManager.map,
   routeEditor,
+  routeLayer,
   waypointLayer,
   plottingLayer,
   measurementLayer,

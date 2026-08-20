@@ -10,12 +10,15 @@
 
 import type * as maplibregl from "maplibre-gl";
 import { getAllWaypoints, saveWaypoint } from "../data/db";
+import type { Route } from "../data/Route";
 import type { StandaloneWaypoint } from "../data/Waypoint";
+import { hideStatusBanner, showStatusBanner } from "../ui/StatusBanner";
 import { showToast } from "../ui/Toast";
 import { DraggablePoints } from "./DraggablePoints";
 import { focusMapOnPoint } from "./fit-bounds";
 import { onModeChange } from "./InteractionMode";
 import { belowVesselLayerId } from "./layer-order";
+import { findPointCandidates } from "./point-candidates";
 import { ensurePointIcons, waypointIconImage } from "./point-icons";
 import { SelectionHalo } from "./selection-halo";
 import { getWaypointScale, onWaypointScaleChange } from "./waypoint-scale";
@@ -65,6 +68,12 @@ export class WaypointLayer {
   /** Where the waypoint being dragged started, so the move can be undone.
    *  Held only between pickup and release. */
   private dragOrigin: { id: string; lat: number; lon: number } | null = null;
+  /** Source of visible routes (set from main.ts) — a hold on a waypoint
+   *  that shares its spot with a route point must decline the direct grab
+   *  so the targeted menu can disambiguate (docs/gesture-model.md). */
+  private getVisibleRoutes: (() => readonly Route[]) | null = null;
+  /** Waypoint armed for a one-shot move via the targeted menu, or null. */
+  private armedMove: StandaloneWaypoint | null = null;
 
   constructor(map: maplibregl.Map) {
     this.map = map;
@@ -89,12 +98,18 @@ export class WaypointLayer {
     // Disable waypoint dragging during route-edit (and other non-query modes)
     onModeChange((mode) => {
       if (mode !== "query") {
+        this.cancelArmedMove();
         this.draggable?.destroy();
         this.draggable = null;
       } else {
         this.setupDrag();
       }
     });
+  }
+
+  /** Wire the visible-routes source (main.ts) for grab disambiguation. */
+  setRouteSource(getVisibleRoutes: () => readonly Route[]): void {
+    this.getVisibleRoutes = getVisibleRoutes;
   }
 
   /**
@@ -230,6 +245,19 @@ export class WaypointLayer {
     this.setupDrag();
   }
 
+  private moveWaypointTo(
+    wp: StandaloneWaypoint,
+    lngLat: { lat: number; lng: number },
+  ): void {
+    wp.lat = lngLat.lat;
+    wp.lon = lngLat.lng;
+    wp.updatedAt = Date.now();
+    this.showHalo(wp);
+    this.updateSource();
+    this.notifyChange();
+    saveWaypoint(wp).catch(console.error);
+  }
+
   private setupDrag(): void {
     if (this.draggable) return;
     this.draggable = new DraggablePoints(
@@ -237,14 +265,7 @@ export class WaypointLayer {
       POINTS_LAYER,
       (featureIndex, lngLat) => {
         const wp = this.waypoints[featureIndex];
-        if (!wp) return;
-        wp.lat = lngLat.lat;
-        wp.lon = lngLat.lng;
-        wp.updatedAt = Date.now();
-        this.showHalo(wp);
-        this.updateSource();
-        this.notifyChange();
-        saveWaypoint(wp).catch(console.error);
+        if (wp) this.moveWaypointTo(wp, lngLat);
       },
       null,
       null,
@@ -252,8 +273,99 @@ export class WaypointLayer {
       {
         holdMs: HOLD_TO_MOVE_MS,
         onGrab: (featureIndex) => this.onGrab(featureIndex),
+        // A hold on a waypoint sharing its spot with a route point stands
+        // down — the chart long-press then shows the targeted menu, which
+        // names both and lets the user pick (docs/gesture-model.md).
+        canGrab: (_featureIndex, x, y) => {
+          const routes = this.getVisibleRoutes?.() ?? [];
+          if (routes.length === 0) return true;
+          const routeHits = findPointCandidates(
+            (ll) => this.map.project(ll),
+            x,
+            y,
+            [],
+            routes,
+          );
+          return routeHits.length === 0;
+        },
       },
     );
+  }
+
+  // --- Armed one-shot move (from the targeted long-press menu) -----------
+
+  /**
+   * Arm a waypoint for a single move: ring it, show a banner, and let the
+   * very next drag on it move it without a hold. Ends on drop (undo toast,
+   * as for a held move), on the banner's Cancel, or on leaving query mode.
+   */
+  armMove(wp: StandaloneWaypoint): void {
+    this.cancelArmedMove();
+    this.draggable?.destroy();
+    this.draggable = null;
+    this.armedMove = wp;
+    this.dragOrigin = { id: wp.id, lat: wp.lat, lon: wp.lon };
+    this.showHalo(wp);
+    navigator.vibrate?.(GRAB_VIBRATE_MS);
+    showStatusBanner({
+      id: "waypoint-move",
+      message: `Drag to move "${wp.name}"`,
+      actionLabel: "Cancel",
+      onAction: () => this.cancelArmedMove(),
+      onDismiss: () => this.cancelArmedMove(),
+    });
+    this.draggable = new DraggablePoints(
+      this.map,
+      POINTS_LAYER,
+      (_index, lngLat) => {
+        const armed = this.armedMove;
+        if (armed) this.moveWaypointTo(armed, lngLat);
+      },
+      null,
+      null,
+      () => {
+        // Drop ends the armed state; a tap (no movement) keeps it armed so
+        // a stray touch doesn't silently disarm before the real drag.
+        const armed = this.armedMove;
+        if (!armed) return;
+        const origin = this.dragOrigin;
+        const moved =
+          origin && (armed.lat !== origin.lat || armed.lon !== origin.lon);
+        if (moved) this.endArmedMove(/* toast= */ true);
+      },
+      {
+        holdMs: 0,
+        // Only the armed waypoint responds; everything else stays inert.
+        getPoints: () => {
+          const armed = this.armedMove;
+          return armed ? [{ lon: armed.lon, lat: armed.lat }] : [];
+        },
+      },
+    );
+  }
+
+  /** True while a one-shot move is armed (the chart long-press stands down). */
+  isMoveArmed(): boolean {
+    return this.armedMove !== null;
+  }
+
+  cancelArmedMove(): void {
+    if (this.armedMove) this.endArmedMove(/* toast= */ false);
+  }
+
+  private endArmedMove(toast: boolean): void {
+    if (!this.armedMove) return;
+    hideStatusBanner("waypoint-move");
+    this.armedMove = null;
+    this.draggable?.destroy();
+    this.draggable = null;
+    this.setupDrag();
+    if (toast) {
+      this.onDragEnd();
+    } else {
+      this.dragOrigin = null;
+      this.clearHalo();
+    }
   }
 
   /** The hold armed: mark the waypoint as picked up and remember where it

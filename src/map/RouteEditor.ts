@@ -364,8 +364,10 @@ export class RouteEditor {
     });
   }
 
-  /** Start editing a new or existing route. */
-  startEditing(route?: Route): void {
+  /** Start editing a new or existing route. `opts.selectIndex` pre-selects
+   *  a waypoint — the targeted long-press menu's "Edit route" lands with
+   *  the pressed point already selected. */
+  startEditing(route?: Route, opts?: { selectIndex?: number }): void {
     // Re-entry guard: starting a new edit while one is active would leak the
     // old map handlers (every click then appends two waypoints). Tear the
     // previous session down first — same teardown as cancel, minus the bar.
@@ -421,7 +423,13 @@ export class RouteEditor {
       this.routeLayer.fitRoute(route);
     }
 
-    this.selectedIndex = null;
+    const preselect = opts?.selectIndex;
+    this.selectedIndex =
+      preselect !== undefined &&
+      preselect >= 0 &&
+      preselect < this.route.waypoints.length
+        ? preselect
+        : null;
     // Under two waypoints there is no route to adjust yet, so taps place
     // points. An existing route opens inert: that is what stops every
     // mis-aimed tap from hanging a spur off someone's finished route.

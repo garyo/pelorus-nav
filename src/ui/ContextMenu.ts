@@ -7,8 +7,10 @@ import type { StandaloneWaypoint } from "../data/Waypoint";
 import { getMode, setMode } from "../map/InteractionMode";
 import type { MeasurementLayer } from "../map/MeasurementLayer";
 import type { PlottingLayer } from "../map/plotting/PlottingLayer";
+import { findPointCandidates } from "../map/point-candidates";
 import { isMapPressClaimed } from "../map/press-claim";
 import type { RouteEditor } from "../map/RouteEditor";
+import type { RouteLayer } from "../map/RouteLayer";
 import type { WaypointLayer } from "../map/WaypointLayer";
 import type { ActiveNavigationManager } from "../navigation/ActiveNavigation";
 import { findNearestNamedFeature } from "../search/feature-search";
@@ -19,6 +21,7 @@ import { generateUUID } from "../utils/uuid";
 export interface ContextMenuDeps {
   map: maplibregl.Map;
   routeEditor: RouteEditor;
+  routeLayer: RouteLayer;
   waypointLayer: WaypointLayer;
   plottingLayer: PlottingLayer;
   measurementLayer: MeasurementLayer;
@@ -42,6 +45,7 @@ export function createContextMenu(deps: ContextMenuDeps): ContextMenuHandle {
   const {
     map,
     routeEditor,
+    routeLayer,
     waypointLayer,
     plottingLayer,
     measurementLayer,
@@ -63,6 +67,14 @@ export function createContextMenu(deps: ContextMenuDeps): ContextMenuHandle {
   };
 
   // --- Build menu items ---
+
+  // Targeted object rows (Move waypoint "X" / Edit route "Y"), rebuilt on
+  // every show from what's under the pressed point. Empty (and the divider
+  // hidden) for a press on open chart. See docs/gesture-model.md.
+  const objectRows = document.createElement("div");
+  const objectDivider = document.createElement("div");
+  objectDivider.className = "map-context-divider";
+  objectDivider.style.display = "none";
 
   const copyItem = document.createElement("div");
   copyItem.className = "map-context-item";
@@ -119,6 +131,8 @@ export function createContextMenu(deps: ContextMenuDeps): ContextMenuHandle {
   plotItem.appendChild(plotSub);
 
   menu.append(
+    objectRows,
+    objectDivider,
     copyItem,
     waypointItem,
     measureItem,
@@ -128,6 +142,43 @@ export function createContextMenu(deps: ContextMenuDeps): ContextMenuHandle {
     gotoInput,
   );
 
+  /** Truncate long user names so a row stays one line. */
+  const shortName = (name: string, fallback: string): string => {
+    const n = name.trim() || fallback;
+    return n.length > 24 ? `${n.slice(0, 23)}…` : n;
+  };
+
+  /** Rebuild the object rows for a press at canvas point (x, y). */
+  const buildObjectRows = (x: number, y: number): void => {
+    objectRows.replaceChildren();
+    const candidates = findPointCandidates(
+      (ll) => map.project(ll),
+      x,
+      y,
+      waypointLayer.getWaypoints().filter((w) => w.visible),
+      routeLayer.getVisibleRoutes(),
+    ).slice(0, 4);
+    for (const c of candidates) {
+      const row = document.createElement("div");
+      row.className = "map-context-item";
+      if (c.kind === "waypoint") {
+        row.textContent = `Move waypoint "${shortName(c.waypoint.name, "waypoint")}"`;
+        row.addEventListener("click", () => {
+          hide();
+          waypointLayer.armMove(c.waypoint);
+        });
+      } else {
+        row.textContent = `Edit route "${shortName(c.route.name, "route")}"`;
+        row.addEventListener("click", () => {
+          hide();
+          routeEditor.startEditing(c.route, { selectIndex: c.index });
+        });
+      }
+      objectRows.appendChild(row);
+    }
+    objectDivider.style.display = candidates.length > 0 ? "" : "none";
+  };
+
   // --- Show/hide logic ---
 
   const show = (lat: number, lng: number, clientX: number, clientY: number) => {
@@ -135,6 +186,8 @@ export function createContextMenu(deps: ContextMenuDeps): ContextMenuHandle {
     ctxLng = lng;
     copyLabel.textContent = `Copy ${formatLatLon(ctxLat, "lat")} ${formatLatLon(ctxLng, "lon")}`;
     gotoInput.style.display = "none";
+    const rect = map.getCanvas().getBoundingClientRect();
+    buildObjectRows(clientX - rect.left, clientY - rect.top);
 
     menu.style.display = "block";
     const menuW = menu.offsetWidth;

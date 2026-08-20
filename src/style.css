@@ -596,6 +596,13 @@ body {
   white-space: nowrap;
 }
 
+/* Between the targeted object rows (Move waypoint / Edit route) and the
+   position actions below them. */
+.map-context-divider {
+  border-top: 1px solid rgba(255, 255, 255, 0.2);
+  margin: 4px 0;
+}
+
 .map-context-item:hover {
   background: rgba(100, 130, 200, 0.3);
 }

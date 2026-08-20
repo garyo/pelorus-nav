@@ -17,6 +17,13 @@ The format follows [Keep a Changelog](https://keepachangelog.com/).
   automatically once the network is back.
 - Stopping navigation (map button or Escape) now asks for confirmation —
   the floating button was too easy to hit by accident underway.
+- Holding (or right-clicking) a point on the chart now acts on what's
+  under your finger. A lone waypoint is grabbed to move, as before; where
+  a route point or several objects share the spot — common when routes
+  are snapped onto marks — the menu names each choice: Move waypoint
+  "X", Edit route "Y" (opening the editor with that point selected),
+  above the usual chart actions. "Move waypoint" arms the point: drag it
+  to move, with Cancel and undo.
 
 ### Fixed
 - Route editing is much better behaved on phones: starting an edit closes
