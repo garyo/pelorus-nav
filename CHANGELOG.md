@@ -43,6 +43,9 @@ The format follows [Keep a Changelog](https://keepachangelog.com/).
   collapses into the hamburger whenever its buttons don't fit.
 
 ### Changed
+- The auto course-projection line now extends up to 8 hours when zoomed
+  far out (was capped at 1 hour), with tick marks every 15, 30, or 60
+  minutes for the 2, 4, and 8 hour lines.
 - Dredged-area outlines are now a new "Dredged Area Outlines" layer
   toggle, off by default — harbors tiled with dredge basins (like Boston
   inner harbor) were a lattice of dashed lines. When enabled they render

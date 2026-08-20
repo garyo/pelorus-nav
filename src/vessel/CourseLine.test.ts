@@ -71,7 +71,9 @@ describe("circularInterpolate", () => {
 describe("selectAutoBucket", () => {
   it("returns paired (duration, tick) so duration % tick === 0", () => {
     // Sweep across plausible target durations; every bucket must divide evenly.
-    for (const target of [0.3, 0.8, 1.5, 4, 7, 12, 22, 40, 100]) {
+    for (const target of [
+      0.3, 0.8, 1.5, 4, 7, 12, 22, 40, 100, 200, 400, 900,
+    ]) {
       const b = selectAutoBucket(target);
       const remainder = b.duration % b.tick;
       // Allow for tiny float drift on fractional ticks (e.g. 0.25, 0.5).
@@ -85,7 +87,9 @@ describe("selectAutoBucket", () => {
     expect(selectAutoBucket(7).duration).toBe(5);
     expect(selectAutoBucket(20).duration).toBe(15); // log-nearest: 15, not 30
     expect(selectAutoBucket(40).duration).toBe(30);
-    expect(selectAutoBucket(1000).duration).toBe(60);
+    expect(selectAutoBucket(90).duration).toBe(120); // log-nearest: 120, not 60
+    expect(selectAutoBucket(300).duration).toBe(240);
+    expect(selectAutoBucket(1000).duration).toBe(480); // capped at 8 h
   });
 });
 

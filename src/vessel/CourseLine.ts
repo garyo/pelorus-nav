@@ -50,6 +50,10 @@ const AUTO_BUCKETS: { duration: number; tick: number }[] = [
   { duration: 15, tick: 5 },
   { duration: 30, tick: 5 },
   { duration: 60, tick: 10 },
+  // Zoomed far out: a doubling ladder on clock units, 8 ticks per line.
+  { duration: 120, tick: 15 },
+  { duration: 240, tick: 30 },
+  { duration: 480, tick: 60 },
 ];
 
 /**
