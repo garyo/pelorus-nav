@@ -389,6 +389,17 @@ export class RouteEditor {
     if (this.editingExistingId) {
       this.routeLayer.suspendRoute(this.editingExistingId);
     }
+    // Ghost every OTHER route: full-size neighbor markers next to the
+    // edit handles made it unreadable which points were editable. Their
+    // lines stay as faint context, and their points remain snap targets
+    // (getVisibleRoutes still includes ghosted routes). Restored on
+    // finish/cancel.
+    this.routeLayer.setGhostedRoutes(
+      this.routeLayer
+        .getVisibleRoutes()
+        .map((r) => r.id)
+        .filter((id) => id !== (route?.id ?? null)),
+    );
 
     // Deep-clone the incoming route: callers hand over live objects (the
     // targeted menu passes RouteLayer's own rendered instance), and the
@@ -840,6 +851,7 @@ export class RouteEditor {
       this.routeLayer.resumeRoute(this.editingExistingId);
       this.editingExistingId = null;
     }
+    this.routeLayer.setGhostedRoutes([]);
     this.routeLayer.setSelectionHaloHidden(false);
 
     if (this.clickHandler) {

@@ -182,6 +182,45 @@ export class RouteLayer {
     this.removeRoute(id);
   }
 
+  // --- Ghosting (route editing) ------------------------------------------
+
+  /** Route ids currently rendered as background ghosts. */
+  private ghostedIds = new Set<string>();
+
+  /**
+   * Render exactly these routes as background ghosts — faint line, dimmed
+   * markers, no labels or chevrons — used while another route is being
+   * edited, so its handles are unmistakably the only editable points.
+   * Ghosted routes are still "visible" (they stay in getVisibleRoutes and
+   * thus remain snap targets). Pass [] to restore everything.
+   */
+  setGhostedRoutes(ids: readonly string[]): void {
+    const next = new Set(ids);
+    for (const id of this.ghostedIds) {
+      if (!next.has(id)) this.applyGhost(id, false);
+    }
+    for (const id of next) this.applyGhost(id, true);
+    this.ghostedIds = next;
+    // Restoring writes the daytime paint values; re-dim for the theme.
+    if (next.size === 0) reapplyOverlayDimming(this.map);
+  }
+
+  private applyGhost(id: string, on: boolean): void {
+    const m = this.map;
+    if (m.getLayer(lineLayerId(id))) {
+      m.setPaintProperty(lineLayerId(id), "line-opacity", on ? 0.25 : 0.9);
+      m.setPaintProperty(lineLayerId(id), "line-width", on ? 1.5 : 2.5);
+    }
+    if (m.getLayer(pointLayerId(id))) {
+      m.setPaintProperty(pointLayerId(id), "icon-opacity", on ? 0.3 : 1);
+    }
+    for (const lid of [chevronLayerId(id), labelLayerId(id)]) {
+      if (m.getLayer(lid)) {
+        m.setLayoutProperty(lid, "visibility", on ? "none" : "visible");
+      }
+    }
+  }
+
   /** Undo suspendRoute: redraw only if the route's own visibility says so. */
   resumeRoute(id: string): void {
     this.hiddenIds.delete(id);
@@ -261,6 +300,9 @@ export class RouteLayer {
           route.color,
         );
       }
+      // Keep a ghosted route ghosted through in-place updates. (Never
+      // "un-ghost" here — that would stomp the theme's overlay dimming.)
+      if (this.ghostedIds.has(route.id)) this.applyGhost(route.id, true);
       return;
     }
 
@@ -349,6 +391,10 @@ export class RouteLayer {
       },
       beforeId,
     );
+
+    // Fresh layers come up at full strength — re-ghost if this route is
+    // ghosted (e.g. a chart style rebuild mid-edit re-added it).
+    if (this.ghostedIds.has(route.id)) this.applyGhost(route.id, true);
   }
 
   private removeRoute(id: string): void {
