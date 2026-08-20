@@ -115,15 +115,21 @@ export class RouteLayer {
   }
 
   async reloadAll(): Promise<void> {
+    // Fetch first, then swap in place: removing everything before the
+    // (async) DB read blanked every route for the duration of the read —
+    // a visible flicker after each edit. addRoute updates routes that are
+    // already drawn, so visible ones never leave the screen.
+    const routes = await getAllRoutes();
+    const newIds = new Set(routes.map((r) => r.id));
     for (const [id] of this.loadedRoutes) {
-      this.removeRoute(id);
+      if (!newIds.has(id)) this.removeRoute(id);
     }
     this.loadedRoutes.clear();
-
-    const routes = await getAllRoutes();
     for (const route of routes) {
       if (route.visible && !this.hiddenIds.has(route.id)) {
         this.addRoute(route);
+      } else {
+        this.removeRoute(route.id);
       }
       this.loadedRoutes.set(route.id, route);
     }
@@ -246,6 +252,15 @@ export class RouteLayer {
 
     if (this.map.getSource(sid)) {
       (this.map.getSource(sid) as maplibregl.GeoJSONSource).setData(data);
+      // Geometry updates in place; the color lives in layer paint, so a
+      // recolored route must refresh it here too (the layers persist).
+      if (this.map.getLayer(lineLayerId(route.id))) {
+        this.map.setPaintProperty(
+          lineLayerId(route.id),
+          "line-color",
+          route.color,
+        );
+      }
       return;
     }
 

@@ -390,14 +390,21 @@ export class RouteEditor {
       this.routeLayer.suspendRoute(this.editingExistingId);
     }
 
-    this.route = route ?? {
-      id: generateUUID(),
-      name: `Route ${formatLocalDateTime(new Date())}`,
-      createdAt: Date.now(),
-      color: "#4488cc",
-      visible: true,
-      waypoints: [],
-    };
+    // Deep-clone the incoming route: callers hand over live objects (the
+    // targeted menu passes RouteLayer's own rendered instance), and the
+    // editor mutates waypoints in place — without the clone, Cancel would
+    // discard nothing because the caller's object already carries the
+    // edits. Done saves the clone and refreshes everyone from it.
+    this.route = route
+      ? structuredClone(route)
+      : {
+          id: generateUUID(),
+          name: `Route ${formatLocalDateTime(new Date())}`,
+          createdAt: Date.now(),
+          color: "#4488cc",
+          visible: true,
+          waypoints: [],
+        };
 
     // Editing is a look-away: drop the chart out of any follow/course-up
     // mode so GPS ticks stop recentering on the vessel and yanking the map
