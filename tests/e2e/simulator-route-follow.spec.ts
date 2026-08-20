@@ -115,7 +115,7 @@ test("simulator-driven route navigation advances through waypoints on arrival", 
   // Activate navigation with no GPS fix yet — deterministic leg-1 start.
   await routeRow.locator(".route-nav-btn").click();
 
-  const nextWp = page.locator(".instrument-next-wp");
+  const nextWp = page.locator(".instrument-next-wp-name");
   await expect(nextWp).toBeVisible({ timeout: 5000 });
   await expect(nextWp).toHaveText("Next: Castle Island");
 
