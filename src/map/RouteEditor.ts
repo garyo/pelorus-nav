@@ -1073,13 +1073,9 @@ export class RouteEditor {
           return;
         }
         if ("waypoint" in hit) {
-          // Select-before-move: a drag on an unselected waypoint selects it
-          // and goes no further, so a stray brush of a finger can't relocate
-          // a route point. Dragging the selected waypoint moves it.
-          if (this.selectedIndex !== hit.waypoint) {
-            this.select(hit.waypoint);
-            return false;
-          }
+          // Direct grab: the edit mode itself is the protection (explicit
+          // session, per-mutation undo, Cancel discards) — no select-first
+          // ceremony. See docs/gesture-model.md.
           this.checkpoint();
           return;
         }
