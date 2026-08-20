@@ -152,6 +152,15 @@ export class CourseLine {
     this.redraw();
   }
 
+  /**
+   * Drop the projected course until fresh data arrives (e.g. the fix went
+   * stale — the HUD blanks COG/SOG, so a line projecting them must go too).
+   */
+  clear(): void {
+    this.lastSmoothed = null;
+    this.redraw();
+  }
+
   private redraw(): void {
     const data = this.lastData;
     const smoothed = this.lastSmoothed;

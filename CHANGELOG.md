@@ -13,6 +13,9 @@ The format follows [Keep a Changelog](https://keepachangelog.com/).
   is slightly larger, too.
 
 ### Fixed
+- The course projection line now disappears reliably when the vessel
+  stops or the GPS signal is lost, instead of sometimes staying frozen
+  at its last heading and length.
 - Preferred-channel (junction) buoys now show their contrasting band on
   the chart — a green can with a red band is no longer drawn identical to
   a plain green can (thanks to Jesús Esgueva for the report, our first

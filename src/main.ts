@@ -1003,6 +1003,16 @@ navManager.subscribe((data) => {
     // a valid course (e.g. a bygone simulator run) instead of the live fix.
     vesselLayer.update(data);
     chartMode.update(data, smoothed);
+    // A course-less fix (COG drops out at rest) clears the smoother, and the
+    // render loop below never runs without a smoothed course — so clear the
+    // projection line here or it stays frozen at the last moving snapshot.
+    // Invalidating the change gate guarantees the first smoothed course
+    // after recovery is applied, even one within epsilon of the pre-clear
+    // snapshot.
+    if (!smoothed) {
+      courseLine.update(data, null);
+      appliedCourse = null;
+    }
   }
 
   chartManager.map.triggerRepaint();
@@ -1048,6 +1058,16 @@ chartManager.map.on("render", () => {
 chartManager.map.on("resize", () => {
   appliedCourse = null;
 });
+// A stale fix blanks the HUD's COG/SOG — the projection line shows the same
+// quantities, so drop it too (the vessel icon stays, frozen at its last
+// position). Polled like the HUD's badge: staleness has no push event.
+// Resetting the change gate guarantees the line's redraw on recovery.
+window.setInterval(() => {
+  if (navManager.isFixStale()) {
+    courseLine.clear();
+    appliedCourse = null;
+  }
+}, 1000);
 
 // Screen wake lock. Created BEFORE the settings listener below that calls
 // into it — a const referenced by an earlier-registered listener is a TDZ
