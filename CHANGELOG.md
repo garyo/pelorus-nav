@@ -7,6 +7,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.22.0] - 2026-08-20
+
 ### Added
 - Bluetooth GPS battery: a low-battery marker next to the GPS status dot
   below 10% charge, and voltage/percentage in GPS Diagnostics. Only Dual
