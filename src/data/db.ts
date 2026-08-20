@@ -11,7 +11,7 @@ import type { StandaloneWaypoint } from "./Waypoint";
 const DB_NAME = "pelorus-nav";
 // Bump DB_VERSION when adding/removing stores or indexes. In onupgradeneeded,
 // check oldVersion and apply incremental migrations (e.g. if (oldVersion < 2) ...).
-const DB_VERSION = 7;
+const DB_VERSION = 8;
 
 let dbPromise: Promise<IDBDatabase> | null = null;
 
@@ -60,6 +60,10 @@ function openDB(): Promise<IDBDatabase> {
       if (oldVersion < 7) {
         // No store changes — Route gained optional `folder` (one-level
         // grouping in the route manager). Existing rows stay valid.
+      }
+      if (oldVersion < 8) {
+        // Outbox for bug reports composed offline (see bug-report-outbox.ts)
+        db.createObjectStore("bugReportOutbox", { autoIncrement: true });
       }
     };
     req.onsuccess = () => resolve(req.result);
@@ -381,6 +385,52 @@ export async function deleteWaypoint(id: string): Promise<void> {
   return new Promise((resolve, reject) => {
     const tx = db.transaction("waypoints", "readwrite");
     tx.objectStore("waypoints").delete(id);
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+}
+
+// --- Bug report outbox ---
+
+/** Add a record to the bug-report outbox; returns its auto-assigned key. */
+export async function outboxAdd(record: unknown): Promise<number> {
+  const db = await openDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction("bugReportOutbox", "readwrite");
+    const req = tx.objectStore("bugReportOutbox").add(record);
+    req.onsuccess = () => resolve(req.result as number);
+    tx.onerror = () => reject(tx.error);
+  });
+}
+
+/** All outbox records with their keys, oldest first (key order). */
+export async function outboxGetAll(): Promise<
+  { key: number; record: unknown }[]
+> {
+  const db = await openDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction("bugReportOutbox", "readonly");
+    const store = tx.objectStore("bugReportOutbox");
+    const out: { key: number; record: unknown }[] = [];
+    const cursorReq = store.openCursor();
+    cursorReq.onsuccess = () => {
+      const cursor = cursorReq.result;
+      if (cursor) {
+        out.push({ key: cursor.key as number, record: cursor.value });
+        cursor.continue();
+      } else {
+        resolve(out);
+      }
+    };
+    cursorReq.onerror = () => reject(cursorReq.error);
+  });
+}
+
+export async function outboxDelete(key: number): Promise<void> {
+  const db = await openDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction("bugReportOutbox", "readwrite");
+    tx.objectStore("bugReportOutbox").delete(key);
     tx.oncomplete = () => resolve();
     tx.onerror = () => reject(tx.error);
   });

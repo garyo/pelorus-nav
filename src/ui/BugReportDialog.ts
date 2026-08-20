@@ -6,12 +6,10 @@
  * offshore), falls back to sharing the same report as a file.
  */
 
+import { queueBugReport, sendBugReport } from "../data/bug-report-outbox";
 import { shareOrDownloadFile } from "../data/file-io";
-import { chartAssetBase } from "../data/remote-url";
 import { diagnosticsFilename } from "../diagnostics/collectDiagnostics";
 import { logUiAction } from "../diagnostics/uiActionLog";
-
-const UPLOAD_TIMEOUT_MS = 20_000;
 
 export interface BugReportOptions {
   /** Produces the diagnostics text to attach (may take a few seconds). */
@@ -128,30 +126,36 @@ export function showBugReportDialog(options: BugReportOptions): void {
     const diagnostics = await options.collectDiagnostics();
 
     status.textContent = "Uploading…";
+    const report = {
+      description: text,
+      email: email.value.trim(),
+      diagnostics,
+      ...(screenshot && screenshotCheck.checked ? { screenshot } : {}),
+    };
     try {
-      const res = await fetch(`${chartAssetBase()}/api/bug-report`, {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          description: text,
-          email: email.value.trim(),
-          diagnostics,
-          ...(screenshot && screenshotCheck.checked ? { screenshot } : {}),
-        }),
-        signal: AbortSignal.timeout(UPLOAD_TIMEOUT_MS),
-      });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      await sendBugReport(report);
       status.textContent = "Thanks! Report sent.";
       sendBtn.textContent = "Sent ✓";
       setTimeout(close, 1500);
     } catch {
-      // Offline (offshore) or server trouble — offer the report as a file so
-      // it can still reach the developer by other means.
-      status.textContent =
-        "Couldn't upload the report (offline?). You can share it as a file instead.";
+      // Offline (offshore) or server trouble — queue the report so it goes
+      // out automatically when the network is back, and still offer it as a
+      // file for reaching the developer by other means.
+      let queued = false;
+      try {
+        await queueBugReport(report);
+        queued = true;
+      } catch {
+        // IndexedDB unavailable — fall through to file-only fallback
+      }
+      status.textContent = queued
+        ? "You seem to be offline — report saved. It will be sent " +
+          "automatically when you're back online. (Or share it as a file now.)"
+        : "Couldn't upload the report (offline?). You can share it as a file instead.";
       sendBtn.textContent = "Share as File…";
       sendBtn.disabled = false;
       cancelBtn.disabled = false;
+      cancelBtn.textContent = queued ? "Close" : "Cancel";
       sendBtn.onclick = async () => {
         const combined = `--- DESCRIPTION ---\n${text}\n\nEmail: ${email.value.trim() || "(none)"}\n\n--- DIAGNOSTICS ---\n${diagnostics}`;
         try {

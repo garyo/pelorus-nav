@@ -50,6 +50,7 @@ import { CobManager } from "./cob/CobManager";
 import { confirmEndCobNavigation } from "./cob/CobNavGuard";
 import { CobPanel } from "./cob/CobPanel";
 import { startCobChartAutoFit } from "./cob/chart-auto-fit";
+import { initBugReportOutbox } from "./data/bug-report-outbox";
 import {
   getStreamingVersions,
   refreshStreamingVersions,
@@ -67,6 +68,7 @@ import { loadAllSearchIndices, type SearchEntry } from "./data/search-index";
 import { getChartFile, listStoredCharts } from "./data/tile-store";
 import { appErrorLog, formatErrorDetail } from "./diagnostics/errorLog";
 import { BearingLine } from "./map/BearingLine";
+import { getMode } from "./map/InteractionMode";
 import { MeasurementLayer } from "./map/MeasurementLayer";
 import { installPinchZoomGuard } from "./map/pinch-zoom-guard";
 import { PlottingLayer } from "./map/plotting/PlottingLayer";
@@ -1334,6 +1336,9 @@ if (Capacitor.isNativePlatform()) {
   const returnDetector = createIdleDetector(AUTO_RETURN_IDLE_MS);
   const autoReturnNow = () => {
     if (!getSettings().autoReturnWhenIdle) return;
+    // A route edit in progress is work, not idleness — closing panels or
+    // recentering would yank the chart out from under the edit.
+    if (getMode() === "route-edit") return;
     // Busy closeables (a chart download, a track replay) report themselves
     // via isBusy() and are left open; skip recentering too so we don't yank
     // the view away from whatever they're mid-task on.
@@ -1371,6 +1376,8 @@ if (Capacitor.isNativePlatform()) {
 const routeLayer = new RouteLayer(chartManager.map);
 const routeEditor = new RouteEditor(chartManager.map, routeLayer);
 routeEditor.setSearchEntriesProvider(getSearchEntries);
+// Editing drops the chart to free mode; restore follow/course-up after.
+routeEditor.setChartModeControl(chartMode);
 const routePanel = new RouteManagerPanel(routeLayer, routeEditor);
 idleCloseables.push(routePanel);
 routePanel.setOnPreviewRoute((route) => {
@@ -1871,6 +1878,9 @@ maybeShowScreenTimeoutWarning().catch(console.error);
 
 // After an app update, show this version's changelog highlights once.
 maybeShowWhatsNew();
+
+// Upload any bug reports queued while offline (startup + online events).
+initBugReportOutbox();
 
 // Dim overlay layers (routes, waypoints, bearing line) in night/dusk themes.
 // See src/app/overlayDimming.ts (wires its own settings + style.load hooks).
