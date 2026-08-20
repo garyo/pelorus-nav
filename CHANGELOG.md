@@ -27,6 +27,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/).
   stays put when part of the route is already visible, and finishing or
   cancelling restores the previous follow mode. Navigation of the edited
   route re-targets the saved geometry.
+- While editing a route, other routes fade to thin background lines (no
+  labels or markers at full strength), so the edit handles are
+  unmistakably the only editable points. Their waypoints remain snap
+  targets, and everything returns to normal when the edit ends.
 - Spurious route points: the chart long-press menu no longer opens during
   editing, and neither a long motionless press nor the menu-dismissing
   tap adds a waypoint. Idle auto-return no longer interrupts an edit.
