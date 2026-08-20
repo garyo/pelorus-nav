@@ -4893,9 +4893,12 @@ body.eink-refresh-tick {
   color: #cc8844;
 }
 
-/* E-ink: static high-contrast black on white, no animation, countdown digits */
+/* E-ink: static, no animation, countdown digits. The button stays RED —
+   the BOOX Kaleido panel is color (just muted), and a big solid red area
+   reads clearly; the heavy black border keeps the edge crisp. Brighter
+   than the base red to survive the panel's desaturation. */
 [data-theme="eink"] .cob-btn {
-  background: #000;
+  background: #d00000;
   border: 3px solid #000;
   color: #fff;
   box-shadow: none;
