@@ -175,14 +175,15 @@ export class RouteManagerPanel {
       // Steer active navigation onto the saved geometry — the current
       // waypoint may have moved (or vanished) during the edit.
       this.activeNav?.noteRouteEdited(route);
-      this.detailPanel.show(route);
+      // Refresh the detail panel only where it stayed open through the
+      // edit (wide screens). On a phone the edit ends back on the clean
+      // chart — the user is done and wants the route, not its paperwork.
+      if (this.detailPanel.isOpen()) this.detailPanel.show(route);
     });
 
     editor.onCancel((existingId) => {
-      if (existingId) {
-        // Reload the original route from DB and re-show its detail panel
-        // (edit start closed every panel, so re-show unconditionally —
-        // cancelling should land the user back where editing began).
+      if (existingId && this.detailPanel.isOpen()) {
+        // Reload the original route from DB and re-show it
         getAllRoutes()
           .then((routes) => {
             const original = routes.find((r) => r.id === existingId);

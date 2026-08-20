@@ -1068,7 +1068,18 @@ export class RouteEditor {
       // own checkpoint, so the whole gesture undoes in one step.
       (index) => {
         const hit = this.resolveGrab(index);
-        if (!hit || "waypoint" in hit) {
+        if (!hit) {
+          this.checkpoint();
+          return;
+        }
+        if ("waypoint" in hit) {
+          // Select-before-move: a drag on an unselected waypoint selects it
+          // and goes no further, so a stray brush of a finger can't relocate
+          // a route point. Dragging the selected waypoint moves it.
+          if (this.selectedIndex !== hit.waypoint) {
+            this.select(hit.waypoint);
+            return false;
+          }
           this.checkpoint();
           return;
         }

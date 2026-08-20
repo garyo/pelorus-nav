@@ -15,6 +15,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/).
   unaffected.
 - Bug reports written while offline are saved on the device and sent
   automatically once the network is back.
+- Stopping navigation (map button or Escape) now asks for confirmation —
+  the floating button was too easy to hit by accident underway.
 
 ### Fixed
 - Route editing is much better behaved on phones: starting an edit closes
@@ -29,6 +31,9 @@ The format follows [Keep a Changelog](https://keepachangelog.com/).
   that menu adds a waypoint anymore — the main sources of mysterious extra
   route points. The idle auto-return also no longer closes panels or
   recenters the chart while a route edit is in progress.
+- While editing, a route point must be selected (one tap) before it can be
+  dragged — brushing a finger across the route can no longer silently move
+  a waypoint. The insert handles still drag directly.
 - With a downloaded street basemap, being offline no longer produces
   recurring "Can't load street maps" warnings about the online street
   layer it replaces.

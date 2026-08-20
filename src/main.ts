@@ -126,6 +126,7 @@ import { CenterCrosshair } from "./ui/CenterCrosshair";
 import { ChartCachePanel } from "./ui/ChartCachePanel";
 import { ChartInUseReadout } from "./ui/ChartInUseReadout";
 import { startChartUpdateNotifier } from "./ui/ChartUpdateNotifier";
+import { confirmStopNavigation } from "./ui/ConfirmStopNavDialog";
 import { ConnectionLogPanel } from "./ui/ConnectionLogPanel";
 import { createContextMenu } from "./ui/ContextMenu";
 import { maybeShowDisclaimer } from "./ui/DisclaimerDialog";
@@ -1440,15 +1441,23 @@ waypointPanel.setCobHooks({
   noteWaypointDeleted: (id) => cobManager.noteWaypointDeleted(id),
 });
 
-// Anything canceling navigation while it targets the COB point must go
-// through an explicit confirm — a crew-overboard return is never ended by a
-// stray Escape or cancel-button tap.
+// Anything canceling navigation via the map button or Escape goes through
+// an explicit confirm — the floating button is too easy to hit by accident
+// underway, and a crew-overboard return especially must never end on a
+// stray tap (COB gets its own stricter dialog).
 const guardNavCancel = (): boolean => {
-  if (!cobManager.isCobNavigation()) return false;
-  confirmEndCobNavigation()
-    .then((choice) => {
-      if (choice === "stop-nav") activeNav.stop();
-      else if (choice === "end-cob") return cobManager.resolve();
+  if (cobManager.isCobNavigation()) {
+    confirmEndCobNavigation()
+      .then((choice) => {
+        if (choice === "stop-nav") activeNav.stop();
+        else if (choice === "end-cob") return cobManager.resolve();
+      })
+      .catch(console.error);
+    return true;
+  }
+  confirmStopNavigation()
+    .then((stop) => {
+      if (stop) activeNav.stop();
     })
     .catch(console.error);
   return true;

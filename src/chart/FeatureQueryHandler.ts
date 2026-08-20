@@ -1,6 +1,6 @@
 import type * as maplibregl from "maplibre-gl";
 import { getVectorSourceIds } from "../data/chart-catalog";
-import { getMode } from "../map/InteractionMode";
+import { getMode, onModeChange } from "../map/InteractionMode";
 import { type PickRegistry, pickBbox } from "../plugins/picking";
 import type { ChartManager } from "./ChartManager";
 import { FeatureInfoPanel } from "./FeatureInfoPanel";
@@ -321,6 +321,13 @@ export class FeatureQueryHandler {
     this.panel.onClose = () => this.dismiss();
 
     this.map.on("click", (e: maplibregl.MapMouseEvent) => this.handleClick(e));
+
+    // A mode takeover (route editing, measurement, plotting) claims the
+    // whole map — the info card must not linger over it. Notably: tapping a
+    // route point opens this card, whose actions lead to the route's Edit.
+    onModeChange((mode) => {
+      if (mode !== "query") this.dismiss();
+    });
 
     // Keep highlight layers fresh and invalidate the layer cache on reload.
     this.map.on("style.load", () => {

@@ -37,7 +37,10 @@ export type TapCallback = (featureIndex: number) => void;
  * the returned replacement index is interpreted against that *post-callback*
  * array — subsequent onDrag calls index into it.
  */
-export type DragStartCallback = (index: number) => number | void;
+/** Return a number to hand the gesture to a different index (ghost →
+ *  freshly inserted point), `false` to reject the drag entirely (the
+ *  gesture ends; nothing moves), or void to proceed as-is. */
+export type DragStartCallback = (index: number) => number | void | false;
 
 /** Fired when a gesture ends (mouse up / touch end), including taps. */
 export type DragEndCallback = () => void;
@@ -388,7 +391,7 @@ export class DraggablePoints {
       e.point.x + this.dragOffsetX,
       e.point.y + this.dragOffsetY,
     ]);
-    this.noteGestureMoved();
+    if (!this.noteGestureMoved()) return;
     this.onDrag(this.dragIndex, lngLat);
   }
 
@@ -457,15 +460,22 @@ export class DraggablePoints {
       touch.clientX - rect.left + this.dragOffsetX,
       touch.clientY - rect.top + this.dragOffsetY,
     ]);
-    this.noteGestureMoved();
+    if (!this.noteGestureMoved()) return;
     this.onDrag(this.dragIndex, lngLat);
   }
 
-  private noteGestureMoved(): void {
-    if (this.movedThisGesture) return;
+  /** Returns false when the drag was rejected by onDragStart (gesture ends,
+   *  the pending onDrag must not fire). */
+  private noteGestureMoved(): boolean {
+    if (this.movedThisGesture) return this.dragging;
     this.movedThisGesture = true;
     const replacement = this.onDragStart?.(this.dragIndex);
+    if (replacement === false) {
+      this.endDrag();
+      return false;
+    }
     if (typeof replacement === "number") this.dragIndex = replacement;
+    return true;
   }
 
   private onTouchEnd(e: TouchEvent): void {
