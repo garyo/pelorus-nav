@@ -28,11 +28,16 @@ export const IHO_S52: Record<string, string> = {
   "lateral-port-spherical": "BOYSAW12",
   "lateral-stbd-spherical": "BOYSAW12",
 
-  // Preferred channel (banded) buoys — use lateral symbols for dominant color
-  // Red-green-red (preferred-port): dominant red = starboard lateral symbol
-  // Green-red-green (preferred-stbd): dominant green = port lateral symbol
-  "preferred-port": "BOYLAT14",
-  "preferred-stbd": "BOYLAT13",
+  // Preferred channel (junction) buoys — custom banded-simplified symbols
+  // (PELPRF*, issue #4): the official simplified set collapses these to the
+  // dominant-colour lateral symbol, hiding the junction. Body colour is the
+  // dominant (first) colour, band is the contrasting one.
+  // Red-green-red (preferred-port): red body, green band
+  // Green-red-green (preferred-stbd): green body, red band
+  "preferred-port": "PELPRF24",
+  "preferred-stbd": "PELPRF23",
+  "preferred-port-conical": "PELPRF14",
+  "preferred-stbd-conical": "PELPRF13",
 
   // Special buoys (shape-specific)
   // BOYSPP11 = spherical, BOYSPP15 = conical, BOYSPP25 = can, BOYSPP35 = pillar
@@ -1009,9 +1014,24 @@ export function buildLayerExpressions(
       const stbdSpherical = sp("lateral-stbd-spherical");
       const stbdPillar = sp("lateral-stbd-pillar");
       const stbdSpar = sp("lateral-stbd-spar");
-      // Preferred channel
+      // Preferred channel — banded symbols, shape-aware: conical gets the
+      // triangular banded variant; every other shape the can-shaped one.
       const prefPort = sp("preferred-port");
       const prefStbd = sp("preferred-stbd");
+      const prefPortShapeExpr = [
+        "match",
+        boyshp,
+        CONICAL,
+        sp("preferred-port-conical"),
+        prefPort,
+      ];
+      const prefStbdShapeExpr = [
+        "match",
+        boyshp,
+        CONICAL,
+        sp("preferred-stbd-conical"),
+        prefStbd,
+      ];
 
       const portShapeExpr = [
         "match",
@@ -1058,17 +1078,16 @@ export function buildLayerExpressions(
 
       const iconExpr = [
         "case",
-        // Preferred-channel buoys: use shape-aware icons with dominant color
-        // CATLAM=3 (pref stbd) = green dominant → port shape set (green)
-        // CATLAM=4 (pref port) = red dominant → stbd shape set (red)
+        // Preferred-channel buoys: banded symbols (green+red band for
+        // CATLAM=3 / GRG, red+green band for CATLAM=4 / RGR), shape-aware.
         ["==", ["get", "CATLAM"], CATLAM_PREF_STBD],
-        portShapeExpr,
+        prefStbdShapeExpr,
         ["==", ["get", "CATLAM"], CATLAM_PREF_PORT],
-        stbdShapeExpr,
+        prefPortShapeExpr,
         isPrefPort,
-        stbdShapeExpr,
+        prefPortShapeExpr,
         isPrefStbd,
-        portShapeExpr,
+        prefStbdShapeExpr,
         ["==", ["get", "CATLAM"], PORT],
         portShapeExpr,
         ["==", ["get", "CATLAM"], STBD],

@@ -3,8 +3,8 @@
     "height": 20,
     "pixelRatio": 1,
     "width": 16,
-    "x": 385,
-    "y": 227
+    "x": 408,
+    "y": 101
   },
   "ACHBRT07": {
     "height": 20,
@@ -59,8 +59,8 @@
     "height": 22,
     "pixelRatio": 1,
     "width": 14,
-    "x": 406,
-    "y": 137
+    "x": 403,
+    "y": 229
   },
   "BCNGEN03": {
     "height": 23,
@@ -73,15 +73,15 @@
     "height": 16,
     "pixelRatio": 1,
     "width": 9,
-    "x": 373,
-    "y": 209
+    "x": 459,
+    "y": 210
   },
   "BCNLAT16": {
     "height": 16,
     "pixelRatio": 1,
     "width": 9,
-    "x": 428,
-    "y": 99
+    "x": 468,
+    "y": 210
   },
   "BCNLAT21": {
     "height": 20,
@@ -101,15 +101,15 @@
     "height": 16,
     "pixelRatio": 1,
     "width": 9,
-    "x": 433,
-    "y": 115
+    "x": 470,
+    "y": 226
   },
   "BCNSPP21": {
     "height": 20,
     "pixelRatio": 1,
     "width": 6,
-    "x": 439,
-    "y": 66
+    "x": 438,
+    "y": 74
   },
   "BOYCAR01": {
     "height": 24,
@@ -157,8 +157,8 @@
     "height": 18,
     "pixelRatio": 1,
     "width": 18,
-    "x": 373,
-    "y": 191
+    "x": 385,
+    "y": 223
   },
   "BOYLAT23": {
     "height": 16,
@@ -178,15 +178,15 @@
     "height": 17,
     "pixelRatio": 1,
     "width": 17,
-    "x": 416,
-    "y": 0
+    "x": 442,
+    "y": 209
   },
   "BOYSPP11": {
     "height": 16,
     "pixelRatio": 1,
     "width": 16,
-    "x": 423,
-    "y": 70
+    "x": 424,
+    "y": 14
   },
   "BOYSPP15": {
     "height": 18,
@@ -206,15 +206,15 @@
     "height": 20,
     "pixelRatio": 1,
     "width": 14,
-    "x": 404,
-    "y": 61
+    "x": 442,
+    "y": 226
   },
   "BOYSPR01": {
     "height": 21,
     "pixelRatio": 1,
     "width": 13,
-    "x": 420,
-    "y": 128
+    "x": 404,
+    "y": 58
   },
   "BOYSPR03": {
     "height": 20,
@@ -227,15 +227,15 @@
     "height": 20,
     "pixelRatio": 1,
     "width": 13,
-    "x": 441,
-    "y": 197
+    "x": 414,
+    "y": 31
   },
   "BOYSPR12": {
     "height": 20,
     "pixelRatio": 1,
     "width": 13,
-    "x": 441,
-    "y": 217
+    "x": 417,
+    "y": 51
   },
   "BOYSUP02": {
     "height": 20,
@@ -248,8 +248,8 @@
     "height": 16,
     "pixelRatio": 1,
     "width": 16,
-    "x": 430,
-    "y": 17
+    "x": 427,
+    "y": 30
   },
   "BUIREL04": {
     "height": 12,
@@ -381,15 +381,15 @@
     "height": 21,
     "pixelRatio": 1,
     "width": 14,
-    "x": 417,
-    "y": 216
+    "x": 419,
+    "y": 203
   },
   "DSHAER11": {
     "height": 21,
     "pixelRatio": 1,
     "width": 14,
-    "x": 420,
-    "y": 188
+    "x": 428,
+    "y": 224
   },
   "ENTRES51": {
     "height": 41,
@@ -409,15 +409,15 @@
     "height": 20,
     "pixelRatio": 1,
     "width": 13,
-    "x": 417,
-    "y": 17
+    "x": 425,
+    "y": 71
   },
   "FLGSTF02": {
     "height": 20,
     "pixelRatio": 1,
     "width": 13,
-    "x": 417,
-    "y": 37
+    "x": 434,
+    "y": 127
   },
   "FLODLT01": {
     "height": 19,
@@ -451,8 +451,8 @@
     "height": 16,
     "pixelRatio": 1,
     "width": 16,
-    "x": 433,
-    "y": 0
+    "x": 445,
+    "y": 160
   },
   "FORSTC11": {
     "height": 18,
@@ -619,29 +619,29 @@
     "height": 17,
     "pixelRatio": 1,
     "width": 16,
-    "x": 424,
-    "y": 149
+    "x": 409,
+    "y": 79
   },
   "MONUMT12": {
     "height": 17,
     "pixelRatio": 1,
     "width": 16,
     "x": 424,
-    "y": 166
+    "y": 96
   },
   "MORFAC03": {
     "height": 12,
     "pixelRatio": 1,
     "width": 12,
-    "x": 436,
-    "y": 86
+    "x": 470,
+    "y": 242
   },
   "MORFAC04": {
     "height": 20,
     "pixelRatio": 1,
     "width": 14,
-    "x": 409,
-    "y": 81
+    "x": 456,
+    "y": 226
   },
   "MOSQUE01": {
     "height": 32,
@@ -669,7 +669,7 @@
     "pixelRatio": 1,
     "width": 16,
     "x": 430,
-    "y": 33
+    "y": 46
   },
   "OBSTRN01": {
     "height": 28,
@@ -703,8 +703,8 @@
     "height": 18,
     "pixelRatio": 1,
     "width": 18,
-    "x": 385,
-    "y": 209
+    "x": 394,
+    "y": 173
   },
   "OVFALL01": {
     "height": 14,
@@ -747,6 +747,34 @@
     "width": 29,
     "x": 139,
     "y": 42
+  },
+  "PELPRF13": {
+    "height": 18,
+    "pixelRatio": 1,
+    "width": 18,
+    "x": 394,
+    "y": 191
+  },
+  "PELPRF14": {
+    "height": 18,
+    "pixelRatio": 1,
+    "width": 18,
+    "x": 406,
+    "y": 137
+  },
+  "PELPRF23": {
+    "height": 16,
+    "pixelRatio": 1,
+    "width": 21,
+    "x": 373,
+    "y": 191
+  },
+  "PELPRF24": {
+    "height": 16,
+    "pixelRatio": 1,
+    "width": 21,
+    "x": 373,
+    "y": 207
   },
   "PELSLK01": {
     "height": 33,
@@ -822,8 +850,8 @@
     "height": 18,
     "pixelRatio": 1,
     "width": 12,
-    "x": 460,
-    "y": 16
+    "x": 459,
+    "y": 192
   },
   "PRICKE04": {
     "height": 18,
@@ -892,15 +920,15 @@
     "height": 14,
     "pixelRatio": 1,
     "width": 20,
-    "x": 417,
-    "y": 237
+    "x": 404,
+    "y": 17
   },
   "RETRFL02": {
     "height": 14,
     "pixelRatio": 1,
     "width": 19,
-    "x": 434,
-    "y": 183
+    "x": 428,
+    "y": 113
   },
   "RFNERY01": {
     "height": 27,
@@ -927,8 +955,8 @@
     "height": 16,
     "pixelRatio": 1,
     "width": 20,
-    "x": 394,
-    "y": 173
+    "x": 408,
+    "y": 121
   },
   "RTPBCN02": {
     "height": 25,
@@ -941,8 +969,8 @@
     "height": 13,
     "pixelRatio": 1,
     "width": 13,
-    "x": 423,
-    "y": 86
+    "x": 446,
+    "y": 192
   },
   "SILBUI11": {
     "height": 14,
@@ -955,8 +983,8 @@
     "height": 14,
     "pixelRatio": 1,
     "width": 20,
-    "x": 437,
-    "y": 237
+    "x": 416,
+    "y": 0
   },
   "SISTAT03": {
     "height": 20,
@@ -969,8 +997,8 @@
     "height": 12,
     "pixelRatio": 1,
     "width": 20,
-    "x": 446,
-    "y": 34
+    "x": 455,
+    "y": 0
   },
   "SNDWAV02": {
     "height": 8,
@@ -983,15 +1011,15 @@
     "height": 12,
     "pixelRatio": 1,
     "width": 12,
-    "x": 437,
-    "y": 98
+    "x": 438,
+    "y": 62
   },
   "SPRING02": {
     "height": 17,
     "pixelRatio": 1,
     "width": 15,
-    "x": 438,
-    "y": 49
+    "x": 440,
+    "y": 0
   },
   "STRPLT01": {
     "height": 11,
@@ -1011,8 +1039,8 @@
     "height": 18,
     "pixelRatio": 1,
     "width": 18,
-    "x": 391,
-    "y": 191
+    "x": 406,
+    "y": 155
   },
   "TNKFRM01": {
     "height": 30,
@@ -1032,15 +1060,15 @@
     "height": 27,
     "pixelRatio": 1,
     "width": 10,
-    "x": 418,
-    "y": 101
+    "x": 404,
+    "y": 31
   },
   "TOPMAR04": {
     "height": 27,
     "pixelRatio": 1,
     "width": 11,
-    "x": 409,
-    "y": 189
+    "x": 417,
+    "y": 229
   },
   "TOPMAR05": {
     "height": 36,
@@ -1116,15 +1144,15 @@
     "height": 29,
     "pixelRatio": 1,
     "width": 10,
-    "x": 414,
-    "y": 159
+    "x": 422,
+    "y": 173
   },
   "TOPMAR24": {
     "height": 28,
     "pixelRatio": 1,
     "width": 10,
-    "x": 431,
-    "y": 209
+    "x": 424,
+    "y": 137
   },
   "TOPMAR25": {
     "height": 37,
@@ -1158,8 +1186,8 @@
     "height": 30,
     "pixelRatio": 1,
     "width": 10,
-    "x": 408,
-    "y": 101
+    "x": 412,
+    "y": 173
   },
   "TOPMAR32": {
     "height": 40,
@@ -1186,8 +1214,8 @@
     "height": 22,
     "pixelRatio": 1,
     "width": 13,
-    "x": 404,
-    "y": 17
+    "x": 432,
+    "y": 165
   },
   "TOWERS03": {
     "height": 25,
@@ -1207,8 +1235,8 @@
     "height": 22,
     "pixelRatio": 1,
     "width": 13,
-    "x": 404,
-    "y": 39
+    "x": 433,
+    "y": 187
   },
   "TOWERS15": {
     "height": 30,
@@ -1242,15 +1270,15 @@
     "height": 16,
     "pixelRatio": 1,
     "width": 15,
-    "x": 449,
-    "y": 0
+    "x": 446,
+    "y": 176
   },
   "VEGATN04P": {
     "height": 13,
     "pixelRatio": 1,
     "width": 16,
-    "x": 464,
-    "y": 0
+    "x": 385,
+    "y": 241
   },
   "WATTUR02": {
     "height": 13,
@@ -1263,8 +1291,8 @@
     "height": 20,
     "pixelRatio": 1,
     "width": 16,
-    "x": 401,
-    "y": 227
+    "x": 403,
+    "y": 209
   },
   "WNDFRM61": {
     "height": 32,
@@ -1284,8 +1312,8 @@
     "height": 18,
     "pixelRatio": 1,
     "width": 14,
-    "x": 446,
-    "y": 16
+    "x": 443,
+    "y": 17
   },
   "WRECKS01": {
     "height": 17,
@@ -1298,8 +1326,8 @@
     "height": 13,
     "pixelRatio": 1,
     "width": 20,
-    "x": 418,
-    "y": 57
+    "x": 434,
+    "y": 147
   },
   "WRECKS05": {
     "height": 17,

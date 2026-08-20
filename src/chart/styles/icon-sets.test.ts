@@ -28,6 +28,8 @@ const REQUIRED_KEYS = [
   // Preferred channel
   "preferred-port",
   "preferred-stbd",
+  "preferred-port-conical",
+  "preferred-stbd-conical",
   // Special buoys
   "safewater",
   "special",
@@ -159,31 +161,33 @@ describe("BOYLAT icon resolution", () => {
 // ── Preferred channel buoys ────────────────────────────────────────────
 
 describe("BOYLAT preferred channel icon resolution", () => {
-  it("CATLAM=3 (pref stbd, green dominant) pillar → green rectangular", () => {
-    expect(resolveIcon("BOYLAT", { CATLAM: 3, BOYSHP: 4 })).toBe("BOYLAT23");
+  // Banded custom symbols (issue #4): green body + red band for pref-stbd,
+  // red body + green band for pref-port; conical gets the triangle variant.
+  it("CATLAM=3 (pref stbd, green dominant) pillar → banded green rectangular", () => {
+    expect(resolveIcon("BOYLAT", { CATLAM: 3, BOYSHP: 4 })).toBe("PELPRF23");
   });
 
-  it("CATLAM=3 (pref stbd, green dominant) conical → green triangular", () => {
-    expect(resolveIcon("BOYLAT", { CATLAM: 3, BOYSHP: 1 })).toBe("BOYLAT13");
+  it("CATLAM=3 (pref stbd, green dominant) conical → banded green triangular", () => {
+    expect(resolveIcon("BOYLAT", { CATLAM: 3, BOYSHP: 1 })).toBe("PELPRF13");
   });
 
-  it("CATLAM=4 (pref port, red dominant) pillar → red rectangular", () => {
-    expect(resolveIcon("BOYLAT", { CATLAM: 4, BOYSHP: 4 })).toBe("BOYLAT24");
+  it("CATLAM=4 (pref port, red dominant) pillar → banded red rectangular", () => {
+    expect(resolveIcon("BOYLAT", { CATLAM: 4, BOYSHP: 4 })).toBe("PELPRF24");
   });
 
-  it("CATLAM=4 (pref port, red dominant) conical → red triangular", () => {
-    expect(resolveIcon("BOYLAT", { CATLAM: 4, BOYSHP: 1 })).toBe("BOYLAT14");
+  it("CATLAM=4 (pref port, red dominant) conical → banded red triangular", () => {
+    expect(resolveIcon("BOYLAT", { CATLAM: 4, BOYSHP: 1 })).toBe("PELPRF14");
   });
 
   // Colour-based preferred channel detection (no CATLAM)
-  it("green-red colour pattern → green shape (port set)", () => {
+  it("green-red colour pattern → banded green shape", () => {
     const icon = resolveIcon("BOYLAT", { COLOUR: "4,3", BOYSHP: 2 });
-    expect(icon).toBe("BOYLAT23"); // port can = green rectangular
+    expect(icon).toBe("PELPRF23");
   });
 
-  it("red-green colour pattern → red shape (stbd set)", () => {
+  it("red-green colour pattern → banded red shape", () => {
     const icon = resolveIcon("BOYLAT", { COLOUR: "3,4", BOYSHP: 2 });
-    expect(icon).toBe("BOYLAT24"); // stbd can = red rectangular
+    expect(icon).toBe("PELPRF24");
   });
 });
 

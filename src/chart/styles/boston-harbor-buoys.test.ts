@@ -98,8 +98,8 @@ describe("Boston Harbor preferred channel buoys (US5BOSCE)", () => {
       CATLAM: 3,
       COLOUR: "4,3,4",
     };
-    // Pref stbd = green dominant → port shape set (green) → pillar → BOYLAT23
-    expect(resolveIcon("BOYLAT", props)).toBe("BOYLAT23");
+    // Pref stbd = green dominant → banded green can shape (issue #4)
+    expect(resolveIcon("BOYLAT", props)).toBe("PELPRF23");
     expect(getDetail("BOYLAT", props, "Category")).toBe(
       "Preferred channel to starboard",
     );
@@ -116,8 +116,8 @@ describe("Boston Harbor preferred channel buoys (US5BOSCE)", () => {
       CATLAM: 4,
       COLOUR: "3,4,3",
     };
-    // Pref port = red dominant → stbd shape set (red) → pillar → BOYLAT24
-    expect(resolveIcon("BOYLAT", props)).toBe("BOYLAT24");
+    // Pref port = red dominant → banded red can shape (issue #4)
+    expect(resolveIcon("BOYLAT", props)).toBe("PELPRF24");
     expect(getDetail("BOYLAT", props, "Category")).toBe(
       "Preferred channel to port",
     );
@@ -134,8 +134,8 @@ describe("Boston Harbor preferred channel buoys (US5BOSCE)", () => {
       CATLAM: 3,
       COLOUR: "4,3,4",
     };
-    // Pref stbd = green dominant → port shape set → can → BOYLAT23
-    expect(resolveIcon("BOYLAT", props)).toBe("BOYLAT23");
+    // Pref stbd = green dominant → banded green can (issue #4)
+    expect(resolveIcon("BOYLAT", props)).toBe("PELPRF23");
     expect(getDetail("BOYLAT", props, "Appearance")).toBe(
       "Green, Red, Green Can",
     );
@@ -238,28 +238,26 @@ describe("BOYLAT shape consistency", () => {
   // Verify that ALL port can buoys get the same rectangular sprite,
   // ALL stbd conical buoys get the triangular sprite, etc.
   const portCans = [
-    { BOYSHP: 2, CATLAM: 1, name: "regular can" },
-    { BOYSHP: 2, CATLAM: 3, name: "preferred stbd can" },
+    { BOYSHP: 2, CATLAM: 1, name: "regular can", icon: "BOYLAT23" },
+    // Preferred-channel buoys get the banded symbol (issue #4)
+    { BOYSHP: 2, CATLAM: 3, name: "preferred stbd can", icon: "PELPRF23" },
   ];
 
-  for (const { BOYSHP, CATLAM, name } of portCans) {
-    it(`port ${name} → BOYLAT23 (green rectangular)`, () => {
-      expect(resolveIcon("BOYLAT", { BOYSHP, CATLAM, COLOUR: "4" })).toBe(
-        "BOYLAT23",
-      );
+  for (const { BOYSHP, CATLAM, name, icon } of portCans) {
+    it(`port ${name} → ${icon} (green rectangular)`, () => {
+      expect(resolveIcon("BOYLAT", { BOYSHP, CATLAM, COLOUR: "4" })).toBe(icon);
     });
   }
 
   const stbdConicals = [
-    { BOYSHP: 1, CATLAM: 2, name: "regular conical" },
-    { BOYSHP: 1, CATLAM: 4, name: "preferred port conical" },
+    { BOYSHP: 1, CATLAM: 2, name: "regular conical", icon: "BOYLAT14" },
+    // Preferred-channel conical gets the banded triangle (issue #4)
+    { BOYSHP: 1, CATLAM: 4, name: "preferred port conical", icon: "PELPRF14" },
   ];
 
-  for (const { BOYSHP, CATLAM, name } of stbdConicals) {
-    it(`stbd ${name} → BOYLAT14 (red triangular)`, () => {
-      expect(resolveIcon("BOYLAT", { BOYSHP, CATLAM, COLOUR: "3" })).toBe(
-        "BOYLAT14",
-      );
+  for (const { BOYSHP, CATLAM, name, icon } of stbdConicals) {
+    it(`stbd ${name} → ${icon} (red triangular)`, () => {
+      expect(resolveIcon("BOYLAT", { BOYSHP, CATLAM, COLOUR: "3" })).toBe(icon);
     });
   }
 });

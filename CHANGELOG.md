@@ -7,6 +7,15 @@ The format follows [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Fixed
+- Preferred-channel (junction) buoys now show their contrasting band on
+  the chart — a green can with a red band is no longer drawn identical to
+  a plain green can (thanks to Jesús Esgueva for the report, our first
+  outside issue!). The official simplified symbol set collapses these to
+  one color, so Pelorus uses its own banded variants of the simplified
+  symbols, in every theme including e-ink.
+
+
 ## [0.22.0] - 2026-08-20
 
 ### Added
