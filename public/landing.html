@@ -410,6 +410,43 @@ footer nav { display: flex; gap: 22px; }
     </div>
   </section>
 
+  <section id="hardware">
+    <div class="split">
+      <div>
+    <h2>Recommended hardware</h2>
+    <p class="section-lede">Pelorus Nav should run well on the phone already in your
+    pocket. But if you want a dedicated cockpit display,
+    this is the field-tested setup the app is developed on:</p>
+    <ul>
+      <li><b><a href="https://shop.boox.com/products/noteair3">BOOX Note Air 3C</a> (color e-ink tablet).</b>
+        Sunlight-readable, runs Pelorus Nav for over a day on a charge, and runs the Android
+      app natively. Pelorus Nav has a dedicated e-ink theme tuned for it:
+      high-contrast chart symbols and big touch targets. E-ink tablets have no
+      built-in GPS, so pair one of the receivers below.</li>
+      <li><b><a href="https://www.garmin.com/en-US/p/645104/">Garmin GLO 2</a> (Bluetooth GPS).</b> 10 position updates per second
+      from GPS + GLONASS, about 13 hours on a charge. Pair it in Android's
+      Bluetooth settings, then choose "Bluetooth GPS (NMEA)" in the app.</li>
+      <li><b><a href="https://www.dualav.com/product/gps-solutions/gps/xgps150a-universal-gps-receiver">Dual XGPS150A</a> (Bluetooth GPS).</b> Rugged, with a non-slip mount,
+      and switchable between Android/general mode and Apple mode (where it
+      feeds every iOS app system-wide). It reports its battery level, which
+      Pelorus Nav shows in GPS Diagnostics with a low-battery warning. USB mini charge port.</li>
+    </ul>
+      <p>Both receivers are tested regularly with the app on real
+    sails, and because they're Bluetooth you can just turn them on and
+    keep them in your bag. These are often available used on Ebay for
+    $60-90 or so. Most other Bluetooth NMEA receivers should work too.
+    I have no affiliation with any of these manufacturers, these are
+    just what are working well for me. The Dual should also work with
+    an iPad without a GPS, though I haven't tried that.
+    </p>
+      </div>
+      <div class="phone-frame">
+        <img src="/landing/boox-hardware.webp" width="600" height="705"
+          alt="A BOOX color e-ink tablet running Pelorus Nav in its high-contrast e-ink theme: the chart of Salem Sound with the Misery Islands and Bakers Island, buoys, soundings, and a plotted track" />
+      </div>
+    </div>
+  </section>
+
   <section id="open">
     <div class="open-band">
       <div>
@@ -433,17 +470,38 @@ footer nav { display: flex; gap: 22px; }
     </div>
   </section>
 
-  <section id="follow" class="follow">
-    <h2>Help steer it</h2>
-    <p class="section-lede">Pelorus Nav iOS and Android apps are in closed beta, and feedback
-    from sailors actually
-    using it is what shapes it: what works, what's missing, where it should go next.
-    Leave us an email below if you're interested in testing and we'll get you on the beta
-    for iOS or Android.
-    Try it on your boat, then tell us — <a
-    href="https://github.com/garyo/pelorus-nav/issues">open a GitHub issue</a>.
+  <section id="name">
+    <h2>Why "Pelorus"?</h2>
+    <p>A <b><a href="https://en.wikipedia.org/wiki/Pelorus_(instrument)">pelorus</a></b> is one of the oldest and simplest navigation
+    instruments: a compass card with sighting vanes and no needle — a "dumb
+    compass" — used to take bearings of a lighthouse, a headland or another ship,
+    relative to your own heading. It was standard equipment on ships' bridges
+    for centuries. Taking bearings on what you can
+    actually see is the heart of coastal navigation, and that spirit — a
+    simple, reliable instrument that helps you look outside the boat — is what
+    this app aims for.</p>
+    <p>Tradition says the instrument is named for <b>Pelorus, Hannibal's
+    pilot</b>. The story goes that as Hannibal's ship approached the Strait of
+    Messina, the passage looked closed, a dead-end bay — and Hannibal,
+    suspecting his pilot of treachery, had him killed. When the strait then
+    opened before them, Hannibal, in remorse, raised a monument to Pelorus on
+    the headland — which still bears his name today: Capo Peloro, the
+    northeastern tip of Sicily.</p>
+  </section>
 
-    (There's open <strong>hardware</strong> taking shape too — a
+  <section id="follow" class="follow">
+    <h2>Help steer it</h2> <p class="section-lede">Pelorus Nav iOS and
+    Android apps are in closed beta, and feedback from sailors
+    actually using it is what shapes it: what works, what's missing,
+    where it should go next. Leave us your email below if you're
+    interested in testing and we'll get back to you to add you to the
+    beta for iOS or Android. (On Android, please use the email you use
+    to log in to your phone).
+<br>
+    Try it on your boat, then tell us what you think — <a
+    href="https://github.com/garyo/pelorus-nav/issues">open a GitHub issue</a> or just send a bug report from within the app (Info > Send Bug Report).
+
+    (There's open <strong><a href="#hardware">hardware</a></strong> taking shape too — a
     sunlight-readable e-ink chartplotter — and the list hears about that first.)</p>
     <form class="signup" id="signup" action="/api/subscribe" method="post">
       <label class="hp" aria-hidden="true">Leave this empty
