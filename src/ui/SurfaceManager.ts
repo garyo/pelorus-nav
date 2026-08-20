@@ -176,6 +176,23 @@ export function registerSurface(s: SurfaceDecl): SurfaceHandle {
   return { opened: () => handleOpened(s) };
 }
 
+/**
+ * Close every open surface at once — for full-screen map takeovers like
+ * starting a route edit, where all the chrome must clear out of the way
+ * (phone screen space is the whole point). Deliberately closes pinned
+ * surfaces too: this is an explicit user action, not slot eviction.
+ * Priority surfaces (COB) are never closed.
+ */
+export function closeAllSurfaces(): void {
+  for (const s of surfaces) {
+    if (s.priority) continue;
+    if (s.isOpen()) {
+      s.close();
+      noteClosed(s.id);
+    }
+  }
+}
+
 /** Test hook: forget all surfaces (module-level state). */
 export function resetSurfacesForTest(): void {
   surfaces.length = 0;

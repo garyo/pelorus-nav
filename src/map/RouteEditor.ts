@@ -29,7 +29,8 @@ import {
 import type { SearchEntry } from "../data/search-index";
 import type { StandaloneWaypoint } from "../data/Waypoint";
 import { findNearestNamedFeature } from "../search/feature-search";
-import { getSettings } from "../settings";
+import { type ChartMode as ChartModeType, getSettings } from "../settings";
+import { closeAllSurfaces } from "../ui/SurfaceManager";
 import { haversineDistanceNM, initialBearingDeg } from "../utils/coordinates";
 import {
   abbreviateFeatureName,
@@ -68,6 +69,10 @@ const EXTEND_HANDLE_OFFSET_PX = 40;
  *  ghosts draw smaller than the waypoints, but a smaller target is no easier
  *  to hit, so they share one radius and the nearest handle wins. */
 const HANDLE_HIT_RADIUS = 22;
+/** A single-finger press at least this long is a hold, not a tap — its
+ *  lift-click must not place a waypoint. Matches the context-menu
+ *  long-press threshold so the two gestures classify consistently. */
+const LONG_TAP_IGNORE_MS = 450;
 
 /** A handle just beyond `end`, continuing the line away from `inner` —
  *  the extend-the-route grip at either end of the route. Positioned in
@@ -174,6 +179,30 @@ export class RouteEditor {
   private getSearchEntries: (() => SearchEntry[]) | null = null;
   /** Source of standalone waypoints for snap targets. */
   private getSnapWaypoints: (() => readonly StandaloneWaypoint[]) | null = null;
+  /** Chart-mode control (set from main.ts) for restoring follow/course-up
+   *  after an edit; editing drops to free so GPS ticks don't yank the map. */
+  private chartModeControl: {
+    getMode: () => ChartModeType;
+    setMode: (mode: ChartModeType) => void;
+  } | null = null;
+  /** The chart mode when editing started, restored on finish/cancel. */
+  private modeBeforeEdit: ChartModeType | null = null;
+  /** End time and duration of the last single-finger press on the canvas —
+   *  lets the click handler ignore the click a long motionless hold emits
+   *  on lift (a hold is never meant to place a waypoint). */
+  private lastTouch: { endMs: number; durationMs: number } | null = null;
+  private touchStartMs = 0;
+  private readonly touchStartListener = (e: TouchEvent): void => {
+    if (e.touches.length === 1) this.touchStartMs = Date.now();
+  };
+  private readonly touchEndListener = (): void => {
+    if (this.touchStartMs === 0) return;
+    this.lastTouch = {
+      endMs: Date.now(),
+      durationMs: Date.now() - this.touchStartMs,
+    };
+    this.touchStartMs = 0;
+  };
 
   constructor(map: maplibregl.Map, routeLayer: RouteLayer) {
     this.map = map;
@@ -344,6 +373,11 @@ export class RouteEditor {
       this.cleanup();
     }
 
+    // Editing takes over the whole map: close every open panel/dialog so
+    // nothing eats screen space (on a phone every pixel counts). The
+    // manager/detail panels come back when the edit ends.
+    closeAllSurfaces();
+
     // Hide the existing route display while editing — and its selection
     // halo with it, so the only route shape on screen is the live one.
     // suspendRoute is session-only: cancelling an edit of a route the user
@@ -367,14 +401,23 @@ export class RouteEditor {
     // mode so GPS ticks stop recentering on the vessel and yanking the map
     // out from under the edit (worst when the route is nowhere near the
     // boat). Same signal search / go-to fire. Do it before framing, so the
-    // fit below isn't immediately stomped by the next fix.
+    // fit below isn't immediately stomped by the next fix. Remember the
+    // mode so finishing the edit puts the user back underway.
+    this.modeBeforeEdit = this.chartModeControl?.getMode() ?? null;
     this.map.fire("pelorus:navigate" as never);
 
     // Frame an existing route before editing — appending to an off-screen
-    // route drops waypoints sight-unseen. Single-waypoint routes (context
-    // menu "start route here") skip it: the point is already on screen and
-    // a degenerate bbox would yank the camera to max zoom.
-    if (route && route.waypoints.length >= 2) {
+    // route drops waypoints sight-unseen. But if any part of the route is
+    // already on screen, leave the camera alone: someone underway nudging
+    // the waypoint ahead must not have the view yanked out to the whole
+    // route. Single-waypoint routes (context menu "start route here") skip
+    // it too: the point is already on screen and a degenerate bbox would
+    // yank the camera to max zoom.
+    if (
+      route &&
+      route.waypoints.length >= 2 &&
+      !this.routeIntersectsViewport(route)
+    ) {
       this.routeLayer.fitRoute(route);
     }
 
@@ -393,9 +436,32 @@ export class RouteEditor {
       () => this.route?.waypoints ?? [],
       () => this.addingPoints,
     );
+    // Track press durations so a long motionless hold's lift-click can be
+    // told apart from a deliberate tap (see clickHandler).
+    this.lastTouch = null;
+    this.touchStartMs = 0;
+    const canvas = this.map.getCanvas();
+    canvas.addEventListener("touchstart", this.touchStartListener, {
+      passive: true,
+    });
+    canvas.addEventListener("touchend", this.touchEndListener, {
+      passive: true,
+    });
 
     this.clickHandler = (e: maplibregl.MapMouseEvent) => {
       if (getMode() !== "route-edit" || !this.route) return;
+
+      // A long motionless press emits a click on lift, but a hold is never
+      // meant to place a waypoint — fat-finger holds were putting spurious
+      // points in routes. Only deliberate short taps pass.
+      const lt = this.lastTouch;
+      if (
+        lt &&
+        Date.now() - lt.endMs < 700 &&
+        lt.durationMs >= LONG_TAP_IGNORE_MS
+      ) {
+        return;
+      }
 
       // The mouse path. Touch never reaches here for a handle: DraggablePoints
       // consumes the gesture and suppresses the synthetic click, so the tap
@@ -781,6 +847,10 @@ export class RouteEditor {
       this.stopTapDiag();
       this.stopTapDiag = null;
     }
+    const canvas = this.map.getCanvas();
+    canvas.removeEventListener("touchstart", this.touchStartListener);
+    canvas.removeEventListener("touchend", this.touchEndListener);
+    this.lastTouch = null;
     this.route = null;
     this.selectedIndex = null;
     this.undoStack.clear();
@@ -789,6 +859,42 @@ export class RouteEditor {
     if (getMode() === "route-edit") {
       setMode("query");
     }
+    // Back underway: editing dropped the chart to free mode; if the user
+    // was in follow/course-up when they started, put them back there.
+    const restore = this.modeBeforeEdit;
+    this.modeBeforeEdit = null;
+    if (restore && restore !== "free" && this.chartModeControl) {
+      this.chartModeControl.setMode(restore);
+    }
+  }
+
+  /** True when any part of the route's bounding box is in the viewport. */
+  private routeIntersectsViewport(route: Route): boolean {
+    const b = this.map.getBounds();
+    let west = Infinity;
+    let south = Infinity;
+    let east = -Infinity;
+    let north = -Infinity;
+    for (const wp of route.waypoints) {
+      west = Math.min(west, wp.lon);
+      south = Math.min(south, wp.lat);
+      east = Math.max(east, wp.lon);
+      north = Math.max(north, wp.lat);
+    }
+    return (
+      west <= b.getEast() &&
+      east >= b.getWest() &&
+      south <= b.getNorth() &&
+      north >= b.getSouth()
+    );
+  }
+
+  /** Wire the chart-mode control (main.ts) for the post-edit mode restore. */
+  setChartModeControl(control: {
+    getMode: () => ChartModeType;
+    setMode: (mode: ChartModeType) => void;
+  }): void {
+    this.chartModeControl = control;
   }
 
   private notify(): void {

@@ -315,6 +315,26 @@ export class ActiveNavigationManager {
     }
   }
 
+  /**
+   * The navigated route was edited and saved — steer to the new geometry.
+   * Waypoints may have moved, been inserted, or deleted, so the old leg
+   * index is meaningless; re-derive the target from the current position
+   * exactly as when starting fresh on the route.
+   */
+  noteRouteEdited(route: Route): void {
+    if (this.state.type !== "route" || this.state.route.id !== route.id) {
+      return;
+    }
+    if (route.waypoints.length < 2) {
+      this.stop();
+      return;
+    }
+    logUiAction(`nav route re-targeted after edit (${route.name || "?"})`);
+    this.state = { type: "route", route, legIndex: this.pickStartLeg(route) };
+    this.persist();
+    this.recompute();
+  }
+
   /** The goto target waypoint was deleted — navigation to it must not survive. */
   noteWaypointDeleted(waypointId: string): void {
     if (

@@ -158,6 +158,9 @@ export function createContextMenu(deps: ContextMenuDeps): ContextMenuHandle {
 
   map.getCanvas().addEventListener("contextmenu", (e) => {
     e.preventDefault();
+    // No chart menu during route editing: every press there belongs to the
+    // edit gestures, and "Route from here" would discard the session.
+    if (getMode() === "route-edit") return;
     const dx = e.clientX - rightDownX;
     const dy = e.clientY - rightDownY;
     if (dx * dx + dy * dy > 25) return;
@@ -195,6 +198,11 @@ export function createContextMenu(deps: ContextMenuDeps): ContextMenuHandle {
           // A shorter hold on a waypoint arms first and claims the press:
           // picking a waypoint up must not also open the chart menu.
           if (isMapPressClaimed()) return;
+          // No chart menu during route editing — a hold there is a grab
+          // (or a fat-fingered tap), and the menu popping up mid-edit both
+          // startled users and left stray waypoints behind when the
+          // dismissing tap fell through to the chart.
+          if (getMode() === "route-edit") return;
           const rect = canvas.getBoundingClientRect();
           const lngLat = map.unproject([
             touchStartX - rect.left,

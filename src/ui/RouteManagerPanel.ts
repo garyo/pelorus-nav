@@ -172,12 +172,17 @@ export class RouteManagerPanel {
     });
 
     editor.onFinish((route) => {
+      // Steer active navigation onto the saved geometry — the current
+      // waypoint may have moved (or vanished) during the edit.
+      this.activeNav?.noteRouteEdited(route);
       this.detailPanel.show(route);
     });
 
     editor.onCancel((existingId) => {
-      if (existingId && this.detailPanel.isOpen()) {
-        // Reload the original route from DB and re-show it
+      if (existingId) {
+        // Reload the original route from DB and re-show its detail panel
+        // (edit start closed every panel, so re-show unconditionally —
+        // cancelling should land the user back where editing began).
         getAllRoutes()
           .then((routes) => {
             const original = routes.find((r) => r.id === existingId);
@@ -281,9 +286,15 @@ export class RouteManagerPanel {
    *  consistent — the list closing on edit shouldn't depend on which pencil
    *  you tapped. */
   private beginEdit(route: Route): void {
+    // startEditing closes every surface — the map is the whole workspace.
+    // On a wide screen the detail panel earns its place back as a live leg
+    // table beside the edit; on a phone it eats the map, so it stays
+    // closed until the edit ends (finish/cancel re-show it).
     this.editor.startEditing(route);
-    const liveRoute = this.editor.getRoute();
-    if (liveRoute) this.detailPanel.show(liveRoute);
+    if (window.matchMedia("(min-width: 769px)").matches) {
+      const liveRoute = this.editor.getRoute();
+      if (liveRoute) this.detailPanel.show(liveRoute);
+    }
     this.hide();
   }
 

@@ -2,6 +2,7 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { uiActionLog } from "../diagnostics/uiActionLog";
 import {
+  closeAllSurfaces,
   registerSurface,
   resetSurfacesForTest,
   type SurfaceDecl,
@@ -48,6 +49,25 @@ describe("SurfaceManager", () => {
   beforeEach(() => {
     resetSurfacesForTest();
     document.body.innerHTML = "";
+  });
+
+  it("closeAllSurfaces closes everything but priority surfaces", () => {
+    const a = makeSurface("a");
+    const b = makeSurface("b", { slot: "bottom-center" });
+    const pinned = makeSurface("pinned", { pinned: () => true });
+    const cob = makeSurface("cob", { priority: true });
+    a.opened();
+    b.opened();
+    pinned.opened();
+    cob.opened();
+
+    closeAllSurfaces();
+    // Pinned protects only against slot eviction; a full clear (route edit
+    // taking over the map) closes pinned surfaces too. Priority survives.
+    expect(a.open).toBe(false);
+    expect(b.open).toBe(false);
+    expect(pinned.open).toBe(false);
+    expect(cob.open).toBe(true);
   });
 
   it("evicts other groups in the same slot on open", () => {

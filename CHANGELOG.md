@@ -13,8 +13,25 @@ The format follows [Keep a Changelog](https://keepachangelog.com/).
   Diagnostics panel shows the reported voltage and charge percentage.
   Only Dual XGPS receivers report battery level; other devices are
   unaffected.
+- Bug reports written while offline are saved on the device and sent
+  automatically once the network is back.
 
 ### Fixed
+- Route editing is much better behaved on phones: starting an edit closes
+  open panels to clear the screen (on larger screens the route detail
+  panel stays open as a live leg table), the camera no longer jumps out to
+  frame the whole route when part of it is already on screen, and
+  finishing or cancelling an edit returns the chart to the follow mode it
+  was in. Navigating the edited route re-targets the updated geometry when
+  you save.
+- The chart long-press menu no longer pops up in the middle of route
+  editing, and neither a long motionless press nor the tap that dismissed
+  that menu adds a waypoint anymore — the main sources of mysterious extra
+  route points. The idle auto-return also no longer closes panels or
+  recenters the chart while a route edit is in progress.
+- With a downloaded street basemap, being offline no longer produces
+  recurring "Can't load street maps" warnings about the online street
+  layer it replaces.
 - On screens a bit wider than a phone (e.g. an e-ink tablet in landscape),
   enabling the volume-key Lock button could push top-bar buttons off the
   edge of the screen with no menu to reach them. The top bar now collapses

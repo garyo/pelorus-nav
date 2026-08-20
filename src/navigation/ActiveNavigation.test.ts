@@ -187,6 +187,41 @@ describe("stop-on-delete", () => {
     expect(nav.getState().type).toBe("goto");
   });
 
+  it("noteRouteEdited re-targets navigation onto the saved geometry", () => {
+    const nav = makeNav();
+    nav.startRoute(route, 1);
+
+    const edited = {
+      ...route,
+      waypoints: [
+        { id: "w1", name: "A", lat: 42.0, lon: -71.0 },
+        { id: "w3", name: "Inserted", lat: 42.05, lon: -71.02 },
+        { id: "w2", name: "B", lat: 42.1, lon: -71.0 },
+      ],
+    } as unknown as Route;
+    nav.noteRouteEdited(edited);
+    const state = nav.getState();
+    expect(state.type).toBe("route");
+    if (state.type === "route") {
+      expect(state.route.waypoints).toHaveLength(3);
+      // No GPS in this fake → pickStartLeg falls back to leg 1
+      expect(state.legIndex).toBe(1);
+    }
+  });
+
+  it("noteRouteEdited ignores other routes and stops on a gutted route", () => {
+    const nav = makeNav();
+    nav.startRoute(route, 1);
+    nav.noteRouteEdited({ ...route, id: "other" } as unknown as Route);
+    expect(nav.getState().type).toBe("route");
+
+    nav.noteRouteEdited({
+      ...route,
+      waypoints: [route.waypoints[0]],
+    } as unknown as Route);
+    expect(nav.getState().type).toBe("idle");
+  });
+
   it("noteWaypointDeleted stops a goto to the deleted waypoint only", () => {
     const nav = makeNav();
     nav.startGoto({ id: "w9", name: "WP", lat: 42.0, lon: -71.0 });
