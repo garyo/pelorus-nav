@@ -8,53 +8,43 @@ The format follows [Keep a Changelog](https://keepachangelog.com/).
 ## [Unreleased]
 
 ### Added
-- A small low-battery marker appears next to the GPS status dot when a
-  connected Bluetooth GPS reports less than 10% charge, and the GPS
-  Diagnostics panel shows the reported voltage and charge percentage.
-  Only Dual XGPS receivers report battery level; other devices are
-  unaffected.
-- Bug reports written while offline are saved on the device and sent
-  automatically once the network is back — retried on a timer and on
-  returning to the app, since Android doesn't reliably announce the
-  network's return.
-- On phones, the menu button (☰) becomes an ✕ while Settings is open —
-  it acts as the close button there.
-- Stopping navigation (map button or Escape) now asks for confirmation —
-  the floating button was too easy to hit by accident underway.
-- Holding (or right-clicking) a point on the chart now acts on what's
-  under your finger. A lone waypoint is grabbed to move, as before; where
-  a route point or several objects share the spot — common when routes
-  are snapped onto marks — the menu names each choice: Move waypoint
-  "X", Edit route "Y" (opening the editor with that point selected),
-  above the usual chart actions. "Move waypoint" arms the point: drag it
-  to move, with Cancel and undo.
+- Bluetooth GPS battery: a low-battery marker next to the GPS status dot
+  below 10% charge, and voltage/percentage in GPS Diagnostics. Only Dual
+  XGPS receivers report battery level; other devices are unaffected.
+- Bug reports written offline are saved on the device and sent
+  automatically when the network returns.
+- Stopping navigation (map button or Escape) now asks for confirmation.
+- Holding (or right-clicking) a point on the chart acts on what's under
+  your finger: a lone waypoint is grabbed to move, as before; where a
+  route point or several objects share the spot, a menu names each
+  choice — Move waypoint "X" (drag to move, with undo), Edit route "Y"
+  (opens the editor with that point selected) — above the usual chart
+  actions.
 
 ### Fixed
-- Route editing is much better behaved on phones: starting an edit closes
-  open panels to clear the screen (on larger screens the route detail
-  panel stays open as a live leg table), the camera no longer jumps out to
-  frame the whole route when part of it is already on screen, and
-  finishing or cancelling an edit returns the chart to the follow mode it
-  was in. Navigating the edited route re-targets the updated geometry when
-  you save.
-- The chart long-press menu no longer pops up in the middle of route
-  editing, and neither a long motionless press nor the tap that dismissed
-  that menu adds a waypoint anymore — the main sources of mysterious extra
-  route points. The idle auto-return also no longer closes panels or
-  recenters the chart while a route edit is in progress.
-- With a downloaded street basemap, being offline no longer produces
-  recurring "Can't load street maps" warnings about the online street
-  layer it replaces.
-- On screens a bit wider than a phone (e.g. an e-ink tablet in landscape),
-  enabling the volume-key Lock button could push top-bar buttons off the
-  edge of the screen with no menu to reach them. The top bar now collapses
-  into the hamburger menu whenever its buttons don't fit, at any width.
+- Route editing on phones: starting an edit closes open panels (on larger
+  screens the detail panel stays open as a live leg table), the camera
+  stays put when part of the route is already visible, and finishing or
+  cancelling restores the previous follow mode. Navigation of the edited
+  route re-targets the saved geometry.
+- Spurious route points: the chart long-press menu no longer opens during
+  editing, and neither a long motionless press nor the menu-dismissing
+  tap adds a waypoint. Idle auto-return no longer interrupts an edit.
+- Cancelling a route edit started from the chart menu now restores the
+  route, and routes no longer blink out briefly after an edit.
+- Offline with a downloaded street basemap, no more recurring "Can't load
+  street maps" warnings.
+- Enabling the Lock button on screens slightly wider than a phone could
+  push top-bar buttons off-screen with no menu to reach them; the bar now
+  collapses into the hamburger whenever its buttons don't fit.
 
 ### Changed
-- Tide and current station popups now list three days of upcoming events
-  (was about one day); the list scrolls when it doesn't fit.
-- The Bluetooth GPS (NMEA) device chooser now explains that a device missing
-  from the list must first be paired in Android's Bluetooth settings.
+- Tide and current station popups list three days of events (was about
+  one day); the list scrolls when needed.
+- On phones, the menu button (☰) becomes ✕ while Settings is open — it
+  acts as the close button there.
+- The Bluetooth GPS device chooser explains that a missing device must be
+  paired in Android's Bluetooth settings first.
 
 ## [0.21.0] - 2026-08-17
 
