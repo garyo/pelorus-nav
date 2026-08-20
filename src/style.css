@@ -3390,6 +3390,70 @@ body {
   box-shadow: none;
 }
 
+/* e-ink: settings action buttons (Change…/View/Check rows) black-on-white */
+[data-theme="eink"] .settings-action-btn {
+  background: #fff;
+  color: #000;
+  border: 2px solid #000;
+  border-radius: 0;
+  font-weight: 700;
+}
+
+[data-theme="eink"] .settings-action-btn:hover {
+  background: #fff;
+  color: #000;
+}
+
+[data-theme="eink"] .settings-action-btn:disabled,
+[data-theme="eink"] .settings-action-btn:disabled:hover {
+  background: #fff;
+  color: #888;
+  border-color: #888;
+  opacity: 1;
+}
+
+/* e-ink: Find dialog — white card, black text, no translucency */
+[data-theme="eink"] .search-card {
+  background: #fff;
+  border: 2px solid #000;
+  border-radius: 0;
+}
+
+[data-theme="eink"] .search-input {
+  background: #fff;
+  color: #000;
+  border: 2px solid #000;
+  border-radius: 0;
+}
+
+[data-theme="eink"] .search-input:focus {
+  border-color: #000;
+}
+
+[data-theme="eink"] .search-result-item {
+  color: #000;
+  border-radius: 0;
+}
+
+[data-theme="eink"] .search-result-item:hover,
+[data-theme="eink"] .search-result-item.active {
+  background: #000;
+  color: #fff;
+}
+
+[data-theme="eink"] .search-result-item:hover .search-result-type,
+[data-theme="eink"] .search-result-item:hover .search-result-dist,
+[data-theme="eink"] .search-result-item.active .search-result-type,
+[data-theme="eink"] .search-result-item.active .search-result-dist {
+  color: #fff;
+}
+
+[data-theme="eink"] .search-result-type,
+[data-theme="eink"] .search-result-dist,
+[data-theme="eink"] .search-status {
+  color: #333;
+}
+
 [data-theme="eink"] .settings-tab {
   color: #444444;
   border-radius: 0;
