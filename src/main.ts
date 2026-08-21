@@ -9,7 +9,7 @@ import { type AddProtocolAction, addProtocol, setWorkerUrl } from "maplibre-gl";
 import maplibreWorkerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url";
 import { BackgroundGPS } from "./plugins/BackgroundGPS";
 import "maplibre-gl/dist/maplibre-gl.css";
-import { PMTiles, Protocol } from "pmtiles";
+import { Protocol } from "pmtiles";
 import "./style.css";
 import { installFileOpenCapture } from "./app/fileOpenQueue";
 import { type IdleCloseable, runIdleAutoReturn } from "./app/idleAutoReturn";
@@ -24,25 +24,16 @@ import {
   OSMChartProvider,
   VectorChartProvider,
 } from "./chart";
-import {
-  basemapRegionsFromFilenames,
-  loadBasemapCoverage,
-  setStoredBasemaps,
-} from "./chart/basemap-underlay";
+import { loadBasemapCoverage } from "./chart/basemap-underlay";
 import { reportChartFetch } from "./chart/ChartLoadMonitor";
-import { deriveImportedRasterCharts } from "./chart/imported-charts";
 import { LightSectorLayer } from "./chart/LightSectorLayer";
+import { createOfflineChartRegistry } from "./chart/offline-protocol";
 import { registerOSMTileProtocol } from "./chart/osm-tile-cache";
 import {
   makeOverzoomHandler,
   OVERZOOM_SCHEME,
 } from "./chart/overzoom-protocol";
 import { PelLightLayer } from "./chart/PelLightLayer";
-import {
-  rasterChartsFromFilenames,
-  setImportedRasterCharts,
-  setStoredRasterCharts,
-} from "./chart/raster-charts";
 import { SafetyContour } from "./chart/SafetyContour";
 import { CobAlarm } from "./cob/CobAlarm";
 import { CobButton } from "./cob/CobButton";
@@ -55,23 +46,18 @@ import {
   getStreamingVersions,
   refreshStreamingVersions,
 } from "./data/chart-update-checker";
-import {
-  getAllRoutes,
-  getAllWaypoints,
-  repairTrackPointCounts,
-} from "./data/db";
-import { downloadFile } from "./data/file-io";
-import { OPFSSource } from "./data/opfs-source";
-import type { Route } from "./data/Route";
-import { chartAssetBase } from "./data/remote-url";
+import { getAllWaypoints, repairTrackPointCounts } from "./data/db";
 import { loadAllSearchIndices, type SearchEntry } from "./data/search-index";
-import { getChartFile, listStoredCharts } from "./data/tile-store";
-import { appErrorLog, formatErrorDetail } from "./diagnostics/errorLog";
+import { installConsoleHooks } from "./diagnostics/console-hooks";
 import { BearingLine } from "./map/BearingLine";
 import { getMode } from "./map/InteractionMode";
 import { MeasurementLayer } from "./map/MeasurementLayer";
 import { installPinchZoomGuard } from "./map/pinch-zoom-guard";
 import { PlottingLayer } from "./map/plotting/PlottingLayer";
+import {
+  installMapPositionPersistence,
+  loadSavedMapPosition,
+} from "./map/position-persistence";
 import { RouteEditor } from "./map/RouteEditor";
 import { RouteLayer } from "./map/RouteLayer";
 import { registerRouteWaypointPick } from "./map/route-waypoint-pick";
@@ -80,45 +66,26 @@ import { TrackRecorder } from "./map/TrackRecorder";
 import { TrackViewerLayer } from "./map/TrackViewerLayer";
 import { WaypointLayer } from "./map/WaypointLayer";
 import {
-  BLENMEAProvider,
-  BrowserGeolocationProvider,
-  CapacitorBLENMEAProvider,
-  CapacitorGPSProvider,
-  CapacitorSPPNMEAProvider,
   hasSatelliteDiagnostics,
   type NavigationData,
   NavigationDataManager,
-  SignalKProvider,
-  SimulatorProvider,
-  WebSerialNMEAProvider,
 } from "./navigation";
 import { ActiveNavigationManager } from "./navigation/ActiveNavigation";
-import { connectionLog } from "./navigation/ConnectionEventLog";
 import {
   CourseSmoothing,
   einkBufferWindowMs,
 } from "./navigation/CourseSmoothing";
 import { gpsDiagLog } from "./navigation/GPSDiagnosticLog";
 import { GpsPowerManager } from "./navigation/GpsPowerManager";
-import type { ProviderNotice } from "./navigation/ProviderNotice";
+import { setupGpsProviders } from "./navigation/provider-setup";
 import { RegionAutoSwitch } from "./navigation/RegionAutoSwitch";
-import { REPLAY_TRACK } from "./navigation/replay-track";
-import {
-  BOSTON_HARBOR_ROUTE,
-  type SimulatorOptions,
-} from "./navigation/SimulatorProvider";
 import { createStationaryTracker } from "./navigation/stationary";
 import type { TopbarRegistrar } from "./plugins/host";
 import { LegendHost } from "./plugins/legend";
 import { BUILTIN_PLUGINS } from "./plugins/manifest";
 import { PluginManager } from "./plugins/PluginManager";
 import { PickRegistry } from "./plugins/picking";
-import {
-  getSettings,
-  onSettingsChange,
-  type SimulatorMode,
-  updateSettings,
-} from "./settings";
+import { getSettings, onSettingsChange, updateSettings } from "./settings";
 import { AboutDialog } from "./ui/AboutDialog";
 import { startAppUpdateNotifier } from "./ui/AppUpdateNotifier";
 import { CancelNavButton } from "./ui/CancelNavButton";
@@ -134,7 +101,7 @@ import { setImportLayers } from "./ui/gpx-import";
 import { installGpxFileOpen } from "./ui/gpx-open";
 import { installHardwareKeys } from "./ui/HardwareKeysController";
 import { createIdleDetector } from "./ui/IdleDetector";
-import { createInstrumentHUD, INSTRUMENTS } from "./ui/InstrumentHUD";
+import { createInstrumentHUD } from "./ui/InstrumentHUD";
 import {
   iconClock,
   iconGauge,
@@ -152,6 +119,7 @@ import {
   setIcon,
 } from "./ui/icons";
 import { NavigationHUD } from "./ui/NavigationHUD";
+import { registerNavInstruments } from "./ui/nav-instruments";
 import { trackInstrumentHUD } from "./ui/PanelStack";
 import { RecenterButton } from "./ui/RecenterButton";
 import { RouteManagerPanel } from "./ui/RouteManagerPanel";
@@ -171,13 +139,7 @@ import { WakeLockController } from "./ui/WakeLock";
 import { WaypointManagerPanel } from "./ui/WaypointManagerPanel";
 import { maybeShowWhatsNew } from "./ui/WhatsNewDialog";
 import { diag } from "./utils/diag";
-import { applyDeclination, bearingModeLabel } from "./utils/magnetic";
 import { createThermalMonitor } from "./utils/thermal";
-import {
-  convertSpeed,
-  formatNavDistanceNM,
-  speedUnitLabel,
-} from "./utils/units";
 import { ChartModeController } from "./vessel/ChartMode";
 import { CourseLine } from "./vessel/CourseLine";
 import { type CourseSnapshot, courseChanged } from "./vessel/course-gate";
@@ -295,78 +257,17 @@ addProtocol("local-glyphs", async (params) => {
   return { data: await resp.arrayBuffer() };
 });
 
-// Track which protocol entries are backed by OPFS files. A deleted chart's
-// entry must be REMOVED from the protocol — a stale entry serves an
-// OPFSSource over a deleted File (whose slice() rejects), so the region
-// renders blank until reload. With the key absent, the protocol auto-creates
-// a streaming FetchSource from the key URL — the correct fallback.
-const offlineProtocolKeys = new Set<string>();
-async function registerOfflineChart(filename: string): Promise<void> {
-  const file = await getChartFile(filename);
-  if (!file) {
-    // Listed in chart metadata but the OPFS file is gone/unreadable — the
-    // region silently streams instead, so leave a trace in diagnostics.
-    appErrorLog.log(
-      "chart-load",
-      "error",
-      `stored chart missing from OPFS: ${filename} (falling back to streaming)`,
-    );
-    return;
-  }
-  const key = `${chartAssetBase()}/${filename}`;
-  protocol.add(new PMTiles(new OPFSSource(file, key)));
-  offlineProtocolKeys.add(key);
-}
-// Retry hook for the chart-load failure banner: drop cached streaming
-// PMTiles instances so the style rebuild can refetch them — pmtiles caches
-// a rejected header promise forever, so after a network failure the cached
-// instance can never recover. OPFS-backed (downloaded) entries stay.
-function evictStreamingCharts(): void {
-  for (const key of protocol.tiles.keys()) {
-    if (!offlineProtocolKeys.has(key)) protocol.tiles.delete(key);
-  }
-}
-function pruneOfflineCharts(currentFilenames: string[]): void {
-  const current = new Set(
-    currentFilenames.map((f) => `${chartAssetBase()}/${f}`),
-  );
-  for (const key of offlineProtocolKeys) {
-    if (!current.has(key)) {
-      protocol.tiles.delete(key); // next request streams from the key URL
-      offlineProtocolKeys.delete(key);
-    }
-  }
-}
+// OPFS-backed offline charts in the PMTiles protocol (registration, retry
+// eviction, and the shared reload sequence) — see src/chart/offline-protocol.ts.
+const offlineCharts = createOfflineChartRegistry(protocol);
 
 // Register the cached OSM tile protocol (offline-capable raster underlay)
 registerOSMTileProtocol();
 
-// Load any offline PMTiles from OPFS before creating the map
-try {
-  const storedCharts = await listStoredCharts();
-  for (const chart of storedCharts) {
-    await registerOfflineChart(chart.filename);
-  }
-  setStoredBasemaps(
-    basemapRegionsFromFilenames(storedCharts.map((c) => c.filename)),
-  );
-  setStoredRasterCharts(
-    rasterChartsFromFilenames(storedCharts.map((c) => c.filename)),
-  );
-  setImportedRasterCharts(await deriveImportedRasterCharts(storedCharts));
-  // Before the map exists, so the initial style gets the right OSM cap
-  await loadBasemapCoverage(getSettings().activeRegion);
-} catch (err) {
-  // OPFS not available or unreadable — charts fall back to streaming. Not
-  // fatal, but a user with downloaded charts and no internet sees a blank
-  // chart with no other clue, so record why.
-  appErrorLog.log(
-    "chart-load",
-    "error",
-    `offline chart startup failed: ${formatErrorDetail(err)}`,
-  );
-  console.warn("[chart-load] offline chart startup failed:", err);
-}
+// Load any offline PMTiles from OPFS before creating the map — before the map
+// exists, so the initial style gets the right OSM cap. Failures (OPFS missing
+// or unreadable) are logged inside; charts fall back to streaming.
+await offlineCharts.reloadOfflineCharts();
 
 // Apply display theme to body element
 const applyDisplayTheme = (theme: string) => {
@@ -409,17 +310,7 @@ const activeRegionInfo = vectorProvider.getRegion();
 let prevActiveRegion = activeRegionInfo.id;
 
 // Restore saved map position, falling back to the active region's default
-const MAP_POS_KEY = "pelorus-nav-map-position";
-const savedPos = (() => {
-  try {
-    const raw = localStorage.getItem(MAP_POS_KEY);
-    if (raw)
-      return JSON.parse(raw) as { center: [number, number]; zoom: number };
-  } catch {
-    /* ignore */
-  }
-  return null;
-})();
+const savedPos = loadSavedMapPosition();
 
 const chartManager = new ChartManager({
   container: "map",
@@ -432,8 +323,8 @@ const chartManager = new ChartManager({
     vectorProvider,
   ],
   initialProviderId: "s57-vector",
-  hasOfflineCharts: () => offlineProtocolKeys.size > 0,
-  onChartRetry: evictStreamingCharts,
+  hasOfflineCharts: offlineCharts.hasOfflineCharts,
+  onChartRetry: offlineCharts.evictStreamingCharts,
 });
 
 // Re-pin streaming regions when the server has newer charts. Runs once at
@@ -468,33 +359,9 @@ if (import.meta.env.DEV) {
   );
 }
 
-// Persist map position (throttled — moveend fires ~10 Hz underway in follow
-// mode, and each write is a synchronous localStorage round-trip). The
-// throttle is non-re-arming so persistence can't be starved; flushed on
-// hide/pagehide so a reload restores a fresh position.
-const MAP_POS_SAVE_MS = 5_000;
-let mapPosSaveTimer: ReturnType<typeof setTimeout> | null = null;
-const saveMapPosition = (): void => {
-  const c = chartManager.map.getCenter();
-  localStorage.setItem(
-    MAP_POS_KEY,
-    JSON.stringify({
-      center: [c.lng, c.lat],
-      zoom: chartManager.map.getZoom(),
-    }),
-  );
-};
-chartManager.map.on("moveend", () => {
-  if (mapPosSaveTimer) return;
-  mapPosSaveTimer = setTimeout(() => {
-    mapPosSaveTimer = null;
-    saveMapPosition();
-  }, MAP_POS_SAVE_MS);
-});
-window.addEventListener("pagehide", saveMapPosition);
-document.addEventListener("visibilitychange", () => {
-  if (document.visibilityState === "hidden") saveMapPosition();
-});
+// Persist map position across reloads (throttled; flushed on hide/pagehide)
+// — see src/map/position-persistence.ts.
+installMapPositionPersistence(chartManager.map);
 
 // Watches CPU/thermal pressure via the Compute Pressure API; falls back to
 // "nominal" on browsers that don't expose `PressureObserver`. Drives both
@@ -574,15 +441,9 @@ const topbarMenu = document.getElementById("topbar-menu");
 const topbarActions = document.getElementById("topbar-actions");
 const satellitePanel = new SatelliteStatusPanel();
 const connectionLogPanel = new ConnectionLogPanel();
-// The concrete BLE provider instance (assigned at registration below) — the
-// settings panel's Change… button and the banner actions need its
-// pickNewDevice/promptEnableBluetooth, which NavigationDataProvider omits.
-let bleProvider: CapacitorBLENMEAProvider | BLENMEAProvider | null = null;
-// Bluetooth Classic SPP receivers (e.g. Garmin GLO) — native builds only.
-let sppProvider: CapacitorSPPNMEAProvider | null = null;
-// Banner ids shown by any provider notice — hidden en masse on provider
-// switch so stale banners never linger on e-ink.
-const shownNoticeBanners = new Set<string>();
+// The callbacks below reference `gps` (the provider setup, created in the
+// Navigation section further down) — safe despite the const being declared
+// later, since they only run on user interaction, well after setup.
 const settingsHandle = topbarMenu
   ? createSettingsPanel(topbarMenu, {
       chartProviders: {
@@ -602,9 +463,9 @@ const settingsHandle = topbarMenu
         reset: () => navManager.resetActiveProvider(),
         changeDevice: () => {
           if (getSettings().gpsSource === "bt-spp") {
-            void sppProvider?.pickNewDevice();
+            void gps.sppProvider?.pickNewDevice();
           } else {
-            void bleProvider?.pickNewDevice();
+            void gps.bleProvider?.pickNewDevice();
           }
         },
       },
@@ -612,9 +473,9 @@ const settingsHandle = topbarMenu
         // In custom mode, re-read the SIMULATOR route so "edit course →
         // Restart" picks up the changes; setWaypoints rewinds implicitly.
         if (getSettings().simulatorMode === "custom") {
-          void applySimulatorMode("custom");
+          void gps.applySimulatorMode("custom");
         } else {
-          simulator.restart();
+          gps.simulator.restart();
         }
       },
       openSatelliteDiagnostics: () => {
@@ -684,245 +545,17 @@ if (topbarMenu) {
 
 // --- Navigation system ---
 
-/**
- * Parse a `?simStart=lat,lon` URL query and, if present, prepend that
- * coordinate to the simulator's default route so the sim boat begins
- * its trip there. Useful for verifying nav-resume behaviour from
- * arbitrary positions without editing code. Returns undefined (→
- * default sim options) when the param is missing or malformed.
- *
- * Example:
- *   http://localhost:5173/?simStart=42.334504,-70.968894
- */
-function buildSimulatorOptions(): Partial<SimulatorOptions> {
-  // Both motion models are always configured; the "simulatorMode" setting
-  // (replay = a real recorded sail whose true turn rates and speed changes
-  // exercise the GPS pipeline, route = the synthetic 6 kn harbor loop,
-  // custom = the user's own route named SIMULATOR) picks which one runs,
-  // switchable live from Settings. "custom" runs the provider in route mode;
-  // applySimulatorMode() swaps the waypoints in once IndexedDB has answered.
-  const defaults: Partial<SimulatorOptions> = {
-    mode: getSettings().simulatorMode === "replay" ? "replay" : "route",
-    track: REPLAY_TRACK,
-  };
-  try {
-    const params = new URLSearchParams(window.location.search);
-    const raw = params.get("simStart");
-    if (!raw) return defaults;
-    const m = raw.match(/^\s*(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)\s*$/);
-    if (!m) {
-      console.warn("simStart: expected lat,lon — got", raw);
-      return defaults;
-    }
-    const lat = Number(m[1]);
-    const lon = Number(m[2]);
-    if (
-      Number.isNaN(lat) ||
-      Number.isNaN(lon) ||
-      Math.abs(lat) > 90 ||
-      Math.abs(lon) > 180
-    ) {
-      console.warn("simStart: out-of-range lat/lon", lat, lon);
-      return defaults;
-    }
-    // Dev-only: ?simMode=linear&simCog=<deg> holds the boat at simStart on a
-    // fixed heading (a steady pose for demos/screenshots — off-route with a
-    // divergent course so the route, bearing, and course lines read separately).
-    if (import.meta.env.DEV && params.get("simMode") === "linear") {
-      const cog = Number(params.get("simCog") ?? "0");
-      console.log(`sim linear: (${lat}, ${lon}) heading ${cog}°`);
-      return {
-        mode: "linear",
-        position: [lat, lon],
-        heading: cog,
-        track: REPLAY_TRACK,
-      };
-    }
-    console.log(`simStart override: simulator boat begins at (${lat}, ${lon})`);
-    // Prepend to the default loop and force route mode; the boat starts at
-    // simStart, continues to the loop's first waypoint, then cycles. A later
-    // change to the simulator-mode setting takes over from there.
-    return {
-      mode: "route",
-      waypoints: [[lat, lon], ...BOSTON_HARBOR_ROUTE],
-      track: REPLAY_TRACK,
-    };
-  } catch (e) {
-    console.warn("simStart parse failed:", e);
-    return defaults;
-  }
-}
-
-// Register available GPS providers
-const simulatorOptions = buildSimulatorOptions();
-const simulator = new SimulatorProvider(simulatorOptions);
-simulator.setSpeedMultiplier(getSettings().simulatorSpeed);
-let prevSimulatorMode = getSettings().simulatorMode;
-
-/**
- * Apply a simulator-mode setting to the provider. "custom" follows the
- * user's own route named SIMULATOR (design any course in the route editor,
- * then watch the sim sail it); the loop is closed back to its first waypoint
- * like the built-in harbor route. Falls back to the default loop, with a
- * banner, when no such route exists. Re-invoked by the Restart action in
- * custom mode so course edits are picked up without touching settings.
- */
-let applySimGeneration = 0;
-async function applySimulatorMode(mode: SimulatorMode): Promise<void> {
-  const generation = ++applySimGeneration;
-  if (mode === "custom") {
-    let custom: Route | undefined;
-    try {
-      const routes = await getAllRoutes();
-      custom = routes.find(
-        (r) =>
-          r.name.trim().toUpperCase() === "SIMULATOR" &&
-          r.waypoints.length >= 2,
-      );
-    } catch (e) {
-      console.warn("simulator: route lookup failed:", e);
-    }
-    // A newer call superseded this one while IndexedDB was answering —
-    // don't overwrite its waypoints/mode with this stale resolution.
-    if (generation !== applySimGeneration) return;
-    if (custom) {
-      hideStatusBanner("sim-custom-route");
-      const wps = custom.waypoints.map(
-        (w) => [w.lat, w.lon] as [number, number],
-      );
-      wps.push(wps[0]); // close the loop, like the built-in harbor route
-      simulator.setWaypoints(wps);
-      simulator.setMode("route");
-      return;
-    }
-    showStatusBanner({
-      id: "sim-custom-route",
-      message:
-        "No route named SIMULATOR (with 2+ waypoints) found — the simulator is using the built-in harbor loop.",
-    });
-  }
-  if (mode !== "replay") {
-    // route mode, or custom falling back: the default loop (including any
-    // ?simStart= prepend from boot).
-    simulator.setWaypoints(simulatorOptions.waypoints ?? BOSTON_HARBOR_ROUTE);
-  }
-  simulator.setMode(mode === "replay" ? "replay" : "route");
-}
-
-navManager.registerProvider(simulator);
-// A stored "custom" mode needs its route loaded from IndexedDB at boot.
-if (prevSimulatorMode === "custom") {
-  void applySimulatorMode("custom");
-}
-let capacitorGPS: CapacitorGPSProvider | null = null;
-if (CapacitorGPSProvider.isAvailable()) {
-  capacitorGPS = new CapacitorGPSProvider(
-    makeProviderNoticeHandler("capacitor-gps", "Device GPS"),
-  );
-  navManager.registerProvider(capacitorGPS);
-}
-// Browser geolocation works in both WebView and browser
-navManager.registerProvider(
-  new BrowserGeolocationProvider(
-    makeProviderNoticeHandler("browser-gps", "Browser GPS"),
-  ),
-);
-if (WebSerialNMEAProvider.isAvailable()) {
-  navManager.registerProvider(
-    new WebSerialNMEAProvider(
-      undefined,
-      makeProviderNoticeHandler("web-serial", "USB GPS"),
-    ),
-  );
-}
-// BLE NUS GPS pod ("ble-nmea"): native builds use the Capacitor plugin (the
-// Android WebView has no Web Bluetooth); the web/PWA uses Web Bluetooth.
-// Both surface connection conditions (Bluetooth off, picker cancelled,
-// connect failed) through persistent status banners — a silent BLE failure
-// on the water is a navigation hazard.
-connectionLog.setMirror((e) =>
-  diag("conn", `${e.src} ${e.type}${e.detail ? ` ${e.detail}` : ""}`),
-);
-function makeProviderNoticeHandler(
-  bannerPrefix: string,
-  providerLabel: string,
-): (notice: ProviderNotice) => void {
-  const show = (id: string, opts: Parameters<typeof showStatusBanner>[0]) => {
-    shownNoticeBanners.add(id);
-    showStatusBanner(opts);
-  };
-  return (notice: ProviderNotice): void => {
-    switch (notice.kind) {
-      case "bt-off":
-        show(`${bannerPrefix}-bt`, {
-          id: `${bannerPrefix}-bt`,
-          message: "Bluetooth is OFF — GPS pod unreachable",
-          actionLabel: Capacitor.isNativePlatform() ? "Turn On" : undefined,
-          onAction: Capacitor.isNativePlatform()
-            ? () => {
-                void (
-                  bleProvider as CapacitorBLENMEAProvider
-                )?.promptEnableBluetooth();
-              }
-            : undefined,
-        });
-        break;
-      case "bt-on":
-        hideStatusBanner(`${bannerPrefix}-bt`);
-        break;
-      case "connected":
-        hideStatusBanner(`${bannerPrefix}-bt`);
-        hideStatusBanner(`${bannerPrefix}-pick`);
-        hideStatusBanner(`${bannerPrefix}-conn`);
-        break;
-      case "picker-cancelled":
-        show(`${bannerPrefix}-pick`, {
-          id: `${bannerPrefix}-pick`,
-          message: `No ${providerLabel} chosen — GPS not connected`,
-          actionLabel: "Choose…",
-          onAction: () => {
-            hideStatusBanner(`${bannerPrefix}-pick`);
-            navManager.reconnectActiveProvider();
-          },
-        });
-        break;
-      case "connect-failed":
-        show(`${bannerPrefix}-conn`, {
-          id: `${bannerPrefix}-conn`,
-          message: `${providerLabel} not connected — ${notice.detail}`,
-          actionLabel: "Retry",
-          onAction: () => {
-            hideStatusBanner(`${bannerPrefix}-conn`);
-            navManager.reconnectActiveProvider();
-          },
-        });
-        break;
-    }
-  };
-}
-const handleBleNotice = makeProviderNoticeHandler("ble", "Bluetooth GPS");
-if (Capacitor.isNativePlatform()) {
-  bleProvider = new CapacitorBLENMEAProvider(handleBleNotice);
-  navManager.registerProvider(bleProvider);
-} else if (BLENMEAProvider.isAvailable()) {
-  bleProvider = new BLENMEAProvider(handleBleNotice);
-  navManager.registerProvider(bleProvider);
-}
-// Bluetooth Classic SPP NMEA ("bt-spp"): native only — the WebView has no
-// Bluetooth Classic API at all. Devices pair in Android settings; the in-app
-// chooser lists the bonded ones.
-if (Capacitor.isNativePlatform()) {
-  sppProvider = new CapacitorSPPNMEAProvider(
-    showSppDevicePicker,
-    makeProviderNoticeHandler("spp", "Bluetooth GPS"),
-  );
-  navManager.registerProvider(sppProvider);
-}
-const signalK = new SignalKProvider(
-  getSettings().signalkUrl,
-  makeProviderNoticeHandler("signalk", "Signal K"),
-);
-navManager.registerProvider(signalK);
+// Register available GPS providers (simulator with its ?simStart/?simCog URL
+// overrides, device/browser GPS, USB serial, BLE, Bluetooth Classic SPP,
+// Signal K) and their connection-notice banners. See
+// src/navigation/provider-setup.ts.
+const gps = setupGpsProviders({
+  navManager,
+  getSettings,
+  showStatusBanner,
+  hideStatusBanner,
+  showSppDevicePicker,
+});
 
 // Vessel display layer
 const vesselLayer = new VesselLayer(chartManager.map);
@@ -1099,6 +732,7 @@ const wakeLockCtrl = new WakeLockController();
 
 // React to chart mode changes from settings
 let prevGpsSource = getSettings().gpsSource;
+let prevSimulatorMode = getSettings().simulatorMode;
 onSettingsChange((s) => {
   if (s.chartMode !== chartMode.getMode()) {
     chartMode.setMode(s.chartMode);
@@ -1111,18 +745,17 @@ onSettingsChange((s) => {
     prevGpsSource = s.gpsSource;
     navManager.setActiveProvider(s.gpsSource);
     // Stale provider banners must not linger after switching sources.
-    for (const id of shownNoticeBanners) hideStatusBanner(id);
-    shownNoticeBanners.clear();
+    gps.hideShownNoticeBanners();
   }
-  simulator.setSpeedMultiplier(s.simulatorSpeed);
+  gps.simulator.setSpeedMultiplier(s.simulatorSpeed);
   // Prev-tracked (not just idempotent setMode) so a ?simStart= route-mode
   // override survives unrelated settings changes until the user explicitly
   // switches the simulator mode.
   if (s.simulatorMode !== prevSimulatorMode) {
     prevSimulatorMode = s.simulatorMode;
-    void applySimulatorMode(s.simulatorMode);
+    void gps.applySimulatorMode(s.simulatorMode);
   }
-  signalK.setUrl(s.signalkUrl);
+  gps.signalK.setUrl(s.signalkUrl);
   navManager.setRateMode(s.gpsRateMode, s.manualUpdateIntervalMs);
   navManager.setFilterMode(s.gpsFilterMode);
   applyGpsRateForTheme(s.displayTheme);
@@ -1348,8 +981,8 @@ onSettingsChange((s) => {
 void startRecorderAfterRepair();
 
 // Native GPS power management (visibility / recording / idle / theme driven).
-if (capacitorGPS) {
-  gpsPowerManager = new GpsPowerManager(capacitorGPS, trackRecorder);
+if (gps.capacitorGPS) {
+  gpsPowerManager = new GpsPowerManager(gps.capacitorGPS, trackRecorder);
   gpsPowerManager.start();
 }
 
@@ -1362,8 +995,8 @@ if (capacitorGPS) {
 const applyReconnectPacing = () => {
   const relaxed =
     document.visibilityState === "hidden" && !trackRecorder.isRecording();
-  bleProvider?.setReconnectPacing(relaxed);
-  sppProvider?.setReconnectPacing(relaxed);
+  gps.bleProvider?.setReconnectPacing(relaxed);
+  gps.sppProvider?.setReconnectPacing(relaxed);
 };
 document.addEventListener("visibilitychange", () => {
   const visible = document.visibilityState === "visible";
@@ -1592,75 +1225,10 @@ cobManager.subscribe(() => cobButton.refresh());
 chartManager.map.addControl(cobButton, "bottom-left");
 startCobChartAutoFit(chartManager.map, chartMode, cobManager, navManager);
 
-// Register nav-mode instruments (before restore so HUD is ready)
-INSTRUMENTS.set("brg", {
-  id: "brg",
-  label: "Bearing to wpt",
-  shortLabel: "BRG",
-  format(data, settings) {
-    const info = activeNav.getInfo();
-    const mode = settings.bearingMode;
-    const label = bearingModeLabel(mode);
-    // data is null when the fix is stale — info is then computed from a stale
-    // position, so blank like the motion instruments rather than freezing.
-    if (!info || !data) return { value: "--", unit: label };
-    const lat = data?.latitude ?? 0;
-    const lon = data?.longitude ?? 0;
-    const display = applyDeclination(info.bearingDeg, mode, lat, lon);
-    return {
-      value: `${Math.round(display).toString().padStart(3, "0")}\u00b0`,
-      unit: label,
-    };
-  },
-});
-
-INSTRUMENTS.set("dtw", {
-  id: "dtw",
-  label: "Dist to wpt",
-  shortLabel: "DTW",
-  format(data) {
-    const info = activeNav.getInfo();
-    // Blank on a stale fix (data null) — see the BRG formatter.
-    if (!info || !data) return { value: "--", unit: "NM" };
-    return { value: formatNavDistanceNM(info.distanceNM), unit: "NM" };
-  },
-});
-
-INSTRUMENTS.set("vmg", {
-  id: "vmg",
-  label: "Velocity made good",
-  shortLabel: "VMG",
-  format(data, settings) {
-    const info = activeNav.getInfo();
-    const unit = speedUnitLabel(settings.speedUnit);
-    // Blank on a stale fix (data null) — see the BRG formatter.
-    if (!info || !data || info.vmgKn == null) return { value: "--", unit };
-    const v = info.vmgKn;
-    const display =
-      v < 0
-        ? -convertSpeed(-v, settings.speedUnit)
-        : convertSpeed(v, settings.speedUnit);
-    return { value: display.toFixed(1), unit };
-  },
-});
-
-INSTRUMENTS.set("steer", {
-  id: "steer",
-  label: "Steer",
-  shortLabel: "STR",
-  format(data) {
-    const info = activeNav.getInfo();
-    // Blank on a stale fix (data null) — see the BRG formatter.
-    if (!info || !data || info.steerDeg == null)
-      return { value: "--", unit: "" };
-    const d = info.steerDeg;
-    if (Math.abs(d) < 1) return { value: "0\u00b0", unit: "" };
-    const mag = Math.round(Math.abs(d));
-    return d < 0
-      ? { value: `\u2190${mag}\u00b0`, unit: "" }
-      : { value: `${mag}\u00b0\u2192`, unit: "" };
-  },
-});
+// Register nav-mode instruments (before restore so HUD is ready). The four
+// activeNav-dependent instruments (BRG/DTW/VMG/STR) live in
+// src/ui/nav-instruments.ts; all base instruments are in InstrumentHUD.ts.
+registerNavInstruments(activeNav);
 
 // Wire HUD to show BRG/DTW cells during active navigation
 instrumentHUD.setActiveNav(activeNav);
@@ -1750,27 +1318,14 @@ if (topbarMenu) {
     // deleted charts so their regions fall back to streaming) + refresh
     // offline coverage. Awaited by the panel so its refresh() sees the
     // re-derived imported-chart list.
-    try {
-      const charts = await listStoredCharts();
-      pruneOfflineCharts(charts.map((c) => c.filename));
-      for (const chart of charts) {
-        await registerOfflineChart(chart.filename);
-      }
-      setStoredBasemaps(
-        basemapRegionsFromFilenames(charts.map((c) => c.filename)),
-      );
-      setStoredRasterCharts(
-        rasterChartsFromFilenames(charts.map((c) => c.filename)),
-      );
-      setImportedRasterCharts(await deriveImportedRasterCharts(charts));
-      await loadBasemapCoverage(getSettings().activeRegion);
-      await vectorProvider.loadAllOfflineCoverage();
-      // The downloaded set changed, so re-derive which regions stream
-      vectorProvider.setStreamingVersions(await getStreamingVersions());
-      chartManager.refreshStyle();
-    } catch {
-      // ignore
-    }
+    await offlineCharts.reloadOfflineCharts({
+      afterReload: async () => {
+        await vectorProvider.loadAllOfflineCoverage();
+        // The downloaded set changed, so re-derive which regions stream
+        vectorProvider.setStreamingVersions(await getStreamingVersions());
+        chartManager.refreshStyle();
+      },
+    });
   });
   cachePanel.setOnShowChart((chart) => {
     // Fit the chart's footprint, but never land below its minZoom — a fit
@@ -1985,44 +1540,7 @@ installGpxFileOpen({
   showWaypoints: () => waypointPanel.show(),
 });
 
-// ── GPS diagnostic logging ─────────────────────────────────────────
-// Expose on window for console/adb access:
-//   gpsDiag.start()          — begin recording
-//   gpsDiag.stop()           — stop recording
-//   gpsDiag.entryCount       — number of entries
-//   gpsDiag.download()       — download CSV via share/file save
-//   gpsDiag.csv()            — return CSV string (for console copy)
-const gpsDiag = {
-  start: () => gpsDiagLog.start(),
-  stop: () => gpsDiagLog.stop(),
-  get entryCount() {
-    return gpsDiagLog.entryCount;
-  },
-  csv: () => gpsDiagLog.toCSV(),
-  download: () => {
-    const csv = gpsDiagLog.toCSV();
-    const ts = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
-    downloadFile(csv, `gps-diag-${ts}.csv`, "text/csv");
-  },
-  clear: () => gpsDiagLog.clear(),
-};
-// Persistent connection event log (always on — survives restarts):
-//   bleLog.entryCount — number of entries
-//   bleLog.text()     — human-readable log
-//   bleLog.csv()      — CSV string
-//   bleLog.download() — export CSV via share/file save
-//   bleLog.clear()    — wipe the log
-const bleLog = {
-  get entryCount() {
-    return connectionLog.entryCount;
-  },
-  text: () => connectionLog.toText(),
-  csv: () => connectionLog.toCSV(),
-  download: () => {
-    const ts = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
-    downloadFile(connectionLog.toCSV(), `connection-log-${ts}.csv`, "text/csv");
-  },
-  clear: () => connectionLog.clear(),
-};
-Object.assign(window, { gpsDiag, bleLog });
-// To enable: run gpsDiag.start() in the browser console or Chrome DevTools.
+// Console diagnostic hooks: window.gpsDiag (GPS pipeline CSV log) and
+// window.bleLog (persistent connection event log) — see
+// src/diagnostics/console-hooks.ts.
+installConsoleHooks();
