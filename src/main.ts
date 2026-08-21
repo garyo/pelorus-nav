@@ -17,6 +17,7 @@ import {
   AnchorWatchManager,
   type AnchorWatchSnapshot,
 } from "./anchor/AnchorWatchManager";
+import { connectNativeAnchorWatch } from "./anchor/native-anchor-watch";
 import { installFileOpenCapture } from "./app/fileOpenQueue";
 import { type IdleCloseable, runIdleAutoReturn } from "./app/idleAutoReturn";
 import { installOverlayDimming } from "./app/overlayDimming";
@@ -1333,6 +1334,10 @@ chartManager.map.on("click", (e) => {
   if (getMode() !== "anchor" || anchorManager.isArmed()) return;
   anchorPanel.placeAnchorAt(e.lngLat.lat, e.lngLat.lng);
 });
+// Mirror the armed watch into the native foreground service so drag
+// detection and the alarm survive screen-off, when JS is suspended. No-op
+// on web.
+connectNativeAnchorWatch(anchorManager);
 // An armed watch also defers the idle app-update reload.
 const appUpdateBusyBase = appUpdateBusy;
 appUpdateBusy = () => appUpdateBusyBase() || anchorManager.isArmed();

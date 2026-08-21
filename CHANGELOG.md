@@ -19,7 +19,11 @@ The format follows [Keep a Changelog](https://keepachangelog.com/).
   can't look like a safe boat. Tap an alarm to silence it (the watch stays
   armed and re-alarms if the boat keeps moving); hold to disarm. The watch
   keeps running when you leave the mode, showing a corner badge, and
-  survives an app restart.
+  survives an app restart. On Android the watch keeps working with the
+  screen off and the app in the background: drag and GPS-loss detection
+  run in the background GPS service, and the alarm sounds on the alarm
+  volume with vibration and a lock-screen notification (with a Silence
+  button) until you acknowledge it in the app.
 - The instrument bar now shows distance to the route's destination while
   navigating, on the right of the "Next:" caption line. The caption text
   is slightly larger, too.

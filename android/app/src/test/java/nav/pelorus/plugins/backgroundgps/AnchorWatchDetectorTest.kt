@@ -1,0 +1,150 @@
+package nav.pelorus.plugins.backgroundgps
+
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
+import org.junit.Test
+
+/** Mirrors the JS AnchorWatchManager scenarios in AnchorWatchManager.test.ts. */
+class AnchorWatchDetectorTest {
+
+    private val anchorLat = 42.0
+    private val anchorLon = -71.0
+
+    /** Meters per degree of latitude at the shared haversine earth radius. */
+    private val metersPerDegLat = 111_194.93
+
+    private fun params(radiusM: Double = 50.0) = AnchorWatchParams(
+        lat = anchorLat,
+        lon = anchorLon,
+        radiusM = radiusM,
+        alarmDelayMs = 15_000L,
+        gpsLossAlarmMs = 120_000L,
+        reAlarmMarginM = 8.0,
+    )
+
+    /** Latitude of a position `meters` due north of the anchor. */
+    private fun latAt(meters: Double) = anchorLat + meters / metersPerDegLat
+
+    private fun fix(d: AnchorWatchDetector, meters: Double, atMs: Long) =
+        d.onFix(latAt(meters), anchorLon, atMs)
+
+    @Test
+    fun `stays quiet inside the radius`() {
+        val d = AnchorWatchDetector(params())
+        assertEquals(AnchorTransition.NONE, fix(d, 0.0, 1_000L))
+        assertEquals(AnchorTransition.NONE, fix(d, 40.0, 60_000L))
+        assertNull(d.alarmKind)
+        assertEquals(40.0, d.lastDistanceM, 0.5)
+    }
+
+    @Test
+    fun `drag alarms only after the delay elapses continuously`() {
+        val d = AnchorWatchDetector(params())
+        assertEquals(AnchorTransition.NONE, fix(d, 0.0, 0L))
+        assertEquals(AnchorTransition.NONE, fix(d, 55.0, 10_000L))
+        assertEquals(AnchorTransition.NONE, fix(d, 57.0, 20_000L))
+        assertEquals(AnchorTransition.DRAG_ALARM, fix(d, 58.0, 25_000L))
+        assertEquals(ANCHOR_ALARM_DRAG, d.alarmKind)
+    }
+
+    @Test
+    fun `re-entry inside the radius resets the excursion timer`() {
+        val d = AnchorWatchDetector(params())
+        fix(d, 0.0, 0L)
+        fix(d, 55.0, 10_000L)
+        assertEquals(AnchorTransition.NONE, fix(d, 10.0, 20_000L))
+        // Fresh excursion: the clock restarts, so 24 s after the first exit
+        // is still quiet.
+        assertEquals(AnchorTransition.NONE, fix(d, 55.0, 24_000L))
+        assertNull(d.alarmKind)
+        assertEquals(AnchorTransition.DRAG_ALARM, fix(d, 55.0, 40_000L))
+    }
+
+    @Test
+    fun `acknowledge silences but keeps watching`() {
+        val d = AnchorWatchDetector(params())
+        fix(d, 0.0, 0L)
+        fix(d, 55.0, 10_000L)
+        fix(d, 55.0, 30_000L)
+        assertEquals(ANCHOR_ALARM_DRAG, d.alarmKind)
+
+        assertTrue(d.acknowledge())
+        assertNull(d.alarmKind)
+
+        // Drifting a little more does not re-alarm...
+        assertEquals(AnchorTransition.NONE, fix(d, 58.0, 45_000L))
+        // ...but a further margin beyond the acknowledged distance does.
+        assertEquals(AnchorTransition.DRAG_ALARM, fix(d, 64.0, 60_000L))
+    }
+
+    @Test
+    fun `returning inside clears an acknowledged drag`() {
+        val d = AnchorWatchDetector(params())
+        fix(d, 0.0, 0L)
+        fix(d, 55.0, 10_000L)
+        fix(d, 55.0, 30_000L)
+        d.acknowledge()
+        assertEquals(AnchorTransition.CLEARED, fix(d, 10.0, 40_000L))
+        // Back to a clean slate: a new excursion needs the full delay again.
+        assertEquals(AnchorTransition.NONE, fix(d, 55.0, 50_000L))
+        assertEquals(AnchorTransition.DRAG_ALARM, fix(d, 55.0, 70_000L))
+    }
+
+    @Test
+    fun `gps loss alarms after the timeout, but never before the first fix`() {
+        val d = AnchorWatchDetector(params())
+        // Armed and blind from the start — never proven to work, so silence.
+        assertEquals(AnchorTransition.NONE, d.onTick(500_000L))
+        assertNull(d.alarmKind)
+
+        fix(d, 0.0, 600_000L)
+        assertEquals(AnchorTransition.NONE, d.onTick(700_000L))
+        assertEquals(AnchorTransition.GPS_LOSS_ALARM, d.onTick(720_000L))
+        assertEquals(ANCHOR_ALARM_GPS_LOSS, d.alarmKind)
+        assertEquals(720_000L, d.gpsLossDeadlineElapsedMs())
+    }
+
+    @Test
+    fun `a fix clears a gps-loss alarm`() {
+        val d = AnchorWatchDetector(params())
+        fix(d, 0.0, 0L)
+        assertEquals(AnchorTransition.GPS_LOSS_ALARM, d.onTick(130_000L))
+        assertEquals(AnchorTransition.CLEARED, fix(d, 5.0, 140_000L))
+        assertNull(d.alarmKind)
+    }
+
+    @Test
+    fun `acknowledged gps loss stays silent until a fix arrives`() {
+        val d = AnchorWatchDetector(params())
+        fix(d, 0.0, 0L)
+        d.onTick(130_000L)
+        assertTrue(d.acknowledge())
+        assertEquals(AnchorTransition.NONE, d.onTick(400_000L))
+        // A fix re-proves the watch; a later outage can alarm again.
+        fix(d, 0.0, 500_000L)
+        assertEquals(AnchorTransition.GPS_LOSS_ALARM, d.onTick(630_000L))
+    }
+
+    @Test
+    fun `shrinking the radius re-judges the last fix and restarts the timer`() {
+        val d = AnchorWatchDetector(params())
+        fix(d, 30.0, 0L)
+        assertEquals(AnchorTransition.NONE, d.updateParams(params(radiusM = 20.0), 1_000L))
+        assertNull(d.alarmKind)
+        assertEquals(AnchorTransition.NONE, fix(d, 30.0, 10_000L))
+        assertEquals(AnchorTransition.DRAG_ALARM, fix(d, 30.0, 20_000L))
+    }
+
+    @Test
+    fun `moving the anchor onto the boat clears a sounding drag alarm`() {
+        val d = AnchorWatchDetector(params())
+        fix(d, 0.0, 0L)
+        fix(d, 60.0, 10_000L)
+        fix(d, 60.0, 30_000L)
+        assertEquals(ANCHOR_ALARM_DRAG, d.alarmKind)
+        val moved = params().copy(lat = latAt(60.0))
+        assertEquals(AnchorTransition.CLEARED, d.updateParams(moved, 31_000L))
+        assertNull(d.alarmKind)
+    }
+}

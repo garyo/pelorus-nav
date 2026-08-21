@@ -23,8 +23,13 @@
     <!-- Notification permission (Android 13+) -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
-    <!-- Crew-overboard alarm vibration -->
+    <!-- Crew-overboard and anchor alarm vibration -->
     <uses-permission android:name="android.permission.VIBRATE" />
+
+    <!-- Anchor alarm over the lock screen. On Android 14+ the system grants
+         this only to calling/alarm apps; without it the alarm still posts as
+         a heads-up notification and still sounds. -->
+    <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
 
     <uses-permission android:name="android.permission.INTERNET" />
 

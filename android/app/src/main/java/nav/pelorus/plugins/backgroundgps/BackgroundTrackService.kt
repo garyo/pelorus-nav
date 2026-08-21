@@ -10,12 +10,18 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.media.AudioAttributes
+import android.media.MediaPlayer
+import android.media.RingtoneManager
 import android.os.Build
 import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
 import android.os.PowerManager
 import android.os.SystemClock
+import android.os.VibrationEffect
+import android.os.Vibrator
+import android.os.VibratorManager
 import android.util.Log
 import androidx.core.content.ContextCompat
 import com.google.android.gms.location.FusedLocationProviderClient
@@ -46,6 +52,13 @@ import com.google.android.gms.location.Priority
  * The mode is chosen entirely by the JS layer based on `document.visibilityState`,
  * recording state, and theme. No speed/DR-based adaptation here — that's been
  * tried and it doesn't survive sailing-speed GPS noise.
+ *
+ * The service also carries the screen-off anchor watch ([AnchorWatchDetector]):
+ * every accepted fix is distance-tested against the armed anchor before it
+ * reaches SQLite, and a separate Doze-piercing alarm catches sustained GPS
+ * silence. Alarms use their own IMPORTANCE_HIGH channel with service-owned
+ * looping alarm-stream audio, because the tracking channel is deliberately
+ * silent.
  */
 class BackgroundTrackService : Service() {
 
@@ -54,6 +67,15 @@ class BackgroundTrackService : Service() {
         const val CHANNEL_ID = "pelorus_track_channel"
         const val NOTIFICATION_ID = 1
         const val ACTION_STOP = "nav.pelorus.STOP_TRACKING"
+
+        /**
+         * Anchor alarm channel — separate from [CHANNEL_ID], which is
+         * IMPORTANCE_LOW so hours of track recording stay silent. This one
+         * has to wake a sleeping crew.
+         */
+        const val ANCHOR_CHANNEL_ID = "pelorus_anchor_alarm_channel"
+        const val ANCHOR_NOTIFICATION_ID = 2
+        const val ACTION_ANCHOR_SILENCE = "nav.pelorus.ANCHOR_SILENCE"
 
         const val MODE_ACTIVE = "active"
         const val MODE_PASSIVE = "passive"
@@ -97,6 +119,17 @@ class BackgroundTrackService : Service() {
         private const val KICK_DURATION_MS = 60_000L
 
         private const val ACTION_WATCHDOG = "nav.pelorus.WATCHDOG_TICK"
+        private const val ACTION_ANCHOR_WATCHDOG = "nav.pelorus.ANCHOR_WATCHDOG_TICK"
+
+        /**
+         * Floor for the anchor GPS-loss deadline re-arm. setAndAllowWhileIdle
+         * fires late in Doze, never early, so a rescheduled remainder is only
+         * ever a few ms — clamp it so we can't spin.
+         */
+        private const val ANCHOR_WATCHDOG_MIN_DELAY_MS = 5_000L
+
+        /** Vibration cadence while the anchor alarm sounds: on 600 / off 400. */
+        private val ANCHOR_VIBRATE_PATTERN = longArrayOf(0L, 600L, 400L)
 
         /** Callback for delivering live location updates to the plugin. Cleared in PASSIVE mode. */
         var locationListener: ((TrackPointRow) -> Unit)? = null
@@ -108,8 +141,35 @@ class BackgroundTrackService : Service() {
          */
         var stoppedListener: ((reason: String) -> Unit)? = null
 
+        /**
+         * Callback for reporting a native anchor alarm to the plugin, which
+         * forwards it to JS as a retained event. Fires whether or not the app
+         * is in the foreground — JS needs to reconcile either way.
+         */
+        var anchorAlarmListener: ((kind: String, distanceM: Double, at: Long) -> Unit)? = null
+
         /** Reference to the running service instance (for runtime config from plugin). */
         var instance: BackgroundTrackService? = null
+
+        /**
+         * The armed anchor watch, or null. Lives in the companion so it
+         * survives a service stop/start within the process, exactly like
+         * [currentMode]; JS re-pushes it after a process restart.
+         */
+        @Volatile var anchorParams: AnchorWatchParams? = null
+
+        /**
+         * True while the app's activity is started (onStart..onStop), set by
+         * the plugin's lifecycle hooks.
+         *
+         * No-double-alarm rule: detection runs and the retained event fires in
+         * both states, but the native alarm only makes NOISE while this is
+         * false. A running app already sounds the JS alarm (CobAlarm), and two
+         * alarms out of phase is worse than one. The transition itself is
+         * handled: backgrounding mid-alarm starts the native sound,
+         * foregrounding stops it and hands the alarm back to JS.
+         */
+        @Volatile var appForeground: Boolean = true
 
         @Volatile var currentMode: String = MODE_ACTIVE
         @Volatile var activeIntervalMs: Long = 1000L
@@ -152,18 +212,29 @@ class BackgroundTrackService : Service() {
     /** Mode applyMode() last ran with — used to reset adaptive state on flips. */
     private var lastModeApplied: String? = null
 
+    /** Live anchor-watch state machine; non-null exactly while armed. */
+    private var anchorDetector: AnchorWatchDetector? = null
+    private var anchorAlarmPlayer: MediaPlayer? = null
+    private var anchorWatchdogPendingIntent: PendingIntent? = null
+
     private var alarmManager: AlarmManager? = null
     private var watchdogPendingIntent: PendingIntent? = null
     /**
-     * Receives the watchdog alarm broadcast. setAndAllowWhileIdle requires
-     * a PendingIntent (no OnAlarmListener overload), so we register this
-     * receiver dynamically in onCreate and route its callback to
-     * [onWatchdogFired]. Meaning depends on [inKick]: a fire while not in
-     * kick starts one; a fire during a kick is the give-up timer.
+     * Receives both Doze-piercing alarm broadcasts. setAndAllowWhileIdle
+     * requires a PendingIntent (no OnAlarmListener overload), so we register
+     * this receiver dynamically in onCreate and dispatch on the action.
+     *
+     * [ACTION_WATCHDOG] is the GPS-chip watchdog, whose meaning depends on
+     * [inKick]: a fire while not in kick starts one; a fire during a kick is
+     * the give-up timer. [ACTION_ANCHOR_WATCHDOG] is the anchor watch's
+     * GPS-loss deadline.
      */
     private val watchdogReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
-            onWatchdogFired()
+            when (intent?.action) {
+                ACTION_ANCHOR_WATCHDOG -> onAnchorWatchdogFired()
+                else -> onWatchdogFired()
+            }
         }
     }
     /** True while we're in a watchdog-triggered ACTIVE recovery. */
@@ -191,13 +262,19 @@ class BackgroundTrackService : Service() {
         ContextCompat.registerReceiver(
             this,
             watchdogReceiver,
-            IntentFilter(ACTION_WATCHDOG),
+            IntentFilter(ACTION_WATCHDOG).apply { addAction(ACTION_ANCHOR_WATCHDOG) },
             ContextCompat.RECEIVER_NOT_EXPORTED,
         )
         watchdogPendingIntent = PendingIntent.getBroadcast(
             this,
             0,
             Intent(ACTION_WATCHDOG).setPackage(packageName),
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+        )
+        anchorWatchdogPendingIntent = PendingIntent.getBroadcast(
+            this,
+            2,
+            Intent(ACTION_ANCHOR_WATCHDOG).setPackage(packageName),
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
 
@@ -231,6 +308,11 @@ class BackgroundTrackService : Service() {
                             continue
                         }
                         accepted = true
+                        // Anchor watch first: drag detection must not wait
+                        // behind the SQLite insert or the bridge fanout, and
+                        // it is deliberately independent of the recording
+                        // cadence that gates everything below it.
+                        onAnchorFix(location.latitude, location.longitude)
                         val point = TrackPointRow(
                             timestamp = location.time,
                             lat = location.latitude,
@@ -280,6 +362,9 @@ class BackgroundTrackService : Service() {
         // ready, so a plugin call landing mid-onCreate doesn't race into
         // applyMode() and skip with the "before service initialized" warning.
         instance = this
+        // A watch armed before the service existed (or before a restart)
+        // lives in the companion — pick it up now.
+        applyAnchorWatch()
         DiagLog.log(this, "svc", "onCreate")
     }
 
@@ -294,6 +379,15 @@ class BackgroundTrackService : Service() {
             locationListener = null
             stoppedListener?.invoke("notification")
             stopSelf()
+            return START_NOT_STICKY
+        }
+
+        if (intent?.action == ACTION_ANCHOR_SILENCE) {
+            // The alarm notification's Silence action — same semantics as the
+            // app's acknowledge: quiet now, still watching. There is
+            // deliberately no Disarm action; standing the watch down requires
+            // opening the app.
+            acknowledgeAnchorAlarm()
             return START_NOT_STICKY
         }
 
@@ -322,6 +416,11 @@ class BackgroundTrackService : Service() {
         DiagLog.log(this, "svc", "onDestroy")
         cancelPendingPassive()
         cancelWatchdog()
+        cancelAnchorWatchdog()
+        // Silence, but keep [anchorParams]: the watch itself is still armed
+        // as far as JS is concerned, and a service restart re-arms detection.
+        stopAnchorAlarmSound()
+        anchorDetector = null
         instance = null
         if (::fusedClient.isInitialized && ::locationCallback.isInitialized) {
             fusedClient.removeLocationUpdates(locationCallback)
@@ -336,6 +435,8 @@ class BackgroundTrackService : Service() {
         }
         watchdogPendingIntent?.cancel()
         watchdogPendingIntent = null
+        anchorWatchdogPendingIntent?.cancel()
+        anchorWatchdogPendingIntent = null
         alarmManager = null
         Log.i(TAG, "Background track service stopped")
     }
@@ -555,6 +656,224 @@ class BackgroundTrackService : Service() {
         applyMode()
     }
 
+    // --- Anchor watch ---------------------------------------------------
+
+    /**
+     * Adopt [anchorParams]: create the detector on arm, update it in place on
+     * an anchor move or radius change (so hysteresis and the "has ever had a
+     * fix" flag survive), tear everything down on disarm.
+     */
+    fun applyAnchorWatch() {
+        val params = anchorParams
+        if (params == null) {
+            anchorDetector = null
+            cancelAnchorWatchdog()
+            clearAnchorAlarm()
+            return
+        }
+        val existing = anchorDetector
+        if (existing == null) {
+            anchorDetector = AnchorWatchDetector(params)
+        } else {
+            handleAnchorTransition(existing.updateParams(params, SystemClock.elapsedRealtime()))
+        }
+        armAnchorWatchdog(params.gpsLossAlarmMs)
+        DiagLog.log(
+            applicationContext,
+            "anchor",
+            "armed r=${params.radiusM}m delay=${params.alarmDelayMs}ms loss=${params.gpsLossAlarmMs}ms",
+        )
+    }
+
+    /** Silence a sounding alarm; the watch keeps running. */
+    fun acknowledgeAnchorAlarm() {
+        val silenced = anchorDetector?.acknowledge() ?: false
+        clearAnchorAlarm()
+        if (silenced) DiagLog.log(applicationContext, "anchor", "acknowledged")
+    }
+
+    /**
+     * Foreground state flipped. Detection is unaffected; only the noise moves
+     * between JS and native (see the [appForeground] contract).
+     */
+    fun onAppForegroundChanged() {
+        if (appForeground) {
+            stopAnchorAlarmSound()
+        } else if (anchorDetector?.alarmKind != null) {
+            startAnchorAlarmSound()
+        }
+    }
+
+    /** Distance-test one accepted fix against the armed anchor. */
+    private fun onAnchorFix(lat: Double, lon: Double) {
+        val detector = anchorDetector ?: return
+        val transition = detector.onFix(lat, lon, SystemClock.elapsedRealtime())
+        handleAnchorTransition(transition)
+        // Silence only becomes an alarm relative to the newest fix.
+        armAnchorWatchdog(detector.params.gpsLossAlarmMs)
+    }
+
+    /** The GPS-loss deadline elapsed (or is still pending — re-arm and wait). */
+    private fun onAnchorWatchdogFired() {
+        val detector = anchorDetector ?: return
+        val now = SystemClock.elapsedRealtime()
+        handleAnchorTransition(detector.onTick(now))
+        if (detector.alarmKind == null) {
+            armAnchorWatchdog(
+                maxOf(detector.gpsLossDeadlineElapsedMs() - now, ANCHOR_WATCHDOG_MIN_DELAY_MS),
+            )
+        }
+    }
+
+    private fun handleAnchorTransition(transition: AnchorTransition) {
+        when (transition) {
+            AnchorTransition.DRAG_ALARM -> raiseAnchorAlarm(ANCHOR_ALARM_DRAG)
+            AnchorTransition.GPS_LOSS_ALARM -> raiseAnchorAlarm(ANCHOR_ALARM_GPS_LOSS)
+            AnchorTransition.CLEARED -> clearAnchorAlarm()
+            AnchorTransition.NONE -> Unit
+        }
+    }
+
+    private fun raiseAnchorAlarm(kind: String) {
+        val distanceM = anchorDetector?.lastDistanceM ?: 0.0
+        DiagLog.log(
+            applicationContext,
+            "anchor",
+            "ALARM $kind d=${distanceM.toInt()}m foreground=$appForeground",
+        )
+        Log.w(TAG, "Anchor alarm: $kind at ${distanceM.toInt()}m")
+        showAnchorNotification(kind, distanceM)
+        // Retained event: JS is usually suspended when this fires and learns
+        // about it on resume.
+        anchorAlarmListener?.invoke(kind, distanceM, System.currentTimeMillis())
+        if (!appForeground) startAnchorAlarmSound()
+    }
+
+    /** Stop the noise and drop the alarm notification. The watch stays armed. */
+    private fun clearAnchorAlarm() {
+        stopAnchorAlarmSound()
+        getSystemService(NotificationManager::class.java)?.cancel(ANCHOR_NOTIFICATION_ID)
+    }
+
+    /**
+     * Loop the device's alarm ringtone on the alarm stream and vibrate until
+     * acknowledged or disarmed — a one-shot notification sound does not wake
+     * anyone. Vibration is the backstop if audio can't start at all.
+     */
+    private fun startAnchorAlarmSound() {
+        vibrator()?.let { vib ->
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                vib.vibrate(VibrationEffect.createWaveform(ANCHOR_VIBRATE_PATTERN, 0))
+            } else {
+                @Suppress("DEPRECATION")
+                vib.vibrate(ANCHOR_VIBRATE_PATTERN, 0)
+            }
+        }
+        if (anchorAlarmPlayer != null) return
+        val uri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM)
+            ?: RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
+            ?: return
+        try {
+            anchorAlarmPlayer = MediaPlayer().apply {
+                setAudioAttributes(
+                    AudioAttributes.Builder()
+                        .setUsage(AudioAttributes.USAGE_ALARM)
+                        .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                        .build(),
+                )
+                // The CPU must stay up between loops with the screen off.
+                setWakeMode(applicationContext, PowerManager.PARTIAL_WAKE_LOCK)
+                setDataSource(applicationContext, uri)
+                isLooping = true
+                prepare()
+                start()
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Anchor alarm audio failed; vibration only", e)
+            DiagLog.log(applicationContext, "anchor", "alarm audio failed: ${e.message}")
+            anchorAlarmPlayer?.release()
+            anchorAlarmPlayer = null
+        }
+    }
+
+    private fun stopAnchorAlarmSound() {
+        anchorAlarmPlayer?.let {
+            try {
+                if (it.isPlaying) it.stop()
+            } catch (e: IllegalStateException) {
+                // Player already torn down — nothing to stop.
+            }
+            it.release()
+        }
+        anchorAlarmPlayer = null
+        vibrator()?.cancel()
+    }
+
+    private fun vibrator(): Vibrator? =
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            (getSystemService(VibratorManager::class.java))?.defaultVibrator
+        } else {
+            @Suppress("DEPRECATION")
+            getSystemService(Vibrator::class.java)
+        }
+
+    /**
+     * Post the alarm on its own high-importance channel: full-screen intent so
+     * it shows over the lock screen, CATEGORY_ALARM, ongoing so it can't be
+     * swiped away, and a single Silence action. Text-only and static — the
+     * primary device is an e-ink BOOX with no colour and no animation.
+     */
+    private fun showAnchorNotification(kind: String, distanceM: Double) {
+        val nm = getSystemService(NotificationManager::class.java) ?: return
+        val launchIntent = packageManager.getLaunchIntentForPackage(packageName)
+        val contentPending = PendingIntent.getActivity(
+            this, 3, launchIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+        )
+        val silencePending = PendingIntent.getService(
+            this, 4,
+            Intent(this, BackgroundTrackService::class.java).setAction(ACTION_ANCHOR_SILENCE),
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+        )
+        val title = if (kind == ANCHOR_ALARM_GPS_LOSS) "GPS LOST — anchor watch" else "ANCHOR DRAGGING"
+        val text = if (kind == ANCHOR_ALARM_GPS_LOSS) {
+            "No GPS fix. The anchor watch cannot see the boat."
+        } else {
+            "${distanceM.toInt()} m from the anchor."
+        }
+        val notification = Notification.Builder(this, ANCHOR_CHANNEL_ID)
+            .setContentTitle(title)
+            .setContentText(text)
+            .setSmallIcon(android.R.drawable.stat_notify_error)
+            .setCategory(Notification.CATEGORY_ALARM)
+            .setVisibility(Notification.VISIBILITY_PUBLIC)
+            .setOngoing(true)
+            .setAutoCancel(false)
+            .setContentIntent(contentPending)
+            .setFullScreenIntent(contentPending, true)
+            .addAction(Notification.Action.Builder(null, "Silence", silencePending).build())
+            .build()
+        nm.notify(ANCHOR_NOTIFICATION_ID, notification)
+    }
+
+    /** Schedule the GPS-loss check [delayMs] out; pierces Doze like the GPS watchdog. */
+    private fun armAnchorWatchdog(delayMs: Long) {
+        val am = alarmManager ?: return
+        val pi = anchorWatchdogPendingIntent ?: return
+        am.cancel(pi)
+        am.setAndAllowWhileIdle(
+            AlarmManager.ELAPSED_REALTIME_WAKEUP,
+            SystemClock.elapsedRealtime() + delayMs,
+            pi,
+        )
+    }
+
+    private fun cancelAnchorWatchdog() {
+        val am = alarmManager ?: return
+        val pi = anchorWatchdogPendingIntent ?: return
+        am.cancel(pi)
+    }
+
     private fun createNotificationChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val channel = NotificationChannel(
@@ -566,7 +885,35 @@ class BackgroundTrackService : Service() {
             }
             val manager = getSystemService(NotificationManager::class.java)
             manager.createNotificationChannel(channel)
+            manager.createNotificationChannel(buildAnchorChannel())
         }
+    }
+
+    /**
+     * The anchor alarm channel. IMPORTANCE_HIGH so it heads-up and can carry a
+     * full-screen intent. Channel sound and vibration are off on purpose: the
+     * service owns both, looping until acknowledged, and a channel sound would
+     * add a one-shot ringtone playing out of phase with that loop.
+     */
+    private fun buildAnchorChannel(): NotificationChannel {
+        val channel = NotificationChannel(
+            ANCHOR_CHANNEL_ID,
+            "Anchor Alarm",
+            NotificationManager.IMPORTANCE_HIGH,
+        ).apply {
+            description = "Sounds when the anchor watch detects dragging or loses GPS"
+            setSound(null, null)
+            enableVibration(false)
+            enableLights(true)
+            lockscreenVisibility = Notification.VISIBILITY_PUBLIC
+        }
+        try {
+            channel.setBypassDnd(true)
+        } catch (e: SecurityException) {
+            // Needs notification-policy access; without it the alarm is still
+            // audible outside Do Not Disturb.
+        }
+        return channel
     }
 
     private fun buildNotification(): Notification {

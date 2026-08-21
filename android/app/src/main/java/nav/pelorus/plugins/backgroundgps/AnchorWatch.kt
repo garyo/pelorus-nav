@@ -1,0 +1,183 @@
+package nav.pelorus.plugins.backgroundgps
+
+import kotlin.math.PI
+import kotlin.math.atan2
+import kotlin.math.cos
+import kotlin.math.sin
+import kotlin.math.sqrt
+
+/** Alarm kinds, matching AnchorAlarmKind in src/anchor/AnchorWatchManager.ts. */
+const val ANCHOR_ALARM_DRAG = "drag"
+const val ANCHOR_ALARM_GPS_LOSS = "gps-loss"
+
+/** Earth radius used by haversineDistanceNM in src/utils/coordinates.ts. */
+private const val EARTH_RADIUS_M = 3440.065 * 1852.0
+
+/** Great-circle distance in meters, matching the JS geometry exactly. */
+fun haversineMeters(lat1: Double, lon1: Double, lat2: Double, lon2: Double): Double {
+    val dLat = (lat2 - lat1) * PI / 180.0
+    val dLon = (lon2 - lon1) * PI / 180.0
+    val a = sin(dLat / 2) * sin(dLat / 2) +
+        cos(lat1 * PI / 180.0) * cos(lat2 * PI / 180.0) * sin(dLon / 2) * sin(dLon / 2)
+    return EARTH_RADIUS_M * 2 * atan2(sqrt(a), sqrt(1 - a))
+}
+
+/** An armed anchor watch as pushed from JS by setAnchorWatch(). */
+data class AnchorWatchParams(
+    val lat: Double,
+    val lon: Double,
+    val radiusM: Double,
+    /** Continuous milliseconds outside the radius before the drag alarm fires. */
+    val alarmDelayMs: Long,
+    /** Milliseconds without an accepted fix before the GPS-loss alarm fires. */
+    val gpsLossAlarmMs: Long,
+    /** Further drag beyond the acknowledged distance that re-alarms, meters. */
+    val reAlarmMarginM: Double,
+)
+
+/** What a detector call changed about the alarm state. */
+enum class AnchorTransition { NONE, DRAG_ALARM, GPS_LOSS_ALARM, CLEARED }
+
+/**
+ * Screen-off anchor-watch detection: the native mirror of
+ * AnchorWatchManager's state machine (src/anchor/AnchorWatchManager.ts).
+ * Backgrounded WebView JS is suspended and passive mode silences the
+ * native→JS bridge, so overnight this class is the only thing watching.
+ *
+ * Pure logic — no Android dependencies — so it is directly unit-testable.
+ * The caller feeds it every accepted fix plus periodic ticks and reacts to
+ * the returned transition; the class itself makes no noise.
+ *
+ * Timing runs on a monotonic elapsed-realtime clock supplied by the caller
+ * rather than on fix timestamps (which is what the JS side uses): the
+ * device clock can step under NTP, and the same clock has to drive the
+ * Doze-piercing AlarmManager deadline for the GPS-loss test.
+ */
+class AnchorWatchDetector(params: AnchorWatchParams) {
+
+    var params: AnchorWatchParams = params
+        private set
+
+    /** The alarm currently raised, or null. */
+    var alarmKind: String? = null
+        private set
+
+    /** Distance from the last fix to the anchor, meters. Zero before any fix. */
+    var lastDistanceM: Double = 0.0
+        private set
+
+    /**
+     * A fix has arrived since this watch was armed. A watch that has never
+     * seen a fix must not raise a GPS-loss alarm — it was never proven to
+     * work, so silence is not new information (mirrors `hadFix` in the JS
+     * state machine).
+     */
+    var hadFix: Boolean = false
+        private set
+
+    /** Elapsed-realtime of the last accepted fix; meaningful once [hadFix]. */
+    var lastFixElapsedMs: Long = 0L
+        private set
+
+    private var lastLat = 0.0
+    private var lastLon = 0.0
+    private var outsideSinceElapsedMs: Long? = null
+    private var dragAcknowledged = false
+    private var distanceAtAckM = 0.0
+    private var gpsLossAcknowledged = false
+
+    /** Feed an accepted fix. Fresh data also ends any GPS-loss condition. */
+    fun onFix(lat: Double, lon: Double, nowElapsedMs: Long): AnchorTransition {
+        hadFix = true
+        lastFixElapsedMs = nowElapsedMs
+        lastLat = lat
+        lastLon = lon
+        gpsLossAcknowledged = false
+        var cleared = false
+        if (alarmKind == ANCHOR_ALARM_GPS_LOSS) {
+            alarmKind = null
+            cleared = true
+        }
+        val transition = evaluate(nowElapsedMs)
+        if (transition != AnchorTransition.NONE) return transition
+        return if (cleared) AnchorTransition.CLEARED else AnchorTransition.NONE
+    }
+
+    /**
+     * Periodic check for silence. Called from the Doze-piercing anchor
+     * watchdog, so it fires even with the CPU otherwise asleep.
+     */
+    fun onTick(nowElapsedMs: Long): AnchorTransition {
+        if (!hadFix || alarmKind != null || gpsLossAcknowledged) return AnchorTransition.NONE
+        if (nowElapsedMs - lastFixElapsedMs < params.gpsLossAlarmMs) return AnchorTransition.NONE
+        alarmKind = ANCHOR_ALARM_GPS_LOSS
+        return AnchorTransition.GPS_LOSS_ALARM
+    }
+
+    /**
+     * The anchor moved or the radius changed: restart the excursion timer,
+     * re-judge the last known position, and re-baseline any acknowledgment
+     * against the new geometry.
+     */
+    fun updateParams(next: AnchorWatchParams, nowElapsedMs: Long): AnchorTransition {
+        params = next
+        outsideSinceElapsedMs = null
+        if (!hadFix) return AnchorTransition.NONE
+        val transition = evaluate(nowElapsedMs)
+        if (dragAcknowledged) distanceAtAckM = lastDistanceM
+        return transition
+    }
+
+    /**
+     * Silence the current alarm; the watch keeps running. A drag alarm
+     * re-fires on re-entry then exit, or — still outside — on a further
+     * [AnchorWatchParams.reAlarmMarginM] of drag. Returns true when
+     * something was actually silenced.
+     */
+    fun acknowledge(): Boolean {
+        when (alarmKind) {
+            ANCHOR_ALARM_DRAG -> {
+                dragAcknowledged = true
+                distanceAtAckM = lastDistanceM
+            }
+            ANCHOR_ALARM_GPS_LOSS -> gpsLossAcknowledged = true
+            else -> return false
+        }
+        alarmKind = null
+        return true
+    }
+
+    /** Elapsed-realtime at which silence becomes a GPS-loss alarm. */
+    fun gpsLossDeadlineElapsedMs(): Long = lastFixElapsedMs + params.gpsLossAlarmMs
+
+    private fun evaluate(nowElapsedMs: Long): AnchorTransition {
+        val distanceM = haversineMeters(lastLat, lastLon, params.lat, params.lon)
+        lastDistanceM = distanceM
+        if (distanceM > params.radiusM) {
+            val since = outsideSinceElapsedMs ?: nowElapsedMs.also { outsideSinceElapsedMs = it }
+            if (dragAcknowledged) {
+                // Still dragging: a further margin beyond the acknowledged
+                // distance overrides the acknowledgment.
+                if (distanceM >= distanceAtAckM + params.reAlarmMarginM) return startDrag()
+            } else if (alarmKind != ANCHOR_ALARM_DRAG &&
+                nowElapsedMs - since >= params.alarmDelayMs
+            ) {
+                return startDrag()
+            }
+        } else {
+            outsideSinceElapsedMs = null
+            if (alarmKind == ANCHOR_ALARM_DRAG || dragAcknowledged) {
+                alarmKind = null
+                dragAcknowledged = false
+                return AnchorTransition.CLEARED
+            }
+        }
+        return AnchorTransition.NONE
+    }
+
+    private fun startDrag(): AnchorTransition {
+        alarmKind = ANCHOR_ALARM_DRAG
+        dragAcknowledged = false
+        return AnchorTransition.DRAG_ALARM
+    }
+}

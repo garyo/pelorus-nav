@@ -528,6 +528,75 @@ describe("anchor and radius updates", () => {
   });
 });
 
+describe("noteNativeAlarm (screen-off reconciliation)", () => {
+  it("adopts a native drag alarm and persists it", () => {
+    const h = makeHarness();
+    armAtAnchor(h);
+    // The vessel is outside but JS never saw the fixes that got it there.
+    h.nav.lastFix = fixAt(60, T0 + 60_000);
+    h.manager.noteNativeAlarm("drag");
+
+    const s = h.snapshot();
+    expect(s.alarming).toBe(true);
+    expect(s.alarmKind).toBe("drag");
+    expect(h.alarm.start).toHaveBeenCalledWith(false);
+    expect(
+      JSON.parse(h.storage.dump()[ANCHOR_WATCH_STORAGE_KEY]).alarming,
+    ).toBe(true);
+  });
+
+  it("adopts a native drag alarm muted when the watch is muted", () => {
+    const h = makeHarness();
+    armAtAnchor(h);
+    h.manager.setMuted(true);
+    h.manager.noteNativeAlarm("drag");
+    expect(h.alarm.start).toHaveBeenCalledWith(true);
+  });
+
+  it("adopts a native GPS-loss alarm without the pre-acquisition state", () => {
+    const h = makeHarness();
+    armAtAnchor(h);
+    h.nav.stale = true;
+    h.manager.noteNativeAlarm("gps-loss");
+
+    const s = h.snapshot();
+    expect(s.alarming).toBe(true);
+    expect(s.alarmKind).toBe("gps-loss");
+    expect(s.gpsState).toBe("lost");
+    expect(h.gpsLossAlarm.start).toHaveBeenCalledWith(false);
+  });
+
+  it("clears an adopted drag alarm once a fix lands back inside", () => {
+    const h = makeHarness();
+    armAtAnchor(h);
+    h.manager.noteNativeAlarm("drag");
+    h.emitFix(fixAt(10, T0 + 60_000));
+    expect(h.alarm.stop).toHaveBeenCalled();
+    expect(h.snapshot().alarming).toBe(false);
+  });
+
+  it("clears an adopted GPS-loss alarm once GPS returns", () => {
+    const h = makeHarness();
+    armAtAnchor(h);
+    h.nav.stale = true;
+    h.manager.noteNativeAlarm("gps-loss");
+    h.emitFix(fixAt(5, T0 + 60_000));
+    expect(h.gpsLossAlarm.stop).toHaveBeenCalled();
+    expect(h.snapshot().alarming).toBe(false);
+  });
+
+  it("is idempotent and a no-op while disarmed", () => {
+    const h = makeHarness();
+    h.manager.noteNativeAlarm("drag");
+    expect(h.alarm.start).not.toHaveBeenCalled();
+
+    armAtAnchor(h);
+    h.manager.noteNativeAlarm("drag");
+    h.manager.noteNativeAlarm("drag");
+    expect(h.alarm.start).toHaveBeenCalledTimes(1);
+  });
+});
+
 describe("AnchorWatchManager.restore", () => {
   it("re-arms from the slot with params and scatter intact", () => {
     const first = makeHarness();

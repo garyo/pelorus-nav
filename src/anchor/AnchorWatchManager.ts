@@ -35,8 +35,8 @@ import {
 } from "./anchor-state";
 
 export const DEFAULT_WARN_M = 8;
-const DEFAULT_ALARM_DELAY_S = 15;
-const DEFAULT_GPS_LOSS_ALARM_S = 120;
+export const DEFAULT_ALARM_DELAY_S = 15;
+export const DEFAULT_GPS_LOSS_ALARM_S = 120;
 const DEFAULT_ACCURACY_THRESHOLD_M = 25;
 const SCATTER_SAMPLE_INTERVAL_MS = 10_000;
 const SCATTER_PERSIST_INTERVAL_MS = 60_000;
@@ -273,6 +273,36 @@ export class AnchorWatchManager {
     }
     if (!changed) return;
     this.persist(armed);
+    this.notify();
+  }
+
+  /**
+   * Adopt an alarm the native watch raised while this one was suspended.
+   *
+   * Screen-off detection lives in the Android foreground service, which
+   * reports through a retained `anchorAlarm` event delivered when the
+   * WebView resumes. From here the alarm behaves exactly like a
+   * JS-detected one — including clearing itself the moment its trigger
+   * stops holding, so a boat already back inside the radius, or a GPS that
+   * has since recovered, does not keep ringing.
+   */
+  noteNativeAlarm(kind: AnchorAlarmKind): void {
+    const armed = this.armed;
+    if (!armed) return;
+    if (kind === "drag") {
+      if (armed.dragAlarming) return;
+      this.startDragAlarm(armed);
+    } else {
+      if (armed.gpsLossAlarming) return;
+      // Native only alarms on loss after a fix, so the watch is proven —
+      // adopting that keeps the state out of "waiting" while alarming.
+      armed.hadFix = true;
+      armed.gpsLossAcknowledged = false;
+      armed.gpsLossAlarming = true;
+      if (armed.staleSinceMs === null) armed.staleSinceMs = this.now();
+      this.deps.gpsLossAlarm.start(armed.muted);
+      this.persist(armed);
+    }
     this.notify();
   }
 

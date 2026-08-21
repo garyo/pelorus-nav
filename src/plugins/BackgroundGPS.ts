@@ -64,6 +64,32 @@ export interface BackgroundGPSPlugin {
   /** Update the foreground-service notification text (e.g. "Navigating" vs "Recording track"). */
   setNotificationText(options: { text: string }): Promise<void>;
 
+  /**
+   * Arm or update the native anchor watch (Android only for now).
+   *
+   * The native service distance-tests every accepted fix against the anchor
+   * and raises its own alarm — the JS watch is blind once the WebView is
+   * suspended and passive mode silences the bridge. Call again on anchor
+   * move or radius change; the native hysteresis survives an update.
+   *
+   * `warnM` doubles as the re-alarm margin: after an acknowledgment, a
+   * further `warnM` of drag alarms again.
+   */
+  setAnchorWatch(options: {
+    lat: number;
+    lon: number;
+    radiusM: number;
+    alarmDelayS?: number;
+    gpsLossAlarmS?: number;
+    warnM?: number;
+  }): Promise<void>;
+
+  /** Disarm the native anchor watch and cancel any sounding native alarm. */
+  clearAnchorWatch(): Promise<void>;
+
+  /** Silence a sounding native anchor alarm; the native watch keeps running. */
+  acknowledgeAnchorAlarm(): Promise<void>;
+
   /** Check whether the foreground service is currently running. */
   isTracking(): Promise<{ tracking: boolean }>;
 
@@ -122,6 +148,21 @@ export interface BackgroundGPSPlugin {
   addListener(
     eventName: "trackingStopped",
     listenerFunc: (data: { reason: string }) => void,
+  ): Promise<PluginListenerHandle>;
+
+  /**
+   * Fired when the NATIVE anchor watch raised an alarm — dragging, or no
+   * fix for the GPS-loss timeout. Delivered retained, because the alarm
+   * fires precisely when the WebView is suspended: JS consumes it on resume
+   * and reconciles its own watch state with what happened while it was away.
+   */
+  addListener(
+    eventName: "anchorAlarm",
+    listenerFunc: (data: {
+      kind: "drag" | "gps-loss";
+      distanceM: number;
+      at: number;
+    }) => void,
   ): Promise<PluginListenerHandle>;
 
   /**

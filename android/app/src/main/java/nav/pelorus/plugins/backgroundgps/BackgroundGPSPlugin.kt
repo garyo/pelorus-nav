@@ -38,6 +38,40 @@ class BackgroundGPSPlugin : Plugin() {
 
     override fun load() {
         trackDb = TrackDatabase(context)
+        // Installed here rather than in installBridgeListener(): the anchor
+        // alarm must reach JS whatever the tracking/power state is.
+        // retainUntilConsumed — the alarm fires precisely when the WebView is
+        // suspended, so JS learns about it when it resumes.
+        BackgroundTrackService.anchorAlarmListener = { kind, distanceM, at ->
+            notifyListeners(
+                "anchorAlarm",
+                JSObject().apply {
+                    put("kind", kind)
+                    put("distanceM", distanceM)
+                    put("at", at)
+                },
+                true,
+            )
+        }
+        BackgroundTrackService.appForeground = true
+    }
+
+    // Foreground tracking for the no-double-alarm rule: "foreground" is the
+    // activity's started window, because that is when the WebView runs its
+    // timers and can sound the JS alarm itself. onPause alone is too eager —
+    // a dialog over the app still leaves JS running.
+    override fun handleOnStart() {
+        setAppForeground(true)
+    }
+
+    override fun handleOnStop() {
+        setAppForeground(false)
+    }
+
+    private fun setAppForeground(foreground: Boolean) {
+        if (BackgroundTrackService.appForeground == foreground) return
+        BackgroundTrackService.appForeground = foreground
+        BackgroundTrackService.instance?.onAppForegroundChanged()
     }
 
     /**
@@ -286,6 +320,56 @@ class BackgroundGPSPlugin : Plugin() {
         }
         BackgroundTrackService.notificationText = text
         BackgroundTrackService.instance?.refreshNotification()
+        call.resolve()
+    }
+
+    /**
+     * Arm or update the native anchor watch. Called on arm, anchor move and
+     * radius change; the native detector keeps its hysteresis across updates.
+     *
+     * Detection then runs in the foreground service on every accepted fix,
+     * which is the only thing still awake once the WebView is suspended.
+     */
+    @PluginMethod
+    fun setAnchorWatch(call: PluginCall) {
+        val lat = call.getDouble("lat")
+        val lon = call.getDouble("lon")
+        val radiusM = call.getDouble("radiusM")
+        if (lat == null || lon == null || radiusM == null || radiusM <= 0) {
+            call.reject("lat, lon and a positive radiusM are required")
+            return
+        }
+        // optDouble is type-tolerant: JS numbers land as Integer or Double
+        // depending on their value, and call.getDouble() rejects the former.
+        val alarmDelayS = call.data.optDouble("alarmDelayS", 15.0)
+        val gpsLossAlarmS = call.data.optDouble("gpsLossAlarmS", 120.0)
+        val warnM = call.data.optDouble("warnM", 8.0)
+        BackgroundTrackService.anchorParams = AnchorWatchParams(
+            lat = lat,
+            lon = lon,
+            radiusM = radiusM,
+            alarmDelayMs = (alarmDelayS * 1000).toLong(),
+            gpsLossAlarmMs = (gpsLossAlarmS * 1000).toLong(),
+            reAlarmMarginM = warnM,
+        )
+        BackgroundTrackService.instance?.applyAnchorWatch()
+        DiagLog.log(context, "plugin", "setAnchorWatch r=${radiusM}m delay=${alarmDelayS}s")
+        call.resolve()
+    }
+
+    /** Disarm the native watch and cancel any sounding alarm. */
+    @PluginMethod
+    fun clearAnchorWatch(call: PluginCall) {
+        BackgroundTrackService.anchorParams = null
+        BackgroundTrackService.instance?.applyAnchorWatch()
+        DiagLog.log(context, "plugin", "clearAnchorWatch")
+        call.resolve()
+    }
+
+    /** Silence a sounding native alarm without disarming (mirrors JS acknowledge). */
+    @PluginMethod
+    fun acknowledgeAnchorAlarm(call: PluginCall) {
+        BackgroundTrackService.instance?.acknowledgeAnchorAlarm()
         call.resolve()
     }
 
