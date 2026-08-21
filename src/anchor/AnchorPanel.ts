@@ -749,6 +749,8 @@ export class AnchorPanel {
       this.params.lastRodeM,
       this.params.boatLengthM,
       margin,
+      this.params.lastDepthM,
+      this.params.bowHeightM,
     );
   }
 
@@ -838,7 +840,9 @@ export class AnchorPanel {
     }
     this.radiusHint.textContent =
       this.radiusOverrideM === null
-        ? `Auto: rode + boat length + GPS margin (${formatLength(margin, unit)})`
+        ? this.params.lastDepthM
+          ? `Auto: swing reach + boat length + GPS margin (${formatLength(margin, unit)})`
+          : `Auto: rode + boat length + GPS margin (${formatLength(margin, unit)}) — enter depth to use true swing reach`
         : `Manual — Auto would be ${formatLength(this.autoRadiusM(), unit)}`;
     this.posHint.textContent =
       this.posMode === "tap"

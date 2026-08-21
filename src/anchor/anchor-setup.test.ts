@@ -6,6 +6,7 @@ import {
   fromDisplayLength,
   GPS_MARGIN_MIN_M,
   gpsMarginM,
+  horizontalReachM,
   M_TO_FT,
   radiusStepM,
   toDisplayLength,
@@ -32,7 +33,34 @@ describe("gpsMarginM", () => {
   });
 });
 
+describe("horizontalReachM", () => {
+  it("returns the horizontal leg of the rode triangle", () => {
+    // 100 rode over 26 vertical → sqrt(10000 − 676) ≈ 96.56
+    expect(horizontalReachM(100, 20, 6)).toBeCloseTo(96.56, 2);
+    // The error rode-as-reach would make grows sharply with depth.
+    expect(horizontalReachM(100, 60, 6)).toBeCloseTo(75.13, 2);
+  });
+
+  it("falls back to the rode when there is no vertical distance", () => {
+    expect(horizontalReachM(50, 0, 0)).toBe(50);
+    expect(horizontalReachM(50, undefined, undefined)).toBe(50);
+  });
+
+  it("returns 0 when the rode cannot reach the bottom", () => {
+    expect(horizontalReachM(20, 30, 2)).toBe(0);
+    expect(horizontalReachM(0, 10, 2)).toBe(0);
+    expect(horizontalReachM(undefined, 10, 2)).toBe(0);
+  });
+});
+
 describe("defaultRadiusM", () => {
+  it("uses the horizontal swing reach when a depth is known", () => {
+    // reach 96.56 + boat 12 + margin 10 → 119 (ceil)
+    expect(defaultRadiusM(100, 12, 10, 20, 6)).toBe(119);
+    // Without depth the rode is used directly, as before.
+    expect(defaultRadiusM(100, 12, 10)).toBe(122);
+  });
+
   it("sums rode + boat length + margin, rounded up", () => {
     expect(defaultRadiusM(30, 10, 10)).toBe(50);
     expect(defaultRadiusM(30.2, 10.3, 10)).toBe(51);
