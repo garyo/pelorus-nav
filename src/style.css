@@ -5304,6 +5304,30 @@ body.eink-refresh-tick {
   font-weight: bold;
 }
 
+/* Tide-aware scope line (both views): ratio now and at the coming high
+   water. Advisory, so the classification also reads from the number itself
+   — colour only reinforces it. */
+.anchor-tide {
+  font-size: 12px;
+  color: #cbd5e6;
+  font-variant-numeric: tabular-nums;
+}
+.anchor-tide[data-advice="good"] {
+  color: #9fdca4;
+}
+.anchor-tide[data-advice="marginal"] {
+  color: #e6b800;
+}
+.anchor-tide[data-advice="poor"] {
+  color: #ff8a80;
+  font-weight: bold;
+}
+
+.anchor-scope-advisory {
+  font-size: 11px;
+  color: #ffcc66;
+}
+
 .anchor-audio-blocked {
   font-size: 12px;
   color: #ffcc66;
@@ -5423,6 +5447,23 @@ body[data-instrument-layout="side"] .maplibregl-ctrl-top-left {
   margin-left: var(--instr-col-width);
 }
 
+/* Dusk: the scope line joins the dimmed blue-grey palette. */
+[data-theme="dusk"] .anchor-tide {
+  color: #b0b0c0;
+}
+[data-theme="dusk"] .anchor-tide[data-advice="good"] {
+  color: #8fb894;
+}
+[data-theme="dusk"] .anchor-tide[data-advice="marginal"] {
+  color: #b39b3d;
+}
+[data-theme="dusk"] .anchor-tide[data-advice="poor"] {
+  color: #c98a84;
+}
+[data-theme="dusk"] .anchor-scope-advisory {
+  color: #b39b3d;
+}
+
 /* Night: dim toward the red-tinted panel look. */
 [data-theme="night"] .anchor-panel {
   background: rgba(20, 8, 8, 0.95);
@@ -5447,7 +5488,10 @@ body[data-instrument-layout="side"] .maplibregl-ctrl-top-left {
   color: #a06060;
 }
 [data-theme="night"] .anchor-gps-line,
-[data-theme="night"] .anchor-gps-line[data-state] {
+[data-theme="night"] .anchor-gps-line[data-state],
+[data-theme="night"] .anchor-tide,
+[data-theme="night"] .anchor-tide[data-advice],
+[data-theme="night"] .anchor-scope-advisory {
   color: #d08080;
 }
 [data-theme="night"] .anchor-arm-btn {
@@ -5495,8 +5539,22 @@ body[data-instrument-layout="side"] .maplibregl-ctrl-top-left {
 [data-theme="eink"] .anchor-pos-hint,
 [data-theme="eink"] .anchor-gps-line,
 [data-theme="eink"] .anchor-gps-line[data-state],
+[data-theme="eink"] .anchor-tide,
+[data-theme="eink"] .anchor-tide[data-advice],
+[data-theme="eink"] .anchor-scope-advisory,
 [data-theme="eink"] .anchor-audio-blocked {
   color: #000;
+}
+/* Greyscale panels flatten colour, so scope state reads from weight and a
+   rule instead (the ratio itself already states it). */
+[data-theme="eink"] .anchor-tide[data-advice="marginal"] {
+  font-weight: bold;
+}
+[data-theme="eink"] .anchor-tide[data-advice="poor"],
+[data-theme="eink"] .anchor-scope-advisory {
+  font-weight: bold;
+  border-left: 3px solid #000;
+  padding-left: 6px;
 }
 [data-theme="eink"] .anchor-field-input,
 [data-theme="eink"] .anchor-radius-input,
@@ -5612,4 +5670,24 @@ body[data-instrument-layout="side"] .maplibregl-ctrl-top-left {
   opacity: 1;
   border-style: dashed;
   color: #666;
+}
+
+/* Excursion countdown: outside the radius, alarm pending. */
+.anchor-countdown {
+  font-size: 13px;
+  font-weight: 600;
+  color: #ff8a65;
+  padding: 2px 0;
+}
+[data-theme="night"] .anchor-countdown {
+  color: #cc3333;
+}
+[data-theme="dusk"] .anchor-countdown {
+  color: #d0a080;
+}
+[data-theme="eink"] .anchor-countdown {
+  color: #d00000;
+  font-weight: 700;
+  border-left: 3px solid #d00000;
+  padding-left: 6px;
 }

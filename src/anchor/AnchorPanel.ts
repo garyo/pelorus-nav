@@ -14,6 +14,12 @@
  * Setup parameters persist via the remembered-params slot and seed the next
  * anchorage's defaults. Lengths display in the depth-unit family (m, or ft
  * for feet/fathoms — see anchor-setup.ts); values are stored in meters.
+ *
+ * Both views carry the tide-aware scope line ("Scope 6.0:1 now → 4.2:1 at HW
+ * 4:12 PM"): scope math in anchor-scope.ts, high water from the offline tide
+ * predictor at the nearest station. The bundle loads lazily and its absence
+ * only shortens the line — it never blocks the panel or arming, and a scope
+ * the predictor doesn't like is advice in the setup view, not a gate.
  */
 
 import type { CobAlarm } from "../cob/CobAlarm";
@@ -22,6 +28,18 @@ import { attachHoldGesture } from "../cob/hold-gesture";
 import type { AnchorLayerState } from "../map/AnchorLayer";
 import type { NavigationDataManager } from "../navigation/NavigationDataManager";
 import { getSettings, onSettingsChange } from "../settings";
+import {
+  DEFAULT_NEAREST_STATION_NM,
+  loadTidesIndex,
+  nearestTideStation,
+  type TidesIndex,
+} from "../tides/bundle";
+import {
+  formatEventTime,
+  formatTideHeight,
+  formatTimeUntil,
+} from "../tides/format";
+import { type TideState, tideState } from "../tides/predictor";
 import { hideStatusBanner, showStatusBanner } from "../ui/StatusBanner";
 import { registerSurface } from "../ui/SurfaceManager";
 import { projectPoint } from "../utils/coordinates";
@@ -34,6 +52,18 @@ import {
   DEFAULT_WARN_M,
   warnRingRadiusM,
 } from "./AnchorWatchManager";
+import {
+  formatScopeRatio,
+  highestHighWithin,
+  riseToHigh,
+  SCOPE_MARGINAL,
+  type ScopeAdvice,
+  scopeAdvice,
+  scopeAtTide,
+  scopeRatio,
+  TIDE_LOOKAHEAD_HRS,
+  worstAdvice,
+} from "./anchor-scope";
 import {
   type AnchorLengthUnit,
   anchorLengthUnit,
@@ -52,8 +82,71 @@ const ARM_HOLD_MS = 600;
 const DISARM_HOLD_MS = 1500;
 const MIN_RADIUS_M = 5;
 const NO_FIX_BANNER_MS = 8000;
+/** Tide predictions move slowly — recompute at most this often. */
+const TIDE_REFRESH_MS = 5 * 60 * 1000;
+/** Cache-key rounding for the anchor position: ~1 km, far inside a station's reach. */
+const TIDE_POS_DECIMALS = 2;
+const HOUR_MS = 3600 * 1000;
 
 type AnchorPosMode = "vessel" | "offset" | "tap";
+
+/** What the tide predictor can say about the coming high water, or why not. */
+type TideOutlook =
+  | { kind: "loading" }
+  | { kind: "unavailable" }
+  | { kind: "no-position" }
+  | { kind: "no-station" }
+  | { kind: "no-prediction" }
+  | { kind: "no-high" }
+  | {
+      kind: "high";
+      riseM: number;
+      time: Date;
+      /** Subordinate station: heights are offset estimates, not a curve. */
+      approximate: boolean;
+      stationName: string;
+    };
+
+/** Short suffix stating why the tide half of the readout is missing. */
+const TIDE_OUTLOOK_NOTE: Record<
+  Exclude<TideOutlook["kind"], "high">,
+  string
+> = {
+  loading: "loading tide…",
+  unavailable: "tide data unavailable",
+  "no-position": "no position for tide",
+  "no-station": `no tide station within ${DEFAULT_NEAREST_STATION_NM} NM`,
+  "no-prediction": "tide prediction unavailable",
+  "no-high": `no high water in ${TIDE_LOOKAHEAD_HRS} h`,
+};
+
+const POOR_SCOPE_ADVISORY = `Advisory: scope below ${SCOPE_MARGINAL}:1 — more rode recommended.`;
+const POOR_AT_HW_ADVISORY = `Advisory: scope drops below ${SCOPE_MARGINAL}:1 at high water — more rode recommended.`;
+
+/** The tide/scope line and its advisory, for both views. */
+interface ScopeReadout {
+  text: string;
+  advice: ScopeAdvice | "none";
+  /** Tooltip: station, rise, and any caveat behind the one-line summary. */
+  detail: string;
+  /** Setup-view advice line; null when there is nothing to flag. */
+  advisory: string | null;
+}
+
+/** Which of the two required inputs the user still owes us. */
+function missingScopeInputs(
+  rodeM: number | undefined,
+  depthM: number | undefined,
+  bowHeightM: number | undefined,
+): string {
+  const missing: string[] = [];
+  if (rodeM === undefined || rodeM <= 0) missing.push("rode");
+  if (depthM === undefined || depthM + (bowHeightM ?? 0) <= 0) {
+    missing.push("depth");
+  }
+  if (missing.length === 0) return "Scope unavailable for these values";
+  return `Enter ${missing.join(" and ")} for scope`;
+}
 
 export interface AnchorPanelDeps {
   manager: AnchorWatchManager;
@@ -125,6 +218,20 @@ export class AnchorPanel {
   private ticker: ReturnType<typeof setInterval> | null = null;
   private detachHolds: Array<() => void> = [];
 
+  // Tide-aware scope: the bundle loads lazily (only once a depth exists) and
+  // never blocks the panel or arming; predictions are cached per position.
+  private tideIndex: TidesIndex | null = null;
+  private tideLoading = false;
+  private tideLoadFailed = false;
+  /** Bumped per load attempt so a late resolution can't overwrite a newer one. */
+  private tideLoadGen = 0;
+  private tideCache: {
+    key: string;
+    computedAt: number;
+    outlook: TideOutlook;
+  } | null = null;
+  private disposed = false;
+
   // Setup elements
   private setupEl!: HTMLDivElement;
   private paramInputs!: Record<
@@ -139,6 +246,7 @@ export class AnchorPanel {
   private offsetDistInput!: HTMLInputElement;
   private offsetBrgInput!: HTMLInputElement;
   private posHint!: HTMLDivElement;
+  private scopeAdvisoryEl!: HTMLDivElement;
 
   // Armed elements
   private armedEl!: HTMLDivElement;
@@ -147,7 +255,9 @@ export class AnchorPanel {
   private brgEl!: HTMLSpanElement;
   private radiusValueEl!: HTMLSpanElement;
   private gpsLineEl!: HTMLDivElement;
-  private tideEl!: HTMLDivElement;
+  private countdownEl!: HTMLDivElement;
+  /** The scope/tide line, one per view (setup and armed show the same text). */
+  private readonly tideEls: HTMLDivElement[] = [];
   private audioEl!: HTMLDivElement;
   private muteBtn!: HTMLButtonElement;
 
@@ -200,7 +310,9 @@ export class AnchorPanel {
     if (this.modeActive === active) return;
     this.modeActive = active;
     if (active) {
-      if (!this.snap) this.renderSetupLive();
+      // Entering the mode is what makes the tide bundle worth fetching.
+      if (this.snap) this.renderScope();
+      else this.renderSetupLive();
       this.el.classList.add("open");
       this.surface.opened();
     } else {
@@ -268,6 +380,14 @@ export class AnchorPanel {
     return input;
   }
 
+  /** The scope/tide line; both views carry one, rendered from one readout. */
+  private buildTideLine(): HTMLDivElement {
+    const el = document.createElement("div");
+    el.className = "anchor-tide";
+    this.tideEls.push(el);
+    return el;
+  }
+
   private buildSetup(): void {
     this.setupEl = document.createElement("div");
     this.setupEl.className = "anchor-setup";
@@ -310,6 +430,14 @@ export class AnchorPanel {
       lastRodeM: paramField("Rode out", "lastRodeM"),
       lastDepthM: paramField("Depth", "lastDepthM"),
     };
+
+    // Scope from those fields, now and at the coming high water — it matters
+    // most here, while the rode is still being chosen. Poor scope is advice,
+    // never a gate on arming.
+    const tideLine = this.buildTideLine();
+    this.scopeAdvisoryEl = document.createElement("div");
+    this.scopeAdvisoryEl.className = "anchor-scope-advisory";
+    this.scopeAdvisoryEl.style.display = "none";
 
     // Watch radius: computed default (rode + boat + GPS margin), manual
     // override always available; Auto returns to the computed value.
@@ -433,6 +561,8 @@ export class AnchorPanel {
     this.armBlockedEl.className = "anchor-arm-blocked";
     this.setupEl.append(
       fields,
+      tideLine,
+      this.scopeAdvisoryEl,
       radiusRow,
       this.radiusHint,
       posRow,
@@ -495,14 +625,10 @@ export class AnchorPanel {
 
     this.gpsLineEl = document.createElement("div");
     this.gpsLineEl.className = "anchor-gps-line";
+    this.countdownEl = document.createElement("div");
+    this.countdownEl.className = "anchor-countdown";
 
-    // TODO: tide-aware scope readout ("6:1 now → 4.2:1 at HW 04:12") — see
-    // docs/anchor-watch-design.md "Tide-aware scope". Inputs already exist
-    // here (rode, depth, bow height) plus nearestTideStation; a later step
-    // fills this line and unhides it.
-    this.tideEl = document.createElement("div");
-    this.tideEl.className = "anchor-tide";
-    this.tideEl.style.display = "none";
+    const tideLine = this.buildTideLine();
 
     this.audioEl = document.createElement("div");
     this.audioEl.className = "anchor-audio-blocked";
@@ -524,8 +650,9 @@ export class AnchorPanel {
     this.armedEl.append(
       distRow,
       radiusCell,
+      this.countdownEl,
       this.gpsLineEl,
-      this.tideEl,
+      tideLine,
       this.audioEl,
       actions,
     );
@@ -724,6 +851,7 @@ export class AnchorPanel {
             ? ""
             : "Waiting for a GPS fix";
     this.applyArmBlocker();
+    this.renderScope();
     this.deps.onPreviewChange();
   }
 
@@ -783,6 +911,16 @@ export class AnchorPanel {
           : ""
         : "";
     this.gpsLineEl.textContent = `${GPS_STATE_TEXT[snap.gpsState]}${acc}`;
+    // Outside the radius but not yet alarming: show the excursion timer, so
+    // a countdown that keeps restarting on GPS jitter near the boundary
+    // reads as "working" rather than "broken".
+    if (snap.alarmInS !== null) {
+      this.countdownEl.textContent = `Outside the circle — alarm in ${snap.alarmInS}s`;
+      this.countdownEl.style.display = "";
+    } else {
+      this.countdownEl.textContent = "";
+      this.countdownEl.style.display = "none";
+    }
     this.muteBtn.textContent = snap.muted ? "Unmute alarms" : "Mute alarms";
     this.renderTick();
   }
@@ -823,16 +961,191 @@ export class AnchorPanel {
     this.audioEl.style.display = blocked ? "" : "none";
   }
 
-  /** 1 Hz while the armed view is visible: time at anchor. */
+  // --- Tide-aware scope ---
+
+  /** Where the scope readout asks about the tide: the anchor, else the boat. */
+  private scopePosition(): { lat: number; lon: number } | null {
+    const snap = this.snap;
+    if (snap) return snap.anchor;
+    const pending = this.resolveAnchorPosition();
+    if (pending) return pending;
+    const fix = this.deps.navManager.getLastData();
+    return fix ? { lat: fix.latitude, lon: fix.longitude } : null;
+  }
+
+  /**
+   * Start the one-time bundle load. A failure is remembered rather than
+   * retried on every tick; the panel stays usable either way.
+   */
+  private ensureTideIndex(): void {
+    if (this.tideIndex || this.tideLoading || this.tideLoadFailed) return;
+    // The bundle is megabytes — wait until the card is actually on screen.
+    // The promise is shared with the tides overlay, so it may cost nothing.
+    if (!this.modeActive) return;
+    this.tideLoading = true;
+    const gen = ++this.tideLoadGen;
+    loadTidesIndex().then(
+      (index) => {
+        if (this.disposed || gen !== this.tideLoadGen) return;
+        this.tideLoading = false;
+        this.tideIndex = index;
+        this.renderScope();
+      },
+      (err: unknown) => {
+        if (this.disposed || gen !== this.tideLoadGen) return;
+        this.tideLoading = false;
+        this.tideLoadFailed = true;
+        console.warn("anchor scope: tides bundle unavailable:", err);
+        this.renderScope();
+      },
+    );
+  }
+
+  /** Cached coming-high-water outlook for the current anchor position. */
+  private tideOutlook(at: Date): TideOutlook {
+    const pos = this.scopePosition();
+    if (!pos) return { kind: "no-position" };
+    if (this.tideLoadFailed) return { kind: "unavailable" };
+    const index = this.tideIndex;
+    if (!index) {
+      this.ensureTideIndex();
+      return { kind: "loading" };
+    }
+    const key = `${pos.lat.toFixed(TIDE_POS_DECIMALS)},${pos.lon.toFixed(
+      TIDE_POS_DECIMALS,
+    )}`;
+    const cached = this.tideCache;
+    const fresh =
+      cached !== null &&
+      cached.key === key &&
+      at.getTime() - cached.computedAt < TIDE_REFRESH_MS &&
+      (cached.outlook.kind !== "high" ||
+        cached.outlook.time.getTime() > at.getTime());
+    if (cached && fresh) return cached.outlook;
+    const outlook = this.computeTideOutlook(index, pos, at);
+    this.tideCache = { key, computedAt: at.getTime(), outlook };
+    return outlook;
+  }
+
+  private computeTideOutlook(
+    index: TidesIndex,
+    pos: { lat: number; lon: number },
+    at: Date,
+  ): TideOutlook {
+    const station = nearestTideStation(index, pos.lat, pos.lon);
+    if (!station) return { kind: "no-station" };
+    let state: TideState | null = null;
+    try {
+      state = tideState(station, index, at, TIDE_LOOKAHEAD_HRS);
+    } catch (err) {
+      console.warn("anchor scope: tide prediction failed:", err);
+    }
+    if (!state || state.heightMeters === null) return { kind: "no-prediction" };
+    const hw = highestHighWithin(
+      state.events,
+      at,
+      TIDE_LOOKAHEAD_HRS * HOUR_MS,
+    );
+    if (!hw) return { kind: "no-high" };
+    return {
+      kind: "high",
+      riseM: riseToHigh(state.heightMeters, hw.heightMeters),
+      time: hw.time,
+      approximate: state.approximate === true,
+      stationName: station.name,
+    };
+  }
+
+  /**
+   * "Scope 5.2:1 now → 3.8:1 at HW 4:12 PM" when everything is known; a short
+   * statement of what is missing otherwise — this line never goes blank.
+   */
+  private scopeReadout(): ScopeReadout {
+    const { lastRodeM: rodeM, lastDepthM: depthM, bowHeightM } = this.params;
+    const now = scopeRatio({ rodeM, depthM, bowHeightM });
+    if (now === null) {
+      return {
+        text: missingScopeInputs(rodeM, depthM, bowHeightM),
+        advice: "none",
+        detail: "",
+        advisory: null,
+      };
+    }
+    const at = new Date();
+    const nowText = `Scope ${formatScopeRatio(now)} now`;
+    const nowAdvice = scopeAdvice(now);
+    const notes: string[] = [];
+    if (bowHeightM === undefined) {
+      notes.push("Bow height not set — counted as zero.");
+    }
+    const outlook = this.tideOutlook(at);
+    if (outlook.kind !== "high") {
+      return {
+        text: `${nowText} · ${TIDE_OUTLOOK_NOTE[outlook.kind]}`,
+        advice: nowAdvice ?? "none",
+        detail: notes.join(" "),
+        advisory: nowAdvice === "poor" ? POOR_SCOPE_ADVISORY : null,
+      };
+    }
+
+    const atHw = scopeAtTide({
+      rodeM,
+      depthM,
+      bowHeightM,
+      tideRiseM: outlook.riseM,
+    });
+    const hwAdvice = scopeAdvice(atHw);
+    const depthUnit = getSettings().depthUnit;
+    notes.unshift(
+      `${outlook.stationName}: +${formatTideHeight(outlook.riseM, depthUnit)} by high water ${formatTimeUntil(outlook.time, at)}.`,
+    );
+    if (outlook.approximate) {
+      notes.push("Subordinate station — offset estimate, not a curve.");
+    }
+    const worst = worstAdvice(nowAdvice, hwAdvice);
+    return {
+      text:
+        atHw === null
+          ? `${nowText} · ${TIDE_OUTLOOK_NOTE["no-prediction"]}`
+          : `${nowText} → ${formatScopeRatio(atHw)} at HW ${formatEventTime(
+              outlook.time,
+              at,
+            )}${outlook.approximate ? " (approx.)" : ""}`,
+      advice: worst ?? "none",
+      detail: notes.join(" "),
+      advisory:
+        hwAdvice === "poor" && nowAdvice !== "poor"
+          ? POOR_AT_HW_ADVISORY
+          : worst === "poor"
+            ? POOR_SCOPE_ADVISORY
+            : null,
+    };
+  }
+
+  private renderScope(): void {
+    const readout = this.scopeReadout();
+    for (const el of this.tideEls) {
+      el.textContent = readout.text;
+      el.dataset.advice = readout.advice;
+      if (readout.detail) el.title = readout.detail;
+      else el.removeAttribute("title");
+    }
+    this.scopeAdvisoryEl.textContent = readout.advisory ?? "";
+    this.scopeAdvisoryEl.style.display = readout.advisory ? "" : "none";
+  }
+
+  /** 1 Hz while the panel is visible: time at anchor, arm gate, scope. */
   private renderTick(): void {
     const snap = this.snap;
-    if (!snap) {
+    if (snap) {
+      this.elapsedEl.textContent = formatCobElapsed(Date.now() - snap.armedAt);
+    } else {
       // Setup view: a fix can go stale with no event to announce it, so the
       // arm gate is re-evaluated on the clock.
       this.applyArmBlocker();
-      return;
     }
-    this.elapsedEl.textContent = formatCobElapsed(Date.now() - snap.armedAt);
+    // Cheap on most ticks — the tide prediction behind it is cached.
+    this.renderScope();
   }
 
   private updateTicker(): void {
@@ -846,6 +1159,7 @@ export class AnchorPanel {
   }
 
   dispose(): void {
+    this.disposed = true;
     if (this.ticker) clearInterval(this.ticker);
     for (const detach of this.detachHolds) detach();
     this.detachHolds = [];

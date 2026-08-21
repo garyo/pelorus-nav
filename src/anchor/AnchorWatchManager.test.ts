@@ -283,6 +283,25 @@ describe("drag alarm hysteresis", () => {
     ).toBe(true);
   });
 
+  it("counts down to the alarm and restarts the countdown on re-entry", () => {
+    const h = makeHarness();
+    armAtAnchor(h);
+    expect(h.snapshot().alarmInS).toBeNull();
+
+    // Jitter outside: the countdown starts…
+    const t0 = h.clock.now;
+    h.emitFix(fixAt(60, t0));
+    expect(h.snapshot().alarmInS).toBe(15);
+    h.emitFix(fixAt(60, t0 + 5000));
+    expect(h.snapshot().alarmInS).toBe(10);
+
+    // …and a fix back inside clears it, so the next excursion starts fresh.
+    h.emitFix(fixAt(5, t0 + 6000));
+    expect(h.snapshot().alarmInS).toBeNull();
+    h.emitFix(fixAt(60, t0 + 7000));
+    expect(h.snapshot().alarmInS).toBe(15);
+  });
+
   it("re-entry during the delay cancels and restarts the excursion timer", () => {
     const h = makeHarness();
     armAtAnchor(h);

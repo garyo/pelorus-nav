@@ -8,6 +8,18 @@ The format follows [Keep a Changelog](https://keepachangelog.com/).
 ## [Unreleased]
 
 ### Added
+- **Anchor watch.** A new Anchor Watch mode (hamburger menu) sets an anchor
+  position and watch radius and alarms if the boat drags outside it. The
+  radius is suggested from your rode, boat length, and live GPS accuracy;
+  the anchor can be placed at the vessel, by distance and bearing, or by
+  tapping the chart. While armed it shows distance and bearing back to the
+  anchor, the swing track, time at anchor, and — using the offline tide
+  data — your current scope and what it becomes at the next high water. A
+  separate alarm sounds if GPS is lost while anchored, so a blind watch
+  can't look like a safe boat. Tap an alarm to silence it (the watch stays
+  armed and re-alarms if the boat keeps moving); hold to disarm. The watch
+  keeps running when you leave the mode, showing a corner badge, and
+  survives an app restart.
 - The instrument bar now shows distance to the route's destination while
   navigating, on the right of the "Next:" caption line. The caption text
   is slightly larger, too.

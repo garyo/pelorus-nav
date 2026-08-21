@@ -86,6 +86,13 @@ export interface AnchorWatchSnapshot {
   alarmKind: AnchorAlarmKind | null;
   /** An alarm was silenced by the user and its trigger still holds. */
   acknowledged: boolean;
+  /**
+   * Seconds left in the current excursion before the drag alarm fires, or
+   * null when not counting down. The countdown restarts whenever a fix
+   * lands back inside the radius, which is what makes GPS jitter near the
+   * boundary look like nothing happening — so it is surfaced.
+   */
+  alarmInS: number | null;
   muted: boolean;
   /** Distance from the last known fix to the anchor; null before any fix. */
   distanceM: number | null;
@@ -312,6 +319,21 @@ export class AnchorWatchManager {
       : armed.gpsLossAlarming
         ? "gps-loss"
         : null;
+    const alarmInS =
+      armed.outsideSinceTs !== null &&
+      !armed.dragAlarming &&
+      !armed.dragAcknowledged &&
+      fix !== null
+        ? Math.max(
+            0,
+            Math.ceil(
+              (armed.outsideSinceTs +
+                this.config.alarmDelayS * 1000 -
+                fix.timestamp) /
+                1000,
+            ),
+          )
+        : null;
     return {
       armedAt: armed.armedAt,
       anchor: { ...armed.anchor },
@@ -322,6 +344,7 @@ export class AnchorWatchManager {
       alarming: alarmKind !== null,
       alarmKind,
       acknowledged: armed.dragAcknowledged || armed.gpsLossAcknowledged,
+      alarmInS,
       muted: armed.muted,
       distanceM,
       bearingDeg,
