@@ -113,3 +113,13 @@ export async function opfsWriteText(
 ): Promise<void> {
   await request("writeText", { filename, text });
 }
+
+/**
+ * Recover leftover download temp files after a crash: finish any interrupted
+ * fallback move (proven complete by its `.moving` marker) and delete
+ * partial-download temps. Runs in the worker because the recovery move needs
+ * `createSyncAccessHandle`, which is worker-only.
+ */
+export async function opfsSweepTemps(): Promise<void> {
+  await request("sweep", {});
+}

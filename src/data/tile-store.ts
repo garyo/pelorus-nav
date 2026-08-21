@@ -11,7 +11,12 @@
  */
 
 import { appErrorLog, formatErrorDetail } from "../diagnostics/errorLog";
-import { opfsFetchWrite, opfsWriteBlob, opfsWriteText } from "./opfs-writer";
+import {
+  opfsFetchWrite,
+  opfsSweepTemps,
+  opfsWriteBlob,
+  opfsWriteText,
+} from "./opfs-writer";
 
 const META_FILENAME = "_charts-meta.json";
 
@@ -23,30 +28,41 @@ export interface StoredChartInfo {
   etag?: string; // for update detection
 }
 
-let sweptDownloadingFiles = false;
+let sweptLeftoverTemps = false;
 
 /**
- * Remove any `*.downloading` temp files left behind by a crash or force-quit
- * mid-download — the OPFS write worker normally cleans these up itself (see
- * opfs-write-worker.ts), but a hard kill skips that cleanup entirely. Runs at
- * most once per session, the first time the OPFS root is opened.
+ * Recover the `*.downloading` temp files left behind by a crash or force-quit
+ * mid-download — the OPFS write worker cleans up after a clean failure, but a
+ * hard kill skips that entirely. The sweep runs inside the worker (see
+ * sweepTemps in opfs-write-worker.ts): it finishes an interrupted fallback
+ * move when the temp's `.moving` marker proves it complete, and deletes
+ * partial-download temps and orphaned markers. Runs at most once per session,
+ * the first time the OPFS root is opened. If the worker can't run, fall back
+ * to deleting the leftovers — safe (it never installs anything) and the same
+ * treatment the worker gives unproven temps.
  */
-async function sweepDownloadingFiles(
+async function sweepLeftoverTemps(
   root: FileSystemDirectoryHandle,
 ): Promise<void> {
-  if (sweptDownloadingFiles) return;
-  sweptDownloadingFiles = true;
+  if (sweptLeftoverTemps) return;
+  sweptLeftoverTemps = true;
   try {
-    for await (const name of root.keys()) {
-      if (!name.endsWith(".downloading")) continue;
-      try {
-        await root.removeEntry(name);
-      } catch {
-        // best-effort cleanup only
-      }
-    }
+    await opfsSweepTemps();
   } catch {
-    // root.keys() unsupported or failed — skip cleanup silently
+    try {
+      for await (const name of root.keys()) {
+        if (!name.endsWith(".downloading") && !name.endsWith(".moving")) {
+          continue;
+        }
+        try {
+          await root.removeEntry(name);
+        } catch {
+          // best-effort cleanup only
+        }
+      }
+    } catch {
+      // root.keys() unsupported or failed — skip cleanup silently
+    }
   }
 }
 
@@ -55,7 +71,7 @@ async function getRoot(): Promise<FileSystemDirectoryHandle | null> {
   if (!navigator.storage?.getDirectory) return null;
   try {
     const root = await navigator.storage.getDirectory();
-    await sweepDownloadingFiles(root);
+    await sweepLeftoverTemps(root);
     return root;
   } catch {
     return null;
@@ -345,8 +361,9 @@ export async function deleteAllCharts(): Promise<void> {
   const root = await getRoot();
   if (!root) return;
   await withMeta(async () => {
-    // Removes the meta sidecar and any leftover `.downloading` temp files
-    // too — writeMeta([]) below recreates a fresh, empty sidecar.
+    // Removes the meta sidecar and any leftover `.downloading` temp /
+    // `.moving` marker files too — writeMeta([]) below recreates a fresh,
+    // empty sidecar.
     for await (const name of root.keys()) {
       try {
         await root.removeEntry(name);

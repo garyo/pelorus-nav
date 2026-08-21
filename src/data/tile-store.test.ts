@@ -29,6 +29,7 @@ vi.mock("./opfs-writer", () => ({
   opfsWriteText: vi.fn(async (filename: string, text: string) => {
     mockFiles.set(filename, text);
   }),
+  opfsSweepTemps: vi.fn(async () => {}),
 }));
 
 import { appErrorLog } from "../diagnostics/errorLog";
@@ -234,5 +235,43 @@ describe("chart metadata sidecar", () => {
     expect(mockFiles.has("orphan.pmtiles")).toBe(false);
     expect(mockFiles.has("a.pmtiles")).toBe(false);
     expect(await listStoredCharts()).toEqual([]);
+  });
+});
+
+describe("startup temp sweep", () => {
+  // Each test re-imports tile-store fresh so its once-per-session sweep
+  // flag (already consumed by the suites above) starts unset.
+  async function freshTileStore() {
+    vi.resetModules();
+    const writer = await import("./opfs-writer");
+    const store = await import("./tile-store");
+    // The mock registry survives resetModules, so drop calls recorded by
+    // the module instance the earlier suites used.
+    const sweep = vi.mocked(writer.opfsSweepTemps);
+    sweep.mockClear();
+    return { store, sweep };
+  }
+
+  it("delegates recovery to the worker sweep, once per session", async () => {
+    const { store, sweep } = await freshTileStore();
+    mockFiles.set("a.pmtiles.downloading", "leftover");
+    await store.listStoredCharts();
+    await store.listStoredCharts();
+    expect(sweep).toHaveBeenCalledTimes(1);
+    // Recovery is the worker's job — tile-store itself must not delete
+    // the temp out from under it.
+    expect(mockFiles.has("a.pmtiles.downloading")).toBe(true);
+  });
+
+  it("falls back to deleting temps and markers when the worker sweep fails", async () => {
+    const { store, sweep } = await freshTileStore();
+    sweep.mockRejectedValueOnce(new Error("worker unavailable"));
+    mockFiles.set("a.pmtiles", "good chart");
+    mockFiles.set("a.pmtiles.downloading", "partial");
+    mockFiles.set("a.pmtiles.moving", "");
+    await store.listStoredCharts();
+    expect(mockFiles.has("a.pmtiles.downloading")).toBe(false);
+    expect(mockFiles.has("a.pmtiles.moving")).toBe(false);
+    expect(mockFiles.get("a.pmtiles")).toBe("good chart");
   });
 });

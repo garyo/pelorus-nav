@@ -8,8 +8,9 @@
  * would hide: writes stream chunk-by-chunk (never `blob.arrayBuffer()`),
  * land in a temp file, and only replace the final file after a complete
  * flush — a mid-write failure must leave an existing file untouched. The
- * `moveIntoPlace` copy fallback (WebViews where `move` throws, e.g. Amazon
- * Fire) is exercised the same way.
+ * `moveIntoPlace` copy fallback (very old WebViews where `move` is missing
+ * or throws) is exercised the same way, along with the `sweep` op that
+ * recovers crash-interrupted fallback moves via the `.moving` marker.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -29,8 +30,8 @@ type MoveMode = "native" | "missing" | "throws";
 
 class FakeSyncAccessHandle {
   closed = false;
+  readonly name: string;
   private readonly files: FileMap;
-  private readonly name: string;
 
   constructor(files: FileMap, name: string) {
     this.files = files;
@@ -122,6 +123,10 @@ class FakeRoot {
     if (!this.files.delete(name)) {
       throw new DOMException("not found", "NotFoundError");
     }
+  }
+
+  keys(): IterableIterator<string> {
+    return this.files.keys();
   }
 }
 
@@ -273,11 +278,26 @@ describe("writeText", () => {
   });
 });
 
+/** Make writes to `victim` silently drop their bytes (report success, store nothing). */
+function sabotageWritesTo(victim: string): void {
+  const realWrite = FakeSyncAccessHandle.prototype.write;
+  vi.spyOn(FakeSyncAccessHandle.prototype, "write").mockImplementation(
+    function (
+      this: FakeSyncAccessHandle,
+      data: Uint8Array,
+      opts: { at: number },
+    ) {
+      if (this.name === victim) return data.byteLength;
+      return realWrite.call(this, data, opts);
+    },
+  );
+}
+
 describe("moveIntoPlace fallbacks", () => {
   it.each<MoveMode>([
     "missing",
     "throws",
-  ])("copies into place when move is %s (Amazon Fire quirk)", async (moveMode) => {
+  ])("copies into place when move is %s (very old WebViews)", async (moveMode) => {
     await loadWorker();
     root.moveMode = moveMode;
     root.files.set("chart.pmtiles", new TextEncoder().encode("old copy"));
@@ -289,5 +309,103 @@ describe("moveIntoPlace fallbacks", () => {
     expect(reply).toMatchObject({ type: "done", size: 14 });
     expect(contentOf("chart.pmtiles")).toBe("copied content");
     expect(root.files.has("chart.pmtiles.downloading")).toBe(false);
+    expect(root.files.has("chart.pmtiles.moving")).toBe(false);
+  });
+
+  it("deletes the corrupt destination and reports an error when copy verification fails", async () => {
+    await loadWorker();
+    root.moveMode = "missing";
+    sabotageWritesTo("chart.pmtiles");
+    const reply = await send({
+      op: "writeBlob",
+      filename: "chart.pmtiles",
+      blob: streamOnlyBlob(["doomed bytes"]),
+    });
+    expect(reply.type).toBe("error");
+    expect(reply.message).toContain("verification failed");
+    // No corrupt final file may survive a failed copy.
+    expect(root.files.has("chart.pmtiles")).toBe(false);
+    // The caller removed the temp, so the marker is an orphan the next
+    // sweep clears without touching anything else.
+    expect(root.files.has("chart.pmtiles.moving")).toBe(true);
+    const sweepReply = await send({ op: "sweep" });
+    expect(sweepReply.type).toBe("done");
+    expect(root.files.has("chart.pmtiles.moving")).toBe(false);
+  });
+
+  it("clears a stale marker before writing a fresh temp", async () => {
+    await loadWorker();
+    // Leftover marker from an earlier failed attempt: if it survived next
+    // to this write's (partial) temp, the sweep would take the temp as
+    // proven complete and install a truncated file.
+    root.files.set("chart.pmtiles.moving", new Uint8Array(0));
+    const reply = await send({
+      op: "writeBlob",
+      filename: "chart.pmtiles",
+      blob: streamOnlyBlob(["fresh "], 1), // stream dies mid-download
+    });
+    expect(reply.type).toBe("error");
+    expect(root.files.has("chart.pmtiles.downloading")).toBe(false);
+    expect(root.files.has("chart.pmtiles.moving")).toBe(false);
+  });
+});
+
+describe("sweep", () => {
+  it.each<[string, string | undefined]>([
+    ["a torn partial destination", "full ch"],
+    ["no destination at all", undefined],
+  ])("finishes an interrupted fallback move: %s, marker proves the temp complete", async (_case, destContent) => {
+    await loadWorker();
+    root.moveMode = "throws"; // the device class that needs the fallback
+    const enc = new TextEncoder();
+    root.files.set("chart.pmtiles.downloading", enc.encode("full chart bytes"));
+    root.files.set("chart.pmtiles.moving", new Uint8Array(0));
+    if (destContent !== undefined) {
+      root.files.set("chart.pmtiles", enc.encode(destContent));
+    }
+    const reply = await send({ op: "sweep" });
+    expect(reply.type).toBe("done");
+    expect(contentOf("chart.pmtiles")).toBe("full chart bytes");
+    expect(root.files.has("chart.pmtiles.downloading")).toBe(false);
+    expect(root.files.has("chart.pmtiles.moving")).toBe(false);
+  });
+
+  it("deletes a markerless temp without installing it (possible partial download)", async () => {
+    await loadWorker();
+    const enc = new TextEncoder();
+    root.files.set("a.pmtiles.downloading", enc.encode("half a cha"));
+    root.files.set("b.pmtiles", enc.encode("good chart"));
+    root.files.set("b.pmtiles.downloading", enc.encode("half"));
+    const reply = await send({ op: "sweep" });
+    expect(reply.type).toBe("done");
+    expect(root.files.has("a.pmtiles")).toBe(false);
+    expect(root.files.has("a.pmtiles.downloading")).toBe(false);
+    expect(contentOf("b.pmtiles")).toBe("good chart");
+    expect(root.files.has("b.pmtiles.downloading")).toBe(false);
+  });
+
+  it("drops an orphaned marker once the move has completed", async () => {
+    await loadWorker();
+    const enc = new TextEncoder();
+    root.files.set("chart.pmtiles", enc.encode("good chart"));
+    root.files.set("chart.pmtiles.moving", new Uint8Array(0));
+    const reply = await send({ op: "sweep" });
+    expect(reply.type).toBe("done");
+    expect(contentOf("chart.pmtiles")).toBe("good chart");
+    expect(root.files.has("chart.pmtiles.moving")).toBe(false);
+  });
+
+  it("keeps the temp and marker when recovery verification fails", async () => {
+    await loadWorker();
+    root.moveMode = "missing";
+    const enc = new TextEncoder();
+    root.files.set("chart.pmtiles.downloading", enc.encode("full chart bytes"));
+    root.files.set("chart.pmtiles.moving", new Uint8Array(0));
+    sabotageWritesTo("chart.pmtiles");
+    const reply = await send({ op: "sweep" });
+    expect(reply.type).toBe("done"); // per-file best effort
+    expect(contentOf("chart.pmtiles.downloading")).toBe("full chart bytes");
+    expect(root.files.has("chart.pmtiles.moving")).toBe(true);
+    expect(root.files.has("chart.pmtiles")).toBe(false);
   });
 });
