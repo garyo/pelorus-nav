@@ -174,6 +174,83 @@ describe("SignalKProvider (integration)", () => {
     await new Promise((r) => setTimeout(r, 150));
     expect(emitted).toBe(false);
   });
+
+  it("maps null cog/sog/heading values to null, not 0", async () => {
+    // NMEA-fed servers (signalk-parser-nmea0183) send `"value": null` when a
+    // quantity is unknown — it must surface as null, never a due-north 0.
+    wss = new WebSocketServer({ port: 0, path: "/signalk/v1/stream" });
+    await new Promise<void>((r) => wss?.on("listening", () => r()));
+    wss.on("connection", (sock: MockSocket) => {
+      sock.send(
+        JSON.stringify({
+          updates: [
+            {
+              values: [
+                {
+                  path: "navigation.position",
+                  value: { latitude: CENTER_LAT, longitude: CENTER_LON },
+                },
+                { path: "navigation.courseOverGroundTrue", value: null },
+                { path: "navigation.speedOverGround", value: null },
+                { path: "navigation.headingTrue", value: null },
+              ],
+            },
+          ],
+        }),
+      );
+    });
+    const { port } = wss.address() as AddressInfo;
+    provider = new SignalKProvider(
+      `ws://localhost:${port}/signalk/v1/stream?subscribe=none`,
+    );
+
+    const fixPromise = firstFix(provider);
+    provider.connect();
+    const fix = await fixPromise;
+    expect(fix.latitude).toBeCloseTo(CENTER_LAT, 6);
+    expect(fix.longitude).toBeCloseTo(CENTER_LON, 6);
+    expect(fix.cog).toBeNull();
+    expect(fix.sog).toBeNull();
+    expect(fix.heading).toBeNull();
+  });
+
+  it("skips a malformed position without discarding the rest of the message", async () => {
+    wss = new WebSocketServer({ port: 0, path: "/signalk/v1/stream" });
+    await new Promise<void>((r) => wss?.on("listening", () => r()));
+    wss.on("connection", (sock: MockSocket) => {
+      sock.send(
+        JSON.stringify({
+          updates: [
+            {
+              values: [
+                { path: "navigation.position", value: null },
+                {
+                  path: "navigation.position",
+                  value: { latitude: "bogus", longitude: CENTER_LON },
+                },
+                { path: "navigation.speedOverGround", value: 2.5 },
+                {
+                  path: "navigation.position",
+                  value: { latitude: CENTER_LAT, longitude: CENTER_LON },
+                },
+              ],
+            },
+          ],
+        }),
+      );
+    });
+    const { port } = wss.address() as AddressInfo;
+    provider = new SignalKProvider(
+      `ws://localhost:${port}/signalk/v1/stream?subscribe=none`,
+    );
+
+    const fixPromise = firstFix(provider);
+    provider.connect();
+    const fix = await fixPromise;
+    expect(fix.latitude).toBeCloseTo(CENTER_LAT, 6);
+    expect(fix.longitude).toBeCloseTo(CENTER_LON, 6);
+    expect(fix.sog).toBeCloseTo(2.5 / 0.514444, 3);
+  });
 });
 
 // Reconnect lifecycle: server restarts, URL moves, rate hints, notices —
@@ -290,6 +367,46 @@ describe("SignalKProvider reconnect lifecycle", () => {
     await new Promise((r) => setTimeout(r, 200));
     expect(provider.isConnected()).toBe(true);
     expect(wssB.clients.size).toBe(1);
+  }, 10000);
+
+  it("setUrl does not replay the old server's position", async () => {
+    const wssA = await streamServer();
+    // Server B sends COG-only deltas — never a position. If the accumulated
+    // fix survived the URL switch, B's first delta would broadcast server A's
+    // position with a fresh timestamp.
+    const wssB = new WebSocketServer({ port: 0, path: "/signalk/v1/stream" });
+    servers.push(wssB);
+    await listening(wssB);
+    wssB.on("connection", (sock: MockSocket) => {
+      const timer = setInterval(() => {
+        if (sock.readyState === sock.OPEN) {
+          sock.send(
+            JSON.stringify({
+              updates: [
+                {
+                  values: [
+                    { path: "navigation.courseOverGroundTrue", value: 1.0 },
+                  ],
+                },
+              ],
+            }),
+          );
+        }
+      }, 20);
+      sock.on("close", () => clearInterval(timer));
+    });
+
+    provider = new SignalKProvider(wsUrl(portOf(wssA)));
+    const fixes: NavigationData[] = [];
+    provider.subscribe((d) => fixes.push(d));
+    provider.connect();
+    await waitFor(() => fixes.length >= 1);
+
+    provider.setUrl(wsUrl(portOf(wssB)));
+    fixes.length = 0; // the old socket is torn down synchronously in setUrl
+    await waitFor(() => wssB.clients.size === 1);
+    await new Promise((r) => setTimeout(r, 300));
+    expect(fixes).toEqual([]);
   }, 10000);
 
   it("setDesiredIntervalMs re-subscribes with a clamped whole-second period", async () => {

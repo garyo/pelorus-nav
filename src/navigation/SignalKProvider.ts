@@ -24,6 +24,25 @@ import { ReconnectingTransport } from "./ReconnectingTransport";
 const MIN_PERIOD_MS = 1000;
 const MAX_PERIOD_MS = 10000;
 
+// Signal K servers legitimately send `"value": null` when a quantity is
+// unknown (e.g. COG/SOG from an NMEA source without a fix); anything
+// non-finite must read as "unknown", never coerce to 0.
+function asFiniteNumber(value: unknown): number | null {
+  return typeof value === "number" && Number.isFinite(value) ? value : null;
+}
+
+function asPosition(
+  value: unknown,
+): { latitude: number; longitude: number } | null {
+  if (typeof value !== "object" || value === null) return null;
+  const pos = value as { latitude?: unknown; longitude?: unknown };
+  const latitude = asFiniteNumber(pos.latitude);
+  const longitude = asFiniteNumber(pos.longitude);
+  return latitude !== null && longitude !== null
+    ? { latitude, longitude }
+    : null;
+}
+
 // A healthy server sends every period; several missed periods means the
 // link is dead even if the socket still looks open (half-open TCP).
 function silenceLimitFor(periodMs: number): number {
@@ -221,11 +240,22 @@ export class SignalKProvider implements NavigationDataProvider {
   }
 
   // Close whatever socket is current, quietly: nulling this.ws first makes
-  // the identity guard swallow the resulting close event.
+  // the identity guard swallow the resulting close event. Also forgets the
+  // accumulated fix — openSocket tears down before opening every replacement,
+  // so each connection emits only from its own deltas and can never stamp a
+  // previous server's position with a fresh timestamp (e.g. after setUrl).
+  // The subscription requests navigation.position every period, so the cost
+  // is at most one period of withheld output after a reconnect.
   private teardownSocket(): void {
     const sock = this.ws;
     this.ws = null;
     sock?.close();
+    this.hasPosition = false;
+    this.latitude = 0;
+    this.longitude = 0;
+    this.cog = null;
+    this.sog = null;
+    this.heading = null;
   }
 
   private sendSubscription(sock: WebSocket): void {
@@ -255,25 +285,32 @@ export class SignalKProvider implements NavigationDataProvider {
       for (const { path, value } of update.values ?? []) {
         switch (path) {
           case "navigation.position": {
-            const pos = value as { latitude: number; longitude: number };
+            const pos = asPosition(value);
+            if (!pos) break; // malformed: skip, keep the rest of the message
             this.latitude = pos.latitude;
             this.longitude = pos.longitude;
             this.hasPosition = true;
             changed = true;
             break;
           }
-          case "navigation.courseOverGroundTrue":
-            this.cog = toDegrees(value as number);
+          case "navigation.courseOverGroundTrue": {
+            const rad = asFiniteNumber(value);
+            this.cog = rad === null ? null : toDegrees(rad);
             changed = true;
             break;
-          case "navigation.speedOverGround":
-            this.sog = (value as number) * MS_TO_KNOTS;
+          }
+          case "navigation.speedOverGround": {
+            const mps = asFiniteNumber(value);
+            this.sog = mps === null ? null : mps * MS_TO_KNOTS;
             changed = true;
             break;
-          case "navigation.headingTrue":
-            this.heading = toDegrees(value as number);
+          }
+          case "navigation.headingTrue": {
+            const rad = asFiniteNumber(value);
+            this.heading = rad === null ? null : toDegrees(rad);
             changed = true;
             break;
+          }
         }
       }
     }
