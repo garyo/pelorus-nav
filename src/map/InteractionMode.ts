@@ -10,7 +10,8 @@ export type MapInteractionMode =
   | "measure"
   | "route-edit"
   | "plot"
-  | "track-view";
+  | "track-view"
+  | "anchor";
 
 type ModeListener = (mode: MapInteractionMode) => void;
 

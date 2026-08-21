@@ -303,6 +303,13 @@ export const iconPlot = svg(
     '<circle cx="12" cy="12" r="2"/>',
 );
 
+/** Anchor — anchor watch. */
+export const iconAnchor = svg(
+  '<circle cx="12" cy="5" r="3"/>' +
+    '<line x1="12" y1="22" x2="12" y2="8"/>' +
+    '<path d="M5 12H2a10 10 0 0 0 20 0h-3"/>',
+);
+
 /** Life ring / buoy — crew overboard. */
 export const iconLifeRing = svg(
   '<circle cx="12" cy="12" r="10"/>' +

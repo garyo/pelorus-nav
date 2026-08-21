@@ -11,6 +11,12 @@ import { BackgroundGPS } from "./plugins/BackgroundGPS";
 import "maplibre-gl/dist/maplibre-gl.css";
 import { Protocol } from "pmtiles";
 import "./style.css";
+import { AnchorBadge } from "./anchor/AnchorBadge";
+import { AnchorPanel } from "./anchor/AnchorPanel";
+import {
+  AnchorWatchManager,
+  type AnchorWatchSnapshot,
+} from "./anchor/AnchorWatchManager";
 import { installFileOpenCapture } from "./app/fileOpenQueue";
 import { type IdleCloseable, runIdleAutoReturn } from "./app/idleAutoReturn";
 import { installOverlayDimming } from "./app/overlayDimming";
@@ -49,8 +55,9 @@ import {
 import { getAllWaypoints, repairTrackPointCounts } from "./data/db";
 import { loadAllSearchIndices, type SearchEntry } from "./data/search-index";
 import { installConsoleHooks } from "./diagnostics/console-hooks";
+import { AnchorLayer, type AnchorLayerState } from "./map/AnchorLayer";
 import { BearingLine } from "./map/BearingLine";
-import { getMode } from "./map/InteractionMode";
+import { getMode, onModeChange, setMode } from "./map/InteractionMode";
 import { MeasurementLayer } from "./map/MeasurementLayer";
 import { installPinchZoomGuard } from "./map/pinch-zoom-guard";
 import { PlottingLayer } from "./map/plotting/PlottingLayer";
@@ -76,7 +83,10 @@ import {
   einkBufferWindowMs,
 } from "./navigation/CourseSmoothing";
 import { gpsDiagLog } from "./navigation/GPSDiagnosticLog";
-import { GpsPowerManager } from "./navigation/GpsPowerManager";
+import {
+  GpsPowerManager,
+  type RecordingSource,
+} from "./navigation/GpsPowerManager";
 import { setupGpsProviders } from "./navigation/provider-setup";
 import { RegionAutoSwitch } from "./navigation/RegionAutoSwitch";
 import { createStationaryTracker } from "./navigation/stationary";
@@ -103,6 +113,7 @@ import { installHardwareKeys } from "./ui/HardwareKeysController";
 import { createIdleDetector } from "./ui/IdleDetector";
 import { createInstrumentHUD } from "./ui/InstrumentHUD";
 import {
+  iconAnchor,
   iconClock,
   iconGauge,
   iconGlobe,
@@ -129,7 +140,7 @@ import { SearchDialog } from "./ui/SearchDialog";
 import { createSettingsPanel } from "./ui/SettingsPanel";
 import { showSppDevicePicker } from "./ui/SppDevicePickerDialog";
 import { hideStatusBanner, showStatusBanner } from "./ui/StatusBanner";
-import { registerSurface } from "./ui/SurfaceManager";
+import { closeAllSurfaces, registerSurface } from "./ui/SurfaceManager";
 import { TimeBar } from "./ui/TimeBar";
 import { TrackManagerPanel } from "./ui/TrackManagerPanel";
 import { TrackViewerPanel } from "./ui/TrackViewerPanel";
@@ -980,21 +991,43 @@ onSettingsChange((s) => {
 // Start recording at boot if the setting is on.
 void startRecorderAfterRepair();
 
+// An armed anchor watch must keep GPS alive exactly like an active
+// recording — screen-off drag detection depends on fixes — without forcing
+// track recording. This source ORs the two; the anchor wiring further down
+// drives `armed` and fires the listeners on arm/disarm.
+const anchorGpsKeepAlive = {
+  armed: false,
+  listeners: [] as Array<() => void>,
+  set(armed: boolean): void {
+    if (this.armed === armed) return;
+    this.armed = armed;
+    for (const fn of this.listeners) fn();
+  },
+};
+const gpsDemandSource: RecordingSource = {
+  isRecording: () => trackRecorder.isRecording() || anchorGpsKeepAlive.armed,
+  onRecordingChange: (fn) => {
+    trackRecorder.onRecordingChange(fn);
+    anchorGpsKeepAlive.listeners.push(fn);
+  },
+};
+
 // Native GPS power management (visibility / recording / idle / theme driven).
 if (gps.capacitorGPS) {
-  gpsPowerManager = new GpsPowerManager(gps.capacitorGPS, trackRecorder);
+  gpsPowerManager = new GpsPowerManager(gps.capacitorGPS, gpsDemandSource);
   gpsPowerManager.start();
 }
 
 // --- Visibility/power boundary (8b-3) ---
 // Hidden: the screen's force-fast lock yields to the adaptive tier (the
 // controller still keeps fast during maneuvers for track fidelity), and BLE
-// reconnect pacing relaxes ×10 — unless a recording is running, which keeps
-// full reconnect aggressiveness (the overnight-track case). The map
+// reconnect pacing relaxes ×10 — unless a recording or an armed anchor watch
+// is running, which keeps full reconnect aggressiveness (the overnight
+// track/at-anchor case). The map
 // subscriber's hidden gate above stops the per-fix map work.
 const applyReconnectPacing = () => {
   const relaxed =
-    document.visibilityState === "hidden" && !trackRecorder.isRecording();
+    document.visibilityState === "hidden" && !gpsDemandSource.isRecording();
   gps.bleProvider?.setReconnectPacing(relaxed);
   gps.sppProvider?.setReconnectPacing(relaxed);
 };
@@ -1225,6 +1258,85 @@ cobManager.subscribe(() => cobButton.refresh());
 chartManager.map.addControl(cobButton, "bottom-left");
 startCobChartAutoFit(chartManager.map, chartMode, cobManager, navManager);
 
+// --- Anchor watch ---
+// Two alarm instances so lost GPS never sounds like a drag: the drag alarm
+// keeps the COB cadence; GPS loss is a slower single tone.
+const anchorDragAlarm = new CobAlarm();
+const anchorGpsLossAlarm = new CobAlarm({
+  toneHz: [520, 520],
+  beatIntervalMs: 2000,
+});
+const anchorManager = new AnchorWatchManager({
+  navManager,
+  alarm: anchorDragAlarm,
+  gpsLossAlarm: anchorGpsLossAlarm,
+});
+const anchorLayer = new AnchorLayer(chartManager.map);
+// Entering anchor mode is a map takeover like route editing: clear the
+// chrome, then the mode listeners open the anchor surfaces.
+const enterAnchorMode = () => {
+  closeAllSurfaces();
+  setMode("anchor");
+};
+// The panel lives outside idleCloseables — idle auto-return must never
+// dismiss an armed watch's display (COB precedent).
+// Late-bound: the panel's constructor renders its setup fields, which fires
+// onPreviewChange synchronously — before the const below is initialized. The
+// mutable binding lets renderAnchorLayer no-op through that first call
+// instead of hitting the temporal dead zone.
+let anchorPanelRef: AnchorPanel | null = null;
+const anchorPanel = new AnchorPanel({
+  manager: anchorManager,
+  navManager,
+  alarms: [anchorDragAlarm, anchorGpsLossAlarm],
+  onExitMode: () => setMode("query"),
+  onPreviewChange: () => renderAnchorLayer(),
+});
+anchorPanelRef = anchorPanel;
+const anchorBadge = new AnchorBadge({ onTap: enterAnchorMode });
+chartManager.map.addControl(anchorBadge, "top-left");
+
+function anchorLayerStateOf(snap: AnchorWatchSnapshot): AnchorLayerState {
+  return {
+    anchor: snap.anchor,
+    radiusM: snap.radiusM,
+    // AnchorLayer draws the warning ring at radiusM − warnM; hand it the
+    // effective (clamped) ring the manager judges against.
+    warnM: snap.radiusM - snap.warnRingM,
+    zone: snap.zone,
+    scatter: snap.scatter,
+  };
+}
+
+/** Armed → the live watch; in-mode unarmed → the setup preview; else clear. */
+function renderAnchorLayer(): void {
+  const snap = anchorManager.getState();
+  if (snap) {
+    anchorLayer.update(anchorLayerStateOf(snap));
+    return;
+  }
+  anchorLayer.update(anchorPanelRef?.previewLayerState() ?? null);
+}
+
+anchorManager.subscribe((snap) => {
+  anchorGpsKeepAlive.set(snap !== null);
+  applyReconnectPacing();
+  anchorBadge.update(snap);
+  renderAnchorLayer();
+});
+onModeChange((mode) => {
+  const active = mode === "anchor";
+  anchorPanel.setModeActive(active);
+  anchorBadge.setModeActive(active);
+});
+chartManager.map.on("click", (e) => {
+  if (getMode() !== "anchor" || anchorManager.isArmed()) return;
+  anchorPanel.placeAnchorAt(e.lngLat.lat, e.lngLat.lng);
+});
+// An armed watch also defers the idle app-update reload.
+const appUpdateBusyBase = appUpdateBusy;
+appUpdateBusy = () => appUpdateBusyBase() || anchorManager.isArmed();
+
 // Register nav-mode instruments (before restore so HUD is ready). The four
 // activeNav-dependent instruments (BRG/DTW/VMG/STR) live in
 // src/ui/nav-instruments.ts; all base instruments are in InstrumentHUD.ts.
@@ -1308,6 +1420,16 @@ if (topbarMenu) {
     closeHamburger();
   });
   topbarMenu.insertBefore(plotBtn, settingsWrapper);
+
+  // Anchor watch mode
+  const anchorBtn = buildTopbarAction(iconAnchor, "ANCH", "Anchor Watch", {
+    fullLabel: "Anchor Watch",
+  });
+  anchorBtn.addEventListener("click", () => {
+    enterAnchorMode();
+    closeHamburger();
+  });
+  topbarMenu.insertBefore(anchorBtn, settingsWrapper);
 
   // Chart cache panel button
   const cachePanel = new ChartCachePanel();
@@ -1521,6 +1643,9 @@ if (topbarMenu) {
 // back and only re-engages navigation if nav restored idle.
 await activeNav.restore();
 await cobManager.restore();
+// Anchor last: it re-arms from its own slot and re-shows the badge via the
+// subscription above (and resumes a mid-alarm watch).
+anchorManager.restore();
 
 // Boot readiness signal for the E2E suite (waitForAppReady in
 // tests/e2e/helpers.ts): both restores are done and the app database is

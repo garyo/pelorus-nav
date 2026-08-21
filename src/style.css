@@ -5048,6 +5048,507 @@ body.eink-refresh-tick {
   }
 }
 
+/* ── Anchor watch ──────────────────────────────────────────────────── */
+
+/* Mode card, bottom-center (setup view while disarmed, watch view armed). */
+.anchor-panel {
+  display: none;
+  position: fixed;
+  bottom: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(440px, calc(100vw - 16px));
+  background: rgba(30, 30, 50, 0.95);
+  border: 2px solid #3a5a8c;
+  border-radius: 10px;
+  color: #e0e0e0;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
+  font:
+    13px system-ui,
+    -apple-system,
+    sans-serif;
+}
+
+.anchor-panel.open {
+  display: block;
+}
+
+/* The watch circle's zone colours the card edge too. */
+.anchor-panel[data-zone="warn"] {
+  border-color: #e6b800;
+}
+.anchor-panel[data-zone="outside"] {
+  border-color: #e53935;
+}
+
+.anchor-panel-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  background: #3a5a8c;
+  color: #fff;
+  border-radius: 7px 7px 0 0;
+}
+
+.anchor-panel-title {
+  font-weight: bold;
+  letter-spacing: 0.5px;
+}
+
+.anchor-panel-elapsed {
+  margin-left: auto;
+  font-variant-numeric: tabular-nums;
+}
+
+.anchor-panel-close {
+  background: none;
+  border: none;
+  color: #fff;
+  font-size: 15px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 2px 4px;
+}
+
+.anchor-setup,
+.anchor-armed {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 12px;
+}
+
+.anchor-fields {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px 12px;
+}
+
+.anchor-field {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.anchor-field-label {
+  flex: 1;
+  font-size: 12px;
+  color: #aab4c8;
+}
+
+.anchor-field-unit {
+  font-size: 11px;
+  color: #aab4c8;
+  min-width: 14px;
+}
+
+.anchor-field-input,
+.anchor-radius-input,
+.anchor-offset-dist,
+.anchor-offset-brg {
+  width: 52px;
+  padding: 3px 4px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid #55617a;
+  border-radius: 4px;
+  color: inherit;
+  font: inherit;
+  text-align: right;
+}
+
+.anchor-radius-row,
+.anchor-pos-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.anchor-radius-auto,
+.anchor-pos-btn {
+  padding: 3px 8px;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid #55617a;
+  border-radius: 4px;
+  color: inherit;
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.anchor-pos-btn.active {
+  background: #3a5a8c;
+  border-color: #6f8cbf;
+}
+
+.anchor-pos-offset {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.anchor-radius-hint,
+.anchor-pos-hint {
+  font-size: 11px;
+  color: #aab4c8;
+  min-height: 13px;
+}
+
+/* Guarded hold buttons (arm / disarm) with a progress fill. */
+.anchor-arm-btn,
+.anchor-panel-btn {
+  position: relative;
+  overflow: hidden;
+  padding: 8px 10px;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid #55617a;
+  border-radius: 6px;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.anchor-arm-btn {
+  background: #2e6b34;
+  border-color: #4c9455;
+  color: #fff;
+  font-weight: bold;
+}
+
+.anchor-disarm-btn {
+  border-color: #b3585e;
+}
+
+.anchor-hold-progress {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 0%;
+  background: rgba(255, 255, 255, 0.35);
+  pointer-events: none;
+}
+
+.anchor-arm-btn > span:not(.anchor-hold-progress),
+.anchor-panel-btn > span:not(.anchor-hold-progress) {
+  position: relative;
+}
+
+/* Armed view */
+.anchor-dist-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.anchor-dist {
+  font-size: 30px;
+  font-weight: bold;
+  font-variant-numeric: tabular-nums;
+}
+
+.anchor-brg-wrap {
+  text-align: right;
+}
+
+.anchor-brg {
+  font-size: 17px;
+  font-variant-numeric: tabular-nums;
+}
+
+.anchor-cell-label {
+  font-size: 10px;
+  color: #aab4c8;
+  letter-spacing: 0.5px;
+}
+
+.anchor-radius-adjust {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.anchor-radius-minus,
+.anchor-radius-plus {
+  width: 30px;
+  height: 30px;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid #55617a;
+  border-radius: 6px;
+  color: inherit;
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.anchor-radius-value {
+  min-width: 52px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.anchor-gps-line {
+  font-size: 12px;
+  color: #9fdca4;
+}
+.anchor-gps-line[data-state="poor"] {
+  color: #e6b800;
+}
+.anchor-gps-line[data-state="stale"],
+.anchor-gps-line[data-state="lost"] {
+  color: #ff8a80;
+  font-weight: bold;
+}
+
+.anchor-audio-blocked {
+  font-size: 12px;
+  color: #ffcc66;
+}
+
+.anchor-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.anchor-actions > * {
+  flex: 1;
+}
+
+/* Alarm banner: priority surface, any mode. Tap = acknowledge. */
+.anchor-alarm {
+  display: none;
+  position: fixed;
+  bottom: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(440px, calc(100vw - 16px));
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px 14px;
+  background: #c1121f;
+  border: 2px solid #ff8a80;
+  border-radius: 10px;
+  color: #fff;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
+  font:
+    13px system-ui,
+    -apple-system,
+    sans-serif;
+  cursor: pointer;
+}
+
+.anchor-alarm.open {
+  display: flex;
+}
+
+/* The mode card yields the strip while the alarm banner is up (the banner
+   carries kind, distance, and disarm; acknowledging brings the card back). */
+.anchor-panel.open.anchor-alarm-showing {
+  display: none;
+}
+
+.anchor-alarm[data-kind="gps-loss"] {
+  background: #7a4a00;
+  border-color: #ffcc66;
+}
+
+.anchor-alarm-title {
+  font-size: 17px;
+  font-weight: bold;
+  letter-spacing: 0.5px;
+}
+
+.anchor-alarm-detail {
+  font-variant-numeric: tabular-nums;
+}
+
+.anchor-alarm-hint {
+  font-size: 12px;
+  opacity: 0.9;
+}
+
+.anchor-alarm .anchor-disarm-btn {
+  background: rgba(0, 0, 0, 0.25);
+  border-color: rgba(255, 255, 255, 0.6);
+  color: #fff;
+}
+
+/* Corner badge (top-left map control): zone via colour AND glyph. */
+.anchor-badge {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 9px;
+  border: 2px solid rgba(255, 255, 255, 0.75);
+  border-radius: 15px;
+  font:
+    bold 13px system-ui,
+    -apple-system,
+    sans-serif;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.35);
+}
+
+.anchor-badge svg {
+  width: 1.1em;
+  height: 1.1em;
+}
+
+.anchor-badge[data-zone="ok"] {
+  background: #1b5e20;
+  color: #fff;
+}
+.anchor-badge[data-zone="warn"] {
+  background: #e6b800;
+  color: #000;
+  border-color: rgba(0, 0, 0, 0.5);
+}
+.anchor-badge[data-zone="outside"] {
+  background: #c1121f;
+  color: #fff;
+}
+.anchor-badge[data-zone="gray"] {
+  background: #555;
+  color: #fff;
+}
+
+/* The side instrument layout pins its data box top-left; slide this
+   corner's controls clear of the column (bottom-left precedent above). */
+body[data-instrument-layout="side"] .maplibregl-ctrl-top-left {
+  margin-left: var(--instr-col-width);
+}
+
+/* Night: dim toward the red-tinted panel look. */
+[data-theme="night"] .anchor-panel {
+  background: rgba(20, 8, 8, 0.95);
+  border-color: #5c2a2a;
+  color: #d08080;
+}
+[data-theme="night"] .anchor-panel-header {
+  background: #3a1515;
+  color: #e0a0a0;
+}
+[data-theme="night"] .anchor-panel[data-zone="warn"] {
+  border-color: #8a6d00;
+}
+[data-theme="night"] .anchor-panel[data-zone="outside"] {
+  border-color: #a02020;
+}
+[data-theme="night"] .anchor-field-label,
+[data-theme="night"] .anchor-field-unit,
+[data-theme="night"] .anchor-cell-label,
+[data-theme="night"] .anchor-radius-hint,
+[data-theme="night"] .anchor-pos-hint {
+  color: #a06060;
+}
+[data-theme="night"] .anchor-gps-line,
+[data-theme="night"] .anchor-gps-line[data-state] {
+  color: #d08080;
+}
+[data-theme="night"] .anchor-arm-btn {
+  background: #23301f;
+  border-color: #3a5a34;
+  color: #d08080;
+}
+[data-theme="night"] .anchor-alarm {
+  background: #6b0a12;
+  border-color: #a05050;
+}
+[data-theme="night"] .anchor-alarm[data-kind="gps-loss"] {
+  background: #4d2f00;
+  border-color: #8a6d00;
+}
+[data-theme="night"] .anchor-badge {
+  filter: brightness(0.65) saturate(0.85);
+}
+
+/* E-ink: black on white; zone reads from glyph and border weight. */
+[data-theme="eink"] .anchor-panel {
+  background: #fff;
+  border: 2px solid #000;
+  color: #000;
+  box-shadow: none;
+}
+[data-theme="eink"] .anchor-panel-header {
+  background: #000;
+  color: #fff;
+}
+[data-theme="eink"] .anchor-panel[data-zone="warn"] {
+  border-width: 3px;
+}
+[data-theme="eink"] .anchor-panel[data-zone="outside"] {
+  border-width: 5px;
+}
+[data-theme="eink"] .anchor-field-label,
+[data-theme="eink"] .anchor-field-unit,
+[data-theme="eink"] .anchor-cell-label,
+[data-theme="eink"] .anchor-radius-hint,
+[data-theme="eink"] .anchor-pos-hint,
+[data-theme="eink"] .anchor-gps-line,
+[data-theme="eink"] .anchor-gps-line[data-state],
+[data-theme="eink"] .anchor-audio-blocked {
+  color: #000;
+}
+[data-theme="eink"] .anchor-field-input,
+[data-theme="eink"] .anchor-radius-input,
+[data-theme="eink"] .anchor-offset-dist,
+[data-theme="eink"] .anchor-offset-brg,
+[data-theme="eink"] .anchor-radius-auto,
+[data-theme="eink"] .anchor-pos-btn,
+[data-theme="eink"] .anchor-panel-btn,
+[data-theme="eink"] .anchor-radius-minus,
+[data-theme="eink"] .anchor-radius-plus {
+  background: #fff;
+  border: 1px solid #000;
+  color: #000;
+}
+[data-theme="eink"] .anchor-pos-btn.active {
+  background: #000;
+  color: #fff;
+}
+[data-theme="eink"] .anchor-arm-btn {
+  background: #fff;
+  border: 2px solid #000;
+  color: #000;
+}
+[data-theme="eink"] .anchor-hold-progress {
+  background: #000;
+  opacity: 0.25;
+}
+[data-theme="eink"] .anchor-alarm {
+  background: #fff;
+  border: 5px solid #000;
+  color: #000;
+  box-shadow: none;
+}
+[data-theme="eink"] .anchor-alarm[data-kind="gps-loss"] {
+  border-style: double;
+}
+[data-theme="eink"] .anchor-badge,
+[data-theme="eink"] .anchor-badge[data-zone] {
+  background: #fff;
+  color: #000;
+  filter: none;
+  box-shadow: none;
+}
+[data-theme="eink"] .anchor-badge[data-zone="ok"] {
+  border: 1px solid #000;
+}
+[data-theme="eink"] .anchor-badge[data-zone="warn"] {
+  border: 3px solid #000;
+}
+[data-theme="eink"] .anchor-badge[data-zone="outside"] {
+  border: 5px double #000;
+}
+[data-theme="eink"] .anchor-badge[data-zone="gray"] {
+  border: 2px dashed #000;
+}
+
 /* ── Touch-lock indicator (volume-key screen lock) ────────────────── */
 .touch-lock-banner {
   display: none;
