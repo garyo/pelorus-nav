@@ -2,6 +2,7 @@
  * User settings persisted to localStorage.
  */
 import { Capacitor } from "@capacitor/core";
+import { appErrorLog } from "./diagnostics/errorLog";
 
 export type DepthUnit = "meters" | "feet" | "fathoms";
 export type SpeedUnit = "knots" | "mph" | "kph";
@@ -455,8 +456,17 @@ function load(): Settings {
   return { ...DEFAULTS, layerGroups: { ...DEFAULT_LAYER_GROUPS } };
 }
 
+/**
+ * Persist current settings. Persistence failures (quota, private mode) are
+ * logged but never thrown — settings still apply in memory, so the UI
+ * action that changed them keeps working.
+ */
 function save(): void {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(current));
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(current));
+  } catch (err) {
+    appErrorLog.log("settings", "error", `save failed: ${String(err)}`);
+  }
 }
 
 function notify(): void {

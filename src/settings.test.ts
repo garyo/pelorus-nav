@@ -121,6 +121,41 @@ describe("settings migration", () => {
   });
 });
 
+describe("settings save() resilience", () => {
+  it("applies settings in memory even when localStorage.setItem throws", async () => {
+    vi.stubGlobal("localStorage", {
+      getItem: () => null,
+      setItem: () => {
+        throw new Error("QuotaExceededError");
+      },
+    });
+    vi.resetModules();
+    const { getSettings, updateSettings } = await import("./settings");
+    expect(() => updateSettings({ depthUnit: "fathoms" })).not.toThrow();
+    expect(getSettings().depthUnit).toBe("fathoms");
+    vi.unstubAllGlobals();
+    vi.resetModules();
+  });
+
+  it("still notifies listeners when persistence fails", async () => {
+    vi.stubGlobal("localStorage", {
+      getItem: () => null,
+      setItem: () => {
+        throw new Error("QuotaExceededError");
+      },
+    });
+    vi.resetModules();
+    const { onSettingsChange, updateSettings } = await import("./settings");
+    const listener = vi.fn();
+    onSettingsChange(listener);
+    updateSettings({ speedUnit: "mph" });
+    expect(listener).toHaveBeenCalledTimes(1);
+    expect(listener.mock.calls[0][0].speedUnit).toBe("mph");
+    vi.unstubAllGlobals();
+    vi.resetModules();
+  });
+});
+
 describe("settings load() validation", () => {
   it("falls back to the default on a wrong-type value", async () => {
     const stored = { settingsVersion: 2, textScale: "big" };

@@ -19,60 +19,84 @@ let dbPromise: Promise<IDBDatabase> | null = null;
  * Opens the DB once; subsequent calls share the result. A failed open
  * clears the cache instead of memoizing the rejection, so the next call
  * retries rather than permanently stranding every store in this module.
+ *
+ * Multi-tab version safety: if another tab running a newer app version
+ * requests a DB upgrade, `versionchange` closes this connection (so the
+ * upgrade can proceed) and clears the cache so the next store access
+ * reopens against the upgraded database. Conversely, if this tab's open
+ * is the upgrade and an older tab blocks it, `blocked` rejects with a
+ * clear error instead of hanging every store read forever.
  */
 function openDB(): Promise<IDBDatabase> {
   if (dbPromise) return dbPromise;
-  dbPromise = new Promise<IDBDatabase>((resolve, reject) => {
-    const req = indexedDB.open(DB_NAME, DB_VERSION);
-    req.onupgradeneeded = (event) => {
-      const db = req.result;
-      const tx = req.transaction as IDBTransaction;
-      const oldVersion = (event as IDBVersionChangeEvent).oldVersion;
-      if (oldVersion < 1) {
-        db.createObjectStore("tracks", { keyPath: "id" });
-        const ptStore = db.createObjectStore("trackPoints", {
-          autoIncrement: true,
-        });
-        ptStore.createIndex("byTrack", "trackId");
-        db.createObjectStore("routes", { keyPath: "id" });
-      }
-      if (oldVersion < 2) {
-        db.createObjectStore("waypoints", { keyPath: "id" });
-      }
-      if (oldVersion < 3) {
-        db.createObjectStore("plottingSheets", { keyPath: "id" });
-      }
-      if (oldVersion < 4) {
-        // Add compound index so track points are returned sorted by timestamp
-        const ptStore = tx.objectStore("trackPoints");
-        ptStore.createIndex("byTrackTime", ["trackId", "timestamp"]);
-      }
-      if (oldVersion < 5) {
-        // No store changes — TrackPoint gained optional rawLat/rawLon/dropped
-        // and TrackMeta gained optional `smoothed`. IDB stores arbitrary
-        // objects so existing rows stay valid; bump just signals the shape.
-      }
-      if (oldVersion < 6) {
-        // No store changes — TrackPoint gained optional `accuracy` (meters).
-        // Existing rows are still valid; new fixes carry the GPS-reported
-        // accuracy through for filtering and diagnostic export.
-      }
-      if (oldVersion < 7) {
-        // No store changes — Route gained optional `folder` (one-level
-        // grouping in the route manager). Existing rows stay valid.
-      }
-      if (oldVersion < 8) {
-        // Outbox for bug reports composed offline (see bug-report-outbox.ts)
-        db.createObjectStore("bugReportOutbox", { autoIncrement: true });
-      }
-    };
-    req.onsuccess = () => resolve(req.result);
-    req.onerror = () => reject(req.error);
-  }).catch((err: unknown) => {
-    dbPromise = null;
+  const opened: Promise<IDBDatabase> = new Promise<IDBDatabase>(
+    (resolve, reject) => {
+      const req = indexedDB.open(DB_NAME, DB_VERSION);
+      req.onupgradeneeded = (event) => {
+        const db = req.result;
+        const tx = req.transaction as IDBTransaction;
+        const oldVersion = (event as IDBVersionChangeEvent).oldVersion;
+        if (oldVersion < 1) {
+          db.createObjectStore("tracks", { keyPath: "id" });
+          const ptStore = db.createObjectStore("trackPoints", {
+            autoIncrement: true,
+          });
+          ptStore.createIndex("byTrack", "trackId");
+          db.createObjectStore("routes", { keyPath: "id" });
+        }
+        if (oldVersion < 2) {
+          db.createObjectStore("waypoints", { keyPath: "id" });
+        }
+        if (oldVersion < 3) {
+          db.createObjectStore("plottingSheets", { keyPath: "id" });
+        }
+        if (oldVersion < 4) {
+          // Add compound index so track points are returned sorted by timestamp
+          const ptStore = tx.objectStore("trackPoints");
+          ptStore.createIndex("byTrackTime", ["trackId", "timestamp"]);
+        }
+        if (oldVersion < 5) {
+          // No store changes — TrackPoint gained optional rawLat/rawLon/dropped
+          // and TrackMeta gained optional `smoothed`. IDB stores arbitrary
+          // objects so existing rows stay valid; bump just signals the shape.
+        }
+        if (oldVersion < 6) {
+          // No store changes — TrackPoint gained optional `accuracy` (meters).
+          // Existing rows are still valid; new fixes carry the GPS-reported
+          // accuracy through for filtering and diagnostic export.
+        }
+        if (oldVersion < 7) {
+          // No store changes — Route gained optional `folder` (one-level
+          // grouping in the route manager). Existing rows stay valid.
+        }
+        if (oldVersion < 8) {
+          // Outbox for bug reports composed offline (see bug-report-outbox.ts)
+          db.createObjectStore("bugReportOutbox", { autoIncrement: true });
+        }
+      };
+      req.onblocked = () => {
+        reject(
+          new Error(
+            "Database upgrade blocked — close other Pelorus Nav tabs/windows and reload",
+          ),
+        );
+      };
+      req.onsuccess = () => {
+        const db = req.result;
+        db.onversionchange = () => {
+          db.close();
+          if (dbPromise === opened) dbPromise = null;
+        };
+        resolve(db);
+      };
+      req.onerror = () => reject(req.error);
+    },
+  ).catch((err: unknown) => {
+    if (dbPromise === opened) dbPromise = null;
     throw err;
   });
-  return dbPromise;
+  dbPromise = opened;
+  return opened;
 }
 
 // --- Tracks ---
@@ -398,7 +422,9 @@ export async function outboxAdd(record: unknown): Promise<number> {
   return new Promise((resolve, reject) => {
     const tx = db.transaction("bugReportOutbox", "readwrite");
     const req = tx.objectStore("bugReportOutbox").add(record);
-    req.onsuccess = () => resolve(req.result as number);
+    // Resolve on transaction completion, not request success — the tx can
+    // still abort (e.g. quota) after the add request itself has succeeded.
+    tx.oncomplete = () => resolve(req.result as number);
     tx.onerror = () => reject(tx.error);
   });
 }
