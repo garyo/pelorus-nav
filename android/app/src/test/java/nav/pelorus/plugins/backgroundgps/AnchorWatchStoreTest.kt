@@ -58,3 +58,43 @@ class AnchorWatchStoreTest {
         )
     }
 }
+
+class ServiceDemandTest {
+    @org.junit.Test
+    fun `starts when wanted and not running`() {
+        org.junit.Assert.assertEquals(
+            ServiceDemand.START,
+            serviceDemandAction(wanted = true, running = false, stickinessStale = false),
+        )
+    }
+
+    @org.junit.Test
+    fun `re-starts a running service only to refresh stickiness`() {
+        org.junit.Assert.assertEquals(
+            ServiceDemand.START,
+            serviceDemandAction(wanted = true, running = true, stickinessStale = true),
+        )
+    }
+
+    @org.junit.Test
+    fun `leaves a wanted running service alone`() {
+        // The regression: this used to stop the service, tearing the watch
+        // down on every geometry update.
+        org.junit.Assert.assertEquals(
+            ServiceDemand.NONE,
+            serviceDemandAction(wanted = true, running = true, stickinessStale = false),
+        )
+    }
+
+    @org.junit.Test
+    fun `stops only when nothing wants it`() {
+        org.junit.Assert.assertEquals(
+            ServiceDemand.STOP,
+            serviceDemandAction(wanted = false, running = true, stickinessStale = false),
+        )
+        org.junit.Assert.assertEquals(
+            ServiceDemand.NONE,
+            serviceDemandAction(wanted = false, running = false, stickinessStale = false),
+        )
+    }
+}

@@ -104,14 +104,15 @@ class BackgroundGPSPlugin : Plugin() {
         val running = BackgroundTrackService.instance != null
         val stickinessStale = running && BackgroundTrackService.startedSticky != armed
         val intent = Intent(context, BackgroundTrackService::class.java)
-        if (wanted && (!running || stickinessStale)) {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                context.startForegroundService(intent)
-            } else {
-                context.startService(intent)
-            }
-        } else if (running) {
-            context.stopService(intent)
+        when (serviceDemandAction(wanted, running, stickinessStale)) {
+            ServiceDemand.START ->
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    context.startForegroundService(intent)
+                } else {
+                    context.startService(intent)
+                }
+            ServiceDemand.STOP -> context.stopService(intent)
+            ServiceDemand.NONE -> Unit
         }
     }
 

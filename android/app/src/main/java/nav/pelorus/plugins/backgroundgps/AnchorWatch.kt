@@ -269,3 +269,25 @@ class AnchorWatchDetector(params: AnchorWatchParams) {
         return AnchorTransition.DRAG_ALARM
     }
 }
+
+/** What [syncServiceDemand] should do about the foreground service. */
+enum class ServiceDemand { START, STOP, NONE }
+
+/**
+ * Decide whether the service must be started, stopped, or left alone.
+ *
+ * A running service that is still wanted is left alone: re-issuing a start
+ * is only needed when its stickiness no longer matches whether a watch is
+ * armed. Stopping is for the one case that means it — nothing wants it any
+ * more. (Stopping a wanted-and-running service tore the watch down on every
+ * geometry update; the anchor UI flapped between covered and not.)
+ */
+fun serviceDemandAction(
+    wanted: Boolean,
+    running: Boolean,
+    stickinessStale: Boolean,
+): ServiceDemand = when {
+    wanted && (!running || stickinessStale) -> ServiceDemand.START
+    !wanted && running -> ServiceDemand.STOP
+    else -> ServiceDemand.NONE
+}
