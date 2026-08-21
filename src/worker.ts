@@ -85,6 +85,13 @@ async function handleTilesRequest(
   env: Env,
   key: string,
 ): Promise<Response> {
+  // Bug reports (PII) share the R2 bucket with public tiles. Refuse them
+  // here explicitly, so a future edit to the route's extension allowlist
+  // can never expose them.
+  if (key.startsWith(BUG_REPORT_PREFIX)) {
+    return new Response("Not found", { status: 404 });
+  }
+
   const corsOrigin = getAllowedOrigin(request);
   const corsHeaders: Record<string, string> = corsOrigin
     ? { "access-control-allow-origin": corsOrigin }
@@ -211,6 +218,15 @@ interface SubscriberRecord {
   statusUpdatedAt?: string;
 }
 
+/** Sanity check for user-supplied addresses (subscribe and bug-report). */
+function isValidEmail(email: string): boolean {
+  return (
+    email.length >= 6 &&
+    email.length <= 254 &&
+    /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)
+  );
+}
+
 // Newsletter signup: store one KV entry per address (key = lowercased email,
 // so repeat signups are idempotent). Export with
 // `wrangler kv key list --namespace-id=<id>`.
@@ -236,11 +252,7 @@ async function handleSubscribe(
     return Response.json({ ok: true });
   }
   const email = (body.email ?? "").trim();
-  if (
-    email.length < 6 ||
-    email.length > 254 ||
-    !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)
-  ) {
+  if (!isValidEmail(email)) {
     return Response.json({ error: "invalid email" }, { status: 400 });
   }
   // Beta-program interest (checkboxes on the landing form). Repeat signups
@@ -289,9 +301,10 @@ async function handleSubscribe(
 // In-app bug reports: description + optional reply address + the app's full
 // diagnostics dump, plus an optional chart screenshot (JPEG data URL). The
 // text is stored whole in R2 under bug-reports/ with the screenshot as a
-// sibling .jpg (same base name) — the tile-serving routes only expose
-// *.pmtiles/*.coverage.geojson/*.search.json, so reports are unreachable
-// from outside. Read with:
+// sibling .jpg (same base name) — the tile-serving route only exposes
+// *.pmtiles/*.coverage.geojson/*.search.json and additionally rejects any
+// bug-reports/ key outright, so reports are unreachable from outside. Read
+// with:
 //   wrangler r2 object get pelorus-nav bug-reports/<name> --remote
 const BUG_REPORT_MAX_BYTES = 1_000_000;
 const SCREENSHOT_DATA_URL_PREFIX = "data:image/jpeg;base64,";
@@ -314,6 +327,38 @@ function decodeScreenshot(value: unknown): Uint8Array | null {
   }
 }
 
+/**
+ * Read a request body as text, capping the bytes actually buffered. Returns
+ * null once the cap is passed (the read stops there — a content-length lie
+ * or chunked encoding can't make us buffer an unbounded body).
+ */
+async function readBodyCapped(
+  request: Request,
+  maxBytes: number,
+): Promise<string | null> {
+  if (!request.body) return "";
+  const reader = request.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    total += value.byteLength;
+    if (total > maxBytes) {
+      await reader.cancel();
+      return null;
+    }
+    chunks.push(value);
+  }
+  const buffer = new Uint8Array(total);
+  let offset = 0;
+  for (const chunk of chunks) {
+    buffer.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return new TextDecoder().decode(buffer);
+}
+
 async function handleBugReport(
   request: Request,
   env: Env,
@@ -328,9 +373,11 @@ async function handleBugReport(
   const jsonResponse = (data: unknown, status = 200) =>
     Response.json(data, { status, headers: corsHeaders });
 
+  // Size cap enforced on the stream itself — a content-length header check
+  // alone would miss chunked bodies, which carry no content-length at all.
   const maxRequestBytes = BUG_REPORT_MAX_BYTES + SCREENSHOT_MAX_BYTES;
-  if (Number(request.headers.get("content-length") ?? 0) > maxRequestBytes)
-    return jsonResponse({ error: "report too large" }, 413);
+  const rawBody = await readBodyCapped(request, maxRequestBytes);
+  if (rawBody === null) return jsonResponse({ error: "report too large" }, 413);
   let body: {
     description?: unknown;
     email?: unknown;
@@ -338,7 +385,7 @@ async function handleBugReport(
     screenshot?: unknown;
   };
   try {
-    body = await request.json();
+    body = JSON.parse(rawBody);
   } catch {
     return jsonResponse({ error: "invalid JSON" }, 400);
   }
@@ -347,8 +394,10 @@ async function handleBugReport(
       ? body.description.trim().slice(0, 2000)
       : "";
   if (!description) return jsonResponse({ error: "description required" }, 400);
-  const email =
-    typeof body.email === "string" ? body.email.trim().slice(0, 254) : "";
+  const rawEmail = typeof body.email === "string" ? body.email.trim() : "";
+  // Invalid reply addresses degrade to "(none)" rather than rejecting the
+  // report — the description and diagnostics are the payload that matters.
+  const email = isValidEmail(rawEmail) ? rawEmail : "";
   const diagnostics =
     typeof body.diagnostics === "string"
       ? body.diagnostics.slice(0, BUG_REPORT_MAX_BYTES)
@@ -399,7 +448,7 @@ async function handleSubscriberList(
   request: Request,
   env: Env,
 ): Promise<Response> {
-  const denied = requireAdmin(request, env);
+  const denied = await requireAdmin(request, env);
   if (denied) return denied;
   const records: unknown[] = [];
   let cursor: string | undefined;
@@ -426,10 +475,28 @@ const BUG_STATUSES = ["new", "ack", "in-progress", "fixed", "wontfix", "spam"];
 const SUBSCRIBER_STATUSES = ["new", "contacted", "beta", "unsubscribed"];
 const BUG_REPORT_PREFIX = "bug-reports/";
 
-/** Bearer-token gate for admin routes; null means authorized. */
-function requireAdmin(request: Request, env: Env): Response | null {
-  const auth = request.headers.get("authorization");
-  if (!env.ADMIN_TOKEN || auth !== `Bearer ${env.ADMIN_TOKEN}`) {
+/**
+ * Bearer-token gate for admin routes; null means authorized. Fails closed
+ * when ADMIN_TOKEN is unset. The comparison hashes both sides and uses
+ * timingSafeEqual, so response timing leaks nothing about the token.
+ */
+async function requireAdmin(
+  request: Request,
+  env: Env,
+): Promise<Response | null> {
+  const auth = request.headers.get("authorization") ?? "";
+  const provided = auth.startsWith("Bearer ")
+    ? auth.slice("Bearer ".length)
+    : "";
+  if (!env.ADMIN_TOKEN || !provided) {
+    return new Response("Unauthorized", { status: 401 });
+  }
+  const encoder = new TextEncoder();
+  const [expected, presented] = await Promise.all([
+    crypto.subtle.digest("SHA-256", encoder.encode(env.ADMIN_TOKEN)),
+    crypto.subtle.digest("SHA-256", encoder.encode(provided)),
+  ]);
+  if (!crypto.subtle.timingSafeEqual(expected, presented)) {
     return new Response("Unauthorized", { status: 401 });
   }
   return null;
@@ -570,7 +637,7 @@ async function handleAdminRequest(
   env: Env,
   url: URL,
 ): Promise<Response> {
-  const denied = requireAdmin(request, env);
+  const denied = await requireAdmin(request, env);
   if (denied) return denied;
   const route = `${request.method} ${url.pathname}`;
   switch (route) {
@@ -587,6 +654,27 @@ async function handleAdminRequest(
     default:
       return new Response("Not found", { status: 404 });
   }
+}
+
+// Hardening headers for the HTML pages the worker serves. Deliberately no
+// Content-Security-Policy: the app connects to user-configured Signal K
+// servers, so a CSP needs a considered connect-src story first.
+// X-Frame-Options is safe — nothing embeds these pages in a frame (the
+// landing page's only iframe points outward, at YouTube).
+const HTML_SECURITY_HEADERS: Record<string, string> = {
+  "x-content-type-options": "nosniff",
+  "referrer-policy": "strict-origin-when-cross-origin",
+  "strict-transport-security": "max-age=31536000; includeSubDomains",
+  "x-frame-options": "DENY",
+};
+
+/** Copy of `response` with the HTML hardening headers applied. */
+function withSecurityHeaders(response: Response): Response {
+  const secured = new Response(response.body, response);
+  for (const [name, value] of Object.entries(HTML_SECURITY_HEADERS)) {
+    secured.headers.set(name, value);
+  }
+  return secured;
 }
 
 export default {
@@ -649,8 +737,10 @@ export default {
     // app shell there with no further routing here). html_handling is "none"
     // in wrangler.toml, so .html assets resolve at their exact URLs.
     if (url.pathname === "/") {
-      return env.ASSETS.fetch(
-        new Request(new URL("/landing.html", url), request),
+      return withSecurityHeaders(
+        await env.ASSETS.fetch(
+          new Request(new URL("/landing.html", url), request),
+        ),
       );
     }
 
@@ -663,15 +753,19 @@ export default {
     }
     if (/^\/doc\//.test(url.pathname) && !/\.[a-z0-9]+$/i.test(url.pathname)) {
       const dir = url.pathname.replace(/\/$/, "");
-      return env.ASSETS.fetch(
-        new Request(new URL(`${dir}/index.html`, url), request),
+      return withSecurityHeaders(
+        await env.ASSETS.fetch(
+          new Request(new URL(`${dir}/index.html`, url), request),
+        ),
       );
     }
 
     // Privacy policy at a clean URL (required by Play Store / App Store).
     if (url.pathname === "/privacy") {
-      return env.ASSETS.fetch(
-        new Request(new URL("/privacy.html", url), request),
+      return withSecurityHeaders(
+        await env.ASSETS.fetch(
+          new Request(new URL("/privacy.html", url), request),
+        ),
       );
     }
 
@@ -716,6 +810,13 @@ export default {
       response.headers.get("content-type")?.includes("text/html")
     ) {
       return new Response("Not found", { status: 404 });
+    }
+
+    // Hardening headers on any HTML the assets binding serves (the /app
+    // shell via SPA fallback, guide pages, landing assets fetched by exact
+    // URL). Non-HTML assets pass through untouched.
+    if (response.headers.get("content-type")?.includes("text/html")) {
+      return withSecurityHeaders(response);
     }
 
     return response;
