@@ -31,6 +31,8 @@ I aim for the highest quality software in all projects, including this one. All 
 ## Tech Stack
 
 - **TypeScript** (strict) + **Vite** + **Bun**
+- **No front-end framework** — the UI is plain TypeScript and direct DOM,
+  keeping the bundle small and fast on low-power marine hardware
 - **MapLibre GL JS** for map rendering
 - **PMTiles** for efficient vector tile serving
 - **Cloudflare Workers + R2** for deployment
