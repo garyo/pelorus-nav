@@ -68,6 +68,11 @@ import com.google.android.gms.location.Priority
  * device chip stands in as the watch's own position source. With no tracking
  * client ([trackingRequested] false) nothing is recorded or fanned out —
  * those fixes only feed the detector.
+ *
+ * An armed watch also outlives the process: it is persisted by
+ * [AnchorWatchStore], re-adopted in [onCreate], and while one is armed
+ * onStartCommand returns START_STICKY so Android recreates the service after
+ * an out-of-memory kill.
  */
 class BackgroundTrackService : Service() {
 
@@ -207,6 +212,13 @@ class BackgroundTrackService : Service() {
          */
         @Volatile var jsAlarmAudible: Boolean = false
 
+        /**
+         * What the last onStartCommand returned. The plugin re-starts a
+         * running service when this no longer matches whether a watch is
+         * armed — see [startResult] and syncServiceDemand.
+         */
+        @Volatile var startedSticky: Boolean = false
+
         @Volatile var currentMode: String = MODE_ACTIVE
         @Volatile var activeIntervalMs: Long = 1000L
         @Volatile var passiveIntervalMs: Long = 15_000L
@@ -261,6 +273,12 @@ class BackgroundTrackService : Service() {
      * callback reads it.
      */
     @Volatile private var anchorDetector: AnchorWatchDetector? = null
+    /**
+     * Elapsed-realtime at which the current detector was created. Reported as
+     * `armedMs` so the app can tell "still acquiring" from "this device's GPS
+     * is never going to produce a fix" — see [anchorStatus].
+     */
+    @Volatile private var anchorDetectorSinceElapsedMs: Long = 0L
     private var anchorAlarmPlayer: MediaPlayer? = null
     private var anchorWatchdogPendingIntent: PendingIntent? = null
 
@@ -287,8 +305,23 @@ class BackgroundTrackService : Service() {
     /** True while we're in a watchdog-triggered ACTIVE recovery. */
     private var inKick = false
 
+    /** True when this instance adopted its watch from disk, not from JS. */
+    private var anchorRestoredFromStore = false
+
     override fun onCreate() {
         super.onCreate()
+        // Recover an armed watch before anything else: after an OS kill the
+        // companion is empty, and both the notification built below and the
+        // START_STICKY decision in onStartCommand have to know that a watch is
+        // armed. One small SharedPreferences read, so it fits inside the
+        // startForeground deadline guarded below.
+        if (anchorParams == null) {
+            AnchorWatchStore.load(this)?.let {
+                anchorParams = it
+                anchorRestoredFromStore = true
+                Log.i(TAG, "Restored armed anchor watch after process restart")
+            }
+        }
         // Satisfy the startForegroundService() deadline as the very first
         // thing: at cold boot the main looper is saturated with WebView
         // init, and waiting for onStartCommand to post the notification
@@ -422,7 +455,35 @@ class BackgroundTrackService : Service() {
         // A watch armed before the service existed (or before a restart)
         // lives in the companion — pick it up now.
         applyAnchorWatch()
+        if (anchorRestoredFromStore) {
+            DiagLog.log(this, "anchor", "restored from store after process restart")
+        }
         DiagLog.log(this, "svc", "onCreate")
+    }
+
+    /**
+     * Restart policy, re-asserted on every start command (the plugin restarts
+     * the service on every demand change so this value can never go stale).
+     *
+     * START_STICKY while a watch is armed: an overnight anchor alarm that
+     * quietly ends with an out-of-memory kill is worse than useless, and
+     * Android recreating the service is the only way back — [onCreate]
+     * re-adopts the watch from [AnchorWatchStore].
+     *
+     * START_STICKY rather than START_REDELIVER_INTENT because the start intent
+     * carries no payload to redeliver (the watch is on disk, the mode is in the
+     * companion), and the *last* intent may well have been the notification's
+     * Stop or the alarm's Silence — actions that must not be replayed against a
+     * freshly restored watch.
+     *
+     * With no watch armed nothing changes: track recording is re-started by JS
+     * when the app returns to the foreground, so a sticky restart would only
+     * resurrect a service with no client.
+     */
+    private fun startResult(): Int {
+        val sticky = anchorParams != null
+        startedSticky = sticky
+        return if (sticky) START_STICKY else START_NOT_STICKY
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -441,7 +502,7 @@ class BackgroundTrackService : Service() {
             if (anchorParams != null) {
                 refreshNotification()
                 applyMode()
-                return START_NOT_STICKY
+                return startResult()
             }
             stopSelf()
             return START_NOT_STICKY
@@ -453,7 +514,7 @@ class BackgroundTrackService : Service() {
             // deliberately no Disarm action; standing the watch down requires
             // opening the app.
             acknowledgeAnchorAlarm()
-            return START_NOT_STICKY
+            return startResult()
         }
 
         try {
@@ -470,8 +531,7 @@ class BackgroundTrackService : Service() {
         applyMode()
         Log.i(TAG, "Background track service started (mode=$currentMode)")
 
-        // START_NOT_STICKY: JS re-starts tracking when the app returns to foreground.
-        return START_NOT_STICKY
+        return startResult()
     }
 
     override fun onBind(intent: Intent?): IBinder? = null
@@ -741,6 +801,7 @@ class BackgroundTrackService : Service() {
         val params = anchorParams
         if (params == null) {
             anchorDetector = null
+            anchorRestoredFromStore = false
             cancelAnchorWatchdog()
             clearAnchorAlarm()
             releaseAnchorWakeLock()
@@ -749,11 +810,19 @@ class BackgroundTrackService : Service() {
             return
         }
         acquireAnchorWakeLock()
+        val now = SystemClock.elapsedRealtime()
         val existing = anchorDetector
         if (existing == null) {
-            anchorDetector = AnchorWatchDetector(params)
+            // A watch adopted from disk was already proven to work if it had
+            // seen a fix — see AnchorWatchDetector.restored for what survives.
+            anchorDetector = AnchorWatchDetector.restored(
+                params,
+                hadFix = anchorRestoredFromStore && AnchorWatchStore.loadHadFix(this),
+                nowElapsedMs = now,
+            )
+            anchorDetectorSinceElapsedMs = now
         } else {
-            handleAnchorTransition(existing.updateParams(params, SystemClock.elapsedRealtime()))
+            handleAnchorTransition(existing.updateParams(params, now))
         }
         armAnchorWatchdog(params.gpsLossAlarmMs)
         refreshNotification()
@@ -843,10 +912,39 @@ class BackgroundTrackService : Service() {
     /** Distance-test one accepted fix against the armed anchor. */
     private fun onAnchorFix(lat: Double, lon: Double) {
         val detector = anchorDetector ?: return
+        val provenBefore = detector.hadFix
         val transition = detector.onFix(lat, lon, SystemClock.elapsedRealtime())
         handleAnchorTransition(transition)
         // Silence only becomes an alarm relative to the newest fix.
         armAnchorWatchdog(detector.params.gpsLossAlarmMs)
+        // One write per watch, on the edge: a restart must not downgrade a
+        // proven watch to one that may never alarm on silence.
+        if (!provenBefore) AnchorWatchStore.markHadFix(applicationContext)
+    }
+
+    /**
+     * Cheap snapshot of whether the screen-off watch is actually watching.
+     *
+     * The app cannot tell from its own side: on a device whose internal GPS
+     * never produces a fix — no GPS hardware, permission declined, receiver
+     * below decks — this service runs, holds its wake lock, and sees nothing,
+     * and it deliberately stays silent about that (a watch that was never
+     * proven has no basis for a GPS-loss alarm). So the app asks, and says so
+     * in the armed panel; see assessScreenOffCover in
+     * src/anchor/native-anchor-watch.ts.
+     */
+    fun anchorStatus(): AnchorWatchServiceStatus {
+        val detector = anchorDetector
+        val now = SystemClock.elapsedRealtime()
+        return AnchorWatchServiceStatus(
+            armed = detector != null,
+            hadFix = detector?.hadFix == true,
+            lastFixAgeMs =
+                if (detector != null && detector.hadFix) now - detector.lastFixElapsedMs else -1L,
+            armedMs = if (detector != null) now - anchorDetectorSinceElapsedMs else -1L,
+            wakeLockHeld = anchorWakeLock?.isHeld == true,
+            alarmKind = detector?.alarmKind,
+        )
     }
 
     /** The GPS-loss deadline elapsed (or is still pending — re-arm and wait). */

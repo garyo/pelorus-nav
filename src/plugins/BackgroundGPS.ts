@@ -16,6 +16,34 @@ export interface TrackPointNative {
   accuracy: number;
 }
 
+/**
+ * What the native service can say about the watch it is running. Mirrors
+ * AnchorWatchServiceStatus in AnchorWatch.kt; the two time fields are
+ * milliseconds, -1 when no watch is armed natively.
+ */
+export interface AnchorWatchNativeStatus {
+  /** The foreground service exists in this process. */
+  serviceRunning: boolean;
+  /** …and it is running an anchor watch. */
+  armedNatively: boolean;
+  /**
+   * The service's own GPS has produced at least one accepted fix for this
+   * watch. False means screen-off detection has never worked: the service is
+   * watching a device that cannot see the boat.
+   */
+  hadFix: boolean;
+  /** Age of the newest accepted fix; -1 before the first one. */
+  lastFixAgeMs: number;
+  /** Time since the native detector was armed — separates acquiring from blind. */
+  armedMs: number;
+  /** The continuous wake lock that keeps detection alive in deep sleep. */
+  wakeLockHeld: boolean;
+  /** Precise location, the foreground service's hard requirement. */
+  locationPermission: boolean;
+  /** A native alarm is sounding right now. */
+  alarmKind?: "drag" | "gps-loss";
+}
+
 export interface BackgroundGPSPlugin {
   /** Start the foreground service and GPS tracking. */
   startTracking(): Promise<void>;
@@ -94,6 +122,20 @@ export interface BackgroundGPSPlugin {
    * Also stops the foreground service unless track recording still needs it.
    */
   clearAnchorWatch(): Promise<void>;
+
+  /**
+   * Ask whether the screen-off watch is actually watching.
+   *
+   * The app cannot tell from its own side: where the app's fixes come from an
+   * external Bluetooth receiver, the service's separate device-GPS detection
+   * can be blind — no GPS hardware, permission declined, antenna below decks —
+   * and it stays deliberately silent about that (a watch never proven to work
+   * has no basis for a GPS-loss alarm). Without this the user believes they
+   * are covered overnight and is not.
+   *
+   * Rejects on native shells older than this method — callers must catch.
+   */
+  getAnchorWatchStatus(): Promise<AnchorWatchNativeStatus>;
 
   /** Silence a sounding native anchor alarm; the native watch keeps running. */
   acknowledgeAnchorAlarm(): Promise<void>;

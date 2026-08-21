@@ -10,13 +10,20 @@
  * event that arrives when the WebView resumes, and owns the alarm handoff
  * (see {@link connectNativeAnchorWatch}).
  *
+ * It also answers the question the app cannot answer for itself — whether
+ * that native watch is actually seeing the boat, i.e. whether there is any
+ * screen-off cover at all (see {@link assessScreenOffCover}).
+ *
  * Native-only: on web every call is skipped, so the JS watch stands alone.
  */
 
 import { Capacitor } from "@capacitor/core";
 import type { CobAlarm } from "../cob/CobAlarm";
 import type { NavigationDataManager } from "../navigation/NavigationDataManager";
-import { BackgroundGPS } from "../plugins/BackgroundGPS";
+import {
+  type AnchorWatchNativeStatus,
+  BackgroundGPS,
+} from "../plugins/BackgroundGPS";
 import {
   type AnchorAlarmKind,
   type AnchorWatchManager,
@@ -46,6 +53,7 @@ export interface NativeAnchorPlugin {
   acknowledgeAnchorAlarm(): Promise<void>;
   handOffAnchorAlarm(): Promise<void>;
   noteExternalFix(): Promise<void>;
+  getAnchorWatchStatus(): Promise<AnchorWatchNativeStatus>;
   addListener(
     eventName: "anchorAlarm",
     listenerFunc: (data: {
@@ -59,8 +67,20 @@ export interface NativeAnchorPlugin {
 /** The manager surface this module needs; keeps the unit tests light. */
 export type NativeAnchorManager = Pick<
   AnchorWatchManager,
-  "subscribe" | "noteNativeAlarm"
+  "subscribe" | "noteNativeAlarm" | "getState"
 >;
+
+/** Handle returned by {@link connectNativeAnchorWatch}. */
+export interface NativeAnchorWatchHandle {
+  /**
+   * Push the JS side's current armed state down, adopting or ending a native
+   * watch that outlived it. Call once after {@link AnchorWatchManager.restore}:
+   * the native watch now survives a process kill on its own, so the two sides
+   * can start up disagreeing, and JS — which owns the geometry, the storage
+   * slot and the user's disarm — is the authority that settles it.
+   */
+  reconcile(): void;
+}
 
 /** The alarm surface the handoff decision needs. */
 export type NativeAnchorAlarm = Pick<CobAlarm, "isBlocked" | "onBlockedChange">;
@@ -110,9 +130,9 @@ function geometryKey(snap: AnchorWatchSnapshot): string {
 export function connectNativeAnchorWatch(
   manager: NativeAnchorManager,
   options: NativeAnchorWatchOptions = {},
-): void {
+): NativeAnchorWatchHandle {
   const isNative = options.isNative ?? Capacitor.isNativePlatform();
-  if (!isNative) return;
+  if (!isNative) return { reconcile: () => {} };
   const plugin = options.plugin ?? (BackgroundGPS as NativeAnchorPlugin);
   const alarmDelayS = options.alarmDelayS ?? DEFAULT_ALARM_DELAY_S;
   const gpsLossAlarmS = options.gpsLossAlarmS ?? DEFAULT_GPS_LOSS_ALARM_S;
@@ -127,7 +147,8 @@ export function connectNativeAnchorWatch(
   // watch must never take the JS one down with it.
   const ignore = (err: unknown) => console.warn("native anchor watch", err);
 
-  let pushedGeometry: string | null = null;
+  /** What was last pushed down: a geometry key, "cleared", or nothing yet. */
+  let pushed: string | "cleared" | null = null;
   let wasAcknowledged = false;
   let armed = false;
   let alarming = false;
@@ -142,21 +163,25 @@ export function connectNativeAnchorWatch(
     plugin.handOffAnchorAlarm().catch(ignore);
   };
 
-  manager.subscribe((snap) => {
+  const apply = (snap: AnchorWatchSnapshot | null, force = false): void => {
     if (!snap) {
       wasAcknowledged = false;
       armed = false;
       alarming = false;
       handedOff = false;
-      if (pushedGeometry === null) return;
-      pushedGeometry = null;
+      // Nothing was ever armed this session, so ordinarily there is nothing
+      // to clear — except on the reconcile pass, where the point is exactly
+      // to end a native watch that outlived the JS one.
+      if (pushed === null && !force) return;
+      if (pushed === "cleared") return;
+      pushed = "cleared";
       plugin.clearAnchorWatch().catch(ignore);
       return;
     }
     armed = true;
     const key = geometryKey(snap);
-    if (key !== pushedGeometry) {
-      pushedGeometry = key;
+    if (key !== pushed) {
+      pushed = key;
       plugin
         .setAnchorWatch({
           lat: snap.anchor.lat,
@@ -179,7 +204,9 @@ export function connectNativeAnchorWatch(
     // The next alarm event has to earn its own handoff.
     if (!alarming) handedOff = false;
     tryHandOff();
-  });
+  };
+
+  manager.subscribe((snap) => apply(snap));
 
   // The user tapping to unlock audio is exactly the moment the JS alarm
   // becomes audible, and it arrives on this edge rather than as a snapshot.
@@ -204,4 +231,102 @@ export function connectNativeAnchorWatch(
   plugin
     .addListener("anchorAlarm", (data) => manager.noteNativeAlarm(data.kind))
     .catch(ignore);
+
+  return { reconcile: () => apply(manager.getState(), true) };
+}
+
+// --- Screen-off cover ------------------------------------------------------
+
+/**
+ * How long after the native watch arms its own GPS gets to produce a first
+ * fix before the app calls the screen-off cover missing. A cold chip under a
+ * marina's masts can take tens of seconds; nothing legitimate takes a minute.
+ */
+export const SCREEN_OFF_COVER_GRACE_MS = 60_000;
+
+/** Whether the watch survives the screen going off, and if not, why not. */
+export type ScreenOffCover =
+  | { state: "unknown" }
+  | { state: "covered" }
+  | { state: "none"; reason: "permission" | "service" | "no-fix" };
+
+/**
+ * The disclosure text for each way the cover can be missing. Terse and
+ * factual: the watch still works, just not unattended, and the user has to
+ * be able to read that at a glance and decide.
+ */
+export const SCREEN_OFF_COVER_TEXT: Record<
+  Extract<ScreenOffCover, { state: "none" }>["reason"],
+  string
+> = {
+  permission:
+    "No screen-off cover: location permission is off. The watch only runs while the app is awake.",
+  service:
+    "No screen-off cover: the background watch is not running. The watch only runs while the app is awake.",
+  "no-fix":
+    "No screen-off cover: this device's own GPS has no fix. The watch only runs while the app is awake.",
+};
+
+/**
+ * Read a native status as a cover verdict.
+ *
+ * The silent-failure case this exists for: the service runs, holds its wake
+ * lock, and never sees a position — a tablet with no GPS hardware, a declined
+ * permission, an antenna below decks. It raises no GPS-loss alarm in that
+ * state by design (`hadFix` false: a watch never proven to work has no basis
+ * for alarming on silence, and alarming two minutes after every screen-off
+ * would be intolerable), so nothing but this tells the user they are not
+ * covered.
+ *
+ * "unknown" is the honest answer while the watch is still acquiring, and on
+ * any platform or shell that cannot answer — never a warning we can't stand
+ * behind.
+ */
+export function assessScreenOffCover(
+  status: AnchorWatchNativeStatus | null,
+): ScreenOffCover {
+  if (!status) return { state: "unknown" };
+  // Decisive on its own, and known immediately: the location-type foreground
+  // service cannot watch anything without it.
+  if (!status.locationPermission)
+    return { state: "none", reason: "permission" };
+  if (!status.serviceRunning || !status.armedNatively) {
+    return { state: "none", reason: "service" };
+  }
+  if (status.hadFix) return { state: "covered" };
+  if (status.armedMs >= 0 && status.armedMs < SCREEN_OFF_COVER_GRACE_MS) {
+    return { state: "unknown" };
+  }
+  return { state: "none", reason: "no-fix" };
+}
+
+/** The panel's disclosure line, or null when there is nothing to disclose. */
+export function screenOffCoverLine(
+  status: AnchorWatchNativeStatus | null,
+): string | null {
+  const cover = assessScreenOffCover(status);
+  return cover.state === "none" ? SCREEN_OFF_COVER_TEXT[cover.reason] : null;
+}
+
+/**
+ * Ask the native service how the screen-off watch is doing. Resolves null on
+ * web and on any native shell that can't answer — an unanswered question is
+ * not evidence of a problem, and this must never be the thing that shows a
+ * false warning over a working watch.
+ */
+export async function getNativeAnchorStatus(
+  options: {
+    plugin?: Pick<NativeAnchorPlugin, "getAnchorWatchStatus">;
+    isNative?: boolean;
+  } = {},
+): Promise<AnchorWatchNativeStatus | null> {
+  const isNative = options.isNative ?? Capacitor.isNativePlatform();
+  if (!isNative) return null;
+  const plugin = options.plugin ?? (BackgroundGPS as NativeAnchorPlugin);
+  try {
+    return await plugin.getAnchorWatchStatus();
+  } catch (err) {
+    console.warn("native anchor watch status", err);
+    return null;
+  }
 }

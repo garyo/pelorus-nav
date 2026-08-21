@@ -27,7 +27,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/).
   whatever GPS you navigate with — with the screen off the watch uses the
   device's own GPS, since an external Bluetooth receiver can only reach
   the app while it is awake — and keeps the device from sleeping, so an
-  armed watch uses noticeably more battery than an idle app.
+  armed watch uses noticeably more battery than an idle app. On Android
+  the armed watch also survives Android shutting the app down overnight,
+  and the armed panel says so plainly when the device's own GPS can't
+  see the boat — on a tablet with no GPS chip, or with location
+  permission off, the watch only runs while the app is awake, and it now
+  tells you that instead of leaving you to assume you're covered.
 - The instrument bar now shows distance to the route's destination while
   navigating, on the right of the "Next:" caption line. The caption text
   is slightly larger, too.

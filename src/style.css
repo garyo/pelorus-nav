@@ -5328,6 +5328,17 @@ body.eink-refresh-tick {
   color: #ffcc66;
 }
 
+/* Screen-off cover disclosure: armed, but the device's own GPS is blind, so
+   nothing watches once the app sleeps. The rule and weight carry it in every
+   theme — greyscale e-ink included — and colour only reinforces. */
+.anchor-cover-line {
+  font-size: 12px;
+  font-weight: bold;
+  color: #ffcc66;
+  border-left: 3px solid currentcolor;
+  padding-left: 6px;
+}
+
 .anchor-audio-blocked {
   font-size: 12px;
   color: #ffcc66;
@@ -5460,7 +5471,8 @@ body[data-instrument-layout="side"] .maplibregl-ctrl-top-left {
 [data-theme="dusk"] .anchor-tide[data-advice="poor"] {
   color: #c98a84;
 }
-[data-theme="dusk"] .anchor-scope-advisory {
+[data-theme="dusk"] .anchor-scope-advisory,
+[data-theme="dusk"] .anchor-cover-line {
   color: #b39b3d;
 }
 
@@ -5491,7 +5503,8 @@ body[data-instrument-layout="side"] .maplibregl-ctrl-top-left {
 [data-theme="night"] .anchor-gps-line[data-state],
 [data-theme="night"] .anchor-tide,
 [data-theme="night"] .anchor-tide[data-advice],
-[data-theme="night"] .anchor-scope-advisory {
+[data-theme="night"] .anchor-scope-advisory,
+[data-theme="night"] .anchor-cover-line {
   color: #d08080;
 }
 [data-theme="night"] .anchor-arm-btn {
@@ -5542,6 +5555,7 @@ body[data-instrument-layout="side"] .maplibregl-ctrl-top-left {
 [data-theme="eink"] .anchor-tide,
 [data-theme="eink"] .anchor-tide[data-advice],
 [data-theme="eink"] .anchor-scope-advisory,
+[data-theme="eink"] .anchor-cover-line,
 [data-theme="eink"] .anchor-audio-blocked {
   color: #000;
 }

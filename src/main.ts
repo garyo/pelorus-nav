@@ -1339,7 +1339,7 @@ chartManager.map.on("click", (e) => {
 // on web. The alarms decide when the native alarm may stop sounding, and
 // navManager's fixes tell the native watch the app can still see the boat
 // even when they come from a receiver the service can't reach.
-connectNativeAnchorWatch(anchorManager, {
+const nativeAnchorWatch = connectNativeAnchorWatch(anchorManager, {
   alarms: [anchorDragAlarm, anchorGpsLossAlarm],
   navManager,
 });
@@ -1656,6 +1656,11 @@ await cobManager.restore();
 // Anchor last: it re-arms from its own slot and re-shows the badge via the
 // subscription above (and resumes a mid-alarm watch).
 anchorManager.restore();
+// …then settle any disagreement with the native watch, which now survives a
+// process kill on its own: a restored watch re-pushes its geometry, and a
+// native watch this side has no record of is stood down. JS owns the
+// geometry, the storage slot and the user's disarm, so it is the authority.
+nativeAnchorWatch.reconcile();
 
 // Boot readiness signal for the E2E suite (waitForAppReady in
 // tests/e2e/helpers.ts): both restores are done and the app database is

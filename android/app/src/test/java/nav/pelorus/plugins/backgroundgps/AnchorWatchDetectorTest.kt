@@ -198,6 +198,45 @@ class AnchorWatchDetectorTest {
     }
 
     @Test
+    fun `a restored watch keeps the right to alarm on silence`() {
+        // Proven before the kill: staying blind after the restart is news.
+        val d = AnchorWatchDetector.restored(params(), hadFix = true, nowElapsedMs = 900_000L)
+        assertTrue(d.hadFix)
+        // The deadline runs from the restart, not from the pre-kill fix.
+        assertEquals(1_020_000L, d.gpsLossDeadlineElapsedMs())
+        assertEquals(AnchorTransition.NONE, d.onTick(1_000_000L))
+        assertEquals(AnchorTransition.GPS_LOSS_ALARM, d.onTick(1_030_000L))
+    }
+
+    @Test
+    fun `a restored watch that never had a fix still stays silent`() {
+        val d = AnchorWatchDetector.restored(params(), hadFix = false, nowElapsedMs = 900_000L)
+        assertFalse(d.hadFix)
+        assertEquals(AnchorTransition.NONE, d.onTick(2_000_000L))
+        assertNull(d.alarmKind)
+    }
+
+    @Test
+    fun `a restored watch starts with clean hysteresis`() {
+        val d = AnchorWatchDetector.restored(params(), hadFix = true, nowElapsedMs = 0L)
+        // Outside on the first fix back — but only a full delay of continuous
+        // excursion may alarm, never the pre-kill one.
+        assertEquals(AnchorTransition.NONE, fix(d, 80.0, 1_000L))
+        assertNull(d.alarmKind)
+        assertEquals(AnchorTransition.NONE, fix(d, 80.0, 10_000L))
+        assertEquals(AnchorTransition.DRAG_ALARM, fix(d, 80.0, 17_000L))
+    }
+
+    @Test
+    fun `a restored watch carries no acknowledgment`() {
+        val d = AnchorWatchDetector.restored(params(), hadFix = true, nowElapsedMs = 0L)
+        assertFalse(d.acknowledge())
+        // A GPS-loss acknowledgment from before the kill does not silence this
+        // watch either.
+        assertEquals(AnchorTransition.GPS_LOSS_ALARM, d.onTick(121_000L))
+    }
+
+    @Test
     fun `native audio yields only to a JS alarm proven to be audible`() {
         // A started activity is not proof: a WebView back from suspension
         // beats silently until a user gesture unlocks its AudioContext.

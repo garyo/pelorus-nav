@@ -1,11 +1,17 @@
 import { describe, expect, it, vi } from "vitest";
 import type { NavigationData } from "../navigation/NavigationData";
+import type { AnchorWatchNativeStatus } from "../plugins/BackgroundGPS";
 import type { AnchorWatchSnapshot } from "./AnchorWatchManager";
 import {
+  assessScreenOffCover,
   connectNativeAnchorWatch,
+  getNativeAnchorStatus,
   type NativeAnchorAlarm,
   type NativeAnchorManager,
   type NativeAnchorPlugin,
+  SCREEN_OFF_COVER_GRACE_MS,
+  SCREEN_OFF_COVER_TEXT,
+  screenOffCoverLine,
 } from "./native-anchor-watch";
 
 const ANCHOR = { lat: 42, lon: -71 };
@@ -33,6 +39,22 @@ function snapshot(
   };
 }
 
+/** A native status describing a watch that is fully covered. */
+function status(
+  over: Partial<AnchorWatchNativeStatus> = {},
+): AnchorWatchNativeStatus {
+  return {
+    serviceRunning: true,
+    armedNatively: true,
+    hadFix: true,
+    lastFixAgeMs: 4_000,
+    armedMs: 600_000,
+    wakeLockHeld: true,
+    locationPermission: true,
+    ...over,
+  };
+}
+
 /** A CobAlarm stand-in whose blocked state the test drives. */
 function fakeAlarm(blocked = false) {
   const listeners: Array<(blocked: boolean) => void> = [];
@@ -56,13 +78,16 @@ function makeHarness() {
     acknowledgeAnchorAlarm: vi.fn().mockResolvedValue(undefined),
     handOffAnchorAlarm: vi.fn().mockResolvedValue(undefined),
     noteExternalFix: vi.fn().mockResolvedValue(undefined),
+    getAnchorWatchStatus: vi.fn().mockResolvedValue(status()),
     addListener: vi.fn().mockResolvedValue(undefined),
   } satisfies NativeAnchorPlugin;
   let emit: (snap: AnchorWatchSnapshot | null) => void = () => {};
+  let state: AnchorWatchSnapshot | null = null;
   const manager: NativeAnchorManager = {
     subscribe: (cb) => {
       emit = cb;
     },
+    getState: () => state,
     noteNativeAlarm: vi.fn(),
   };
   let emitFix: (fix: NavigationData) => void = () => {};
@@ -75,7 +100,14 @@ function makeHarness() {
     plugin,
     manager,
     navManager,
-    emit: (snap: AnchorWatchSnapshot | null) => emit(snap),
+    emit: (snap: AnchorWatchSnapshot | null) => {
+      state = snap;
+      emit(snap);
+    },
+    /** Manager state that never reached a subscriber — the restore case. */
+    setState: (snap: AnchorWatchSnapshot | null) => {
+      state = snap;
+    },
     emitFix: () => emitFix({} as NavigationData),
     /** The anchorAlarm handler the module registered. */
     fireAlarm(kind: "drag" | "gps-loss") {
@@ -97,8 +129,8 @@ function connect(
     now?: () => number;
     navManager?: { subscribe: (cb: (fix: NavigationData) => void) => void };
   } = {},
-): void {
-  connectNativeAnchorWatch(h.manager, {
+) {
+  return connectNativeAnchorWatch(h.manager, {
     plugin: h.plugin,
     isNative: true,
     ...over,
@@ -239,6 +271,128 @@ describe("connectNativeAnchorWatch", () => {
       });
       h.emit(alarming());
       expect(h.plugin.handOffAnchorAlarm).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("reconcile", () => {
+    it("stands down a native watch this side has no record of", () => {
+      const h = makeHarness();
+      const handle = connect(h);
+      // Nothing restored: the JS watch is disarmed, so a native watch that
+      // survived a process kill has to end — it would otherwise alarm for a
+      // watch the user can no longer see or disarm.
+      handle.reconcile();
+      expect(h.plugin.clearAnchorWatch).toHaveBeenCalledTimes(1);
+      // Idempotent: a second pass has nothing left to clear.
+      handle.reconcile();
+      expect(h.plugin.clearAnchorWatch).toHaveBeenCalledTimes(1);
+    });
+
+    it("re-pushes a restored watch that never notified", () => {
+      const h = makeHarness();
+      const handle = connect(h);
+      h.setState(snapshot());
+      handle.reconcile();
+      expect(h.plugin.setAnchorWatch).toHaveBeenCalledTimes(1);
+      expect(h.plugin.clearAnchorWatch).not.toHaveBeenCalled();
+    });
+
+    it("does not re-push a watch restore already pushed down", () => {
+      const h = makeHarness();
+      const handle = connect(h);
+      h.emit(snapshot());
+      handle.reconcile();
+      expect(h.plugin.setAnchorWatch).toHaveBeenCalledTimes(1);
+      expect(h.plugin.clearAnchorWatch).not.toHaveBeenCalled();
+    });
+
+    it("still clears once when a watch was armed and then disarmed", () => {
+      const h = makeHarness();
+      const handle = connect(h);
+      h.emit(snapshot());
+      h.emit(null);
+      handle.reconcile();
+      expect(h.plugin.clearAnchorWatch).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe("screen-off cover", () => {
+    it("says nothing when the native side cannot answer", () => {
+      // Web, or a native shell without the status method: an unanswered
+      // question is not evidence of a problem.
+      expect(assessScreenOffCover(null)).toEqual({ state: "unknown" });
+      expect(screenOffCoverLine(null)).toBeNull();
+    });
+
+    it("is covered once the service's own GPS has seen the boat", () => {
+      expect(assessScreenOffCover(status())).toEqual({ state: "covered" });
+      expect(screenOffCoverLine(status())).toBeNull();
+    });
+
+    it("holds its verdict while the watch is still acquiring", () => {
+      const acquiring = status({
+        hadFix: false,
+        lastFixAgeMs: -1,
+        armedMs: 20_000,
+      });
+      expect(assessScreenOffCover(acquiring)).toEqual({ state: "unknown" });
+    });
+
+    it("discloses a watch still blind past the acquisition grace", () => {
+      const blind = status({
+        hadFix: false,
+        lastFixAgeMs: -1,
+        armedMs: SCREEN_OFF_COVER_GRACE_MS,
+      });
+      expect(assessScreenOffCover(blind)).toEqual({
+        state: "none",
+        reason: "no-fix",
+      });
+      expect(screenOffCoverLine(blind)).toBe(SCREEN_OFF_COVER_TEXT["no-fix"]);
+    });
+
+    it("names a missing permission immediately, without waiting out the grace", () => {
+      const denied = status({
+        locationPermission: false,
+        hadFix: false,
+        armedMs: 0,
+      });
+      expect(assessScreenOffCover(denied)).toEqual({
+        state: "none",
+        reason: "permission",
+      });
+    });
+
+    it("reports a watch that is not running natively at all", () => {
+      expect(assessScreenOffCover(status({ serviceRunning: false }))).toEqual({
+        state: "none",
+        reason: "service",
+      });
+      expect(assessScreenOffCover(status({ armedNatively: false }))).toEqual({
+        state: "none",
+        reason: "service",
+      });
+    });
+
+    it("reads the status from the plugin, and null on web", async () => {
+      const h = makeHarness();
+      expect(
+        await getNativeAnchorStatus({ plugin: h.plugin, isNative: true }),
+      ).toEqual(status());
+      expect(
+        await getNativeAnchorStatus({ plugin: h.plugin, isNative: false }),
+      ).toBeNull();
+    });
+
+    it("resolves null rather than throwing on an older native shell", async () => {
+      const h = makeHarness();
+      h.plugin.getAnchorWatchStatus.mockRejectedValue(new Error("no method"));
+      const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+      expect(
+        await getNativeAnchorStatus({ plugin: h.plugin, isNative: true }),
+      ).toBeNull();
+      expect(warn).toHaveBeenCalled();
+      warn.mockRestore();
     });
   });
 

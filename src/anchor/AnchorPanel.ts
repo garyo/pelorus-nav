@@ -77,6 +77,10 @@ import {
   toDisplayLength,
 } from "./anchor-setup";
 import { type AnchorRememberedParams, anchorParamsSlot } from "./anchor-state";
+import {
+  getNativeAnchorStatus,
+  screenOffCoverLine,
+} from "./native-anchor-watch";
 
 /** Arming is deliberate but not an emergency — a short guarded hold. */
 const ARM_HOLD_MS = 600;
@@ -84,6 +88,13 @@ const ARM_HOLD_MS = 600;
 const DISARM_HOLD_MS = 1500;
 const MIN_RADIUS_M = 5;
 const NO_FIX_BANNER_MS = 8000;
+/**
+ * How often the armed view re-asks the native service whether it can actually
+ * see the boat. The answer changes on the timescale of a GPS acquisition, so
+ * the 1 Hz ticker drives it through a cache rather than calling the plugin
+ * every second.
+ */
+const COVER_POLL_MS = 15_000;
 /** Tide predictions move slowly — recompute at most this often. */
 const TIDE_REFRESH_MS = 5 * 60 * 1000;
 /** Cache-key rounding for the anchor position: ~1 km, far inside a station's reach. */
@@ -225,6 +236,10 @@ export class AnchorPanel {
   /** Manual watch-radius override in meters; null = computed default. */
   private radiusOverrideM: number | null = null;
   private snap: AnchorWatchSnapshot | null = null;
+  /** Cached screen-off-cover disclosure; null = covered, or nothing to say. */
+  private coverText: string | null = null;
+  private coverCheckedAt = 0;
+  private coverPending = false;
   private ticker: ReturnType<typeof setInterval> | null = null;
   private detachHolds: Array<() => void> = [];
 
@@ -265,6 +280,7 @@ export class AnchorPanel {
   private brgEl!: HTMLSpanElement;
   private radiusValueEl!: HTMLSpanElement;
   private gpsLineEl!: HTMLDivElement;
+  private coverEl!: HTMLDivElement;
   private countdownEl!: HTMLDivElement;
   /** The scope/tide line, one per view (setup and armed show the same text). */
   private readonly tideEls: HTMLDivElement[] = [];
@@ -321,8 +337,12 @@ export class AnchorPanel {
     this.modeActive = active;
     if (active) {
       // Entering the mode is what makes the tide bundle worth fetching.
-      if (this.snap) this.renderScope();
-      else this.renderSetupLive();
+      if (this.snap) {
+        this.renderScope();
+        // The card may have been closed for hours; don't open on a stale
+        // verdict about whether the watch is covered.
+        this.refreshCover(true);
+      } else this.renderSetupLive();
       this.el.classList.add("open");
       this.surface.opened();
     } else {
@@ -635,6 +655,10 @@ export class AnchorPanel {
 
     this.gpsLineEl = document.createElement("div");
     this.gpsLineEl.className = "anchor-gps-line";
+    // Screen-off cover disclosure — see renderCover().
+    this.coverEl = document.createElement("div");
+    this.coverEl.className = "anchor-cover-line";
+    this.coverEl.style.display = "none";
     this.countdownEl = document.createElement("div");
     this.countdownEl.className = "anchor-countdown";
 
@@ -662,6 +686,7 @@ export class AnchorPanel {
       radiusCell,
       this.countdownEl,
       this.gpsLineEl,
+      this.coverEl,
       tideLine,
       this.audioEl,
       actions,
@@ -718,7 +743,13 @@ export class AnchorPanel {
   // --- State handling ---
 
   private onWatchChange(snap: AnchorWatchSnapshot | null): void {
+    const newlyArmed = snap !== null && this.snap === null;
     this.snap = snap;
+    // A new watch gets a fresh verdict; the last one described a service that
+    // may not even have been running.
+    if (!snap || newlyArmed) this.coverText = null;
+    if (newlyArmed) this.refreshCover(true);
+    this.renderCover();
     this.el.dataset.armed = snap ? "1" : "0";
     if (snap) this.el.dataset.zone = snap.zone;
     else {
@@ -998,6 +1029,53 @@ export class AnchorPanel {
     }
   }
 
+  // --- Screen-off cover ---
+
+  /**
+   * Ask the native watch whether it can actually see the boat. Throttled to
+   * {@link COVER_POLL_MS} and driven off the panel's existing 1 Hz ticker, so
+   * it costs one bridge call per 15 s of armed panel time and nothing at all
+   * on web or while the panel is closed.
+   */
+  private refreshCover(force = false): void {
+    if (!this.snap || this.coverPending) return;
+    const now = Date.now();
+    if (!force && now - this.coverCheckedAt < COVER_POLL_MS) return;
+    this.coverCheckedAt = now;
+    this.coverPending = true;
+    getNativeAnchorStatus().then(
+      (status) => {
+        this.coverPending = false;
+        if (this.disposed) return;
+        this.coverText = screenOffCoverLine(status);
+        this.renderCover();
+      },
+      () => {
+        this.coverPending = false;
+      },
+    );
+  }
+
+  /**
+   * The disclosure: armed, but nothing is watching once the screen goes off.
+   * A persistent line rather than a banner — it is a standing condition of
+   * this watch on this device, not an event, and the user's response is to
+   * plan around it (leave the app up, or move the tablet) rather than to
+   * dismiss it. It is never a gate on arming: a watch that only runs while
+   * the app is awake is still a watch.
+   *
+   * Armed view only. Before arming there is nothing to report: the service is
+   * usually not running, so it has neither a fix nor a chance at one, and the
+   * permission it needs is requested by the arm itself — a pre-arm warning
+   * would either be permanently pessimistic or tell the user to fix something
+   * arming fixes for them.
+   */
+  private renderCover(): void {
+    const text = this.snap ? this.coverText : null;
+    this.coverEl.textContent = text ?? "";
+    this.coverEl.style.display = text ? "" : "none";
+  }
+
   private renderAudioBlocked(): void {
     const blocked =
       this.deps.manager.isArmed() &&
@@ -1181,11 +1259,13 @@ export class AnchorPanel {
     this.scopeAdvisoryEl.style.display = readout.advisory ? "" : "none";
   }
 
-  /** 1 Hz while the panel is visible: time at anchor, arm gate, scope. */
+  /** 1 Hz while the panel is visible: time at anchor, arm gate, scope, cover. */
   private renderTick(): void {
     const snap = this.snap;
     if (snap) {
       this.elapsedEl.textContent = formatCobElapsed(Date.now() - snap.armedAt);
+      // Self-throttling; the plugin is asked once per COVER_POLL_MS.
+      this.refreshCover();
     } else {
       // Setup view: a fix can go stale with no event to announce it, so the
       // arm gate is re-evaluated on the clock.

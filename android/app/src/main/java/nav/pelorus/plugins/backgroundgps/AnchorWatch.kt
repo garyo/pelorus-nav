@@ -35,6 +35,22 @@ data class AnchorWatchParams(
     val reAlarmMarginM: Double,
 )
 
+/**
+ * What the service can say about the watch it is running, for the app's
+ * screen-off-cover disclosure. Mirrors AnchorWatchNativeStatus in
+ * src/plugins/BackgroundGPS.ts; times are milliseconds, -1 when not armed.
+ */
+data class AnchorWatchServiceStatus(
+    val armed: Boolean,
+    /** The service's own GPS has produced at least one accepted fix. */
+    val hadFix: Boolean,
+    val lastFixAgeMs: Long,
+    /** Time since this detector was armed — separates "acquiring" from "blind". */
+    val armedMs: Long,
+    val wakeLockHeld: Boolean,
+    val alarmKind: String?,
+)
+
 /** What a detector call changed about the alarm state. */
 enum class AnchorTransition { NONE, DRAG_ALARM, GPS_LOSS_ALARM, CLEARED }
 
@@ -68,6 +84,44 @@ fun shouldSoundNativeAnchorAlarm(appForeground: Boolean, jsAlarmAudible: Boolean
  * Doze-piercing AlarmManager deadline for the GPS-loss test.
  */
 class AnchorWatchDetector(params: AnchorWatchParams) {
+
+    companion object {
+        /**
+         * Rebuild the detector for a watch that outlived its process (see
+         * AnchorWatchStore). What survives is deliberately just [hadFix]:
+         *
+         * - **[hadFix] survives.** It means "this device's own GPS was proven
+         *   to work for this watch", and a process kill does not unprove it.
+         *   Dropping it would silently switch the GPS-loss alarm off for the
+         *   rest of the night — the exact silent death this class exists to
+         *   prevent.
+         * - **The GPS-loss deadline restarts** from [nowElapsedMs] rather than
+         *   from the pre-kill fix time: we don't know how long the process was
+         *   dead, and elapsed-realtime from before a reboot means nothing. So a
+         *   restored watch alarms if it stays blind for a full
+         *   [AnchorWatchParams.gpsLossAlarmMs] from the restart.
+         * - **Hysteresis starts clean.** "Outside since" measures a
+         *   *continuous* excursion; a gap of unknown length cannot count toward
+         *   one, and carrying it would alarm on the first fix after a restart.
+         * - **Acknowledgments do not survive.** An acknowledgment silences one
+         *   event; once the process is gone, the safe default for a safety
+         *   alarm is to alarm again.
+         * - **A sounding alarm is not restored.** Its sound and notification
+         *   died with the process, and re-raising one from stored state would
+         *   be a phantom alarm. A boat that is still outside re-detects within
+         *   one excursion delay of the first fix, which at the armed 5 s
+         *   location cadence is seconds away.
+         */
+        fun restored(
+            params: AnchorWatchParams,
+            hadFix: Boolean,
+            nowElapsedMs: Long,
+        ): AnchorWatchDetector = AnchorWatchDetector(params).apply {
+            if (!hadFix) return@apply
+            this.hadFix = true
+            this.lastFixElapsedMs = nowElapsedMs
+        }
+    }
 
     var params: AnchorWatchParams = params
         private set

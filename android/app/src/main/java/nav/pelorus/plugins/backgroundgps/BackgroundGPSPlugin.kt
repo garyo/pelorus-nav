@@ -90,20 +90,27 @@ class BackgroundGPSPlugin : Plugin() {
      * and an armed anchor watch, which must keep detecting whatever GPS
      * source the app itself is displaying. Neither may end the other's
      * service.
+     *
+     * A running service is also re-started when arming or disarming a watch:
+     * the restart policy is the return value of onStartCommand, so the service
+     * only becomes START_STICKY (or stops being) on a fresh start command. The
+     * redundant command is cheap — startForeground and applyMode are both
+     * idempotent — and both transitions happen on a user gesture with the app
+     * in the foreground, where starting a foreground service is allowed.
      */
     private fun syncServiceDemand() {
-        val wanted =
-            BackgroundTrackService.trackingRequested ||
-                BackgroundTrackService.anchorParams != null
+        val armed = BackgroundTrackService.anchorParams != null
+        val wanted = BackgroundTrackService.trackingRequested || armed
         val running = BackgroundTrackService.instance != null
+        val stickinessStale = running && BackgroundTrackService.startedSticky != armed
         val intent = Intent(context, BackgroundTrackService::class.java)
-        if (wanted && !running) {
+        if (wanted && (!running || stickinessStale)) {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 context.startForegroundService(intent)
             } else {
                 context.startService(intent)
             }
-        } else if (!wanted && running) {
+        } else if (running) {
             context.stopService(intent)
         }
     }
@@ -433,6 +440,10 @@ class BackgroundGPSPlugin : Plugin() {
             return
         }
         BackgroundTrackService.anchorParams = params
+        // On disk before the service hears about it: from here an OS kill is
+        // survivable (the service is START_STICKY while armed and re-adopts
+        // the watch in onCreate).
+        AnchorWatchStore.save(context, params)
         syncServiceDemand()
         // Already running (track recording, or a watch being updated): adopt
         // the new geometry. A service just started by the line above adopts it
@@ -446,16 +457,51 @@ class BackgroundGPSPlugin : Plugin() {
         call.resolve()
     }
 
-    /** Disarm the native watch and cancel any sounding alarm. */
+    /**
+     * Disarm the native watch and cancel any sounding alarm. The only path
+     * that erases the persisted watch: everything else (a process kill, the
+     * notification's Stop, a service stop) leaves it, because none of them is
+     * the user standing the watch down.
+     */
     @PluginMethod
     fun clearAnchorWatch(call: PluginCall) {
         BackgroundTrackService.anchorParams = null
+        AnchorWatchStore.clear(context)
         BackgroundTrackService.instance?.applyAnchorWatch()
         // Stops the service only if nothing else wants it — track recording
         // often does.
         syncServiceDemand()
         DiagLog.log(context, "plugin", "clearAnchorWatch")
         call.resolve()
+    }
+
+    /**
+     * Report whether the screen-off watch is actually watching.
+     *
+     * The app cannot work this out for itself. On a device whose own GPS never
+     * produces a fix — a tablet with no GPS hardware, a declined permission, a
+     * receiver stowed below decks — the service runs and sees nothing, and
+     * stays deliberately silent about it (a watch that was never proven to
+     * work has no basis for a GPS-loss alarm; alarming two minutes after every
+     * screen-off would be intolerable). The result is a user who believes they
+     * are covered overnight and is not, so the app asks and says so.
+     */
+    @PluginMethod
+    fun getAnchorWatchStatus(call: PluginCall) {
+        val service = BackgroundTrackService.instance
+        val status = service?.anchorStatus()
+        call.resolve(JSObject().apply {
+            put("serviceRunning", service != null)
+            put("armedNatively", status?.armed == true)
+            put("hadFix", status?.hadFix == true)
+            put("lastFixAgeMs", status?.lastFixAgeMs ?: -1L)
+            put("armedMs", status?.armedMs ?: -1L)
+            put("wakeLockHeld", status?.wakeLockHeld == true)
+            // The service's hard requirement; without it the watch runs only
+            // while the app is awake, whatever else the status says.
+            put("locationPermission", hasServiceLocation())
+            status?.alarmKind?.let { put("alarmKind", it) }
+        })
     }
 
     /** Silence a sounding native alarm without disarming (mirrors JS acknowledge). */
