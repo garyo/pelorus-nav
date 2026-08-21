@@ -479,7 +479,7 @@ class BackgroundGPSPlugin : Plugin() {
     /**
      * Report whether the screen-off watch is actually watching.
      *
-     * The app cannot work this out for itself. On a device whose own GPS never
+     * The app cannot work this out for itself. On a device whose own GNSS never
      * produces a fix — a tablet with no GPS hardware, a declined permission, a
      * receiver stowed below decks — the service runs and sees nothing, and
      * stays deliberately silent about it (a watch that was never proven to
@@ -498,6 +498,13 @@ class BackgroundGPSPlugin : Plugin() {
             put("lastFixAgeMs", status?.lastFixAgeMs ?: -1L)
             put("armedMs", status?.armedMs ?: -1L)
             put("wakeLockHeld", status?.wakeLockHeld == true)
+            // False on a device with no GNSS receiver of its own — the watch
+            // has nothing to see the boat with once the WebView suspends,
+            // whatever the app's own (Bluetooth) position source is doing.
+            // Omitted rather than false when no watch is running here: it is
+            // only known once the service has one, and an absent field reads
+            // as "can't say" rather than as bad news.
+            status?.let { put("gnssAvailable", it.gnssAvailable) }
             // The service's hard requirement; without it the watch runs only
             // while the app is awake, whatever else the status says.
             put("locationPermission", hasServiceLocation())

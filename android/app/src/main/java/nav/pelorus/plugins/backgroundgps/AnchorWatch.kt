@@ -42,14 +42,57 @@ data class AnchorWatchParams(
  */
 data class AnchorWatchServiceStatus(
     val armed: Boolean,
-    /** The service's own GPS has produced at least one accepted fix. */
+    /** This device's own GNSS has produced at least one fix for this watch. */
     val hadFix: Boolean,
     val lastFixAgeMs: Long,
     /** Time since this detector was armed — separates "acquiring" from "blind". */
     val armedMs: Long,
     val wakeLockHeld: Boolean,
     val alarmKind: String?,
+    /**
+     * This device has a GNSS receiver the watch can subscribe to. False on a
+     * tablet with no GPS hardware (the e-ink case), where nothing the service
+     * can do will ever produce a position of its own — see
+     * BackgroundTrackService.startAnchorGnssUpdates.
+     */
+    val gnssAvailable: Boolean,
 )
+
+/**
+ * Horizontal accuracy the JS alarm radius is already assumed to cover, meters.
+ *
+ * The radius the user armed is computed from rode + boat length + a GPS margin
+ * (see anchor-setup.ts), and that margin is sized for the receiver the *app*
+ * is using — often an external Bluetooth GPS reporting 3-5 m. The service
+ * watches through the device's own chip, which under a coachroof or in a
+ * marina can report far worse. This is the accuracy at which the device chip
+ * is doing at least as well as the armed margin already assumes.
+ */
+const val ANCHOR_ASSUMED_ACCURACY_M = 10.0
+
+/** An accuracy value from a fix that did not report one. */
+const val ANCHOR_ACCURACY_UNKNOWN = -1.0
+
+/**
+ * The radius the native watch actually alarms on: the armed radius widened by
+ * however much worse than [ANCHOR_ASSUMED_ACCURACY_M] this device's own fix is.
+ *
+ * Without this a small circle — a 25 m radius on a short scope in a crowded
+ * anchorage — is swamped by the device chip's own uncertainty: a 40 m fix
+ * error puts a stationary boat outside the ring and alarms at 3 a.m. with the
+ * boat exactly where the user left it. Widening by only the *excess* (rather
+ * than by the full accuracy) keeps the geometry the user set whenever the
+ * device fix is as good as their margin already budgets for, and gives back
+ * exactly the uncertainty the chip admits to when it is worse. It never
+ * shrinks the radius, so it can only ever suppress a false alarm — the cost is
+ * that a real drag on a device with a poor fix has to travel further before it
+ * alarms, which is the honest trade: the position simply is not good enough to
+ * say otherwise.
+ */
+fun effectiveAnchorRadiusM(radiusM: Double, accuracyM: Double): Double {
+    if (!accuracyM.isFinite() || accuracyM <= 0) return radiusM
+    return radiusM + maxOf(0.0, accuracyM - ANCHOR_ASSUMED_ACCURACY_M)
+}
 
 /** What a detector call changed about the alarm state. */
 enum class AnchorTransition { NONE, DRAG_ALARM, GPS_LOSS_ALARM, CLEARED }
@@ -77,6 +120,14 @@ fun shouldSoundNativeAnchorAlarm(appForeground: Boolean, jsAlarmAudible: Boolean
  * Pure logic — no Android dependencies — so it is directly unit-testable.
  * The caller feeds it every accepted fix plus periodic ticks and reacts to
  * the returned transition; the class itself makes no noise.
+ *
+ * **GNSS fixes only.** [onFix] means "this device's own satellite receiver saw
+ * the boat here". A fused/network position — WiFi or cell trilateration — must
+ * never reach it: those can be hundreds of metres out and jump between
+ * neighbouring access points, which reads as a drag while the boat sits on its
+ * anchor. Feeding them in is how this watch alarmed within seconds of arming
+ * on a tablet with no GNSS at all. The caller enforces it by subscribing to
+ * the GNSS provider directly (BackgroundTrackService.startAnchorGnssUpdates).
  *
  * Timing runs on a monotonic elapsed-realtime clock supplied by the caller
  * rather than on fix timestamps (which is what the JS side uses): the
@@ -135,12 +186,19 @@ class AnchorWatchDetector(params: AnchorWatchParams) {
         private set
 
     /**
-     * A fix has arrived since this watch was armed. A watch that has never
-     * seen a fix must not raise a GPS-loss alarm — it was never proven to
+     * A GNSS fix has arrived since this watch was armed. A watch that has
+     * never seen one must not raise a GPS-loss alarm — it was never proven to
      * work, so silence is not new information (mirrors `hadFix` in the JS
-     * state machine).
+     * state machine) — and must not claim screen-off cover either.
      */
     var hadFix: Boolean = false
+        private set
+
+    /**
+     * Horizontal accuracy of the last fix, meters, or
+     * [ANCHOR_ACCURACY_UNKNOWN]. Feeds [effectiveRadiusM].
+     */
+    var lastAccuracyM: Double = ANCHOR_ACCURACY_UNKNOWN
         private set
 
     /** Elapsed-realtime of the last accepted fix; meaningful once [hadFix]. */
@@ -154,12 +212,24 @@ class AnchorWatchDetector(params: AnchorWatchParams) {
     private var distanceAtAckM = 0.0
     private var gpsLossAcknowledged = false
 
-    /** Feed an accepted fix. Fresh data also ends any GPS-loss condition. */
-    fun onFix(lat: Double, lon: Double, nowElapsedMs: Long): AnchorTransition {
+    /** The radius this watch alarms on, given the last fix's own accuracy. */
+    fun effectiveRadiusM(): Double = effectiveAnchorRadiusM(params.radiusM, lastAccuracyM)
+
+    /**
+     * Feed one GNSS fix (see the class doc — nothing else may call this).
+     * Fresh data also ends any GPS-loss condition.
+     */
+    fun onFix(
+        lat: Double,
+        lon: Double,
+        nowElapsedMs: Long,
+        accuracyM: Double = ANCHOR_ACCURACY_UNKNOWN,
+    ): AnchorTransition {
         hadFix = true
         lastFixElapsedMs = nowElapsedMs
         lastLat = lat
         lastLon = lon
+        lastAccuracyM = accuracyM
         gpsLossAcknowledged = false
         var cleared = false
         if (alarmKind == ANCHOR_ALARM_GPS_LOSS) {
@@ -241,7 +311,7 @@ class AnchorWatchDetector(params: AnchorWatchParams) {
     private fun evaluate(nowElapsedMs: Long): AnchorTransition {
         val distanceM = haversineMeters(lastLat, lastLon, params.lat, params.lon)
         lastDistanceM = distanceM
-        if (distanceM > params.radiusM) {
+        if (distanceM > effectiveRadiusM()) {
             val since = outsideSinceElapsedMs ?: nowElapsedMs.also { outsideSinceElapsedMs = it }
             if (dragAcknowledged) {
                 // Still dragging: a further margin beyond the acknowledged

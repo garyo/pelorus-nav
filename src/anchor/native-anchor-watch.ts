@@ -238,9 +238,10 @@ export function connectNativeAnchorWatch(
 // --- Screen-off cover ------------------------------------------------------
 
 /**
- * How long after the native watch arms its own GPS gets to produce a first
- * fix before the app calls the screen-off cover missing. A cold chip under a
- * marina's masts can take tens of seconds; nothing legitimate takes a minute.
+ * How long the app gives the native watch to come up — the foreground service
+ * to start and adopt the watch, then its GNSS to produce a first fix — before
+ * calling the screen-off cover missing. A cold chip under a marina's masts can
+ * take tens of seconds; nothing legitimate takes a minute.
  */
 export const SCREEN_OFF_COVER_GRACE_MS = 60_000;
 
@@ -248,7 +249,7 @@ export const SCREEN_OFF_COVER_GRACE_MS = 60_000;
 export type ScreenOffCover =
   | { state: "unknown" }
   | { state: "covered" }
-  | { state: "none"; reason: "permission" | "service" | "no-fix" };
+  | { state: "none"; reason: "permission" | "no-gnss" | "service" | "no-fix" };
 
 /**
  * The disclosure text for each way the cover can be missing. Terse and
@@ -261,6 +262,8 @@ export const SCREEN_OFF_COVER_TEXT: Record<
 > = {
   permission:
     "No screen-off cover: location permission is off. The watch only runs while the app is awake.",
+  "no-gnss":
+    "No screen-off cover: this device has no GPS of its own. The watch only runs while the app is awake.",
   service:
     "No screen-off cover: the background watch is not running. The watch only runs while the app is awake.",
   "no-fix":
@@ -278,12 +281,22 @@ export const SCREEN_OFF_COVER_TEXT: Record<
  * would be intolerable), so nothing but this tells the user they are not
  * covered.
  *
- * "unknown" is the honest answer while the watch is still acquiring, and on
+ * "unknown" is the honest answer while the watch is still coming up, and on
  * any platform or shell that cannot answer — never a warning we can't stand
- * behind.
+ * behind. Two of the four failures are decisive as soon as they can be read
+ * (a denied permission, a device with no GNSS at all — waiting changes
+ * neither); the other two are indistinguishable from a watch that is still
+ * coming up, so they wait out {@link SCREEN_OFF_COVER_GRACE_MS} first.
+ *
+ * @param armedForMs how long the JS watch has been armed. The service takes a
+ *   second or two to start and adopt the watch, during which it honestly reads
+ *   as "not running" — reported immediately, that flashed a false "no
+ *   screen-off cover" on every arm. Callers that don't track it get the
+ *   immediate verdict.
  */
 export function assessScreenOffCover(
   status: AnchorWatchNativeStatus | null,
+  armedForMs: number = Number.POSITIVE_INFINITY,
 ): ScreenOffCover {
   if (!status) return { state: "unknown" };
   // Decisive on its own, and known immediately: the location-type foreground
@@ -291,8 +304,16 @@ export function assessScreenOffCover(
   if (!status.locationPermission)
     return { state: "none", reason: "permission" };
   if (!status.serviceRunning || !status.armedNatively) {
-    return { state: "none", reason: "service" };
+    return armedForMs < SCREEN_OFF_COVER_GRACE_MS
+      ? { state: "unknown" }
+      : { state: "none", reason: "service" };
   }
+  // Now that the service is up and holding the watch, this field means what
+  // it says — and it is decisive without waiting: no amount of acquisition
+  // time gives a device a GNSS receiver. The service may be running
+  // perfectly, watching nothing.
+  if (status.gnssAvailable === false)
+    return { state: "none", reason: "no-gnss" };
   if (status.hadFix) return { state: "covered" };
   if (status.armedMs >= 0 && status.armedMs < SCREEN_OFF_COVER_GRACE_MS) {
     return { state: "unknown" };
@@ -303,8 +324,9 @@ export function assessScreenOffCover(
 /** The panel's disclosure line, or null when there is nothing to disclose. */
 export function screenOffCoverLine(
   status: AnchorWatchNativeStatus | null,
+  armedForMs?: number,
 ): string | null {
-  const cover = assessScreenOffCover(status);
+  const cover = assessScreenOffCover(status, armedForMs);
   return cover.state === "none" ? SCREEN_OFF_COVER_TEXT[cover.reason] : null;
 }
 

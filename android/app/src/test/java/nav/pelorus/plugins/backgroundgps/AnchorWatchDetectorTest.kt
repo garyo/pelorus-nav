@@ -236,6 +236,53 @@ class AnchorWatchDetectorTest {
         assertEquals(AnchorTransition.GPS_LOSS_ALARM, d.onTick(121_000L))
     }
 
+    // --- Accuracy floor ---
+
+    @Test
+    fun `a poor fix widens the radius instead of alarming on its own error`() {
+        val d = AnchorWatchDetector(params(radiusM = 50.0))
+        // 40 m of claimed uncertainty: 30 m worse than the accuracy the armed
+        // radius already budgets for, so the watch alarms at 80 m, not 50 m.
+        d.onFix(latAt(0.0), anchorLon, 0L, accuracyM = 40.0)
+        assertEquals(80.0, d.effectiveRadiusM(), 1e-9)
+        assertEquals(AnchorTransition.NONE, d.onFix(latAt(60.0), anchorLon, 10_000L, 40.0))
+        assertEquals(AnchorTransition.NONE, d.onFix(latAt(60.0), anchorLon, 60_000L, 40.0))
+        assertNull(d.alarmKind)
+
+        // The chip sharpens up and the boat is still 60 m out: that is a drag.
+        assertEquals(AnchorTransition.NONE, d.onFix(latAt(60.0), anchorLon, 70_000L, 5.0))
+        assertEquals(AnchorTransition.DRAG_ALARM, d.onFix(latAt(60.0), anchorLon, 90_000L, 5.0))
+    }
+
+    @Test
+    fun `a real drag still alarms through a poor fix`() {
+        val d = AnchorWatchDetector(params(radiusM = 50.0))
+        d.onFix(latAt(0.0), anchorLon, 0L, accuracyM = 40.0)
+        assertEquals(AnchorTransition.NONE, d.onFix(latAt(120.0), anchorLon, 10_000L, 40.0))
+        assertEquals(AnchorTransition.DRAG_ALARM, d.onFix(latAt(120.0), anchorLon, 30_000L, 40.0))
+    }
+
+    @Test
+    fun `a fix with no accuracy is judged on the armed radius alone`() {
+        val d = AnchorWatchDetector(params(radiusM = 50.0))
+        d.onFix(latAt(0.0), anchorLon, 0L)
+        assertEquals(50.0, d.effectiveRadiusM(), 1e-9)
+        assertEquals(AnchorTransition.NONE, fix(d, 55.0, 10_000L))
+        assertEquals(AnchorTransition.DRAG_ALARM, fix(d, 55.0, 30_000L))
+    }
+
+    @Test
+    fun `the accuracy floor never shrinks the armed radius`() {
+        // A good fix is not licence to alarm sooner than the user asked.
+        assertEquals(50.0, effectiveAnchorRadiusM(50.0, 2.0), 1e-9)
+        assertEquals(50.0, effectiveAnchorRadiusM(50.0, ANCHOR_ASSUMED_ACCURACY_M), 1e-9)
+        // Unknown or nonsensical accuracy: nothing to widen by.
+        assertEquals(50.0, effectiveAnchorRadiusM(50.0, ANCHOR_ACCURACY_UNKNOWN), 1e-9)
+        assertEquals(50.0, effectiveAnchorRadiusM(50.0, Double.NaN), 1e-9)
+        // Worse than assumed: widened by exactly the excess.
+        assertEquals(65.0, effectiveAnchorRadiusM(50.0, 25.0), 1e-9)
+    }
+
     @Test
     fun `native audio yields only to a JS alarm proven to be audible`() {
         // A started activity is not proof: a WebView back from suspension

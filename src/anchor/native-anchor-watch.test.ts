@@ -51,6 +51,7 @@ function status(
     armedMs: 600_000,
     wakeLockHeld: true,
     locationPermission: true,
+    gnssAvailable: true,
     ...over,
   };
 }
@@ -372,6 +373,74 @@ describe("connectNativeAnchorWatch", () => {
         state: "none",
         reason: "service",
       });
+    });
+
+    it("gives the service its grace period before calling it missing", () => {
+      // The regression: the service takes a second or two to start and adopt
+      // the watch, so every arm flashed "the background watch is not running".
+      const starting = status({
+        serviceRunning: false,
+        armedNatively: false,
+        hadFix: false,
+        armedMs: -1,
+      });
+      expect(assessScreenOffCover(starting, 1_500)).toEqual({
+        state: "unknown",
+      });
+      expect(screenOffCoverLine(starting, 1_500)).toBeNull();
+      // Still not up a minute later: that is real, and worth saying.
+      expect(assessScreenOffCover(starting, SCREEN_OFF_COVER_GRACE_MS)).toEqual(
+        { state: "none", reason: "service" },
+      );
+    });
+
+    it("names a missing permission during the grace, not after it", () => {
+      // Decisive, so it is never held back by the service's startup window.
+      expect(
+        assessScreenOffCover(
+          status({ serviceRunning: false, locationPermission: false }),
+          0,
+        ),
+      ).toEqual({ state: "none", reason: "permission" });
+    });
+
+    it("says plainly when the device has no GPS of its own", () => {
+      // The e-ink tablet whose only position source is the app's Bluetooth
+      // receiver: the service runs perfectly and watches nothing. Reported at
+      // once — waiting will not grow the device a GNSS chip.
+      const noGnss = status({
+        gnssAvailable: false,
+        hadFix: false,
+        armedMs: 0,
+      });
+      expect(assessScreenOffCover(noGnss, 0)).toEqual({
+        state: "none",
+        reason: "no-gnss",
+      });
+      expect(screenOffCoverLine(noGnss, 0)).toBe(
+        SCREEN_OFF_COVER_TEXT["no-gnss"],
+      );
+    });
+
+    it("does not read a starting service as a device with no GNSS", () => {
+      // The field is only meaningful once the service holds the watch; before
+      // that it is false simply because nothing has looked yet.
+      expect(
+        assessScreenOffCover(
+          status({
+            serviceRunning: false,
+            armedNatively: false,
+            gnssAvailable: false,
+          }),
+          1_000,
+        ),
+      ).toEqual({ state: "unknown" });
+    });
+
+    it("says nothing new on a native shell that cannot report GNSS", () => {
+      // Older APK, no gnssAvailable field: fall back to the fix-based verdicts.
+      const older = status({ gnssAvailable: undefined });
+      expect(assessScreenOffCover(older)).toEqual({ state: "covered" });
     });
 
     it("reads the status from the plugin, and null on web", async () => {

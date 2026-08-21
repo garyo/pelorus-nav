@@ -25,7 +25,10 @@ object AnchorWatchStore {
 
     private const val PREFS = "pelorus_anchor_watch"
     private const val KEY_PARAMS = "params"
-    private const val KEY_HAD_FIX = "hadFix"
+    // Deliberately not the old "hadFix": that flag could be set by a fused
+    // network position, so a watch armed by an earlier build must not carry
+    // its claim of a proven GNSS receiver across the upgrade.
+    private const val KEY_HAD_FIX = "hadGnssFix"
 
     private fun prefs(context: Context) =
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
@@ -36,9 +39,10 @@ object AnchorWatchStore {
     }
 
     /**
-     * Remember that this watch has seen a fix from the device's own GPS, so a
-     * restored watch keeps the right to raise a GPS-loss alarm. Written once,
-     * on the flag's false→true edge — not per fix.
+     * Remember that this watch has seen a fix from the device's own GNSS
+     * receiver, so a restored watch keeps the right to raise a GPS-loss alarm
+     * (and to claim screen-off cover). Written once, on the flag's false→true
+     * edge — not per fix.
      */
     fun markHadFix(context: Context) {
         prefs(context).edit().putBoolean(KEY_HAD_FIX, true).apply()

@@ -10,10 +10,15 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.content.pm.PackageManager
+import android.location.Location
+import android.location.LocationListener
+import android.location.LocationManager
 import android.media.AudioAttributes
 import android.media.MediaPlayer
 import android.media.RingtoneManager
 import android.os.Build
+import android.os.Bundle
 import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
@@ -53,21 +58,22 @@ import com.google.android.gms.location.Priority
  * recording state, and theme. No speed/DR-based adaptation here — that's been
  * tried and it doesn't survive sailing-speed GPS noise.
  *
- * The service also carries the screen-off anchor watch ([AnchorWatchDetector]):
- * every accepted fix is distance-tested against the armed anchor before it
- * reaches SQLite, and a separate Doze-piercing alarm catches sustained GPS
- * silence. Alarms use their own IMPORTANCE_HIGH channel with service-owned
- * looping alarm-stream audio, because the tracking channel is deliberately
- * silent. While a watch is armed the service holds its own continuous wake
- * lock and floors the location interval — see [acquireAnchorWakeLock] and
- * [ANCHOR_PASSIVE_INTERVAL_MS].
+ * The service also carries the screen-off anchor watch ([AnchorWatchDetector]),
+ * fed by its own [android.location.LocationManager.GPS_PROVIDER] subscription
+ * rather than by the fused stream above — see [startAnchorGnssUpdates] for why
+ * a fused position is unusable for drag detection. A separate Doze-piercing
+ * alarm catches sustained GNSS silence. Alarms use their own IMPORTANCE_HIGH
+ * channel with service-owned looping alarm-stream audio, because the tracking
+ * channel is deliberately silent. While a watch is armed the service holds its
+ * own continuous wake lock and floors both location cadences at
+ * [ANCHOR_PASSIVE_INTERVAL_MS] — see [acquireAnchorWakeLock].
  *
  * An armed watch is an independent reason for the service to exist: the app's
  * displayed fixes may come from an external Bluetooth receiver over the
  * WebView bridge, which is suspended exactly when the watch matters, so the
- * device chip stands in as the watch's own position source. With no tracking
- * client ([trackingRequested] false) nothing is recorded or fanned out —
- * those fixes only feed the detector.
+ * device's GNSS chip stands in as the watch's own position source. A device
+ * with no GNSS gets no screen-off cover at all, and the app says so rather
+ * than pretending (see [anchorStatus]).
  *
  * An armed watch also outlives the process: it is persisted by
  * [AnchorWatchStore], re-adopted in [onCreate], and while one is armed
@@ -282,6 +288,23 @@ class BackgroundTrackService : Service() {
     private var anchorAlarmPlayer: MediaPlayer? = null
     private var anchorWatchdogPendingIntent: PendingIntent? = null
 
+    /** Platform LocationManager — the anchor watch's GNSS-only feed. */
+    private var locationManager: LocationManager? = null
+
+    /**
+     * Subscribed to [LocationManager.GPS_PROVIDER] exactly while a watch is
+     * armed; see [startAnchorGnssUpdates] for why the watch does not read the
+     * fused stream the rest of this service runs on.
+     */
+    private var anchorGnssListener: LocationListener? = null
+
+    /**
+     * This device has a GNSS receiver the watch could subscribe to. False on a
+     * tablet with no GPS hardware, which is the case the app has to disclose
+     * rather than pretend to watch.
+     */
+    @Volatile private var anchorGnssAvailable: Boolean = false
+
     private var alarmManager: AlarmManager? = null
     private var watchdogPendingIntent: PendingIntent? = null
     /**
@@ -336,6 +359,7 @@ class BackgroundTrackService : Service() {
         fusedClient = LocationServices.getFusedLocationProviderClient(this)
         trackDb = TrackDatabase(this)
         alarmManager = getSystemService(Context.ALARM_SERVICE) as AlarmManager
+        locationManager = getSystemService(Context.LOCATION_SERVICE) as? LocationManager
 
         // Dynamic registration: the watchdog alarm broadcasts back to us
         // privately. NOT_EXPORTED so no other app can spoof a tick.
@@ -392,16 +416,20 @@ class BackgroundTrackService : Service() {
                             continue
                         }
                         accepted = true
-                        // Anchor watch first: drag detection must not wait
-                        // behind the SQLite insert or the bridge fanout, and
-                        // it is deliberately independent of the recording
-                        // cadence that gates everything below it.
-                        onAnchorFix(location.latitude, location.longitude)
+                        // Deliberately NOT fed to the anchor watch: this is the
+                        // fused stream, and FLP will happily synthesise a
+                        // position from WiFi or cell towers when the chip has
+                        // nothing. Such a fix has no useful relationship to the
+                        // boat — on a tablet with no GNSS at all it is the only
+                        // thing that ever arrives — and it alarmed at zero
+                        // distance. The watch reads GNSS directly instead; see
+                        // [startAnchorGnssUpdates].
+                        //
                         // Anchor-only service (no tracking client): the fix has
-                        // done its job. Recording it would fill the buffer with
-                        // device-chip fixes for a user whose position source is
-                        // an external receiver, to be replayed as "live" the
-                        // next time the device GPS provider connects.
+                        // nothing left to do. Recording it would fill the buffer
+                        // with device-chip fixes for a user whose position
+                        // source is an external receiver, to be replayed as
+                        // "live" the next time the device GPS provider connects.
                         if (!trackingRequested) continue
                         val point = TrackPointRow(
                             timestamp = location.time,
@@ -545,6 +573,7 @@ class BackgroundTrackService : Service() {
         // Silence, but keep [anchorParams]: the watch itself is still armed
         // as far as JS is concerned, and a service restart re-arms detection.
         stopAnchorAlarmSound()
+        stopAnchorGnssUpdates()
         anchorDetector = null
         instance = null
         if (::fusedClient.isInitialized && ::locationCallback.isInitialized) {
@@ -803,6 +832,7 @@ class BackgroundTrackService : Service() {
             anchorDetector = null
             anchorRestoredFromStore = false
             cancelAnchorWatchdog()
+            stopAnchorGnssUpdates()
             clearAnchorAlarm()
             releaseAnchorWakeLock()
             refreshNotification()
@@ -810,6 +840,7 @@ class BackgroundTrackService : Service() {
             return
         }
         acquireAnchorWakeLock()
+        startAnchorGnssUpdates()
         val now = SystemClock.elapsedRealtime()
         val existing = anchorDetector
         if (existing == null) {
@@ -864,6 +895,94 @@ class BackgroundTrackService : Service() {
         DiagLog.log(applicationContext, "anchor", "wake lock released")
     }
 
+    /**
+     * Subscribe the anchor watch to this device's own GNSS receiver, and to
+     * nothing else.
+     *
+     * The rest of the service runs on FusedLocationProvider, which is the
+     * right thing for track recording: it fuses, it duty-cycles, and when the
+     * chip has nothing it falls back to WiFi and cell-tower trilateration. For
+     * an anchor watch that fallback is poison. A network position is derived
+     * from whichever access points are in range, so it sits tens to hundreds
+     * of metres from the boat and hops as the neighbours' routers come and go
+     * — indistinguishable from a drag, and on a tablet with no GNSS hardware
+     * at all (the e-ink case) it is the *only* thing FLP ever delivers. That
+     * is what alarmed at zero distance seconds after arming, and worse, made
+     * the app report the watch as covered.
+     *
+     * [LocationManager.GPS_PROVIDER] settles it by construction rather than by
+     * heuristic: every fix it delivers came from the satellite engine. The
+     * fused stream cannot be filtered as reliably — its Location carries
+     * provider "fused", `setWaitForAccurateLocation(true)` is a hint rather
+     * than a guarantee, and the satellite count in `extras` is not populated by
+     * every OEM's implementation. A GnssStatus.Callback would answer "are
+     * satellites being used right now", but it still cannot tell which engine
+     * produced a given fused fix; subscribing to the GNSS provider makes the
+     * question unnecessary.
+     *
+     * A device with no GNSS throws (or has no such provider) — recorded in
+     * [anchorGnssAvailable] so the app can say so plainly instead of claiming
+     * a watch it does not have.
+     */
+    @Suppress("MissingPermission")
+    private fun startAnchorGnssUpdates() {
+        if (anchorGnssListener != null) return
+        val lm = locationManager
+        val hasHardware =
+            packageManager.hasSystemFeature(PackageManager.FEATURE_LOCATION_GPS)
+        if (lm == null || !hasHardware || LocationManager.GPS_PROVIDER !in lm.allProviders) {
+            anchorGnssAvailable = false
+            Log.w(TAG, "Anchor watch: no GNSS provider on this device")
+            DiagLog.log(applicationContext, "anchor", "no GNSS provider — no screen-off cover")
+            return
+        }
+        // Written out rather than as a lambda: the other three methods only
+        // got default implementations in API 30, and on an older device the
+        // framework calls them on an interface that still declares them
+        // abstract.
+        val listener = object : LocationListener {
+            override fun onLocationChanged(location: Location) = onAnchorFix(location)
+
+            @Deprecated("Deprecated in Java")
+            override fun onStatusChanged(provider: String?, status: Int, extras: Bundle?) {
+            }
+
+            override fun onProviderEnabled(provider: String) {}
+
+            override fun onProviderDisabled(provider: String) {}
+        }
+        try {
+            lm.requestLocationUpdates(
+                LocationManager.GPS_PROVIDER,
+                ANCHOR_PASSIVE_INTERVAL_MS,
+                0f,
+                listener,
+                Looper.getMainLooper(),
+            )
+        } catch (e: Exception) {
+            // Permission revoked mid-watch, or an OEM that lists the provider
+            // and refuses it. Either way there is no cover to claim.
+            anchorGnssAvailable = false
+            Log.w(TAG, "Anchor watch: GNSS updates unavailable", e)
+            DiagLog.log(applicationContext, "anchor", "GNSS updates unavailable: ${e.message}")
+            return
+        }
+        anchorGnssListener = listener
+        anchorGnssAvailable = true
+        DiagLog.log(applicationContext, "anchor", "GNSS updates started")
+    }
+
+    private fun stopAnchorGnssUpdates() {
+        val listener = anchorGnssListener ?: return
+        anchorGnssListener = null
+        try {
+            locationManager?.removeUpdates(listener)
+        } catch (e: Exception) {
+            Log.w(TAG, "Anchor watch: removing GNSS updates failed", e)
+        }
+        DiagLog.log(applicationContext, "anchor", "GNSS updates stopped")
+    }
+
     /** Silence a sounding alarm; the watch keeps running. */
     fun acknowledgeAnchorAlarm() {
         val silenced = anchorDetector?.acknowledge() ?: false
@@ -909,11 +1028,23 @@ class BackgroundTrackService : Service() {
         armAnchorWatchdog(detector.params.gpsLossAlarmMs)
     }
 
-    /** Distance-test one accepted fix against the armed anchor. */
-    private fun onAnchorFix(lat: Double, lon: Double) {
+    /**
+     * Distance-test one GNSS fix against the armed anchor.
+     *
+     * The fix's own accuracy goes with it: a poor one widens the radius the
+     * detector alarms on rather than being rejected outright, so a marginal
+     * position degrades the watch's resolution instead of either crying wolf
+     * or going silent (see [effectiveAnchorRadiusM]).
+     */
+    private fun onAnchorFix(location: Location) {
         val detector = anchorDetector ?: return
         val provenBefore = detector.hadFix
-        val transition = detector.onFix(lat, lon, SystemClock.elapsedRealtime())
+        val transition = detector.onFix(
+            location.latitude,
+            location.longitude,
+            SystemClock.elapsedRealtime(),
+            if (location.hasAccuracy()) location.accuracy.toDouble() else ANCHOR_ACCURACY_UNKNOWN,
+        )
         handleAnchorTransition(transition)
         // Silence only becomes an alarm relative to the newest fix.
         armAnchorWatchdog(detector.params.gpsLossAlarmMs)
@@ -925,13 +1056,18 @@ class BackgroundTrackService : Service() {
     /**
      * Cheap snapshot of whether the screen-off watch is actually watching.
      *
-     * The app cannot tell from its own side: on a device whose internal GPS
+     * The app cannot tell from its own side: on a device whose internal GNSS
      * never produces a fix — no GPS hardware, permission declined, receiver
      * below decks — this service runs, holds its wake lock, and sees nothing,
      * and it deliberately stays silent about that (a watch that was never
      * proven has no basis for a GPS-loss alarm). So the app asks, and says so
      * in the armed panel; see assessScreenOffCover in
      * src/anchor/native-anchor-watch.ts.
+     *
+     * [AnchorWatchServiceStatus.hadFix] is GNSS-only by construction now (see
+     * [startAnchorGnssUpdates]), which is the whole point: it used to go true
+     * on a WiFi-derived fused position and report a covered watch on a tablet
+     * that cannot see a satellite.
      */
     fun anchorStatus(): AnchorWatchServiceStatus {
         val detector = anchorDetector
@@ -944,6 +1080,7 @@ class BackgroundTrackService : Service() {
             armedMs = if (detector != null) now - anchorDetectorSinceElapsedMs else -1L,
             wakeLockHeld = anchorWakeLock?.isHeld == true,
             alarmKind = detector?.alarmKind,
+            gnssAvailable = anchorGnssAvailable,
         )
     }
 
@@ -969,11 +1106,13 @@ class BackgroundTrackService : Service() {
     }
 
     private fun raiseAnchorAlarm(kind: String) {
-        val distanceM = anchorDetector?.lastDistanceM ?: 0.0
+        val detector = anchorDetector
+        val distanceM = detector?.lastDistanceM ?: 0.0
         DiagLog.log(
             applicationContext,
             "anchor",
-            "ALARM $kind d=${distanceM.toInt()}m foreground=$appForeground",
+            "ALARM $kind d=${distanceM.toInt()}m r=${detector?.effectiveRadiusM()?.toInt()}m " +
+                "acc=${detector?.lastAccuracyM?.toInt()}m foreground=$appForeground",
         )
         Log.w(TAG, "Anchor alarm: $kind at ${distanceM.toInt()}m")
         showAnchorNotification(kind, distanceM)

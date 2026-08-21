@@ -27,9 +27,11 @@ export interface AnchorWatchNativeStatus {
   /** …and it is running an anchor watch. */
   armedNatively: boolean;
   /**
-   * The service's own GPS has produced at least one accepted fix for this
+   * This device's own GNSS receiver has produced at least one fix for this
    * watch. False means screen-off detection has never worked: the service is
-   * watching a device that cannot see the boat.
+   * watching a device that cannot see the boat. GNSS only — a fused position
+   * synthesised from WiFi or cell towers proves nothing and is never fed to
+   * the native watch.
    */
   hadFix: boolean;
   /** Age of the newest accepted fix; -1 before the first one. */
@@ -40,6 +42,13 @@ export interface AnchorWatchNativeStatus {
   wakeLockHeld: boolean;
   /** Precise location, the foreground service's hard requirement. */
   locationPermission: boolean;
+  /**
+   * This device has a GNSS receiver the watch can subscribe to. False on a
+   * tablet whose only position source is the app's external Bluetooth GPS —
+   * nothing native can see the boat there, however healthy the app's own fix
+   * looks. Absent on native shells older than the field that added it.
+   */
+  gnssAvailable?: boolean;
   /** A native alarm is sounding right now. */
   alarmKind?: "drag" | "gps-loss";
 }

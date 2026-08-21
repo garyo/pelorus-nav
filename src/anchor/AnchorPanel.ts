@@ -1047,7 +1047,10 @@ export class AnchorPanel {
       (status) => {
         this.coverPending = false;
         if (this.disposed) return;
-        this.coverText = screenOffCoverLine(status);
+        // How long this side has been armed: the service needs a moment to
+        // start, and "not running yet" must not read as "not covered".
+        const armedForMs = this.snap ? Date.now() - this.snap.armedAt : 0;
+        this.coverText = screenOffCoverLine(status, armedForMs);
         this.renderCover();
       },
       () => {
