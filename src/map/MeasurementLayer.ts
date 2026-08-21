@@ -32,6 +32,7 @@ export class MeasurementLayer {
   private pointB: MeasurePoint | null = null;
   private draggable: DraggablePoints | null = null;
   private panel: HTMLDivElement;
+  private panelText: HTMLDivElement;
   private clickHandler: ((e: maplibregl.MapMouseEvent) => void) | null = null;
   private moveHandler: ((e: maplibregl.MapMouseEvent) => void) | null = null;
   /** Temporary cursor position used as preview before second point is placed. */
@@ -43,6 +44,13 @@ export class MeasurementLayer {
     this.panel = document.createElement("div");
     this.panel.className = "measure-panel";
     this.panel.style.display = "none";
+    this.panelText = document.createElement("div");
+    this.panelText.className = "measure-panel-text";
+    const closeBtn = document.createElement("button");
+    closeBtn.className = "measure-panel-close";
+    closeBtn.innerHTML = "&times;";
+    closeBtn.addEventListener("click", () => this.clear());
+    this.panel.append(this.panelText, closeBtn);
     document.body.appendChild(this.panel);
 
     map.on("style.load", () => this.setupLayers());
@@ -149,6 +157,10 @@ export class MeasurementLayer {
         "icon-allow-overlap": true,
       },
     });
+
+    // A style rebuild mid-measurement re-added the sources empty while the
+    // readout panel stayed up — repaint the line and handles from the points.
+    if (this.pointA) this.updateSources();
   }
 
   private setupDrag(): void {
@@ -236,12 +248,7 @@ export class MeasurementLayer {
     const endPoint = this.pointB ?? this.preview;
 
     if (!endPoint) {
-      this.panel.innerHTML =
-        '<div class="measure-panel-text">Click to place second point</div>' +
-        '<button class="measure-panel-close">&times;</button>';
-      this.panel
-        .querySelector(".measure-panel-close")
-        ?.addEventListener("click", () => this.clear());
+      this.panelText.textContent = "Click to place second point";
       return;
     }
 
@@ -278,15 +285,11 @@ export class MeasurementLayer {
       endPoint.lng,
     );
 
-    this.panel.innerHTML =
-      '<div class="measure-panel-text">' +
+    // Only the text node changes per update — the panel and its close button
+    // are built once in the constructor.
+    this.panelText.innerHTML =
       `<strong>${formatDistanceNM(dist, depthUnit)}</strong> &nbsp; ` +
       `${fmtBrg} &nbsp; ` +
-      `(rev ${fmtRev})` +
-      "</div>" +
-      '<button class="measure-panel-close">&times;</button>';
-    this.panel
-      .querySelector(".measure-panel-close")
-      ?.addEventListener("click", () => this.clear());
+      `(rev ${fmtRev})`;
   }
 }

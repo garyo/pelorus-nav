@@ -4,7 +4,6 @@
  */
 
 import {
-  deleteWaypoint,
   deleteWaypoints,
   getAllWaypoints,
   saveWaypoint,
@@ -136,9 +135,9 @@ export class WaypointManagerPanel {
 
     // Stay in sync with any waypoint mutation (COB drop, Go To dialog,
     // context menu, drag-to-move) while open; refresh() already suppresses
-    // itself during an inline rename.
+    // itself during an inline rename or edit form.
     this.waypointLayer.onChange(() => {
-      if (this.el.classList.contains("open")) this.refresh();
+      if (this.el.classList.contains("open")) this.refreshSoon();
     });
 
     this.el = document.createElement("div");
@@ -236,6 +235,17 @@ export class WaypointManagerPanel {
     this.body
       .querySelector(`.manager-item[data-waypoint-id="${waypointId}"]`)
       ?.scrollIntoView({ block: "nearest" });
+  }
+
+  private refreshRafId: number | null = null;
+  /** Frame-throttled refresh — onChange can fire in bursts (bulk edits, GPX
+   *  import) while the list stays open. */
+  private refreshSoon(): void {
+    if (this.refreshRafId !== null) return;
+    this.refreshRafId = requestAnimationFrame(() => {
+      this.refreshRafId = null;
+      this.refresh();
+    });
   }
 
   refresh(): void {
@@ -443,7 +453,7 @@ export class WaypointManagerPanel {
       (async () => {
         if (isCob) this.cobHooks?.noteWaypointDeleted(wp.id);
         this.activeNav.noteWaypointDeleted(wp.id);
-        await deleteWaypoint(wp.id);
+        // removeWaypoint owns the DB delete along with the layer update.
         await this.waypointLayer.removeWaypoint(wp.id);
       })().catch(console.error);
     });
@@ -515,7 +525,11 @@ export class WaypointManagerPanel {
   }
 
   private showEditDialog(wp: StandaloneWaypoint): void {
-    // Simple inline edit: replace the item with an edit form
+    // Simple inline edit: replace the item with an edit form. `editing`
+    // suppresses refresh() until save/cancel, so a background onChange (map
+    // drag, COB drop, GPX import) can't wipe the form and the typed values
+    // with it; hide()/show() clear the flag on any other way out.
+    this.editing = true;
     const form = document.createElement("div");
     form.className = "waypoint-edit-form";
     form.innerHTML =
@@ -582,16 +596,18 @@ export class WaypointManagerPanel {
         delete wp.color;
       }
       wp.updatedAt = Date.now();
-      await saveWaypoint(wp);
+      this.editing = false;
       await this.waypointLayer.updateWaypoint(wp);
+      this.refresh();
     };
 
     form
       .querySelector(".wp-edit-save")
       ?.addEventListener("click", () => save().catch(console.error));
-    form
-      .querySelector(".wp-edit-cancel")
-      ?.addEventListener("click", () => this.refresh());
+    form.querySelector(".wp-edit-cancel")?.addEventListener("click", () => {
+      this.editing = false;
+      this.refresh();
+    });
 
     this.body.innerHTML = "";
     this.body.appendChild(form);

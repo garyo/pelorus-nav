@@ -9,14 +9,14 @@
  */
 
 import type * as maplibregl from "maplibre-gl";
-import { getAllWaypoints, saveWaypoint } from "../data/db";
+import { deleteWaypoint, getAllWaypoints, saveWaypoint } from "../data/db";
 import type { Route } from "../data/Route";
 import type { StandaloneWaypoint } from "../data/Waypoint";
 import { hideStatusBanner, showStatusBanner } from "../ui/StatusBanner";
 import { showToast } from "../ui/Toast";
 import { DraggablePoints } from "./DraggablePoints";
 import { focusMapOnPoint } from "./fit-bounds";
-import { onModeChange } from "./InteractionMode";
+import { getMode, onModeChange } from "./InteractionMode";
 import { belowVesselLayerId } from "./layer-order";
 import { findPointCandidates } from "./point-candidates";
 import { ensurePointIcons, waypointIconImage } from "./point-icons";
@@ -139,6 +139,7 @@ export class WaypointLayer {
   }
 
   async removeWaypoint(id: string): Promise<void> {
+    await deleteWaypoint(id);
     this.waypoints = this.waypoints.filter((w) => w.id !== id);
     this.updateSource();
     this.notifyChange();
@@ -242,20 +243,22 @@ export class WaypointLayer {
     // the camera — exactly what provokes one — so the ring has to be able to
     // outlive the rebuild it caused.
     this.restoreHalo();
-    this.setupDrag();
+    // Only in query mode: a style rebuild during route-edit/measure/plot must
+    // not resurrect the hold-to-drag grabs onModeChange tore down. (An armed
+    // one-shot move keeps its own DraggablePoints — setupDrag no-ops then.)
+    if (getMode() === "query") this.setupDrag();
   }
 
+  /** Per-move step of a drag: visual only. The move is persisted (and
+   *  listeners notified) once, on release — see onDragEnd. */
   private moveWaypointTo(
     wp: StandaloneWaypoint,
     lngLat: { lat: number; lng: number },
   ): void {
     wp.lat = lngLat.lat;
     wp.lon = lngLat.lng;
-    wp.updatedAt = Date.now();
     this.showHalo(wp);
     this.updateSource();
-    this.notifyChange();
-    saveWaypoint(wp).catch(console.error);
   }
 
   private setupDrag(): void {
@@ -378,8 +381,9 @@ export class WaypointLayer {
     navigator.vibrate?.(GRAB_VIBRATE_MS);
   }
 
-  /** Released. A waypoint that actually moved gets an undo offer — this is
-   *  the only edit on the chart with no dialog in front of it. */
+  /** Released. Commits the move — one DB write, one change notification for
+   *  the whole gesture — and offers undo: this is the only edit on the chart
+   *  with no dialog in front of it. */
   private onDragEnd(): void {
     const origin = this.dragOrigin;
     this.dragOrigin = null;
@@ -387,17 +391,23 @@ export class WaypointLayer {
     if (!origin) return;
     const wp = this.waypoints.find((w) => w.id === origin.id);
     if (!wp || (wp.lat === origin.lat && wp.lon === origin.lon)) return;
-    const moved = wp;
+    wp.updatedAt = Date.now();
+    this.notifyChange();
+    saveWaypoint(wp).catch(console.error);
     showToast({
-      message: `Moved "${moved.name}"`,
+      message: `Moved "${wp.name}"`,
       actionLabel: "Undo",
       onAction: () => {
-        moved.lat = origin.lat;
-        moved.lon = origin.lon;
-        moved.updatedAt = Date.now();
+        // Re-look-up by id: the waypoint may have been deleted since the
+        // toast went up, and undoing then would resurrect the DB row.
+        const cur = this.waypoints.find((w) => w.id === origin.id);
+        if (!cur) return;
+        cur.lat = origin.lat;
+        cur.lon = origin.lon;
+        cur.updatedAt = Date.now();
         this.updateSource();
         this.notifyChange();
-        saveWaypoint(moved).catch(console.error);
+        saveWaypoint(cur).catch(console.error);
       },
     });
   }
