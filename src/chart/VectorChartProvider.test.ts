@@ -4,7 +4,12 @@ import { CHART_REGIONS } from "../data/chart-catalog";
 import { getSettings, updateSettings } from "../settings";
 import { s52Colour } from "./s52-colours";
 import { getNauticalLayers } from "./styles";
-import { VectorChartProvider } from "./VectorChartProvider";
+import {
+  isLayerPrunedAtZoom,
+  MAX_PRUNE_BAND,
+  VectorChartProvider,
+  zoomBandKey,
+} from "./VectorChartProvider";
 
 // Stub localStorage for updateSettings in test environment
 if (typeof globalThis.localStorage === "undefined") {
@@ -27,9 +32,14 @@ if (typeof globalThis.localStorage === "undefined") {
 /**
  * Reference implementation of getLayers(): regenerates the full S-52 layer
  * set per region (the pre-template behavior) instead of cloning a shared
- * template. The provider's clone-based output must deep-equal this.
+ * template. The provider's clone-based output must deep-equal this. `zoom`
+ * applies pruning AFTER per-region generation, so equality also proves the
+ * provider's prune-then-clone order is equivalent.
  */
-function perRegionReference(regionIds: string[]): LayerSpecification[] {
+function perRegionReference(
+  regionIds: string[],
+  zoom?: number,
+): LayerSpecification[] {
   const {
     depthUnit,
     detailLevel,
@@ -58,7 +68,11 @@ function perRegionReference(regionIds: string[]): LayerSpecification[] {
       textScale,
       iconScale,
     });
-    for (const layer of regionLayers) {
+    const kept =
+      zoom === undefined
+        ? regionLayers
+        : regionLayers.filter((l) => !isLayerPrunedAtZoom(l, zoom));
+    for (const layer of kept) {
       if (layer.type === "background") {
         if (i === 0) all.push(layer);
         continue;
@@ -221,6 +235,106 @@ describe("VectorChartProvider", () => {
           expect(layer.source).not.toBe("s57-template");
         }
       }
+    });
+
+    it("deep-equals per-region regeneration with pruning at zoom 8", () => {
+      // The reference prunes AFTER per-region generation; the provider
+      // prunes the template BEFORE cloning. Equality proves the orders
+      // are equivalent (prefixing, background handling, draw-order sort).
+      updateSettings({ detailLevel: 0 });
+      expect(provider.getLayers(twoRegions, 8)).toEqual(
+        perRegionReference(twoRegions, 8),
+      );
+    });
+  });
+
+  describe("zoomBandKey", () => {
+    it("is stable within a band and differs across bands", () => {
+      expect(zoomBandKey(5.1)).toBe(5);
+      expect(zoomBandKey(5.9)).toBe(5);
+      expect(zoomBandKey(6.0)).toBe(6);
+      expect(zoomBandKey(5.9)).not.toBe(zoomBandKey(6.0));
+    });
+
+    it("clamps to [0, MAX_PRUNE_BAND]", () => {
+      expect(zoomBandKey(-0.5)).toBe(0);
+      expect(zoomBandKey(13.7)).toBe(MAX_PRUNE_BAND);
+      expect(zoomBandKey(16)).toBe(MAX_PRUNE_BAND);
+    });
+  });
+
+  describe("zoom-band layer pruning", () => {
+    const regionId = CHART_REGIONS[0].id;
+    const savedDetail = getSettings().detailLevel;
+    afterEach(() => updateSettings({ detailLevel: savedDetail }));
+
+    it("overview zoom keeps only layers renderable within the margin", () => {
+      const full = provider.getLayers([regionId]);
+      const pruned = provider.getLayers([regionId], 3);
+      expect(pruned.length).toBeLessThan(full.length);
+      for (const layer of pruned) {
+        const minzoom = layer.minzoom;
+        expect(minzoom === undefined || minzoom <= 4).toBe(true);
+      }
+      // Everything the pruned style keeps is in the full style, unchanged.
+      const fullById = new Map(full.map((l) => [l.id, l]));
+      for (const layer of pruned) {
+        expect(fullById.get(layer.id)).toEqual(layer);
+      }
+    });
+
+    it("harbor zoom keeps everything", () => {
+      const full = provider.getLayers([regionId]);
+      expect(provider.getLayers([regionId], 14)).toEqual(full);
+      // MAX_PRUNE_BAND is the last band where nothing may prune; verify the
+      // constant still covers the styles' largest minzoom.
+      expect(provider.getLayers([regionId], MAX_PRUNE_BAND)).toEqual(full);
+    });
+
+    it("no zoom argument disables pruning", () => {
+      // siltnk carries the styles' highest minzoom (14 at Standard detail);
+      // without a zoom it must still be present.
+      updateSettings({ detailLevel: 0 });
+      const ids = provider.getLayers([regionId]).map((l) => l.id);
+      expect(ids).toContain(`s57-${regionId}-siltnk`);
+    });
+
+    it("honors the one-level margin below a layer's minzoom", () => {
+      // At Standard detail s57-boylat's effective minzoom is 10 (raised
+      // from its base 8 by STANDARD_DETAIL_MINZOOM).
+      updateSettings({ detailLevel: 0 });
+      const idsAt9 = provider.getLayers([regionId], 9.0).map((l) => l.id);
+      const idsBelow9 = provider.getLayers([regionId], 8.9).map((l) => l.id);
+      expect(idsAt9).toContain(`s57-${regionId}-boylat`);
+      expect(idsBelow9).not.toContain(`s57-${regionId}-boylat`);
+    });
+
+    it("pruned set is constant within a band and differs across bands", () => {
+      expect(provider.getLayers([regionId], 8.1)).toEqual(
+        provider.getLayers([regionId], 8.9),
+      );
+      expect(provider.getLayers([regionId], 7.9)).not.toEqual(
+        provider.getLayers([regionId], 8.1),
+      );
+    });
+
+    it("never prunes background or the coverage mask", () => {
+      const ids = provider.getLayers([regionId], 0).map((l) => l.id);
+      expect(ids).toContain("s57-background");
+      expect(ids).toContain("s57-no-coverage");
+    });
+
+    it("composes with detail-level minzoom raises", () => {
+      // Standard detail raises boylat to minzoom 10 → pruned at z8.
+      updateSettings({ detailLevel: 0 });
+      expect(provider.getLayers([regionId], 8).map((l) => l.id)).not.toContain(
+        `s57-${regionId}-boylat`,
+      );
+      // Standard+ keeps boylat's base minzoom 8 → present at z8.
+      updateSettings({ detailLevel: 1 });
+      expect(provider.getLayers([regionId], 8).map((l) => l.id)).toContain(
+        `s57-${regionId}-boylat`,
+      );
     });
   });
 });

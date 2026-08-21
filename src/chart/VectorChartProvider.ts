@@ -18,6 +18,50 @@ export const UNIFIED_COVERAGE_FILENAME = "nautical-unified.coverage.geojson";
 const TEMPLATE_SOURCE = "s57-template";
 
 /**
+ * Zoom headroom kept below a layer's minzoom before it is pruned from the
+ * style: a layer stays in the style from one zoom level before it first
+ * renders, so a one-level zoom-in never waits on a style rebuild to show
+ * newly-eligible layers.
+ */
+const PRUNE_ZOOM_MARGIN = 1;
+
+/**
+ * Highest zoom band at which pruning still removes anything. The largest
+ * minzoom in the S-52 styles is 14, and a layer is pruned only while
+ * band + PRUNE_ZOOM_MARGIN < minzoom, so every band from 13 up keeps the
+ * full layer set. Clamping the band key here collapses those zooms into
+ * one band — no rebuilds while zooming around at harbor scale.
+ */
+export const MAX_PRUNE_BAND = 13;
+
+/**
+ * Zoom band for layer pruning: floor(zoom) clamped to [0, MAX_PRUNE_BAND].
+ * All minzooms in the styles are integers, so the pruned layer set is
+ * constant within a band — ChartManager rebuilds the style only when the
+ * band key changes (see recomputeRegionsInView).
+ */
+export function zoomBandKey(zoom: number): number {
+  return Math.min(Math.max(Math.floor(zoom), 0), MAX_PRUNE_BAND);
+}
+
+/**
+ * True when `layer` renders nothing anywhere in `zoom`'s band nor within
+ * the margin above it: its effective minzoom (after getNauticalLayers'
+ * detail-level raises) is beyond band + PRUNE_ZOOM_MARGIN. Layers without
+ * a minzoom (background, area fills, coverage) are never pruned. Evaluated
+ * against the band key, not the raw zoom, so the pruned set is identical
+ * for every zoom within a band.
+ */
+export function isLayerPrunedAtZoom(
+  layer: LayerSpecification,
+  zoom: number,
+): boolean {
+  const minzoom = layer.minzoom;
+  if (minzoom === undefined) return false;
+  return minzoom > zoomBandKey(zoom) + PRUNE_ZOOM_MARGIN;
+}
+
+/**
  * Chart provider for S-57 ENC vector tiles in PMTiles format.
  * Renders ALL regions simultaneously — each region gets its own
  * vector source and prefixed layers. Regions are non-overlapping
@@ -103,7 +147,7 @@ export class VectorChartProvider implements ChartProvider {
     return sources;
   }
 
-  getLayers(visibleRegionIds?: string[]): LayerSpecification[] {
+  getLayers(visibleRegionIds?: string[], zoom?: number): LayerSpecification[] {
     const {
       depthUnit,
       detailLevel,
@@ -136,7 +180,7 @@ export class VectorChartProvider implements ChartProvider {
     // consumers (underlay merging, MapLibre) never mutate layers in place.
     if (regions.length > 0) {
       // No per-region coverage source — we use a single unified one
-      const template = getNauticalLayers({
+      let template = getNauticalLayers({
         sourceId: TEMPLATE_SOURCE,
         depthUnit,
         detailOffset: detailLevel,
@@ -149,6 +193,15 @@ export class VectorChartProvider implements ChartProvider {
         textScale,
         iconScale,
       });
+
+      // Prune layers that can't render anywhere near this zoom, ONCE on the
+      // template (whose minzooms already carry the detail-level raises),
+      // before the per-region cloning multiplies them 16×. At whole-US zoom
+      // this drops the large majority of layer definitions MapLibre would
+      // otherwise diff and book-keep every frame for nothing.
+      if (zoom !== undefined) {
+        template = template.filter((l) => !isLayerPrunedAtZoom(l, zoom));
+      }
 
       for (let i = 0; i < regions.length; i++) {
         const region = regions[i];

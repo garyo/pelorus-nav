@@ -34,6 +34,7 @@ import {
 } from "./osm-underlay";
 import { getRasterChartLayers, getRasterChartSources } from "./raster-charts";
 import { getIconScheme } from "./styles/icon-sets";
+import { zoomBandKey } from "./VectorChartProvider";
 
 const SPRITE_WARNING_BANNER_ID = "chart-sprite-warning";
 const SPRITE_WARNING_DISMISS_MS = 15_000;
@@ -81,12 +82,17 @@ export class ChartManager {
   /** Region ids whose layers are in the style as of the last build. */
   private lastRegionIds: string[] = [];
   private lastViewCovered = false;
+  /** Zoom band the style's layer pruning was built for (see zoomBandKey). */
+  private lastZoomBand: number | null = null;
+  /** Map zoom at construction, for the build that runs before `map` exists. */
+  private readonly initialZoom: number;
 
   constructor(options: ChartManagerOptions) {
     if (options.providers.length === 0) {
       throw new Error("ChartManager requires at least one provider");
     }
 
+    this.initialZoom = options.zoom;
     this.providers = new Map(options.providers.map((p) => [p.id, p]));
 
     const initialId = options.initialProviderId ?? options.providers[0].id;
@@ -236,8 +242,13 @@ export class ChartManager {
     }
   }
 
-  /** Rebuild the style iff the set of in-view regions (or basemap
-   *  coverage of the viewport) has changed. */
+  /** Rebuild the style iff the set of in-view regions, the basemap coverage
+   *  of the viewport, or the layer-pruning zoom band has changed. Runs on
+   *  moveend only, so a zoom gesture triggers at most one rebuild, at its
+   *  end — zooming in adds the layers about to become renderable; zooming
+   *  out sheds the ones that no longer can. (Zoom-out rebuilds could be
+   *  deferred — pruning late is harmless — but rebuilds are already
+   *  throttled and moveend-gated, so symmetry keeps this simple.) */
   private recomputeRegionsInView(): void {
     const ids = regionsInViewWithHysteresis(
       this.viewportBounds(),
@@ -247,7 +258,8 @@ export class ChartManager {
     const covered = this.viewCoveredByBasemap();
     if (
       ids.join(",") !== this.lastRegionIds.join(",") ||
-      covered !== this.lastViewCovered
+      covered !== this.lastViewCovered ||
+      zoomBandKey(this.map.getZoom()) !== this.lastZoomBand
     ) {
       this.lastViewCovered = covered;
       this.throttledRefreshStyle();
@@ -414,7 +426,14 @@ export class ChartManager {
       this.lastRegionIds,
     );
     this.lastRegionIds = regionIds;
-    let layers = provider.getLayers(regionIds);
+    // Prune chart layers that can't render near this zoom (their minzoom is
+    // more than a level above it) — at overview zooms that's most of the
+    // per-region layer stack. recomputeRegionsInView rebuilds when the zoom
+    // band changes, so pruned layers are back in the style before they're
+    // needed.
+    const zoom = this.map ? this.map.getZoom() : this.initialZoom;
+    this.lastZoomBand = zoomBandKey(zoom);
+    let layers = provider.getLayers(regionIds, zoom);
 
     // Composite raster charts (RNC) for vector providers — vector-preferred
     // quilt: the raster sits below the ENC area fills (so ENC wins where it has

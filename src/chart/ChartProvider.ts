@@ -18,9 +18,12 @@ export interface ChartProvider {
   /**
    * MapLibre layer specifications to render this source. `visibleRegionIds`, if
    * given, limits multi-region providers to those regions' layers (the rest are
-   * omitted to keep the style small); omit it to include everything.
+   * omitted to keep the style small); omit it to include everything. `zoom`, if
+   * given, lets the provider prune layers whose minzoom is too far above the
+   * current zoom to render (with a margin — see VectorChartProvider); omit it
+   * to include every layer regardless of zoom.
    */
-  getLayers(visibleRegionIds?: string[]): LayerSpecification[];
+  getLayers(visibleRegionIds?: string[], zoom?: number): LayerSpecification[];
   /** Attribution HTML string. */
   getAttribution(): string;
 }
