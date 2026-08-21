@@ -11,6 +11,13 @@ const UNIFIED_COVERAGE_SOURCE = "s57-coverage-unified";
 export const UNIFIED_COVERAGE_FILENAME = "nautical-unified.coverage.geojson";
 
 /**
+ * Placeholder source id the shared layer template is generated against.
+ * Every non-background layer's `source` is patched to a real region source
+ * when the template is instantiated, so this id never reaches the style.
+ */
+const TEMPLATE_SOURCE = "s57-template";
+
+/**
  * Chart provider for S-57 ENC vector tiles in PMTiles format.
  * Renders ALL regions simultaneously — each region gets its own
  * vector source and prefixed layers. Regions are non-overlapping
@@ -112,20 +119,25 @@ export class VectorChartProvider implements ChartProvider {
 
     const allLayers: LayerSpecification[] = [];
 
-    // Only build layers for the regions actually in view (active + viewport
-    // overlaps). Generating all ~16 regions' full S-52 sets is the dominant
-    // cost of every style rebuild; this keeps it to a handful.
+    // Only emit layers for the regions actually in view (active + viewport
+    // overlaps) — a smaller style is cheaper for MapLibre to diff and place.
     const regions = visibleRegionIds
       ? CHART_REGIONS.filter((r) => visibleRegionIds.includes(r.id))
       : CHART_REGIONS;
 
-    for (let i = 0; i < regions.length; i++) {
-      const region = regions[i];
-      const sourceId = this.sourceIdFor(region.id);
-
+    // Generating a full S-52 layer set (style context, icon expressions,
+    // per-layer expression trees) is the expensive part, and its output is
+    // identical for every region except each layer's `source`. Build the
+    // set ONCE against a placeholder source, then stamp out a cheap
+    // shallow clone per region patching `source` and `id`. The clones
+    // share nested layout/paint/filter objects — safe because
+    // getNauticalLayers applies all its mutations (detail-level minzoom
+    // overrides, group visibility) before returning, and downstream
+    // consumers (underlay merging, MapLibre) never mutate layers in place.
+    if (regions.length > 0) {
       // No per-region coverage source — we use a single unified one
-      const regionLayers = getNauticalLayers(
-        sourceId,
+      const template = getNauticalLayers(
+        TEMPLATE_SOURCE,
         depthUnit,
         detailLevel,
         layerGroups,
@@ -139,11 +151,16 @@ export class VectorChartProvider implements ChartProvider {
         iconScale,
       );
 
-      // Prefix layer IDs: s57-xxx → s57-{regionId}-xxx
-      // Strip background layer from all but the first region
-      for (const layer of regionLayers) {
-        if (layer.type === "background" && i > 0) continue;
-        allLayers.push(prefixLayerId(layer, region.id));
+      for (let i = 0; i < regions.length; i++) {
+        const region = regions[i];
+        const sourceId = this.sourceIdFor(region.id);
+
+        // Prefix layer IDs: s57-xxx → s57-{regionId}-xxx
+        // Strip background layer from all but the first region
+        for (const layer of template) {
+          if (layer.type === "background" && i > 0) continue;
+          allLayers.push(layerForRegion(layer, region.id, sourceId));
+        }
       }
     }
 
@@ -196,16 +213,20 @@ export class VectorChartProvider implements ChartProvider {
 }
 
 /**
- * Prefix a layer ID from `s57-xxx` to `s57-{regionId}-xxx`.
- * Background layers keep their original ID (only one is emitted).
+ * Instantiate a template layer for a region: shallow-clone it with the ID
+ * prefixed from `s57-xxx` to `s57-{regionId}-xxx` and `source` pointed at
+ * the region's vector source. Background layers pass through unchanged
+ * (they have no source; only one is emitted).
  */
-function prefixLayerId(
+function layerForRegion(
   layer: LayerSpecification,
   regionId: string,
+  sourceId: string,
 ): LayerSpecification {
   if (layer.type === "background") return layer;
   return {
     ...layer,
     id: layer.id.replace(/^s57-/, `s57-${regionId}-`),
+    source: sourceId,
   };
 }

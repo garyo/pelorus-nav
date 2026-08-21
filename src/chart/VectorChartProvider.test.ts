@@ -1,6 +1,89 @@
-import { describe, expect, it } from "vitest";
+import type { LayerSpecification } from "maplibre-gl";
+import { afterEach, describe, expect, it } from "vitest";
 import { CHART_REGIONS } from "../data/chart-catalog";
+import { getSettings, updateSettings } from "../settings";
+import { s52Colour } from "./s52-colours";
+import { getNauticalLayers } from "./styles";
 import { VectorChartProvider } from "./VectorChartProvider";
+
+// Stub localStorage for updateSettings in test environment
+if (typeof globalThis.localStorage === "undefined") {
+  Object.defineProperty(globalThis, "localStorage", {
+    value: {
+      store: {} as Record<string, string>,
+      getItem(key: string) {
+        return this.store[key] ?? null;
+      },
+      setItem(key: string, val: string) {
+        this.store[key] = val;
+      },
+      removeItem(key: string) {
+        delete this.store[key];
+      },
+    },
+  });
+}
+
+/**
+ * Reference implementation of getLayers(): regenerates the full S-52 layer
+ * set per region (the pre-template behavior) instead of cloning a shared
+ * template. The provider's clone-based output must deep-equal this.
+ */
+function perRegionReference(regionIds: string[]): LayerSpecification[] {
+  const {
+    depthUnit,
+    detailLevel,
+    layerGroups,
+    displayTheme,
+    symbologyScheme,
+    shallowDepth,
+    safetyDepth,
+    deepDepth,
+    textScale,
+    iconScale,
+  } = getSettings();
+
+  const all: LayerSpecification[] = [];
+  regionIds.forEach((regionId, i) => {
+    const regionLayers = getNauticalLayers(
+      `s57-vector-${regionId}`,
+      depthUnit,
+      detailLevel,
+      layerGroups,
+      undefined,
+      displayTheme,
+      symbologyScheme,
+      shallowDepth,
+      safetyDepth,
+      deepDepth,
+      textScale,
+      iconScale,
+    );
+    for (const layer of regionLayers) {
+      if (layer.type === "background") {
+        if (i === 0) all.push(layer);
+        continue;
+      }
+      all.push({
+        ...layer,
+        id: layer.id.replace(/^s57-/, `s57-${regionId}-`),
+      });
+    }
+  });
+
+  const base = all.filter((l) => l.type !== "symbol");
+  const symbols = all.filter((l) => l.type === "symbol");
+  base.push({
+    id: "s57-no-coverage",
+    type: "fill",
+    source: "s57-coverage-unified",
+    paint: {
+      "fill-color": s52Colour("NODTA"),
+      "fill-opacity": 0.4,
+    },
+  });
+  return [...base, ...symbols];
+}
 
 describe("VectorChartProvider", () => {
   const provider = new VectorChartProvider();
@@ -107,5 +190,38 @@ describe("VectorChartProvider", () => {
 
   it("returns NOAA attribution", () => {
     expect(provider.getAttribution()).toContain("NOAA");
+  });
+
+  describe("template cloning matches per-region generation", () => {
+    const twoRegions = CHART_REGIONS.slice(0, 2).map((r) => r.id);
+    const savedDetail = getSettings().detailLevel;
+    afterEach(() => updateSettings({ detailLevel: savedDetail }));
+
+    it("deep-equals per-region regeneration at Standard detail", () => {
+      // detailLevel 0 exercises both minzoom-mutation paths in
+      // getNauticalLayers (OTHER overrides + raised STANDARD navaids), so
+      // this also proves those mutations land on the template before
+      // cloning and reach every region identically.
+      updateSettings({ detailLevel: 0 });
+      expect(provider.getLayers(twoRegions)).toEqual(
+        perRegionReference(twoRegions),
+      );
+    });
+
+    it("deep-equals per-region regeneration at Standard+ detail", () => {
+      updateSettings({ detailLevel: 1 });
+      expect(provider.getLayers(twoRegions)).toEqual(
+        perRegionReference(twoRegions),
+      );
+    });
+
+    it("no template source id leaks into the emitted layers", () => {
+      const layers = provider.getLayers(twoRegions);
+      for (const layer of layers) {
+        if ("source" in layer) {
+          expect(layer.source).not.toBe("s57-template");
+        }
+      }
+    });
   });
 });
