@@ -84,6 +84,8 @@ const GPS_STATE_TEXT: Record<AnchorWatchSnapshot["gpsState"], string> = {
 };
 
 export class AnchorPanel {
+  private armBtn: HTMLButtonElement | null = null;
+  private armBlockedEl: HTMLDivElement | null = null;
   private readonly el: HTMLDivElement;
   private readonly alarmEl: HTMLDivElement;
   // Map-interaction mode bar: outside taps place the anchor, so they must
@@ -402,6 +404,7 @@ export class AnchorPanel {
     const armBtn = document.createElement("button");
     armBtn.type = "button";
     armBtn.className = "anchor-arm-btn";
+    this.armBtn = armBtn;
     const armProgress = document.createElement("span");
     armProgress.className = "anchor-hold-progress";
     const armLabel = document.createElement("span");
@@ -424,12 +427,17 @@ export class AnchorPanel {
       }),
     );
 
+    // Why arming is unavailable, when it is — arming must never be a
+    // half-commitment, so the reason shows before the button is pressed.
+    this.armBlockedEl = document.createElement("div");
+    this.armBlockedEl.className = "anchor-arm-blocked";
     this.setupEl.append(
       fields,
       radiusRow,
       this.radiusHint,
       posRow,
       this.posHint,
+      this.armBlockedEl,
       armBtn,
     );
     this.renderSetupValues();
@@ -715,7 +723,38 @@ export class AnchorPanel {
           : fix
             ? ""
             : "Waiting for a GPS fix";
+    this.applyArmBlocker();
     this.deps.onPreviewChange();
+  }
+
+  /**
+   * A watch with no position source cannot watch anything, so arming is
+   * blocked until a fix exists (and the tap/offset modes still need one to
+   * measure from). The reason is stated in place rather than surfacing
+   * after the fact.
+   */
+  private armBlockedReason(): string | null {
+    const fix = this.deps.navManager.getLastData();
+    if (!fix) return "Waiting for a GPS fix — the watch needs a position.";
+    if (this.deps.navManager.isFixStale()) {
+      return "GPS fix is stale — waiting for a current position.";
+    }
+    if (this.posMode === "tap" && !this.tapped) {
+      return "Tap the chart to place the anchor.";
+    }
+    return null;
+  }
+
+  private applyArmBlocker(): void {
+    const reason = this.armBlockedReason();
+    if (this.armBtn) {
+      this.armBtn.disabled = reason !== null;
+      this.armBtn.setAttribute("aria-disabled", String(reason !== null));
+    }
+    if (this.armBlockedEl) {
+      this.armBlockedEl.textContent = reason ?? "";
+      this.armBlockedEl.style.display = reason ? "" : "none";
+    }
   }
 
   private renderArmed(snap: AnchorWatchSnapshot): void {
@@ -787,12 +826,17 @@ export class AnchorPanel {
   /** 1 Hz while the armed view is visible: time at anchor. */
   private renderTick(): void {
     const snap = this.snap;
-    if (!snap) return;
+    if (!snap) {
+      // Setup view: a fix can go stale with no event to announce it, so the
+      // arm gate is re-evaluated on the clock.
+      this.applyArmBlocker();
+      return;
+    }
     this.elapsedEl.textContent = formatCobElapsed(Date.now() - snap.armedAt);
   }
 
   private updateTicker(): void {
-    const wanted = this.snap !== null && this.modeActive;
+    const wanted = this.modeActive;
     if (wanted && !this.ticker) {
       this.ticker = setInterval(() => this.renderTick(), 1000);
     } else if (!wanted && this.ticker) {

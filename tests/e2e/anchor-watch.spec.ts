@@ -156,3 +156,32 @@ test("anchor watch persists across mode exit and reload", async ({ page }) => {
   await holdElement(page, ".anchor-panel .anchor-disarm-btn", 2500);
   await expect(panel).toHaveAttribute("data-armed", "0");
 });
+
+/**
+ * Arming is all-or-nothing: with no position source the watch cannot watch,
+ * so the button is disabled and says why rather than arming into a blind
+ * state that would only reveal itself later.
+ */
+test("arming is blocked, with a reason, until there is a fix", async ({
+  page,
+}) => {
+  await suppressWhatsNew(page);
+  await acceptDisclaimer(page);
+  await seedSettings(page, { gpsSource: "none", depthUnit: "meters" });
+  await page.goto("/");
+  await expect(page.locator(".maplibregl-map")).toBeVisible({ timeout: 10000 });
+  await waitForAppReady(page);
+
+  await page.getByRole("button", { name: "Anchor Watch" }).click();
+  const panel = page.locator(".anchor-panel");
+  await expect(panel).toHaveClass(/open/);
+
+  const armBtn = page.locator(".anchor-arm-btn");
+  await expect(armBtn).toBeDisabled();
+  await expect(page.locator(".anchor-arm-blocked")).toContainText(/GPS/i);
+
+  // Holding a disabled button must not arm.
+  await holdElement(page, ".anchor-arm-btn", 1200);
+  await expect(panel).toHaveAttribute("data-armed", "0");
+  await expect(page.locator(".anchor-badge")).toBeHidden();
+});
