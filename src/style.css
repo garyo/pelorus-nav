@@ -5478,11 +5478,15 @@ body[data-instrument-layout="side"] .maplibregl-ctrl-top-left {
   background: #000;
   color: #fff;
 }
+/* Colour e-ink shows red (see .cob-btn); greyscale panels render it dark
+   grey, so border weight carries the same state on its own. */
 [data-theme="eink"] .anchor-panel[data-zone="warn"] {
   border-width: 3px;
+  border-color: #d00000;
 }
 [data-theme="eink"] .anchor-panel[data-zone="outside"] {
   border-width: 5px;
+  border-color: #d00000;
 }
 [data-theme="eink"] .anchor-field-label,
 [data-theme="eink"] .anchor-field-unit,
@@ -5522,9 +5526,12 @@ body[data-instrument-layout="side"] .maplibregl-ctrl-top-left {
 }
 [data-theme="eink"] .anchor-alarm {
   background: #fff;
-  border: 5px solid #000;
+  border: 5px solid #d00000;
   color: #000;
   box-shadow: none;
+}
+[data-theme="eink"] .anchor-alarm-title {
+  color: #d00000;
 }
 [data-theme="eink"] .anchor-alarm[data-kind="gps-loss"] {
   border-style: double;
@@ -5540,10 +5547,10 @@ body[data-instrument-layout="side"] .maplibregl-ctrl-top-left {
   border: 1px solid #000;
 }
 [data-theme="eink"] .anchor-badge[data-zone="warn"] {
-  border: 3px solid #000;
+  border: 3px solid #d00000;
 }
 [data-theme="eink"] .anchor-badge[data-zone="outside"] {
-  border: 5px double #000;
+  border: 5px double #d00000;
 }
 [data-theme="eink"] .anchor-badge[data-zone="gray"] {
   border: 2px dashed #000;

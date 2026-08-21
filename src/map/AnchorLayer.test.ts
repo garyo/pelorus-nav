@@ -6,6 +6,7 @@ import {
   AnchorLayer,
   type AnchorLayerState,
   anchorZonePaint,
+  EINK_ALERT_RED,
   EINK_GEOMETRY_MIN_INTERVAL_MS,
   firstRouteOrWaypointLayerId,
   shouldWriteGeometry,
@@ -29,9 +30,13 @@ describe("anchorZonePaint", () => {
     const warn = anchorZonePaint("warn", "EINK");
     const outside = anchorZonePaint("outside", "EINK");
     const gray = anchorZonePaint("gray", "EINK");
-    for (const p of [ok, warn, outside, gray]) {
-      expect(p.outlineColor).toBe("#000000");
-    }
+    // Breached states carry red for colour e-ink; the rest stay black.
+    expect(ok.outlineColor).toBe("#000000");
+    expect(gray.outlineColor).toBe("#000000");
+    expect(warn.outlineColor).toBe(EINK_ALERT_RED);
+    expect(outside.outlineColor).toBe(EINK_ALERT_RED);
+    // Weight and dash still distinguish every state without colour, for
+    // greyscale panels where red reads as dark grey.
     expect(outside.outlineWidth).toBeGreaterThan(warn.outlineWidth);
     expect(warn.outlineWidth).toBeGreaterThan(ok.outlineWidth);
     expect(outside.outlineDash).toEqual([1, 0]);

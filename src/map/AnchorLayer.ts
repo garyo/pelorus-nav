@@ -74,14 +74,17 @@ export function anchorZonePaint(
   scheme: ColourScheme,
 ): AnchorZonePaint {
   if (scheme === "EINK") {
-    // Greyscale panel: the zone reads from weight and dash, not hue.
-    // "outside" is unmistakably heavy; "gray" (no GPS) is dashed.
+    // Colour e-ink renders red usefully (the COB button relies on it), so
+    // the breached states carry EINK_ALERT_RED — but weight and dash carry
+    // the same information on greyscale panels, where red reads as dark
+    // grey. "outside" is unmistakably heavy; "gray" (no GPS) is dashed.
+    const alerting = zone === "outside" || zone === "warn";
     return {
-      outlineColor: "#000000",
+      outlineColor: alerting ? EINK_ALERT_RED : "#000000",
       outlineWidth: zone === "outside" ? 7 : zone === "warn" ? 4 : 2,
       outlineDash: zone === "gray" ? [2, 2] : SOLID,
-      fillColor: "#000000",
-      fillOpacity: 0,
+      fillColor: alerting ? EINK_ALERT_RED : "#000000",
+      fillOpacity: zone === "outside" ? 0.1 : 0,
     };
   }
   const color = s52Colour(ZONE_TOKENS[zone], scheme);
@@ -100,6 +103,12 @@ export function anchorZonePaint(
             : 0.08,
   };
 }
+
+/**
+ * Alert red for e-ink. Matches the COB button's red, which is legible on
+ * colour e-ink panels and degrades to dark grey on greyscale ones.
+ */
+export const EINK_ALERT_RED = "#d00000";
 
 /** E-ink repaint throttle — full-screen refreshes must stay rare. */
 export const EINK_GEOMETRY_MIN_INTERVAL_MS = 30_000;
