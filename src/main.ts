@@ -1260,6 +1260,24 @@ const trackLayer = new TrackLayer(chartManager.map, navManager, trackRecorder);
 const trackPanel = new TrackManagerPanel(trackLayer, trackRecorder);
 idleCloseables.push(trackPanel);
 
+// Surface track-save failures (IndexedDB quota, corrupt DB) — without a
+// banner the UI keeps showing "Recording" while every point is lost.
+let trackSaveBannerShown = false;
+trackRecorder.onRecordingChange(() => {
+  const failing = trackRecorder.isSaveFailing();
+  if (failing === trackSaveBannerShown) return;
+  trackSaveBannerShown = failing;
+  if (failing) {
+    showStatusBanner({
+      id: "track-save-failed",
+      message:
+        "Track recording is failing to save — points are being lost. Check device storage space.",
+    });
+  } else {
+    hideStatusBanner("track-save-failed");
+  }
+});
+
 // --- Track viewer ---
 const trackViewerLayer = new TrackViewerLayer(chartManager.map);
 const trackViewer = new TrackViewerPanel(trackViewerLayer, {

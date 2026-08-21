@@ -23,6 +23,7 @@ import {
   type TrackMeta,
   type TrackPoint,
 } from "../data/Track";
+import { appErrorLog, formatErrorDetail } from "../diagnostics/errorLog";
 import type { NavigationData } from "../navigation/NavigationData";
 import type { NavigationDataManager } from "../navigation/NavigationDataManager";
 import { smoothTrack } from "../navigation/RTSmoother";
@@ -117,6 +118,12 @@ export class TrackRecorder {
   private lastLon = 0;
   /** True when the previous fix was rejected as a gap-glitch (caps it at one). */
   private glitchRejectedSinceAccept = false;
+  /**
+   * Latched after a failed IndexedDB write (quota exhaustion, corrupt DB);
+   * cleared by the next successful save. Drives the "recording is failing
+   * to save" banner via onRecordingChange.
+   */
+  private saveFailing = false;
   private listeners: RecorderListener[] = [];
   private navCallback: ((data: NavigationData) => void) | null = null;
   /**
@@ -139,6 +146,34 @@ export class TrackRecorder {
     return this.currentTrack;
   }
 
+  /** True while track points are failing to reach IndexedDB. */
+  isSaveFailing(): boolean {
+    return this.saveFailing;
+  }
+
+  /**
+   * Latch the save-failure state and log the first failure to the
+   * persistent error log. Latched so a whole passage of failing writes
+   * produces one entry, not thousands; a successful save clears it.
+   */
+  private recordSaveError(err: unknown): void {
+    if (this.saveFailing) return;
+    this.saveFailing = true;
+    appErrorLog.log(
+      "track-recorder",
+      "error",
+      `track save failed: ${formatErrorDetail(err)}`,
+    );
+    this.notify();
+  }
+
+  private clearSaveError(): void {
+    if (!this.saveFailing) return;
+    this.saveFailing = false;
+    appErrorLog.log("track-recorder", "diag", "track save recovered");
+    this.notify();
+  }
+
   start(): void {
     if (this.recording) return;
     this.recording = true;
@@ -149,7 +184,10 @@ export class TrackRecorder {
     this.resumePromise = this.tryResumeTrack();
     this.resumePromise.catch(console.error);
     this.navCallback = (data) => {
-      this.onNavData(data).catch(console.error);
+      this.onNavData(data).catch((err) => {
+        console.error(err);
+        this.recordSaveError(err);
+      });
     };
     this.navManager.subscribe(this.navCallback);
     this.updateNativeNotification("Recording track");
@@ -188,6 +226,7 @@ export class TrackRecorder {
     this.trackPersisted = false;
     this.lastRecordedTime = 0;
     this.glitchRejectedSinceAccept = false;
+    this.saveFailing = false;
     this.resumePromise = null;
     localStorage.removeItem(ACTIVE_TRACK_KEY);
     this.updateNativeNotification("Navigating");
@@ -402,6 +441,16 @@ export class TrackRecorder {
       accuracy: data.accuracy,
     };
 
+    // Snapshot the anchor + aggregates so a failed write can roll them
+    // back: the next fix must be measured against the last point that
+    // actually reached the store, or a save outage punches a silent
+    // distance hole in the track.
+    const prevRecordedTime = this.lastRecordedTime;
+    const prevLat = this.lastLat;
+    const prevLon = this.lastLon;
+    const prevTotalDistanceNM = this.currentTrack.totalDistanceNM;
+    const prevDurationMs = this.currentTrack.durationMs;
+
     // Incremental track aggregates so the panel can show "X min · Y nm"
     // without rescanning every point. createdAt is the first point's
     // timestamp (preserved across resume), so `now − createdAt` is the
@@ -423,7 +472,21 @@ export class TrackRecorder {
     this.lastLat = data.latitude;
     this.lastLon = data.longitude;
 
-    await appendTrackPoint(this.currentTrack.id, point);
+    try {
+      await appendTrackPoint(this.currentTrack.id, point);
+    } catch (err) {
+      // The write failed (quota exhaustion, corrupt DB): roll back so the
+      // next fix retries against the last stored point, latch the error
+      // state (one log entry + banner, not one per point), and bail.
+      this.lastRecordedTime = prevRecordedTime;
+      this.lastLat = prevLat;
+      this.lastLon = prevLon;
+      this.currentTrack.totalDistanceNM = prevTotalDistanceNM;
+      this.currentTrack.durationMs = prevDurationMs;
+      this.recordSaveError(err);
+      return;
+    }
+    this.clearSaveError();
     this.currentTrack.pointCount++;
 
     // Trace each recorded point to compare the recorder's rate against the

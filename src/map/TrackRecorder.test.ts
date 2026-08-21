@@ -1,4 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { appendTrackPoint } from "../data/db";
+import { appErrorLog } from "../diagnostics/errorLog";
 import type { NavigationData } from "../navigation/NavigationData";
 import type { NavigationDataManager } from "../navigation/NavigationDataManager";
 import { isGapGlitch, TrackRecorder } from "./TrackRecorder";
@@ -9,6 +11,11 @@ vi.mock("../data/db", () => ({
   deleteTrack: vi.fn().mockResolvedValue(undefined),
   getTrackPoints: vi.fn().mockResolvedValue([]),
   replaceTrackPoints: vi.fn().mockResolvedValue(undefined),
+}));
+
+vi.mock("../diagnostics/errorLog", () => ({
+  appErrorLog: { log: vi.fn() },
+  formatErrorDetail: (reason: unknown) => String(reason),
 }));
 
 describe("isGapGlitch", () => {
@@ -218,5 +225,118 @@ describe("TrackRecorder gap-split distance", () => {
     const track = recorder.getCurrentTrack();
     expect(track).not.toBeNull();
     expect(track?.totalDistanceNM).toBe(0);
+  });
+});
+
+describe("TrackRecorder save-failure handling", () => {
+  const fakeStorage = new Map<string, string>();
+  /** Flush the microtask queue so an in-flight onNavData settles. */
+  const settle = () => new Promise<void>((r) => setTimeout(r, 0));
+  const t0 = Date.parse("2026-07-01T12:00:00.000Z");
+
+  beforeEach(() => {
+    fakeStorage.clear();
+    vi.mocked(appendTrackPoint).mockReset().mockResolvedValue(undefined);
+    vi.mocked(appErrorLog.log).mockClear();
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    vi.stubGlobal("localStorage", {
+      getItem: (k: string) => fakeStorage.get(k) ?? null,
+      setItem: (k: string, v: string) => {
+        fakeStorage.set(k, v);
+      },
+      removeItem: (k: string) => {
+        fakeStorage.delete(k);
+      },
+    });
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  async function startRecorder(): Promise<{
+    nav: FakeNavManager;
+    recorder: TrackRecorder;
+  }> {
+    const nav = new FakeNavManager();
+    const recorder = new TrackRecorder(nav as unknown as NavigationDataManager);
+    recorder.start();
+    await settle();
+    return { nav, recorder };
+  }
+
+  it("latches the error state on append failure and logs once, not per point", async () => {
+    const { nav, recorder } = await startRecorder();
+    vi.mocked(appendTrackPoint).mockRejectedValue(new Error("quota exceeded"));
+
+    nav.feed(fix(42.0, -71.0, t0));
+    await settle();
+    expect(recorder.isSaveFailing()).toBe(true);
+    expect(appErrorLog.log).toHaveBeenCalledTimes(1);
+    expect(appErrorLog.log).toHaveBeenCalledWith(
+      "track-recorder",
+      "error",
+      expect.stringContaining("quota exceeded"),
+    );
+
+    // Further failing points don't add log entries — the latch holds.
+    nav.feed(fix(42.001, -71.0, t0 + 10_000));
+    nav.feed(fix(42.002, -71.0, t0 + 20_000));
+    await settle();
+    expect(recorder.isSaveFailing()).toBe(true);
+    expect(appErrorLog.log).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not advance the anchor or aggregates on a failed append", async () => {
+    const { nav, recorder } = await startRecorder();
+
+    // First point lands normally, establishing the anchor.
+    nav.feed(fix(42.0, -71.0, t0));
+    await settle();
+    expect(recorder.getCurrentTrack()?.pointCount).toBe(1);
+
+    // Next point fails to save: pointCount and distance must not move.
+    vi.mocked(appendTrackPoint).mockRejectedValue(new Error("quota exceeded"));
+    nav.feed(fix(42.001, -71.0, t0 + 10_000)); // ~111 m north
+    await settle();
+    const track = recorder.getCurrentTrack();
+    expect(track?.pointCount).toBe(1);
+    expect(track?.totalDistanceNM).toBe(0);
+    expect(track?.durationMs).toBe(0);
+
+    // Recovery: the next fix is measured against the last STORED point
+    // (42.0), not the lost one — the full segment distance is preserved.
+    vi.mocked(appendTrackPoint).mockResolvedValue(undefined);
+    nav.feed(fix(42.002, -71.0, t0 + 20_000)); // ~222 m from the stored point
+    await settle();
+    const after = recorder.getCurrentTrack();
+    expect(after?.pointCount).toBe(2);
+    expect(after?.totalDistanceNM ?? 0).toBeCloseTo(0.12, 2); // ~222 m in NM
+  });
+
+  it("clears the error state (and notifies) on the next successful save", async () => {
+    const { nav, recorder } = await startRecorder();
+    let notifiedFailing: boolean | null = null;
+    recorder.onRecordingChange(() => {
+      notifiedFailing = recorder.isSaveFailing();
+    });
+
+    vi.mocked(appendTrackPoint).mockRejectedValue(new Error("quota exceeded"));
+    nav.feed(fix(42.0, -71.0, t0));
+    await settle();
+    expect(recorder.isSaveFailing()).toBe(true);
+    expect(notifiedFailing).toBe(true);
+
+    vi.mocked(appendTrackPoint).mockResolvedValue(undefined);
+    nav.feed(fix(42.001, -71.0, t0 + 10_000));
+    await settle();
+    expect(recorder.isSaveFailing()).toBe(false);
+    expect(notifiedFailing).toBe(false);
+    expect(appErrorLog.log).toHaveBeenCalledWith(
+      "track-recorder",
+      "diag",
+      "track save recovered",
+    );
   });
 });
