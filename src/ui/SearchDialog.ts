@@ -98,10 +98,9 @@ export class SearchDialog {
             this.selectResult(this.results[this.activeIndex - offset]);
           }
         }
-      } else if (e.key === "Escape") {
-        e.preventDefault();
-        this.hide();
       }
+      // Escape is handled document-wide (see onKeydown), so it works even
+      // when focus has left the input.
     });
 
     // Click outside to dismiss
@@ -121,10 +120,18 @@ export class SearchDialog {
     }
   }
 
+  private readonly onKeydown = (e: KeyboardEvent): void => {
+    if (e.key === "Escape") {
+      e.preventDefault(); // consumed — the global Escape fallback must not also act
+      this.hide();
+    }
+  };
+
   show(): void {
     if (this.visible) return;
     this.visible = true;
     this.overlay.style.display = "flex";
+    document.addEventListener("keydown", this.onKeydown);
     this.input.value = "";
     this.results = [];
     this.coordResult = null;
@@ -138,6 +145,7 @@ export class SearchDialog {
     if (!this.visible) return;
     this.visible = false;
     this.overlay.style.display = "none";
+    document.removeEventListener("keydown", this.onKeydown);
   }
 
   toggle(): void {

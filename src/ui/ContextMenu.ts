@@ -415,6 +415,7 @@ export function createContextMenu(deps: ContextMenuDeps): ContextMenuHandle {
   document.addEventListener("keydown", (e) => {
     if (e.key !== "Escape") return;
     if (menu.style.display === "block") {
+      e.preventDefault(); // consumed — the fallback below must not also act
       hide();
       return;
     }

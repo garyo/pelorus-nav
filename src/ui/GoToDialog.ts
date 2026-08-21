@@ -68,14 +68,12 @@ export class GoToDialog {
     this.overlay.append(card);
     document.body.appendChild(this.overlay);
 
-    // Enter to submit, Escape to dismiss
+    // Enter to submit (Escape is handled document-wide below, so it works
+    // even when focus has left the input)
     this.input.addEventListener("keydown", (e) => {
       if (e.key === "Enter") {
         e.preventDefault();
         this.submit();
-      } else if (e.key === "Escape") {
-        e.preventDefault();
-        this.hide();
       }
     });
 
@@ -92,10 +90,18 @@ export class GoToDialog {
     });
   }
 
+  private readonly onKeydown = (e: KeyboardEvent): void => {
+    if (e.key === "Escape") {
+      e.preventDefault(); // consumed — the global Escape fallback must not also act
+      this.hide();
+    }
+  };
+
   show(): void {
     if (this.visible) return;
     this.visible = true;
     this.overlay.style.display = "flex";
+    document.addEventListener("keydown", this.onKeydown);
     this.errorSpan.textContent = "";
 
     // Pre-fill with current map center
@@ -109,6 +115,7 @@ export class GoToDialog {
     if (!this.visible) return;
     this.visible = false;
     this.overlay.style.display = "none";
+    document.removeEventListener("keydown", this.onKeydown);
   }
 
   toggle(): void {

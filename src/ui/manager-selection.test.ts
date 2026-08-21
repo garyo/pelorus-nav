@@ -176,6 +176,53 @@ describe("ManagerSelection", () => {
     expect(sel.isSelected(item)).toBe(false);
   });
 
+  it("suppresses inner listeners while selecting — a tap on the name only toggles", () => {
+    const sel = makeSelection(host());
+    sel.enter();
+    const item = { id: "a", visible: true };
+    const el = row();
+    const name = document.createElement("div");
+    const nameClick = vi.fn();
+    name.addEventListener("click", nameClick);
+    el.appendChild(name);
+    sel.decorateRow(item, el);
+
+    name.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+
+    expect(sel.isSelected(item)).toBe(true);
+    expect(nameClick).not.toHaveBeenCalled();
+  });
+
+  it("suppresses a double-tap's dblclick too — no rename mid-selection", () => {
+    const sel = makeSelection(host());
+    sel.enter();
+    const item = { id: "a", visible: true };
+    const el = row();
+    const name = document.createElement("div");
+    const nameDblClick = vi.fn();
+    name.addEventListener("dblclick", nameDblClick);
+    el.appendChild(name);
+    sel.decorateRow(item, el);
+
+    name.dispatchEvent(new MouseEvent("dblclick", { bubbles: true }));
+
+    expect(nameDblClick).not.toHaveBeenCalled();
+  });
+
+  it("toggles once per checkbox click — the row's capture handler stands aside", () => {
+    const sel = makeSelection(host());
+    sel.enter();
+    const item = { id: "a", visible: true };
+    const el = row();
+    sel.decorateRow(item, el);
+    const box = el.querySelector(".manager-select-box") as HTMLInputElement;
+
+    box.click();
+    expect(sel.isSelected(item)).toBe(true);
+    box.click();
+    expect(sel.isSelected(item)).toBe(false);
+  });
+
   it("hides every selected item, then leaves the mode", async () => {
     const h = host();
     const sel = makeSelection(h);

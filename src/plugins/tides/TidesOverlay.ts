@@ -477,9 +477,9 @@ export class TidesOverlay implements MapOverlay {
       });
     });
     // Subordinate stations carry NOAA offset-derived (approximate) predictions.
-    const type = state.approximate
-      ? "Tide Station (secondary)"
-      : "Tide Station";
+    const type = isTideRef(station)
+      ? "Tide Station"
+      : "Tide Station (secondary)";
     return { type, name: station.name, details };
   }
 

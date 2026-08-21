@@ -14,7 +14,10 @@ import { exportAllToGpx, routeToGpx } from "../data/gpx";
 import type { Route } from "../data/Route";
 import type { RouteEditor } from "../map/RouteEditor";
 import type { RouteLayer } from "../map/RouteLayer";
-import type { ActiveNavigationManager } from "../navigation/ActiveNavigation";
+import type {
+  ActiveNavCallback,
+  ActiveNavigationManager,
+} from "../navigation/ActiveNavigation";
 import { getSettings, updateSettings } from "../settings";
 import { pathDistanceNM } from "../utils/coordinates";
 import { formatDistanceInSpeedUnits } from "../utils/units";
@@ -54,6 +57,7 @@ export class RouteManagerPanel {
   private readonly detailPanel: RouteDetailPanel;
   private onPreviewRoute?: (route: Route) => void;
   private activeNav: ActiveNavigationManager | null = null;
+  private navCallback: ActiveNavCallback | null = null;
   private selectedRouteId: string | null = null;
   /** True while an inline rename input is open. Suppresses refresh() so a
    *  background refresh (e.g. from an editor change) can't destroy the
@@ -80,19 +84,7 @@ export class RouteManagerPanel {
       }
       await saveRoutes(routes);
     },
-    removeAll: async (routes) => {
-      for (const route of routes) {
-        if (
-          this.editor.isEditing() &&
-          this.editor.getRoute()?.id === route.id
-        ) {
-          this.editor.cancel();
-        }
-        if (this.selectedRouteId === route.id) this.clearSelection();
-        this.activeNav?.noteRouteDeleted(route.id);
-      }
-      await deleteRoutes(routes.map((r) => r.id));
-    },
+    removeAll: (routes) => this.removeRoutes(routes),
     allItems: () => getAllRoutes(),
     folders: async () => [
       ...groupByFolder(await getAllRoutes()).folders.keys(),
@@ -268,7 +260,14 @@ export class RouteManagerPanel {
     // rename input removed from the DOM without firing `blur`), which would
     // otherwise freeze refresh() for the rest of the session.
     this.editing = false;
-    this.refresh();
+    this.refresh().catch(console.error);
+    // Track nav-state changes while open, so each row's nav-button highlight
+    // follows navigation started or stopped elsewhere (detail panel, HUD,
+    // arrival auto-stop). Same pattern as RouteDetailPanel.
+    if (this.activeNav && !this.navCallback) {
+      this.navCallback = () => this.refreshSoon();
+      this.activeNav.subscribe(this.navCallback);
+    }
   }
 
   hide(): void {
@@ -276,6 +275,10 @@ export class RouteManagerPanel {
     // outlives it (eviction closes both — each is its own surface).
     this.el.classList.remove("open");
     this.editing = false;
+    if (this.activeNav && this.navCallback) {
+      this.activeNav.unsubscribe(this.navCallback);
+      this.navCallback = null;
+    }
     // A selection has no meaning without its list: closing the panel must
     // take the bar with it.
     this.selection.exit();

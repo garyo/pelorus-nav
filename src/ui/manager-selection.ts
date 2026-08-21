@@ -295,9 +295,23 @@ export class ManagerSelection<T> {
     row.prepend(box);
 
     row.classList.toggle("selected", this.isSelected(item));
-    row.addEventListener("click", (e) => {
-      e.stopPropagation();
-      this.toggle(item);
+    // Capture phase, so the row's inner elements (a name's select/rename
+    // listeners) never see the tap — in this mode a tap can only mean
+    // "select". The checkbox is the one exception: it toggles via its own
+    // change event, so toggling here too would cancel it out.
+    row.addEventListener(
+      "click",
+      (e) => {
+        if (e.target === box) return;
+        e.stopPropagation();
+        this.toggle(item);
+      },
+      { capture: true },
+    );
+    // A fast double-tap also fires dblclick — swallow it the same way, or
+    // the name's rename listener would still open an inline edit.
+    row.addEventListener("dblclick", (e) => e.stopPropagation(), {
+      capture: true,
     });
   }
 
