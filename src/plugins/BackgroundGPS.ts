@@ -72,6 +72,11 @@ export interface BackgroundGPSPlugin {
    * suspended and passive mode silences the bridge. Call again on anchor
    * move or radius change; the native hysteresis survives an update.
    *
+   * Arming starts the foreground service if it isn't already running (for
+   * track recording), and prompts for location permission if needed: the
+   * watch needs the device's own GPS, because the app's fixes may come from
+   * an external Bluetooth receiver that only reaches the suspended WebView.
+   *
    * `warnM` doubles as the re-alarm margin: after an acknowledgment, a
    * further `warnM` of drag alarms again.
    */
@@ -84,11 +89,33 @@ export interface BackgroundGPSPlugin {
     warnM?: number;
   }): Promise<void>;
 
-  /** Disarm the native anchor watch and cancel any sounding native alarm. */
+  /**
+   * Disarm the native anchor watch and cancel any sounding native alarm.
+   * Also stops the foreground service unless track recording still needs it.
+   */
   clearAnchorWatch(): Promise<void>;
 
   /** Silence a sounding native anchor alarm; the native watch keeps running. */
   acknowledgeAnchorAlarm(): Promise<void>;
+
+  /**
+   * Stop the native alarm audio because the JS alarm is now audible. Not an
+   * acknowledgment: the alarm, its notification and the watch are untouched,
+   * only the sound moves. Native takes it back the moment the app leaves the
+   * foreground, so this must only be called while JS is genuinely sounding —
+   * a WebView returning from suspension has a suspended AudioContext and
+   * would otherwise take the alarm over and fall silent.
+   */
+  handOffAnchorAlarm(): Promise<void>;
+
+  /**
+   * Report that the app's own GPS source delivered a fix. That source is
+   * often an external Bluetooth receiver the native service can't see, whose
+   * fixes would otherwise look like silence and trip the native GPS-loss
+   * alarm while the app is wide awake. Position is deliberately not passed:
+   * drag detection stays on the service's own consistent source.
+   */
+  noteExternalFix(): Promise<void>;
 
   /** Check whether the foreground service is currently running. */
   isTracking(): Promise<{ tracking: boolean }>;

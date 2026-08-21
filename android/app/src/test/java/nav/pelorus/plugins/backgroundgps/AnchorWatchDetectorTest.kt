@@ -1,6 +1,7 @@
 package nav.pelorus.plugins.backgroundgps
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -137,6 +138,54 @@ class AnchorWatchDetectorTest {
     }
 
     @Test
+    fun `an external fix holds off the gps-loss alarm without proving the watch`() {
+        val d = AnchorWatchDetector(params())
+        // Only the app's own GPS (an external Bluetooth receiver) is seeing
+        // the boat; the service's own chip never has.
+        assertEquals(AnchorTransition.NONE, d.onExternalFix(60_000L))
+        assertFalse(d.hadFix)
+        assertEquals(AnchorTransition.NONE, d.onTick(200_000L))
+        assertNull(d.alarmKind)
+    }
+
+    @Test
+    fun `external fixes push the gps-loss deadline out`() {
+        val d = AnchorWatchDetector(params())
+        fix(d, 0.0, 0L)
+        assertEquals(AnchorTransition.NONE, d.onExternalFix(100_000L))
+        assertEquals(220_000L, d.gpsLossDeadlineElapsedMs())
+        assertEquals(AnchorTransition.NONE, d.onTick(200_000L))
+        assertEquals(AnchorTransition.GPS_LOSS_ALARM, d.onTick(230_000L))
+    }
+
+    @Test
+    fun `an external fix clears a sounding gps-loss alarm but not a drag`() {
+        val d = AnchorWatchDetector(params())
+        fix(d, 0.0, 0L)
+        assertEquals(AnchorTransition.GPS_LOSS_ALARM, d.onTick(130_000L))
+        assertEquals(AnchorTransition.CLEARED, d.onExternalFix(140_000L))
+        assertNull(d.alarmKind)
+
+        // A drag is about where the boat is, which an external fix says
+        // nothing about — it keeps ringing.
+        fix(d, 60.0, 150_000L)
+        fix(d, 60.0, 170_000L)
+        assertEquals(ANCHOR_ALARM_DRAG, d.alarmKind)
+        assertEquals(AnchorTransition.NONE, d.onExternalFix(180_000L))
+        assertEquals(ANCHOR_ALARM_DRAG, d.alarmKind)
+    }
+
+    @Test
+    fun `a fix that ends a gps-loss alarm outside the radius reports the drag`() {
+        val d = AnchorWatchDetector(params())
+        fix(d, 55.0, 0L)
+        assertEquals(AnchorTransition.GPS_LOSS_ALARM, d.onTick(130_000L))
+        // Dragged and blind: the drag is the alarm that matters.
+        assertEquals(AnchorTransition.DRAG_ALARM, fix(d, 80.0, 140_000L))
+        assertEquals(ANCHOR_ALARM_DRAG, d.alarmKind)
+    }
+
+    @Test
     fun `moving the anchor onto the boat clears a sounding drag alarm`() {
         val d = AnchorWatchDetector(params())
         fix(d, 0.0, 0L)
@@ -146,5 +195,15 @@ class AnchorWatchDetectorTest {
         val moved = params().copy(lat = latAt(60.0))
         assertEquals(AnchorTransition.CLEARED, d.updateParams(moved, 31_000L))
         assertNull(d.alarmKind)
+    }
+
+    @Test
+    fun `native audio yields only to a JS alarm proven to be audible`() {
+        // A started activity is not proof: a WebView back from suspension
+        // beats silently until a user gesture unlocks its AudioContext.
+        assertTrue(shouldSoundNativeAnchorAlarm(appForeground = true, jsAlarmAudible = false))
+        assertTrue(shouldSoundNativeAnchorAlarm(appForeground = false, jsAlarmAudible = false))
+        assertTrue(shouldSoundNativeAnchorAlarm(appForeground = false, jsAlarmAudible = true))
+        assertFalse(shouldSoundNativeAnchorAlarm(appForeground = true, jsAlarmAudible = true))
     }
 }

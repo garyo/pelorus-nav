@@ -35,6 +35,8 @@ import com.getcapacitor.annotation.PermissionCallback
 class BackgroundGPSPlugin : Plugin() {
 
     private var trackDb: TrackDatabase? = null
+    /** Arming has already prompted for location permission this session. */
+    private var anchorPermissionAsked = false
 
     override fun load() {
         trackDb = TrackDatabase(context)
@@ -54,6 +56,9 @@ class BackgroundGPSPlugin : Plugin() {
             )
         }
         BackgroundTrackService.appForeground = true
+        // A WebView reload restarts JS with no alarm running, whatever the
+        // previous page had handed off.
+        BackgroundTrackService.jsAlarmAudible = false
     }
 
     // Foreground tracking for the no-double-alarm rule: "foreground" is the
@@ -71,7 +76,36 @@ class BackgroundGPSPlugin : Plugin() {
     private fun setAppForeground(foreground: Boolean) {
         if (BackgroundTrackService.appForeground == foreground) return
         BackgroundTrackService.appForeground = foreground
+        // Leaving the foreground suspends the WebView, so whatever JS was
+        // sounding stops being audible: the handoff is void. Set on the
+        // companion rather than the service so a later service start can't
+        // inherit a stale "JS has this covered".
+        if (!foreground) BackgroundTrackService.jsAlarmAudible = false
         BackgroundTrackService.instance?.onAppForegroundChanged()
+    }
+
+    /**
+     * Start or stop the foreground service to match demand. Two independent
+     * clients need it: the device-GPS provider (startTracking/stopTracking)
+     * and an armed anchor watch, which must keep detecting whatever GPS
+     * source the app itself is displaying. Neither may end the other's
+     * service.
+     */
+    private fun syncServiceDemand() {
+        val wanted =
+            BackgroundTrackService.trackingRequested ||
+                BackgroundTrackService.anchorParams != null
+        val running = BackgroundTrackService.instance != null
+        val intent = Intent(context, BackgroundTrackService::class.java)
+        if (wanted && !running) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                context.startForegroundService(intent)
+            } else {
+                context.startService(intent)
+            }
+        } else if (!wanted && running) {
+            context.stopService(intent)
+        }
     }
 
     /**
@@ -140,11 +174,14 @@ class BackgroundGPSPlugin : Plugin() {
         installBridgeListener()
         DiagLog.log(context, "plugin", "startTracking")
 
-        val intent = Intent(context, BackgroundTrackService::class.java)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            context.startForegroundService(intent)
-        } else {
-            context.startService(intent)
+        BackgroundTrackService.trackingRequested = true
+        syncServiceDemand()
+        // Already running for an armed anchor watch: nothing started it just
+        // now, so nudge it into the tracking role (notification, and the
+        // location request for the current mode) itself.
+        BackgroundTrackService.instance?.let {
+            it.refreshNotification()
+            it.applyMode()
         }
         call.resolve()
     }
@@ -185,8 +222,12 @@ class BackgroundGPSPlugin : Plugin() {
         BackgroundTrackService.locationListener = null
         BackgroundTrackService.stoppedListener = null // JS-initiated — no event
         BackgroundTrackService.instance?.cancelPendingPassive()
-        val intent = Intent(context, BackgroundTrackService::class.java)
-        context.stopService(intent)
+        BackgroundTrackService.trackingRequested = false
+        // Keeps running if an anchor watch is armed — the watch is a client of
+        // its own, and the device GPS provider disconnecting (or the app going
+        // hidden without recording) must not stand a watch down.
+        syncServiceDemand()
+        BackgroundTrackService.instance?.refreshNotification()
         call.resolve()
     }
 
@@ -328,32 +369,80 @@ class BackgroundGPSPlugin : Plugin() {
      * radius change; the native detector keeps its hysteresis across updates.
      *
      * Detection then runs in the foreground service on every accepted fix,
-     * which is the only thing still awake once the WebView is suspended.
+     * which is the only thing still awake once the WebView is suspended — so
+     * arming starts that service whether or not the app is recording a track
+     * or even using the device GPS at all. That needs location permission:
+     * the service is a location-type foreground service, and without the
+     * grant it cannot start. Ask here rather than failing silently, since
+     * arming is a user gesture and the request is exactly in context.
      */
     @PluginMethod
     fun setAnchorWatch(call: PluginCall) {
-        val lat = call.getDouble("lat")
-        val lon = call.getDouble("lon")
-        val radiusM = call.getDouble("radiusM")
-        if (lat == null || lon == null || radiusM == null || radiusM <= 0) {
+        if (anchorParamsOf(call) == null) {
             call.reject("lat, lon and a positive radiusM are required")
             return
         }
+        // Once per session: setAnchorWatch is also the anchor-move and
+        // radius-change call, and a declined prompt must not come back on
+        // every drag of the anchor.
+        if (!hasServiceLocation() && !anchorPermissionAsked) {
+            anchorPermissionAsked = true
+            requestPermissionForAlias("location", call, "handleAnchorLocationPermission")
+            return
+        }
+        armNativeAnchorWatch(call)
+    }
+
+    @PermissionCallback
+    private fun handleAnchorLocationPermission(call: PluginCall) {
+        // Arm either way: the JS watch runs while the app is awake, and a
+        // rejection here would leave the two sides disagreeing about whether
+        // a watch is set. Without the grant the service simply won't start —
+        // the watch works while the app is up and has no screen-off cover.
+        if (!hasServiceLocation()) {
+            DiagLog.log(context, "plugin", "setAnchorWatch without location permission")
+        }
+        armNativeAnchorWatch(call)
+    }
+
+    /** Precise location, the foreground service's hard requirement. */
+    private fun hasServiceLocation(): Boolean =
+        getPermissionState("location") == PermissionState.GRANTED && hasFineLocation()
+
+    /** Parse the watch geometry from a call; null when it is unusable. */
+    private fun anchorParamsOf(call: PluginCall): AnchorWatchParams? {
+        val lat = call.getDouble("lat")
+        val lon = call.getDouble("lon")
+        val radiusM = call.getDouble("radiusM")
+        if (lat == null || lon == null || radiusM == null || radiusM <= 0) return null
         // optDouble is type-tolerant: JS numbers land as Integer or Double
         // depending on their value, and call.getDouble() rejects the former.
-        val alarmDelayS = call.data.optDouble("alarmDelayS", 15.0)
-        val gpsLossAlarmS = call.data.optDouble("gpsLossAlarmS", 120.0)
-        val warnM = call.data.optDouble("warnM", 8.0)
-        BackgroundTrackService.anchorParams = AnchorWatchParams(
+        return AnchorWatchParams(
             lat = lat,
             lon = lon,
             radiusM = radiusM,
-            alarmDelayMs = (alarmDelayS * 1000).toLong(),
-            gpsLossAlarmMs = (gpsLossAlarmS * 1000).toLong(),
-            reAlarmMarginM = warnM,
+            alarmDelayMs = (call.data.optDouble("alarmDelayS", 15.0) * 1000).toLong(),
+            gpsLossAlarmMs = (call.data.optDouble("gpsLossAlarmS", 120.0) * 1000).toLong(),
+            reAlarmMarginM = call.data.optDouble("warnM", 8.0),
         )
+    }
+
+    private fun armNativeAnchorWatch(call: PluginCall) {
+        val params = anchorParamsOf(call) ?: run {
+            call.reject("lat, lon and a positive radiusM are required")
+            return
+        }
+        BackgroundTrackService.anchorParams = params
+        syncServiceDemand()
+        // Already running (track recording, or a watch being updated): adopt
+        // the new geometry. A service just started by the line above adopts it
+        // from the companion in its own onCreate.
         BackgroundTrackService.instance?.applyAnchorWatch()
-        DiagLog.log(context, "plugin", "setAnchorWatch r=${radiusM}m delay=${alarmDelayS}s")
+        DiagLog.log(
+            context,
+            "plugin",
+            "setAnchorWatch r=${params.radiusM}m delay=${params.alarmDelayMs}ms",
+        )
         call.resolve()
     }
 
@@ -362,6 +451,9 @@ class BackgroundGPSPlugin : Plugin() {
     fun clearAnchorWatch(call: PluginCall) {
         BackgroundTrackService.anchorParams = null
         BackgroundTrackService.instance?.applyAnchorWatch()
+        // Stops the service only if nothing else wants it — track recording
+        // often does.
+        syncServiceDemand()
         DiagLog.log(context, "plugin", "clearAnchorWatch")
         call.resolve()
     }
@@ -370,6 +462,30 @@ class BackgroundGPSPlugin : Plugin() {
     @PluginMethod
     fun acknowledgeAnchorAlarm(call: PluginCall) {
         BackgroundTrackService.instance?.acknowledgeAnchorAlarm()
+        call.resolve()
+    }
+
+    /**
+     * JS has taken over the noise: its own alarm is running and audible, so
+     * the native one can stop sounding. The alarm itself is untouched — this
+     * is not an acknowledgment — and backgrounding the app takes it straight
+     * back, because a suspended WebView makes no sound.
+     */
+    @PluginMethod
+    fun handOffAnchorAlarm(call: PluginCall) {
+        BackgroundTrackService.jsAlarmAudible = true
+        BackgroundTrackService.instance?.handOffAnchorAlarmSound()
+        call.resolve()
+    }
+
+    /**
+     * The app's GPS — often an external Bluetooth receiver the service never
+     * sees — delivered a fix. Holds off the native GPS-loss alarm while the
+     * WebView is awake, without touching drag detection.
+     */
+    @PluginMethod
+    fun noteExternalFix(call: PluginCall) {
+        BackgroundTrackService.instance?.onExternalAnchorFix()
         call.resolve()
     }
 

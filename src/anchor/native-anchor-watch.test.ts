@@ -1,7 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
+import type { NavigationData } from "../navigation/NavigationData";
 import type { AnchorWatchSnapshot } from "./AnchorWatchManager";
 import {
   connectNativeAnchorWatch,
+  type NativeAnchorAlarm,
   type NativeAnchorManager,
   type NativeAnchorPlugin,
 } from "./native-anchor-watch";
@@ -31,11 +33,29 @@ function snapshot(
   };
 }
 
+/** A CobAlarm stand-in whose blocked state the test drives. */
+function fakeAlarm(blocked = false) {
+  const listeners: Array<(blocked: boolean) => void> = [];
+  return {
+    isBlocked: () => blocked,
+    onBlockedChange: (cb: (blocked: boolean) => void) => {
+      listeners.push(cb);
+    },
+    /** Simulate the audio unlock (or loss) CobAlarm reports. */
+    setBlocked(next: boolean) {
+      blocked = next;
+      for (const cb of listeners) cb(next);
+    },
+  };
+}
+
 function makeHarness() {
   const plugin = {
     setAnchorWatch: vi.fn().mockResolvedValue(undefined),
     clearAnchorWatch: vi.fn().mockResolvedValue(undefined),
     acknowledgeAnchorAlarm: vi.fn().mockResolvedValue(undefined),
+    handOffAnchorAlarm: vi.fn().mockResolvedValue(undefined),
+    noteExternalFix: vi.fn().mockResolvedValue(undefined),
     addListener: vi.fn().mockResolvedValue(undefined),
   } satisfies NativeAnchorPlugin;
   let emit: (snap: AnchorWatchSnapshot | null) => void = () => {};
@@ -45,10 +65,18 @@ function makeHarness() {
     },
     noteNativeAlarm: vi.fn(),
   };
+  let emitFix: (fix: NavigationData) => void = () => {};
+  const navManager = {
+    subscribe: (cb: (fix: NavigationData) => void) => {
+      emitFix = cb;
+    },
+  };
   return {
     plugin,
     manager,
+    navManager,
     emit: (snap: AnchorWatchSnapshot | null) => emit(snap),
+    emitFix: () => emitFix({} as NavigationData),
     /** The anchorAlarm handler the module registered. */
     fireAlarm(kind: "drag" | "gps-loss") {
       const handler = plugin.addListener.mock.calls[0][1] as (d: {
@@ -61,8 +89,20 @@ function makeHarness() {
   };
 }
 
-function connect(h: ReturnType<typeof makeHarness>): void {
-  connectNativeAnchorWatch(h.manager, { plugin: h.plugin, isNative: true });
+function connect(
+  h: ReturnType<typeof makeHarness>,
+  over: {
+    alarms?: readonly NativeAnchorAlarm[];
+    isForeground?: () => boolean;
+    now?: () => number;
+    navManager?: { subscribe: (cb: (fix: NavigationData) => void) => void };
+  } = {},
+): void {
+  connectNativeAnchorWatch(h.manager, {
+    plugin: h.plugin,
+    isNative: true,
+    ...over,
+  });
 }
 
 describe("connectNativeAnchorWatch", () => {
@@ -137,5 +177,97 @@ describe("connectNativeAnchorWatch", () => {
     await Promise.resolve();
     expect(warn).toHaveBeenCalled();
     warn.mockRestore();
+  });
+
+  describe("alarm handoff", () => {
+    const alarming = () => snapshot({ alarming: true, alarmKind: "drag" });
+
+    it("hands off once when the JS alarm is audible", () => {
+      const h = makeHarness();
+      connect(h, { alarms: [fakeAlarm(false)], isForeground: () => true });
+      h.emit(alarming());
+      h.emit(alarming());
+      expect(h.plugin.handOffAnchorAlarm).toHaveBeenCalledTimes(1);
+    });
+
+    it("does not hand off while the JS alarm is blocked", () => {
+      const h = makeHarness();
+      connect(h, { alarms: [fakeAlarm(true)], isForeground: () => true });
+      h.emit(alarming());
+      expect(h.plugin.handOffAnchorAlarm).not.toHaveBeenCalled();
+    });
+
+    it("hands off on the blocked→unblocked edge (the user tapped)", () => {
+      const h = makeHarness();
+      const alarm = fakeAlarm(true);
+      connect(h, { alarms: [alarm], isForeground: () => true });
+      h.emit(alarming());
+      expect(h.plugin.handOffAnchorAlarm).not.toHaveBeenCalled();
+
+      alarm.setBlocked(false);
+      expect(h.plugin.handOffAnchorAlarm).toHaveBeenCalledTimes(1);
+    });
+
+    it("never hands off in the background, however good the audio", () => {
+      const h = makeHarness();
+      connect(h, { alarms: [fakeAlarm(false)], isForeground: () => false });
+      h.emit(alarming());
+      expect(h.plugin.handOffAnchorAlarm).not.toHaveBeenCalled();
+    });
+
+    it("never hands off with no JS alarm wired up", () => {
+      const h = makeHarness();
+      connect(h, { isForeground: () => true });
+      h.emit(alarming());
+      expect(h.plugin.handOffAnchorAlarm).not.toHaveBeenCalled();
+    });
+
+    it("hands off again for the next alarm event", () => {
+      const h = makeHarness();
+      connect(h, { alarms: [fakeAlarm(false)], isForeground: () => true });
+      h.emit(alarming());
+      h.emit(snapshot()); // alarm cleared, still armed
+      h.emit(alarming());
+      expect(h.plugin.handOffAnchorAlarm).toHaveBeenCalledTimes(2);
+    });
+
+    it("does not hand off when only one of two alarms is audible", () => {
+      const h = makeHarness();
+      connect(h, {
+        alarms: [fakeAlarm(false), fakeAlarm(true)],
+        isForeground: () => true,
+      });
+      h.emit(alarming());
+      expect(h.plugin.handOffAnchorAlarm).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("external fix reporting", () => {
+    it("reports the app's own fixes to the native watch, throttled", () => {
+      const h = makeHarness();
+      let clock = 100_000;
+      connect(h, { navManager: h.navManager, now: () => clock });
+      h.emit(snapshot());
+
+      h.emitFix();
+      h.emitFix();
+      expect(h.plugin.noteExternalFix).toHaveBeenCalledTimes(1);
+
+      clock += 10_000;
+      h.emitFix();
+      expect(h.plugin.noteExternalFix).toHaveBeenCalledTimes(2);
+    });
+
+    it("stays quiet when no watch is armed", () => {
+      const h = makeHarness();
+      connect(h, { navManager: h.navManager });
+      h.emitFix();
+      expect(h.plugin.noteExternalFix).not.toHaveBeenCalled();
+
+      h.emit(snapshot());
+      h.emit(null);
+      h.emitFix();
+      expect(h.plugin.noteExternalFix).not.toHaveBeenCalled();
+    });
   });
 });

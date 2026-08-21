@@ -23,7 +23,11 @@ The format follows [Keep a Changelog](https://keepachangelog.com/).
   screen off and the app in the background: drag and GPS-loss detection
   run in the background GPS service, and the alarm sounds on the alarm
   volume with vibration and a lock-screen notification (with a Silence
-  button) until you acknowledge it in the app.
+  button) until you acknowledge it in the app. Arming starts that service
+  whatever GPS you navigate with — with the screen off the watch uses the
+  device's own GPS, since an external Bluetooth receiver can only reach
+  the app while it is awake — and keeps the device from sleeping, so an
+  armed watch uses noticeably more battery than an idle app.
 - The instrument bar now shows distance to the route's destination while
   navigating, on the right of the "Next:" caption line. The caption text
   is slightly larger, too.

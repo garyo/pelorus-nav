@@ -39,6 +39,20 @@ data class AnchorWatchParams(
 enum class AnchorTransition { NONE, DRAG_ALARM, GPS_LOSS_ALARM, CLEARED }
 
 /**
+ * Whether the service should make its own noise for an alarm.
+ *
+ * The native alarm is the one that survives a suspended WebView, so it sounds
+ * in every state except the one where the app is demonstrably already sounding
+ * its own: foreground AND handed off (see `handOffAnchorAlarm`). A started
+ * activity is NOT enough — a WebView returning from suspension has a suspended
+ * AudioContext and beats silently until a user gesture unlocks it, so treating
+ * "activity started" as "JS is audible" turns waking the device into a way of
+ * silencing the alarm.
+ */
+fun shouldSoundNativeAnchorAlarm(appForeground: Boolean, jsAlarmAudible: Boolean): Boolean =
+    !(appForeground && jsAlarmAudible)
+
+/**
  * Screen-off anchor-watch detection: the native mirror of
  * AnchorWatchManager's state machine (src/anchor/AnchorWatchManager.ts).
  * Backgrounded WebView JS is suspended and passive mode silences the
@@ -101,6 +115,26 @@ class AnchorWatchDetector(params: AnchorWatchParams) {
         val transition = evaluate(nowElapsedMs)
         if (transition != AnchorTransition.NONE) return transition
         return if (cleared) AnchorTransition.CLEARED else AnchorTransition.NONE
+    }
+
+    /**
+     * The app saw a fix from a source this service cannot: an external
+     * Bluetooth GPS feeding the WebView. Only the GPS-loss side reacts — the
+     * position is deliberately ignored, because drag detection must stay on
+     * one consistent source (mixing a masthead receiver with the device chip
+     * makes their offset look like movement the moment the app suspends).
+     *
+     * It also does not set [hadFix]: that flag means "the service's own GPS
+     * has been proven to work", which is the only thing that makes later
+     * silence alarm-worthy. Without it a tablet whose internal GPS never
+     * sees the sky would alarm every night the moment the screen went off.
+     */
+    fun onExternalFix(nowElapsedMs: Long): AnchorTransition {
+        lastFixElapsedMs = nowElapsedMs
+        gpsLossAcknowledged = false
+        if (alarmKind != ANCHOR_ALARM_GPS_LOSS) return AnchorTransition.NONE
+        alarmKind = null
+        return AnchorTransition.CLEARED
     }
 
     /**

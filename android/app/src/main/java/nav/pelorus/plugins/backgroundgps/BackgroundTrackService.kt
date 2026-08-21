@@ -58,7 +58,16 @@ import com.google.android.gms.location.Priority
  * reaches SQLite, and a separate Doze-piercing alarm catches sustained GPS
  * silence. Alarms use their own IMPORTANCE_HIGH channel with service-owned
  * looping alarm-stream audio, because the tracking channel is deliberately
- * silent.
+ * silent. While a watch is armed the service holds its own continuous wake
+ * lock and floors the location interval — see [acquireAnchorWakeLock] and
+ * [ANCHOR_PASSIVE_INTERVAL_MS].
+ *
+ * An armed watch is an independent reason for the service to exist: the app's
+ * displayed fixes may come from an external Bluetooth receiver over the
+ * WebView bridge, which is suspended exactly when the watch matters, so the
+ * device chip stands in as the watch's own position source. With no tracking
+ * client ([trackingRequested] false) nothing is recorded or fanned out —
+ * those fixes only feed the detector.
  */
 class BackgroundTrackService : Service() {
 
@@ -118,6 +127,20 @@ class BackgroundTrackService : Service() {
          */
         private const val KICK_DURATION_MS = 60_000L
 
+        /**
+         * Location interval ceiling while an anchor watch is armed.
+         *
+         * The passive 15–20 s cadence is tuned for track recording, where a
+         * late fix costs a little track detail. For an armed watch the same
+         * lateness lands on top of the excursion delay as pure alarm latency:
+         * at 15 s a drag needs two fixes ~30 s apart before the 15 s default
+         * delay can even complete. 5 s keeps detection inside that delay. The
+         * watch already holds the CPU awake (see [acquireAnchorWakeLock]), so
+         * the extra cost is GPS chip duty cycle alone — and an armed anchor
+         * alarm is a safety feature the user opted into, not a battery saver.
+         */
+        private const val ANCHOR_PASSIVE_INTERVAL_MS = 5_000L
+
         private const val ACTION_WATCHDOG = "nav.pelorus.WATCHDOG_TICK"
         private const val ACTION_ANCHOR_WATCHDOG = "nav.pelorus.ANCHOR_WATCHDOG_TICK"
 
@@ -159,17 +182,30 @@ class BackgroundTrackService : Service() {
         @Volatile var anchorParams: AnchorWatchParams? = null
 
         /**
+         * True while the JS device-GPS provider wants live tracking
+         * (startTracking..stopTracking). Independent of [anchorParams]: an
+         * armed anchor watch keeps the service running by itself so that
+         * screen-off detection works whatever GPS source the app displays,
+         * and while it is the only client the service records nothing — its
+         * fixes exist solely to feed the detector.
+         */
+        @Volatile var trackingRequested: Boolean = false
+
+        /**
          * True while the app's activity is started (onStart..onStop), set by
          * the plugin's lifecycle hooks.
-         *
-         * No-double-alarm rule: detection runs and the retained event fires in
-         * both states, but the native alarm only makes NOISE while this is
-         * false. A running app already sounds the JS alarm (CobAlarm), and two
-         * alarms out of phase is worse than one. The transition itself is
-         * handled: backgrounding mid-alarm starts the native sound,
-         * foregrounding stops it and hands the alarm back to JS.
          */
         @Volatile var appForeground: Boolean = true
+
+        /**
+         * True while the JS alarm is known to be making noise, set by the
+         * plugin's handOffAnchorAlarm() and cleared whenever the app leaves
+         * the foreground or the alarm ends. Together with [appForeground] it
+         * is the whole no-double-alarm rule — see
+         * [shouldSoundNativeAnchorAlarm] for why a started activity alone is
+         * not enough.
+         */
+        @Volatile var jsAlarmAudible: Boolean = false
 
         @Volatile var currentMode: String = MODE_ACTIVE
         @Volatile var activeIntervalMs: Long = 1000L
@@ -193,6 +229,13 @@ class BackgroundTrackService : Service() {
     private var partialWakeLock: PowerManager.WakeLock? = null
     /** True when the wake lock is held continuously (ACTIVE). False when toggled per-fix (PASSIVE). */
     private var holdLockContinuously: Boolean = true
+    /**
+     * Second, independent lock held for exactly as long as a watch is armed.
+     * Separate instance (and tag) from [partialWakeLock] so the ACTIVE /
+     * per-fix policy above can't release the anchor watch's hold, and so
+     * neither can double-acquire the other's.
+     */
+    private var anchorWakeLock: PowerManager.WakeLock? = null
     /** Last applied interval/priority — applyMode skips redundant re-requests. */
     private var appliedIntervalMs: Long = -1L
     private var appliedPriority: Int = -1
@@ -212,8 +255,12 @@ class BackgroundTrackService : Service() {
     /** Mode applyMode() last ran with — used to reset adaptive state on flips. */
     private var lastModeApplied: String? = null
 
-    /** Live anchor-watch state machine; non-null exactly while armed. */
-    private var anchorDetector: AnchorWatchDetector? = null
+    /**
+     * Live anchor-watch state machine; non-null exactly while armed. Volatile
+     * because the plugin thread arms it while the main looper's location
+     * callback reads it.
+     */
+    @Volatile private var anchorDetector: AnchorWatchDetector? = null
     private var anchorAlarmPlayer: MediaPlayer? = null
     private var anchorWatchdogPendingIntent: PendingIntent? = null
 
@@ -283,6 +330,10 @@ class BackgroundTrackService : Service() {
         // Default: ACTIVE → continuous wake lock.
         partialWakeLock?.acquire()
         holdLockContinuously = true
+        // Reference counting off: acquire/release then mean "make sure it is
+        // held / not held", which is what the arm/disarm paths below want.
+        anchorWakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "PelorusNav::AnchorWatch")
+            .apply { setReferenceCounted(false) }
 
         locationCallback = object : LocationCallback() {
             override fun onLocationResult(result: LocationResult) {
@@ -313,6 +364,12 @@ class BackgroundTrackService : Service() {
                         // it is deliberately independent of the recording
                         // cadence that gates everything below it.
                         onAnchorFix(location.latitude, location.longitude)
+                        // Anchor-only service (no tracking client): the fix has
+                        // done its job. Recording it would fill the buffer with
+                        // device-chip fixes for a user whose position source is
+                        // an external receiver, to be replayed as "live" the
+                        // next time the device GPS provider connects.
+                        if (!trackingRequested) continue
                         val point = TrackPointRow(
                             timestamp = location.time,
                             lat = location.latitude,
@@ -376,8 +433,16 @@ class BackgroundTrackService : Service() {
             // bridge listener — a stale one would report isTracking-ish state
             // and leak per-fix callbacks if the service were ever restarted.
             DiagLog.log(this, "svc", "stopped via notification action")
+            trackingRequested = false
             locationListener = null
             stoppedListener?.invoke("notification")
+            // Stop ends tracking, not the anchor watch: standing a watch down
+            // requires opening the app, exactly like the alarm's Silence.
+            if (anchorParams != null) {
+                refreshNotification()
+                applyMode()
+                return START_NOT_STICKY
+            }
             stopSelf()
             return START_NOT_STICKY
         }
@@ -428,6 +493,11 @@ class BackgroundTrackService : Service() {
         locationListener = null
         partialWakeLock?.let { if (it.isHeld) it.release() }
         partialWakeLock = null
+        // The watch stays armed in [anchorParams], but nothing is watching
+        // while the service is down — holding the CPU awake for it would be a
+        // pure battery leak. onCreate re-acquires when it re-adopts the watch.
+        releaseAnchorWakeLock()
+        anchorWakeLock = null
         try {
             unregisterReceiver(watchdogReceiver)
         } catch (e: IllegalArgumentException) {
@@ -519,6 +589,10 @@ class BackgroundTrackService : Service() {
 
         val intervalMs = when {
             !passive -> activeIntervalMs
+            // An armed watch overrides the recording cadence, including the
+            // steady-course stretch below: a boat at anchor reads as steady
+            // precisely when it is dragging slowly.
+            anchorParams != null -> minOf(passiveIntervalMs, ANCHOR_PASSIVE_INTERVAL_MS)
             lastSteadyState ->
                 minOf(
                     passiveIntervalMs * STEADY_PASSIVE_INTERVAL_MULTIPLIER,
@@ -669,8 +743,12 @@ class BackgroundTrackService : Service() {
             anchorDetector = null
             cancelAnchorWatchdog()
             clearAnchorAlarm()
+            releaseAnchorWakeLock()
+            refreshNotification()
+            applyMode()
             return
         }
+        acquireAnchorWakeLock()
         val existing = anchorDetector
         if (existing == null) {
             anchorDetector = AnchorWatchDetector(params)
@@ -678,11 +756,43 @@ class BackgroundTrackService : Service() {
             handleAnchorTransition(existing.updateParams(params, SystemClock.elapsedRealtime()))
         }
         armAnchorWatchdog(params.gpsLossAlarmMs)
+        refreshNotification()
+        // Arming changes the location cadence (ANCHOR_PASSIVE_INTERVAL_MS) and,
+        // for an anchor-only service, is what starts location updates at all.
+        applyMode()
         DiagLog.log(
             applicationContext,
             "anchor",
             "armed r=${params.radiusM}m delay=${params.alarmDelayMs}ms loss=${params.gpsLossAlarmMs}ms",
         )
+    }
+
+    /**
+     * Hold the CPU awake for as long as a watch is armed.
+     *
+     * The per-fix and ACTIVE-mode locks above are enough for track recording,
+     * where a missed hour is a gap in a line. They are not enough for an
+     * anchor watch: in the deepest OEM sleep states — a BOOX with its magnetic
+     * cover closed, as opposed to a press of the power button — location
+     * delivery and the alarm timers simply stop between wakeups, and the watch
+     * silently stops watching. A continuous partial wake lock is the standard
+     * mechanism anchor-alarm apps use, and the trade is one the user made
+     * deliberately when they armed a safety alarm: an overnight watch that
+     * costs battery beats one that misses a drag.
+     */
+    private fun acquireAnchorWakeLock() {
+        val lock = anchorWakeLock ?: return
+        if (lock.isHeld) return
+        lock.acquire()
+        DiagLog.log(applicationContext, "anchor", "wake lock acquired")
+    }
+
+    /** Released on every path out of "armed": disarm, and service destroy. */
+    private fun releaseAnchorWakeLock() {
+        val lock = anchorWakeLock ?: return
+        if (!lock.isHeld) return
+        lock.release()
+        DiagLog.log(applicationContext, "anchor", "wake lock released")
     }
 
     /** Silence a sounding alarm; the watch keeps running. */
@@ -694,14 +804,40 @@ class BackgroundTrackService : Service() {
 
     /**
      * Foreground state flipped. Detection is unaffected; only the noise moves
-     * between JS and native (see the [appForeground] contract).
+     * between JS and native.
+     *
+     * Coming back to the foreground deliberately does nothing: the alarm keeps
+     * sounding until JS reports its own alarm audible (see
+     * [handOffAnchorAlarmSound]), is acknowledged, or clears. Leaving the
+     * foreground suspends the WebView, so whatever JS was sounding stops —
+     * take the alarm back.
      */
     fun onAppForegroundChanged() {
-        if (appForeground) {
-            stopAnchorAlarmSound()
-        } else if (anchorDetector?.alarmKind != null) {
-            startAnchorAlarmSound()
-        }
+        if (appForeground) return
+        if (anchorDetector?.alarmKind != null) startAnchorAlarmSound()
+    }
+
+    /**
+     * JS reports its own alarm is genuinely audible: drop the native noise and
+     * let the app carry the alarm. Deliberately not an acknowledgment — the
+     * alarm state and its notification (the lock-screen record of the event,
+     * with its Silence action) stay exactly as they were; only the sound
+     * moved. Backgrounding the app takes it straight back.
+     */
+    fun handOffAnchorAlarmSound() {
+        stopAnchorAlarmSound()
+        DiagLog.log(applicationContext, "anchor", "alarm sound handed off to JS")
+    }
+
+    /**
+     * The app's own GPS — possibly an external Bluetooth receiver this
+     * service never sees — delivered a fix. Keeps the GPS-loss deadline
+     * honest while the WebView is awake; see [AnchorWatchDetector.onExternalFix].
+     */
+    fun onExternalAnchorFix() {
+        val detector = anchorDetector ?: return
+        handleAnchorTransition(detector.onExternalFix(SystemClock.elapsedRealtime()))
+        armAnchorWatchdog(detector.params.gpsLossAlarmMs)
     }
 
     /** Distance-test one accepted fix against the armed anchor. */
@@ -746,11 +882,14 @@ class BackgroundTrackService : Service() {
         // Retained event: JS is usually suspended when this fires and learns
         // about it on resume.
         anchorAlarmListener?.invoke(kind, distanceM, System.currentTimeMillis())
-        if (!appForeground) startAnchorAlarmSound()
+        if (shouldSoundNativeAnchorAlarm(appForeground, jsAlarmAudible)) startAnchorAlarmSound()
     }
 
     /** Stop the noise and drop the alarm notification. The watch stays armed. */
     private fun clearAnchorAlarm() {
+        // The next alarm has to prove JS is audible all over again — this one
+        // is over, and the app may have gone silent since it handed off.
+        jsAlarmAudible = false
         stopAnchorAlarmSound()
         getSystemService(NotificationManager::class.java)?.cancel(ANCHOR_NOTIFICATION_ID)
     }
@@ -931,16 +1070,20 @@ class BackgroundTrackService : Service() {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
-        return Notification.Builder(this, CHANNEL_ID)
+        // Running for the anchor watch alone: say so, and drop the Stop action
+        // — it ends track recording, there is none, and standing a watch down
+        // deliberately requires the app (same rule as the alarm's Silence).
+        val anchorOnly = !trackingRequested && anchorParams != null
+        val builder = Notification.Builder(this, CHANNEL_ID)
             .setContentTitle("Pelorus Nav")
-            .setContentText(notificationText)
+            .setContentText(if (anchorOnly) "Anchor watch armed" else notificationText)
             .setSmallIcon(android.R.drawable.ic_menu_mylocation)
             .setOngoing(true)
             .setContentIntent(pendingIntent)
-            .addAction(Notification.Action.Builder(
-                null, "Stop", stopPending
-            ).build())
-            .build()
+        if (!anchorOnly) {
+            builder.addAction(Notification.Action.Builder(null, "Stop", stopPending).build())
+        }
+        return builder.build()
     }
 
     /** Re-emit the foreground notification with the current [notificationText]. */

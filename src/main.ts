@@ -1336,8 +1336,13 @@ chartManager.map.on("click", (e) => {
 });
 // Mirror the armed watch into the native foreground service so drag
 // detection and the alarm survive screen-off, when JS is suspended. No-op
-// on web.
-connectNativeAnchorWatch(anchorManager);
+// on web. The alarms decide when the native alarm may stop sounding, and
+// navManager's fixes tell the native watch the app can still see the boat
+// even when they come from a receiver the service can't reach.
+connectNativeAnchorWatch(anchorManager, {
+  alarms: [anchorDragAlarm, anchorGpsLossAlarm],
+  navManager,
+});
 // An armed watch also defers the idle app-update reload.
 const appUpdateBusyBase = appUpdateBusy;
 appUpdateBusy = () => appUpdateBusyBase() || anchorManager.isArmed();
