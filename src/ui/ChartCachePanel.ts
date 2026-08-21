@@ -57,7 +57,7 @@ export class ChartCachePanel {
   private readonly fileInput: HTMLInputElement;
   private onChartsChanged?: () => void | Promise<void>;
   private onShowChart?: (chart: RasterChart) => void;
-  private onRegionSelected?: () => void;
+  private onRegionSelected?: (region: ChartRegion) => void;
   /** Bumped on each refresh so stale async update-checks are ignored. */
   private refreshToken = 0;
 
@@ -174,7 +174,7 @@ export class ChartCachePanel {
 
   /** Called on a MANUAL region selection (not auto-switch) — the map flyTo
    * that follows is deliberate navigation and should exit follow mode. */
-  setOnRegionSelected(cb: () => void): void {
+  setOnRegionSelected(cb: (region: ChartRegion) => void): void {
     this.onRegionSelected = cb;
   }
 
@@ -392,7 +392,7 @@ export class ChartCachePanel {
     radio.title = isActive ? "Active region" : `Switch to ${region.name}`;
     radio.addEventListener("click", () => {
       if (!isActive) {
-        this.onRegionSelected?.();
+        this.onRegionSelected?.(region);
         updateSettings({ activeRegion: region.id });
         this.refresh();
       }

@@ -767,7 +767,9 @@ let prevSimulatorMode = getSettings().simulatorMode;
  * banner, when no such route exists. Re-invoked by the Restart action in
  * custom mode so course edits are picked up without touching settings.
  */
+let applySimGeneration = 0;
 async function applySimulatorMode(mode: SimulatorMode): Promise<void> {
+  const generation = ++applySimGeneration;
   if (mode === "custom") {
     let custom: Route | undefined;
     try {
@@ -780,6 +782,9 @@ async function applySimulatorMode(mode: SimulatorMode): Promise<void> {
     } catch (e) {
       console.warn("simulator: route lookup failed:", e);
     }
+    // A newer call superseded this one while IndexedDB was answering —
+    // don't overwrite its waypoints/mode with this stale resolution.
+    if (generation !== applySimGeneration) return;
     if (custom) {
       hideStatusBanner("sim-custom-route");
       const wps = custom.waypoints.map(
@@ -1093,17 +1098,19 @@ const wakeLockCtrl = new WakeLockController();
 }
 
 // React to chart mode changes from settings
-let navManagerNoticeSource = getSettings().gpsSource;
+let prevGpsSource = getSettings().gpsSource;
 onSettingsChange((s) => {
   if (s.chartMode !== chartMode.getMode()) {
     chartMode.setMode(s.chartMode);
   }
-  if (s.gpsSource !== navManager.getActiveProvider()?.id) {
+  // Prev-tracked, not compared against the live provider id: with source
+  // "none" (or an id unavailable on this platform) getActiveProvider() is
+  // undefined, and a live comparison would re-activate the provider — and
+  // reset its Kalman/quality state — on every settings commit.
+  if (s.gpsSource !== prevGpsSource) {
+    prevGpsSource = s.gpsSource;
     navManager.setActiveProvider(s.gpsSource);
-  }
-  if (s.gpsSource !== navManagerNoticeSource) {
     // Stale provider banners must not linger after switching sources.
-    navManagerNoticeSource = s.gpsSource;
     for (const id of shownNoticeBanners) hideStatusBanner(id);
     shownNoticeBanners.clear();
   }
@@ -1123,15 +1130,14 @@ onSettingsChange((s) => {
   wakeLockCtrl.setGpsActive(s.gpsSource !== "none");
   wakeLockCtrl.setEinkMode(s.displayTheme === "eink");
   // Switch active region (UI only — all regions are always rendered).
-  // Always flyTo the region center on manual region switch.
+  // No camera move here: RegionAutoSwitch commits this setting under way,
+  // and yanking the map mid-passage would discard the navigator's view. A
+  // manual pick in the Chart Regions panel requests its own flyTo (see
+  // setOnRegionSelected below).
   vectorProvider.setActiveRegion(s.activeRegion);
   const region = vectorProvider.getRegion();
   if (region.id !== prevActiveRegion) {
     prevActiveRegion = region.id;
-    chartManager.map.flyTo({
-      center: region.center,
-      zoom: region.defaultZoom,
-    });
     // New active region → its basemap's coverage drives the OSM cap
     loadBasemapCoverage(region.id)
       .then(() => chartManager.refreshStyle())
@@ -1302,32 +1308,44 @@ trackPanel.setOnViewTrack((meta) => {
   trackViewer.open(meta).catch(console.error);
 });
 
+// One-shot repair: re-sync track meta pointCounts with stored points,
+// fixing stale/zero counts left by an earlier race condition. Gated by
+// localStorage so it only runs once per device. Every recorder start —
+// boot and the settings listener below alike — waits on this promise, so
+// nothing writes track meta concurrently with the repair. The promise
+// never rejects (failures are logged and swallowed), so starts proceed
+// even when the repair throws.
+const TRACK_REPAIR_FLAG = "pelorus-nav-track-counts-repaired-v1";
+const trackRepairDone: Promise<void> = (async () => {
+  if (localStorage.getItem(TRACK_REPAIR_FLAG)) return;
+  try {
+    const { scanned, repaired } = await repairTrackPointCounts();
+    console.log(`Track meta repair: ${repaired}/${scanned} updated`);
+    localStorage.setItem(TRACK_REPAIR_FLAG, "1");
+  } catch (e) {
+    console.error("Track meta repair failed:", e);
+  }
+})();
+const startRecorderAfterRepair = () =>
+  trackRepairDone.then(() => {
+    // Re-check once the repair settles: the setting may have flipped back,
+    // or an earlier queued start may have already begun recording.
+    if (getSettings().trackRecordingEnabled && !trackRecorder.isRecording()) {
+      trackRecorder.start();
+    }
+  });
+
 // React to track recording setting
 onSettingsChange((s) => {
   if (s.trackRecordingEnabled && !trackRecorder.isRecording()) {
-    trackRecorder.start();
+    void startRecorderAfterRepair();
   } else if (!s.trackRecordingEnabled && trackRecorder.isRecording()) {
     trackRecorder.stop();
   }
 });
 
-// One-shot repair: re-sync track meta pointCounts with stored points,
-// fixing stale/zero counts left by an earlier race condition. Gated by
-// localStorage so it only runs once per device. Recording is started
-// after repair completes to avoid concurrent writes to the same meta.
-const TRACK_REPAIR_FLAG = "pelorus-nav-track-counts-repaired-v1";
-(async () => {
-  if (!localStorage.getItem(TRACK_REPAIR_FLAG)) {
-    try {
-      const { scanned, repaired } = await repairTrackPointCounts();
-      console.log(`Track meta repair: ${repaired}/${scanned} updated`);
-      localStorage.setItem(TRACK_REPAIR_FLAG, "1");
-    } catch (e) {
-      console.error("Track meta repair failed:", e);
-    }
-  }
-  if (getSettings().trackRecordingEnabled) trackRecorder.start();
-})();
+// Start recording at boot if the setting is on.
+void startRecorderAfterRepair();
 
 // Native GPS power management (visibility / recording / idle / theme driven).
 if (capacitorGPS) {
@@ -1767,11 +1785,16 @@ if (topbarMenu) {
     // Drops follow mode (ChartMode) and flashes the crosshair.
     map.fire("pelorus:navigate" as never);
   });
-  cachePanel.setOnRegionSelected(() => {
-    // Manual region pick → the flyTo in the settings listener is deliberate
-    // navigation. (Auto-switch takes the same flyTo path but must NOT exit
-    // follow mode mid-passage, hence this fires only from the panel.)
+  cachePanel.setOnRegionSelected((region) => {
+    // Manual region pick → deliberate navigation: drop follow mode and fly
+    // to the picked region. (RegionAutoSwitch commits the same setting under
+    // way, so the activeRegion settings listener never moves the camera —
+    // the flyTo lives only on this panel-driven path.)
     chartManager.map.fire("pelorus:navigate" as never);
+    chartManager.map.flyTo({
+      center: region.center,
+      zoom: region.defaultZoom,
+    });
   });
   const cacheBtn = buildTopbarAction(iconGlobe, "RGNS", "Chart Regions", {
     fullLabel: "Chart Regions",

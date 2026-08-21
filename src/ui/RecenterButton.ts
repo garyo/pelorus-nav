@@ -78,8 +78,7 @@ export class RecenterButton implements maplibregl.IControl {
     this.button = button;
 
     this.container.appendChild(button);
-    this.refresh();
-    this.setEnabled(this.enabled);
+    this.applyEnabled();
     return this.container;
   }
 
@@ -103,12 +102,17 @@ export class RecenterButton implements maplibregl.IControl {
   }
 
   setEnabled(enabled: boolean): void {
+    // Called per GPS fix — skip the icon/label rebuild when nothing changed.
+    if (enabled === this.enabled) return;
     this.enabled = enabled;
-    if (this.button) {
-      // Only the "free → recenter" transition needs GPS; mode cycling
-      // can happen any time, so keep the button clickable in follow modes.
-      this.button.disabled = !enabled && this.opts.getMode() === "free";
-      this.refresh();
-    }
+    this.applyEnabled();
+  }
+
+  private applyEnabled(): void {
+    if (!this.button) return;
+    // Only the "free → recenter" transition needs GPS; mode cycling
+    // can happen any time, so keep the button clickable in follow modes.
+    this.button.disabled = !this.enabled && this.opts.getMode() === "free";
+    this.refresh();
   }
 }
