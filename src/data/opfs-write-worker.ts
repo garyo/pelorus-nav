@@ -7,17 +7,16 @@
  * available inside a Worker. Doing all writes here means one code path works on
  * iOS, Android, and desktop, instead of branching on `createWritable`.
  *
- * `fetchWrite` streams into a `${filename}.downloading` temp file and only
- * moves it over the final filename once the whole response has landed, so a
- * failed or aborted download never touches (let alone truncates) a chart the
+ * Every write streams into a `${filename}.downloading` temp file and only
+ * moves it over the final filename once the whole payload has landed, so a
+ * failed or aborted write never touches (let alone truncates) a chart the
  * user already has. See tile-store.ts for the startup sweep that clears any
- * `.downloading` leftovers from a hard crash mid-download.
+ * `.downloading` leftovers from a hard crash mid-write.
  *
  * Protocol (main → worker): { id, op, ... }
  *   - fetchWrite { url, filename }  — stream a URL to an OPFS file, posting progress
- *   - writeBlob  { filename, blob } — write a Blob (e.g. an imported file)
- *   - writeText  { filename, text } — write a string via temp-file + atomic move
- *                                     (e.g. the metadata sidecar — see moveIntoPlace)
+ *   - writeBlob  { filename, blob } — stream a Blob (e.g. an imported chart)
+ *   - writeText  { filename, text } — write a string (e.g. the metadata sidecar)
  *   - abort      {}                 — cancel an in-flight fetchWrite
  * Worker → main: { id, type: "progress" | "done" | "error", ... }
  */
@@ -162,52 +161,40 @@ async function fetchWrite(
   }
 }
 
-async function writeBytes(
-  id: number,
-  filename: string,
-  bytes: Uint8Array,
-): Promise<void> {
-  let access: FileSystemSyncAccessHandle | null = null;
-  try {
-    access = await openAccess(filename);
-    access.truncate(0);
-    access.write(bytes, { at: 0 });
-    access.flush();
-    ctx.postMessage({ id, type: "done", size: bytes.byteLength });
-  } catch (err) {
-    // Same lock-before-remove ordering as fetchWrite: close before removing.
-    access?.close();
-    access = null;
-    await removeQuietly(filename);
-    throw err;
-  } finally {
-    access?.close();
-  }
-}
-
 /**
- * Write bytes to `filename` via a temp file + atomic move, so a crash (or
- * tab kill) mid-write can never leave `filename` truncated or empty — the
- * old file is untouched until the new one is fully flushed. Used for the
- * chart-metadata sidecar, which is small but must never be caught half-written.
+ * Stream a Blob into `filename` via a temp file + atomic move, so a crash
+ * (or tab kill) mid-write can never leave `filename` truncated or empty —
+ * an existing file is untouched until the replacement is fully flushed.
+ * Chunked streaming (`blob.stream()`, never `blob.arrayBuffer()`) keeps
+ * memory bounded: an imported chart can be hundreds of MB, more than a
+ * low-RAM device's WebView can hold as one buffer. Used for chart imports
+ * and the chart-metadata sidecar.
  */
-async function writeBytesAtomic(
+async function writeBlobAtomic(
   id: number,
   filename: string,
-  bytes: Uint8Array,
+  blob: Blob,
 ): Promise<void> {
   const temp = tempName(filename);
   let access: FileSystemSyncAccessHandle | null = null;
   try {
     access = await openAccess(temp);
     access.truncate(0);
-    access.write(bytes, { at: 0 });
+    let offset = 0;
+    const reader = blob.stream().getReader();
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      access.write(value, { at: offset });
+      offset += value.byteLength;
+    }
     access.flush();
     access.close();
     access = null;
     await moveIntoPlace(temp, filename);
-    ctx.postMessage({ id, type: "done", size: bytes.byteLength });
+    ctx.postMessage({ id, type: "done", size: offset });
   } catch (err) {
+    // Same lock-before-remove ordering as fetchWrite: close before removing.
     access?.close();
     access = null;
     await removeQuietly(temp);
@@ -228,13 +215,12 @@ ctx.onmessage = (e: MessageEvent) => {
     if (msg.op === "fetchWrite") {
       await fetchWrite(msg.id, msg.url ?? "", msg.filename ?? "");
     } else if (msg.op === "writeBlob") {
-      const buf = new Uint8Array(await (msg.blob as Blob).arrayBuffer());
-      await writeBytes(msg.id, msg.filename ?? "", buf);
+      await writeBlobAtomic(msg.id, msg.filename ?? "", msg.blob as Blob);
     } else if (msg.op === "writeText") {
-      await writeBytesAtomic(
+      await writeBlobAtomic(
         msg.id,
         msg.filename ?? "",
-        new TextEncoder().encode(msg.text ?? ""),
+        new Blob([msg.text ?? ""]),
       );
     }
   };

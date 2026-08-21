@@ -5,10 +5,8 @@
  * thread — and drive opfs-writer's message protocol (start/progress/
  * done/error/abort) by hand, verifying the client's request bookkeeping,
  * progress plumbing, completion resolution, error propagation, and abort
- * handling. opfs-write-worker.ts itself has no independently-testable
- * pure helpers (its logic is entirely OPFS/fetch calls behind `self`),
- * so that side of the protocol isn't covered here — see the module
- * comment on that file.
+ * handling. The worker side of the protocol is covered separately in
+ * opfs-write-worker.test.ts against a fake in-memory OPFS.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
