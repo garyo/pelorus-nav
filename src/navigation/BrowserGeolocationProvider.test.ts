@@ -156,6 +156,35 @@ describe("BrowserGeolocationProvider error handling", () => {
     expect(fixes.length).toBe(n); // no re-emits once disconnected
   });
 
+  it("re-stamping stops once the last genuine fix passes the silence bound", () => {
+    const provider = new BrowserGeolocationProvider();
+    const fixes: NavigationData[] = [];
+    provider.subscribe((d) => fixes.push(d));
+    provider.connect();
+    fake.watchOk?.(geoPos(42, -71, 1000)); // one real fix, then silence forever
+
+    vi.advanceTimersByTime(60000);
+    // 1 genuine fix + re-emits at 2 s and 4 s; the 6 s tick hits the bound
+    // (3× WATCH_KEEPALIVE_MS) and stops, letting staleness surface downstream.
+    expect(fixes).toHaveLength(3);
+  });
+
+  it("a genuine fix after the bound re-arms the keep-alive", () => {
+    const provider = new BrowserGeolocationProvider();
+    const fixes: NavigationData[] = [];
+    provider.subscribe((d) => fixes.push(d));
+    provider.connect();
+    fake.watchOk?.(geoPos(42, -71, 1000));
+    vi.advanceTimersByTime(60000); // keep-alive has stopped
+    const n = fixes.length;
+
+    fake.watchOk?.(geoPos(43, -70, 2000)); // watch delivers again
+    expect(fixes).toHaveLength(n + 1);
+    vi.advanceTimersByTime(2100); // keep-alive re-armed and re-stamping
+    expect(fixes).toHaveLength(n + 2);
+    expect(fixes.at(-1)?.latitude).toBe(43);
+  });
+
   it("re-emit is suppressed after a watch error so a real loss goes stale", () => {
     const provider = new BrowserGeolocationProvider();
     const fixes: NavigationData[] = [];

@@ -267,6 +267,30 @@ describe("BLENMEAProvider auto-reconnect", () => {
     expect(provider.isConnected()).toBe(false);
   });
 
+  it("concurrent requestDeviceDiag calls don't cancel each other", async () => {
+    const provider = new BLENMEAProvider();
+    provider.connect();
+    await flush();
+    expect(provider.isConnected()).toBe(true);
+
+    const stream = (
+      provider as unknown as {
+        stream: { onPodDiag?: (line: string) => void };
+      }
+    ).stream;
+
+    const first = provider.requestDeviceDiag(1000);
+    const second = provider.requestDeviceDiag(3000);
+
+    await vi.advanceTimersByTimeAsync(1500); // first call times out…
+    await expect(first).resolves.toBeNull();
+    expect(stream.onPodDiag).toBeDefined(); // …without clobbering the second
+
+    stream.onPodDiag?.("$PPELD,1,2,3");
+    await expect(second).resolves.toBe("$PPELD,1,2,3");
+    expect(stream.onPodDiag).toBeUndefined();
+  });
+
   it("reports isReconnecting() between a drop and recovery", async () => {
     const provider = new BLENMEAProvider();
     provider.connect();

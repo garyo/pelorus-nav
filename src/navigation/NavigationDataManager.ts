@@ -426,7 +426,8 @@ export class NavigationDataManager {
     this.lastHintedIntervalMs = -1;
     const provider = this.providers.find((p) => p.id === id) ?? null;
     this.activeProvider = provider;
-    // adaptiveCtrl.reset() above restored the default fast ceiling; re-apply the
+    // adaptiveCtrl.reset() keeps the previous provider's configured fast
+    // ceiling, so applyFastInterval() below must run to install the
     // source-aware one (external pods update per-fix on a non-e-ink screen).
     this.sourceIsExternal = provider?.external ?? false;
     this.applyFastInterval();

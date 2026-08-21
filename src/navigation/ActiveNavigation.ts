@@ -92,6 +92,81 @@ export function pickStartLeg(
   return reachedWp0 ? 1 : 0;
 }
 
+/**
+ * Corridor half-width for restore-time leg validation, floored at a couple of
+ * miles so ordinary cross-track error (hand steering, drift while the app was
+ * down) never fails a legitimately resumed leg.
+ */
+const RESTORE_CORRIDOR_FLOOR_NM = 2;
+
+/** Shortest distance from a point to the leg segment from→to, in NM. */
+function distanceToLegNM(
+  lat: number,
+  lon: number,
+  from: Waypoint,
+  to: Waypoint,
+): number {
+  const legDist = haversineDistanceNM(from.lat, from.lon, to.lat, to.lon);
+  const dFrom = haversineDistanceNM(lat, lon, from.lat, from.lon);
+  const dTo = haversineDistanceNM(lat, lon, to.lat, to.lon);
+  if (legDist < 1e-6) return Math.min(dFrom, dTo);
+  const atd = alongTrackDistanceNM(
+    from.lat,
+    from.lon,
+    to.lat,
+    to.lon,
+    lat,
+    lon,
+  );
+  if (atd <= 0) return dFrom;
+  if (atd >= legDist) return dTo;
+  // Cross-track distance via Pythagoras on the start-distance/along-track pair
+  // (planar approximation — fine at corridor scales of a few NM).
+  return Math.sqrt(Math.max(0, dFrom * dFrom - atd * atd));
+}
+
+/**
+ * Pick the leg to resume after a restart, trusting persisted passage progress.
+ *
+ * pickStartLeg only examines waypoints 0 and 1, so on a route that doubles
+ * back toward its origin it can re-target an already-passed outbound waypoint
+ * and stall a mid-passage resume. Instead, keep the persisted leg when the
+ * vessel is plausibly still on it — within a corridor of the leg segment —
+ * and otherwise scan *forward* to the first remaining leg whose corridor
+ * contains the vessel (it may have progressed while the app was down;
+ * auto-advance still converges from there). Only when the vessel is near none
+ * of the remaining legs did the restart move it somewhere unrelated to its
+ * persisted progress — e.g. the dev simulator resetting the boat to its start
+ * position on reload — and only then does pickStartLeg re-derive from scratch.
+ * A persisted leg of 0 (still approaching the route's first waypoint) has no
+ * corridor to test and goes straight to pickStartLeg, which re-answers the
+ * 0-vs-1 question from the current position.
+ */
+export function resolveRestoredLeg(
+  vesselLat: number,
+  vesselLon: number,
+  route: Route,
+  persistedLeg: number,
+  arrivalRadiusNM: number,
+): number {
+  const count = route.waypoints.length;
+  const corridorNM = Math.max(RESTORE_CORRIDOR_FLOOR_NM, 2 * arrivalRadiusNM);
+  if (
+    Number.isInteger(persistedLeg) &&
+    persistedLeg >= 1 &&
+    persistedLeg < count
+  ) {
+    for (let leg = persistedLeg; leg < count; leg++) {
+      const from = route.waypoints[leg - 1];
+      const to = route.waypoints[leg];
+      if (distanceToLegNM(vesselLat, vesselLon, from, to) <= corridorNM) {
+        return leg;
+      }
+    }
+  }
+  return pickStartLeg(vesselLat, vesselLon, route, arrivalRadiusNM);
+}
+
 /** Pure computation — extract for testing. */
 export function computeNavigation(
   vesselLat: number,
@@ -140,6 +215,12 @@ export class ActiveNavigationManager {
   private listeners: ActiveNavCallback[] = [];
   private navManager: NavigationDataManager;
   private lastInfo: ActiveNavigationInfo | null = null;
+  /**
+   * Set when restore() resumed a persisted route leg with no GPS fix on hand
+   * to validate it. The first fix re-runs resolveRestoredLeg; any explicit
+   * leg change in the meantime clears it (the user's choice supersedes).
+   */
+  private pendingRestoreLegCheck = false;
 
   constructor(navManager: NavigationDataManager) {
     this.navManager = navManager;
@@ -148,6 +229,23 @@ export class ActiveNavigationManager {
 
   private readonly onGPSUpdate = (data: NavigationData): void => {
     if (this.state.type === "idle") return;
+
+    // A restored leg awaiting its first fix: validate it now, before this
+    // tick's target computation and auto-advance run against it.
+    if (this.state.type === "route" && this.pendingRestoreLegCheck) {
+      this.pendingRestoreLegCheck = false;
+      const resolved = resolveRestoredLeg(
+        data.latitude,
+        data.longitude,
+        this.state.route,
+        this.state.legIndex,
+        getSettings().arrivalRadiusNM,
+      );
+      if (resolved !== this.state.legIndex) {
+        this.state = { ...this.state, legIndex: resolved };
+        this.persist();
+      }
+    }
 
     const target = this.getTarget();
     if (!target) return;
@@ -292,6 +390,7 @@ export class ActiveNavigationManager {
 
   startGoto(waypoint: StandaloneWaypoint | Waypoint): void {
     logUiAction(`nav goto ${waypoint.name || "(unnamed)"}`);
+    this.pendingRestoreLegCheck = false;
     this.state = { type: "goto", waypoint };
     this.persist();
     this.recompute();
@@ -301,6 +400,7 @@ export class ActiveNavigationManager {
     if (route.waypoints.length < 2) return;
     const leg = startLeg ?? this.pickStartLeg(route);
     logUiAction(`nav route ${route.name || "(unnamed)"} (leg ${leg})`);
+    this.pendingRestoreLegCheck = false;
     this.state = { type: "route", route, legIndex: leg };
     this.persist();
     this.recompute();
@@ -321,6 +421,7 @@ export class ActiveNavigationManager {
 
   stop(): void {
     if (this.state.type !== "idle") logUiAction("nav stop");
+    this.pendingRestoreLegCheck = false;
     this.state = { type: "idle" };
     this.lastInfo = null;
     this.persist();
@@ -349,6 +450,7 @@ export class ActiveNavigationManager {
       return;
     }
     logUiAction(`nav route re-targeted after edit (${route.name || "?"})`);
+    this.pendingRestoreLegCheck = false;
     this.state = { type: "route", route, legIndex: this.pickStartLeg(route) };
     this.persist();
     this.recompute();
@@ -369,6 +471,7 @@ export class ActiveNavigationManager {
   setLeg(index: number): void {
     if (this.state.type !== "route") return;
     if (index < 0 || index >= this.state.route.waypoints.length) return;
+    this.pendingRestoreLegCheck = false;
     this.state = { ...this.state, legIndex: index };
     this.persist();
     this.recompute();
@@ -378,6 +481,7 @@ export class ActiveNavigationManager {
     if (this.state.type !== "route") return;
     const next = this.state.legIndex + 1;
     if (next < this.state.route.waypoints.length) {
+      this.pendingRestoreLegCheck = false;
       this.state = { ...this.state, legIndex: next };
       this.persist();
       this.recompute();
@@ -387,6 +491,7 @@ export class ActiveNavigationManager {
   prevLeg(): void {
     if (this.state.type !== "route") return;
     if (this.state.legIndex > 0) {
+      this.pendingRestoreLegCheck = false;
       this.state = { ...this.state, legIndex: this.state.legIndex - 1 };
       this.persist();
       this.recompute();
@@ -460,20 +565,39 @@ export class ActiveNavigationManager {
         const routes = await getAllRoutes();
         const route = routes.find((r) => r.id === saved.routeId);
         if (route && route.waypoints.length >= 2) {
-          // Restart at the first not-yet-reached leg (0 if waypoint[0] is still
-          // ahead, else 1), ignoring the persisted legIndex. The onGPSUpdate
-          // auto-advance then runs forward through any legs the boat has
-          // genuinely passed, converging on the correct one within a few ticks.
-          // This avoids the dev-sim trap where the simulator resets the boat to
-          // its start position on reload but the persisted legIndex still points
-          // deep into the route — and is functionally identical to trusting the
-          // persisted index for real-world resumes (boat hasn't teleported, so
-          // auto-advance lands at the same leg).
-          this.state = {
-            type: "route",
-            route,
-            legIndex: this.pickStartLeg(route),
-          };
+          // Resume the persisted leg rather than re-deriving from scratch —
+          // on a route that doubles back, re-deriving (pickStartLeg) would
+          // re-target an already-passed outbound waypoint mid-passage. The
+          // persisted leg is validated against a GPS fix by resolveRestoredLeg
+          // (see its contract): here when a fix is already on hand, otherwise
+          // on the first fix via pendingRestoreLegCheck. That validation is
+          // what catches a restart that moved the vessel away from its
+          // persisted progress — e.g. the dev simulator resetting the boat to
+          // its start position on reload while the persisted legIndex still
+          // points deep into the route. An out-of-range persisted index
+          // (route shrank since it was saved) re-derives immediately.
+          const persisted = saved.legIndex;
+          const valid =
+            Number.isInteger(persisted) &&
+            persisted >= 0 &&
+            persisted < route.waypoints.length;
+          const data = this.navManager.getLastData();
+          let legIndex: number;
+          if (!valid) {
+            legIndex = this.pickStartLeg(route);
+          } else if (data) {
+            legIndex = resolveRestoredLeg(
+              data.latitude,
+              data.longitude,
+              route,
+              persisted,
+              getSettings().arrivalRadiusNM,
+            );
+          } else {
+            legIndex = persisted;
+            this.pendingRestoreLegCheck = true;
+          }
+          this.state = { type: "route", route, legIndex };
           this.persist();
           this.recompute();
         } else {

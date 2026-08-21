@@ -28,6 +28,18 @@ import type { ProviderNotice } from "./ProviderNotice";
  */
 const WATCH_KEEPALIVE_MS = 2000;
 
+/**
+ * Bound on keep-alive re-stamping: once the last *genuine* fix is this old,
+ * stop re-emitting so the fix-staleness watchdog (which keys on broadcast
+ * wall-time in NavigationDataManager) can trigger. Without a bound, a watch
+ * that dies silently — no error, no fixes — would keep an old position and
+ * SOG/COG looking fresh forever. The cost is that a healthy watch that stays
+ * quiet longer than this (a truly motionless desktop) reads as stale too;
+ * that's honest — past this age we can no longer vouch for the fix. Any new
+ * genuine fix re-arms the keep-alive.
+ */
+const WATCH_REEMIT_MAX_SILENCE_MS = 3 * WATCH_KEEPALIVE_MS;
+
 export class BrowserGeolocationProvider implements NavigationDataProvider {
   readonly id = "browser-gps";
   readonly name = "Browser GPS";
@@ -150,20 +162,27 @@ export class BrowserGeolocationProvider implements NavigationDataProvider {
   /**
    * (Re)arm the watch keep-alive: a single timer, reset on every fix, that fires
    * only after WATCH_KEEPALIVE_MS of silence. On firing it re-emits the last
-   * known fix with a current timestamp (unless the watch has errored since the
-   * last real fix), then re-arms — so while `watchPosition` is delivering
-   * (moving) it never fires, and while the watch is quiet (stationary) the fix
-   * stays fresh. Watch-mode only; poll mode re-emits on its own timer.
+   * known fix with a current timestamp and re-arms — so while `watchPosition`
+   * is delivering (moving) it never fires, and while the watch is briefly quiet
+   * (stationary) the fix stays fresh. Re-emitting stops — and the timer stops
+   * re-arming until the next genuine fix — once the watch has errored since the
+   * last real fix, or once that fix is older than WATCH_REEMIT_MAX_SILENCE_MS,
+   * so a silently dead watch surfaces as staleness downstream. Watch-mode only;
+   * poll mode re-emits on its own timer.
    */
   private scheduleKeepAlive(): void {
     if (this.watchId === null) return;
     this.clearKeepAlive();
     this.keepAliveTimer = setTimeout(() => {
       this.keepAliveTimer = null;
-      if (this.lastPos && this.lastFixMs > this.lastErrorMs) {
+      if (
+        this.lastPos &&
+        this.lastFixMs > this.lastErrorMs &&
+        Date.now() - this.lastFixMs < WATCH_REEMIT_MAX_SILENCE_MS
+      ) {
         this.emit(this.lastPos, Date.now());
+        this.scheduleKeepAlive();
       }
-      this.scheduleKeepAlive();
     }, WATCH_KEEPALIVE_MS);
   }
 

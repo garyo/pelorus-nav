@@ -71,6 +71,22 @@ describe("NMEA parser", () => {
       const result = parseGGA(sentence);
       expect(result).not.toBeNull();
     });
+
+    it("rejects a garbled fix-quality field (NaN must not count as a fix)", () => {
+      expect(
+        parseGGA(
+          nmea("GPGGA,123519,4807.038,N,01131.000,E,X,08,0.9,545.4,M,47.0,M,,"),
+        ),
+      ).toBeNull();
+    });
+
+    it("rejects an empty fix-quality field", () => {
+      expect(
+        parseGGA(
+          nmea("GPGGA,123519,4807.038,N,01131.000,E,,08,0.9,545.4,M,47.0,M,,"),
+        ),
+      ).toBeNull();
+    });
   });
 
   describe("parseNMEA", () => {
@@ -137,6 +153,22 @@ describe("timestamp resolution around UTC midnight", () => {
       nmea("GPGGA,120000.50,4226.135,N,07110.042,W,1,08,1.2,10.0,M,,M,,"),
     );
     expect(g?.timestamp).toBe(Date.UTC(2026, 6, 4, 12, 0, 0, 500));
+  });
+
+  it("rejects a garbled RMC time field (no NaN timestamps)", () => {
+    expect(
+      parseRMC(
+        nmea("GPRMC,12ab19,A,4807.038,N,01131.000,E,022.4,084.4,230394,,"),
+      ),
+    ).toBeNull();
+  });
+
+  it("rejects a garbled GGA time field (no NaN timestamps)", () => {
+    expect(
+      parseGGA(
+        nmea("GPGGA,12ab19,4807.038,N,01131.000,E,1,08,0.9,545.4,M,47.0,M,,"),
+      ),
+    ).toBeNull();
   });
 
   it("RMC (dated) and GGA (heuristic) agree across the midnight straddle", () => {

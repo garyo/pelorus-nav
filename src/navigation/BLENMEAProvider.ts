@@ -249,20 +249,26 @@ export class BLENMEAProvider
     const c = this.rxCharacteristic;
     if (!c || !this.isConnected()) return Promise.resolve(null);
     return new Promise((resolve) => {
-      const timer = setTimeout(() => {
-        this.stream.onPodDiag = undefined;
-        resolve(null);
-      }, timeoutMs);
-      this.stream.onPodDiag = (line) => {
+      // Clean up only our own handler: a concurrent call may have replaced it,
+      // and this call's timeout must not cancel that one's pending response.
+      const handler = (line: string): void => {
         clearTimeout(timer);
-        this.stream.onPodDiag = undefined;
+        if (this.stream.onPodDiag === handler)
+          this.stream.onPodDiag = undefined;
         resolve(line);
       };
+      const timer = setTimeout(() => {
+        if (this.stream.onPodDiag === handler)
+          this.stream.onPodDiag = undefined;
+        resolve(null);
+      }, timeoutMs);
+      this.stream.onPodDiag = handler;
       const data = this.encoder.encode("DIAG\n");
       const write = c.writeValueWithResponse ?? c.writeValue;
       write?.call(c, data).catch(() => {
         clearTimeout(timer);
-        this.stream.onPodDiag = undefined;
+        if (this.stream.onPodDiag === handler)
+          this.stream.onPodDiag = undefined;
         resolve(null);
       });
     });

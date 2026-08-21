@@ -4,8 +4,17 @@ import {
   ActiveNavigationManager,
   computeNavigation,
   pickStartLeg,
+  resolveRestoredLeg,
   shouldAdvanceLeg,
 } from "./ActiveNavigation";
+import type { NavigationData } from "./NavigationData";
+
+// restore() loads routes/waypoints from IndexedDB — serve them from memory.
+const dbMock = vi.hoisted(() => ({ routes: [] as unknown[] }));
+vi.mock("../data/db", () => ({
+  getAllRoutes: vi.fn(async () => dbMock.routes),
+  getAllWaypoints: vi.fn(async () => []),
+}));
 
 describe("computeNavigation", () => {
   it("computes bearing and distance between two points", () => {
@@ -127,6 +136,149 @@ describe("pickStartLeg", () => {
   it("defaults to leg 1 for a degenerate single-waypoint route", () => {
     const single: Route = { ...route, waypoints: [route.waypoints[0]] };
     expect(pickStartLeg(0, -0.5, single, arrivalRadius)).toBe(1);
+  });
+});
+
+// Out-and-back route along the equator: W0 (0,0) → W1 (0,1) → W2 (0.1,0).
+// The return leg doubles back toward the origin, diverging 3–6 NM north of
+// the outbound leg over most of its length.
+const outAndBackRoute: Route = {
+  id: "r-back",
+  name: "Out and back",
+  color: "#00f",
+  visible: true,
+  createdAt: 0,
+  waypoints: [
+    { name: "Start", lat: 0, lon: 0 },
+    { name: "Out", lat: 0, lon: 1 },
+    { name: "Back", lat: 0.1, lon: 0 },
+  ],
+} as unknown as Route;
+
+describe("resolveRestoredLeg", () => {
+  const arrivalRadius = 0.1; // NM
+
+  it("keeps the persisted leg when the vessel is within its corridor", () => {
+    // Mid-return-leg: on leg 2's track, ~3 NM off the outbound leg.
+    expect(
+      resolveRestoredLeg(0.05, 0.5, outAndBackRoute, 2, arrivalRadius),
+    ).toBe(2);
+  });
+
+  it("keeps a persisted mid-outbound leg", () => {
+    expect(resolveRestoredLeg(0, 0.5, outAndBackRoute, 1, arrivalRadius)).toBe(
+      1,
+    );
+  });
+
+  it("scans forward to a later leg the vessel has progressed onto", () => {
+    // Persisted leg 1, but the vessel sits on the return leg's corridor.
+    expect(
+      resolveRestoredLeg(0.05, 0.5, outAndBackRoute, 1, arrivalRadius),
+    ).toBe(2);
+  });
+
+  it("falls back to pickStartLeg when far from every remaining leg", () => {
+    // Well west of the whole route: behind the start → approach leg 0.
+    expect(resolveRestoredLeg(0, -3, outAndBackRoute, 2, arrivalRadius)).toBe(
+      0,
+    );
+  });
+
+  it("falls back for out-of-range or leg-0 persisted indices", () => {
+    expect(resolveRestoredLeg(0, 0.5, outAndBackRoute, 99, arrivalRadius)).toBe(
+      1,
+    );
+    expect(resolveRestoredLeg(0, -0.5, outAndBackRoute, 0, arrivalRadius)).toBe(
+      0,
+    );
+  });
+});
+
+describe("restore", () => {
+  const KEY = "pelorus-nav-active-nav";
+  let storage: Map<string, string>;
+  let onGPS: ((d: NavigationData) => void) | null;
+
+  beforeEach(() => {
+    storage = new Map();
+    onGPS = null;
+    dbMock.routes = [outAndBackRoute];
+    vi.stubGlobal("localStorage", {
+      getItem: (k: string) => storage.get(k) ?? null,
+      setItem: (k: string, v: string) => storage.set(k, v),
+      removeItem: (k: string) => storage.delete(k),
+    });
+  });
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  function makeNav(fix: { lat: number; lon: number } | null) {
+    const navManager = {
+      subscribe: (cb: (d: NavigationData) => void) => {
+        onGPS = cb;
+      },
+      getLastData: () =>
+        fix
+          ? ({ latitude: fix.lat, longitude: fix.lon } as NavigationData)
+          : null,
+    } as unknown as ConstructorParameters<typeof ActiveNavigationManager>[0];
+    return new ActiveNavigationManager(navManager);
+  }
+
+  function persistLeg(legIndex: number): void {
+    storage.set(
+      KEY,
+      JSON.stringify({ type: "route", routeId: "r-back", legIndex }),
+    );
+  }
+
+  function legOf(nav: ActiveNavigationManager): number | null {
+    const state = nav.getState();
+    return state.type === "route" ? state.legIndex : null;
+  }
+
+  it("keeps a plausible persisted leg on a doubling-back route", async () => {
+    persistLeg(2);
+    const nav = makeNav({ lat: 0.05, lon: 0.5 }); // mid-return-leg
+    await nav.restore();
+    expect(legOf(nav)).toBe(2); // pickStartLeg would have re-targeted leg 1
+  });
+
+  it("falls back when the restored fix is far from the remaining route", async () => {
+    persistLeg(2);
+    const nav = makeNav({ lat: 0, lon: -3 }); // behind the start
+    await nav.restore();
+    expect(legOf(nav)).toBe(0);
+  });
+
+  it("keeps the persisted leg without a fix, then a plausible first fix confirms it", async () => {
+    persistLeg(2);
+    const nav = makeNav(null);
+    await nav.restore();
+    expect(legOf(nav)).toBe(2);
+
+    onGPS?.({ latitude: 0.05, longitude: 0.5 } as NavigationData);
+    expect(legOf(nav)).toBe(2);
+  });
+
+  it("re-resolves a fixless restore when the first fix lands far from the leg", async () => {
+    persistLeg(2);
+    const nav = makeNav(null);
+    await nav.restore();
+    expect(legOf(nav)).toBe(2);
+
+    // Simulator-style reset: first fix appears back near the route start.
+    onGPS?.({ latitude: 0, longitude: 0.01 } as NavigationData);
+    expect(legOf(nav)).toBe(1);
+  });
+
+  it("falls back when the persisted legIndex is out of range", async () => {
+    persistLeg(99);
+    const nav = makeNav({ lat: 0.05, lon: 0.5 });
+    await nav.restore();
+    expect(legOf(nav)).toBe(1);
   });
 });
 

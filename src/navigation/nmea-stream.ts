@@ -26,6 +26,11 @@ import { SatelliteTracker } from "./satellite-status";
 // yields one coherent frame per epoch instead of one per sentence.
 const SAT_BURST_QUIET_MS = 200;
 
+// No valid NMEA sentence exceeds 82 characters, so a partial line larger than
+// this is garbage (wrong baud rate, binary noise) that happens to contain no
+// newline. Keep only the buffer's tail so such input can't grow it unboundedly.
+const MAX_PARTIAL_LINE_CHARS = 4096;
+
 /**
  * Battery state from a Dual XGPS150/160 proprietary $GPPWR sentence
  * ("$GPPWR,026A,0,1,…"), or null if the line isn't a parseable $GPPWR.
@@ -95,6 +100,9 @@ export class NMEAStream {
     this.buffer += chunk;
     const lines = this.buffer.split("\n");
     this.buffer = lines.pop() ?? "";
+    if (this.buffer.length > MAX_PARTIAL_LINE_CHARS) {
+      this.buffer = this.buffer.slice(-MAX_PARTIAL_LINE_CHARS);
+    }
     for (const line of lines) this.processLine(line.trim());
   }
 

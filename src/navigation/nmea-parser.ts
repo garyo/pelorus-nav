@@ -62,16 +62,20 @@ const DAY_MS = 24 * 3600_000;
  * midnight (a fix generated at 23:59:59 but parsed at 00:00:01 landed ~24 h
  * in the future — nightly filter resets for BLE-pod/serial users). Resolve
  * to the nearest day instead: shift ±24 h to minimize |t − now|.
+ *
+ * Returns null when the time field is garbled (non-numeric) — a NaN timestamp
+ * must not propagate into a fix.
  */
 function parseTime(
   hhmmss: string,
   ddmmyy?: string,
   nowMs = Date.now(),
-): number {
+): number | null {
   if (!hhmmss || hhmmss.length < 6) return nowMs;
   const h = parseInt(hhmmss.slice(0, 2), 10);
   const m = parseInt(hhmmss.slice(2, 4), 10);
   const s = parseFloat(hhmmss.slice(4));
+  if (Number.isNaN(h) || Number.isNaN(m) || Number.isNaN(s)) return null;
   const secs = Math.floor(s);
   const ms = Math.round((s % 1) * 1000);
 
@@ -114,6 +118,8 @@ export function parseRMC(sentence: string): NMEAPosition | null {
 
   const sogKnots = parts[7] ? parseFloat(parts[7]) : null;
   const cog = parts[8] ? parseFloat(parts[8]) : null;
+  const timestamp = parseTime(parts[1], parts[9] || undefined);
+  if (timestamp === null) return null;
 
   return {
     latitude: lat,
@@ -122,7 +128,7 @@ export function parseRMC(sentence: string): NMEAPosition | null {
     sog: sogKnots !== null && !Number.isNaN(sogKnots) ? sogKnots : null,
     altitude: null,
     accuracy: null,
-    timestamp: parseTime(parts[1], parts[9] || undefined),
+    timestamp,
   };
 }
 
@@ -137,8 +143,10 @@ export function parseGGA(sentence: string): NMEAPosition | null {
   const type = parts[0];
   if (!type.endsWith("GGA")) return null;
 
+  // Require a positive fix quality: 0 means no fix, and a garbled field
+  // (parseInt → NaN) must not count as a fix either.
   const fixQuality = parseInt(parts[6], 10);
-  if (fixQuality === 0) return null; // no fix
+  if (!(fixQuality >= 1)) return null;
 
   const lat = parseLatitude(parts[2], parts[3]);
   const lon = parseLongitude(parts[4], parts[5]);
@@ -148,6 +156,8 @@ export function parseGGA(sentence: string): NMEAPosition | null {
   const hdop = parts[8] ? parseFloat(parts[8]) : null;
   // Rough accuracy estimate from HDOP (HDOP * 5m typical)
   const accuracy = hdop !== null && !Number.isNaN(hdop) ? hdop * 5 : null;
+  const timestamp = parseTime(parts[1]);
+  if (timestamp === null) return null;
 
   return {
     latitude: lat,
@@ -156,7 +166,7 @@ export function parseGGA(sentence: string): NMEAPosition | null {
     sog: null,
     altitude: altitude !== null && !Number.isNaN(altitude) ? altitude : null,
     accuracy,
-    timestamp: parseTime(parts[1]),
+    timestamp,
   };
 }
 

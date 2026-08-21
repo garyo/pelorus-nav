@@ -119,6 +119,18 @@ describe("NMEAStream", () => {
     expect(fixes).toHaveLength(0);
   });
 
+  it("caps the partial-line buffer under newline-free garbage", () => {
+    const { stream, fixes } = collect();
+    // Wrong-baud/binary noise: a long stream that never contains a newline.
+    for (let i = 0; i < 100; i++) stream.push("\xFF\x00garbage".repeat(100));
+    const buffer = (stream as unknown as { buffer: string }).buffer;
+    expect(buffer.length).toBeLessThanOrEqual(4096);
+
+    // A real epoch after the noise still parses once a newline flushes it.
+    stream.push(`\n${rmc("123519")}\r\n${gga("123519")}\r\n`);
+    expect(fixes).toHaveLength(1);
+  });
+
   it("reset() drops the pending epoch and carried COG/SOG", () => {
     const { stream, fixes } = collect();
     stream.push(`${rmc("123519")}\r\n${gga("123519")}\r\n`); // fix 0
