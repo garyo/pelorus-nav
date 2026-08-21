@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { acceptDisclaimer } from "./helpers";
+import { acceptDisclaimer, openSettings } from "./helpers";
 
 test.beforeEach(async ({ page }) => {
   await acceptDisclaimer(page);
@@ -36,9 +36,10 @@ test("chart source select in settings switches providers", async ({ page }) => {
     timeout: 10000,
   });
 
-  // Open the settings panel (gear in the top bar menu) and the Layers tab,
-  // where the chart-source select lives.
-  await page.locator(".settings-wrapper button").first().click();
+  // Open the settings panel (gear in the top bar menu, behind the hamburger
+  // on narrow screens) and the Layers tab, where the chart-source select
+  // lives.
+  await openSettings(page);
   await page.getByRole("button", { name: "Layers" }).click();
 
   const select = page.locator("#settings-chart-source");

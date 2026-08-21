@@ -1,49 +1,11 @@
 import { expect, test } from "@playwright/test";
-import { acceptDisclaimer, suppressWhatsNew } from "./helpers";
-
-/** Matches src/data/Route.ts. */
-interface RouteWaypoint {
-  lat: number;
-  lon: number;
-  name: string;
-}
-interface SeedRoute {
-  id: string;
-  name: string;
-  createdAt: number;
-  color: string;
-  visible: boolean;
-  waypoints: RouteWaypoint[];
-}
-
-interface MapProbeWindow {
-  __map: {
-    jumpTo(opts: { center: [number, number]; zoom: number }): void;
-    project(lngLat: [number, number]): { x: number; y: number };
-    getContainer(): HTMLElement;
-    once(event: string, cb: () => void): void;
-  };
-}
+import { acceptDisclaimer, seedRoute, suppressWhatsNew } from "./helpers";
 
 const A: [number, number] = [42.363715, -71.04743]; // [lat, lon]
 const B: [number, number] = [42.352039, -71.032698];
 
 const ROUTE_ID = "e2e-route-identify";
 const ROUTE_NAME = "E2E Identify Loop";
-
-function seedRoute(): SeedRoute {
-  return {
-    id: ROUTE_ID,
-    name: ROUTE_NAME,
-    createdAt: Date.now(),
-    color: "#4488cc",
-    visible: true,
-    waypoints: [
-      { lat: A[0], lon: A[1], name: "Inner Harbor" },
-      { lat: B[0], lon: B[1], name: "Castle Island" },
-    ],
-  };
-}
 
 /**
  * Tap-to-identify: click a visible route's line on the chart, expect the
@@ -66,24 +28,17 @@ test("tapping a route line identifies it and opens the Routes panel selected", a
     timeout: 10000,
   });
 
-  await page.evaluate(
-    (route) =>
-      new Promise<void>((resolve, reject) => {
-        const req = indexedDB.open("pelorus-nav");
-        req.onerror = () => reject(req.error);
-        req.onsuccess = () => {
-          const db = req.result;
-          const tx = db.transaction("routes", "readwrite");
-          tx.objectStore("routes").put(route);
-          tx.oncomplete = () => {
-            db.close();
-            resolve();
-          };
-          tx.onerror = () => reject(tx.error);
-        };
-      }),
-    seedRoute(),
-  );
+  await seedRoute(page, {
+    id: ROUTE_ID,
+    name: ROUTE_NAME,
+    createdAt: Date.now(),
+    color: "#4488cc",
+    visible: true,
+    waypoints: [
+      { lat: A[0], lon: A[1], name: "Inner Harbor" },
+      { lat: B[0], lon: B[1], name: "Castle Island" },
+    ],
+  });
 
   // Reload so RouteLayer's style-load pass draws the seeded route.
   await page.reload();
@@ -96,19 +51,17 @@ test("tapping a route line identifies it and opens the Routes panel selected", a
   // route line is rendered (hit-testable) at a known screen position.
   const mid: [number, number] = [(A[0] + B[0]) / 2, (A[1] + B[1]) / 2];
   await page.evaluate(async ([lat, lon]) => {
-    const map = (window as unknown as MapProbeWindow).__map;
     await new Promise<void>((resolve) => {
-      map.once("idle", () => resolve());
-      map.jumpTo({ center: [lon, lat], zoom: 13 });
+      window.__map.once("idle", () => resolve());
+      window.__map.jumpTo({ center: [lon, lat], zoom: 13 });
     });
   }, mid);
 
   // Project the midpoint (on the line, away from both waypoint markers)
   // to window coordinates and click it.
   const pt = await page.evaluate(([lat, lon]) => {
-    const map = (window as unknown as MapProbeWindow).__map;
-    const p = map.project([lon, lat]);
-    const rect = map.getContainer().getBoundingClientRect();
+    const p = window.__map.project([lon, lat]);
+    const rect = window.__map.getContainer().getBoundingClientRect();
     return { x: rect.left + p.x, y: rect.top + p.y };
   }, mid);
   await page.mouse.click(pt.x, pt.y);

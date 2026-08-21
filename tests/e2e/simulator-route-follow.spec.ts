@@ -1,20 +1,12 @@
 import { expect, test } from "@playwright/test";
-import { acceptDisclaimer, suppressWhatsNew } from "./helpers";
-
-/** Matches src/data/Route.ts. */
-interface RouteWaypoint {
-  lat: number;
-  lon: number;
-  name: string;
-}
-interface SeedRoute {
-  id: string;
-  name: string;
-  createdAt: number;
-  color: string;
-  visible: boolean;
-  waypoints: RouteWaypoint[];
-}
+import {
+  acceptDisclaimer,
+  closeSettings,
+  openSettings,
+  seedRoute,
+  seedSettings,
+  suppressWhatsNew,
+} from "./helpers";
 
 // First three points of SimulatorProvider's BOSTON_HARBOR_ROUTE. `simStart`
 // below is set to the first point, so the simulator's own path traces
@@ -25,21 +17,6 @@ const B: [number, number] = [42.352039, -71.032698]; // off Castle Island
 const C: [number, number] = [42.354634, -71.030561]; // across the channel
 
 const ROUTE_ID = "e2e-route-follow";
-
-function seedRoute(): SeedRoute {
-  return {
-    id: ROUTE_ID,
-    name: "E2E Harbor Loop",
-    createdAt: Date.now(),
-    color: "#4488cc",
-    visible: true,
-    waypoints: [
-      { lat: A[0], lon: A[1], name: "Inner Harbor" },
-      { lat: B[0], lon: B[1], name: "Castle Island" },
-      { lat: C[0], lon: C[1], name: "President Roads" },
-    ],
-  };
-}
 
 /**
  * Route-follow: activate a route whose waypoints lie on the simulator's
@@ -59,14 +36,9 @@ test("simulator-driven route navigation advances through waypoints on arrival", 
 }) => {
   await suppressWhatsNew(page);
   await acceptDisclaimer(page);
-  await page.addInitScript(() => {
-    const raw = localStorage.getItem("pelorus-nav-settings");
-    const settings = raw ? JSON.parse(raw) : {};
-    Object.assign(settings, {
-      simulatorSpeed: 100,
-      showInstrumentHUD: true,
-    });
-    localStorage.setItem("pelorus-nav-settings", JSON.stringify(settings));
+  await seedSettings(page, {
+    simulatorSpeed: 100,
+    showInstrumentHUD: true,
   });
 
   // simStart forces SimulatorProvider into "route" mode over
@@ -86,24 +58,18 @@ test("simulator-driven route navigation advances through waypoints on arrival", 
     /open/,
   );
 
-  await page.evaluate(
-    (route) =>
-      new Promise<void>((resolve, reject) => {
-        const req = indexedDB.open("pelorus-nav");
-        req.onerror = () => reject(req.error);
-        req.onsuccess = () => {
-          const db = req.result;
-          const tx = db.transaction("routes", "readwrite");
-          tx.objectStore("routes").put(route);
-          tx.oncomplete = () => {
-            db.close();
-            resolve();
-          };
-          tx.onerror = () => reject(tx.error);
-        };
-      }),
-    seedRoute(),
-  );
+  await seedRoute(page, {
+    id: ROUTE_ID,
+    name: "E2E Harbor Loop",
+    createdAt: Date.now(),
+    color: "#4488cc",
+    visible: true,
+    waypoints: [
+      { lat: A[0], lon: A[1], name: "Inner Harbor" },
+      { lat: B[0], lon: B[1], name: "Castle Island" },
+      { lat: C[0], lon: C[1], name: "President Roads" },
+    ],
+  });
 
   // Close and reopen to force a refresh() against the now-seeded route.
   await routesBtn.click();
@@ -121,11 +87,10 @@ test("simulator-driven route navigation advances through waypoints on arrival", 
 
   // Now start the simulator — its position clock begins from this instant.
   await routesBtn.click(); // close Routes panel out of the way
-  const settingsBtn = page.locator(".settings-wrapper button").first();
-  await settingsBtn.click();
+  await openSettings(page);
   await page.locator('.settings-tab[data-tab="navigation"]').click();
   await page.locator("#settings-gps-source").selectOption("simulator");
-  await settingsBtn.click(); // close settings
+  await closeSettings(page);
 
   // As the simulated vessel reaches Castle Island's arrival radius,
   // ActiveNavigationManager advances the leg and the HUD caption updates —

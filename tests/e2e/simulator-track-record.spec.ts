@@ -1,5 +1,10 @@
 import { expect, test } from "@playwright/test";
-import { acceptDisclaimer, suppressWhatsNew } from "./helpers";
+import {
+  acceptDisclaimer,
+  readIndexedDb,
+  seedSettings,
+  suppressWhatsNew,
+} from "./helpers";
 
 interface TrackMetaProbe {
   id: string;
@@ -24,14 +29,9 @@ test("recording a track while the simulator moves produces a saved track with di
 }) => {
   await suppressWhatsNew(page);
   await acceptDisclaimer(page);
-  await page.addInitScript(() => {
-    const raw = localStorage.getItem("pelorus-nav-settings");
-    const settings = raw ? JSON.parse(raw) : {};
-    Object.assign(settings, {
-      gpsSource: "simulator",
-      simulatorSpeed: 50,
-    });
-    localStorage.setItem("pelorus-nav-settings", JSON.stringify(settings));
+  await seedSettings(page, {
+    gpsSource: "simulator",
+    simulatorSpeed: 50,
   });
 
   await page.goto(`/?simStart=${START[0]},${START[1]}`);
@@ -87,23 +87,7 @@ test("recording a track while the simulator moves produces a saved track with di
   await expect(row).toBeVisible({ timeout: 5000 });
   await expect(row.locator(".manager-item-detail")).toContainText("nm");
 
-  const metas = await page.evaluate(
-    () =>
-      new Promise<TrackMetaProbe[]>((resolve, reject) => {
-        const req = indexedDB.open("pelorus-nav");
-        req.onerror = () => reject(req.error);
-        req.onsuccess = () => {
-          const db = req.result;
-          const tx = db.transaction("tracks", "readonly");
-          const getAll = tx.objectStore("tracks").getAll();
-          getAll.onsuccess = () => {
-            db.close();
-            resolve(getAll.result as TrackMetaProbe[]);
-          };
-          getAll.onerror = () => reject(getAll.error);
-        };
-      }),
-  );
+  const metas = await readIndexedDb<TrackMetaProbe>(page, "tracks");
 
   expect(metas.length).toBeGreaterThan(0);
   const latest = metas.reduce((a, b) => (a.createdAt > b.createdAt ? a : b));

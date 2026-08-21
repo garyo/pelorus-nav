@@ -1,5 +1,5 @@
 import { expect, type Page, test } from "@playwright/test";
-import { acceptDisclaimer, suppressWhatsNew } from "./helpers";
+import { acceptDisclaimer, seedSettings, suppressWhatsNew } from "./helpers";
 
 // SimulatorProvider's Boston inner-harbor start point (see
 // simulator-route-follow.spec.ts for the route geometry).
@@ -22,15 +22,10 @@ async function holdElement(
 async function seedSimulatorSettings(page: Page): Promise<void> {
   await suppressWhatsNew(page);
   await acceptDisclaimer(page);
-  await page.addInitScript(() => {
-    const raw = localStorage.getItem("pelorus-nav-settings");
-    const settings = raw ? JSON.parse(raw) : {};
-    Object.assign(settings, {
-      gpsSource: "simulator",
-      simulatorSpeed: 10,
-      showInstrumentHUD: true,
-    });
-    localStorage.setItem("pelorus-nav-settings", JSON.stringify(settings));
+  await seedSettings(page, {
+    gpsSource: "simulator",
+    simulatorSpeed: 10,
+    showInstrumentHUD: true,
   });
 }
 
@@ -82,9 +77,7 @@ test("COB hold-to-activate, restart survival, cancel guard, and resolve", async 
   await expect(cobBtn).toHaveClass(/cob-active/);
   // Emergency auto-zoom snapped in close (instant fit, ~z15 at the drop —
   // an animated fit would be canceled mid-flight by follow-mode jumpTo)
-  const zoom = await page.evaluate(() =>
-    (window as unknown as { __map: { getZoom(): number } }).__map.getZoom(),
-  );
+  const zoom = await page.evaluate(() => window.__map.getZoom());
   expect(zoom).toBeGreaterThanOrEqual(13.5);
 
   // The COB waypoint shows up in the still-open waypoint manager

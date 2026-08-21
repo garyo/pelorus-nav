@@ -3,7 +3,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { test } from "@playwright/test";
-import { acceptDisclaimer } from "./helpers";
+import { acceptDisclaimer, seedMapPosition, seedSettings } from "./helpers";
 
 /**
  * Headless render-coverage harness for the synthetic S-57 test chart.
@@ -102,25 +102,16 @@ test("S-57 test-chart render coverage", async ({ page }) => {
     // Seed settings before boot: day theme, no GPS, no network underlays, the
     // chosen symbology (so the sprite sheet the style loads matches the layers
     // the test hook builds).
-    await page.addInitScript(
-      ([sch, ctr]) => {
-        const raw = localStorage.getItem("pelorus-nav-settings");
-        const s = raw ? JSON.parse(raw) : {};
-        s.symbologyScheme = sch;
-        s.displayTheme = "day";
-        s.gpsSource = "none";
-        s.detailLevel = 2;
-        s.streetUnderlay = "off";
-        s.chartBlend = "vector";
-        s.trackRecordingEnabled = false;
-        localStorage.setItem("pelorus-nav-settings", JSON.stringify(s));
-        localStorage.setItem(
-          "pelorus-nav-map-position",
-          JSON.stringify({ center: ctr, zoom: 12 }),
-        );
-      },
-      [scheme, center] as [string, [number, number]],
-    );
+    await seedSettings(page, {
+      symbologyScheme: scheme,
+      displayTheme: "day",
+      gpsSource: "none",
+      detailLevel: 2,
+      streetUnderlay: "off",
+      chartBlend: "vector",
+      trackRecordingEnabled: false,
+    });
+    await seedMapPosition(page, center, 12);
 
     await page.goto(`/?testChart=1&scheme=${scheme}`);
     await page.locator(".maplibregl-map").waitFor({ timeout: 20000 });

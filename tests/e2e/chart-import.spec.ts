@@ -19,19 +19,6 @@ const SOURCE_ID = "rnc-import-e2e-test";
 // Center of the fixture's bounds (mid-Pacific, no catalog coverage)
 const FIXTURE_CENTER = { lng: -149.77, lat: -30.14 };
 
-declare global {
-  interface Window {
-    __map: {
-      getStyle(): { sources: Record<string, unknown> };
-      getLayer(id: string): unknown;
-      getCenter(): { lng: number; lat: number };
-      getZoom(): number;
-      once(ev: string, cb: () => void): void;
-      project(lngLat: [number, number]): { x: number; y: number };
-    };
-  }
-}
-
 test("imported raster PMTiles becomes a rendered chart and can be removed", async ({
   page,
 }) => {

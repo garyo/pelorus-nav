@@ -6,22 +6,14 @@
  */
 
 import { expect, test } from "@playwright/test";
-import { acceptDisclaimer, suppressWhatsNew } from "./helpers";
-
-interface RouteWaypoint {
-  lat: number;
-  lon: number;
-  name: string;
-}
-
-interface SeedRoute {
-  id: string;
-  name: string;
-  createdAt: number;
-  color: string;
-  visible: boolean;
-  waypoints: RouteWaypoint[];
-}
+import {
+  acceptDisclaimer,
+  type RouteWaypoint,
+  readIndexedDb,
+  type SeedRoute,
+  seedRoute,
+  suppressWhatsNew,
+} from "./helpers";
 
 const ROUTE_ID = "e2e-add-mode-seed";
 
@@ -30,39 +22,6 @@ const SEED_WPS: RouteWaypoint[] = [
   { lat: 42.33, lon: -71.02, name: "Harbor Exit" },
   { lat: 42.31, lon: -70.98, name: "Channel Mark" },
 ];
-
-declare global {
-  interface Window {
-    __map: {
-      project(c: [number, number]): { x: number; y: number };
-      jumpTo(opts: { center: [number, number]; zoom: number }): void;
-      getSource(id: string): {
-        serialize(): { data: GeoJSON.FeatureCollection };
-      };
-    };
-  }
-}
-
-function readRoute(): Promise<SeedRoute | undefined> {
-  return new Promise<SeedRoute | undefined>((resolve, reject) => {
-    const req = indexedDB.open("pelorus-nav");
-    req.onerror = () => reject(req.error);
-    req.onsuccess = () => {
-      const db = req.result;
-      const tx = db.transaction("routes", "readonly");
-      const getAll = tx.objectStore("routes").getAll();
-      getAll.onsuccess = () => {
-        db.close();
-        resolve(
-          (getAll.result as SeedRoute[]).find(
-            (r) => r.id === "e2e-add-mode-seed",
-          ),
-        ); // ROUTE_ID — evaluate() can't close over module scope
-      };
-      getAll.onerror = () => reject(getAll.error);
-    };
-  });
-}
 
 test("editing a saved route ignores chart taps until Add Points is on", async ({
   page,
@@ -75,31 +34,14 @@ test("editing a saved route ignores chart taps until Add Points is on", async ({
   // Seeding needs the "routes" store; it exists once the Routes button does.
   const routesBtn = page.getByRole("button", { name: "Routes" });
   await routesBtn.click();
-  await page.evaluate(
-    (route) =>
-      new Promise<void>((resolve, reject) => {
-        const req = indexedDB.open("pelorus-nav");
-        req.onerror = () => reject(req.error);
-        req.onsuccess = () => {
-          const db = req.result;
-          const tx = db.transaction("routes", "readwrite");
-          tx.objectStore("routes").put(route);
-          tx.oncomplete = () => {
-            db.close();
-            resolve();
-          };
-          tx.onerror = () => reject(tx.error);
-        };
-      }),
-    {
-      id: ROUTE_ID,
-      name: "Seed Route",
-      createdAt: Date.now(),
-      color: "#cc4444",
-      visible: true,
-      waypoints: SEED_WPS,
-    } satisfies SeedRoute,
-  );
+  await seedRoute(page, {
+    id: ROUTE_ID,
+    name: "Seed Route",
+    createdAt: Date.now(),
+    color: "#cc4444",
+    visible: true,
+    waypoints: SEED_WPS,
+  });
   await page.reload();
   await expect(page.locator(".maplibregl-map")).toBeVisible({ timeout: 10000 });
 
@@ -134,15 +76,17 @@ test("editing a saved route ignores chart taps until Add Points is on", async ({
     const spot = await page.evaluate(
       ({ clearance }) => {
         const handles = ["_route-edit-points", "_route-edit-midpoints"].flatMap(
-          (id) =>
-            window.__map
-              .getSource(id)
+          (id) => {
+            const src = window.__map.getSource(id);
+            if (!src) throw new Error(`missing edit-handle source ${id}`);
+            return src
               .serialize()
               .data.features.map((f) =>
                 window.__map.project(
                   (f.geometry as GeoJSON.Point).coordinates as [number, number],
                 ),
-              ),
+              );
+          },
         );
         const canvasEl = document.querySelector(
           ".maplibregl-map canvas",
@@ -207,5 +151,8 @@ test("editing a saved route ignores chart taps until Add Points is on", async ({
   await expect(barText).toContainText("4 WPs"); // appended on the first tap
 
   await page.getByRole("button", { name: "Done" }).click();
-  expect((await page.evaluate(readRoute))?.waypoints).toHaveLength(4);
+  const saved = (await readIndexedDb<SeedRoute>(page, "routes")).find(
+    (r) => r.id === ROUTE_ID,
+  );
+  expect(saved?.waypoints).toHaveLength(4);
 });

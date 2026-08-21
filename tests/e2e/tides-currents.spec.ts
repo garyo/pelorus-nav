@@ -1,19 +1,10 @@
 import { expect, test } from "@playwright/test";
-import { acceptDisclaimer, suppressWhatsNew } from "./helpers";
-
-interface ProbeMap {
-  getSource(id: string): unknown;
-  querySourceFeatures(id: string): { properties: Record<string, unknown> }[];
-  queryRenderedFeatures(
-    geometry?: unknown,
-    options?: { layers: string[] },
-  ): {
-    properties: Record<string, unknown>;
-    geometry: { coordinates: [number, number] };
-  }[];
-  project(lngLat: [number, number]): { x: number; y: number };
-  getContainer(): HTMLElement;
-}
+import {
+  acceptDisclaimer,
+  seedMapPosition,
+  seedSettings,
+  suppressWhatsNew,
+} from "./helpers";
 
 /**
  * Tides & currents overlay: enable the layer via settings, start over
@@ -26,19 +17,8 @@ test("tides & currents overlay renders stations and shows event popup", async ({
   // Seed settings + map position before the app boots
   await suppressWhatsNew(page);
   await acceptDisclaimer(page);
-  await page.addInitScript(() => {
-    const raw = localStorage.getItem("pelorus-nav-settings");
-    const settings = raw ? JSON.parse(raw) : {};
-    settings.layerGroups = {
-      ...(settings.layerGroups ?? {}),
-      tidesCurrents: true,
-    };
-    localStorage.setItem("pelorus-nav-settings", JSON.stringify(settings));
-    localStorage.setItem(
-      "pelorus-nav-map-position",
-      JSON.stringify({ center: [-70.97, 42.34], zoom: 12 }),
-    );
-  });
+  await seedSettings(page, { layerGroups: { tidesCurrents: true } });
+  await seedMapPosition(page, [-70.97, 42.34], 12);
   await page.goto("/");
   await expect(page.locator(".maplibregl-map")).toBeVisible({
     timeout: 10000,
@@ -50,9 +30,8 @@ test("tides & currents overlay renders stations and shows event popup", async ({
   // plain assertion would then race whichever kind arrives second.
   const countKind = (kind: string) =>
     page.evaluate((k) => {
-      const map = (window as unknown as { __map?: ProbeMap }).__map;
-      if (!map?.getSource("_tides-currents")) return 0;
-      return map
+      if (!window.__map.getSource("_tides-currents")) return 0;
+      return window.__map
         .querySourceFeatures("_tides-currents")
         .filter((f) => f.properties._kind === k).length;
     }, kind);
@@ -68,7 +47,7 @@ test("tides & currents overlay renders stations and shows event popup", async ({
   // source data arrives), not just present in the source.
   await page.waitForFunction(
     () => {
-      const map = (window as unknown as { __map: ProbeMap }).__map;
+      const map = window.__map;
       return (
         map.queryRenderedFeatures(undefined, {
           layers: [
@@ -87,7 +66,7 @@ test("tides & currents overlay renders stations and shows event popup", async ({
   // ids shift when the tides bundle is regenerated. The one nearest screen
   // center is least likely to sit under a HUD element.
   const point = await page.evaluate(() => {
-    const map = (window as unknown as { __map: ProbeMap }).__map;
+    const map = window.__map;
     const stations = map.queryRenderedFeatures(undefined, {
       layers: ["_current-arrows", "_current-slack-flood", "_current-slack-ebb"],
     });

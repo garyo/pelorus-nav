@@ -1,21 +1,12 @@
 import { expect, test } from "@playwright/test";
-import { acceptDisclaimer, suppressWhatsNew } from "./helpers";
-
-/** Matches src/data/Route.ts. */
-interface RouteWaypoint {
-  lat: number;
-  lon: number;
-  name: string;
-}
-
-interface SeedRoute {
-  id: string;
-  name: string;
-  createdAt: number;
-  color: string;
-  visible: boolean;
-  waypoints: RouteWaypoint[];
-}
+import {
+  acceptDisclaimer,
+  type RouteWaypoint,
+  readIndexedDb,
+  type SeedRoute,
+  seedRoute,
+  suppressWhatsNew,
+} from "./helpers";
 
 const ROUTE_ID = "e2e-snap-seed";
 
@@ -24,26 +15,6 @@ const SEED_WPS: RouteWaypoint[] = [
   { lat: 42.33, lon: -71.02, name: "Harbor Exit" },
   { lat: 42.31, lon: -70.98, name: "Channel Mark" },
 ];
-
-function seedRoute(): SeedRoute {
-  return {
-    id: ROUTE_ID,
-    name: "Seed Route",
-    createdAt: Date.now(),
-    color: "#cc4444",
-    visible: true,
-    waypoints: SEED_WPS,
-  };
-}
-
-declare global {
-  interface Window {
-    __map: {
-      project(c: [number, number]): { x: number; y: number };
-      jumpTo(opts: { center: [number, number]; zoom: number }): void;
-    };
-  }
-}
 
 test("new-route waypoints snap onto a visible route's waypoints", async ({
   page,
@@ -56,24 +27,14 @@ test("new-route waypoints snap onto a visible route's waypoints", async ({
   // Seeding needs the "routes" store; it exists once the Routes button does.
   const routesBtn = page.getByRole("button", { name: "Routes" });
   await routesBtn.click();
-  await page.evaluate(
-    (route) =>
-      new Promise<void>((resolve, reject) => {
-        const req = indexedDB.open("pelorus-nav");
-        req.onerror = () => reject(req.error);
-        req.onsuccess = () => {
-          const db = req.result;
-          const tx = db.transaction("routes", "readwrite");
-          tx.objectStore("routes").put(route);
-          tx.oncomplete = () => {
-            db.close();
-            resolve();
-          };
-          tx.onerror = () => reject(tx.error);
-        };
-      }),
-    seedRoute(),
-  );
+  await seedRoute(page, {
+    id: ROUTE_ID,
+    name: "Seed Route",
+    createdAt: Date.now(),
+    color: "#cc4444",
+    visible: true,
+    waypoints: SEED_WPS,
+  });
   // The route was seeded behind RouteLayer's back — reload so boot-time
   // reloadAll() picks it up as a snap-candidate source.
   await page.reload();
@@ -111,23 +72,7 @@ test("new-route waypoints snap onto a visible route's waypoints", async ({
 
   await page.getByRole("button", { name: "Done" }).click();
 
-  const routes = await page.evaluate(
-    () =>
-      new Promise<SeedRoute[]>((resolve, reject) => {
-        const req = indexedDB.open("pelorus-nav");
-        req.onerror = () => reject(req.error);
-        req.onsuccess = () => {
-          const db = req.result;
-          const tx = db.transaction("routes", "readonly");
-          const getAll = tx.objectStore("routes").getAll();
-          getAll.onsuccess = () => {
-            db.close();
-            resolve(getAll.result as SeedRoute[]);
-          };
-          getAll.onerror = () => reject(getAll.error);
-        };
-      }),
-  );
+  const routes = await readIndexedDb<SeedRoute>(page, "routes");
 
   const created = routes.find((r) => r.id !== ROUTE_ID);
   expect(created).toBeTruthy();

@@ -115,15 +115,7 @@ test("offline failure names the cause and offers no Retry", async ({
   await abortChartRequests(page);
   await context.setOffline(true);
   await page.evaluate(() => {
-    const m = (
-      window as unknown as {
-        __map: {
-          getCenter(): { lng: number; lat: number };
-          getZoom(): number;
-          jumpTo(o: { center: [number, number]; zoom: number }): void;
-        };
-      }
-    ).__map;
+    const m = window.__map;
     const c = m.getCenter();
     m.jumpTo({ center: [c.lng + 0.05, c.lat + 0.03], zoom: m.getZoom() + 1 });
   });
