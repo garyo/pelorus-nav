@@ -1,12 +1,10 @@
 /**
  * Public API for the nautical chart style system.
  *
- * Re-exports getNauticalLayers() with the same signature as the
- * original monolithic nautical-style.ts, but composed from
+ * getNauticalLayers() builds the full S-52 layer set, composed from
  * category-specific layer modules.
  */
 import type { LayerSpecification } from "maplibre-gl";
-import type { DepthUnit, DisplayTheme, SymbologyScheme } from "../../settings";
 import {
   getAdditionalAreaLayers,
   getAreaLayers,
@@ -31,7 +29,7 @@ import {
   getOtherPointLayers,
 } from "./layers/points";
 import { getTextLayers } from "./layers/text";
-import { createStyleContext } from "./style-context";
+import { createStyleContext, type StyleContextOptions } from "./style-context";
 
 /**
  * Maps layer IDs to group names for per-group toggle control.
@@ -401,34 +399,29 @@ function catFilter(
   return showOther || showStandard; // build OTHER layers; filter later
 }
 
+/** Options for getNauticalLayers: sourceId plus StyleContext overrides. */
+export interface NauticalLayersOptions
+  extends Partial<Omit<StyleContextOptions, "sourceId">> {
+  sourceId: string;
+}
+
 export function getNauticalLayers(
-  sourceId: string,
-  depthUnit: DepthUnit = "meters",
-  detailOffset = 0,
-  layerGroups: Record<string, boolean> = {},
-  coverageSourceId?: string,
-  theme: DisplayTheme = "day",
-  symbology: SymbologyScheme = "iho-s52",
-  shallowDepth = 5,
-  safetyDepth = 5,
-  deepDepth = 20,
-  textScale = 1,
-  iconScale = 1,
+  options: NauticalLayersOptions,
 ): LayerSpecification[] {
-  const ctx = createStyleContext(
-    sourceId,
+  const {
+    depthUnit = "meters",
+    detailOffset = 0,
+    layerGroups = {},
+    theme = "day",
+    ...rest
+  } = options;
+  const ctx = createStyleContext({
     depthUnit,
     detailOffset,
     layerGroups,
     theme,
-    coverageSourceId,
-    symbology,
-    shallowDepth,
-    safetyDepth,
-    deepDepth,
-    textScale,
-    iconScale,
-  );
+    ...rest,
+  });
 
   // LAYER ORDER — controls both draw order and collision priority.
   //

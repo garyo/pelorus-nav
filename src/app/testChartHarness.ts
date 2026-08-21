@@ -52,20 +52,19 @@ export function installTestChartHarness(map: MapLibreMap): void {
     }
     const s = getSettings();
     // detailOffset 2 → showStandard + showOther so EVERY class's layers build.
-    const layers = getNauticalLayers(
-      TEST_SOURCE_ID,
-      s.depthUnit,
-      2,
-      s.layerGroups,
-      undefined,
-      s.displayTheme,
-      "iho-s52",
-      s.shallowDepth,
-      s.safetyDepth,
-      s.deepDepth,
-      s.textScale,
-      s.iconScale,
-    );
+    const layers = getNauticalLayers({
+      sourceId: TEST_SOURCE_ID,
+      depthUnit: s.depthUnit,
+      detailOffset: 2,
+      layerGroups: s.layerGroups,
+      theme: s.displayTheme,
+      symbology: "iho-s52",
+      shallowDepth: s.shallowDepth,
+      safetyDepth: s.safetyDepth,
+      deepDepth: s.deepDepth,
+      textScale: s.textScale,
+      iconScale: s.iconScale,
+    });
     for (const layer of layers) {
       // Skip the shared background (its id collides with the live style's).
       if (layer.type === "background") continue;

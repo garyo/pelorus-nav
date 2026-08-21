@@ -45,20 +45,19 @@ function perRegionReference(regionIds: string[]): LayerSpecification[] {
 
   const all: LayerSpecification[] = [];
   regionIds.forEach((regionId, i) => {
-    const regionLayers = getNauticalLayers(
-      `s57-vector-${regionId}`,
+    const regionLayers = getNauticalLayers({
+      sourceId: `s57-vector-${regionId}`,
       depthUnit,
-      detailLevel,
+      detailOffset: detailLevel,
       layerGroups,
-      undefined,
-      displayTheme,
-      symbologyScheme,
+      theme: displayTheme,
+      symbology: symbologyScheme,
       shallowDepth,
       safetyDepth,
       deepDepth,
       textScale,
       iconScale,
-    );
+    });
     for (const layer of regionLayers) {
       if (layer.type === "background") {
         if (i === 0) all.push(layer);

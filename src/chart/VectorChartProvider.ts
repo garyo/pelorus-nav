@@ -136,20 +136,19 @@ export class VectorChartProvider implements ChartProvider {
     // consumers (underlay merging, MapLibre) never mutate layers in place.
     if (regions.length > 0) {
       // No per-region coverage source — we use a single unified one
-      const template = getNauticalLayers(
-        TEMPLATE_SOURCE,
+      const template = getNauticalLayers({
+        sourceId: TEMPLATE_SOURCE,
         depthUnit,
-        detailLevel,
+        detailOffset: detailLevel,
         layerGroups,
-        undefined, // no per-region coverage
-        displayTheme,
-        symbologyScheme,
+        theme: displayTheme,
+        symbology: symbologyScheme,
         shallowDepth,
         safetyDepth,
         deepDepth,
         textScale,
         iconScale,
-      );
+      });
 
       for (let i = 0; i < regions.length; i++) {
         const region = regions[i];

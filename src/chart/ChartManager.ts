@@ -1,5 +1,6 @@
 import * as maplibregl from "maplibre-gl";
 import { regionsInViewWithHysteresis } from "../data/chart-catalog";
+import { appErrorLog } from "../diagnostics/errorLog";
 import { applySlotAnchors } from "../plugins/slots";
 import type {
   ChartBlend,
@@ -10,6 +11,7 @@ import type {
   SymbologyScheme,
 } from "../settings";
 import { getSettings, onSettingsChange } from "../settings";
+import { hideStatusBanner, showStatusBanner } from "../ui/StatusBanner";
 import {
   basemapSpriteName,
   getBasemapCoverage,
@@ -32,6 +34,9 @@ import {
 } from "./osm-underlay";
 import { getRasterChartLayers, getRasterChartSources } from "./raster-charts";
 import { getIconScheme } from "./styles/icon-sets";
+
+const SPRITE_WARNING_BANNER_ID = "chart-sprite-warning";
+const SPRITE_WARNING_DISMISS_MS = 15_000;
 
 export interface ChartManagerOptions {
   container: string | HTMLElement;
@@ -361,8 +366,19 @@ export class ChartManager {
       // A few missing images can be normal; a burst means the sheet failed
       if (missingCount >= 5 && !warningShown) {
         warningShown = true;
-        this.showWarningBanner(
-          "Chart symbols could not be loaded — icons may appear incorrect. Check your network connection.",
+        appErrorLog.log(
+          "chart-sprites",
+          "error",
+          `sprite images missing (burst of ${missingCount}, e.g. "${e.id}") — sprite sheet likely failed to load`,
+        );
+        showStatusBanner({
+          id: SPRITE_WARNING_BANNER_ID,
+          message:
+            "Chart symbols could not be loaded — icons may appear incorrect. Check your network connection.",
+        });
+        setTimeout(
+          () => hideStatusBanner(SPRITE_WARNING_BANNER_ID),
+          SPRITE_WARNING_DISMISS_MS,
         );
       }
     });
@@ -377,29 +393,6 @@ export class ChartManager {
         missingCount = 0;
       }, 5000);
     });
-  }
-
-  private showWarningBanner(message: string): void {
-    const banner = document.createElement("div");
-    banner.textContent = message;
-    Object.assign(banner.style, {
-      position: "fixed",
-      top: "0",
-      left: "0",
-      right: "0",
-      padding: "10px 16px",
-      background: "#c44",
-      color: "#fff",
-      fontSize: "14px",
-      textAlign: "center",
-      zIndex: "9999",
-      cursor: "pointer",
-    });
-    banner.title = "Click to dismiss";
-    banner.addEventListener("click", () => banner.remove());
-    document.body.appendChild(banner);
-    // Auto-dismiss after 15 seconds
-    setTimeout(() => banner.remove(), 15000);
   }
 
   private buildStyle(provider: ChartProvider): maplibregl.StyleSpecification {

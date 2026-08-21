@@ -52,20 +52,15 @@ const BUILDERS = [
 function makeCtx(theme: "day" | "eink", iconScale: number): StyleContext {
   // detailOffset=1 enables both STANDARD and OTHER categories so every
   // buildable layer is present.
-  return createStyleContext(
-    "test-source",
-    "meters",
-    1,
-    {},
+  return createStyleContext({
+    sourceId: "test-source",
+    depthUnit: "meters",
+    detailOffset: 1,
+    layerGroups: {},
     theme,
-    "test-coverage",
-    "iho-s52",
-    5,
-    5,
-    20,
-    1,
+    coverageSourceId: "test-coverage",
     iconScale,
-  );
+  });
 }
 
 interface SymbolLayerLite {

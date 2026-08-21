@@ -5,6 +5,7 @@
  * (IHO S-52 Presentation Library compliant).
  * EINK palette derived from DAY with greyscale conversions for e-ink displays.
  */
+import { type DisplayTheme, getSettings } from "../settings";
 
 export type ColourScheme = "DAY" | "DUSK" | "NIGHT" | "EINK";
 
@@ -323,26 +324,28 @@ const PALETTES: Record<ColourScheme, Record<string, string>> = {
   EINK,
 };
 
-/** The currently active colour scheme for style generation. */
-let activeScheme: ColourScheme = "DAY";
-
-/** Set the active colour scheme used by s52Colour(). */
-export function setActiveColourScheme(scheme: ColourScheme): void {
-  activeScheme = scheme;
-}
-
-/** Get the current active colour scheme. */
-export function getActiveColourScheme(): ColourScheme {
-  return activeScheme;
+/** Map DisplayTheme to S-52 ColourScheme. */
+export function themeToColourScheme(theme: DisplayTheme): ColourScheme {
+  switch (theme) {
+    case "day":
+      return "DAY";
+    case "dusk":
+      return "DUSK";
+    case "night":
+      return "NIGHT";
+    case "eink":
+      return "EINK";
+  }
 }
 
 /**
  * Look up an S-52 colour token value.
- * Uses the active colour scheme set via setActiveColourScheme().
- * The optional scheme parameter overrides the active scheme for this call.
+ * Without an explicit scheme, resolves against the current display theme
+ * from settings at call time.
  */
 export function s52Colour(token: string, scheme?: ColourScheme): string {
-  const palette = PALETTES[scheme ?? activeScheme];
+  const palette =
+    PALETTES[scheme ?? themeToColourScheme(getSettings().displayTheme)];
   const value = palette[token];
   if (value === undefined) {
     // Fall back to DAY palette if token not found in current scheme

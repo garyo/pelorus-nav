@@ -22,7 +22,10 @@ describe("layer registry invariants", () => {
   // (see createStyleContext), so every layer id getNauticalLayers can ever
   // produce shows up here, regardless of a user's current detail-level
   // setting.
-  const layers = getNauticalLayers("test-source", "meters", 1, {});
+  const layers = getNauticalLayers({
+    sourceId: "test-source",
+    detailOffset: 1,
+  });
 
   it("produces at least one layer (sanity check)", () => {
     expect(layers.length).toBeGreaterThan(50);
@@ -75,11 +78,15 @@ describe("layer registry invariants", () => {
   });
 
   it("hides s57-achare-symbol and s57-tsslpt-arrow when their group is toggled off", () => {
-    const anchorageOff = getNauticalLayers("test-source", "meters", 1, {
-      anchorage: false,
+    const anchorageOff = getNauticalLayers({
+      sourceId: "test-source",
+      detailOffset: 1,
+      layerGroups: { anchorage: false },
     });
-    const routingOff = getNauticalLayers("test-source", "meters", 1, {
-      routing: false,
+    const routingOff = getNauticalLayers({
+      sourceId: "test-source",
+      detailOffset: 1,
+      layerGroups: { routing: false },
     });
 
     const visibility = (set: typeof layers, id: string): string | undefined => {
@@ -96,7 +103,10 @@ describe("layer registry invariants", () => {
   it("hides s57-achare-symbol and s57-tsslpt-arrow at DISPLAYBASE detail (STANDARD filter off)", () => {
     // detailOffset=-1 → showStandard=false, so STANDARD-category layers
     // (including these two, once registered) must be filtered out.
-    const displayBaseOnly = getNauticalLayers("test-source", "meters", -1, {});
+    const displayBaseOnly = getNauticalLayers({
+      sourceId: "test-source",
+      detailOffset: -1,
+    });
     const ids = new Set(displayBaseOnly.map((l) => l.id));
     expect(ids.has("s57-achare-symbol")).toBe(false);
     expect(ids.has("s57-tsslpt-arrow")).toBe(false);

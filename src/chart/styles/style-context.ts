@@ -4,11 +4,7 @@
 import type { ExpressionSpecification } from "@maplibre/maplibre-gl-style-spec";
 import type { DepthUnit, DisplayTheme, SymbologyScheme } from "../../settings";
 import { depthConversionFactor } from "../../settings";
-import {
-  type ColourScheme,
-  s52Colour,
-  setActiveColourScheme,
-} from "../s52-colours";
+import { s52Colour, themeToColourScheme } from "../s52-colours";
 import {
   buildIconExpression,
   buildLayerExpressions,
@@ -55,20 +51,6 @@ export interface StyleContext {
   deepDepth: number;
   /** Text size scale factor (1 = default). */
   textSizeScale: number;
-}
-
-/** Map DisplayTheme to S-52 ColourScheme. */
-function themeToScheme(theme: DisplayTheme): ColourScheme {
-  switch (theme) {
-    case "day":
-      return "DAY";
-    case "dusk":
-      return "DUSK";
-    case "night":
-      return "NIGHT";
-    case "eink":
-      return "EINK";
-  }
 }
 
 /**
@@ -339,24 +321,46 @@ export function scaledTextSize(
   return scaleSize(base, ctx.textSizeScale);
 }
 
-/** Create a StyleContext from the given parameters. */
-export function createStyleContext(
-  sourceId: string,
-  depthUnit: DepthUnit,
-  detailOffset: number,
-  layerGroups: Record<string, boolean>,
-  theme: DisplayTheme,
-  coverageSourceId?: string,
-  symbology: SymbologyScheme = "iho-s52",
-  shallowDepth = 5,
-  safetyDepth = 5,
-  deepDepth = 20,
-  textScale = 1,
-  iconScale = 1,
-): StyleContext {
-  // Set the active colour scheme so all s52Colour() calls use it
-  setActiveColourScheme(themeToScheme(theme));
+/** Options for createStyleContext (defaults noted per field). */
+export interface StyleContextOptions {
+  sourceId: string;
+  depthUnit: DepthUnit;
+  detailOffset: number;
+  layerGroups: Record<string, boolean>;
+  theme: DisplayTheme;
+  coverageSourceId?: string;
+  /** @default "iho-s52" */
+  symbology?: SymbologyScheme;
+  /** @default 5 */
+  shallowDepth?: number;
+  /** @default 5 */
+  safetyDepth?: number;
+  /** @default 20 */
+  deepDepth?: number;
+  /** @default 1 */
+  textScale?: number;
+  /** @default 1 */
+  iconScale?: number;
+}
 
+/** Create a StyleContext from the given options. */
+export function createStyleContext(options: StyleContextOptions): StyleContext {
+  const {
+    sourceId,
+    depthUnit,
+    detailOffset,
+    layerGroups,
+    theme,
+    coverageSourceId,
+    symbology = "iho-s52",
+    shallowDepth = 5,
+    safetyDepth = 5,
+    deepDepth = 20,
+    textScale = 1,
+    iconScale = 1,
+  } = options;
+
+  const colourScheme = themeToColourScheme(theme);
   const scheme = getIconScheme(symbology, theme);
   const config = getSchemeConfig(symbology);
   const iconExpr = buildIconExpression(scheme.icons, scheme.fallback);
@@ -370,7 +374,7 @@ export function createStyleContext(
     depthUnit,
     detailLevel: detailOffset,
     layerGroups,
-    colour: (token: string) => s52Colour(token),
+    colour: (token: string) => s52Colour(token, colourScheme),
     icon: (name: string) => scheme.icons[name] ?? scheme.fallback,
     iconExpr,
     spritePrefix: scheme.sprite,

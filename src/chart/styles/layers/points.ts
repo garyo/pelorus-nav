@@ -55,6 +55,52 @@ function withOffset(
   return { ...layout, "icon-offset": offsetExpr };
 }
 
+/**
+ * Symbol layer for one buoy/beacon class. The nine classes share a single
+ * layout/paint recipe and differ only in id, source-layer, icon size
+ * (0.75 for most buoys, 0.7 for special-purpose buoys and all beacons),
+ * and minzoom (isolated-danger buoys appear from z6, the rest from z8).
+ */
+function buoyBeaconLayer(
+  ctx: StyleContext,
+  opts: {
+    id: string;
+    sourceLayer: string;
+    iconSize: number;
+    minzoom?: number;
+  },
+): LayerSpecification {
+  const { iconExpr, offsetExpr } = ctx.layerExprs(opts.sourceLayer);
+  return {
+    id: opts.id,
+    type: "symbol",
+    source: ctx.sourceId,
+    "source-layer": opts.sourceLayer,
+    minzoom: opts.minzoom ?? 8,
+    layout: withOffset(
+      {
+        "text-font": ["Noto Sans Regular"],
+        "symbol-sort-key": SORT_KEY_NAVAID,
+        "icon-image": iconExpr,
+        "icon-size": scaledIconSize(opts.iconSize, ctx),
+        "icon-allow-overlap": true,
+        "icon-ignore-placement": true,
+        "text-field": labelExpr(ctx),
+        "text-size": scaledTextSize(11, ctx),
+        ...BUOY_LABEL_ANCHOR_LAYOUT,
+        "text-allow-overlap": false,
+        "text-optional": true,
+      },
+      offsetExpr,
+    ),
+    paint: {
+      "text-color": ctx.colour("CHBLK"),
+      "text-halo-color": ctx.colour("NAIDH"),
+      "text-halo-width": 1.5,
+    },
+  };
+}
+
 /** Soundings and light indicators (lower-priority nav aid symbols). */
 export function getNavAidLayers(ctx: StyleContext): LayerSpecification[] {
   return [
@@ -125,15 +171,6 @@ export function getNavAidLayers(ctx: StyleContext): LayerSpecification[] {
  * characteristics when they share the same object.
  */
 export function getBuoyBeaconLayers(ctx: StyleContext): LayerSpecification[] {
-  const boylat = ctx.layerExprs("BOYLAT");
-  const boycar = ctx.layerExprs("BOYCAR");
-  const boysaw = ctx.layerExprs("BOYSAW");
-  const boyspp = ctx.layerExprs("BOYSPP");
-  const boyisd = ctx.layerExprs("BOYISD");
-  const bcnlat = ctx.layerExprs("BCNLAT");
-  const bcncar = ctx.layerExprs("BCNCAR");
-  const bcnisd = ctx.layerExprs("BCNISD");
-  const bcnsaw = ctx.layerExprs("BCNSAW");
   const lights = ctx.layerExprs("LIGHTS");
 
   return [
@@ -200,273 +237,60 @@ export function getBuoyBeaconLayers(ctx: StyleContext): LayerSpecification[] {
     },
 
     // Lateral buoys
-    {
+    buoyBeaconLayer(ctx, {
       id: "s57-boylat",
-      type: "symbol",
-      source: ctx.sourceId,
-      "source-layer": "BOYLAT",
-      minzoom: 8,
-      layout: withOffset(
-        {
-          "text-font": ["Noto Sans Regular"],
-          "symbol-sort-key": SORT_KEY_NAVAID,
-          "icon-image": boylat.iconExpr,
-          "icon-size": scaledIconSize(0.75, ctx),
-          "icon-allow-overlap": true,
-          "icon-ignore-placement": true,
-          "text-field": labelExpr(ctx),
-          "text-size": scaledTextSize(11, ctx),
-          ...BUOY_LABEL_ANCHOR_LAYOUT,
-          "text-allow-overlap": false,
-          "text-optional": true,
-        },
-        boylat.offsetExpr,
-      ),
-      paint: {
-        "text-color": ctx.colour("CHBLK"),
-        "text-halo-color": ctx.colour("NAIDH"),
-        "text-halo-width": 1.5,
-      },
-    },
-
+      sourceLayer: "BOYLAT",
+      iconSize: 0.75,
+    }),
     // Cardinal buoys
-    {
+    buoyBeaconLayer(ctx, {
       id: "s57-boycar",
-      type: "symbol",
-      source: ctx.sourceId,
-      "source-layer": "BOYCAR",
-      minzoom: 8,
-      layout: withOffset(
-        {
-          "text-font": ["Noto Sans Regular"],
-          "symbol-sort-key": SORT_KEY_NAVAID,
-          "icon-image": boycar.iconExpr,
-          "icon-size": scaledIconSize(0.75, ctx),
-          "icon-allow-overlap": true,
-          "icon-ignore-placement": true,
-          "text-field": labelExpr(ctx),
-          "text-size": scaledTextSize(11, ctx),
-          ...BUOY_LABEL_ANCHOR_LAYOUT,
-          "text-allow-overlap": false,
-          "text-optional": true,
-        },
-        boycar.offsetExpr,
-      ),
-      paint: {
-        "text-color": ctx.colour("CHBLK"),
-        "text-halo-color": ctx.colour("NAIDH"),
-        "text-halo-width": 1.5,
-      },
-    },
-
+      sourceLayer: "BOYCAR",
+      iconSize: 0.75,
+    }),
     // Safe water buoys
-    {
+    buoyBeaconLayer(ctx, {
       id: "s57-boysaw",
-      type: "symbol",
-      source: ctx.sourceId,
-      "source-layer": "BOYSAW",
-      minzoom: 8,
-      layout: withOffset(
-        {
-          "text-font": ["Noto Sans Regular"],
-          "symbol-sort-key": SORT_KEY_NAVAID,
-          "icon-image": boysaw.iconExpr,
-          "icon-size": scaledIconSize(0.75, ctx),
-          "icon-allow-overlap": true,
-          "icon-ignore-placement": true,
-          "text-field": labelExpr(ctx),
-          "text-size": scaledTextSize(11, ctx),
-          ...BUOY_LABEL_ANCHOR_LAYOUT,
-          "text-allow-overlap": false,
-          "text-optional": true,
-        },
-        boysaw.offsetExpr,
-      ),
-      paint: {
-        "text-color": ctx.colour("CHBLK"),
-        "text-halo-color": ctx.colour("NAIDH"),
-        "text-halo-width": 1.5,
-      },
-    },
-
+      sourceLayer: "BOYSAW",
+      iconSize: 0.75,
+    }),
     // Special purpose buoys
-    {
+    buoyBeaconLayer(ctx, {
       id: "s57-boyspp",
-      type: "symbol",
-      source: ctx.sourceId,
-      "source-layer": "BOYSPP",
-      minzoom: 8,
-      layout: withOffset(
-        {
-          "text-font": ["Noto Sans Regular"],
-          "symbol-sort-key": SORT_KEY_NAVAID,
-          "icon-image": boyspp.iconExpr,
-          "icon-size": scaledIconSize(0.7, ctx),
-          "icon-allow-overlap": true,
-          "icon-ignore-placement": true,
-          "text-field": labelExpr(ctx),
-          "text-size": scaledTextSize(11, ctx),
-          ...BUOY_LABEL_ANCHOR_LAYOUT,
-          "text-allow-overlap": false,
-          "text-optional": true,
-        },
-        boyspp.offsetExpr,
-      ),
-      paint: {
-        "text-color": ctx.colour("CHBLK"),
-        "text-halo-color": ctx.colour("NAIDH"),
-        "text-halo-width": 1.5,
-      },
-    },
-
+      sourceLayer: "BOYSPP",
+      iconSize: 0.7,
+    }),
     // Isolated danger buoys
-    {
+    buoyBeaconLayer(ctx, {
       id: "s57-boyisd",
-      type: "symbol",
-      source: ctx.sourceId,
-      "source-layer": "BOYISD",
+      sourceLayer: "BOYISD",
+      iconSize: 0.75,
       minzoom: 6,
-      layout: withOffset(
-        {
-          "text-font": ["Noto Sans Regular"],
-          "symbol-sort-key": SORT_KEY_NAVAID,
-          "icon-image": boyisd.iconExpr,
-          "icon-size": scaledIconSize(0.75, ctx),
-          "icon-allow-overlap": true,
-          "icon-ignore-placement": true,
-          "text-field": labelExpr(ctx),
-          "text-size": scaledTextSize(11, ctx),
-          ...BUOY_LABEL_ANCHOR_LAYOUT,
-          "text-allow-overlap": false,
-          "text-optional": true,
-        },
-        boyisd.offsetExpr,
-      ),
-      paint: {
-        "text-color": ctx.colour("CHBLK"),
-        "text-halo-color": ctx.colour("NAIDH"),
-        "text-halo-width": 1.5,
-      },
-    },
-
+    }),
     // Lateral beacons
-    {
+    buoyBeaconLayer(ctx, {
       id: "s57-bcnlat",
-      type: "symbol",
-      source: ctx.sourceId,
-      "source-layer": "BCNLAT",
-      minzoom: 8,
-      layout: withOffset(
-        {
-          "text-font": ["Noto Sans Regular"],
-          "symbol-sort-key": SORT_KEY_NAVAID,
-          "icon-image": bcnlat.iconExpr,
-          "icon-size": scaledIconSize(0.7, ctx),
-          "icon-allow-overlap": true,
-          "icon-ignore-placement": true,
-          "text-field": labelExpr(ctx),
-          "text-size": scaledTextSize(11, ctx),
-          ...BUOY_LABEL_ANCHOR_LAYOUT,
-          "text-allow-overlap": false,
-          "text-optional": true,
-        },
-        bcnlat.offsetExpr,
-      ),
-      paint: {
-        "text-color": ctx.colour("CHBLK"),
-        "text-halo-color": ctx.colour("NAIDH"),
-        "text-halo-width": 1.5,
-      },
-    },
-
+      sourceLayer: "BCNLAT",
+      iconSize: 0.7,
+    }),
     // Cardinal beacons
-    {
+    buoyBeaconLayer(ctx, {
       id: "s57-bcncar",
-      type: "symbol",
-      source: ctx.sourceId,
-      "source-layer": "BCNCAR",
-      minzoom: 8,
-      layout: withOffset(
-        {
-          "text-font": ["Noto Sans Regular"],
-          "symbol-sort-key": SORT_KEY_NAVAID,
-          "icon-image": bcncar.iconExpr,
-          "icon-size": scaledIconSize(0.7, ctx),
-          "icon-allow-overlap": true,
-          "icon-ignore-placement": true,
-          "text-field": labelExpr(ctx),
-          "text-size": scaledTextSize(11, ctx),
-          ...BUOY_LABEL_ANCHOR_LAYOUT,
-          "text-allow-overlap": false,
-          "text-optional": true,
-        },
-        bcncar.offsetExpr,
-      ),
-      paint: {
-        "text-color": ctx.colour("CHBLK"),
-        "text-halo-color": ctx.colour("NAIDH"),
-        "text-halo-width": 1.5,
-      },
-    },
-
+      sourceLayer: "BCNCAR",
+      iconSize: 0.7,
+    }),
     // Isolated danger beacons
-    {
+    buoyBeaconLayer(ctx, {
       id: "s57-bcnisd",
-      type: "symbol",
-      source: ctx.sourceId,
-      "source-layer": "BCNISD",
-      minzoom: 8,
-      layout: withOffset(
-        {
-          "text-font": ["Noto Sans Regular"],
-          "symbol-sort-key": SORT_KEY_NAVAID,
-          "icon-image": bcnisd.iconExpr,
-          "icon-size": scaledIconSize(0.7, ctx),
-          "icon-allow-overlap": true,
-          "icon-ignore-placement": true,
-          "text-field": labelExpr(ctx),
-          "text-size": scaledTextSize(11, ctx),
-          ...BUOY_LABEL_ANCHOR_LAYOUT,
-          "text-allow-overlap": false,
-          "text-optional": true,
-        },
-        bcnisd.offsetExpr,
-      ),
-      paint: {
-        "text-color": ctx.colour("CHBLK"),
-        "text-halo-color": ctx.colour("NAIDH"),
-        "text-halo-width": 1.5,
-      },
-    },
+      sourceLayer: "BCNISD",
+      iconSize: 0.7,
+    }),
     // Safe water beacons
-    {
+    buoyBeaconLayer(ctx, {
       id: "s57-bcnsaw",
-      type: "symbol",
-      source: ctx.sourceId,
-      "source-layer": "BCNSAW",
-      minzoom: 8,
-      layout: withOffset(
-        {
-          "text-font": ["Noto Sans Regular"],
-          "symbol-sort-key": SORT_KEY_NAVAID,
-          "icon-image": bcnsaw.iconExpr,
-          "icon-size": scaledIconSize(0.7, ctx),
-          "icon-allow-overlap": true,
-          "icon-ignore-placement": true,
-          "text-field": labelExpr(ctx),
-          "text-size": scaledTextSize(11, ctx),
-          ...BUOY_LABEL_ANCHOR_LAYOUT,
-          "text-allow-overlap": false,
-          "text-optional": true,
-        },
-        bcnsaw.offsetExpr,
-      ),
-      paint: {
-        "text-color": ctx.colour("CHBLK"),
-        "text-halo-color": ctx.colour("NAIDH"),
-        "text-halo-width": 1.5,
-      },
-    },
+      sourceLayer: "BCNSAW",
+      iconSize: 0.7,
+    }),
   ];
 }
 
