@@ -31,7 +31,11 @@ import type { StandaloneWaypoint } from "../data/Waypoint";
 import { findNearestNamedFeature } from "../search/feature-search";
 import { type ChartMode as ChartModeType, getSettings } from "../settings";
 import { closeAllSurfaces } from "../ui/SurfaceManager";
-import { haversineDistanceNM, initialBearingDeg } from "../utils/coordinates";
+import {
+  bboxOfCoords,
+  haversineDistanceNM,
+  initialBearingDeg,
+} from "../utils/coordinates";
 import {
   abbreviateFeatureName,
   isNearDuplicateName,
@@ -120,6 +124,23 @@ function appendHandlePos(
   return extendHandlePos(map, wps[wps.length - 1], wps[wps.length - 2], [1, 0]);
 }
 
+/** Colour given to newly created routes, and the colour of the edit
+ *  overlay's line and preview (the live route is drawn in it regardless of
+ *  the saved route's own colour). */
+const ROUTE_DEFAULT_COLOR = "#4488cc";
+
+/** A fresh route with default name/colour and the given waypoints. */
+function newRoute(waypoints: Waypoint[]): Route {
+  return {
+    id: generateUUID(),
+    name: `Route ${formatLocalDateTime(new Date())}`,
+    createdAt: Date.now(),
+    color: ROUTE_DEFAULT_COLOR,
+    visible: true,
+    waypoints,
+  };
+}
+
 const SOURCE_ID = "_route-edit-points";
 const LAYER_POINTS = "_route-edit-points";
 const SOURCE_MIDPOINTS = "_route-edit-midpoints";
@@ -168,6 +189,10 @@ export class RouteEditor {
   private bar: HTMLDivElement;
   private barText: HTMLDivElement;
   private barActions: HTMLDivElement;
+  /** Fingerprint of the state the action buttons were last built from —
+   *  updateBar rebuilds them only when it changes. Null forces a rebuild
+   *  (fresh session). */
+  private barActionsKey: string | null = null;
   private readonly undoStack = new UndoStack<{
     waypoints: Waypoint[];
     selectedIndex: number | null;
@@ -354,14 +379,9 @@ export class RouteEditor {
 
   /** Start a new route with the first waypoint at the given position. */
   startFromPoint(lat: number, lon: number): void {
-    this.startEditing({
-      id: generateUUID(),
-      name: `Route ${formatLocalDateTime(new Date())}`,
-      createdAt: Date.now(),
-      color: "#4488cc",
-      visible: true,
-      waypoints: [{ lat, lon, name: this.autoName(lat, lon, "WP1") }],
-    });
+    this.startEditing(
+      newRoute([{ lat, lon, name: this.autoName(lat, lon, "WP1") }]),
+    );
   }
 
   /** Start editing a new or existing route. `opts.selectIndex` pre-selects
@@ -406,16 +426,7 @@ export class RouteEditor {
     // editor mutates waypoints in place — without the clone, Cancel would
     // discard nothing because the caller's object already carries the
     // edits. Done saves the clone and refreshes everyone from it.
-    this.route = route
-      ? structuredClone(route)
-      : {
-          id: generateUUID(),
-          name: `Route ${formatLocalDateTime(new Date())}`,
-          createdAt: Date.now(),
-          color: "#4488cc",
-          visible: true,
-          waypoints: [],
-        };
+    this.route = route ? structuredClone(route) : newRoute([]);
 
     // Editing is a look-away: drop the chart out of any follow/course-up
     // mode so GPS ticks stop recentering on the vessel and yanking the map
@@ -882,6 +893,7 @@ export class RouteEditor {
     this.selectedIndex = null;
     this.undoStack.clear();
     this.bar.style.display = "none";
+    this.barActionsKey = null;
     this.clearSources();
     if (getMode() === "route-edit") {
       setMode("query");
@@ -897,17 +909,10 @@ export class RouteEditor {
 
   /** True when any part of the route's bounding box is in the viewport. */
   private routeIntersectsViewport(route: Route): boolean {
+    const bbox = bboxOfCoords(route.waypoints.map((w) => [w.lon, w.lat]));
+    if (!bbox) return false;
+    const [west, south, east, north] = bbox;
     const b = this.map.getBounds();
-    let west = Infinity;
-    let south = Infinity;
-    let east = -Infinity;
-    let north = -Infinity;
-    for (const wp of route.waypoints) {
-      west = Math.min(west, wp.lon);
-      south = Math.min(south, wp.lat);
-      east = Math.max(east, wp.lon);
-      north = Math.max(north, wp.lat);
-    }
     return (
       west <= b.getEast() &&
       east >= b.getWest() &&
@@ -966,7 +971,7 @@ export class RouteEditor {
       type: "line",
       source: SOURCE_LINE,
       paint: {
-        "line-color": "#4488cc",
+        "line-color": ROUTE_DEFAULT_COLOR,
         "line-width": 2.5,
       },
     });
@@ -994,7 +999,7 @@ export class RouteEditor {
       type: "line",
       source: SOURCE_PREVIEW,
       paint: {
-        "line-color": "#4488cc",
+        "line-color": ROUTE_DEFAULT_COLOR,
         "line-width": 2,
         "line-opacity": 0.5,
         "line-dasharray": [4, 3],
@@ -1352,37 +1357,40 @@ export class RouteEditor {
     this.updateBar();
   }
 
+  /**
+   * Refresh the toolbar. The text readout tracks fine-grained state
+   * (positions, names) and updates on every call — it is the live
+   * distance/bearing display a drag follows. The action buttons depend
+   * only on coarse state, so they rebuild only when that fingerprint
+   * changes: recreating them per drag move was pure DOM churn (worst on
+   * the Android WebView, where route-edit jank has bitten before).
+   */
   private updateBar(): void {
+    if (!this.route) return;
+    const selected =
+      this.selectedIndex !== null && !!this.route.waypoints[this.selectedIndex];
+    this.updateBarText();
+    const key = [
+      selected,
+      this.addingPoints,
+      this.undoStack.isEmpty,
+      this.route.waypoints.length >= 2,
+    ].join("|");
+    if (key === this.barActionsKey) return;
+    this.barActionsKey = key;
+    this.rebuildBarActions(selected);
+  }
+
+  /** Rebuild the action buttons for the current mode (selection vs
+   *  summary). Only updateBar calls this, and only on a bar-state
+   *  transition — never per drag move. */
+  private rebuildBarActions(selected: boolean): void {
     if (!this.route) return;
     const wps = this.route.waypoints;
     this.barActions.innerHTML = "";
 
-    // Selection mode: show selected WP info with leg course/distance
-    if (this.selectedIndex !== null && wps[this.selectedIndex]) {
-      const wp = wps[this.selectedIndex];
-      const label = wp.name || `WP${this.selectedIndex + 1}`;
-      const { bearingMode } = getSettings();
-      let legInfo = "";
-      if (this.selectedIndex > 0) {
-        const prev = wps[this.selectedIndex - 1];
-        const d = haversineDistanceNM(prev.lat, prev.lon, wp.lat, wp.lon);
-        const b = initialBearingDeg(prev.lat, prev.lon, wp.lat, wp.lon);
-        legInfo = ` \u2014 ${formatBearing(b, bearingMode, prev.lat, prev.lon)} / ${d.toFixed(1)} NM`;
-      }
-      this.barText.innerHTML = "";
-      const strong = document.createElement("strong");
-      strong.className = "route-wp-name";
-      strong.textContent = label;
-      this.barText.appendChild(strong);
-      if (legInfo) {
-        // Its own element, kept from shrinking (see CSS) so a long name
-        // ellipsises and the distance/bearing stays visible at the end.
-        const span = document.createElement("span");
-        span.className = "route-wp-leg";
-        span.textContent = legInfo;
-        this.barText.appendChild(span);
-      }
-
+    // Selection mode: buttons acting on the selected waypoint
+    if (selected) {
       const delBtn = document.createElement("button");
       delBtn.className = "route-editor-btn route-editor-btn--danger";
       delBtn.textContent = "Delete";
@@ -1401,7 +1409,7 @@ export class RouteEditor {
       return;
     }
 
-    // Normal mode: summary
+    // Normal mode: whole-route buttons
     this.appendAddToggle();
     if (wps.length >= 2) {
       const revBtn = document.createElement("button");
@@ -1412,6 +1420,42 @@ export class RouteEditor {
       this.barActions.appendChild(revBtn);
     }
     this.appendUndoButton();
+  }
+
+  /** The bar's readout: the selected waypoint's name and incoming leg, or
+   *  the route summary with running total. */
+  private updateBarText(): void {
+    if (!this.route) return;
+    const wps = this.route.waypoints;
+
+    // Selection mode: selected WP info with leg course/distance
+    const idx = this.selectedIndex;
+    if (idx !== null && wps[idx]) {
+      const wp = wps[idx];
+      const label = wp.name || `WP${idx + 1}`;
+      const { bearingMode } = getSettings();
+      let legInfo = "";
+      if (idx > 0) {
+        const prev = wps[idx - 1];
+        const d = haversineDistanceNM(prev.lat, prev.lon, wp.lat, wp.lon);
+        const b = initialBearingDeg(prev.lat, prev.lon, wp.lat, wp.lon);
+        legInfo = ` \u2014 ${formatBearing(b, bearingMode, prev.lat, prev.lon)} / ${d.toFixed(1)} NM`;
+      }
+      this.barText.innerHTML = "";
+      const strong = document.createElement("strong");
+      strong.className = "route-wp-name";
+      strong.textContent = label;
+      this.barText.appendChild(strong);
+      if (legInfo) {
+        // Its own element, kept from shrinking (see CSS) so a long name
+        // ellipsises and the distance/bearing stays visible at the end.
+        const span = document.createElement("span");
+        span.className = "route-wp-leg";
+        span.textContent = legInfo;
+        this.barText.appendChild(span);
+      }
+      return;
+    }
 
     if (wps.length === 0) {
       this.barText.textContent = "Tap the chart to place waypoints";
