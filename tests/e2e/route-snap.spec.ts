@@ -6,6 +6,7 @@ import {
   type SeedRoute,
   seedRoute,
   suppressWhatsNew,
+  waitForAppReady,
 } from "./helpers";
 
 const ROUTE_ID = "e2e-snap-seed";
@@ -24,7 +25,8 @@ test("new-route waypoints snap onto a visible route's waypoints", async ({
   await page.goto("/");
   await expect(page.locator(".maplibregl-map")).toBeVisible({ timeout: 10000 });
 
-  // Seeding needs the "routes" store; it exists once the Routes button does.
+  // Seeding needs the "routes" object store — wait for the app-ready signal.
+  await waitForAppReady(page);
   const routesBtn = page.getByRole("button", { name: "Routes" });
   await routesBtn.click();
   await seedRoute(page, {

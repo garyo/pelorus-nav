@@ -1234,12 +1234,11 @@ registerNavInstruments(activeNav);
 instrumentHUD.setActiveNav(activeNav);
 instrumentHUD.onNavCellClick(() => routePanel.showActiveRoute());
 
-// Restore persisted navigation state (after all subscribers are wired up).
-// COB restores second: it reconciles with whatever goto activeNav brought
-// back and only re-engages navigation if nav restored idle.
-await activeNav.restore();
-await cobManager.restore();
-
+// --- Topbar ---
+// Built before the nav/COB restores below: those await IndexedDB, and a
+// slow or wedged database (a known WebView failure mode) must not withhold
+// the toolbar. Button handlers run on user interaction, long after the
+// awaits settle, so they may reference restored state freely.
 if (topbarActions) {
   // Record track toggle
   const recordBtn = buildTopbarAction(iconRecord, "REC", "Record track", {
@@ -1516,6 +1515,19 @@ if (topbarMenu) {
     });
   }
 }
+
+// Restore persisted navigation state (after all subscribers are wired up).
+// COB restores second: it reconciles with whatever goto activeNav brought
+// back and only re-engages navigation if nav restored idle.
+await activeNav.restore();
+await cobManager.restore();
+
+// Boot readiness signal for the E2E suite (waitForAppReady in
+// tests/e2e/helpers.ts): both restores are done and the app database is
+// open, so its object stores exist. The getAllWaypoints round-trip forces
+// the DB open even when the restores found no persisted state to read.
+await getAllWaypoints().catch(() => {});
+document.documentElement.dataset.appReady = "1";
 
 // Warn the user once if the OS screen-off timeout is too short for marine
 // use — see ScreenTimeoutDialog for the e-ink BIGME diagnosis that motivated

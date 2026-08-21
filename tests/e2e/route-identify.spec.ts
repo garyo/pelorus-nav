@@ -1,5 +1,10 @@
 import { expect, test } from "@playwright/test";
-import { acceptDisclaimer, seedRoute, suppressWhatsNew } from "./helpers";
+import {
+  acceptDisclaimer,
+  seedRoute,
+  suppressWhatsNew,
+  waitForAppReady,
+} from "./helpers";
 
 const A: [number, number] = [42.363715, -71.04743]; // [lat, lon]
 const B: [number, number] = [42.352039, -71.032698];
@@ -21,12 +26,8 @@ test("tapping a route line identifies it and opens the Routes panel selected", a
   await page.goto("/");
   await expect(page.locator(".maplibregl-map")).toBeVisible({ timeout: 10000 });
 
-  // The Routes button only exists once boot-time restore (which touches
-  // IndexedDB) has completed, so the "routes" object store is guaranteed
-  // to exist by the time it's clickable.
-  await expect(page.getByRole("button", { name: "Routes" })).toBeVisible({
-    timeout: 10000,
-  });
+  // Seeding needs the "routes" object store — wait for the app-ready signal.
+  await waitForAppReady(page);
 
   await seedRoute(page, {
     id: ROUTE_ID,
@@ -43,9 +44,7 @@ test("tapping a route line identifies it and opens the Routes panel selected", a
   // Reload so RouteLayer's style-load pass draws the seeded route.
   await page.reload();
   await expect(page.locator(".maplibregl-map")).toBeVisible({ timeout: 10000 });
-  await expect(page.getByRole("button", { name: "Routes" })).toBeVisible({
-    timeout: 10000,
-  });
+  await waitForAppReady(page);
 
   // Center on the route's midpoint and wait for the map to settle so the
   // route line is rendered (hit-testable) at a known screen position.

@@ -1,5 +1,10 @@
 import { expect, test } from "@playwright/test";
-import { acceptDisclaimer, seedIndexedDb, suppressWhatsNew } from "./helpers";
+import {
+  acceptDisclaimer,
+  seedIndexedDb,
+  suppressWhatsNew,
+  waitForAppReady,
+} from "./helpers";
 
 /**
  * Track viewer maneuver markers: seed a zigzag track (90° turns, well
@@ -68,6 +73,8 @@ test("maneuver markers render in the track viewer and the toggle hides them", as
   await page.goto("/");
   await expect(page.locator(".maplibregl-map")).toBeVisible({ timeout: 10000 });
 
+  // Seeding needs the track stores — wait for the app-ready signal.
+  await waitForAppReady(page);
   const { meta, points } = zigzagTrack();
   await seedIndexedDb(page, { tracks: [meta], trackPoints: points });
 

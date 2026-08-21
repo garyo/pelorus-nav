@@ -6,6 +6,7 @@ import {
   seedRoute,
   seedSettings,
   suppressWhatsNew,
+  waitForAppReady,
 } from "./helpers";
 
 // First three points of SimulatorProvider's BOSTON_HARBOR_ROUTE. `simStart`
@@ -49,9 +50,8 @@ test("simulator-driven route navigation advances through waypoints on arrival", 
     timeout: 10000,
   });
 
-  // The Routes button only exists once boot-time restore (which touches
-  // IndexedDB) has completed, so by the time we can click it the "routes"
-  // object store is guaranteed to exist.
+  // Seeding needs the "routes" object store — wait for the app-ready signal.
+  await waitForAppReady(page);
   const routesBtn = page.getByRole("button", { name: "Routes" });
   await routesBtn.click();
   await expect(page.locator(".manager-panel.route-manager-panel")).toHaveClass(

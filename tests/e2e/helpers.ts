@@ -122,12 +122,27 @@ export async function seedMapPosition(
   );
 }
 
+// ── Boot readiness ───────────────────────────────────────────────────────
+
+/**
+ * Wait for the app's boot-readiness signal: main.ts sets
+ * `data-app-ready="1"` on <html> once persisted nav/COB state has been
+ * restored and the app's IndexedDB is open (object stores created). The
+ * topbar renders before those restores, so button visibility does NOT
+ * imply the database is ready — call this before seedIndexedDb/readIndexedDb.
+ */
+export async function waitForAppReady(page: Page): Promise<void> {
+  await page
+    .locator("html[data-app-ready='1']")
+    .waitFor({ state: "attached", timeout: 15000 });
+}
+
 // ── IndexedDB seeding/reading (call after the app has created the DB) ────
 
 /**
  * Put records into the app's IndexedDB, one readwrite transaction across all
- * listed stores. The stores must already exist — seed only after the app has
- * opened the database (e.g. once the map/topbar is up).
+ * listed stores. The stores must already exist — seed only after
+ * waitForAppReady() has resolved.
  */
 export async function seedIndexedDb(
   page: Page,
