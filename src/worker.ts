@@ -85,10 +85,10 @@ async function handleTilesRequest(
   env: Env,
   key: string,
 ): Promise<Response> {
-  // Bug reports (PII) share the R2 bucket with public tiles. Refuse them
-  // here explicitly, so a future edit to the route's extension allowlist
-  // can never expose them.
-  if (key.startsWith(BUG_REPORT_PREFIX)) {
+  // Bug reports (PII) and CSP violation reports share the R2 bucket with
+  // public tiles. Refuse them here explicitly, so a future edit to the
+  // route's extension allowlist can never expose them.
+  if (key.startsWith(BUG_REPORT_PREFIX) || key.startsWith(CSP_REPORT_PREFIX)) {
     return new Response("Not found", { status: 404 });
   }
 
@@ -441,6 +441,99 @@ async function handleBugReport(
   return jsonResponse({ ok: true });
 }
 
+// CSP violation reports (see CSP_REPORT_ONLY_* below): stored in R2 under
+// csp-reports/ as one compact JSON record per (day, directive, blocked URI).
+// The key is derived from the violation itself, so a noisy client overwrites
+// the same object instead of flooding the bucket. Review during the soak via
+// GET /api/admin/csp-reports.
+const CSP_REPORT_MAX_BYTES = 16_384;
+const CSP_REPORT_PREFIX = "csp-reports/";
+/** Longest value kept for any single field of a stored CSP report. */
+const CSP_FIELD_MAX_CHARS = 500;
+
+async function sha256Hex(input: string): Promise<string> {
+  const digest = await crypto.subtle.digest(
+    "SHA-256",
+    new TextEncoder().encode(input),
+  );
+  return [...new Uint8Array(digest)]
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+}
+
+function cspField(value: unknown): string {
+  return typeof value === "string" ? value.slice(0, CSP_FIELD_MAX_CHARS) : "";
+}
+
+/**
+ * Accept a browser CSP violation report. Browsers POST two formats depending
+ * on delivery mechanism: `application/csp-report` (report-uri; body is
+ * {"csp-report": {kebab-case fields}}) and `application/reports+json`
+ * (Reporting API; body is an array of {type, body: {camelCase fields}}).
+ * Only report-uri is wired into the policy today, but both parse here.
+ */
+async function handleCspReport(request: Request, env: Env): Promise<Response> {
+  const rawBody = await readBodyCapped(request, CSP_REPORT_MAX_BYTES);
+  if (rawBody === null) {
+    return new Response("Payload Too Large", { status: 413 });
+  }
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(rawBody);
+  } catch {
+    return new Response("Bad Request", { status: 400 });
+  }
+  // Normalize either format down to one report object with kebab/camel keys.
+  const report: Record<string, unknown> | null = (() => {
+    if (Array.isArray(parsed)) {
+      const first = parsed[0];
+      if (first && typeof first === "object" && "body" in first) {
+        const body = (first as { body?: unknown }).body;
+        if (body && typeof body === "object") {
+          return body as Record<string, unknown>;
+        }
+      }
+      return null;
+    }
+    if (parsed && typeof parsed === "object") {
+      const wrapped = (parsed as { "csp-report"?: unknown })["csp-report"];
+      if (wrapped && typeof wrapped === "object") {
+        return wrapped as Record<string, unknown>;
+      }
+    }
+    return null;
+  })();
+  if (!report) {
+    return new Response("Bad Request", { status: 400 });
+  }
+  const directive =
+    cspField(report["effective-directive"]) ||
+    cspField(report["violated-directive"]) ||
+    cspField(report.effectiveDirective);
+  if (!directive) {
+    return new Response("Bad Request", { status: 400 });
+  }
+  const blockedUri =
+    cspField(report["blocked-uri"]) || cspField(report.blockedURL);
+  const record = {
+    receivedAt: new Date().toISOString(),
+    directive,
+    blockedUri,
+    documentUri:
+      cspField(report["document-uri"]) || cspField(report.documentURL),
+    sourceFile: cspField(report["source-file"]) || cspField(report.sourceFile),
+    userAgent: cspField(request.headers.get("user-agent")),
+  };
+  const day = record.receivedAt.slice(0, 10);
+  const hash = (await sha256Hex(`${directive}\n${blockedUri}`)).slice(0, 16);
+  await env.TILES.put(
+    `${CSP_REPORT_PREFIX}${day}/${hash}.json`,
+    JSON.stringify(record),
+    { httpMetadata: { contentType: "application/json" } },
+  );
+  return new Response(null, { status: 204 });
+}
+
 // Read-only subscriber dump for the nightly signup-check routine (and manual
 // admin use). Requires the ADMIN_TOKEN secret; without it configured the
 // endpoint is a hard 401.
@@ -632,6 +725,31 @@ async function handleAdminSubscriberStatus(
   return Response.json(record);
 }
 
+// List stored CSP violation reports, newest day first. One record per
+// (day, directive, blocked URI) — see handleCspReport — so the whole listing
+// stays small enough to read in one response during the report-only soak.
+async function handleAdminCspReports(env: Env): Promise<Response> {
+  const keys: string[] = [];
+  let cursor: string | undefined;
+  do {
+    const page = await env.TILES.list({
+      prefix: CSP_REPORT_PREFIX,
+      cursor,
+    });
+    for (const object of page.objects) keys.push(object.key);
+    cursor = page.truncated ? page.cursor : undefined;
+  } while (cursor);
+  keys.sort().reverse();
+
+  const reports: unknown[] = [];
+  for (const key of keys) {
+    const object = await env.TILES.get(key);
+    if (!object) continue;
+    reports.push({ key, ...(await object.json<Record<string, unknown>>()) });
+  }
+  return Response.json({ reports });
+}
+
 async function handleAdminRequest(
   request: Request,
   env: Env,
@@ -643,6 +761,8 @@ async function handleAdminRequest(
   switch (route) {
     case "GET /api/admin/bugs":
       return handleAdminBugList(env);
+    case "GET /api/admin/csp-reports":
+      return handleAdminCspReports(env);
     case "GET /api/admin/bug":
       return handleAdminBugGet(env, url);
     case "GET /api/admin/bug-screenshot":
@@ -656,9 +776,7 @@ async function handleAdminRequest(
   }
 }
 
-// Hardening headers for the HTML pages the worker serves. Deliberately no
-// Content-Security-Policy: the app connects to user-configured Signal K
-// servers, so a CSP needs a considered connect-src story first.
+// Hardening headers for the HTML pages the worker serves.
 // X-Frame-Options is safe — nothing embeds these pages in a frame (the
 // landing page's only iframe points outward, at YouTube).
 const HTML_SECURITY_HEADERS: Record<string, string> = {
@@ -668,12 +786,61 @@ const HTML_SECURITY_HEADERS: Record<string, string> = {
   "x-frame-options": "DENY",
 };
 
-/** Copy of `response` with the HTML hardening headers applied. */
-function withSecurityHeaders(response: Response): Response {
+// Content-Security-Policy, currently REPORT-ONLY: violations POST to
+// /api/csp-report (reviewed via /api/admin/csp-reports) without blocking
+// anything, to soak-test the policy before enforcing it. Two policies,
+// because the app talks to the network in ways the static site pages never
+// do. Shared choices:
+//   - script-src has no 'unsafe-inline': the inline bootstrap scripts in
+//     index.html / landing.html / VitePress <head> DO violate it, and each
+//     dedupes to a single stored "inline" record per day. Enforcing later
+//     means adding hashes or extracting those scripts to files.
+//   - style-src needs 'unsafe-inline': the pages carry <style> blocks and
+//     MapLibre injects a <style> element at runtime.
+//   - analytics.oberbrunner.com is the featherstat tracker (dynamic import
+//     → script-src; its /api/collect beacon → connect-src).
+const CSP_COMMON =
+  "object-src 'none'; base-uri 'self'; form-action 'self'; " +
+  "report-uri /api/csp-report";
+
+// App shell (/app). connect-src must stay '*':
+// Signal K servers are arbitrary user-configured LAN hosts (http/ws, any
+// address). The enumerable rest — same-origin R2 tiles via pelorus-nav.com,
+// tile.openstreetmap.org, tile.openweathermap.org (weather overlay),
+// api.open-meteo.com (wind overlay), gis.charttools.noaa.gov (WMS charts),
+// analytics.oberbrunner.com — would fit an allowlist, but Signal K can't.
+// worker-src: MapLibre builds its worker from a blob: URL; the app's OPFS
+// writer worker and the service worker are same-origin files.
+const APP_CSP_REPORT_ONLY =
+  "default-src 'self'; " +
+  "script-src 'self' https://analytics.oberbrunner.com; " +
+  "style-src 'self' 'unsafe-inline'; " +
+  "img-src 'self' data: blob:; " +
+  "worker-src 'self' blob:; " +
+  "connect-src *; " +
+  "frame-src 'none'; " +
+  CSP_COMMON;
+
+// Static site pages (landing, privacy, user guide): only same-origin fetches
+// (the /api/subscribe form post, VitePress page loads) plus the analytics
+// beacon; the only frame is the landing page's click-to-load YouTube embed
+// (landing.html uses the -nocookie host).
+const SITE_CSP_REPORT_ONLY =
+  "default-src 'self'; " +
+  "script-src 'self' https://analytics.oberbrunner.com; " +
+  "style-src 'self' 'unsafe-inline'; " +
+  "img-src 'self' data:; " +
+  "connect-src 'self' https://analytics.oberbrunner.com; " +
+  "frame-src https://www.youtube-nocookie.com; " +
+  CSP_COMMON;
+
+/** Copy of `response` with the HTML hardening headers and the page's CSP. */
+function withSecurityHeaders(response: Response, csp: string): Response {
   const secured = new Response(response.body, response);
   for (const [name, value] of Object.entries(HTML_SECURITY_HEADERS)) {
     secured.headers.set(name, value);
   }
+  secured.headers.set("content-security-policy-report-only", csp);
   return secured;
 }
 
@@ -732,6 +899,13 @@ export default {
       return handleBugReport(request, env, ctx);
     }
 
+    if (url.pathname === "/api/csp-report") {
+      if (request.method !== "POST") {
+        return new Response("Method Not Allowed", { status: 405 });
+      }
+      return handleCspReport(request, env);
+    }
+
     // The marketing landing page owns the root URL; the app lives at /app
     // (an extensionless path, so the assets binding's SPA fallback serves the
     // app shell there with no further routing here). html_handling is "none"
@@ -741,6 +915,7 @@ export default {
         await env.ASSETS.fetch(
           new Request(new URL("/landing.html", url), request),
         ),
+        SITE_CSP_REPORT_ONLY,
       );
     }
 
@@ -757,6 +932,7 @@ export default {
         await env.ASSETS.fetch(
           new Request(new URL(`${dir}/index.html`, url), request),
         ),
+        SITE_CSP_REPORT_ONLY,
       );
     }
 
@@ -766,6 +942,7 @@ export default {
         await env.ASSETS.fetch(
           new Request(new URL("/privacy.html", url), request),
         ),
+        SITE_CSP_REPORT_ONLY,
       );
     }
 
@@ -814,9 +991,13 @@ export default {
 
     // Hardening headers on any HTML the assets binding serves (the /app
     // shell via SPA fallback, guide pages, landing assets fetched by exact
-    // URL). Non-HTML assets pass through untouched.
+    // URL). The app shell gets the app CSP; every other page is static site
+    // content. Non-HTML assets pass through untouched.
     if (response.headers.get("content-type")?.includes("text/html")) {
-      return withSecurityHeaders(response);
+      return withSecurityHeaders(
+        response,
+        isAppPath ? APP_CSP_REPORT_ONLY : SITE_CSP_REPORT_ONLY,
+      );
     }
 
     return response;
