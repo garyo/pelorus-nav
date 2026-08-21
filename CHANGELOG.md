@@ -16,6 +16,33 @@ The format follows [Keep a Changelog](https://keepachangelog.com/).
 - The course projection line now disappears reliably when the vessel
   stops or the GPS signal is lost, instead of sometimes staying frozen
   at its last heading and length.
+- Track recording now shows a warning if points can't be saved (e.g.
+  device storage full) instead of silently losing them, and renaming or
+  recoloring a track while it's recording no longer gets undone by the
+  recorder.
+- A crew-overboard activation now survives an app crash or reload in the
+  first moments after pressing COB.
+- The Icon Size setting (and the e-ink theme's larger symbols) now
+  applies to all chart symbols — anchorages, traffic-lane arrows,
+  current arrows, restricted areas, and others were stuck at a fixed
+  size.
+- Signal K sources reporting "unknown" course or speed no longer display
+  as a confident 0° / 0.0 kn, and switching Signal K servers can't
+  briefly show the old server's position.
+- Automatic chart-region switching while under way no longer moves or
+  re-zooms the chart.
+- Reloading the app mid-passage resumes navigation on the correct route
+  leg (previously a route that doubled back could re-target an
+  already-passed waypoint).
+- Dragging waypoints and route points is smoother, especially on slower
+  devices.
+- Charts, routes, and tracks are now protected from browser storage
+  eviction on web installs, and re-importing your own exported GPX no
+  longer degrades a recorded track.
+- Assorted smaller fixes: Escape now closes only the topmost panel/menu;
+  selection mode taps can't accidentally open items; coordinate display
+  can no longer show 60 minutes; whole-US chart view rebuilds styles
+  much faster.
 - Preferred-channel (junction) buoys now show their contrasting band on
   the chart — a green can with a red band is no longer drawn identical to
   a plain green can (thanks to Jesús Esgueva for the report, our first
