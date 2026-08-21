@@ -323,6 +323,14 @@ export function scaleSize(
   return base;
 }
 
+/** Scale an icon-size value by the context's iconSizeScale. */
+export function scaledIconSize(
+  base: number | ExpressionSpecification,
+  ctx: StyleContext,
+): number | ExpressionSpecification {
+  return scaleSize(base, ctx.iconSizeScale);
+}
+
 /** Scale a text-size value by the context's textSizeScale. */
 export function scaledTextSize(
   base: number | ExpressionSpecification,

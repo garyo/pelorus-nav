@@ -17,6 +17,7 @@ import {
   SORT_KEY_FACILITY,
   SORT_KEY_LANDMARK,
   SORT_KEY_NAMED_LAND,
+  scaledIconSize,
   scaledTextSize,
   VARIABLE_ANCHOR_LAYOUT,
 } from "../style-context";
@@ -201,7 +202,7 @@ export function getTextLayers(ctx: StyleContext): LayerSpecification[] {
       layout: {
         "symbol-sort-key": SORT_KEY_NAMED_LAND,
         "icon-image": "POSGEN04",
-        "icon-size": 1.0,
+        "icon-size": scaledIconSize(1.0, ctx),
         "icon-allow-overlap": true,
         "text-field": elevationTextField(ctx),
         "text-size": scaledTextSize(10, ctx),
@@ -324,7 +325,7 @@ export function getTextLayers(ctx: StyleContext): LayerSpecification[] {
           // 20 (church), 21 (chapel) → church symbol
           ctx.icon("landmark-church-conspic"),
         ] as unknown as ExpressionSpecification,
-        "icon-size": 0.6,
+        "icon-size": scaledIconSize(0.6, ctx),
         "icon-allow-overlap": true,
       },
       paint: {},
@@ -370,7 +371,7 @@ export function getTextLayers(ctx: StyleContext): LayerSpecification[] {
           // LNDMRK has a sizeable icon; push labels a bit further out.
           "text-radial-offset": 1.8,
           "icon-image": lndmrk.iconExpr,
-          "icon-size": 0.6 * ctx.iconSizeScale,
+          "icon-size": scaledIconSize(0.6, ctx) as number,
           "icon-allow-overlap": true,
           ...(lndmrk.offsetExpr ? { "icon-offset": lndmrk.offsetExpr } : {}),
           "text-field": ["get", "OBJNAM"] as unknown as ExpressionSpecification,

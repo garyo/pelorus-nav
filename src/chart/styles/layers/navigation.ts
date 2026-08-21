@@ -8,7 +8,7 @@ import type {
 } from "@maplibre/maplibre-gl-style-spec";
 import { listAttrContains } from "../list-attr";
 import type { StyleContext } from "../style-context";
-import { scaledTextSize } from "../style-context";
+import { scaledIconSize, scaledTextSize } from "../style-context";
 
 /** Regulatory overlay fills and outlines (always built). */
 export function getNavigationOverlayLayers(
@@ -80,7 +80,7 @@ export function getNavigationOverlayLayers(
       minzoom: ctx.detailMinzoom(10),
       layout: {
         "icon-image": "ACHARE02",
-        "icon-size": 0.8,
+        "icon-size": scaledIconSize(0.8, ctx),
         "icon-allow-overlap": true,
         "text-field": ["get", "OBJNAM"] as unknown as ExpressionSpecification,
         "text-size": scaledTextSize(11, ctx),
@@ -117,7 +117,7 @@ export function getNavigationOverlayLayers(
       ] as unknown as ExpressionSpecification,
       layout: {
         "icon-image": ctx.icon("entry-prohibited"),
-        "icon-size": 0.5,
+        "icon-size": scaledIconSize(0.5, ctx),
         "icon-allow-overlap": true,
       },
       paint: {
@@ -140,7 +140,7 @@ export function getNavigationOverlayLayers(
       ] as unknown as ExpressionSpecification,
       layout: {
         "icon-image": ctx.icon("anchoring-prohibited"),
-        "icon-size": 0.5,
+        "icon-size": scaledIconSize(0.5, ctx),
         "icon-allow-overlap": true,
       },
       paint: {
@@ -172,7 +172,7 @@ export function getNavigationOverlayLayers(
       ] as unknown as ExpressionSpecification,
       layout: {
         "icon-image": ctx.icon("fishing-prohibited"),
-        "icon-size": 0.5,
+        "icon-size": scaledIconSize(0.5, ctx),
         "icon-allow-overlap": true,
       },
       paint: {
@@ -202,7 +202,7 @@ export function getNavigationOverlayLayers(
       filter: ["has", "ORIENT"] as unknown as ExpressionSpecification,
       layout: {
         "icon-image": ctx.icon("tss-arrow"),
-        "icon-size": 0.7,
+        "icon-size": scaledIconSize(0.7, ctx),
         "icon-rotate": [
           "to-number",
           ["coalesce", ["get", "ORIENT"], 0],
@@ -254,7 +254,7 @@ export function getNavigationOverlayLayers(
       minzoom: ctx.detailMinzoom(11),
       layout: {
         "icon-image": "MARCUL02",
-        "icon-size": 0.7,
+        "icon-size": scaledIconSize(0.7, ctx),
         "icon-allow-overlap": true,
       },
       paint: {
@@ -282,7 +282,7 @@ export function getNavigationOverlayLayers(
       minzoom: 8,
       layout: {
         "icon-image": ctx.icon("caution-area"),
-        "icon-size": 0.7,
+        "icon-size": scaledIconSize(0.7, ctx),
         "icon-allow-overlap": true,
       },
       paint: {},
@@ -309,7 +309,7 @@ export function getNavigationOverlayLayers(
       minzoom: ctx.detailMinzoom(10),
       layout: {
         "icon-image": ctx.icon("entry-prohibited-caution"),
-        "icon-size": 0.5,
+        "icon-size": scaledIconSize(0.5, ctx),
         "icon-allow-overlap": true,
       },
       paint: {
@@ -338,7 +338,7 @@ export function getNavigationOverlayLayers(
       minzoom: ctx.detailMinzoom(10),
       layout: {
         "icon-image": ctx.icon("wind-farm"),
-        "icon-size": 0.6,
+        "icon-size": scaledIconSize(0.6, ctx),
         "icon-allow-overlap": true,
       },
       paint: {
@@ -473,7 +473,7 @@ export function getNavigationOverlayLayers(
       minzoom: 10,
       layout: {
         "icon-image": "WATTUR02",
-        "icon-size": 0.7,
+        "icon-size": scaledIconSize(0.7, ctx),
         "icon-allow-overlap": true,
       },
       paint: {},
@@ -599,7 +599,7 @@ export function getNavigationRoutingLayers(
       minzoom: ctx.detailMinzoom(11),
       layout: {
         "icon-image": "ACHBRT07",
-        "icon-size": 0.7,
+        "icon-size": scaledIconSize(0.7, ctx),
         "icon-allow-overlap": true,
         "text-field": [
           "concat",

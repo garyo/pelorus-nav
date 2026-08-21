@@ -7,8 +7,13 @@ import type {
   LayerSpecification,
 } from "@maplibre/maplibre-gl-style-spec";
 import { depthConversionFactor, depthUnitLabel } from "../../../settings";
+import { listAttrContains } from "../list-attr";
 import type { StyleContext } from "../style-context";
-import { SCALE_SORT_KEY, scaledTextSize } from "../style-context";
+import {
+  SCALE_SORT_KEY,
+  scaledIconSize,
+  scaledTextSize,
+} from "../style-context";
 
 /**
  * Build a text-field expression that converts VALDCO (meters) to the
@@ -160,26 +165,11 @@ export function getLineLayers(ctx: StyleContext): LayerSpecification[] {
       minzoom: ctx.detailMinzoom(12),
       filter: [
         "any",
-        ...[
-          "2", // opening
-          "3", // swing
-          "4", // lifting
-          "5", // bascule
-          "7", // draw
-        ].map((v) => [
-          "in",
-          `,${v},`,
-          [
-            "concat",
-            ",",
-            ["to-string", ["coalesce", ["get", "CATBRG"], ""]],
-            ",",
-          ],
-        ]),
+        ...[2, 3, 4, 5, 7].map((v) => listAttrContains("CATBRG", v)),
       ] as unknown as ExpressionSpecification,
       layout: {
         "icon-image": ctx.icon("bridge-symbol"),
-        "icon-size": 0.7,
+        "icon-size": scaledIconSize(0.7, ctx),
         "icon-allow-overlap": true,
       },
       paint: {},

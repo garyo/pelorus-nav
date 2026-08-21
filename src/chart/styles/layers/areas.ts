@@ -11,7 +11,7 @@ import type {
 } from "@maplibre/maplibre-gl-style-spec";
 import { listAttrContains } from "../list-attr";
 import type { StyleContext } from "../style-context";
-import { SCALE_SORT_KEY } from "../style-context";
+import { SCALE_SORT_KEY, scaledIconSize } from "../style-context";
 
 export function getAreaLayers(ctx: StyleContext): LayerSpecification[] {
   return [
@@ -438,7 +438,7 @@ export function getAdditionalAreaLayers(
           ctx.icon("landmark-fortified-conspic"),
           ctx.icon("landmark-fortified"),
         ] as unknown as ExpressionSpecification,
-        "icon-size": 0.7,
+        "icon-size": scaledIconSize(0.7, ctx),
         "icon-allow-overlap": true,
       },
       paint: {},

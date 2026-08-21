@@ -858,14 +858,8 @@ export function buildLayerExpressions(
       const stripLight = sp("light-strip");
       const isMajor = [">=", ["coalesce", ["get", "VALNMR"], 0], 10];
       // CATLIT is a list attribute (comma-separated in tiles)
-      const catlitPadded = [
-        "concat",
-        ",",
-        ["to-string", ["coalesce", ["get", "CATLIT"], ""]],
-        ",",
-      ];
-      const isFloodLight = ["in", ",8,", catlitPadded];
-      const isStripLight = ["in", ",9,", catlitPadded];
+      const isFloodLight = listAttrContains("CATLIT", 8);
+      const isStripLight = listAttrContains("CATLIT", 9);
       const colorExpr = [
         "case",
         colContains(GREEN),

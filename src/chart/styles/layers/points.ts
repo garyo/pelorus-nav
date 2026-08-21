@@ -8,7 +8,7 @@ import type {
   LayerSpecification,
   SymbolLayerSpecification,
 } from "@maplibre/maplibre-gl-style-spec";
-import { listAttrFirstNumber } from "../list-attr";
+import { listAttrContains, listAttrFirstNumber } from "../list-attr";
 import type { StyleContext } from "../style-context";
 import {
   BUOY_LABEL_ANCHOR_LAYOUT,
@@ -19,21 +19,11 @@ import {
   SORT_KEY_HAZARD,
   SORT_KEY_LIGHT_CHAR,
   SORT_KEY_NAVAID,
+  scaledIconSize,
   scaledTextSize,
-  scaleSize,
   VARIABLE_ANCHOR_LAYOUT,
   valsouTextField,
 } from "../style-context";
-
-/**
- * Scale an icon-size value by the context's iconSizeScale.
- */
-function scaledSize(
-  base: number | ExpressionSpecification,
-  ctx: StyleContext,
-): number | ExpressionSpecification {
-  return scaleSize(base, ctx.iconSizeScale);
-}
 
 /**
  * At Standard detail and below, minor lights (VALNMR < 10 — lit buoys, pier
@@ -167,7 +157,7 @@ export function getBuoyBeaconLayers(ctx: StyleContext): LayerSpecification[] {
           "text-font": ["Noto Sans Regular"],
           "symbol-sort-key": SORT_KEY_LIGHT_CHAR,
           "icon-image": lights.iconExpr,
-          "icon-size": scaledSize(0.7, ctx),
+          "icon-size": scaledIconSize(0.7, ctx),
           "icon-allow-overlap": true,
           "icon-ignore-placement": true,
           "icon-optional": true,
@@ -221,7 +211,7 @@ export function getBuoyBeaconLayers(ctx: StyleContext): LayerSpecification[] {
           "text-font": ["Noto Sans Regular"],
           "symbol-sort-key": SORT_KEY_NAVAID,
           "icon-image": boylat.iconExpr,
-          "icon-size": scaledSize(0.75, ctx),
+          "icon-size": scaledIconSize(0.75, ctx),
           "icon-allow-overlap": true,
           "icon-ignore-placement": true,
           "text-field": labelExpr(ctx),
@@ -251,7 +241,7 @@ export function getBuoyBeaconLayers(ctx: StyleContext): LayerSpecification[] {
           "text-font": ["Noto Sans Regular"],
           "symbol-sort-key": SORT_KEY_NAVAID,
           "icon-image": boycar.iconExpr,
-          "icon-size": scaledSize(0.75, ctx),
+          "icon-size": scaledIconSize(0.75, ctx),
           "icon-allow-overlap": true,
           "icon-ignore-placement": true,
           "text-field": labelExpr(ctx),
@@ -281,7 +271,7 @@ export function getBuoyBeaconLayers(ctx: StyleContext): LayerSpecification[] {
           "text-font": ["Noto Sans Regular"],
           "symbol-sort-key": SORT_KEY_NAVAID,
           "icon-image": boysaw.iconExpr,
-          "icon-size": scaledSize(0.75, ctx),
+          "icon-size": scaledIconSize(0.75, ctx),
           "icon-allow-overlap": true,
           "icon-ignore-placement": true,
           "text-field": labelExpr(ctx),
@@ -311,7 +301,7 @@ export function getBuoyBeaconLayers(ctx: StyleContext): LayerSpecification[] {
           "text-font": ["Noto Sans Regular"],
           "symbol-sort-key": SORT_KEY_NAVAID,
           "icon-image": boyspp.iconExpr,
-          "icon-size": scaledSize(0.7, ctx),
+          "icon-size": scaledIconSize(0.7, ctx),
           "icon-allow-overlap": true,
           "icon-ignore-placement": true,
           "text-field": labelExpr(ctx),
@@ -341,7 +331,7 @@ export function getBuoyBeaconLayers(ctx: StyleContext): LayerSpecification[] {
           "text-font": ["Noto Sans Regular"],
           "symbol-sort-key": SORT_KEY_NAVAID,
           "icon-image": boyisd.iconExpr,
-          "icon-size": scaledSize(0.75, ctx),
+          "icon-size": scaledIconSize(0.75, ctx),
           "icon-allow-overlap": true,
           "icon-ignore-placement": true,
           "text-field": labelExpr(ctx),
@@ -371,7 +361,7 @@ export function getBuoyBeaconLayers(ctx: StyleContext): LayerSpecification[] {
           "text-font": ["Noto Sans Regular"],
           "symbol-sort-key": SORT_KEY_NAVAID,
           "icon-image": bcnlat.iconExpr,
-          "icon-size": scaledSize(0.7, ctx),
+          "icon-size": scaledIconSize(0.7, ctx),
           "icon-allow-overlap": true,
           "icon-ignore-placement": true,
           "text-field": labelExpr(ctx),
@@ -401,7 +391,7 @@ export function getBuoyBeaconLayers(ctx: StyleContext): LayerSpecification[] {
           "text-font": ["Noto Sans Regular"],
           "symbol-sort-key": SORT_KEY_NAVAID,
           "icon-image": bcncar.iconExpr,
-          "icon-size": scaledSize(0.7, ctx),
+          "icon-size": scaledIconSize(0.7, ctx),
           "icon-allow-overlap": true,
           "icon-ignore-placement": true,
           "text-field": labelExpr(ctx),
@@ -431,7 +421,7 @@ export function getBuoyBeaconLayers(ctx: StyleContext): LayerSpecification[] {
           "text-font": ["Noto Sans Regular"],
           "symbol-sort-key": SORT_KEY_NAVAID,
           "icon-image": bcnisd.iconExpr,
-          "icon-size": scaledSize(0.7, ctx),
+          "icon-size": scaledIconSize(0.7, ctx),
           "icon-allow-overlap": true,
           "icon-ignore-placement": true,
           "text-field": labelExpr(ctx),
@@ -460,7 +450,7 @@ export function getBuoyBeaconLayers(ctx: StyleContext): LayerSpecification[] {
           "text-font": ["Noto Sans Regular"],
           "symbol-sort-key": SORT_KEY_NAVAID,
           "icon-image": bcnsaw.iconExpr,
-          "icon-size": scaledSize(0.7, ctx),
+          "icon-size": scaledIconSize(0.7, ctx),
           "icon-allow-overlap": true,
           "icon-ignore-placement": true,
           "text-field": labelExpr(ctx),
@@ -497,7 +487,7 @@ export function getHazardLayers(ctx: StyleContext): LayerSpecification[] {
       layout: withOffset(
         {
           "icon-image": wrecks.iconExpr,
-          "icon-size": scaledSize(
+          "icon-size": scaledIconSize(
             [
               "interpolate",
               ["linear"],
@@ -631,7 +621,7 @@ export function getHazardLayers(ctx: StyleContext): LayerSpecification[] {
         {
           "symbol-sort-key": SORT_KEY_HAZARD,
           "icon-image": obstrn.iconExpr,
-          "icon-size": scaledSize(
+          "icon-size": scaledIconSize(
             [
               "interpolate",
               ["linear"],
@@ -701,7 +691,7 @@ export function getHazardLayers(ctx: StyleContext): LayerSpecification[] {
             SORT_KEY_HAZARD + 1,
           ] as unknown as ExpressionSpecification,
           "icon-image": uwtroc.iconExpr,
-          "icon-size": scaledSize(
+          "icon-size": scaledIconSize(
             [
               "interpolate",
               ["linear"],
@@ -781,7 +771,7 @@ export function getHazardLayers(ctx: StyleContext): LayerSpecification[] {
       ] as unknown as ExpressionSpecification,
       layout: {
         "icon-image": "WEDKLP01",
-        "icon-size": 0.7,
+        "icon-size": scaledIconSize(0.7, ctx),
         "icon-allow-overlap": true,
       },
       paint: {},
@@ -815,7 +805,7 @@ export function getHazardLayers(ctx: StyleContext): LayerSpecification[] {
       minzoom: 11,
       layout: {
         "icon-image": "SNDWAV02",
-        "icon-size": 0.7,
+        "icon-size": scaledIconSize(0.7, ctx),
         "icon-allow-overlap": true,
       },
       paint: {},
@@ -829,7 +819,7 @@ export function getHazardLayers(ctx: StyleContext): LayerSpecification[] {
       minzoom: 11,
       layout: {
         "icon-image": "SPRING02",
-        "icon-size": 0.7,
+        "icon-size": scaledIconSize(0.7, ctx),
         "icon-allow-overlap": true,
       },
       paint: {},
@@ -846,7 +836,7 @@ export function getHazardLayers(ctx: StyleContext): LayerSpecification[] {
       minzoom: 6,
       layout: {
         "icon-image": "CURENT01",
-        "icon-size": 0.7,
+        "icon-size": scaledIconSize(0.7, ctx),
         "icon-rotate": [
           "to-number",
           ["coalesce", ["get", "ORIENT"], 0],
@@ -892,7 +882,7 @@ export function getHazardLayers(ctx: StyleContext): LayerSpecification[] {
       minzoom: 10,
       layout: {
         "icon-image": "LITFLT02",
-        "icon-size": 0.8,
+        "icon-size": scaledIconSize(0.8, ctx),
         "icon-allow-overlap": true,
       },
       paint: {},
@@ -906,7 +896,7 @@ export function getHazardLayers(ctx: StyleContext): LayerSpecification[] {
       minzoom: 10,
       layout: {
         "icon-image": "LITVES02",
-        "icon-size": 0.8,
+        "icon-size": scaledIconSize(0.8, ctx),
         "icon-allow-overlap": true,
       },
       paint: {},
@@ -938,7 +928,7 @@ export function getHazardLayers(ctx: StyleContext): LayerSpecification[] {
           0,
         ] as unknown as ExpressionSpecification,
         "icon-rotation-alignment": "map",
-        "icon-size": 0.7,
+        "icon-size": scaledIconSize(0.7, ctx),
         "icon-allow-overlap": true,
       },
       paint: {},
@@ -952,7 +942,7 @@ export function getHazardLayers(ctx: StyleContext): LayerSpecification[] {
       minzoom: 10,
       layout: {
         "icon-image": "RSCSTA02",
-        "icon-size": 0.7,
+        "icon-size": scaledIconSize(0.7, ctx),
         "icon-allow-overlap": true,
       },
       paint: {},
@@ -966,7 +956,7 @@ export function getHazardLayers(ctx: StyleContext): LayerSpecification[] {
       minzoom: 10,
       layout: {
         "icon-image": "SISTAT03",
-        "icon-size": 0.7,
+        "icon-size": scaledIconSize(0.7, ctx),
         "icon-allow-overlap": true,
       },
       paint: {},
@@ -981,7 +971,7 @@ export function getHazardLayers(ctx: StyleContext): LayerSpecification[] {
       minzoom: 10,
       layout: {
         "icon-image": "RETRFL02",
-        "icon-size": 0.7,
+        "icon-size": scaledIconSize(0.7, ctx),
         "icon-allow-overlap": true,
       },
       paint: {},
@@ -995,7 +985,7 @@ export function getHazardLayers(ctx: StyleContext): LayerSpecification[] {
       minzoom: 10,
       layout: {
         "icon-image": ctx.icon("radar-transponder"),
-        "icon-size": 0.7,
+        "icon-size": scaledIconSize(0.7, ctx),
         "icon-allow-overlap": true,
       },
       paint: {},
@@ -1009,11 +999,12 @@ export function getHazardLayers(ctx: StyleContext): LayerSpecification[] {
       minzoom: 10,
       layout: {
         "icon-image": ctx.icon("radio-station"),
-        "icon-size": 0.7,
+        "icon-size": scaledIconSize(0.7, ctx),
         "icon-allow-overlap": true,
         "text-field": [
           "case",
-          ["any", ["==", ["get", "CATROS"], 7], ["==", ["get", "CATROS"], "7"]],
+          // CATROS is a list attribute; 7 = differential GNSS station
+          listAttrContains("CATROS", 7),
           "DGPS",
           "",
         ] as unknown as ExpressionSpecification,
@@ -1042,7 +1033,7 @@ export function getHazardLayers(ctx: StyleContext): LayerSpecification[] {
           ctx.icon("gate-navigable"),
           ctx.icon("gate-non-navigable"),
         ] as unknown as ExpressionSpecification,
-        "icon-size": 0.7,
+        "icon-size": scaledIconSize(0.7, ctx),
         "icon-allow-overlap": true,
       },
       paint: {},
@@ -1074,7 +1065,7 @@ function isolatedDangerLayers(ctx: StyleContext): LayerSpecification[] {
     filter,
     layout: {
       "icon-image": ctx.icon("isolated-danger-symbol"),
-      "icon-size": scaledSize(0.7, ctx) as number,
+      "icon-size": scaledIconSize(0.7, ctx) as number,
       "icon-allow-overlap": true,
     },
     paint: {},
@@ -1100,7 +1091,7 @@ export function getOtherNavAidLayers(ctx: StyleContext): LayerSpecification[] {
         {
           "symbol-sort-key": SORT_KEY_NAVAID,
           "icon-image": fogsig.iconExpr,
-          "icon-size": scaledSize(0.6, ctx),
+          "icon-size": scaledIconSize(0.6, ctx),
           "icon-allow-overlap": true,
           "icon-ignore-placement": true,
         },
@@ -1119,7 +1110,7 @@ export function getOtherNavAidLayers(ctx: StyleContext): LayerSpecification[] {
         {
           "symbol-sort-key": SORT_KEY_NAVAID,
           "icon-image": pilpnt.iconExpr,
-          "icon-size": scaledSize(0.6, ctx),
+          "icon-size": scaledIconSize(0.6, ctx),
           "icon-allow-overlap": true,
         },
         pilpnt.offsetExpr,
@@ -1137,7 +1128,7 @@ export function getOtherNavAidLayers(ctx: StyleContext): LayerSpecification[] {
         {
           "symbol-sort-key": SORT_KEY_NAVAID,
           "icon-image": morfac.iconExpr,
-          "icon-size": scaledSize(0.5, ctx),
+          "icon-size": scaledIconSize(0.5, ctx),
           "icon-allow-overlap": true,
         },
         morfac.offsetExpr,
@@ -1157,7 +1148,7 @@ export function getOtherNavAidLayers(ctx: StyleContext): LayerSpecification[] {
           "text-font": ["Noto Sans Regular"],
           "symbol-sort-key": SORT_KEY_NAVAID,
           "icon-image": bcnspp.iconExpr,
-          "icon-size": scaledSize(0.7, ctx),
+          "icon-size": scaledIconSize(0.7, ctx),
           "icon-allow-overlap": true,
           "icon-ignore-placement": true,
           "text-field": labelExpr(ctx),
@@ -1248,7 +1239,7 @@ export function getOtherPointLayers(ctx: StyleContext): LayerSpecification[] {
       minzoom: ctx.detailMinzoom(10),
       layout: {
         "icon-image": ctx.icon("info-area"),
-        "icon-size": 0.5,
+        "icon-size": scaledIconSize(0.5, ctx),
         "icon-allow-overlap": true,
       },
       paint: {
@@ -1298,7 +1289,7 @@ export function getOtherPointLayers(ctx: StyleContext): LayerSpecification[] {
       layout: withOffset(
         {
           "icon-image": siltnk.iconExpr,
-          "icon-size": scaledSize(0.5, ctx),
+          "icon-size": scaledIconSize(0.5, ctx),
           "icon-allow-overlap": true,
         },
         siltnk.offsetExpr,
@@ -1317,7 +1308,7 @@ export function getOtherPointLayers(ctx: StyleContext): LayerSpecification[] {
           ...VARIABLE_ANCHOR_LAYOUT,
           "symbol-sort-key": SORT_KEY_FACILITY,
           "icon-image": hrbfac.iconExpr,
-          "icon-size": scaledSize(0.6, ctx),
+          "icon-size": scaledIconSize(0.6, ctx),
           "icon-allow-overlap": true,
           "text-field": ["get", "OBJNAM"] as unknown as ExpressionSpecification,
           "text-size": scaledTextSize(10, ctx),
@@ -1341,7 +1332,7 @@ export function getOtherPointLayers(ctx: StyleContext): LayerSpecification[] {
       layout: withOffset(
         {
           "icon-image": ofsplf.iconExpr,
-          "icon-size": scaledSize(0.6, ctx),
+          "icon-size": scaledIconSize(0.6, ctx),
           "icon-allow-overlap": true,
         },
         ofsplf.offsetExpr,
@@ -1442,7 +1433,7 @@ export function getAdditionalPointLayers(
           ...VARIABLE_ANCHOR_LAYOUT,
           "symbol-sort-key": SORT_KEY_FACILITY,
           "icon-image": pilbop.iconExpr,
-          "icon-size": scaledSize(0.6, ctx),
+          "icon-size": scaledIconSize(0.6, ctx),
           "icon-allow-overlap": true,
           "text-field": [
             "case",
@@ -1489,7 +1480,7 @@ export function getAdditionalPointLayers(
       minzoom: 12,
       layout: {
         "icon-image": ctx.icon("water-turbulence"),
-        "icon-size": scaledSize(0.7, ctx) as number,
+        "icon-size": scaledIconSize(0.7, ctx) as number,
         "icon-allow-overlap": true,
       },
       paint: {},
@@ -1503,7 +1494,7 @@ export function getAdditionalPointLayers(
       minzoom: ctx.detailMinzoom(11),
       layout: {
         "icon-image": "FSHFAC02",
-        "icon-size": 0.7,
+        "icon-size": scaledIconSize(0.7, ctx),
         "icon-allow-overlap": true,
       },
       paint: {},
@@ -1548,7 +1539,7 @@ export function getAdditionalPointLayers(
       layout: withOffset(
         {
           "icon-image": cranes.iconExpr,
-          "icon-size": scaledSize(0.5, ctx),
+          "icon-size": scaledIconSize(0.5, ctx),
           "icon-allow-overlap": true,
         },
         cranes.offsetExpr,
@@ -1597,7 +1588,7 @@ export function getDaymarkTopmarkLayers(
       layout: withOffset(
         {
           "icon-image": daymar.iconExpr,
-          "icon-size": scaledSize(0.75, ctx),
+          "icon-size": scaledIconSize(0.75, ctx),
           "icon-allow-overlap": true,
         },
         daymar.offsetExpr,
@@ -1613,7 +1604,7 @@ export function getDaymarkTopmarkLayers(
       layout: withOffset(
         {
           "icon-image": topmar.iconExpr,
-          "icon-size": scaledSize(0.7, ctx),
+          "icon-size": scaledIconSize(0.7, ctx),
           "icon-allow-overlap": true,
           // For Pelorus Standard, topmarks are shifted up to sit above beacons.
           // For S-52, the per-symbol offset expression handles this.
