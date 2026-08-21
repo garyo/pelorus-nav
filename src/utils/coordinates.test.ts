@@ -88,6 +88,21 @@ describe("formatLatLon", () => {
   it("formats zero latitude as N", () => {
     expect(formatLatLon(0, "lat")).toBe("00°00.00'N");
   });
+
+  it("rounds minutes to hundredths without carrying below the edge", () => {
+    expect(formatLatLon(42 + 59.994 / 60, "lat")).toBe("42°59.99'N");
+  });
+
+  it("carries minutes that round to 60 into the next degree", () => {
+    expect(formatLatLon(42.9999999, "lat")).toBe("43°00.00'N");
+    expect(formatLatLon(-42.9999999, "lat")).toBe("43°00.00'S");
+  });
+
+  it("carries at the latitude and longitude limits", () => {
+    expect(formatLatLon(89.999999, "lat")).toBe("90°00.00'N");
+    expect(formatLatLon(179.999999, "lon")).toBe("180°00.00'E");
+    expect(formatLatLon(-179.999999, "lon")).toBe("180°00.00'W");
+  });
 });
 
 describe("parseLatLon", () => {

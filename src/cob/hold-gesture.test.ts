@@ -131,6 +131,34 @@ describe("attachHoldGesture (stepped mode, fake clock)", () => {
     r.detach();
   });
 
+  it("cancels an off-element release when pointer capture fails", () => {
+    const r = hold();
+    el.setPointerCapture = () => {
+      throw new Error("capture unavailable");
+    };
+    el.dispatchEvent(new Event("pointerdown"));
+    vi.advanceTimersByTime(500);
+    // Without capture the release never reaches el — only window sees it.
+    window.dispatchEvent(new Event("pointerup"));
+    expect(r.cancelled).toBe(true);
+    expect(r.completed).toBe(false);
+    vi.advanceTimersByTime(2000);
+    expect(r.completed).toBe(false);
+    r.detach();
+  });
+
+  it("still completes a full off-element hold when pointer capture fails", () => {
+    const r = hold();
+    el.setPointerCapture = () => {
+      throw new Error("capture unavailable");
+    };
+    el.dispatchEvent(new Event("pointerdown"));
+    vi.advanceTimersByTime(1600);
+    expect(r.completed).toBe(true);
+    expect(r.cancelled).toBe(false);
+    r.detach();
+  });
+
   it("detach cancels an in-flight hold", () => {
     const r = hold();
     el.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter" }));

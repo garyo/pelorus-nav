@@ -19,6 +19,7 @@ import {
 import type { NavigationData } from "../navigation/NavigationData";
 import type { NavigationDataManager } from "../navigation/NavigationDataManager";
 import { getSettings } from "../settings";
+import { unwrapLon } from "../utils/coordinates";
 import type { ChartModeController } from "../vessel/ChartMode";
 import type { CobManager } from "./CobManager";
 
@@ -47,7 +48,12 @@ export function cobFitBounds(
   cobLon: number,
 ): LonLatBounds {
   const dLat = Math.max(Math.abs(cobLat - vesselLat), MIN_HALF_EXTENT_DEG);
-  const dLon = Math.max(Math.abs(cobLon - vesselLon), MIN_HALF_EXTENT_DEG);
+  // Unwrap so a vessel/COB pair straddling the antimeridian measures the
+  // short way around, not ~360° (which would fit the whole world).
+  const dLon = Math.max(
+    Math.abs(unwrapLon(cobLon, vesselLon) - vesselLon),
+    MIN_HALF_EXTENT_DEG,
+  );
   return [
     [vesselLon - dLon, vesselLat - dLat],
     [vesselLon + dLon, vesselLat + dLat],

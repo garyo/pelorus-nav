@@ -72,6 +72,7 @@ export function attachHoldGesture(
     if (!timer) return;
     timer = null;
     stopTicking();
+    removeWindowFallback();
     lastReported = -1;
     if (completed) {
       opts.onProgress(1);
@@ -112,12 +113,30 @@ export function attachHoldGesture(
     }
   };
 
+  // Fallback when pointer capture is unavailable: without capture, a release
+  // off the element never reaches el's pointerup listener, so the completion
+  // timeout would fire and complete the guarded action despite the abandoned
+  // hold. Window-level listeners see the release wherever it lands.
+  let windowFallback = false;
+  const addWindowFallback = (): void => {
+    if (windowFallback) return;
+    windowFallback = true;
+    window.addEventListener("pointerup", onRelease);
+    window.addEventListener("pointercancel", onAbort);
+  };
+  const removeWindowFallback = (): void => {
+    if (!windowFallback) return;
+    windowFallback = false;
+    window.removeEventListener("pointerup", onRelease);
+    window.removeEventListener("pointercancel", onAbort);
+  };
+
   const onPointerDown = (e: PointerEvent): void => {
     if (e.isPrimary === false) return; // ignore secondary touches only
     try {
       el.setPointerCapture(e.pointerId);
     } catch {
-      // pointer capture unavailable (some test/embedded environments)
+      addWindowFallback();
     }
     start();
   };

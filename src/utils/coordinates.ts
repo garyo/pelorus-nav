@@ -184,7 +184,7 @@ export function densifyGreatCirclePath(
 }
 
 /** `lon` expressed as the value nearest `reference`, continuing past ±180. */
-function unwrapLon(lon: number, reference: number): number {
+export function unwrapLon(lon: number, reference: number): number {
   let out = lon;
   while (out - reference > 180) out -= 360;
   while (out - reference < -180) out += 360;
@@ -197,8 +197,14 @@ function unwrapLon(lon: number, reference: number): number {
  */
 export function formatLatLon(value: number, type: "lat" | "lon"): string {
   const abs = Math.abs(value);
-  const deg = Math.floor(abs);
-  const min = (abs - deg) * 60;
+  let deg = Math.floor(abs);
+  // Round to hundredths of a minute up front so a value like 42.9999999
+  // carries into the next degree rather than rendering as "42°60.00'".
+  let min = Math.round((abs - deg) * 6000) / 100;
+  if (min === 60) {
+    deg += 1;
+    min = 0;
+  }
   const hemisphere =
     type === "lat" ? (value >= 0 ? "N" : "S") : value >= 0 ? "E" : "W";
   const degPad = type === "lon" ? 3 : 2;
@@ -269,15 +275,6 @@ function parseDDMComponent(s: string): number {
   return Number.isNaN(val) ? NaN : sign * val;
 }
 
-/**
- * Parse a lat/lon string in various formats. Returns [lat, lon] or null.
- *
- * Accepted formats:
- * - "42.305,-70.946" (decimal degrees, comma-separated)
- * - "42°18.295'N 70°56.787'W" (DDM with hemisphere, space-separated)
- * - "42°18.295'N, 70°56.787'W" (DDM with comma)
- * - Mixed: "42.305N 70.946W"
- */
 /**
  * Signed angular difference `target − current` normalised to [−180, +180).
  * Negative → turn left, positive → turn right. (±180 both mean "turn around".)
@@ -404,6 +401,15 @@ export function bboxOfCoords(
   return [minLon, minLat, maxLon, maxLat];
 }
 
+/**
+ * Parse a lat/lon string in various formats. Returns [lat, lon] or null.
+ *
+ * Accepted formats:
+ * - "42.305,-70.946" (decimal degrees, comma-separated)
+ * - "42°18.295'N 70°56.787'W" (DDM with hemisphere, space-separated)
+ * - "42°18.295'N, 70°56.787'W" (DDM with comma)
+ * - Mixed: "42.305N 70.946W"
+ */
 export function parseLatLon(input: string): [number, number] | null {
   const s = input.trim();
   if (!s) return null;

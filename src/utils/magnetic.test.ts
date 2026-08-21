@@ -83,6 +83,11 @@ describe("magnetic utilities", () => {
       const result = formatBearing(5, "true", 42.36, -71.06);
       expect(result).toBe("005°T");
     });
+
+    it("wraps bearings that round up to 360 back to 000", () => {
+      expect(formatBearing(359.7, "true", 42.36, -71.06)).toBe("000°T");
+      expect(formatBearing(359.4, "true", 42.36, -71.06)).toBe("359°T");
+    });
   });
 
   describe("formatDeclination", () => {

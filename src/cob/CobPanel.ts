@@ -282,7 +282,7 @@ export class CobPanel {
         : "--";
     this.cogEl.textContent =
       fix.cog != null
-        ? `${Math.round(fix.cog).toString().padStart(3, "0")}°`
+        ? `${(Math.round(fix.cog) % 360).toString().padStart(3, "0")}°`
         : "--";
   }
 

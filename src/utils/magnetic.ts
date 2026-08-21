@@ -69,7 +69,8 @@ export function formatBearing(
 ): string {
   const display = applyDeclination(trueBearing, mode, lat, lon);
   const suffix = bearingModeLabel(mode);
-  return `${Math.round(display).toString().padStart(3, "0")}\u00b0${suffix}`;
+  // % 360: rounding can push e.g. 359.7 up to 360, which must display as 000.
+  return `${(Math.round(display) % 360).toString().padStart(3, "0")}\u00b0${suffix}`;
 }
 
 /**
