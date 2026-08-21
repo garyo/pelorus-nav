@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 import type { TideEvent } from "../tides/predictor";
 import {
+  dropToLow,
   formatScopeRatio,
   highestHighWithin,
+  lowestLowWithin,
   riseToHigh,
   SCOPE_GOOD,
   SCOPE_MARGINAL,
@@ -152,5 +154,33 @@ describe("riseToHigh", () => {
   it("floors at zero when the high is already past its peak level", () => {
     expect(riseToHigh(3.4, 3.4)).toBe(0);
     expect(riseToHigh(3.6, 3.4)).toBe(0);
+  });
+});
+
+describe("lowestLowWithin / dropToLow", () => {
+  const t = (h: number) => new Date(Date.UTC(2026, 0, 1, h));
+  const events = [
+    { type: "low" as const, time: t(2), heightMeters: 0.6 },
+    { type: "high" as const, time: t(8), heightMeters: 3.2 },
+    { type: "low" as const, time: t(14), heightMeters: 0.2 },
+    { type: "low" as const, time: t(26), heightMeters: -0.3 },
+  ];
+
+  it("picks the lowest low in the window, not the soonest", () => {
+    // Window spans both lows: 0.6 at t+2 and the deeper 0.2 at t+14.
+    const low = lowestLowWithin(events, t(0), 16 * 3600_000);
+    expect(low?.heightMeters).toBe(0.2);
+  });
+
+  it("ignores lows outside the window and past events", () => {
+    expect(lowestLowWithin(events, t(0), 3600_000)).toBeNull();
+    expect(lowestLowWithin(events, t(20), 12 * 3600_000)?.heightMeters).toBe(
+      -0.3,
+    );
+  });
+
+  it("drop is the fall from current height, floored at zero", () => {
+    expect(dropToLow(2.0, 0.2)).toBeCloseTo(1.8, 6);
+    expect(dropToLow(0.2, 1.5)).toBe(0);
   });
 });

@@ -121,3 +121,29 @@ export function highestHighWithin(
 export function riseToHigh(currentM: number, highM: number): number {
   return Math.max(0, highM - currentM);
 }
+
+/**
+ * Lowest low water in the window — the state that matters for the watch
+ * radius, since less water under the boat means a flatter rode and so a
+ * *larger* swing circle. (High water is the scope case; they are opposites.)
+ */
+export function lowestLowWithin(
+  events: readonly TideEvent[],
+  from: Date,
+  withinMs: number,
+): TideEvent | null {
+  const start = from.getTime();
+  let best: TideEvent | null = null;
+  for (const e of events) {
+    if (e.type !== "low") continue;
+    const dt = e.time.getTime() - start;
+    if (dt < 0 || dt > withinMs) continue;
+    if (best === null || e.heightMeters < best.heightMeters) best = e;
+  }
+  return best;
+}
+
+/** Water drop from `currentM` down to `lowM`, never negative. */
+export function dropToLow(currentM: number, lowM: number): number {
+  return Math.max(0, currentM - lowM);
+}

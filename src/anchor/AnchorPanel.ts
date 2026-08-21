@@ -53,8 +53,10 @@ import {
   warnRingRadiusM,
 } from "./AnchorWatchManager";
 import {
+  dropToLow,
   formatScopeRatio,
   highestHighWithin,
+  lowestLowWithin,
   riseToHigh,
   SCOPE_MARGINAL,
   type ScopeAdvice,
@@ -105,6 +107,12 @@ type TideOutlook =
       /** Subordinate station: heights are offset estimates, not a curve. */
       approximate: boolean;
       stationName: string;
+      /**
+       * Fall to the lowest low water in the same window, if there is one.
+       * Low water is the radius case: less water under the boat flattens
+       * the rode, so the swing circle is widest then.
+       */
+      dropM: number | null;
     };
 
 /** Short suffix stating why the tide half of the readout is missing. */
@@ -121,6 +129,8 @@ const TIDE_OUTLOOK_NOTE: Record<
 };
 
 const POOR_SCOPE_ADVISORY = `Advisory: scope below ${SCOPE_MARGINAL}:1 — more rode recommended.`;
+const GROUNDING_ADVISORY =
+  "Advisory: the entered depth falls to zero at low water — check the chart before staying.";
 const POOR_AT_HW_ADVISORY = `Advisory: scope drops below ${SCOPE_MARGINAL}:1 at high water — more rode recommended.`;
 
 /** The tide/scope line and its advisory, for both views. */
@@ -739,6 +749,14 @@ export class AnchorPanel {
     return this.radiusOverrideM ?? this.autoRadiusM();
   }
 
+  /**
+   * Watch radius for the widest swing expected during the watch. The boat
+   * reaches furthest at low water — less depth means a flatter rode — so
+   * the entered depth is reduced by the fall to the lowest low water in the
+   * tide window when that is known. A depth that would go non-positive is
+   * clamped just above zero; the grounding case is the advisory's business,
+   * not the radius formula's.
+   */
   private autoRadiusM(): number {
     const fix = this.deps.navManager.getLastData();
     const margin = gpsMarginM(
@@ -749,9 +767,31 @@ export class AnchorPanel {
       this.params.lastRodeM,
       this.params.boatLengthM,
       margin,
-      this.params.lastDepthM,
+      this.depthAtLowWaterM(),
       this.params.bowHeightM,
     );
+  }
+
+  /** The entered depth would be gone by low water — a grounding risk. */
+  private groundsAtLowWater(): boolean {
+    const depth = this.params.lastDepthM;
+    if (depth === undefined || depth <= 0) return false;
+    const outlook = this.tideCache?.outlook;
+    if (!outlook || outlook.kind !== "high" || outlook.dropM === null) {
+      return false;
+    }
+    return outlook.dropM >= depth;
+  }
+
+  /** Entered depth less the predicted fall to low water, when available. */
+  private depthAtLowWaterM(): number | undefined {
+    const depth = this.params.lastDepthM;
+    if (depth === undefined || depth <= 0) return depth;
+    const outlook = this.tideCache?.outlook;
+    if (!outlook || outlook.kind !== "high" || outlook.dropM === null) {
+      return depth;
+    }
+    return Math.max(0.1, depth - outlook.dropM);
   }
 
   private resolveAnchorPosition(): { lat: number; lon: number } | null {
@@ -1051,12 +1091,14 @@ export class AnchorPanel {
       TIDE_LOOKAHEAD_HRS * HOUR_MS,
     );
     if (!hw) return { kind: "no-high" };
+    const lw = lowestLowWithin(state.events, at, TIDE_LOOKAHEAD_HRS * HOUR_MS);
     return {
       kind: "high",
       riseM: riseToHigh(state.heightMeters, hw.heightMeters),
       time: hw.time,
       approximate: state.approximate === true,
       stationName: station.name,
+      dropM: lw ? dropToLow(state.heightMeters, lw.heightMeters) : null,
     };
   }
 
@@ -1117,8 +1159,9 @@ export class AnchorPanel {
             )}${outlook.approximate ? " (approx.)" : ""}`,
       advice: worst ?? "none",
       detail: notes.join(" "),
-      advisory:
-        hwAdvice === "poor" && nowAdvice !== "poor"
+      advisory: this.groundsAtLowWater()
+        ? GROUNDING_ADVISORY
+        : hwAdvice === "poor" && nowAdvice !== "poor"
           ? POOR_AT_HW_ADVISORY
           : worst === "poor"
             ? POOR_SCOPE_ADVISORY
