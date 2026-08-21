@@ -21,6 +21,9 @@ class FakeAudioContext {
   currentTime = 0;
   destination = {};
   started: number[] = [];
+  /** Every scheduled tone, in order: frequency and its start time (seconds). */
+  scheduled: { hz: number; at: number }[] = [];
+  gains: FakeAudioParam[] = [];
   resume = vi.fn(() => {
     this.state = "running";
     return Promise.resolve();
@@ -31,15 +34,19 @@ class FakeAudioContext {
       type: "sine",
       frequency: fakeParam(),
       connect: vi.fn((target: unknown) => target),
-      start: vi.fn((_at: number) => {
-        this.started.push((node.frequency as FakeAudioParam).value);
+      start: vi.fn((at: number) => {
+        const hz = (node.frequency as FakeAudioParam).value;
+        this.started.push(hz);
+        this.scheduled.push({ hz, at });
       }),
       stop: vi.fn(),
     };
     return node;
   }
   createGain() {
-    return { gain: fakeParam(), connect: vi.fn((t: unknown) => t) };
+    const gain = fakeParam();
+    this.gains.push(gain);
+    return { gain, connect: vi.fn((t: unknown) => t) };
   }
 }
 
@@ -71,9 +78,46 @@ describe("CobAlarm", () => {
     const alarm = new CobAlarm();
     alarm.start(false);
     expect(fakeCtx.started).toEqual([880, 660]); // immediate first beat
+    expect(fakeCtx.scheduled.map((s) => s.at)).toEqual([0, 0.4]);
+    expect(fakeCtx.gains[0].linearRampToValueAtTime).toHaveBeenCalledWith(
+      0.4,
+      0.02,
+    );
     expect(vibrate).toHaveBeenCalledWith([400, 200, 400]);
     vi.advanceTimersByTime(1200);
     expect(fakeCtx.started).toEqual([880, 660, 880, 660]);
+    alarm.dispose();
+  });
+
+  it("options override the tones, cadence, gain and vibration", () => {
+    const alarm = new CobAlarm({
+      toneHz: [500, 400],
+      toneMs: 250,
+      beatIntervalMs: 3000,
+      gain: 0.2,
+      vibratePattern: [100, 100],
+    });
+    alarm.start(false);
+    expect(fakeCtx.started).toEqual([500, 400]);
+    expect(fakeCtx.scheduled.map((s) => s.at)).toEqual([0, 0.25]);
+    expect(fakeCtx.gains[0].linearRampToValueAtTime).toHaveBeenCalledWith(
+      0.2,
+      0.02,
+    );
+    expect(vibrate).toHaveBeenCalledWith([100, 100]);
+
+    vi.advanceTimersByTime(1200); // the default cadence must not apply
+    expect(fakeCtx.started).toEqual([500, 400]);
+    vi.advanceTimersByTime(1800);
+    expect(fakeCtx.started).toEqual([500, 400, 500, 400]);
+    alarm.dispose();
+  });
+
+  it("leaves unspecified options at their defaults", () => {
+    const alarm = new CobAlarm({ beatIntervalMs: 3000 });
+    alarm.start(false);
+    expect(fakeCtx.started).toEqual([880, 660]);
+    expect(vibrate).toHaveBeenCalledWith([400, 200, 400]);
     alarm.dispose();
   });
 

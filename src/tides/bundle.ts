@@ -3,6 +3,7 @@
  * (public/tides-stations.json, built by tools/tides/build-bundle.ts).
  */
 
+import { haversineDistanceNM, toRadians } from "../utils/coordinates";
 import type {
   CurrentRefStation,
   CurrentSubStation,
@@ -91,4 +92,63 @@ export function stationsInBounds<S extends StationBase>(
     const dLng = (((s.lng - box.west) % 360) + 360) % 360;
     return dLng <= width;
   });
+}
+
+/** Search radius (nautical miles) when a caller doesn't specify one. */
+export const DEFAULT_NEAREST_STATION_NM = 25;
+
+const NM_PER_DEGREE_LAT = 60;
+
+/**
+ * Nearest station to a position within `maxNM`, or null if none is in range.
+ * A bounding box prefilters the (few thousand) stations before the exact
+ * great-circle ranking.
+ */
+export function nearestStation<S extends StationBase>(
+  stations: S[],
+  lat: number,
+  lon: number,
+  maxNM = DEFAULT_NEAREST_STATION_NM,
+): S | null {
+  const dLat = maxNM / NM_PER_DEGREE_LAT;
+  // Longitude degrees per nm grow towards the poles; a full sweep near them.
+  const cosLat = Math.cos(toRadians(lat));
+  const dLng = cosLat > 1e-6 ? Math.min(180, dLat / cosLat) : 180;
+  const candidates = stationsInBounds(stations, {
+    west: lon - dLng,
+    south: lat - dLat,
+    east: lon + dLng,
+    north: lat + dLat,
+  });
+
+  let best: S | null = null;
+  let bestNM = maxNM;
+  for (const s of candidates) {
+    const nm = haversineDistanceNM(lat, lon, s.lat, s.lng);
+    if (nm <= bestNM) {
+      best = s;
+      bestNM = nm;
+    }
+  }
+  return best;
+}
+
+/** Nearest tide station (reference or subordinate) to a position. */
+export function nearestTideStation(
+  index: TidesIndex,
+  lat: number,
+  lon: number,
+  maxNM = DEFAULT_NEAREST_STATION_NM,
+): TideStation | null {
+  return nearestStation(index.tideStations, lat, lon, maxNM);
+}
+
+/** Nearest current station to a position, from the chart-displayed set. */
+export function nearestCurrentStation(
+  index: TidesIndex,
+  lat: number,
+  lon: number,
+  maxNM = DEFAULT_NEAREST_STATION_NM,
+): CurrentStation | null {
+  return nearestStation(index.currentStations, lat, lon, maxNM);
 }

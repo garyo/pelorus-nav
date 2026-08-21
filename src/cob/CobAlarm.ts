@@ -1,18 +1,34 @@
 /**
- * Crew-overboard attention alarm: a repeating two-tone siren via Web Audio
- * plus device vibration. Muting gates the output but keeps the loop running,
- * so unmute is instant. All audio calls are guarded — a missing or blocked
- * AudioContext (headless tests, autoplay policy after a crash-restore with
- * no user gesture) degrades to silence and reports via onBlockedChange so
- * the UI can offer a "tap to enable sound" unlock.
+ * Repeating two-tone attention alarm via Web Audio plus device vibration,
+ * used for crew-overboard and other alerts that need distinct cadences.
+ * Muting gates the output but keeps the loop running, so unmute is instant.
+ * All audio calls are guarded — a missing or blocked AudioContext (headless
+ * tests, autoplay policy after a crash-restore with no user gesture) degrades
+ * to silence and reports via onBlockedChange so the UI can offer a "tap to
+ * enable sound" unlock.
  */
 
-const LOOP_INTERVAL_MS = 1200;
-const TONE_HI_HZ = 880;
-const TONE_LO_HZ = 660;
-const TONE_MS = 400;
-const GAIN = 0.4;
-const VIBRATE_PATTERN = [400, 200, 400];
+/** Cadence and timbre of the siren; every field defaults to the COB alarm. */
+export interface CobAlarmOptions {
+  /** The two tone frequencies (Hz), played in order within each beat. */
+  toneHz?: [number, number];
+  /** Duration of each of the two tones, in milliseconds. */
+  toneMs?: number;
+  /** Gap between the start of successive beats, in milliseconds. */
+  beatIntervalMs?: number;
+  /** Peak oscillator gain, 0–1. */
+  gain?: number;
+  /** Vibration burst per beat, as navigator.vibrate's on/off milliseconds. */
+  vibratePattern?: number[];
+}
+
+const DEFAULTS: Required<CobAlarmOptions> = {
+  toneHz: [880, 660],
+  toneMs: 400,
+  beatIntervalMs: 1200,
+  gain: 0.4,
+  vibratePattern: [400, 200, 400],
+};
 
 export class CobAlarm {
   private ctx: AudioContext | null = null;
@@ -20,6 +36,11 @@ export class CobAlarm {
   private muted = false;
   private blocked = false;
   private blockedListeners: Array<(blocked: boolean) => void> = [];
+  private readonly opts: Required<CobAlarmOptions>;
+
+  constructor(options: CobAlarmOptions = {}) {
+    this.opts = { ...DEFAULTS, ...options };
+  }
 
   /** Begin the alarm loop. Safe to call from any context; best from a user gesture. */
   start(muted: boolean): void {
@@ -27,7 +48,7 @@ export class CobAlarm {
     if (this.interval) return;
     this.ensureContext();
     this.beat();
-    this.interval = setInterval(() => this.beat(), LOOP_INTERVAL_MS);
+    this.interval = setInterval(() => this.beat(), this.opts.beatIntervalMs);
   }
 
   stop(): void {
@@ -97,7 +118,7 @@ export class CobAlarm {
   private beat(): void {
     if (this.muted) return;
     try {
-      navigator.vibrate?.(VIBRATE_PATTERN);
+      navigator.vibrate?.(this.opts.vibratePattern);
     } catch {
       // vibration unsupported
     }
@@ -117,8 +138,10 @@ export class CobAlarm {
     }
     try {
       const t0 = ctx.currentTime;
-      this.tone(ctx, TONE_HI_HZ, t0, TONE_MS / 1000);
-      this.tone(ctx, TONE_LO_HZ, t0 + TONE_MS / 1000, TONE_MS / 1000);
+      const [hiHz, loHz] = this.opts.toneHz;
+      const toneSec = this.opts.toneMs / 1000;
+      this.tone(ctx, hiHz, t0, toneSec);
+      this.tone(ctx, loHz, t0 + toneSec, toneSec);
       this.setBlocked(false);
     } catch {
       // scheduling failed — treat as silent beat
@@ -133,12 +156,13 @@ export class CobAlarm {
   ): void {
     const osc = ctx.createOscillator();
     const gain = ctx.createGain();
+    const peak = this.opts.gain;
     osc.type = "square";
     osc.frequency.value = freqHz;
     // Short attack/release ramps avoid clicks at tone edges.
     gain.gain.setValueAtTime(0, at);
-    gain.gain.linearRampToValueAtTime(GAIN, at + 0.02);
-    gain.gain.setValueAtTime(GAIN, at + durationSec - 0.05);
+    gain.gain.linearRampToValueAtTime(peak, at + 0.02);
+    gain.gain.setValueAtTime(peak, at + durationSec - 0.05);
     gain.gain.linearRampToValueAtTime(0, at + durationSec);
     osc.connect(gain).connect(ctx.destination);
     osc.start(at);

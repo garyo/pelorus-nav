@@ -1,5 +1,12 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { buildIndex, stationsInBounds } from "./bundle";
+import miniBundle from "./__fixtures__/mini-bundle.json";
+import {
+  buildIndex,
+  nearestCurrentStation,
+  nearestStation,
+  nearestTideStation,
+  stationsInBounds,
+} from "./bundle";
 import type { TidesBundle } from "./schema";
 
 const station = (id: string, lat: number, lng: number) => ({
@@ -119,6 +126,38 @@ describe("stationsInBounds", () => {
       north: 50,
     });
     expect(hits.map((s) => s.id)).toEqual(["seattle"]);
+  });
+});
+
+describe("nearest station", () => {
+  // Fixture stations: BOSTON (42.354, -71.050), Hull (42.303, -70.920),
+  // current ref BOS1111 (42.338, -70.956), current sub ACT0926 (42.402, -70.918).
+  const index = buildIndex(miniBundle as TidesBundle);
+
+  it("picks the closest tide station to a position", () => {
+    expect(nearestTideStation(index, 42.35, -71.04)?.id).toBe("8443970");
+    expect(nearestTideStation(index, 42.31, -70.93)?.id).toBe("8444351");
+  });
+
+  it("picks the closest current station to a position", () => {
+    expect(nearestCurrentStation(index, 42.31, -70.93)?.id).toBe("BOS1111");
+    expect(nearestCurrentStation(index, 42.45, -70.9)?.id).toBe("ACT0926");
+  });
+
+  it("respects maxNM", () => {
+    // Boston is ~0.5 nm from this position.
+    expect(nearestTideStation(index, 42.35, -71.04, 1)?.id).toBe("8443970");
+    expect(nearestTideStation(index, 42.35, -71.04, 0.25)).toBeNull();
+  });
+
+  it("returns null when nothing is within range", () => {
+    expect(nearestTideStation(index, 37.8, -122.4)).toBeNull();
+    expect(nearestCurrentStation(index, 37.8, -122.4)).toBeNull();
+  });
+
+  it("finds stations across the antimeridian", () => {
+    const stations = [station("east", 52.0, 179.9), station("far", 52.0, 170)];
+    expect(nearestStation(stations, 52.0, -179.9)?.id).toBe("east");
   });
 });
 
