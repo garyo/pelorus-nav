@@ -27,6 +27,7 @@ import {
   planMerge,
   routeSignature,
   trackMetaSignature,
+  trackMetaUnchanged,
   waypointIdentity,
   waypointSignature,
 } from "./gpx-merge";
@@ -110,11 +111,14 @@ export async function planGpxImport(
     // loads stored points — a signature that had to read them would mean
     // fetching every recorded fix on the device to import one file. The metas
     // are passed through as-is, not copied, so the write below renames the
-    // same objects the caller holds.
+    // same objects the caller holds. trackMetaUnchanged keeps a re-import of
+    // a smoothed track's own export (which omits dropped points) a no-op.
     tracks: planMerge(
       result.tracks.map(({ meta }) => meta),
       storedTracks,
       trackMetaSignature,
+      trackMetaSignature,
+      trackMetaUnchanged,
     ),
     skippedPoints: result.skippedPoints,
   };
@@ -172,9 +176,11 @@ export async function saveGpxImport(
       meta: mergeTrackMeta(stored, incoming),
       incomingId: incoming.id,
     }));
-    await saveTrackMetas([...merged.tracks.add, ...updated.map((u) => u.meta)]);
     // Points can't share a transaction with the metas — each track's set is
-    // written (or replaced) on its own.
+    // written (or replaced) on its own. Points go first, metas last: an
+    // interrupted import (quota, tab close) then leaves at worst invisible
+    // orphan points, never a meta whose pointCount promises points that
+    // were never written.
     for (const meta of merged.tracks.add) {
       await appendTrackPoints(meta.id, pointsFor(meta.id));
     }
@@ -182,6 +188,7 @@ export async function saveGpxImport(
       // The points are the track; a changed signature means re-recording it.
       await replaceTrackPoints(meta.id, pointsFor(incomingId));
     }
+    await saveTrackMetas([...merged.tracks.add, ...updated.map((u) => u.meta)]);
   }
 
   for (const wp of merged.waypoints.add) {

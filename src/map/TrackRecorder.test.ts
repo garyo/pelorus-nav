@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { appendTrackPoint } from "../data/db";
+import { appendTrackPoint, getAllTrackMetas, saveTrackMeta } from "../data/db";
+import type { TrackMeta } from "../data/Track";
 import { appErrorLog } from "../diagnostics/errorLog";
 import type { NavigationData } from "../navigation/NavigationData";
 import type { NavigationDataManager } from "../navigation/NavigationDataManager";
@@ -9,6 +10,7 @@ vi.mock("../data/db", () => ({
   appendTrackPoint: vi.fn().mockResolvedValue(undefined),
   saveTrackMeta: vi.fn().mockResolvedValue(undefined),
   deleteTrack: vi.fn().mockResolvedValue(undefined),
+  getAllTrackMetas: vi.fn().mockResolvedValue([]),
   getTrackPoints: vi.fn().mockResolvedValue([]),
   replaceTrackPoints: vi.fn().mockResolvedValue(undefined),
 }));
@@ -338,5 +340,137 @@ describe("TrackRecorder save-failure handling", () => {
       "diag",
       "track save recovered",
     );
+  });
+});
+
+describe("TrackRecorder periodic meta save vs panel edits", () => {
+  const fakeStorage = new Map<string, string>();
+  /** Flush the microtask queue so an in-flight onNavData settles. */
+  const settle = () => new Promise<void>((r) => setTimeout(r, 0));
+  const t0 = Date.parse("2026-07-01T12:00:00.000Z");
+  const ACTIVE_TRACK_KEY = "pelorus-nav-active-track";
+
+  beforeEach(() => {
+    fakeStorage.clear();
+    vi.mocked(appendTrackPoint).mockReset().mockResolvedValue(undefined);
+    vi.mocked(saveTrackMeta).mockReset().mockResolvedValue(undefined);
+    vi.mocked(getAllTrackMetas).mockReset().mockResolvedValue([]);
+    vi.stubGlobal("localStorage", {
+      getItem: (k: string) => fakeStorage.get(k) ?? null,
+      setItem: (k: string, v: string) => {
+        fakeStorage.set(k, v);
+      },
+      removeItem: (k: string) => {
+        fakeStorage.delete(k);
+      },
+    });
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("a rename made in the track manager survives the next periodic meta save", async () => {
+    const nav = new FakeNavManager();
+    const recorder = new TrackRecorder(nav as unknown as NavigationDataManager);
+    recorder.start();
+    await settle();
+
+    // First accepted point persists the meta with its auto-generated name.
+    nav.feed(fix(42.0, -71.0, t0));
+    await settle();
+    const created = { ...vi.mocked(saveTrackMeta).mock.calls[0][0] };
+    expect(created.pointCount).toBe(1);
+
+    // The user renames/recolors/refolders the track in the manager panel,
+    // which updates the stored copy directly.
+    vi.mocked(getAllTrackMetas).mockResolvedValue([
+      {
+        ...created,
+        name: "Nahant Loop",
+        color: "#123456",
+        folder: "Day Sails",
+      },
+    ]);
+
+    // 59 more accepted points (10 s / ~111 m apart) reach the pointCount
+    // % 60 periodic meta save.
+    for (let i = 1; i < 60; i++) {
+      nav.feed(fix(42.0 + i * 0.001, -71.0, t0 + i * 10_000));
+      await settle();
+    }
+
+    const calls = vi.mocked(saveTrackMeta).mock.calls;
+    expect(calls.length).toBe(2); // first-point persist + one periodic save
+    const periodic = calls[1][0];
+    expect(periodic.pointCount).toBe(60);
+    expect(periodic.name).toBe("Nahant Loop");
+    expect(periodic.color).toBe("#123456");
+    expect(periodic.folder).toBe("Day Sails");
+
+    // The recorder adopted the merged meta, and the localStorage resume
+    // copy carries the rename too.
+    expect(recorder.getCurrentTrack()?.name).toBe("Nahant Loop");
+    const resume = JSON.parse(
+      fakeStorage.get(ACTIVE_TRACK_KEY) ?? "{}",
+    ) as TrackMeta;
+    expect(resume.name).toBe("Nahant Loop");
+    expect(resume.pointCount).toBe(60);
+  });
+
+  it("stop() re-reads the stored meta so panel edits survive the final save", async () => {
+    const nav = new FakeNavManager();
+    const recorder = new TrackRecorder(nav as unknown as NavigationDataManager);
+    recorder.start();
+    await settle();
+
+    // Enough points/movement/duration to clear the trivial-track filter.
+    for (let i = 0; i < 5; i++) {
+      nav.feed(fix(42.0 + i * 0.001, -71.0, t0 + i * 10_000));
+      await settle();
+    }
+    const created = { ...vi.mocked(saveTrackMeta).mock.calls[0][0] };
+
+    vi.mocked(getAllTrackMetas).mockResolvedValue([
+      { ...created, name: "Renamed While Recording" },
+    ]);
+
+    recorder.stop();
+    await settle();
+
+    const calls = vi.mocked(saveTrackMeta).mock.calls;
+    const final = calls[calls.length - 1][0];
+    expect(final.name).toBe("Renamed While Recording");
+    expect(final.pointCount).toBe(5);
+  });
+
+  it("claims the closing track via closingId() until the final save lands", async () => {
+    const nav = new FakeNavManager();
+    const recorder = new TrackRecorder(nav as unknown as NavigationDataManager);
+    recorder.start();
+    await settle();
+    for (let i = 0; i < 5; i++) {
+      nav.feed(fix(42.0 + i * 0.001, -71.0, t0 + i * 10_000));
+      await settle();
+    }
+    const trackId = vi.mocked(saveTrackMeta).mock.calls[0][0].id;
+
+    // Hold the closing save open: the claim must persist while the write
+    // is in flight (the panel's trivial-row cleanup checks it).
+    let releaseSave: () => void = () => {};
+    vi.mocked(saveTrackMeta).mockImplementationOnce(
+      () =>
+        new Promise((res) => {
+          releaseSave = () => res(undefined);
+        }),
+    );
+    recorder.stop();
+    expect(recorder.closingId()).toBe(trackId);
+    await settle();
+    expect(recorder.closingId()).toBe(trackId);
+
+    releaseSave();
+    await settle();
+    expect(recorder.closingId()).toBeNull();
   });
 });

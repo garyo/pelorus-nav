@@ -7,6 +7,7 @@ import {
   planMerge,
   routeSignature,
   trackMetaSignature,
+  trackMetaUnchanged,
   waypointIdentity,
   waypointSignature,
 } from "./gpx-merge";
@@ -169,6 +170,70 @@ describe("planMerge — content", () => {
       updated: 0,
       unchanged: 0,
     });
+  });
+});
+
+describe("trackMetaUnchanged — smoothed export round trip", () => {
+  /** Plan tracks the way planGpxImport does: with the tolerance predicate. */
+  function planTracks(incoming: TrackMeta[], stored: TrackMeta[]) {
+    return planMerge(
+      incoming,
+      stored,
+      trackMetaSignature,
+      trackMetaSignature,
+      trackMetaUnchanged,
+    );
+  }
+
+  it("treats a smoothed track re-imported minus its dropped points as unchanged", () => {
+    // Export omits dropped points, so the file's copy of a smoothed track
+    // is smaller than the stored one. The id match plus this tolerance
+    // keeps the re-import a no-op instead of an update that would destroy
+    // the raw/smoothed data.
+    const stored = track({ smoothed: true, pointCount: 500 });
+    const incoming = track({
+      id: "fresh",
+      sourceId: "local-t",
+      pointCount: 488,
+    });
+
+    const plan = planTracks([incoming], [stored]);
+
+    expect(countsOf(plan)).toEqual({ added: 0, updated: 0, unchanged: 1 });
+  });
+
+  it("still updates an unsmoothed track whose file copy differs", () => {
+    const stored = track({ pointCount: 500 });
+    const shorter = track({
+      id: "fresh",
+      sourceId: "local-t",
+      pointCount: 488,
+    });
+
+    expect(planTracks([shorter], [stored]).update).toHaveLength(1);
+  });
+
+  it("still updates a smoothed track when the file's copy gained points", () => {
+    const stored = track({ smoothed: true, pointCount: 500 });
+    const longer = track({ id: "fresh", sourceId: "local-t", pointCount: 900 });
+
+    expect(planTracks([longer], [stored]).update).toHaveLength(1);
+  });
+
+  it("still updates a smoothed track the file renamed", () => {
+    const stored = track({ smoothed: true, pointCount: 500 });
+    const renamed = track({
+      id: "fresh",
+      sourceId: "local-t",
+      name: "Renamed",
+      pointCount: 488,
+    });
+
+    expect(planTracks([renamed], [stored]).update).toHaveLength(1);
+  });
+
+  it("matches exactly equal metas regardless of smoothing", () => {
+    expect(trackMetaUnchanged(track(), track({ id: "fresh" }))).toBe(true);
   });
 });
 

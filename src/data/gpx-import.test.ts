@@ -183,6 +183,51 @@ describe("saveGpxImport", () => {
     expect(meta.name).toBe("Sail (imported)");
   });
 
+  it("writes track points before metas so an interruption leaves no phantom track", async () => {
+    // A meta committed ahead of its points would, on interruption (quota,
+    // tab close), leave a track whose pointCount promises points that were
+    // never written. Orphan points without a meta are merely invisible.
+    await saveGpxImport(
+      result({
+        tracks: [{ meta: trackMeta("Sail"), points: [point(1)] }],
+      }),
+    );
+
+    expect(mocks.appendTrackPoints.mock.invocationCallOrder[0]).toBeLessThan(
+      mocks.saveTrackMetas.mock.invocationCallOrder[0],
+    );
+  });
+
+  it("re-importing a smoothed track's own export (minus dropped points) writes nothing", async () => {
+    // Export omits dropped points (gpx.ts), so the file comes back with a
+    // smaller pointCount than the stored copy. That must not be classified
+    // as an update — replaceTrackPoints would erase the raw/smoothed data.
+    const stored = {
+      ...trackMeta("Sail"),
+      id: "stored-t",
+      pointCount: 500,
+      smoothed: true,
+    };
+    mocks.getAllTrackMetas.mockResolvedValue([stored]);
+    const incoming = {
+      ...trackMeta("Sail"),
+      id: "fresh",
+      sourceId: "stored-t",
+      pointCount: 488,
+    };
+
+    const counts = await saveGpxImport(
+      result({
+        tracks: [{ meta: incoming, points: [point(1)] }],
+      }),
+    );
+
+    expect(counts.tracks).toEqual({ added: 0, updated: 0, unchanged: 1 });
+    expect(mocks.saveTrackMetas).not.toHaveBeenCalled();
+    expect(mocks.replaceTrackPoints).not.toHaveBeenCalled();
+    expect(mocks.appendTrackPoints).not.toHaveBeenCalled();
+  });
+
   it("sorts track points by timestamp before saving", async () => {
     await saveGpxImport(
       result({

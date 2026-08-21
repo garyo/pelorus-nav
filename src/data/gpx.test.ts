@@ -7,6 +7,7 @@ import {
   trackToGpx,
   waypointsToGpx,
 } from "./gpx";
+import { planMerge, trackMetaSignature, trackMetaUnchanged } from "./gpx-merge";
 import type { Route } from "./Route";
 import type { TrackMeta, TrackPoint } from "./Track";
 import type { StandaloneWaypoint } from "./Waypoint";
@@ -304,6 +305,63 @@ describe("GPX import", () => {
     expect(result.tracks[0].points.map((p) => p.timestamp)).toEqual([
       1700000000000, 1700000120000,
     ]);
+  });
+
+  it("plans an export-then-reimport of a smoothed track as unchanged", () => {
+    // The export above is lossy (dropped points are omitted), so the file's
+    // pointCount differs from the stored meta's. trackMetaUnchanged makes
+    // planMerge classify the id-matched track as unchanged anyway — the
+    // re-import must be a no-op, never an update that would erase the
+    // stored raw/smoothed data.
+    const storedMeta: TrackMeta = {
+      ...sampleTrackMeta,
+      pointCount: 3,
+      smoothed: true,
+    };
+    const points: TrackPoint[] = [
+      {
+        lat: 42.36,
+        lon: -71.06,
+        timestamp: 1700000000000,
+        sog: 5,
+        cog: 45,
+        rawLat: 42.3601,
+        rawLon: -71.0601,
+      },
+      {
+        lat: 42.37,
+        lon: -71.05,
+        timestamp: 1700000060000,
+        sog: 5,
+        cog: 45,
+        rawLat: 42.37,
+        rawLon: -71.05,
+        dropped: true,
+      },
+      {
+        lat: 42.362,
+        lon: -71.058,
+        timestamp: 1700000120000,
+        sog: 5,
+        cog: 45,
+        rawLat: 42.3621,
+        rawLon: -71.0581,
+      },
+    ];
+
+    const reimported = parseGpx(trackToGpx(storedMeta, points));
+    expect(reimported.tracks[0].meta.pointCount).toBe(2); // dropped point gone
+
+    const plan = planMerge(
+      [reimported.tracks[0].meta],
+      [storedMeta],
+      trackMetaSignature,
+      trackMetaSignature,
+      trackMetaUnchanged,
+    );
+    expect(plan.unchanged).toHaveLength(1);
+    expect(plan.add).toHaveLength(0);
+    expect(plan.update).toHaveLength(0);
   });
 
   it("round-trips waypoints with notes and icon", () => {

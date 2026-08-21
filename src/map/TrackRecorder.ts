@@ -13,6 +13,7 @@ import { Capacitor } from "@capacitor/core";
 import {
   appendTrackPoint,
   deleteTrack,
+  getAllTrackMetas,
   getTrackPoints,
   replaceTrackPoints,
   saveTrackMeta,
@@ -113,6 +114,11 @@ export class TrackRecorder {
   private currentTrack: TrackMeta | null = null;
   /** True once the first point has been saved (and meta persisted). */
   private trackPersisted = false;
+  /** Id of a just-stopped track whose closing meta write (or trivial-track
+   *  delete) hasn't landed yet. The track manager's trivial-row cleanup must
+   *  not treat the stale first-persist meta as an abandoned stub during this
+   *  window — it would race the closing save and delete the whole track. */
+  private closingTrackId: string | null = null;
   private lastRecordedTime = 0;
   private lastLat = 0;
   private lastLon = 0;
@@ -138,6 +144,11 @@ export class TrackRecorder {
     this.navManager = navManager;
   }
 
+  /** See closingTrackId — non-null while a stop()'s final write is in flight. */
+  closingId(): string | null {
+    return this.closingTrackId;
+  }
+
   isRecording(): boolean {
     return this.recording;
   }
@@ -149,6 +160,25 @@ export class TrackRecorder {
   /** True while track points are failing to reach IndexedDB. */
   isSaveFailing(): boolean {
     return this.saveFailing;
+  }
+
+  /**
+   * The recorder's meta with any user edits folded back in. The track
+   * manager panel can rename/recolor/refolder the actively-recording
+   * track, so a blind write of the recorder's in-memory copy would
+   * clobber those edits. The recorder owns only what it measures —
+   * pointCount and the aggregates; every other field comes from the
+   * stored copy. Cheap enough for its callers (a read per minute at most).
+   */
+  private async mergeWithStoredMeta(meta: TrackMeta): Promise<TrackMeta> {
+    const stored = (await getAllTrackMetas()).find((m) => m.id === meta.id);
+    if (!stored) return meta;
+    return {
+      ...stored,
+      pointCount: meta.pointCount,
+      durationMs: meta.durationMs,
+      totalDistanceNM: meta.totalDistanceNM,
+    };
   }
 
   /**
@@ -210,17 +240,25 @@ export class TrackRecorder {
     // no movement) — almost always an accidental Record→Stop, not real
     // data. Saves the user from a manager full of "0 sec · 0.0 nm" rows.
     const trivial = closingTrack !== null && isTrivialTrack(closingTrack);
+    this.closingTrackId = closingTrack ? closingTrack.id : null;
     // The write is deliberately not awaited (Stop stays instant), so listeners
     // that re-read the store — the track manager's refresh() — can run before
     // it commits and miss the track entirely. Notify again once it lands.
     if (closingTrack && !trivial) {
-      saveTrackMeta(closingTrack)
-        .then(() => this.notify())
-        .catch(console.error);
+      this.mergeWithStoredMeta(closingTrack)
+        .then((merged) => saveTrackMeta(merged))
+        .catch(console.error)
+        .finally(() => {
+          this.closingTrackId = null;
+          this.notify();
+        });
     } else if (closingTrack && trivial) {
       deleteTrack(closingTrack.id)
-        .then(() => this.notify())
-        .catch(console.error);
+        .catch(console.error)
+        .finally(() => {
+          this.closingTrackId = null;
+          this.notify();
+        });
     }
     this.currentTrack = null;
     this.trackPersisted = false;
@@ -275,7 +313,7 @@ export class TrackRecorder {
     await replaceTrackPoints(meta.id, newPoints);
     const { durationMs, totalDistanceNM } = computeTrackAggregates(newPoints);
     await saveTrackMeta({
-      ...meta,
+      ...(await this.mergeWithStoredMeta(meta)),
       smoothed: true,
       pointCount: newPoints.length,
       durationMs,
@@ -387,7 +425,7 @@ export class TrackRecorder {
     ) {
       // Save final state of old track before starting new one
       if (this.trackPersisted) {
-        await saveTrackMeta(this.currentTrack);
+        await saveTrackMeta(await this.mergeWithStoredMeta(this.currentTrack));
       }
       this.currentTrack = null;
       this.trackPersisted = false;
@@ -503,15 +541,16 @@ export class TrackRecorder {
     if (!this.trackPersisted) {
       await saveTrackMeta(this.currentTrack);
       this.trackPersisted = true;
+    } else if (this.currentTrack.pointCount % 60 === 0) {
+      // Periodic point-count/aggregate save. Adopt the stored copy's
+      // user-editable fields first, so a mid-recording rename in the track
+      // manager survives this write and flows into the resume copy below.
+      this.currentTrack = await this.mergeWithStoredMeta(this.currentTrack);
+      await saveTrackMeta(this.currentTrack);
     }
     this.notify();
 
     // Persist active track ID for resume-after-refresh
     localStorage.setItem(ACTIVE_TRACK_KEY, JSON.stringify(this.currentTrack));
-
-    // Periodically save updated point count
-    if (this.currentTrack.pointCount % 60 === 0) {
-      await saveTrackMeta(this.currentTrack);
-    }
   }
 }

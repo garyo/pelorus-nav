@@ -109,6 +109,32 @@ export function trackMetaSignature(meta: TrackMeta): string {
 }
 
 /**
+ * Whether a matched incoming track leaves the stored one as it is.
+ *
+ * Beyond an exact signature match, this forgives the one way our own export
+ * is lossy: trackXml (gpx.ts) omits points the post-processor dropped, so a
+ * smoothed recording re-imported from its own export arrives with fewer
+ * points than the stored copy holds. Classifying that as an update would
+ * replace the stored points with the file's — throwing away the raw
+ * positions, accuracy, and dropped/smoothed data the export never carried.
+ * Same name and no more points than the store already holds means the file
+ * has nothing to teach it, so the track is treated as unchanged. Inferred
+ * from the stored side rather than declared in the file, so exports from
+ * older builds round-trip cleanly too.
+ */
+export function trackMetaUnchanged(
+  stored: TrackMeta,
+  incoming: TrackMeta,
+): boolean {
+  if (trackMetaSignature(stored) === trackMetaSignature(incoming)) return true;
+  return (
+    stored.smoothed === true &&
+    stored.name === incoming.name &&
+    incoming.pointCount <= stored.pointCount
+  );
+}
+
+/**
  * Match incoming items against stored ones.
  *
  * An id wins over everything: an item whose id is known is that item even if
@@ -117,12 +143,18 @@ export function trackMetaSignature(meta: TrackMeta): string {
  * their identity (a route is its name and its points — there is nothing else
  * to edit). Each stored item can be claimed only once, so two identical
  * incoming items can't both collapse onto it.
+ *
+ * `isUnchanged` decides whether a matched pair needs a write at all. It
+ * defaults to signature equality; tracks pass trackMetaUnchanged so a
+ * re-import of a smoothed track's own (lossy) export stays a no-op.
  */
 export function planMerge<T extends Identified>(
   incoming: readonly T[],
   stored: readonly T[],
   signature: (item: T) => string,
   identityOf: (item: T) => string = signature,
+  isUnchanged: (stored: T, incoming: T) => boolean = (a, b) =>
+    signature(a) === signature(b),
 ): MergePlan<T> {
   const byId = new Map<string, T>();
   for (const item of stored) {
@@ -157,7 +189,7 @@ export function planMerge<T extends Identified>(
       continue;
     }
     claimed.add(match.id);
-    if (signature(match) === signature(item)) {
+    if (isUnchanged(match, item)) {
       plan.unchanged.push(match);
     } else {
       plan.update.push({ stored: match, incoming: item });

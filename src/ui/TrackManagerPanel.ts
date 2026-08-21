@@ -207,7 +207,7 @@ export class TrackManagerPanel {
     // without firing `blur` (e.g. a background cleanup racing the edit),
     // `editing` would otherwise latch true forever and freeze refresh().
     this.editing = false;
-    this.refresh();
+    this.refresh().catch(console.error);
   }
 
   hide(): void {
@@ -290,7 +290,11 @@ export class TrackManagerPanel {
     const activeId = this.recorder.getCurrentTrack()?.id;
     const visible: TrackMeta[] = [];
     for (const meta of metas) {
-      if (meta.id !== activeId && isTrivialTrack(meta)) {
+      if (
+        meta.id !== activeId &&
+        meta.id !== this.recorder.closingId() &&
+        isTrivialTrack(meta)
+      ) {
         void this.deleteTrivial(meta);
         continue;
       }
@@ -368,6 +372,10 @@ export class TrackManagerPanel {
    *  The next refresh (once the rename finishes) retries the cleanup. */
   private async deleteTrivial(meta: TrackMeta): Promise<void> {
     if (this.editing) return;
+    // A just-stopped track's stored meta is stale (first-persist stub) until
+    // the recorder's closing write lands — deleting on that snapshot would
+    // race the write and drop the whole recording.
+    if (meta.id === this.recorder.closingId()) return;
     try {
       await deleteTrack(meta.id);
       const row = this.body.querySelector<HTMLElement>(

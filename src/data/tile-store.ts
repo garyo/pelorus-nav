@@ -10,6 +10,7 @@
  * since iOS WKWebView has no main-thread OPFS write API. See opfs-writer.ts.
  */
 
+import { appErrorLog, formatErrorDetail } from "../diagnostics/errorLog";
 import { opfsFetchWrite, opfsWriteBlob, opfsWriteText } from "./opfs-writer";
 
 const META_FILENAME = "_charts-meta.json";
@@ -65,14 +66,68 @@ async function getRoot(): Promise<FileSystemDirectoryHandle | null> {
 async function readMeta(): Promise<StoredChartInfo[]> {
   const root = await getRoot();
   if (!root) return [];
+  let handle: FileSystemFileHandle;
   try {
-    const handle = await root.getFileHandle(META_FILENAME);
-    const file = await handle.getFile();
-    const text = await file.text();
-    return JSON.parse(text) as StoredChartInfo[];
+    handle = await root.getFileHandle(META_FILENAME);
   } catch {
-    return [];
+    return []; // no sidecar yet — nothing downloaded
   }
+  try {
+    const file = await handle.getFile();
+    const parsed: unknown = JSON.parse(await file.text());
+    if (!Array.isArray(parsed)) throw new Error("sidecar is not an array");
+    return parsed as StoredChartInfo[];
+  } catch (err) {
+    // The sidecar exists but is unreadable (corrupt JSON, torn write).
+    // Returning [] here would let the next withMeta write persist the empty
+    // list and permanently orphan every downloaded chart, so rebuild the
+    // entries from the files actually present instead.
+    return rebuildMetaFromFiles(root, err);
+  }
+}
+
+/**
+ * Reconstruct sidecar entries by scanning OPFS for chart files. Filename
+ * (hence region) and size are recoverable; the download time falls back to
+ * the file's mtime and the etag is lost, so the next update check may
+ * re-offer a download — far better than every chart becoming an orphan.
+ * The rebuilt sidecar is persisted immediately so the recovery (and its
+ * log entry) happens once, not on every read.
+ */
+async function rebuildMetaFromFiles(
+  root: FileSystemDirectoryHandle,
+  cause: unknown,
+): Promise<StoredChartInfo[]> {
+  const rebuilt: StoredChartInfo[] = [];
+  try {
+    for await (const name of root.keys()) {
+      if (!name.endsWith(".pmtiles")) continue;
+      try {
+        const file = await (await root.getFileHandle(name)).getFile();
+        rebuilt.push({
+          filename: name,
+          region: name.replace(/\.pmtiles$/, ""),
+          sizeBytes: file.size,
+          downloadedAt: new Date(file.lastModified).toISOString(),
+        });
+      } catch {
+        // unreadable file — skip it
+      }
+    }
+  } catch {
+    // root.keys() unsupported or failed — nothing to rebuild from
+  }
+  appErrorLog.log(
+    "tile-store",
+    "error",
+    `charts meta sidecar unreadable (${formatErrorDetail(cause)}); rebuilt ${rebuilt.length} chart(s) from OPFS scan`,
+  );
+  try {
+    await writeMeta(rebuilt);
+  } catch {
+    // best-effort persist; the next successful withMeta write repairs it
+  }
+  return rebuilt;
 }
 
 /** Write metadata sidecar to OPFS (temp-file + atomic move — see opfsWriteText). */

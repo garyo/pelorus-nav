@@ -6,6 +6,11 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 // read-modify-write / enumeration logic in tile-store.ts without a browser.
 const mockFiles = vi.hoisted(() => new Map<string, string>());
 
+vi.mock("../diagnostics/errorLog", () => ({
+  appErrorLog: { log: vi.fn() },
+  formatErrorDetail: (reason: unknown) => String(reason),
+}));
+
 vi.mock("./opfs-writer", () => ({
   opfsFetchWrite: vi.fn(
     async (
@@ -26,6 +31,7 @@ vi.mock("./opfs-writer", () => ({
   }),
 }));
 
+import { appErrorLog } from "../diagnostics/errorLog";
 import {
   deleteAllCharts,
   deleteChart,
@@ -64,6 +70,7 @@ function makeFakeRoot() {
 
 beforeEach(() => {
   mockFiles.clear();
+  vi.mocked(appErrorLog.log).mockClear();
   vi.stubGlobal("navigator", {
     storage: { getDirectory: vi.fn(async () => makeFakeRoot()) },
   });
@@ -166,6 +173,53 @@ describe("chart metadata sidecar", () => {
     await deleteChart("a.pmtiles");
     const charts = await listStoredCharts();
     expect(charts.map((c) => c.filename)).toEqual(["b.pmtiles"]);
+  });
+
+  it("rebuilds a corrupt sidecar from the chart files instead of orphaning them", async () => {
+    // A torn/corrupt sidecar used to read as [], and the next write would
+    // persist that empty list — permanently orphaning every downloaded chart.
+    mockFiles.set("_charts-meta.json", "{corrupt json!!");
+    mockFiles.set("nautical-boston-test.pmtiles", "0123456789");
+    mockFiles.set("boston.coverage.geojson", "{}"); // aux file: not a chart
+
+    const charts = await listStoredCharts();
+
+    expect(charts).toHaveLength(1);
+    expect(charts[0]).toMatchObject({
+      filename: "nautical-boston-test.pmtiles",
+      region: "nautical-boston-test",
+      sizeBytes: 10,
+    });
+    expect(appErrorLog.log).toHaveBeenCalledWith(
+      "tile-store",
+      "error",
+      expect.stringContaining("rebuilt 1 chart(s)"),
+    );
+    // The rebuilt sidecar is persisted, so the recovery happens once.
+    expect(JSON.parse(mockFiles.get("_charts-meta.json") ?? "")).toHaveLength(
+      1,
+    );
+    vi.mocked(appErrorLog.log).mockClear();
+    await listStoredCharts();
+    expect(appErrorLog.log).not.toHaveBeenCalled();
+  });
+
+  it("a download after sidecar corruption keeps the rebuilt entries", async () => {
+    mockFiles.set("_charts-meta.json", "{corrupt json!!");
+    mockFiles.set("nautical-x.pmtiles", "chart-bytes");
+
+    await downloadChart("https://example.com/a.pmtiles", "a.pmtiles", () => {});
+
+    const charts = await listStoredCharts();
+    expect(charts.map((c) => c.filename).sort()).toEqual([
+      "a.pmtiles",
+      "nautical-x.pmtiles",
+    ]);
+  });
+
+  it("a missing sidecar still reads as empty, with no recovery logged", async () => {
+    expect(await listStoredCharts()).toEqual([]);
+    expect(appErrorLog.log).not.toHaveBeenCalled();
   });
 
   it("deleteAllCharts removes an orphaned file with no meta entry", async () => {

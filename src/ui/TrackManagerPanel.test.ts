@@ -35,6 +35,7 @@ function makeMeta(overrides: Partial<TrackMeta> & { id: string }): TrackMeta {
 function makeFakeRecorder(): TrackRecorder {
   return {
     isRecording: () => false,
+    closingId: () => null,
     getCurrentTrack: () => null,
     onRecordingChange: () => {},
   } as unknown as TrackRecorder;
