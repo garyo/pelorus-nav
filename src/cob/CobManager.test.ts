@@ -262,17 +262,66 @@ describe("CobManager.restore", () => {
     expect(second.manager.isCobNavigation()).toBe(true);
   });
 
-  it("clears the slot when the waypoint is missing", async () => {
+  it("recreates the waypoint from the slot when its row is missing", async () => {
     const first = makeHarness();
     first.manager.activate();
+    const original = first.savedWaypoints[0];
 
     const second = makeHarness({ storage: first.storage });
-    // savedWaypoints left empty — waypoint not found
+    // savedWaypoints left empty — the IndexedDB row never landed
     await second.manager.restore();
 
-    expect(second.manager.isActive()).toBe(false);
-    expect(first.storage.dump()[COB_STORAGE_KEY]).toBeUndefined();
-    expect(second.alarm.start).not.toHaveBeenCalled();
+    expect(second.manager.isActive()).toBe(true);
+    const wp = second.manager.getState()?.waypoint;
+    expect(wp?.id).toBe(original.id);
+    expect(wp?.lat).toBe(FIX.latitude);
+    expect(wp?.lon).toBe(FIX.longitude);
+    expect(wp?.name).toBe(original.name);
+    expect(wp?.icon).toBe("cob");
+    expect(second.deps.saveWaypoint).toHaveBeenCalledWith(wp); // re-saved
+    expect(second.deps.activeNav.startGoto).toHaveBeenCalledWith(wp);
+    expect(second.alarm.start).toHaveBeenCalled();
+    expect(second.emergencyChange).toHaveBeenCalledWith(true);
+  });
+
+  it("restores the event even when the activation-time save failed", async () => {
+    const first = makeHarness();
+    // Quota failure: the waypoint save at activation never commits.
+    vi.mocked(first.deps.saveWaypoint).mockRejectedValue(
+      new Error("QuotaExceededError"),
+    );
+    expect(first.manager.activate()).toBe("ok");
+    expect(first.storage.dump()[COB_STORAGE_KEY]).toBeDefined();
+
+    const second = makeHarness({ storage: first.storage });
+    await second.manager.restore();
+
+    expect(second.manager.isActive()).toBe(true);
+    expect(second.manager.getState()?.waypoint.lat).toBe(FIX.latitude);
+    expect(second.savedWaypoints).toHaveLength(1); // recreated in IndexedDB
+    expect(second.manager.isCobNavigation()).toBe(true);
+  });
+
+  it("clears an old-format slot (no position) when the waypoint is missing", async () => {
+    const storage = memoryStorage();
+    storage.setItem(
+      COB_STORAGE_KEY,
+      JSON.stringify({
+        version: 1,
+        startedAt: 1700000005000,
+        waypointId: "pre-position-slot",
+        muted: false,
+        staleAtDrop: false,
+        fixAgeAtDropMs: 0,
+      }),
+    );
+
+    const h = makeHarness({ storage });
+    await h.manager.restore();
+
+    expect(h.manager.isActive()).toBe(false);
+    expect(storage.dump()[COB_STORAGE_KEY]).toBeUndefined();
+    expect(h.alarm.start).not.toHaveBeenCalled();
   });
 
   it("is a no-op with no persisted event", async () => {

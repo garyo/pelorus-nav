@@ -15,6 +15,15 @@ export interface PersistedCobState {
   startedAt: number;
   /** Id of the COB StandaloneWaypoint in IndexedDB. */
   waypointId: string;
+  /**
+   * Drop position + waypoint name, duplicated here so restore() can recreate
+   * the waypoint when its IndexedDB row is missing (the async save at
+   * activation never committed — crash or quota failure). Optional: slots
+   * written by older builds carry only the waypointId.
+   */
+  lat?: number;
+  lon?: number;
+  waypointName?: string;
   /** Alarm muted for this event. */
   muted: boolean;
   /** The GPS fix was already stale when the position was captured. */
@@ -26,12 +35,17 @@ export interface PersistedCobState {
 export function isValidCobState(value: unknown): value is PersistedCobState {
   if (typeof value !== "object" || value === null) return false;
   const v = value as Record<string, unknown>;
+  const optionalNumber = (x: unknown) =>
+    x === undefined || (typeof x === "number" && Number.isFinite(x));
   return (
     v.version === 1 &&
     typeof v.startedAt === "number" &&
     Number.isFinite(v.startedAt) &&
     typeof v.waypointId === "string" &&
     v.waypointId.length > 0 &&
+    optionalNumber(v.lat) &&
+    optionalNumber(v.lon) &&
+    (v.waypointName === undefined || typeof v.waypointName === "string") &&
     typeof v.muted === "boolean" &&
     typeof v.staleAtDrop === "boolean" &&
     typeof v.fixAgeAtDropMs === "number" &&

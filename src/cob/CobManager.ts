@@ -197,10 +197,12 @@ export class CobManager {
   async restore(): Promise<void> {
     const saved = cobStateSlot.load(this.storage);
     if (!saved) return;
-    const waypoint = await this.deps.getWaypointById(saved.waypointId);
+    const waypoint =
+      (await this.deps.getWaypointById(saved.waypointId)) ??
+      this.recreateWaypoint(saved);
     if (!waypoint) {
-      // Waypoint gone (deleted between persist and crash) — nothing to
-      // navigate back to; drop the stale event.
+      // Waypoint row missing and the slot predates the duplicated position
+      // (old format) — nothing to navigate back to; drop the stale event.
       cobStateSlot.clear(this.storage);
       return;
     }
@@ -228,6 +230,34 @@ export class CobManager {
     if (idx >= 0) this.listeners.splice(idx, 1);
   }
 
+  /**
+   * The waypoint row is missing from IndexedDB — the async save at activation
+   * never committed (crash before the write, or a failed save). The slot
+   * duplicates the drop position, so rebuild the waypoint from it and re-fire
+   * the save; the emergency must come back even if that save fails again.
+   * Returns null for an old-format slot that carries no position.
+   */
+  private recreateWaypoint(
+    saved: PersistedCobState,
+  ): StandaloneWaypoint | null {
+    if (saved.lat === undefined || saved.lon === undefined) return null;
+    const waypoint: StandaloneWaypoint = {
+      id: saved.waypointId,
+      lat: saved.lat,
+      lon: saved.lon,
+      name: saved.waypointName ?? cobWaypointName(new Date(saved.startedAt)),
+      notes: "",
+      icon: "cob",
+      createdAt: saved.startedAt,
+      updatedAt: saved.startedAt,
+      visible: true,
+    };
+    this.deps
+      .saveWaypoint(waypoint)
+      .catch((err) => console.error("COB waypoint re-save failed:", err));
+    return waypoint;
+  }
+
   private isGotoTarget(waypointId: string): boolean {
     const nav = this.deps.activeNav.getState();
     return (
@@ -243,6 +273,9 @@ export class CobManager {
       version: 1,
       startedAt: this.state.startedAt,
       waypointId: this.state.waypoint.id,
+      lat: this.state.waypoint.lat,
+      lon: this.state.waypoint.lon,
+      waypointName: this.state.waypoint.name,
       muted: this.state.muted,
       staleAtDrop: this.state.staleAtDrop,
       fixAgeAtDropMs: this.state.fixAgeAtDropMs,

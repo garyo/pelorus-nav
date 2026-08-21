@@ -13,6 +13,9 @@ const VALID: PersistedCobState = {
   version: 1,
   startedAt: 1700000000000,
   waypointId: "abc-123",
+  lat: 42.3635,
+  lon: -71.0479,
+  waypointName: "COB 14:32:05",
   muted: false,
   staleAtDrop: false,
   fixAgeAtDropMs: 800,
@@ -32,6 +35,11 @@ describe("isValidCobState", () => {
     expect(isValidCobState(VALID)).toBe(true);
   });
 
+  it("accepts an old-format state without the duplicated position", () => {
+    const { lat, lon, waypointName, ...oldFormat } = VALID;
+    expect(isValidCobState(oldFormat)).toBe(true);
+  });
+
   it("rejects junk", () => {
     expect(isValidCobState(null)).toBe(false);
     expect(isValidCobState("cob")).toBe(false);
@@ -43,6 +51,9 @@ describe("isValidCobState", () => {
     expect(isValidCobState({ ...VALID, fixAgeAtDropMs: Number.NaN })).toBe(
       false,
     );
+    expect(isValidCobState({ ...VALID, lat: "42" })).toBe(false);
+    expect(isValidCobState({ ...VALID, lon: Number.NaN })).toBe(false);
+    expect(isValidCobState({ ...VALID, waypointName: 5 })).toBe(false);
   });
 });
 
