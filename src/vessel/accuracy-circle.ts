@@ -1,6 +1,8 @@
 /**
- * Generate a GeoJSON polygon representing a circle of given radius around a point.
- * Used for GPS accuracy visualization.
+ * Generate a GeoJSON polygon representing a geodesic circle of given radius
+ * around a point. Used for the GPS accuracy circle and, via the
+ * `geodesicCircleGeoJSON` alias, anywhere else a ground-distance circle is
+ * drawn (anchor watch).
  */
 
 const EARTH_RADIUS_M = 6_371_008.8;
@@ -40,3 +42,6 @@ export function accuracyCircleGeoJSON(
     },
   };
 }
+
+/** General-purpose name for the same function — the math is not accuracy-specific. */
+export { accuracyCircleGeoJSON as geodesicCircleGeoJSON };
