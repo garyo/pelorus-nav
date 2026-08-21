@@ -680,8 +680,13 @@ class BackgroundTrackService : Service() {
             !passive -> activeIntervalMs
             // An armed watch overrides the recording cadence, including the
             // steady-course stretch below: a boat at anchor reads as steady
-            // precisely when it is dragging slowly.
-            anchorParams != null -> minOf(passiveIntervalMs, ANCHOR_PASSIVE_INTERVAL_MS)
+            // precisely when it is dragging slowly. Only while something
+            // consumes these fixes, though — anchor detection runs off its own
+            // GPS_PROVIDER subscription, so on an anchor-only service every
+            // fused fix is discarded and the floor would burn the chip for
+            // nothing.
+            anchorParams != null && trackingRequested ->
+                minOf(passiveIntervalMs, ANCHOR_PASSIVE_INTERVAL_MS)
             lastSteadyState ->
                 minOf(
                     passiveIntervalMs * STEADY_PASSIVE_INTERVAL_MULTIPLIER,
