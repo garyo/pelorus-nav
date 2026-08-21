@@ -4,6 +4,15 @@
 
 A modern, open-source marine chartplotter built as a progressive web app (PWA) in TypeScript. Targets e-ink tablets (Boox) on sailboats, but runs on any phone, tablet, or desktop browser. Emphasis on reliability, offline operation, and clean architecture.
 
+> **Status (2026-08)**: All planned phases (0–6) are complete and shipped, along
+> with several items originally listed under Future Phases (tides/currents,
+> MOB/COB, light sectors) and work this plan never anticipated: native
+> Android/iOS apps via Capacitor (Play Store internal track + TestFlight),
+> Bluetooth LE and Classic-SPP GPS providers, a crew-overboard mode, offline
+> street basemaps, chart search, an online user guide, and a marketing landing
+> page. This document is kept as the original roadmap plus status markers;
+> ongoing work is tracked in CHANGELOG.md and the issue tracker.
+
 ---
 
 ## Technology Stack
@@ -15,8 +24,9 @@ A modern, open-source marine chartplotter built as a progressive web app (PWA) i
 | **Map renderer**      | MapLibre GL JS                                                | WebGL, vector tiles, extensible, OSS, active community             |
 | **Chart data (Ph 1)** | NOAA NCDS raster tiles (MBTiles/WMTS)                         | Free, offline-capable, no parsing needed                           |
 | **Chart data (Ph 2)** | S-57 → vector tiles pipeline                                  | Custom styling, object querying, better quilting                   |
-| **GPS bridge**        | Signal K server (1), Web Geoloc API (2), WebSerial (dir. USB) | Standard marine data protocol, broad hw support                    |
-| **UI framework**      | Solid.js or vanilla TS + Web Components                       | Minimal overhead, fine-grained reactivity, no VDOM churn for e-ink |
+| **GPS bridge**        | Signal K, Web Geolocation, WebSerial, Bluetooth LE + Classic SPP, native Capacitor GPS | Standard marine data protocol, broad hw support   |
+| **UI framework**      | Vanilla TS + direct DOM (chosen)                              | Minimal overhead, no VDOM churn for e-ink                          |
+| **Native shell**      | Capacitor (Android + iOS)                                     | Background GPS, Bluetooth, store distribution                      |
 | **Testing**           | Vitest (unit), Playwright (E2E/cross-device)                  | Fast, TS-native, real browser testing                              |
 | **Bundler**           | Vite                                                          | Fast HMR, Bun-compatible, PWA plugin                               |
 | **PWA**               | vite-plugin-pwa (Workbox)                                     | Offline caching, installable                                       |
@@ -151,8 +161,8 @@ We extract 111 layers covering all navigation-critical S-57 object classes. See 
 ### Future Rendering Improvements
 
 - **MAGVAR compass roses**: Render magnetic variation (MAGVAR) as compass-rose vectors at low zoom (z7 and below) showing declination angle. Currently extracted but display disabled — plain text labels are confusing without visual context. Would be useful for passage planning.
-- **Light sectors**: Render light sector arcs (LIGHTS with SECTR1/SECTR2). Important but complex — separate project.
-- **Tidal currents**: Requires external tide/current tables for proper rendering.
+- ~~**Light sectors**~~ ✅ DONE — sector arcs rendered client-side (`LightSectorLayer`).
+- ~~**Tidal currents**~~ ✅ DONE — fully-offline NOAA harmonic predictions (see Future Phases below).
 
 ### Skip (Metadata/Administrative)
 
@@ -366,9 +376,14 @@ DSID, M_COVR, M_NPUB, M_NSYS, M_QUAL, C_AGGR, C_ASSO, NEWOBJ, ADMARE, CONZNE, CO
 
 ---
 
-## Phase 3: E-Ink Optimization
+## Phase 3: E-Ink Optimization ✅ DONE
 
 **Goal**: Excellent user experience on e-ink displays without degrading LCD/OLED experience.
+
+**Status**: Shipped and field-tested on BOOX (multiple real sails) and BIGME
+e-ink devices. All four themes (day/dusk/night/eink) implemented, including
+e-ink-specific S-52 sprite sheets, atomic once-per-fix map updates on e-ink,
+raw-input gesture handling, and repaint throttling.
 
 ### Tasks
 1. Detect e-ink display (user preference toggle; no reliable auto-detection)
@@ -404,11 +419,15 @@ DSID, M_COVR, M_NPUB, M_NSYS, M_QUAL, C_AGGR, C_ASSO, NEWOBJ, ADMARE, CONZNE, CO
 
 ---
 
-## Phase 5: Routes, Tracks, and Waypoints
+## Phase 5: Routes, Tracks, and Waypoints ✅ DONE
 
 **Goal**: Create, save, and manage navigation routes; record and display tracks.
 
-**Status**: Tracks (5C) ✅ done. Routes (5B) partially done (RouteEditor + RouteLayer + RouteManagerPanel exist). Waypoints (5A) and GPX import/export not started.
+**Status**: All complete — waypoints (5A), routes (5B), and tracks (5C),
+including GPX import/export with merge/dedupe, route folders, active
+navigation with auto leg advance, a unified long-press gesture model for
+editing, track smoothing/outlier rejection, and background track recording
+via the native Capacitor GPS plugin.
 
 ### 5A: Waypoints
 
@@ -457,7 +476,11 @@ DSID, M_COVR, M_NPUB, M_NSYS, M_QUAL, C_AGGR, C_ASSO, NEWOBJ, ADMARE, CONZNE, CO
 
 ---
 
-## Phase 6: Settings, Preferences, and Polish
+## Phase 6: Settings, Preferences, and Polish ✅ DONE
+
+**Status**: Shipped — full settings panel (units, GPS source, themes, display
+detail levels, layer groups, instrument cells, update rates), persistent
+settings, responsive layout, hardware-key support, and About/licensing.
 
 ### Tasks
 1. Settings panel:
@@ -494,17 +517,27 @@ DSID, M_COVR, M_NPUB, M_NSYS, M_QUAL, C_AGGR, C_ASSO, NEWOBJ, ADMARE, CONZNE, CO
 
 ## Future Phases (Out of Scope for Initial Development)
 
-These are documented for planning purposes but not part of the current roadmap:
+Originally documented for planning purposes; several have since shipped:
 
-- **AIS display**: Show other vessels from AIS data (via Signal K)
-- **Anchor watch**: Set anchor position, alarm if vessel drifts beyond radius
-- **Tide/current data**: Integrate NOAA tide predictions and tidal current data
-- **Weather overlay**: GRIB data display for wind, waves, pressure
-- **Auto-routing**: Compute routes avoiding land, shallow water, restricted areas
-- **Multi-user / cloud sync**: Account management, sync waypoints/routes across devices
-- **NMEA 2000 integration**: Direct instrument data (depth, wind, engine) via Signal K
-- **MOB (Man Overboard)**: One-tap MOB waypoint with bearing/distance back to MOB position
-- **S-101 support**: When NOAA starts publishing S-101 data (~2026), add parser/renderer
+- ~~**Tide/current data**~~ ✅ DONE — fully-offline tide and tidal-current
+  predictions computed client-side from bundled NOAA harmonic constituents
+  (`src/tides/`, "Tides & Currents" layer group)
+- ~~**MOB (Man Overboard)**~~ ✅ DONE — COB (crew overboard) mode: hold-to-arm
+  button, alarm, dedicated panel with bearing/distance/mayday readout,
+  persistence across crashes, chart auto-fit (`src/cob/`)
+- **Weather overlay**: partially done — wind overlay plugin shipped
+  (`src/plugins/wind/`); GRIB waves/pressure still future
+- **Anchor watch**: next planned feature (COB's alarm and hold-gesture
+  machinery were built to be reused for it)
+- **AIS display**: planned — the Signal K and NMEA transports are already in
+  place; rendering targets (and later CPA warnings) remain
+- **NMEA 2000 integration**: available indirectly via a Signal K server;
+  no direct N2K work planned
+- **Auto-routing**: declined — liability/complexity out of proportion to value
+- **Multi-user / cloud sync**: not planned near-term (open-data posture;
+  GPX export/import covers portability)
+- **S-101 support**: still future — NOAA S-101 data not yet in production use;
+  the S-101 Portrayal Catalogue is already used as a symbology reference
 
 ---
 
@@ -709,6 +742,12 @@ Phase 2A (GPS) can also start in parallel with Phase 1.
 
 ## Known Issues
 
-- **Background track recording not possible as a PWA**: iOS suspends JavaScript ~3s after backgrounding; Android Chrome explicitly disables background geolocation; Service Workers have no Geolocation API access. No reliable workaround exists (silent audio blocked on iOS 15+, Background Sync unsupported on iOS, Periodic Background Sync intervals too long). The only path to background GPS recording would be a Capacitor/native wrapper for access to platform background location APIs. Current mitigation: Wake Lock API keeps screen on while navigating, and track state is saved to IndexedDB frequently so the app resumes with a gap rather than losing data.
+- ~~**Background track recording not possible as a PWA**~~ ✅ RESOLVED — the
+  Capacitor/native-wrapper path this entry predicted was built: a native
+  BackgroundGPS plugin (Android foreground service + iOS background location)
+  records with the screen off, with recovery of buffered points after WebView
+  eviction (field-validated). The limitation still applies to pure-web PWA
+  installs, where the original mitigations (wake lock, frequent IndexedDB
+  saves) remain in place.
 
 - **Overlapping semi-transparent land areas with OSM underlay**: When `showOSMUnderlay` is enabled, LNDARE polygons are rendered at `fill-opacity: 0.3` so OSM shows through. Overlapping LNDARE polygons from different ENC cells cause darker patches where they stack (e.g. around 42.370,-71.095). Root cause: same-band compositing merges features without clipping, and multi-band compositing uses a ~1km buffer for gap prevention. Fix requires pipeline changes (union/dissolve LNDARE per tile during compositing) + retiling. MapLibre has no "flat" blend mode for fill layers, so no frontend-only workaround exists.
