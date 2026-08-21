@@ -46,7 +46,13 @@ const STALENESS_POLL_MS = 1000;
 export type AnchorZone = "ok" | "warn" | "outside" | "gray";
 
 /** GPS trust level: fresh+accurate / poor accuracy / stale / lost (alarm-worthy). */
-export type AnchorGpsState = "ok" | "poor" | "stale" | "lost";
+/**
+ * "waiting" is the pre-acquisition state: armed, but no fix has arrived yet
+ * this session, so the watch has never been proven to work. It is distinct
+ * from "lost" (a watch that worked and went blind) because only the latter
+ * warrants waking the crew.
+ */
+export type AnchorGpsState = "ok" | "poor" | "stale" | "lost" | "waiting";
 
 export type AnchorAlarmKind = "drag" | "gps-loss";
 
@@ -139,6 +145,8 @@ interface ArmedState {
   distanceAtAckM: number;
   gpsLossAlarming: boolean;
   gpsLossAcknowledged: boolean;
+  /** A fix has arrived since arming/restore — see AnchorGpsState.waiting. */
+  hadFix: boolean;
   /** Wall-clock ms when staleness was first observed by the poll. */
   staleSinceMs: number | null;
   /** Wall-clock ms of the last slot write (scatter-churn throttle). */
@@ -191,6 +199,7 @@ export class AnchorWatchManager {
       distanceAtAckM: 0,
       gpsLossAlarming: false,
       gpsLossAcknowledged: false,
+      hadFix: !this.deps.navManager.isFixStale(),
       staleSinceMs: null,
       lastPersistMs: this.now(),
     };
@@ -343,6 +352,7 @@ export class AnchorWatchManager {
       distanceAtAckM: 0,
       gpsLossAlarming: false,
       gpsLossAcknowledged: false,
+      hadFix: !this.deps.navManager.isFixStale(),
       staleSinceMs: null,
       lastPersistMs: this.now(),
     };
@@ -437,6 +447,7 @@ export class AnchorWatchManager {
     if (this.deps.navManager.isFixStale()) {
       if (armed.staleSinceMs === null) armed.staleSinceMs = this.now();
       if (
+        armed.hadFix &&
         !armed.gpsLossAlarming &&
         !armed.gpsLossAcknowledged &&
         this.now() - armed.staleSinceMs >= this.config.gpsLossAlarmS * 1000
@@ -454,6 +465,9 @@ export class AnchorWatchManager {
 
   /** Fresh data ends any GPS-loss condition (alarm, ack, staleness timer). */
   private clearGpsLoss(armed: ArmedState): void {
+    // Fresh data proves the watch can see; from here a later outage is a
+    // genuine loss and may alarm.
+    armed.hadFix = true;
     armed.staleSinceMs = null;
     armed.gpsLossAcknowledged = false;
     if (armed.gpsLossAlarming) {
@@ -467,6 +481,7 @@ export class AnchorWatchManager {
     fix: NavigationData | null,
   ): AnchorGpsState {
     if (this.deps.navManager.isFixStale()) {
+      if (!armed.hadFix) return "waiting";
       const lost =
         armed.gpsLossAlarming ||
         armed.gpsLossAcknowledged ||

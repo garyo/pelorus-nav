@@ -80,6 +80,7 @@ const GPS_STATE_TEXT: Record<AnchorWatchSnapshot["gpsState"], string> = {
   poor: "GPS accuracy poor",
   stale: "GPS stale — no recent fix",
   lost: "GPS LOST",
+  waiting: "Waiting for GPS — watch not yet active",
 };
 
 export class AnchorPanel {

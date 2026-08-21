@@ -180,7 +180,8 @@ describe("AnchorWatchManager.arm", () => {
     h.manager.arm({ ...ANCHOR, radiusM: 50 });
     const s = h.snapshot();
     expect(s.zone).toBe("gray");
-    expect(s.gpsState).toBe("stale");
+    // Armed before any fix arrived: waiting, not stale — see AnchorGpsState.
+    expect(s.gpsState).toBe("waiting");
     expect(s.distanceM).toBeNull();
     expect(s.bearingDeg).toBeNull();
   });
@@ -358,6 +359,38 @@ describe("GPS-loss alarm", () => {
     expect(h.gpsLossAlarm.stop).toHaveBeenCalled();
     expect(h.snapshot().gpsState).toBe("ok");
     expect(h.snapshot().alarming).toBe(false);
+  });
+
+  it("never alarms before the first fix — waiting is not lost", () => {
+    // A cold external GPS (or one that never acquires) leaves the watch
+    // armed but blind from the start. That is the user's own doing and is
+    // shown persistently; it must not wake anyone.
+    const h = makeHarness();
+    h.nav.stale = true;
+    armAtAnchor(h);
+    h.tickSeconds(600);
+    expect(h.gpsLossAlarm.start).not.toHaveBeenCalled();
+    expect(h.snapshot().gpsState).toBe("waiting");
+    expect(h.snapshot().alarming).toBe(false);
+  });
+
+  it("alarms once a fix has arrived and is then lost", () => {
+    const h = makeHarness();
+    h.nav.stale = true;
+    armAtAnchor(h);
+    h.tickSeconds(300);
+    expect(h.gpsLossAlarm.start).not.toHaveBeenCalled();
+
+    // First acquisition proves the watch works…
+    h.nav.stale = false;
+    h.emitFix(fixAt(0, h.clock.now));
+    expect(h.snapshot().gpsState).toBe("ok");
+
+    // …so a later outage is a genuine loss.
+    h.nav.stale = true;
+    h.tickSeconds(122);
+    expect(h.gpsLossAlarm.start).toHaveBeenCalledWith(false);
+    expect(h.snapshot().gpsState).toBe("lost");
   });
 
   it("acknowledge silences it; continued staleness does not re-fire", () => {
