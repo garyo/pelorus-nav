@@ -1433,19 +1433,19 @@ function buildGpsLinkRow(gpsLink: GpsLinkOpt): {
     const connected = gpsLink.isConnected();
     const reconnecting = gpsLink.isReconnecting();
 
-    if (connected) {
-      status.textContent = "✓ Connected";
-      status.className = "settings-link-status settings-link-ok";
-    } else if (reconnecting) {
-      status.textContent = "⟳ Reconnecting…";
-      status.className = "settings-link-status settings-link-warn";
-    } else {
-      status.textContent = "✕ Disconnected";
-      status.className = "settings-link-status settings-link-bad";
-    }
+    // Written only on a real change: this runs on a poll, and rewriting the
+    // same text every tick dirties the node for nothing — which on e-ink is
+    // a panel refresh.
+    const [statusText, statusClass] = connected
+      ? ["✓ Connected", "settings-link-status settings-link-ok"]
+      : reconnecting
+        ? ["⟳ Reconnecting…", "settings-link-status settings-link-warn"]
+        : ["✕ Disconnected", "settings-link-status settings-link-bad"];
+    if (status.textContent !== statusText) status.textContent = statusText;
+    if (status.className !== statusClass) status.className = statusClass;
 
     // Reconnect is a no-op while connected — gray it out for honest feedback.
-    reconnectBtn.disabled = connected;
+    if (reconnectBtn.disabled !== connected) reconnectBtn.disabled = connected;
 
     if (!connected && reconnecting) {
       if (!reconnectingSince) reconnectingSince = Date.now();

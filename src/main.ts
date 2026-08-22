@@ -17,6 +17,7 @@ import {
   AnchorWatchManager,
   type AnchorWatchSnapshot,
 } from "./anchor/AnchorWatchManager";
+import { createAnchorAlarms } from "./anchor/native-anchor-alarm";
 import { connectNativeAnchorWatch } from "./anchor/native-anchor-watch";
 import { installFileOpenCapture } from "./app/fileOpenQueue";
 import { type IdleCloseable, runIdleAutoReturn } from "./app/idleAutoReturn";
@@ -56,6 +57,7 @@ import {
 import { getAllWaypoints, repairTrackPointCounts } from "./data/db";
 import { loadAllSearchIndices, type SearchEntry } from "./data/search-index";
 import { installConsoleHooks } from "./diagnostics/console-hooks";
+import { notePaintTraceRender } from "./diagnostics/paint-trace";
 import { AnchorLayer, type AnchorLayerState } from "./map/AnchorLayer";
 import { BearingLine } from "./map/BearingLine";
 import { getMode, onModeChange, setMode } from "./map/InteractionMode";
@@ -689,7 +691,10 @@ navManager.subscribe((data) => {
 // setData calls form a self-sustaining loop that repaints at the throttle
 // cap forever, even anchored or with GPS off.
 let appliedCourse: CourseSnapshot | null = null;
+// Counted before the early returns: on e-ink a canvas repaint costs a panel
+// refresh whether or not this handler goes on to move anything.
 chartManager.map.on("render", () => {
+  notePaintTraceRender();
   if (!lastNavData) return;
   // E-ink updates atomically once per fix (in the subscribe handler above), so
   // each GPS tick is a single panel refresh — nothing to animate here.
@@ -1260,13 +1265,11 @@ chartManager.map.addControl(cobButton, "bottom-left");
 startCobChartAutoFit(chartManager.map, chartMode, cobManager, navManager);
 
 // --- Anchor watch ---
-// Two alarm instances so lost GPS never sounds like a drag: the drag alarm
-// keeps the COB cadence; GPS loss is a slower single tone.
-const anchorDragAlarm = new CobAlarm();
-const anchorGpsLossAlarm = new CobAlarm({
-  toneHz: [520, 520],
-  beatIntervalMs: 2000,
-});
+// Two alarms so lost GPS never sounds like a drag. On native both are made by
+// the foreground service on the ALARM stream — Web Audio would land on the
+// media stream, which is where anchor alarms go to die.
+const { drag: anchorDragAlarm, gpsLoss: anchorGpsLossAlarm } =
+  createAnchorAlarms();
 const anchorManager = new AnchorWatchManager({
   navManager,
   alarm: anchorDragAlarm,
@@ -1336,11 +1339,9 @@ chartManager.map.on("click", (e) => {
 });
 // Mirror the armed watch into the native foreground service so drag
 // detection and the alarm survive screen-off, when JS is suspended. No-op
-// on web. The alarms decide when the native alarm may stop sounding, and
-// navManager's fixes tell the native watch the app can still see the boat
-// even when they come from a receiver the service can't reach.
+// on web. navManager's fixes tell the native watch the app can still see the
+// boat even when they come from a receiver the service can't reach.
 const nativeAnchorWatch = connectNativeAnchorWatch(anchorManager, {
-  alarms: [anchorDragAlarm, anchorGpsLossAlarm],
   navManager,
 });
 // An armed watch also defers the idle app-update reload.
