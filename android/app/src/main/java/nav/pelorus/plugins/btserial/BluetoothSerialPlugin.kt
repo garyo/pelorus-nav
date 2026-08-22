@@ -18,6 +18,7 @@ import com.getcapacitor.annotation.Permission
 import com.getcapacitor.annotation.PermissionCallback
 import java.io.IOException
 import java.util.UUID
+import nav.pelorus.plugins.backgroundgps.BackgroundTrackService
 
 /**
  * Bluetooth Classic SPP (RFCOMM) transport for NMEA GPS receivers such as the
@@ -174,9 +175,16 @@ class BluetoothSerialPlugin : Plugin() {
                 val n = input.read(buffer)
                 if (n < 0) break
                 if (n > 0) {
+                    val text = String(buffer, 0, n, Charsets.ISO_8859_1)
                     val data = JSObject()
-                    data.put("data", String(buffer, 0, n, Charsets.ISO_8859_1))
+                    data.put("data", text)
                     notifyListeners("data", data)
+                    // The anchor watch reads the stream natively too: the
+                    // WebView this event feeds freezes minutes after the
+                    // screen goes off, and on a GNSS-less tablet this stream
+                    // is the only thing that can see the boat. No-op unless
+                    // a watch is armed.
+                    BackgroundTrackService.instance?.onSerialData(text)
                 }
             }
         } catch (_: IOException) {

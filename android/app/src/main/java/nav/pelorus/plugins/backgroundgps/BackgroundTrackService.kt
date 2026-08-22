@@ -463,6 +463,9 @@ class BackgroundTrackService : Service() {
     @Volatile private var anchorGnssAvailable: Boolean = false
     /** Elapsed-realtime of the last logged anchor GNSS fix; see onAnchorFix. */
     private var lastAnchorFixLogMs = 0L
+    /** Line reassembly + rate limit for the native serial-NMEA feed. */
+    private val serialNmeaAssembler = NmeaLineAssembler()
+    private var lastSerialFixElapsedMs = 0L
 
     private var alarmManager: AlarmManager? = null
     private var watchdogPendingIntent: PendingIntent? = null
@@ -1132,7 +1135,11 @@ class BackgroundTrackService : Service() {
         if (lm == null || !hasHardware || LocationManager.GPS_PROVIDER !in lm.allProviders) {
             anchorGnssAvailable = false
             Log.w(TAG, "Anchor watch: no GNSS provider on this device")
-            DiagLog.log(applicationContext, "anchor", "no GNSS provider — no screen-off cover")
+            DiagLog.log(
+                applicationContext,
+                "anchor",
+                "no GNSS provider — screen-off cover needs the serial GPS feed",
+            )
             return
         }
         // Written out rather than as a lambda: the other three methods only
@@ -1289,6 +1296,42 @@ class BackgroundTrackService : Service() {
      * or going silent (see [effectiveAnchorRadiusM]).
      */
     private fun onAnchorFix(location: Location) {
+        feedAnchorFix(
+            location.latitude,
+            location.longitude,
+            if (location.hasAccuracy()) location.accuracy.toDouble() else ANCHOR_ACCURACY_UNKNOWN,
+            source = "gnss",
+        )
+    }
+
+    /**
+     * Serial data from the app's external Bluetooth GPS, forwarded by
+     * BluetoothSerialPlugin's read loop. Positions parsed here — natively —
+     * are what give a GNSS-less tablet real screen-off cover: the WebView
+     * that normally parses this stream freezes within minutes of the screen
+     * going off (measured everywhere, renderer pin or not), but this service
+     * keeps reading. Rate-limited to the native GNSS cadence: the detector
+     * needs no more, and each accepted fix re-arms an AlarmManager watchdog
+     * that must not be set ten times a second for a 10 Hz receiver.
+     */
+    fun onSerialData(chunk: String) {
+        // Runs on the transport's read thread. Assembly, parsing, and the
+        // rate limit stay here (single caller); the detector itself is only
+        // ever touched on the main looper, so the accepted fix hops there.
+        if (anchorDetector == null) return
+        for (line in serialNmeaAssembler.feed(chunk)) {
+            val fix = parseNmeaRmc(line) ?: continue
+            val now = SystemClock.elapsedRealtime()
+            if (now - lastSerialFixElapsedMs < ANCHOR_SERIAL_FIX_MIN_MS) continue
+            lastSerialFixElapsedMs = now
+            mainHandler.post {
+                feedAnchorFix(fix.lat, fix.lon, ANCHOR_ACCURACY_UNKNOWN, source = "serial")
+            }
+        }
+    }
+
+    /** Distance-test one position of the boat, from any source that truly saw it. */
+    private fun feedAnchorFix(lat: Double, lon: Double, accuracyM: Double, source: String) {
         val detector = anchorDetector ?: return
         val provenBefore = detector.hadFix
         // The watch alarms rarely and logs only then, which left "is the
@@ -1302,18 +1345,13 @@ class BackgroundTrackService : Service() {
             DiagLog.log(
                 applicationContext,
                 "anchor",
-                "gnss fix ${if (provenBefore) "" else "(first) "}" +
+                "$source fix ${if (provenBefore) "" else "(first) "}" +
                     "d=${detector.lastDistanceM.toInt()}m " +
                     "r=${detector.effectiveRadiusM().toInt()}m " +
-                    "acc=${if (location.hasAccuracy()) location.accuracy.toInt() else -1}m",
+                    "acc=${if (accuracyM > 0) accuracyM.toInt() else -1}m",
             )
         }
-        val transition = detector.onFix(
-            location.latitude,
-            location.longitude,
-            SystemClock.elapsedRealtime(),
-            if (location.hasAccuracy()) location.accuracy.toDouble() else ANCHOR_ACCURACY_UNKNOWN,
-        )
+        val transition = detector.onFix(lat, lon, nowMs, accuracyM)
         handleAnchorTransition(transition)
         // Silence only becomes an alarm relative to the newest fix.
         armAnchorWatchdog(detector.params.gpsLossAlarmMs)
@@ -1333,10 +1371,11 @@ class BackgroundTrackService : Service() {
      * in the armed panel; see assessScreenOffCover in
      * src/anchor/native-anchor-watch.ts.
      *
-     * [AnchorWatchServiceStatus.hadFix] is GNSS-only by construction now (see
-     * [startAnchorGnssUpdates]), which is the whole point: it used to go true
-     * on a WiFi-derived fused position and report a covered watch on a tablet
-     * that cannot see a satellite.
+     * [AnchorWatchServiceStatus.hadFix] goes true only on a position that
+     * truly saw the boat: this device's GNSS ([startAnchorGnssUpdates]) or
+     * the natively-parsed external serial receiver ([onSerialData]). Never a
+     * WiFi-derived fused position — that once reported a covered watch on a
+     * tablet that cannot see a satellite.
      */
     fun anchorStatus(): AnchorWatchServiceStatus {
         val detector = anchorDetector
