@@ -168,6 +168,7 @@ export function connectNativeAnchorWatch(
   // must be dumb: a plain interval, never compensated or self-corrected.
   let keepaliveTimer: ReturnType<typeof setInterval> | null = null;
   let lastBeatMs: number | null = null;
+  let lastEventBeatMs = 0;
   let keepaliveWarned = false;
   const beat = (): void => {
     const t = now();
@@ -238,6 +239,15 @@ export function connectNativeAnchorWatch(
 
   options.navManager?.subscribe(() => {
     if (!armed) return;
+    // A delivered fix is also proof of life. Chromium can throttle a hidden
+    // page's timers while still executing bridge-delivered events, so a
+    // heartbeat driven only by setInterval could read as dead while JS is in
+    // fact processing every fix. Beat here too, floored so the event path
+    // can't spam faster than half the timer cadence.
+    if (now() - lastEventBeatMs >= KEEPALIVE_INTERVAL_MS / 2) {
+      lastEventBeatMs = now();
+      beat();
+    }
     if (now() - lastExternalFixReport < EXTERNAL_FIX_REPORT_MS) return;
     lastExternalFixReport = now();
     plugin.noteExternalFix().catch(ignore);

@@ -549,6 +549,28 @@ describe("connectNativeAnchorWatch", () => {
       expect(h.plugin.noteExternalFix).toHaveBeenCalledTimes(2);
     });
 
+    it("delivered fixes also beat the keepalive, floored", () => {
+      // Chromium can throttle a hidden page's timers while still executing
+      // bridge-delivered events, so a fix arriving is proof of life even
+      // when setInterval never fires.
+      const h = makeHarness();
+      let clock = 100_000;
+      connect(h, { navManager: h.navManager, now: () => clock });
+      h.emit(snapshot());
+      const beatsAfterArm = h.plugin.anchorKeepalive.mock.calls.length;
+
+      clock += 5_000;
+      h.emitFix();
+      expect(h.plugin.anchorKeepalive.mock.calls.length).toBe(
+        beatsAfterArm + 1,
+      );
+      // Floored: an immediate second fix does not beat again.
+      h.emitFix();
+      expect(h.plugin.anchorKeepalive.mock.calls.length).toBe(
+        beatsAfterArm + 1,
+      );
+    });
+
     it("stays quiet when no watch is armed", () => {
       const h = makeHarness();
       connect(h, { navManager: h.navManager });

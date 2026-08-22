@@ -429,11 +429,39 @@ class BackgroundGPSPlugin : Plugin() {
         )
     }
 
+    /**
+     * Keep the WebView's renderer runnable while a watch is armed.
+     *
+     * With the activity invisible Android waives the renderer's priority and
+     * the cached-app freezer freezes it — measured as the JS keepalive going
+     * silent ~90 s after screen-off and staying silent 18 minutes. The JS
+     * watch is the detector that sees the user's chosen GPS source, so while
+     * armed the renderer is pinned IMPORTANT even when not visible; disarm
+     * restores the default (IMPORTANT, waived when not visible). API 26+;
+     * best-effort on the UI thread.
+     */
+    private fun setAnchorRendererPin(pinned: Boolean) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
+        val webView = bridge?.webView ?: return
+        activity?.runOnUiThread {
+            try {
+                webView.setRendererPriorityPolicy(
+                    android.webkit.WebView.RENDERER_PRIORITY_IMPORTANT,
+                    !pinned,
+                )
+                DiagLog.log(context, "anchor", "renderer pin=${pinned}")
+            } catch (e: Exception) {
+                Log.w("BackgroundGPS", "setRendererPriorityPolicy failed", e)
+            }
+        }
+    }
+
     private fun armNativeAnchorWatch(call: PluginCall) {
         val params = anchorParamsOf(call) ?: run {
             call.reject("lat, lon and a positive radiusM are required")
             return
         }
+        setAnchorRendererPin(true)
         BackgroundTrackService.anchorParams = params
         // On disk before the service hears about it: from here an OS kill is
         // survivable (the service is START_STICKY while armed and re-adopts
@@ -460,6 +488,7 @@ class BackgroundGPSPlugin : Plugin() {
      */
     @PluginMethod
     fun clearAnchorWatch(call: PluginCall) {
+        setAnchorRendererPin(false)
         BackgroundTrackService.anchorParams = null
         // Standing the watch down ends its noise whatever JS last asked for.
         BackgroundTrackService.jsAlarmKind = null
