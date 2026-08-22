@@ -237,6 +237,15 @@ export function attachHoldGesture(
   };
   const onAbort = (e?: Event): void => finish(false, e?.type ?? "abort");
 
+  // A captured pointer's release is always followed by lostpointercapture,
+  // so treating it as an abort would kill the grace pause the pointerup just
+  // started — the exact e-ink phantom-drop the grace exists for. Route it
+  // through the release path instead: after a pointerup it's a no-op (the
+  // grace is already running), and a bare capture loss gets the same grace.
+  // A real interruption still hard-aborts via pointercancel, which fires
+  // before its own lostpointercapture and leaves nothing for it to end.
+  const onLostCapture = (): void => onRelease();
+
   // Keyboard accessibility: hold Space/Enter.
   const onKeyDown = (e: KeyboardEvent): void => {
     if (e.repeat) return;
@@ -260,7 +269,7 @@ export function attachHoldGesture(
   el.addEventListener("pointerdown", onPointerDown);
   el.addEventListener("pointerup", onRelease);
   el.addEventListener("pointercancel", onAbort);
-  el.addEventListener("lostpointercapture", onAbort);
+  el.addEventListener("lostpointercapture", onLostCapture);
   el.addEventListener("keydown", onKeyDown);
   el.addEventListener("keyup", onKeyUp);
   el.addEventListener("blur", onAbort);
@@ -271,7 +280,7 @@ export function attachHoldGesture(
     el.removeEventListener("pointerdown", onPointerDown);
     el.removeEventListener("pointerup", onRelease);
     el.removeEventListener("pointercancel", onAbort);
-    el.removeEventListener("lostpointercapture", onAbort);
+    el.removeEventListener("lostpointercapture", onLostCapture);
     el.removeEventListener("keydown", onKeyDown);
     el.removeEventListener("keyup", onKeyUp);
     el.removeEventListener("blur", onAbort);

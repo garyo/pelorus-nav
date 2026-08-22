@@ -232,6 +232,34 @@ describe("attachHoldGesture release grace (e-ink touch dropouts)", () => {
     expect(r.completed).toBe(true);
   });
 
+  it("survives the lostpointercapture that follows a captured release", () => {
+    // A captured pointer's release always arrives as pointerup followed by
+    // lostpointercapture. The follow-on event must not abort the grace the
+    // pointerup just started — the field failure on e-ink was exactly this.
+    const r = attach();
+    down();
+    vi.advanceTimersByTime(400);
+    up();
+    el.dispatchEvent(new PointerEvent("lostpointercapture"));
+    vi.advanceTimersByTime(100);
+    down();
+    expect(r.cancelled).toBe(false);
+    vi.advanceTimersByTime(610);
+    expect(r.completed).toBe(true);
+  });
+
+  it("grants the grace to a bare capture loss with no pointerup", () => {
+    const r = attach();
+    down();
+    vi.advanceTimersByTime(400);
+    el.dispatchEvent(new PointerEvent("lostpointercapture"));
+    vi.advanceTimersByTime(100);
+    down();
+    expect(r.cancelled).toBe(false);
+    vi.advanceTimersByTime(610);
+    expect(r.completed).toBe(true);
+  });
+
   it("cancels when the touch does not come back", () => {
     const r = attach();
     down();
