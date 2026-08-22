@@ -637,3 +637,54 @@ fun serviceDemandAction(
     !wanted && running -> ServiceDemand.STOP
     else -> ServiceDemand.NONE
 }
+
+// --- Self-cleared alarm record ---------------------------------------------
+
+/**
+ * How many self-cleared alarms the record notification lists. Older events
+ * age out silently; the count in the title stays honest for what is shown.
+ */
+const val ANCHOR_EVENT_RECORD_MAX = 6
+
+/**
+ * An alarm that sounded and then cleared on its own — GPS came back, the
+ * boat swung back inside the circle, the watch-failure condition ended.
+ * The user may have heard only unexplained beeps (or nothing at all), so
+ * the event is kept for a quiet record notification that outlives the
+ * alarm itself. [wallMs] is wall-clock, for display.
+ */
+data class AnchorAlarmEvent(val kind: String, val reason: String?, val wallMs: Long)
+
+/** Short human label for a recorded alarm. */
+fun anchorAlarmEventLabel(kind: String, reason: String?): String = when (kind) {
+    ANCHOR_ALARM_GPS_LOSS -> "GPS lost"
+    ANCHOR_ALARM_WATCH_FAILURE ->
+        if (reason == ANCHOR_WATCH_FAILURE_DEVICE_BATTERY) "Device battery low"
+        else "Nothing was watching"
+    else -> "Anchor drag detected"
+}
+
+/** Record-notification title: the latest event, with a count when repeated. */
+fun anchorEventRecordTitle(events: List<AnchorAlarmEvent>): String {
+    val latest = events.last()
+    val label = anchorAlarmEventLabel(latest.kind, latest.reason)
+    return if (events.size > 1) "Anchor alarms earlier (${events.size}) — $label"
+    else "Anchor alarm earlier: $label"
+}
+
+/**
+ * Record-notification body: one line per event, newest first, then the
+ * reassurance that matters — these alarms ended on their own and the watch
+ * is still armed. [formatTime] renders a wall-clock ms timestamp, injected
+ * so callers use the device locale and tests stay deterministic.
+ */
+fun anchorEventRecordText(
+    events: List<AnchorAlarmEvent>,
+    formatTime: (Long) -> String,
+): String {
+    val lines = events.asReversed().map {
+        "${formatTime(it.wallMs)} · ${anchorAlarmEventLabel(it.kind, it.reason)}"
+    }
+    return (lines + "Each cleared on its own; the watch is still armed.")
+        .joinToString("\n")
+}

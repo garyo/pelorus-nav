@@ -101,6 +101,14 @@ class BackgroundTrackService : Service() {
         const val ANCHOR_NOTIFICATION_ID = 2
         const val ACTION_ANCHOR_SILENCE = "nav.pelorus.ANCHOR_SILENCE"
 
+        /**
+         * Record of alarms that cleared on their own — silent channel, its
+         * notification survives the alarm so unexplained beeps (or a sleep
+         * slept through) have an answer in the shade.
+         */
+        const val ANCHOR_EVENT_CHANNEL_ID = "pelorus_anchor_event_channel"
+        const val ANCHOR_EVENT_NOTIFICATION_ID = 3
+
         const val MODE_ACTIVE = "active"
         const val MODE_PASSIVE = "passive"
 
@@ -421,6 +429,8 @@ class BackgroundTrackService : Service() {
     private var lastBatteryPercent = -1
     /** The alarm kind the alarm notification currently shows; null when none. */
     private var presentedAlarmKind: String? = null
+    /** Alarms that cleared on their own this watch, for the record notification. */
+    private val anchorAlarmEvents = mutableListOf<AnchorAlarmEvent>()
     /** The alarm sound (tone loop + vibration) is running. */
     private var anchorAlarmSounding = false
     /** The alarm kind the running player's tone belongs to; null when silent. */
@@ -1038,6 +1048,9 @@ class BackgroundTrackService : Service() {
             // watch is being watched or the battery is dying.
             nothingWatchingMonitor = NothingWatchingMonitor()
             batteryMonitor = BatteryWatchMonitor()
+            // A new watch starts a new record; a posted notification from
+            // the previous watch stays until the user dismisses it.
+            anchorAlarmEvents.clear()
         } else {
             handleAnchorTransition(existing.updateParams(params, now))
         }
@@ -1376,6 +1389,12 @@ class BackgroundTrackService : Service() {
             AnchorTransition.DRAG_ALARM -> raiseOrSuppressAnchorAlarm(ANCHOR_ALARM_DRAG)
             AnchorTransition.GPS_LOSS_ALARM -> raiseOrSuppressAnchorAlarm(ANCHOR_ALARM_GPS_LOSS)
             AnchorTransition.CLEARED -> {
+                // Only an alarm that was actually announced leaves a record:
+                // a suppressed detection made no noise, and an acknowledged
+                // one already un-announced itself at the user's hand.
+                if (anchorAlarmAnnounced) {
+                    recordSelfClearedAlarm(presentedAlarmKind ?: ANCHOR_ALARM_DRAG, null)
+                }
                 anchorAlarmAnnounced = false
                 anchorSuppressedLogged = false
                 clearAnchorAlarm()
@@ -1536,8 +1555,51 @@ class BackgroundTrackService : Service() {
     /** A watch-failure condition ended on its own; tell JS (see the listener doc). */
     private fun clearWatchFailureAlarm(reason: String) {
         DiagLog.log(applicationContext, "anchor", "watch-failure cleared reason=$reason")
+        recordSelfClearedAlarm(ANCHOR_ALARM_WATCH_FAILURE, reason)
         anchorAlarmClearedListener?.invoke(ANCHOR_ALARM_WATCH_FAILURE)
         syncAnchorAlarmPresentation()
+    }
+
+    /**
+     * An announced alarm ended without the user's hand in it. The sound is
+     * over, but the reason it played must not vanish with it: a watch-failure
+     * whose own screen-wake revives JS clears in seconds, and a drag or GPS
+     * loss can resolve while the crew is asleep — leaving nothing but a
+     * memory of beeps. Post a silent, dismissible record in their place.
+     */
+    private fun recordSelfClearedAlarm(kind: String, reason: String?) {
+        anchorAlarmEvents += AnchorAlarmEvent(kind, reason, System.currentTimeMillis())
+        while (anchorAlarmEvents.size > ANCHOR_EVENT_RECORD_MAX) anchorAlarmEvents.removeAt(0)
+        showAnchorEventRecordNotification()
+        DiagLog.log(
+            applicationContext,
+            "anchor",
+            "self-clear recorded kind=$kind n=${anchorAlarmEvents.size}",
+        )
+    }
+
+    private fun showAnchorEventRecordNotification() {
+        val nm = getSystemService(NotificationManager::class.java) ?: return
+        val launchIntent = packageManager.getLaunchIntentForPackage(packageName)
+        val contentPending = PendingIntent.getActivity(
+            this, 5, launchIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+        )
+        val timeFormat = java.text.DateFormat.getTimeInstance(java.text.DateFormat.SHORT)
+        val text = anchorEventRecordText(anchorAlarmEvents) { timeFormat.format(java.util.Date(it)) }
+        val notification = Notification.Builder(this, ANCHOR_EVENT_CHANNEL_ID)
+            .setContentTitle(anchorEventRecordTitle(anchorAlarmEvents))
+            .setContentText(text.lineSequence().first())
+            .setStyle(Notification.BigTextStyle().bigText(text))
+            .setSmallIcon(android.R.drawable.stat_sys_warning)
+            .setCategory(Notification.CATEGORY_STATUS)
+            .setVisibility(Notification.VISIBILITY_PUBLIC)
+            .setAutoCancel(true)
+            .setWhen(anchorAlarmEvents.last().wallMs)
+            .setShowWhen(true)
+            .setContentIntent(contentPending)
+            .build()
+        nm.notify(ANCHOR_EVENT_NOTIFICATION_ID, notification)
     }
 
     /**
@@ -1786,6 +1848,17 @@ class BackgroundTrackService : Service() {
             val manager = getSystemService(NotificationManager::class.java)
             manager.createNotificationChannel(channel)
             manager.createNotificationChannel(buildAnchorChannel())
+            // IMPORTANCE_LOW: in the shade and status bar but silent — the
+            // alarm already made its noise; this is the explanation it left.
+            manager.createNotificationChannel(
+                NotificationChannel(
+                    ANCHOR_EVENT_CHANNEL_ID,
+                    "Anchor Watch Events",
+                    NotificationManager.IMPORTANCE_LOW,
+                ).apply {
+                    description = "Record of anchor alarms that cleared on their own"
+                },
+            )
         }
     }
 
