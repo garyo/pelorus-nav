@@ -316,6 +316,18 @@ describe("drag alarm hysteresis", () => {
 });
 
 describe("acknowledge semantics", () => {
+  it("is a no-op when nothing is alarming", () => {
+    // The native anchorAcknowledged event (the notification's Silence) calls
+    // this unconditionally, possibly retained and late — it must settle
+    // silently on a watch with no alarm, and on no watch at all.
+    const h = makeHarness();
+    h.manager.acknowledge();
+    armAtAnchor(h);
+    h.manager.acknowledge();
+    expect(h.alarm.stop).not.toHaveBeenCalled();
+    expect(h.snapshot().acknowledged).toBe(false);
+  });
+
   it("silences the alarm but keeps the watch armed", () => {
     const h = makeHarness();
     armAtAnchor(h);

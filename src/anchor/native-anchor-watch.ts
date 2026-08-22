@@ -10,6 +10,17 @@
  * event that arrives when the WebView resumes. The alarm *sound* belongs to
  * the service on every native platform — see native-anchor-alarm.ts.
  *
+ * While armed it also beats a liveness heartbeat down every
+ * {@link KEEPALIVE_INTERVAL_MS}, which is the arbiter of alarm authority:
+ * the JS watch is the authoritative detector while its beats are fresh, and
+ * the native detector announces its own alarms only once they go stale (or
+ * never started — a watch restored after a process kill). Each beat carries
+ * this side's own measured interval, so the native diag log can tell WebView
+ * timer *throttling* (beats arrive late) from an outright *freeze* (no
+ * beats) — the direct measurement of screen-off JS liveness we could
+ * previously only guess at from GPS log gaps. Plain setInterval on purpose:
+ * being throttled is precisely the signal.
+ *
  * It also answers the questions the app cannot answer for itself — whether
  * that native watch is actually seeing the boat, and whether the alarm stream
  * is loud enough for anyone to hear it (see {@link armedAdvisoryLine}).
@@ -38,6 +49,13 @@ import {
  */
 const EXTERNAL_FIX_REPORT_MS = 10_000;
 
+/**
+ * Heartbeat period while a watch is armed. The native side calls the beats
+ * stale after 30 s (three missed), at which point alarm authority passes to
+ * its own detector.
+ */
+export const KEEPALIVE_INTERVAL_MS = 10_000;
+
 /** The slice of the native plugin this module drives. */
 export interface NativeAnchorPlugin {
   setAnchorWatch(options: {
@@ -51,6 +69,7 @@ export interface NativeAnchorPlugin {
   clearAnchorWatch(): Promise<void>;
   acknowledgeAnchorAlarm(): Promise<void>;
   noteExternalFix(): Promise<void>;
+  anchorKeepalive(options: { sinceLastMs: number }): Promise<void>;
   getAnchorWatchStatus(): Promise<AnchorWatchNativeStatus>;
   addListener(
     eventName: "anchorAlarm",
@@ -60,12 +79,16 @@ export interface NativeAnchorPlugin {
       at: number;
     }) => void,
   ): Promise<unknown>;
+  addListener(
+    eventName: "anchorAcknowledged",
+    listenerFunc: () => void,
+  ): Promise<unknown>;
 }
 
 /** The manager surface this module needs; keeps the unit tests light. */
 export type NativeAnchorManager = Pick<
   AnchorWatchManager,
-  "subscribe" | "noteNativeAlarm" | "getState"
+  "subscribe" | "noteNativeAlarm" | "getState" | "acknowledge"
 >;
 
 /** Handle returned by {@link connectNativeAnchorWatch}. */
@@ -78,6 +101,8 @@ export interface NativeAnchorWatchHandle {
    * slot and the user's disarm — is the authority that settles it.
    */
   reconcile(): void;
+  /** Stop the keepalive heartbeat (tests; pairs with AnchorWatchManager.dispose). */
+  dispose(): void;
 }
 
 export interface NativeAnchorWatchOptions {
@@ -110,7 +135,7 @@ export function connectNativeAnchorWatch(
   options: NativeAnchorWatchOptions = {},
 ): NativeAnchorWatchHandle {
   const isNative = options.isNative ?? Capacitor.isNativePlatform();
-  if (!isNative) return { reconcile: () => {} };
+  if (!isNative) return { reconcile: () => {}, dispose: () => {} };
   const plugin = options.plugin ?? (BackgroundGPS as NativeAnchorPlugin);
   const alarmDelayS = options.alarmDelayS ?? DEFAULT_ALARM_DELAY_S;
   const gpsLossAlarmS = options.gpsLossAlarmS ?? DEFAULT_GPS_LOSS_ALARM_S;
@@ -126,10 +151,44 @@ export function connectNativeAnchorWatch(
   let armed = false;
   let lastExternalFixReport = 0;
 
+  // --- Liveness heartbeat: runs exactly while armed. Its staleness (30 s on
+  // the native side) is what hands alarm authority to the native detector,
+  // and sinceLastMs is the throttling-vs-freezing measurement — so the beat
+  // must be dumb: a plain interval, never compensated or self-corrected.
+  let keepaliveTimer: ReturnType<typeof setInterval> | null = null;
+  let lastBeatMs: number | null = null;
+  let keepaliveWarned = false;
+  const beat = (): void => {
+    const t = now();
+    const sinceLastMs = lastBeatMs === null ? 0 : t - lastBeatMs;
+    lastBeatMs = t;
+    plugin.anchorKeepalive({ sinceLastMs }).catch((err) => {
+      // An older shell rejects every beat; one warning, then silence — the
+      // native side simply keeps full alarm authority, as before keepalives.
+      if (keepaliveWarned) return;
+      keepaliveWarned = true;
+      console.warn("native anchor keepalive", err);
+    });
+  };
+  const startKeepalive = (): void => {
+    if (keepaliveTimer !== null) return;
+    lastBeatMs = null;
+    // Immediate first beat (sinceLastMs 0): the native side must know JS is
+    // alive from the moment of arming, not one interval later.
+    beat();
+    keepaliveTimer = setInterval(beat, KEEPALIVE_INTERVAL_MS);
+  };
+  const stopKeepalive = (): void => {
+    if (keepaliveTimer === null) return;
+    clearInterval(keepaliveTimer);
+    keepaliveTimer = null;
+  };
+
   const apply = (snap: AnchorWatchSnapshot | null, force = false): void => {
     if (!snap) {
       wasAcknowledged = false;
       armed = false;
+      stopKeepalive();
       // Nothing was ever armed this session, so ordinarily there is nothing
       // to clear — except on the reconcile pass, where the point is exactly
       // to end a native watch that outlived the JS one.
@@ -140,6 +199,7 @@ export function connectNativeAnchorWatch(
       return;
     }
     armed = true;
+    startKeepalive();
     const key = geometryKey(snap);
     if (key !== pushed) {
       pushed = key;
@@ -176,7 +236,19 @@ export function connectNativeAnchorWatch(
     .addListener("anchorAlarm", (data) => manager.noteNativeAlarm(data.kind))
     .catch(ignore);
 
-  return { reconcile: () => apply(manager.getState(), true) };
+  // The notification's Silence action acknowledged natively; without this the
+  // app UI keeps showing an alarm the user already silenced. No loop risk:
+  // native fires it only for the notification path (never in answer to this
+  // side's acknowledgeAnchorAlarm), and acknowledge() is a no-op when nothing
+  // is alarming, so even a stray retained event settles harmlessly.
+  plugin
+    .addListener("anchorAcknowledged", () => manager.acknowledge())
+    .catch(ignore);
+
+  return {
+    reconcile: () => apply(manager.getState(), true),
+    dispose: stopKeepalive,
+  };
 }
 
 // --- Screen-off cover ------------------------------------------------------

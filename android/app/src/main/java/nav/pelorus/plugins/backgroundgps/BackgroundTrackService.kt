@@ -158,6 +158,17 @@ class BackgroundTrackService : Service() {
         /** How often an accepted anchor GNSS fix is logged; see onAnchorFix. */
         private const val ANCHOR_FIX_LOG_INTERVAL_MS = 60_000L
 
+        /**
+         * How often the armed service re-judges the JS keepalive (fresh→stale
+         * logging, and announcing a detected-but-suppressed alarm the moment
+         * JS stops being provably alive). A main-looper timer, not JS: the
+         * watch's continuous wake lock keeps the CPU up, and the case that
+         * matters is precisely the one where JS timers have stopped. Same
+         * cadence as the armed location interval — staleness is judged
+         * against a 30 s window, so 5 s granularity costs nothing.
+         */
+        private const val ANCHOR_KEEPALIVE_CHECK_MS = 5_000L
+
         private const val ACTION_WATCHDOG = "nav.pelorus.WATCHDOG_TICK"
         private const val ACTION_ANCHOR_WATCHDOG = "nav.pelorus.ANCHOR_WATCHDOG_TICK"
 
@@ -187,6 +198,15 @@ class BackgroundTrackService : Service() {
          * is in the foreground — JS needs to reconcile either way.
          */
         var anchorAlarmListener: ((kind: String, distanceM: Double, at: Long) -> Unit)? = null
+
+        /**
+         * Callback for reporting a native acknowledge to the plugin, forwarded
+         * to JS as a retained `anchorAcknowledged` event. Fired only from the
+         * notification's Silence action — the plugin's own acknowledgeAnchorAlarm
+         * was JS-initiated, and echoing it back would be a loop. Without this
+         * the app UI kept showing an active alarm the notification had silenced.
+         */
+        var anchorAcknowledgedListener: (() -> Unit)? = null
 
         /** Reference to the running service instance (for runtime config from plugin). */
         var instance: BackgroundTrackService? = null
@@ -231,6 +251,77 @@ class BackgroundTrackService : Service() {
          * armed — see [startResult] and syncServiceDemand.
          */
         @Volatile var startedSticky: Boolean = false
+
+        /**
+         * Elapsed-realtime of the newest JS keepalive beat, or -1 when there
+         * has never been one this watch — the arbiter of alarm authority (see
+         * [nativeMayAnnounce]). On the companion so it survives service
+         * stop/start within the process; a process kill resets it to -1,
+         * which is exactly right — a restored watch with no JS must alarm.
+         */
+        @Volatile var lastKeepaliveElapsedMs: Long = -1L
+            private set
+
+        /** The fresh→stale transition has been diag-logged for the current gap. */
+        @Volatile private var keepaliveLoggedStale = false
+
+        /** Elapsed-realtime of the last drift-anomaly diag line (1/min cap). */
+        @Volatile private var lastKeepaliveDriftLogMs = 0L
+
+        /** Drift-anomaly diag lines are capped to one per this interval. */
+        private const val KEEPALIVE_DRIFT_LOG_INTERVAL_MS = 60_000L
+
+        /**
+         * A JS keepalive beat arrived. `sinceLastMs` is JS's own measured
+         * elapsed since its previous beat (0 on the first), which is what
+         * separates *throttling* (beats arrive, late) from *freezing* (no
+         * beats at all). Per-beat this logs nothing — the diag lines are
+         * transitions and anomalies only, so the log stays a liveness curve
+         * rather than noise.
+         */
+        fun noteJsKeepalive(
+            context: Context,
+            sinceLastMs: Long,
+            nowElapsedMs: Long = SystemClock.elapsedRealtime(),
+        ) {
+            val last = lastKeepaliveElapsedMs
+            if (last >= 0 && !jsWatchAlive(last, nowElapsedMs)) {
+                DiagLog.log(
+                    context,
+                    "anchor",
+                    "js keepalive resumed gap=${(nowElapsedMs - last) / 1000}s drift=$sinceLastMs",
+                )
+            }
+            keepaliveLoggedStale = false
+            if (sinceLastMs > ANCHOR_KEEPALIVE_DRIFT_ANOMALY_MS &&
+                nowElapsedMs - lastKeepaliveDriftLogMs >= KEEPALIVE_DRIFT_LOG_INTERVAL_MS
+            ) {
+                lastKeepaliveDriftLogMs = nowElapsedMs
+                DiagLog.log(context, "anchor", "js throttled sinceLast=${sinceLastMs}ms")
+            }
+            lastKeepaliveElapsedMs = nowElapsedMs
+        }
+
+        /** Disarm forgets the beats: the next watch starts as "never beaten". */
+        fun resetJsKeepalive() {
+            lastKeepaliveElapsedMs = -1L
+            keepaliveLoggedStale = false
+        }
+
+        /**
+         * The check side of the liveness curve: log the fresh→stale edge, once
+         * per gap ([noteJsKeepalive] logs the matching resume).
+         */
+        fun logKeepaliveStaleTransition(context: Context, nowElapsedMs: Long) {
+            val last = lastKeepaliveElapsedMs
+            if (last < 0 || keepaliveLoggedStale || jsWatchAlive(last, nowElapsedMs)) return
+            keepaliveLoggedStale = true
+            DiagLog.log(
+                context,
+                "anchor",
+                "js keepalive STALE after ${(nowElapsedMs - last) / 1000}s",
+            )
+        }
 
         @Volatile var currentMode: String = MODE_ACTIVE
         @Volatile var activeIntervalMs: Long = 1000L
@@ -293,6 +384,16 @@ class BackgroundTrackService : Service() {
      */
     @Volatile private var anchorDetectorSinceElapsedMs: Long = 0L
     private var anchorAlarmPlayer: MediaPlayer? = null
+    /**
+     * The current native alarm has been announced — notification, retained
+     * event, and its claim on the alarm sound. False while the detector is
+     * alarming but suppressed because the JS watch is provably alive (see
+     * [nativeMayAnnounce]); the keepalive check announces the moment that
+     * stops being true.
+     */
+    private var anchorAlarmAnnounced = false
+    /** The suppressed-detection diag line has been written for this excursion. */
+    private var anchorSuppressedLogged = false
     /** The alarm sound (tone loop + vibration) is running. */
     private var anchorAlarmSounding = false
     /** The alarm kind the running player's tone belongs to; null when silent. */
@@ -568,7 +669,12 @@ class BackgroundTrackService : Service() {
             // app's acknowledge: quiet now, still watching. There is
             // deliberately no Disarm action; standing the watch down requires
             // opening the app.
+            DiagLog.log(this, "anchor", "acknowledge from notification Silence")
             acknowledgeAnchorAlarm()
+            // Retained event so the app UI stops claiming an active alarm the
+            // notification silenced. Notification path only — the plugin's own
+            // acknowledgeAnchorAlarm is JS-initiated and needs no echo.
+            anchorAcknowledgedListener?.invoke()
             return startResult()
         }
 
@@ -597,6 +703,7 @@ class BackgroundTrackService : Service() {
         cancelPendingPassive()
         cancelWatchdog()
         cancelAnchorWatchdog()
+        stopAnchorKeepaliveCheck()
         // Silence, but keep [anchorParams]: the watch itself is still armed
         // as far as JS is concerned, and a service restart re-arms detection.
         stopAnchorAlarmSound()
@@ -871,6 +978,9 @@ class BackgroundTrackService : Service() {
         if (params == null) {
             anchorDetector = null
             anchorRestoredFromStore = false
+            anchorAlarmAnnounced = false
+            anchorSuppressedLogged = false
+            stopAnchorKeepaliveCheck()
             cancelAnchorWatchdog()
             stopAnchorGnssUpdates()
             clearAnchorAlarm()
@@ -881,6 +991,7 @@ class BackgroundTrackService : Service() {
         }
         acquireAnchorWakeLock()
         startAnchorGnssUpdates()
+        startAnchorKeepaliveCheck()
         val now = SystemClock.elapsedRealtime()
         val existing = anchorDetector
         if (existing == null) {
@@ -1032,6 +1143,8 @@ class BackgroundTrackService : Service() {
     fun acknowledgeAnchorAlarm() {
         val silenced = anchorDetector?.acknowledge() ?: false
         jsAlarmKind = null
+        anchorAlarmAnnounced = false
+        anchorSuppressedLogged = false
         clearAnchorAlarm()
         if (silenced) DiagLog.log(applicationContext, "anchor", "acknowledged")
     }
@@ -1047,9 +1160,14 @@ class BackgroundTrackService : Service() {
      * quieter than the same alarm with the screen off.
      */
     fun syncAnchorAlarmSound() {
+        // The native detector contributes a sound kind only once its alarm is
+        // announced — a detection suppressed because the JS watch is alive
+        // makes no noise of its own. The JS-requested path ([jsAlarmKind]) is
+        // never gated: JS asking for noise is always honored.
+        val nativeKind = if (anchorAlarmAnnounced) anchorDetector?.alarmKind else null
         val kind =
             if (anchorAlarmMuted) null
-            else anchorAlarmSoundKind(anchorDetector?.alarmKind, jsAlarmKind)
+            else anchorAlarmSoundKind(nativeKind, jsAlarmKind)
         if (kind != null) startAnchorAlarmSound(kind) else stopAnchorAlarmSound()
     }
 
@@ -1142,20 +1260,96 @@ class BackgroundTrackService : Service() {
         val detector = anchorDetector ?: return
         val now = SystemClock.elapsedRealtime()
         handleAnchorTransition(detector.onTick(now))
+        // Doze-piercing backstop for the keepalive check: a GPS-loss alarm can
+        // fire while JS is only seconds dead — suppressed — with no further
+        // fixes coming and, if the CPU is truly asleep, no handler ticks
+        // either. The re-arm below wakes us again right when the keepalive
+        // verdict can flip, so the deferred announcement still happens.
+        checkAnchorKeepalive(now)
         if (detector.alarmKind == null) {
             armAnchorWatchdog(
                 maxOf(detector.gpsLossDeadlineElapsedMs() - now, ANCHOR_WATCHDOG_MIN_DELAY_MS),
+            )
+        } else if (!anchorAlarmAnnounced) {
+            armAnchorWatchdog(
+                maxOf(
+                    lastKeepaliveElapsedMs + ANCHOR_KEEPALIVE_STALE_MS - now,
+                    ANCHOR_WATCHDOG_MIN_DELAY_MS,
+                ),
             )
         }
     }
 
     private fun handleAnchorTransition(transition: AnchorTransition) {
         when (transition) {
-            AnchorTransition.DRAG_ALARM -> raiseAnchorAlarm(ANCHOR_ALARM_DRAG)
-            AnchorTransition.GPS_LOSS_ALARM -> raiseAnchorAlarm(ANCHOR_ALARM_GPS_LOSS)
-            AnchorTransition.CLEARED -> clearAnchorAlarm()
+            AnchorTransition.DRAG_ALARM -> raiseOrSuppressAnchorAlarm(ANCHOR_ALARM_DRAG)
+            AnchorTransition.GPS_LOSS_ALARM -> raiseOrSuppressAnchorAlarm(ANCHOR_ALARM_GPS_LOSS)
+            AnchorTransition.CLEARED -> {
+                anchorAlarmAnnounced = false
+                anchorSuppressedLogged = false
+                clearAnchorAlarm()
+            }
             AnchorTransition.NONE -> Unit
         }
+    }
+
+    /**
+     * The authority rule at the moment of native detection: announce only when
+     * the JS watch is not provably alive ([nativeMayAnnounce]). While it is,
+     * JS — watching the app's own GPS, possibly a receiver this service never
+     * hears — is the detector that decides what the user is told; the native
+     * detector keeps its state silently, and the keepalive check announces the
+     * moment JS goes quiet. The suppression is diag-logged once per excursion:
+     * that line is the field data for comparing the two detectors' verdicts.
+     */
+    private fun raiseOrSuppressAnchorAlarm(kind: String) {
+        if (nativeMayAnnounce(lastKeepaliveElapsedMs, SystemClock.elapsedRealtime())) {
+            anchorAlarmAnnounced = true
+            raiseAnchorAlarm(kind)
+            return
+        }
+        anchorAlarmAnnounced = false
+        if (!anchorSuppressedLogged) {
+            anchorSuppressedLogged = true
+            DiagLog.log(
+                applicationContext,
+                "anchor",
+                "native detect suppressed (js alive) d=${anchorDetector?.lastDistanceM?.toInt()}m",
+            )
+        }
+    }
+
+    /**
+     * Re-judge the JS keepalive: write the fresh→stale edge to the diag log
+     * (the liveness curve this heartbeat exists to draw), and announce a
+     * detected-but-suppressed alarm the moment authority passes to the native
+     * side — JS died mid-alarm, or after its detection was suppressed.
+     */
+    private fun checkAnchorKeepalive(nowElapsedMs: Long) {
+        logKeepaliveStaleTransition(applicationContext, nowElapsedMs)
+        val detector = anchorDetector ?: return
+        val kind = detector.alarmKind ?: return
+        if (!anchorAlarmAnnounced && nativeMayAnnounce(lastKeepaliveElapsedMs, nowElapsedMs)) {
+            anchorAlarmAnnounced = true
+            raiseAnchorAlarm(kind)
+        }
+    }
+
+    private val anchorKeepaliveCheckRunnable = object : Runnable {
+        override fun run() {
+            checkAnchorKeepalive(SystemClock.elapsedRealtime())
+            mainHandler.postDelayed(this, ANCHOR_KEEPALIVE_CHECK_MS)
+        }
+    }
+
+    /** Runs exactly while armed; idempotent, like the arm path that calls it. */
+    private fun startAnchorKeepaliveCheck() {
+        mainHandler.removeCallbacks(anchorKeepaliveCheckRunnable)
+        mainHandler.postDelayed(anchorKeepaliveCheckRunnable, ANCHOR_KEEPALIVE_CHECK_MS)
+    }
+
+    private fun stopAnchorKeepaliveCheck() {
+        mainHandler.removeCallbacks(anchorKeepaliveCheckRunnable)
     }
 
     private fun raiseAnchorAlarm(kind: String) {

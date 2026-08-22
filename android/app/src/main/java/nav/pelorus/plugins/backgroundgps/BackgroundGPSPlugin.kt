@@ -56,6 +56,14 @@ class BackgroundGPSPlugin : Plugin() {
                 true,
             )
         }
+        // The notification's Silence action acknowledged natively; JS has to
+        // learn or its UI keeps showing an active alarm. Notification path
+        // only, so this can't echo a JS-initiated acknowledge back into a
+        // loop; retained because Silence is usually tapped while the WebView
+        // is suspended.
+        BackgroundTrackService.anchorAcknowledgedListener = {
+            notifyListeners("anchorAcknowledged", JSObject(), true)
+        }
         // A WebView reload restarts JS with no alarm running, whatever the
         // previous page had asked for.
         BackgroundTrackService.jsAlarmKind = null
@@ -447,6 +455,9 @@ class BackgroundGPSPlugin : Plugin() {
         BackgroundTrackService.anchorParams = null
         // Standing the watch down ends its noise whatever JS last asked for.
         BackgroundTrackService.jsAlarmKind = null
+        // …and its heartbeat: the next watch starts as "never beaten", so a
+        // JS-less restore of *that* watch keeps full native alarm authority.
+        BackgroundTrackService.resetJsKeepalive()
         AnchorWatchStore.clear(context)
         BackgroundTrackService.instance?.applyAnchorWatch()
         // Stops the service only if nothing else wants it — track recording
@@ -507,6 +518,7 @@ class BackgroundGPSPlugin : Plugin() {
     /** Silence a sounding native alarm without disarming (mirrors JS acknowledge). */
     @PluginMethod
     fun acknowledgeAnchorAlarm(call: PluginCall) {
+        DiagLog.log(context, "anchor", "acknowledge from app")
         BackgroundTrackService.instance?.acknowledgeAnchorAlarm()
         call.resolve()
     }
@@ -533,6 +545,15 @@ class BackgroundGPSPlugin : Plugin() {
      */
     @PluginMethod
     fun setAnchorAlarmSound(call: PluginCall) {
+        // Logged so a dual-path test can tell who asked for noise: the JS
+        // watch (this call) or the service's own detector (the ALARM line).
+        DiagLog.log(
+            context,
+            "anchor",
+            "js sound request sounding=${call.getBoolean("sounding", false)} " +
+                "kind=${call.getString("kind") ?: "-"} " +
+                "muted=${call.getBoolean("muted", false)}",
+        )
         val sounding = call.getBoolean("sounding") ?: false
         BackgroundTrackService.jsAlarmKind =
             if (sounding) call.getString("kind") ?: ANCHOR_ALARM_DRAG else null
@@ -550,6 +571,22 @@ class BackgroundGPSPlugin : Plugin() {
     @PluginMethod
     fun noteExternalFix(call: PluginCall) {
         BackgroundTrackService.instance?.onExternalAnchorFix()
+        call.resolve()
+    }
+
+    /**
+     * The armed JS watch's liveness heartbeat, every 10 s while the WebView
+     * actually runs. `sinceLastMs` is JS's own measured elapsed since its
+     * previous beat, so native can tell throttling (beats arrive late) from
+     * freezing (no beats). While the beats are fresh the JS watch is the
+     * authoritative detector and the native one detects silently; once they
+     * go stale ([ANCHOR_KEEPALIVE_STALE_MS]) — or if they never started —
+     * the native detector announces its alarms itself. Deliberately silent
+     * per-beat: the diag log carries transitions only.
+     */
+    @PluginMethod
+    fun anchorKeepalive(call: PluginCall) {
+        BackgroundTrackService.noteJsKeepalive(context, call.data.optLong("sinceLastMs", 0L))
         call.resolve()
     }
 

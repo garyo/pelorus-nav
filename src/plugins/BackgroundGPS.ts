@@ -193,6 +193,19 @@ export interface BackgroundGPSPlugin {
    */
   noteExternalFix(): Promise<void>;
 
+  /**
+   * The armed JS watch's liveness heartbeat, sent every 10 s while the
+   * WebView actually runs (see src/anchor/native-anchor-watch.ts). While the
+   * beats are fresh the JS watch is the authoritative detector: the native
+   * one keeps detecting silently and announces its alarms only once the
+   * beats go stale (30 s) or never started. `sinceLastMs` is JS's own
+   * measured elapsed since its previous beat (0 on the first) — a value well
+   * over the 10 s interval exposes WebView timer throttling as distinct from
+   * an outright freeze, which is the liveness curve the device diag log
+   * records. Rejects on native shells older than this method.
+   */
+  anchorKeepalive(options: { sinceLastMs: number }): Promise<void>;
+
   /** Check whether the foreground service is currently running. */
   isTracking(): Promise<{ tracking: boolean }>;
 
@@ -266,6 +279,18 @@ export interface BackgroundGPSPlugin {
       distanceM: number;
       at: number;
     }) => void,
+  ): Promise<PluginListenerHandle>;
+
+  /**
+   * Fired when a native anchor alarm was acknowledged from the
+   * notification's Silence action — the one acknowledge path JS does not
+   * initiate, so without this event the app UI keeps showing an active
+   * alarm. Delivered retained (Silence is usually tapped while the WebView
+   * is suspended). A JS-initiated acknowledgeAnchorAlarm() never fires it.
+   */
+  addListener(
+    eventName: "anchorAcknowledged",
+    listenerFunc: () => void,
   ): Promise<PluginListenerHandle>;
 
   /**

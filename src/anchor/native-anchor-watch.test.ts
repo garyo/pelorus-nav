@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { NavigationData } from "../navigation/NavigationData";
 import type { AnchorWatchNativeStatus } from "../plugins/BackgroundGPS";
 import type { AnchorWatchSnapshot } from "./AnchorWatchManager";
@@ -8,6 +8,7 @@ import {
   assessScreenOffCover,
   connectNativeAnchorWatch,
   getNativeAnchorStatus,
+  KEEPALIVE_INTERVAL_MS,
   LOW_ALARM_VOLUME,
   type NativeAnchorManager,
   type NativeAnchorPlugin,
@@ -15,6 +16,15 @@ import {
   SCREEN_OFF_COVER_TEXT,
   screenOffCoverLine,
 } from "./native-anchor-watch";
+
+// Fake timers file-wide: arming starts the keepalive interval, and a real one
+// leaking out of a test would outlive it.
+beforeEach(() => {
+  vi.useFakeTimers();
+});
+afterEach(() => {
+  vi.useRealTimers();
+});
 
 const ANCHOR = { lat: 42, lon: -71 };
 
@@ -64,6 +74,7 @@ function makeHarness() {
     clearAnchorWatch: vi.fn().mockResolvedValue(undefined),
     acknowledgeAnchorAlarm: vi.fn().mockResolvedValue(undefined),
     noteExternalFix: vi.fn().mockResolvedValue(undefined),
+    anchorKeepalive: vi.fn().mockResolvedValue(undefined),
     getAnchorWatchStatus: vi.fn().mockResolvedValue(status()),
     addListener: vi.fn().mockResolvedValue(undefined),
   } satisfies NativeAnchorPlugin;
@@ -75,12 +86,21 @@ function makeHarness() {
     },
     getState: () => state,
     noteNativeAlarm: vi.fn(),
+    acknowledge: vi.fn(),
   };
   let emitFix: (fix: NavigationData) => void = () => {};
   const navManager = {
     subscribe: (cb: (fix: NavigationData) => void) => {
       emitFix = cb;
     },
+  };
+  /** The handler the module registered for a plugin event. */
+  const listenerFor = (eventName: string): ((...args: never[]) => void) => {
+    const call = plugin.addListener.mock.calls.find(
+      ([name]) => name === eventName,
+    );
+    if (!call) throw new Error(`no listener registered for ${eventName}`);
+    return call[1] as (...args: never[]) => void;
   };
   return {
     plugin,
@@ -95,14 +115,17 @@ function makeHarness() {
       state = snap;
     },
     emitFix: () => emitFix({} as NavigationData),
-    /** The anchorAlarm handler the module registered. */
     fireAlarm(kind: "drag" | "gps-loss") {
-      const handler = plugin.addListener.mock.calls[0][1] as (d: {
+      const handler = listenerFor("anchorAlarm") as (d: {
         kind: "drag" | "gps-loss";
         distanceM: number;
         at: number;
       }) => void;
       handler({ kind, distanceM: 61, at: 1000 });
+    },
+    /** The notification's Silence action, arriving as a retained event. */
+    fireAcknowledged() {
+      (listenerFor("anchorAcknowledged") as () => void)();
     },
   };
 }
@@ -234,6 +257,118 @@ describe("connectNativeAnchorWatch", () => {
       h.emit(null);
       handle.reconcile();
       expect(h.plugin.clearAnchorWatch).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe("keepalive heartbeat", () => {
+    it("beats immediately on arm and every interval after", () => {
+      const h = makeHarness();
+      connect(h);
+      expect(h.plugin.anchorKeepalive).not.toHaveBeenCalled();
+
+      h.emit(snapshot());
+      expect(h.plugin.anchorKeepalive).toHaveBeenCalledTimes(1);
+      expect(h.plugin.anchorKeepalive).toHaveBeenLastCalledWith({
+        sinceLastMs: 0,
+      });
+
+      vi.advanceTimersByTime(KEEPALIVE_INTERVAL_MS);
+      expect(h.plugin.anchorKeepalive).toHaveBeenCalledTimes(2);
+      expect(h.plugin.anchorKeepalive).toHaveBeenLastCalledWith({
+        sinceLastMs: KEEPALIVE_INTERVAL_MS,
+      });
+    });
+
+    it("keeps one interval across repeated armed snapshots", () => {
+      const h = makeHarness();
+      connect(h);
+      h.emit(snapshot());
+      h.emit(snapshot({ zone: "warn", distanceM: 45 }));
+      expect(h.plugin.anchorKeepalive).toHaveBeenCalledTimes(1);
+      vi.advanceTimersByTime(KEEPALIVE_INTERVAL_MS);
+      expect(h.plugin.anchorKeepalive).toHaveBeenCalledTimes(2);
+    });
+
+    it("stops on disarm and starts fresh on re-arm", () => {
+      const h = makeHarness();
+      connect(h);
+      h.emit(snapshot());
+      h.emit(null);
+      vi.advanceTimersByTime(6 * KEEPALIVE_INTERVAL_MS);
+      expect(h.plugin.anchorKeepalive).toHaveBeenCalledTimes(1);
+
+      vi.advanceTimersByTime(5000);
+      h.emit(snapshot());
+      // A fresh watch, a fresh curve: the first beat is 0 again, not the
+      // elapsed time since the previous watch's last beat.
+      expect(h.plugin.anchorKeepalive).toHaveBeenLastCalledWith({
+        sinceLastMs: 0,
+      });
+    });
+
+    it("stops on dispose", () => {
+      const h = makeHarness();
+      const handle = connect(h);
+      h.emit(snapshot());
+      handle.dispose();
+      vi.advanceTimersByTime(6 * KEEPALIVE_INTERVAL_MS);
+      expect(h.plugin.anchorKeepalive).toHaveBeenCalledTimes(1);
+    });
+
+    it("reports throttling as drift in sinceLastMs", () => {
+      const h = makeHarness();
+      let clock = 0;
+      connect(h, { now: () => clock });
+      h.emit(snapshot());
+
+      // The interval fires once, but the wall clock says 25 s passed — a
+      // throttled WebView. The beat must report the truth, not the schedule.
+      clock = 25_000;
+      vi.advanceTimersByTime(KEEPALIVE_INTERVAL_MS);
+      expect(h.plugin.anchorKeepalive).toHaveBeenLastCalledWith({
+        sinceLastMs: 25_000,
+      });
+    });
+
+    it("warns once and keeps beating on an older shell", async () => {
+      const h = makeHarness();
+      h.plugin.anchorKeepalive.mockRejectedValue(new Error("not implemented"));
+      const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+      connect(h);
+      h.emit(snapshot());
+      await vi.advanceTimersByTimeAsync(2 * KEEPALIVE_INTERVAL_MS);
+      expect(h.plugin.anchorKeepalive).toHaveBeenCalledTimes(3);
+      expect(warn).toHaveBeenCalledTimes(1);
+      warn.mockRestore();
+    });
+  });
+
+  describe("anchorAcknowledged event", () => {
+    it("forwards the notification's Silence into the manager", () => {
+      const h = makeHarness();
+      connect(h);
+      h.fireAcknowledged();
+      expect(h.manager.acknowledge).toHaveBeenCalledTimes(1);
+    });
+
+    it("settles without looping when the acknowledge round-trips", () => {
+      const h = makeHarness();
+      connect(h);
+      h.emit(snapshot({ alarming: true, alarmKind: "drag" }));
+      // A real manager notifies an acknowledged snapshot, which this module
+      // pushes back down as acknowledgeAnchorAlarm — the native side fires
+      // anchorAcknowledged only for the notification path, so the cycle ends
+      // there. Model that notify to prove one pass is all that happens.
+      vi.mocked(h.manager.acknowledge).mockImplementation(() => {
+        h.emit(snapshot({ acknowledged: true }));
+      });
+      h.fireAcknowledged();
+      expect(h.plugin.acknowledgeAnchorAlarm).toHaveBeenCalledTimes(1);
+
+      // A duplicate retained event is idempotent: same snapshot, no new push.
+      h.fireAcknowledged();
+      expect(h.plugin.acknowledgeAnchorAlarm).toHaveBeenCalledTimes(1);
+      expect(h.manager.acknowledge).toHaveBeenCalledTimes(2);
     });
   });
 

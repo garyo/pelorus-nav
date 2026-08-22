@@ -99,6 +99,43 @@ fun effectiveAnchorRadiusM(radiusM: Double, accuracyM: Double): Double {
 enum class AnchorTransition { NONE, DRAG_ALARM, GPS_LOSS_ALARM, CLEARED }
 
 /**
+ * How long after the last JS keepalive beat the JS watch stops counting as
+ * alive. Three missed 10 s beats: one is ordinary jank, two could be a long
+ * GC pause on a slow device, three means the WebView is throttled into
+ * uselessness or frozen outright.
+ */
+const val ANCHOR_KEEPALIVE_STALE_MS = 30_000L
+
+/**
+ * A beat whose self-reported interval exceeds this is evidence of WebView
+ * timer throttling — JS still runs, just late. Distinct from freezing (no
+ * beat at all), and worth a diag line of its own.
+ */
+const val ANCHOR_KEEPALIVE_DRIFT_ANOMALY_MS = 15_000L
+
+/**
+ * The JS watch is provably alive: it has beaten this watch, and recently
+ * enough. [lastKeepaliveElapsedMs] is elapsed-realtime of the newest beat, or
+ * negative when there has never been one this watch.
+ */
+fun jsWatchAlive(lastKeepaliveElapsedMs: Long, nowElapsedMs: Long): Boolean =
+    lastKeepaliveElapsedMs >= 0 &&
+        nowElapsedMs - lastKeepaliveElapsedMs < ANCHOR_KEEPALIVE_STALE_MS
+
+/**
+ * The alarm-authority rule: the JS watch is the authoritative detector while
+ * provably alive, so the native detector may announce an alarm — notification,
+ * retained event, its own contribution to the alarm sound — only when the
+ * keepalive is stale, or when there has never been a keepalive this watch (JS
+ * never connected: a watch restored from disk after a process kill must still
+ * alarm with no WebView anywhere). Native *detection* is never gated — state,
+ * hadFix and fix logging run regardless — and neither is the JS-requested
+ * sound path: JS asking for noise is always honored.
+ */
+fun nativeMayAnnounce(lastKeepaliveElapsedMs: Long, nowElapsedMs: Long): Boolean =
+    !jsWatchAlive(lastKeepaliveElapsedMs, nowElapsedMs)
+
+/**
  * ALARM-stream volume as a fraction of this device's maximum, or -1 when the
  * device cannot say. This is the stream the anchor alarm plays on, so it — not
  * the media stream the WebView would have used — decides whether anyone hears
