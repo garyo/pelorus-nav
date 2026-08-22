@@ -446,12 +446,15 @@ class BackgroundTrackService : Service() {
                         // distance. The watch reads GNSS directly instead; see
                         // [startAnchorGnssUpdates].
                         //
-                        // Anchor-only service (no tracking client): the fix has
-                        // nothing left to do. Recording it would fill the buffer
-                        // with device-chip fixes for a user whose position
-                        // source is an external receiver, to be replayed as
-                        // "live" the next time the device GPS provider connects.
-                        if (!trackingRequested) continue
+                        // Anchor-only service (no tracking client): nothing is
+                        // recorded — the buffer would fill with device-chip
+                        // fixes for a user whose position source is an
+                        // external receiver, to be replayed as "live" the next
+                        // time the device GPS provider connects — but the fix
+                        // is still handed to JS below when a watch is armed,
+                        // because on a device using this chip the JS watch has
+                        // no other way to see the boat.
+                        if (!trackingRequested && anchorParams == null) continue
                         val point = TrackPointRow(
                             timestamp = location.time,
                             lat = location.latitude,
@@ -460,10 +463,13 @@ class BackgroundTrackService : Service() {
                             course = if (location.hasBearing()) location.bearing else -1f,
                             accuracy = if (location.hasAccuracy()) location.accuracy else -1f
                         )
-                        trackDb.insertPoint(point)
-                        DiagLog.log(applicationContext, "fix", "ok acc=${if (location.hasAccuracy()) location.accuracy else -1f} mode=$currentMode")
-                        // Bridge gating: in PASSIVE mode we drop locationListener so
-                        // JS doesn't get fanned-out fixes it can't use anyway.
+                        if (trackingRequested) {
+                            trackDb.insertPoint(point)
+                            DiagLog.log(applicationContext, "fix", "ok acc=${if (location.hasAccuracy()) location.accuracy else -1f} mode=$currentMode")
+                        }
+                        // Bridge gating: in PASSIVE mode the listener is dropped
+                        // so JS stops getting per-fix wakeups — unless a watch
+                        // is armed, when JS is the detector that matters.
                         locationListener?.invoke(point)
 
                         // Adaptive passive sampling: feed the steadiness tracker
@@ -635,7 +641,16 @@ class BackgroundTrackService : Service() {
             currentMode = MODE_PASSIVE
             // Bridge gating: drop the listener so foreground subscribers stop
             // getting per-fix wakeups. Native still writes SQLite.
-            locationListener = null
+            //
+            // Except while an anchor watch is armed. The JS watch is the one
+            // that actually detects on most hardware — it sees whatever GPS
+            // the user chose, including an external receiver the service
+            // never hears — and starving it leaves the watch blind unless
+            // this device's own GNSS happens to be feeding the native
+            // detector. Field-caught: a screen-off test alarmed while the
+            // grace window still had the bridge live, and went silent
+            // afterwards.
+            if (anchorParams == null) locationListener = null
             applyMode()
             Log.i(TAG, "Grace expired, switched to passive (interval=${intervalMs}ms)")
             DiagLog.log(applicationContext, "svc", "grace expired -> passive interval=${intervalMs}ms")
@@ -701,12 +716,11 @@ class BackgroundTrackService : Service() {
             !passive -> activeIntervalMs
             // An armed watch overrides the recording cadence, including the
             // steady-course stretch below: a boat at anchor reads as steady
-            // precisely when it is dragging slowly. Only while something
-            // consumes these fixes, though — anchor detection runs off its own
-            // GPS_PROVIDER subscription, so on an anchor-only service every
-            // fused fix is discarded and the floor would burn the chip for
-            // nothing.
-            anchorParams != null && trackingRequested ->
+            // precisely when it is dragging slowly. This applies with or
+            // without a recording client, because the JS watch detects from
+            // these fanned-out fixes on any device whose GPS source is this
+            // chip.
+            anchorParams != null ->
                 minOf(passiveIntervalMs, ANCHOR_PASSIVE_INTERVAL_MS)
             lastSteadyState ->
                 minOf(
