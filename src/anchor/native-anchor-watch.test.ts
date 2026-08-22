@@ -447,6 +447,20 @@ describe("connectNativeAnchorWatch", () => {
       expect(screenOffCoverLine(blind)).toBe(SCREEN_OFF_COVER_TEXT["no-fix"]);
     });
 
+    it("never warns a device that has no GNSS to get a fix with", () => {
+      // A GNSS-less tablet on an external GPS: hadFix stays false forever,
+      // but "no fix — move where the sky is clear" beside a healthy GPS
+      // readout is a contradiction with no action behind it. The JS watch
+      // is the watch there, and the watch-failure alarm covers its loss.
+      const noChip = status({
+        hadFix: false,
+        lastFixAgeMs: -1,
+        gnssAvailable: false,
+      });
+      expect(assessScreenOffCover(noChip)).toEqual({ state: "covered" });
+      expect(screenOffCoverLine(noChip)).toBeNull();
+    });
+
     it("says nothing once the background watch has seen the boat", () => {
       expect(assessScreenOffCover(status({ hadFix: true }))).toEqual({
         state: "covered",

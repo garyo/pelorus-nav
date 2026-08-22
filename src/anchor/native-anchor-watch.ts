@@ -357,12 +357,18 @@ export function assessScreenOffCover(
       ? { state: "unknown" }
       : { state: "none", reason: "permission" };
   }
-  // The background watch is the only detector that survives the screen going
-  // off for long: Android throttles and then freezes the WebView about a
-  // minute in (measured — the fix drain's lag climbed to 5 s and then
-  // stopped), so the JS watch cannot be relied on. Until this device's own
-  // GNSS has produced a fix, the watch is awake-only, and the user can act
-  // on that by moving where the sky is clear.
+  // A device with no GNSS receiver has no native watchdog to wait on, and
+  // no user action will create one. There the JS watch — fed by the app's
+  // external GPS, held awake by the foreground service, wake lock, and
+  // renderer pin — is the screen-off watch, and the watch-failure alarm
+  // announces if it ever stops. A "no fix" warning beside a healthy
+  // external-GPS readout is a contradiction, and its advice (clear sky)
+  // cannot help.
+  if (status.gnssAvailable === false) return { state: "covered" };
+  // On a device with its own GNSS, the background watch is the detector of
+  // record when the WebView is throttled or frozen. Until that GNSS has
+  // produced a fix, the redundancy is missing, and the user can act on
+  // that by moving where the sky is clear.
   if (status.hadFix === false) {
     return armedForMs < SCREEN_OFF_COVER_GRACE_MS
       ? { state: "unknown" }
