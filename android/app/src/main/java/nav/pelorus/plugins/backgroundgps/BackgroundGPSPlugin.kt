@@ -58,7 +58,7 @@ class BackgroundGPSPlugin : Plugin() {
         }
         // A WebView reload restarts JS with no alarm running, whatever the
         // previous page had asked for.
-        BackgroundTrackService.jsAlarmRequested = false
+        BackgroundTrackService.jsAlarmKind = null
         BackgroundTrackService.instance?.syncAnchorAlarmSound()
     }
 
@@ -446,7 +446,7 @@ class BackgroundGPSPlugin : Plugin() {
     fun clearAnchorWatch(call: PluginCall) {
         BackgroundTrackService.anchorParams = null
         // Standing the watch down ends its noise whatever JS last asked for.
-        BackgroundTrackService.jsAlarmRequested = false
+        BackgroundTrackService.jsAlarmKind = null
         AnchorWatchStore.clear(context)
         BackgroundTrackService.instance?.applyAnchorWatch()
         // Stops the service only if nothing else wants it — track recording
@@ -517,9 +517,14 @@ class BackgroundGPSPlugin : Plugin() {
      * The service makes every anchor-alarm sound, whichever detector raised it
      * (see [BackgroundTrackService.syncAnchorAlarmSound]): the WebView's Web
      * Audio plays on the media stream, which is routinely turned down to
-     * nothing, while this plays the alarm ringtone on the ALARM stream. So JS
-     * asks rather than sounds — and `muted` is the one thing that silences
-     * both sides, because it is the user's explicit choice.
+     * nothing, while this plays the app's own alarm tone on the ALARM stream.
+     * So JS asks rather than sounds — and `muted` is the one thing that
+     * silences both sides, because it is the user's explicit choice.
+     *
+     * `kind` ([ANCHOR_ALARM_DRAG] / [ANCHOR_ALARM_GPS_LOSS]) picks the tone, so
+     * a JS-detected drag sounds like a drag. An older page that sends none is
+     * taken to mean the drag siren: it is the more urgent of the two, and the
+     * wrong-but-alarming sound beats the reassuring one.
      *
      * Answers with whether a service was there to take it: without one — a
      * watch armed while location permission is denied cannot start a
@@ -528,7 +533,9 @@ class BackgroundGPSPlugin : Plugin() {
      */
     @PluginMethod
     fun setAnchorAlarmSound(call: PluginCall) {
-        BackgroundTrackService.jsAlarmRequested = call.getBoolean("sounding") ?: false
+        val sounding = call.getBoolean("sounding") ?: false
+        BackgroundTrackService.jsAlarmKind =
+            if (sounding) call.getString("kind") ?: ANCHOR_ALARM_DRAG else null
         BackgroundTrackService.anchorAlarmMuted = call.getBoolean("muted") ?: false
         val service = BackgroundTrackService.instance
         service?.syncAnchorAlarmSound()

@@ -162,11 +162,14 @@ export interface BackgroundGPSPlugin {
    * The JS watch's request for alarm noise, and the user's mute.
    *
    * All anchor-alarm sound is native (see src/anchor/native-anchor-alarm.ts):
-   * the service plays the device alarm ringtone on the ALARM stream whenever
+   * the service loops the app's own alarm tone on the ALARM stream whenever
    * its own detector or this request wants noise, so an alarm raised with the
    * app wide open is exactly as loud as one raised overnight. `muted`
    * silences both sides — it is the user's explicit choice, and it is the
    * only thing that does, short of acknowledging.
+   *
+   * `kind` picks the tone (drag siren vs the slower GPS-loss tone); the
+   * service's own detector may be alarming too, and drag wins between them.
    *
    * Not an acknowledgment: the alarm state, its notification and the watch
    * are untouched.
@@ -178,6 +181,7 @@ export interface BackgroundGPSPlugin {
   setAnchorAlarmSound(options: {
     sounding: boolean;
     muted: boolean;
+    kind?: "drag" | "gps-loss";
   }): Promise<{ serviceRunning: boolean }>;
 
   /**

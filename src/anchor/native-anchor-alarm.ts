@@ -6,15 +6,19 @@
  * the MEDIA stream — the one people turn down so videos don't blare, measured
  * at 2 of 15 on a test device against 11 of 15 on the ALARM stream — and a
  * resumed WebView leaves its AudioContext suspended until the next user
- * gesture. Neither is a foundation for a safety alarm, so the service plays
- * the device's alarm ringtone with USAGE_ALARM whenever either detector — its
- * own or the JS one — wants noise, in any app state.
+ * gesture. Neither is a foundation for a safety alarm, so the service loops
+ * our own alarm tone with USAGE_ALARM whenever either detector — its own or
+ * the JS one — wants noise, in any app state. The tone is ours rather than the
+ * device's alarm ringtone (which on a Samsung is a steel-drum tune) and comes
+ * from a WAV rendered from the very constants Web Audio plays here, so the
+ * alarm sounds the same on every device and on the web.
  *
  * The native channels stand in for CobAlarm in {@link AnchorWatchManager}'s
  * deps, so the state machine, the banner and acknowledge/disarm are identical
  * on both platforms: only start/stop/setMuted change meaning, from "make a
  * noise" to "ask the service for one". Both alarms can be up at once, so the
- * channels are reference-counted against the one ringtone. Requests are
+ * channels are reference-counted against the one player, and the request
+ * carries the more urgent kind (drag) so it decides the sound. Requests are
  * pushed on every call rather than deduplicated: the alarm notification's
  * Silence action can stop the sound behind this side's back, and an
  * unconditional push means the next state change re-establishes the truth.
@@ -29,12 +33,19 @@
 import { Capacitor } from "@capacitor/core";
 import { CobAlarm } from "../cob/CobAlarm";
 import { BackgroundGPS } from "../plugins/BackgroundGPS";
+import type { AnchorAlarmKind } from "./AnchorWatchManager";
+import {
+  ANCHOR_DRAG_ALARM_TONE,
+  ANCHOR_GPS_LOSS_ALARM_TONE,
+} from "./anchor-alarm-tones";
 
 /** The slice of the native plugin the alarm sound needs. */
 export interface NativeAnchorAlarmPlugin {
   setAnchorAlarmSound(options: {
     sounding: boolean;
     muted: boolean;
+    /** Which alarm to sound; absent when nothing is sounding. */
+    kind?: AnchorAlarmKind;
   }): Promise<{ serviceRunning: boolean }>;
 }
 
@@ -60,9 +71,9 @@ export interface AnchorAlarmOptions {
 
 /**
  * The drag alarm and the GPS-loss alarm. Separate instances so lost GPS never
- * sounds like a drag — on web the GPS-loss cadence is a slower single tone;
- * native plays one ringtone for either and distinguishes them in its
- * notification.
+ * sounds like a drag: two cadences, the same two on both platforms — Web Audio
+ * synthesizes them here, the service loops WAVs rendered from the same
+ * constants (src/anchor/anchor-alarm-tones.ts).
  */
 export function createAnchorAlarms(options: AnchorAlarmOptions = {}): {
   drag: AnchorAlarmSound;
@@ -71,19 +82,31 @@ export function createAnchorAlarms(options: AnchorAlarmOptions = {}): {
   const isNative = options.isNative ?? Capacitor.isNativePlatform();
   if (!isNative) {
     return {
-      drag: new CobAlarm(),
-      gpsLoss: new CobAlarm({ toneHz: [520, 520], beatIntervalMs: 2000 }),
+      drag: new CobAlarm(ANCHOR_DRAG_ALARM_TONE),
+      gpsLoss: new CobAlarm(ANCHOR_GPS_LOSS_ALARM_TONE),
     };
   }
   const sound = new NativeAnchorAlarmSound(options.plugin);
   return { drag: sound.channel("drag"), gpsLoss: sound.channel("gps-loss") };
 }
 
+/**
+ * Which alarm the one shared player should sound. Drag wins whenever both are
+ * up: a boat leaving its circle is the more urgent fact, and the GPS-loss tone
+ * is the one that can wait.
+ */
+export function urgentAlarmKind(
+  sounding: ReadonlySet<AnchorAlarmKind>,
+): AnchorAlarmKind | null {
+  if (sounding.has("drag")) return "drag";
+  return sounding.has("gps-loss") ? "gps-loss" : null;
+}
+
 /** The service-owned alarm sound, shared by the watch's alarm channels. */
 export class NativeAnchorAlarmSound {
   private readonly plugin: NativeAnchorAlarmPlugin;
   /** Channel ids currently asking for noise. */
-  private readonly sounding = new Set<string>();
+  private readonly sounding = new Set<AnchorAlarmKind>();
   private muted = false;
   /**
    * Web Audio, for the one native case where the service cannot answer: it
@@ -107,7 +130,7 @@ export class NativeAnchorAlarmSound {
   }
 
   /** An alarm channel for the manager, e.g. "drag" or "gps-loss". */
-  channel(id: string): AnchorAlarmSound {
+  channel(id: AnchorAlarmKind): AnchorAlarmSound {
     return {
       start: (muted: boolean) => {
         this.muted = muted;
@@ -132,9 +155,14 @@ export class NativeAnchorAlarmSound {
   }
 
   private push(): void {
-    const sounding = this.sounding.size > 0;
+    const kind = urgentAlarmKind(this.sounding);
+    const sounding = kind !== null;
     const muted = this.muted;
-    this.plugin.setAnchorAlarmSound({ sounding, muted }).then(
+    // The service has its own detector and its own kind; this says which sound
+    // *this* side is asking for, so a JS-detected drag is not announced by the
+    // GPS-loss tone (and vice versa).
+    const request = kind ? { sounding, muted, kind } : { sounding, muted };
+    this.plugin.setAnchorAlarmSound(request).then(
       (result) =>
         this.applyFallback(sounding && !result?.serviceRunning, muted),
       (err) => {

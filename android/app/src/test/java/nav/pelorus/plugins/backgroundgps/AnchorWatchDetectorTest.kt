@@ -297,15 +297,39 @@ class AnchorWatchDetectorTest {
 
     @Test
     fun `the alarm raises a quiet stream and leaves a loud one alone`() {
-        // Half of a 15-step scale rounds up to 8.
-        assertEquals(8, anchorAlarmRaiseIndex(2, 15))
-        assertEquals(8, anchorAlarmRaiseIndex(0, 15))
+        // 0.9 of a 15-step scale rounds up to 14, one below maximum.
+        assertEquals(14, anchorAlarmRaiseIndex(2, 15))
+        assertEquals(14, anchorAlarmRaiseIndex(0, 15))
+        // The field report: 11 of 15 (73%) was not loud enough, and used to be
+        // above the floor, so nothing was raised. Now it is.
+        assertEquals(14, anchorAlarmRaiseIndex(11, 15))
         // Already at or above the floor: the user's level stands.
-        assertEquals(-1, anchorAlarmRaiseIndex(8, 15))
+        assertEquals(-1, anchorAlarmRaiseIndex(14, 15))
         assertEquals(-1, anchorAlarmRaiseIndex(15, 15))
         // Coarse scales still get an audible step, never a zero one.
         assertEquals(1, anchorAlarmRaiseIndex(0, 1))
         // No scale to raise on.
         assertEquals(-1, anchorAlarmRaiseIndex(0, 0))
+    }
+
+    @Test
+    fun `the alarm sound is chosen by kind, and drag wins`() {
+        assertEquals(ANCHOR_ALARM_DRAG, anchorAlarmSoundKind(ANCHOR_ALARM_DRAG, null))
+        assertEquals(ANCHOR_ALARM_GPS_LOSS, anchorAlarmSoundKind(ANCHOR_ALARM_GPS_LOSS, null))
+        // Either side may be the one alarming; the JS detector sees the app's
+        // own (often Bluetooth) GPS, which the service never hears from.
+        assertEquals(ANCHOR_ALARM_DRAG, anchorAlarmSoundKind(null, ANCHOR_ALARM_DRAG))
+        assertEquals(ANCHOR_ALARM_GPS_LOSS, anchorAlarmSoundKind(null, ANCHOR_ALARM_GPS_LOSS))
+        // Both up: the boat leaving its circle is the more urgent fact.
+        assertEquals(
+            ANCHOR_ALARM_DRAG,
+            anchorAlarmSoundKind(ANCHOR_ALARM_GPS_LOSS, ANCHOR_ALARM_DRAG),
+        )
+        assertEquals(
+            ANCHOR_ALARM_DRAG,
+            anchorAlarmSoundKind(ANCHOR_ALARM_DRAG, ANCHOR_ALARM_GPS_LOSS),
+        )
+        // Nobody alarming: silence.
+        assertNull(anchorAlarmSoundKind(null, null))
     }
 }

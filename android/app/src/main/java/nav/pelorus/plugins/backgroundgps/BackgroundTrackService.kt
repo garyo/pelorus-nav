@@ -17,7 +17,6 @@ import android.location.LocationManager
 import android.media.AudioAttributes
 import android.media.AudioManager
 import android.media.MediaPlayer
-import android.media.RingtoneManager
 import android.os.Build
 import android.os.Bundle
 import android.os.Handler
@@ -36,6 +35,7 @@ import com.google.android.gms.location.LocationRequest
 import com.google.android.gms.location.LocationResult
 import com.google.android.gms.location.LocationServices
 import com.google.android.gms.location.Priority
+import nav.pelorus.app.R
 
 /**
  * Foreground GPS recording service.
@@ -155,6 +155,9 @@ class BackgroundTrackService : Service() {
          */
         private const val ANCHOR_PASSIVE_INTERVAL_MS = 5_000L
 
+        /** How often an accepted anchor GNSS fix is logged; see onAnchorFix. */
+        private const val ANCHOR_FIX_LOG_INTERVAL_MS = 60_000L
+
         private const val ACTION_WATCHDOG = "nav.pelorus.WATCHDOG_TICK"
         private const val ACTION_ANCHOR_WATCHDOG = "nav.pelorus.ANCHOR_WATCHDOG_TICK"
 
@@ -206,12 +209,14 @@ class BackgroundTrackService : Service() {
         @Volatile var trackingRequested: Boolean = false
 
         /**
-         * The JS watch is asking for alarm noise, set by the plugin's
-         * setAnchorAlarmSound(). All anchor-alarm sound is made here, on the
-         * ALARM stream, whichever side detected the alarm: the WebView's own
-         * Web Audio lands on the MEDIA stream, which is routinely near-silent.
+         * Which alarm the JS watch is asking noise for ([ANCHOR_ALARM_DRAG] or
+         * [ANCHOR_ALARM_GPS_LOSS]), null when it wants none. Set by the
+         * plugin's setAnchorAlarmSound(). All anchor-alarm sound is made here,
+         * on the ALARM stream, whichever side detected the alarm: the
+         * WebView's own Web Audio lands on the MEDIA stream, which is
+         * routinely near-silent.
          */
-        @Volatile var jsAlarmRequested: Boolean = false
+        @Volatile var jsAlarmKind: String? = null
 
         /**
          * The user muted this watch's alarms. Held here rather than only in JS
@@ -288,8 +293,10 @@ class BackgroundTrackService : Service() {
      */
     @Volatile private var anchorDetectorSinceElapsedMs: Long = 0L
     private var anchorAlarmPlayer: MediaPlayer? = null
-    /** The alarm sound (ringtone loop + vibration) is running. */
+    /** The alarm sound (tone loop + vibration) is running. */
     private var anchorAlarmSounding = false
+    /** The alarm kind the running player's tone belongs to; null when silent. */
+    private var anchorAlarmSoundingKind: String? = null
     /**
      * ALARM-stream index before [raiseAlarmVolume] lifted it, and the index it
      * lifted it to; both -1 when nothing was raised. The second one is what
@@ -316,6 +323,8 @@ class BackgroundTrackService : Service() {
      * rather than pretend to watch.
      */
     @Volatile private var anchorGnssAvailable: Boolean = false
+    /** Elapsed-realtime of the last logged anchor GNSS fix; see onAnchorFix. */
+    private var lastAnchorFixLogMs = 0L
 
     private var alarmManager: AlarmManager? = null
     private var watchdogPendingIntent: PendingIntent? = null
@@ -1008,7 +1017,7 @@ class BackgroundTrackService : Service() {
      */
     fun acknowledgeAnchorAlarm() {
         val silenced = anchorDetector?.acknowledge() ?: false
-        jsAlarmRequested = false
+        jsAlarmKind = null
         clearAnchorAlarm()
         if (silenced) DiagLog.log(applicationContext, "anchor", "acknowledged")
     }
@@ -1024,9 +1033,10 @@ class BackgroundTrackService : Service() {
      * quieter than the same alarm with the screen off.
      */
     fun syncAnchorAlarmSound() {
-        val wanted = !anchorAlarmMuted &&
-            (anchorDetector?.alarmKind != null || jsAlarmRequested)
-        if (wanted) startAnchorAlarmSound() else stopAnchorAlarmSound()
+        val kind =
+            if (anchorAlarmMuted) null
+            else anchorAlarmSoundKind(anchorDetector?.alarmKind, jsAlarmKind)
+        if (kind != null) startAnchorAlarmSound(kind) else stopAnchorAlarmSound()
     }
 
     /**
@@ -1051,6 +1061,23 @@ class BackgroundTrackService : Service() {
     private fun onAnchorFix(location: Location) {
         val detector = anchorDetector ?: return
         val provenBefore = detector.hadFix
+        // The watch alarms rarely and logs only then, which left "is the
+        // watchdog being fed at all?" unanswerable after the fact — the
+        // question that matters most when a screen-off test produces silence.
+        // First fix, then one line a minute: enough to tell a starved
+        // subscription from a fed one without filling the log.
+        val nowMs = SystemClock.elapsedRealtime()
+        if (!provenBefore || nowMs - lastAnchorFixLogMs >= ANCHOR_FIX_LOG_INTERVAL_MS) {
+            lastAnchorFixLogMs = nowMs
+            DiagLog.log(
+                applicationContext,
+                "anchor",
+                "gnss fix ${if (provenBefore) "" else "(first) "}" +
+                    "d=${detector.lastDistanceM.toInt()}m " +
+                    "r=${detector.effectiveRadiusM().toInt()}m " +
+                    "acc=${if (location.hasAccuracy()) location.accuracy.toInt() else -1}m",
+            )
+        }
         val transition = detector.onFix(
             location.latitude,
             location.longitude,
@@ -1145,27 +1172,37 @@ class BackgroundTrackService : Service() {
     }
 
     /**
-     * Loop the device's alarm ringtone on the alarm stream and vibrate until
+     * Loop this app's own alarm tone on the alarm stream and vibrate until
      * acknowledged or disarmed — a one-shot notification sound does not wake
      * anyone. Vibration is the backstop if audio can't start at all, and the
      * stream is raised to an audible floor for the duration.
+     *
+     * The tone is ours, not the device's default alarm ringtone: that is a
+     * different sound on every device — a pleasant steel-drum tune on the
+     * Samsung this was reported from — which is neither recognisable as this
+     * app nor alarming. Each res/raw WAV is one beat period of the same siren
+     * Web Audio plays in the browser (see tools/gen-alarm-sounds.ts), so
+     * looping it reproduces that cadence exactly.
      */
-    private fun startAnchorAlarmSound() {
-        if (anchorAlarmSounding) return
+    private fun startAnchorAlarmSound(kind: String) {
+        if (anchorAlarmSounding && anchorAlarmSoundingKind == kind) return
+        val wasSounding = anchorAlarmSounding
         anchorAlarmSounding = true
-        raiseAlarmVolume()
-        vibrator()?.let { vib ->
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                vib.vibrate(VibrationEffect.createWaveform(ANCHOR_VIBRATE_PATTERN, 0))
-            } else {
-                @Suppress("DEPRECATION")
-                vib.vibrate(ANCHOR_VIBRATE_PATTERN, 0)
+        anchorAlarmSoundingKind = kind
+        if (!wasSounding) {
+            raiseAlarmVolume()
+            vibrator()?.let { vib ->
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    vib.vibrate(VibrationEffect.createWaveform(ANCHOR_VIBRATE_PATTERN, 0))
+                } else {
+                    @Suppress("DEPRECATION")
+                    vib.vibrate(ANCHOR_VIBRATE_PATTERN, 0)
+                }
             }
         }
-        if (anchorAlarmPlayer != null) return
-        val uri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM)
-            ?: RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
-            ?: return
+        // A GPS-loss alarm that becomes a drag alarm has to change its voice,
+        // so an already-running player of the wrong kind is replaced.
+        releaseAnchorAlarmPlayer()
         try {
             anchorAlarmPlayer = MediaPlayer().apply {
                 setAudioAttributes(
@@ -1176,17 +1213,43 @@ class BackgroundTrackService : Service() {
                 )
                 // The CPU must stay up between loops with the screen off.
                 setWakeMode(applicationContext, PowerManager.PARTIAL_WAKE_LOCK)
-                setDataSource(applicationContext, uri)
+                applicationContext.resources.openRawResourceFd(anchorAlarmResource(kind))
+                    .use { fd ->
+                        // Uncompressed in the APK (aapt leaves .wav alone), so
+                        // the declared length is real; fall back if it isn't.
+                        if (fd.declaredLength < 0) {
+                            setDataSource(fd.fileDescriptor)
+                        } else {
+                            setDataSource(fd.fileDescriptor, fd.startOffset, fd.declaredLength)
+                        }
+                    }
                 isLooping = true
                 prepare()
                 start()
             }
         } catch (e: Exception) {
+            // Vibration and the full-screen notification carry the alarm alone.
             Log.e(TAG, "Anchor alarm audio failed; vibration only", e)
             DiagLog.log(applicationContext, "anchor", "alarm audio failed: ${e.message}")
             anchorAlarmPlayer?.release()
             anchorAlarmPlayer = null
         }
+    }
+
+    /** The bundled tone for an alarm kind; drag's siren covers anything else. */
+    private fun anchorAlarmResource(kind: String): Int =
+        if (kind == ANCHOR_ALARM_GPS_LOSS) R.raw.anchor_alarm_gps_loss else R.raw.anchor_alarm_drag
+
+    private fun releaseAnchorAlarmPlayer() {
+        anchorAlarmPlayer?.let {
+            try {
+                if (it.isPlaying) it.stop()
+            } catch (e: IllegalStateException) {
+                // Player already torn down — nothing to stop.
+            }
+            it.release()
+        }
+        anchorAlarmPlayer = null
     }
 
     /**
@@ -1197,15 +1260,8 @@ class BackgroundTrackService : Service() {
     private fun stopAnchorAlarmSound() {
         if (!anchorAlarmSounding && anchorAlarmPlayer == null) return
         anchorAlarmSounding = false
-        anchorAlarmPlayer?.let {
-            try {
-                if (it.isPlaying) it.stop()
-            } catch (e: IllegalStateException) {
-                // Player already torn down — nothing to stop.
-            }
-            it.release()
-        }
-        anchorAlarmPlayer = null
+        anchorAlarmSoundingKind = null
+        releaseAnchorAlarmPlayer()
         vibrator()?.cancel()
         restoreAlarmVolume()
     }

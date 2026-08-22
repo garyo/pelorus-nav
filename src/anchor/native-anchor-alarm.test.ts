@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
   createAnchorAlarms,
   NativeAnchorAlarmSound,
+  urgentAlarmKind,
 } from "./native-anchor-alarm";
 
 /** A native plugin whose service is up and takes every request. */
@@ -29,6 +30,18 @@ describe("createAnchorAlarms", () => {
     expect(plugin.setAnchorAlarmSound).toHaveBeenCalledWith({
       sounding: true,
       muted: false,
+      kind: "drag",
+    });
+  });
+
+  it("asks for the GPS-loss tone from the GPS-loss channel", () => {
+    const plugin = fakePlugin();
+    const { gpsLoss } = createAnchorAlarms({ isNative: true, plugin });
+    gpsLoss.start(false);
+    expect(plugin.setAnchorAlarmSound).toHaveBeenCalledWith({
+      sounding: true,
+      muted: false,
+      kind: "gps-loss",
     });
   });
 });
@@ -47,11 +60,24 @@ describe("NativeAnchorAlarmSound", () => {
     expect(plugin.setAnchorAlarmSound).toHaveBeenLastCalledWith({
       sounding: true,
       muted: false,
+      kind: "gps-loss",
     });
     gpsLoss.stop();
     expect(plugin.setAnchorAlarmSound).toHaveBeenLastCalledWith({
       sounding: false,
       muted: false,
+    });
+  });
+
+  it("asks for the drag tone while both alarms are up", () => {
+    const plugin = fakePlugin();
+    const sound = new NativeAnchorAlarmSound(plugin);
+    sound.channel("gps-loss").start(false);
+    sound.channel("drag").start(false);
+    expect(plugin.setAnchorAlarmSound).toHaveBeenLastCalledWith({
+      sounding: true,
+      muted: false,
+      kind: "drag",
     });
   });
 
@@ -63,11 +89,13 @@ describe("NativeAnchorAlarmSound", () => {
     expect(plugin.setAnchorAlarmSound).toHaveBeenLastCalledWith({
       sounding: true,
       muted: true,
+      kind: "drag",
     });
     drag.setMuted(false);
     expect(plugin.setAnchorAlarmSound).toHaveBeenLastCalledWith({
       sounding: true,
       muted: false,
+      kind: "drag",
     });
   });
 
@@ -125,5 +153,14 @@ describe("NativeAnchorAlarmSound", () => {
     expect(sound.soundingLocally()).toBe(true);
     drag.stop();
     warn.mockRestore();
+  });
+});
+
+describe("urgentAlarmKind", () => {
+  it("prefers the drag siren and reports silence as null", () => {
+    expect(urgentAlarmKind(new Set(["drag"]))).toBe("drag");
+    expect(urgentAlarmKind(new Set(["gps-loss"]))).toBe("gps-loss");
+    expect(urgentAlarmKind(new Set(["gps-loss", "drag"]))).toBe("drag");
+    expect(urgentAlarmKind(new Set())).toBeNull();
   });
 });

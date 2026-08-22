@@ -110,13 +110,19 @@ fun alarmVolumeFraction(current: Int, max: Int): Double =
 /**
  * Fraction of maximum the alarm stream is raised to while the alarm sounds.
  *
- * A safety alarm nobody can hear is not a safety alarm, and the phone found in
- * the field was sitting at 2 of 15. Half scale is unmistakable on a phone or
- * tablet speaker without being punitive, the change lasts only as long as the
- * alarm, and the previous level is put back when it stops — see
+ * A safety alarm nobody can hear is not a safety alarm. Half scale was not
+ * enough: a field report of "not very loud" came from a device already at 73%,
+ * above the old floor, so no raise even applied. The target is a sleeping crew
+ * behind a closed cabin door, possibly with an engine or wind noise, and the
+ * cost of being too loud is a startled skipper for the few seconds until they
+ * acknowledge — against a boat dragging onto rocks unheard. So: 0.9, one step
+ * below maximum on a typical 15-step stream, which keeps a little headroom
+ * against small-speaker distortion (a rattling speaker is *less* intelligible)
+ * while being as loud as the device usefully goes. The change lasts only as
+ * long as the alarm, and the previous level is put back when it stops — see
  * BackgroundTrackService.restoreAlarmVolume.
  */
-const val ANCHOR_ALARM_VOLUME_FLOOR = 0.5
+const val ANCHOR_ALARM_VOLUME_FLOOR = 0.9
 
 /**
  * The stream index the alarm should raise the volume to, or -1 to leave it
@@ -127,6 +133,20 @@ fun anchorAlarmRaiseIndex(current: Int, max: Int): Int {
     if (max <= 0) return -1
     val target = ceil(max * ANCHOR_ALARM_VOLUME_FLOOR).toInt().coerceIn(1, max)
     return if (current >= target) -1 else target
+}
+
+/**
+ * Which alarm tone to play, given what each detector is alarming on — this
+ * service's own and the WebView's (pushed through setAnchorAlarmSound). Null
+ * when neither wants noise.
+ *
+ * Drag wins when both are up: a boat outside its circle is the more urgent
+ * fact, and a GPS-loss alarm that is also a drag alarm is a drag alarm.
+ */
+fun anchorAlarmSoundKind(nativeKind: String?, jsKind: String?): String? = when {
+    nativeKind == ANCHOR_ALARM_DRAG || jsKind == ANCHOR_ALARM_DRAG -> ANCHOR_ALARM_DRAG
+    nativeKind != null -> nativeKind
+    else -> jsKind
 }
 
 /**

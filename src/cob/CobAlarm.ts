@@ -22,7 +22,12 @@ export interface CobAlarmOptions {
   vibratePattern?: number[];
 }
 
-const DEFAULTS: Required<CobAlarmOptions> = {
+/**
+ * The COB siren, and the base every other alarm varies from. Exported because
+ * the Android service plays the same cadence from a pre-rendered WAV
+ * (tools/gen-alarm-sounds.ts) and must not drift from what Web Audio does.
+ */
+export const COB_ALARM_DEFAULTS: Required<CobAlarmOptions> = {
   toneHz: [880, 660],
   toneMs: 400,
   beatIntervalMs: 1200,
@@ -39,7 +44,7 @@ export class CobAlarm {
   private readonly opts: Required<CobAlarmOptions>;
 
   constructor(options: CobAlarmOptions = {}) {
-    this.opts = { ...DEFAULTS, ...options };
+    this.opts = { ...COB_ALARM_DEFAULTS, ...options };
   }
 
   /** Begin the alarm loop. Safe to call from any context; best from a user gesture. */
