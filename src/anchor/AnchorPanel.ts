@@ -68,6 +68,7 @@ import {
 } from "./anchor-scope";
 import {
   type AnchorLengthUnit,
+  accuracyTooVagueToArm,
   anchorLengthUnit,
   defaultRadiusM,
   formatLength,
@@ -944,6 +945,11 @@ export class AnchorPanel {
     }
     if (this.posMode === "tap" && !this.tapped) {
       return "Tap the chart to place the anchor.";
+    }
+    const radiusM = this.effectiveRadiusM();
+    if (accuracyTooVagueToArm(fix.accuracy, radiusM)) {
+      const unit = this.unit();
+      return `GPS accuracy is ${formatLength(fix.accuracy ?? 0, unit)} — too vague for a ${formatLength(radiusM, unit)} watch circle. Wait for a better fix.`;
     }
     return null;
   }

@@ -84,6 +84,27 @@ export function defaultRadiusM(
   return Math.ceil(reach + (boatLengthM ?? 0) + marginM);
 }
 
+/**
+ * Whether a fix is too vague to anchor on, given the watch radius.
+ *
+ * The anchor position is recorded from this fix, so its error is the
+ * circle's centring error, not just detection noise: a fix good to ±500 m
+ * puts the centre anywhere within half a kilometre of the real anchor, and
+ * nothing measured afterwards can recover from that. The test is relative
+ * because it is the ratio that matters — ±10 m is fine inside a 90 m circle
+ * and useless inside a 15 m one. Half the radius is the point where the
+ * centre could be nearer the circle's edge than its middle.
+ */
+export function accuracyTooVagueToArm(
+  accuracyM: number | null | undefined,
+  radiusM: number,
+): boolean {
+  if (accuracyM == null || !Number.isFinite(accuracyM) || accuracyM <= 0) {
+    return false; // Unknown accuracy is not evidence of a bad fix.
+  }
+  return radiusM > 0 && accuracyM > radiusM / 2;
+}
+
 /** Meters → display value in the given unit, rounded to whole units. */
 export function toDisplayLength(
   meters: number,

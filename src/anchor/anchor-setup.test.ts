@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  accuracyTooVagueToArm,
   anchorLengthUnit,
   defaultRadiusM,
   formatLength,
@@ -30,6 +31,28 @@ describe("gpsMarginM", () => {
   it("uses the worst of accuracy and scatter", () => {
     expect(gpsMarginM(18, 12)).toBe(18);
     expect(gpsMarginM(12, 25)).toBe(25);
+  });
+});
+
+describe("accuracyTooVagueToArm", () => {
+  it("refuses a fix whose error dominates the circle", () => {
+    // The field case: a GLO 2 with a fresh 2D fix reporting ±520 m while
+    // the watch circle is 55 m — the anchor point would be recorded a
+    // quarter mile from the real anchor.
+    expect(accuracyTooVagueToArm(520, 55)).toBe(true);
+    expect(accuracyTooVagueToArm(10, 15)).toBe(true);
+  });
+
+  it("allows a fix that is small against the circle", () => {
+    expect(accuracyTooVagueToArm(5, 30)).toBe(false);
+    expect(accuracyTooVagueToArm(15, 30)).toBe(false); // exactly half
+  });
+
+  it("treats unknown accuracy as no evidence either way", () => {
+    expect(accuracyTooVagueToArm(null, 30)).toBe(false);
+    expect(accuracyTooVagueToArm(undefined, 30)).toBe(false);
+    expect(accuracyTooVagueToArm(Number.NaN, 30)).toBe(false);
+    expect(accuracyTooVagueToArm(0, 30)).toBe(false);
   });
 });
 
