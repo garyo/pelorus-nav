@@ -15,6 +15,7 @@ import android.location.Location
 import android.location.LocationListener
 import android.location.LocationManager
 import android.media.AudioAttributes
+import android.media.AudioManager
 import android.media.MediaPlayer
 import android.media.RingtoneManager
 import android.os.Build
@@ -64,8 +65,10 @@ import com.google.android.gms.location.Priority
  * a fused position is unusable for drag detection. A separate Doze-piercing
  * alarm catches sustained GNSS silence. Alarms use their own IMPORTANCE_HIGH
  * channel with service-owned looping alarm-stream audio, because the tracking
- * channel is deliberately silent. While a watch is armed the service holds its
- * own continuous wake lock and floors both location cadences at
+ * channel is deliberately silent — and that audio is the *only* anchor-alarm
+ * sound, in every app state, because Web Audio in the WebView plays on the
+ * media stream (see [syncAnchorAlarmSound]). While a watch is armed the
+ * service holds its own continuous wake lock and floors both location cadences at
  * [ANCHOR_PASSIVE_INTERVAL_MS] — see [acquireAnchorWakeLock].
  *
  * An armed watch is an independent reason for the service to exist: the app's
@@ -203,20 +206,19 @@ class BackgroundTrackService : Service() {
         @Volatile var trackingRequested: Boolean = false
 
         /**
-         * True while the app's activity is started (onStart..onStop), set by
-         * the plugin's lifecycle hooks.
+         * The JS watch is asking for alarm noise, set by the plugin's
+         * setAnchorAlarmSound(). All anchor-alarm sound is made here, on the
+         * ALARM stream, whichever side detected the alarm: the WebView's own
+         * Web Audio lands on the MEDIA stream, which is routinely near-silent.
          */
-        @Volatile var appForeground: Boolean = true
+        @Volatile var jsAlarmRequested: Boolean = false
 
         /**
-         * True while the JS alarm is known to be making noise, set by the
-         * plugin's handOffAnchorAlarm() and cleared whenever the app leaves
-         * the foreground or the alarm ends. Together with [appForeground] it
-         * is the whole no-double-alarm rule — see
-         * [shouldSoundNativeAnchorAlarm] for why a started activity alone is
-         * not enough.
+         * The user muted this watch's alarms. Held here rather than only in JS
+         * because the alarm that matters most fires while the WebView is
+         * suspended, and mute has to reach it.
          */
-        @Volatile var jsAlarmAudible: Boolean = false
+        @Volatile var anchorAlarmMuted: Boolean = false
 
         /**
          * What the last onStartCommand returned. The plugin re-starts a
@@ -286,6 +288,16 @@ class BackgroundTrackService : Service() {
      */
     @Volatile private var anchorDetectorSinceElapsedMs: Long = 0L
     private var anchorAlarmPlayer: MediaPlayer? = null
+    /** The alarm sound (ringtone loop + vibration) is running. */
+    private var anchorAlarmSounding = false
+    /**
+     * ALARM-stream index before [raiseAlarmVolume] lifted it, and the index it
+     * lifted it to; both -1 when nothing was raised. The second one is what
+     * makes the restore safe: a level the user changed while the alarm was
+     * sounding is theirs to keep.
+     */
+    private var anchorAlarmPriorVolume = -1
+    private var anchorAlarmRaisedVolume = -1
     private var anchorWatchdogPendingIntent: PendingIntent? = null
 
     /** Platform LocationManager — the anchor watch's GNSS-only feed. */
@@ -988,38 +1000,33 @@ class BackgroundTrackService : Service() {
         DiagLog.log(applicationContext, "anchor", "GNSS updates stopped")
     }
 
-    /** Silence a sounding alarm; the watch keeps running. */
+    /**
+     * Silence a sounding alarm; the watch keeps running. Silences the JS
+     * side's request too: this is the notification's Silence action as much as
+     * the app's own acknowledge, and the user who taps it means "quiet", not
+     * "quiet unless the WebView still wants noise".
+     */
     fun acknowledgeAnchorAlarm() {
         val silenced = anchorDetector?.acknowledge() ?: false
+        jsAlarmRequested = false
         clearAnchorAlarm()
         if (silenced) DiagLog.log(applicationContext, "anchor", "acknowledged")
     }
 
     /**
-     * Foreground state flipped. Detection is unaffected; only the noise moves
-     * between JS and native.
+     * Start or stop the alarm sound to match what is wanted right now: either
+     * detector alarming, and not muted.
      *
-     * Coming back to the foreground deliberately does nothing: the alarm keeps
-     * sounding until JS reports its own alarm audible (see
-     * [handOffAnchorAlarmSound]), is acknowledged, or clears. Leaving the
-     * foreground suspends the WebView, so whatever JS was sounding stops —
-     * take the alarm back.
+     * This service owns every anchor-alarm sound on Android, in every app
+     * state. Handing the sound to the WebView when the app was in the
+     * foreground put it on the MEDIA stream (measured 2 of 15 on the field
+     * device, against 11 of 15 for ALARM) and made an alarm with the app open
+     * quieter than the same alarm with the screen off.
      */
-    fun onAppForegroundChanged() {
-        if (appForeground) return
-        if (anchorDetector?.alarmKind != null) startAnchorAlarmSound()
-    }
-
-    /**
-     * JS reports its own alarm is genuinely audible: drop the native noise and
-     * let the app carry the alarm. Deliberately not an acknowledgment — the
-     * alarm state and its notification (the lock-screen record of the event,
-     * with its Silence action) stay exactly as they were; only the sound
-     * moved. Backgrounding the app takes it straight back.
-     */
-    fun handOffAnchorAlarmSound() {
-        stopAnchorAlarmSound()
-        DiagLog.log(applicationContext, "anchor", "alarm sound handed off to JS")
+    fun syncAnchorAlarmSound() {
+        val wanted = !anchorAlarmMuted &&
+            (anchorDetector?.alarmKind != null || jsAlarmRequested)
+        if (wanted) startAnchorAlarmSound() else stopAnchorAlarmSound()
     }
 
     /**
@@ -1117,31 +1124,36 @@ class BackgroundTrackService : Service() {
             applicationContext,
             "anchor",
             "ALARM $kind d=${distanceM.toInt()}m r=${detector?.effectiveRadiusM()?.toInt()}m " +
-                "acc=${detector?.lastAccuracyM?.toInt()}m foreground=$appForeground",
+                "acc=${detector?.lastAccuracyM?.toInt()}m muted=$anchorAlarmMuted",
         )
         Log.w(TAG, "Anchor alarm: $kind at ${distanceM.toInt()}m")
         showAnchorNotification(kind, distanceM)
         // Retained event: JS is usually suspended when this fires and learns
         // about it on resume.
         anchorAlarmListener?.invoke(kind, distanceM, System.currentTimeMillis())
-        if (shouldSoundNativeAnchorAlarm(appForeground, jsAlarmAudible)) startAnchorAlarmSound()
+        syncAnchorAlarmSound()
     }
 
-    /** Stop the noise and drop the alarm notification. The watch stays armed. */
+    /**
+     * Drop the alarm notification and re-judge the noise — the JS watch may
+     * still be alarming on its own (its detector sees the app's GPS, which can
+     * be a receiver this service never hears from). The watch stays armed.
+     */
     private fun clearAnchorAlarm() {
-        // The next alarm has to prove JS is audible all over again — this one
-        // is over, and the app may have gone silent since it handed off.
-        jsAlarmAudible = false
-        stopAnchorAlarmSound()
+        syncAnchorAlarmSound()
         getSystemService(NotificationManager::class.java)?.cancel(ANCHOR_NOTIFICATION_ID)
     }
 
     /**
      * Loop the device's alarm ringtone on the alarm stream and vibrate until
      * acknowledged or disarmed — a one-shot notification sound does not wake
-     * anyone. Vibration is the backstop if audio can't start at all.
+     * anyone. Vibration is the backstop if audio can't start at all, and the
+     * stream is raised to an audible floor for the duration.
      */
     private fun startAnchorAlarmSound() {
+        if (anchorAlarmSounding) return
+        anchorAlarmSounding = true
+        raiseAlarmVolume()
         vibrator()?.let { vib ->
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 vib.vibrate(VibrationEffect.createWaveform(ANCHOR_VIBRATE_PATTERN, 0))
@@ -1177,7 +1189,14 @@ class BackgroundTrackService : Service() {
         }
     }
 
+    /**
+     * Every path that ends the noise — acknowledge, Silence, mute, the boat
+     * coming back inside, disarm, onDestroy — comes through here, which is
+     * what makes the volume restore unmissable.
+     */
     private fun stopAnchorAlarmSound() {
+        if (!anchorAlarmSounding && anchorAlarmPlayer == null) return
+        anchorAlarmSounding = false
         anchorAlarmPlayer?.let {
             try {
                 if (it.isPlaying) it.stop()
@@ -1188,6 +1207,49 @@ class BackgroundTrackService : Service() {
         }
         anchorAlarmPlayer = null
         vibrator()?.cancel()
+        restoreAlarmVolume()
+    }
+
+    /**
+     * Lift the ALARM stream to [ANCHOR_ALARM_VOLUME_FLOOR] for the duration of
+     * the alarm. An anchor alarm the crew cannot hear is the failure this whole
+     * subsystem exists to prevent, and a device left at 2 of 15 has no other
+     * defence — the user is asleep and cannot turn it up. It never lowers the
+     * volume, and [restoreAlarmVolume] puts back what it found.
+     */
+    private fun raiseAlarmVolume() {
+        val am = getSystemService(AudioManager::class.java) ?: return
+        val max = am.getStreamMaxVolume(AudioManager.STREAM_ALARM)
+        val current = am.getStreamVolume(AudioManager.STREAM_ALARM)
+        val target = anchorAlarmRaiseIndex(current, max)
+        if (target < 0) return
+        try {
+            am.setStreamVolume(AudioManager.STREAM_ALARM, target, 0)
+            anchorAlarmPriorVolume = current
+            anchorAlarmRaisedVolume = target
+            DiagLog.log(applicationContext, "anchor", "alarm volume $current -> $target of $max")
+        } catch (e: SecurityException) {
+            // Do Not Disturb without notification-policy access refuses volume
+            // changes. The alarm still sounds at whatever the user set, and the
+            // armed panel has already been saying it may be too quiet.
+            DiagLog.log(applicationContext, "anchor", "alarm volume raise blocked: ${e.message}")
+        }
+    }
+
+    /** Put back the level the alarm raised, unless the user has since moved it. */
+    private fun restoreAlarmVolume() {
+        val prior = anchorAlarmPriorVolume
+        val raised = anchorAlarmRaisedVolume
+        anchorAlarmPriorVolume = -1
+        anchorAlarmRaisedVolume = -1
+        if (prior < 0) return
+        val am = getSystemService(AudioManager::class.java) ?: return
+        try {
+            if (am.getStreamVolume(AudioManager.STREAM_ALARM) != raised) return
+            am.setStreamVolume(AudioManager.STREAM_ALARM, prior, 0)
+        } catch (e: SecurityException) {
+            DiagLog.log(applicationContext, "anchor", "alarm volume restore blocked: ${e.message}")
+        }
     }
 
     private fun vibrator(): Vibrator? =

@@ -2,6 +2,7 @@ package nav.pelorus.plugins.backgroundgps
 
 import kotlin.math.PI
 import kotlin.math.atan2
+import kotlin.math.ceil
 import kotlin.math.cos
 import kotlin.math.sin
 import kotlin.math.sqrt
@@ -98,18 +99,35 @@ fun effectiveAnchorRadiusM(radiusM: Double, accuracyM: Double): Double {
 enum class AnchorTransition { NONE, DRAG_ALARM, GPS_LOSS_ALARM, CLEARED }
 
 /**
- * Whether the service should make its own noise for an alarm.
- *
- * The native alarm is the one that survives a suspended WebView, so it sounds
- * in every state except the one where the app is demonstrably already sounding
- * its own: foreground AND handed off (see `handOffAnchorAlarm`). A started
- * activity is NOT enough — a WebView returning from suspension has a suspended
- * AudioContext and beats silently until a user gesture unlocks it, so treating
- * "activity started" as "JS is audible" turns waking the device into a way of
- * silencing the alarm.
+ * ALARM-stream volume as a fraction of this device's maximum, or -1 when the
+ * device cannot say. This is the stream the anchor alarm plays on, so it — not
+ * the media stream the WebView would have used — decides whether anyone hears
+ * it.
  */
-fun shouldSoundNativeAnchorAlarm(appForeground: Boolean, jsAlarmAudible: Boolean): Boolean =
-    !(appForeground && jsAlarmAudible)
+fun alarmVolumeFraction(current: Int, max: Int): Double =
+    if (max <= 0) -1.0 else (current.toDouble() / max).coerceIn(0.0, 1.0)
+
+/**
+ * Fraction of maximum the alarm stream is raised to while the alarm sounds.
+ *
+ * A safety alarm nobody can hear is not a safety alarm, and the phone found in
+ * the field was sitting at 2 of 15. Half scale is unmistakable on a phone or
+ * tablet speaker without being punitive, the change lasts only as long as the
+ * alarm, and the previous level is put back when it stops — see
+ * BackgroundTrackService.restoreAlarmVolume.
+ */
+const val ANCHOR_ALARM_VOLUME_FLOOR = 0.5
+
+/**
+ * The stream index the alarm should raise the volume to, or -1 to leave it
+ * alone. Never lowers: a crew who set the alarm stream above the floor meant
+ * it.
+ */
+fun anchorAlarmRaiseIndex(current: Int, max: Int): Int {
+    if (max <= 0) return -1
+    val target = ceil(max * ANCHOR_ALARM_VOLUME_FLOOR).toInt().coerceIn(1, max)
+    return if (current >= target) -1 else target
+}
 
 /**
  * Screen-off anchor-watch detection: the native mirror of

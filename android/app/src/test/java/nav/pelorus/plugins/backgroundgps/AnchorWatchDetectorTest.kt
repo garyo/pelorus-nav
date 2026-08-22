@@ -284,12 +284,28 @@ class AnchorWatchDetectorTest {
     }
 
     @Test
-    fun `native audio yields only to a JS alarm proven to be audible`() {
-        // A started activity is not proof: a WebView back from suspension
-        // beats silently until a user gesture unlocks its AudioContext.
-        assertTrue(shouldSoundNativeAnchorAlarm(appForeground = true, jsAlarmAudible = false))
-        assertTrue(shouldSoundNativeAnchorAlarm(appForeground = false, jsAlarmAudible = false))
-        assertTrue(shouldSoundNativeAnchorAlarm(appForeground = false, jsAlarmAudible = true))
-        assertFalse(shouldSoundNativeAnchorAlarm(appForeground = true, jsAlarmAudible = true))
+    fun `alarm volume reads as a fraction of the device's own scale`() {
+        // The failure this exists for: 2 of 15, which no sleeping crew hears.
+        assertEquals(2.0 / 15.0, alarmVolumeFraction(2, 15), 1e-9)
+        assertEquals(1.0, alarmVolumeFraction(15, 15), 1e-9)
+        assertEquals(0.0, alarmVolumeFraction(0, 15), 1e-9)
+        // A device that cannot say says so, rather than reading as silent.
+        assertEquals(-1.0, alarmVolumeFraction(0, 0), 1e-9)
+        // Nonsense from the platform is clamped, never reported above full.
+        assertEquals(1.0, alarmVolumeFraction(20, 15), 1e-9)
+    }
+
+    @Test
+    fun `the alarm raises a quiet stream and leaves a loud one alone`() {
+        // Half of a 15-step scale rounds up to 8.
+        assertEquals(8, anchorAlarmRaiseIndex(2, 15))
+        assertEquals(8, anchorAlarmRaiseIndex(0, 15))
+        // Already at or above the floor: the user's level stands.
+        assertEquals(-1, anchorAlarmRaiseIndex(8, 15))
+        assertEquals(-1, anchorAlarmRaiseIndex(15, 15))
+        // Coarse scales still get an audible step, never a zero one.
+        assertEquals(1, anchorAlarmRaiseIndex(0, 1))
+        // No scale to raise on.
+        assertEquals(-1, anchorAlarmRaiseIndex(0, 0))
     }
 }

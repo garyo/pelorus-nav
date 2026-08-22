@@ -7,18 +7,17 @@
  * overnight the service is the only thing watching. This module pushes the
  * armed geometry down on arm / anchor move / radius change, clears it on
  * disarm, forwards acknowledgments, reconciles the retained `anchorAlarm`
- * event that arrives when the WebView resumes, and owns the alarm handoff
- * (see {@link connectNativeAnchorWatch}).
+ * event that arrives when the WebView resumes. The alarm *sound* belongs to
+ * the service on every native platform — see native-anchor-alarm.ts.
  *
- * It also answers the question the app cannot answer for itself — whether
- * that native watch is actually seeing the boat, i.e. whether there is any
- * screen-off cover at all (see {@link assessScreenOffCover}).
+ * It also answers the questions the app cannot answer for itself — whether
+ * that native watch is actually seeing the boat, and whether the alarm stream
+ * is loud enough for anyone to hear it (see {@link armedAdvisoryLine}).
  *
  * Native-only: on web every call is skipped, so the JS watch stands alone.
  */
 
 import { Capacitor } from "@capacitor/core";
-import type { CobAlarm } from "../cob/CobAlarm";
 import type { NavigationDataManager } from "../navigation/NavigationDataManager";
 import {
   type AnchorWatchNativeStatus,
@@ -51,7 +50,6 @@ export interface NativeAnchorPlugin {
   }): Promise<void>;
   clearAnchorWatch(): Promise<void>;
   acknowledgeAnchorAlarm(): Promise<void>;
-  handOffAnchorAlarm(): Promise<void>;
   noteExternalFix(): Promise<void>;
   getAnchorWatchStatus(): Promise<AnchorWatchNativeStatus>;
   addListener(
@@ -82,9 +80,6 @@ export interface NativeAnchorWatchHandle {
   reconcile(): void;
 }
 
-/** The alarm surface the handoff decision needs. */
-export type NativeAnchorAlarm = Pick<CobAlarm, "isBlocked" | "onBlockedChange">;
-
 export interface NativeAnchorWatchOptions {
   plugin?: NativeAnchorPlugin;
   /** Defaults to Capacitor's platform check; tests pass it explicitly. */
@@ -92,18 +87,10 @@ export interface NativeAnchorWatchOptions {
   alarmDelayS?: number;
   gpsLossAlarmS?: number;
   /**
-   * The JS alarms this watch sounds. Their blocked state decides when the
-   * native alarm may stop: with none passed the native alarm never hands
-   * over, which is the safe reading of "no JS alarm is known to be audible".
-   */
-  alarms?: readonly NativeAnchorAlarm[];
-  /**
    * The app's fix feed, reported to the native watch so an external GPS
    * doesn't read as silence. Omitted in tests that don't exercise it.
    */
   navManager?: Pick<NavigationDataManager, "subscribe">;
-  /** Foreground test; defaults to the document's visibility. */
-  isForeground?: () => boolean;
   /** Clock override for tests. */
   now?: () => number;
 }
@@ -117,15 +104,6 @@ function geometryKey(snap: AnchorWatchSnapshot): string {
  * Wire the manager to the native watch. Safe to call once at startup, before
  * or after {@link AnchorWatchManager.restore} — restore() notifies, which
  * pushes the restored watch down.
- *
- * Alarm handoff: the native alarm is the one that survives a suspended
- * WebView, so it keeps sounding until this side proves it is making noise
- * itself. A WebView returning from suspension has a suspended AudioContext
- * and beats silently until a user gesture unlocks it, so "the app is in the
- * foreground" is not proof — `CobAlarm.isBlocked()` is. While it is blocked
- * both sides sound (a moment of overlap is a far better failure than a
- * silenced anchor alarm); the handoff happens on the blocked→unblocked edge
- * when the user finally taps.
  */
 export function connectNativeAnchorWatch(
   manager: NativeAnchorManager,
@@ -136,12 +114,7 @@ export function connectNativeAnchorWatch(
   const plugin = options.plugin ?? (BackgroundGPS as NativeAnchorPlugin);
   const alarmDelayS = options.alarmDelayS ?? DEFAULT_ALARM_DELAY_S;
   const gpsLossAlarmS = options.gpsLossAlarmS ?? DEFAULT_GPS_LOSS_ALARM_S;
-  const alarms = options.alarms ?? [];
   const now = options.now ?? (() => Date.now());
-  const isForeground =
-    options.isForeground ??
-    (() =>
-      typeof document === "undefined" || document.visibilityState !== "hidden");
 
   // Native shells older than these methods reject the call; a dead native
   // watch must never take the JS one down with it.
@@ -151,24 +124,12 @@ export function connectNativeAnchorWatch(
   let pushed: string | "cleared" | null = null;
   let wasAcknowledged = false;
   let armed = false;
-  let alarming = false;
-  /** The native alarm has been told to stop sounding for this alarm event. */
-  let handedOff = false;
   let lastExternalFixReport = 0;
-
-  const tryHandOff = (): void => {
-    if (!alarming || handedOff || !isForeground()) return;
-    if (alarms.length === 0 || alarms.some((a) => a.isBlocked())) return;
-    handedOff = true;
-    plugin.handOffAnchorAlarm().catch(ignore);
-  };
 
   const apply = (snap: AnchorWatchSnapshot | null, force = false): void => {
     if (!snap) {
       wasAcknowledged = false;
       armed = false;
-      alarming = false;
-      handedOff = false;
       // Nothing was ever armed this session, so ordinarily there is nothing
       // to clear — except on the reconcile pass, where the point is exactly
       // to end a native watch that outlived the JS one.
@@ -200,17 +161,9 @@ export function connectNativeAnchorWatch(
       plugin.acknowledgeAnchorAlarm().catch(ignore);
     }
     wasAcknowledged = snap.acknowledged;
-    alarming = snap.alarming;
-    // The next alarm event has to earn its own handoff.
-    if (!alarming) handedOff = false;
-    tryHandOff();
   };
 
   manager.subscribe((snap) => apply(snap));
-
-  // The user tapping to unlock audio is exactly the moment the JS alarm
-  // becomes audible, and it arrives on this edge rather than as a snapshot.
-  for (const alarm of alarms) alarm.onBlockedChange(() => tryHandOff());
 
   options.navManager?.subscribe(() => {
     if (!armed) return;
@@ -218,15 +171,6 @@ export function connectNativeAnchorWatch(
     lastExternalFixReport = now();
     plugin.noteExternalFix().catch(ignore);
   });
-
-  if (typeof document !== "undefined") {
-    document.addEventListener("visibilitychange", () => {
-      // Going hidden hands the alarm back: the native side restarts its own
-      // audio, so returning has to hand off again.
-      if (document.visibilityState === "hidden") handedOff = false;
-      else tryHandOff();
-    });
-  }
 
   plugin
     .addListener("anchorAlarm", (data) => manager.noteNativeAlarm(data.kind))
@@ -310,13 +254,69 @@ export function assessScreenOffCover(
   return { state: "covered" };
 }
 
-/** The panel's disclosure line, or null when there is nothing to disclose. */
+/** The cover half of the armed view's disclosure line. */
 export function screenOffCoverLine(
   status: AnchorWatchNativeStatus | null,
   armedForMs?: number,
 ): string | null {
   const cover = assessScreenOffCover(status, armedForMs);
   return cover.state === "none" ? SCREEN_OFF_COVER_TEXT[cover.reason] : null;
+}
+
+// --- Alarm audibility ------------------------------------------------------
+
+/**
+ * Alarm-stream volume below which the alarm is worth a word, as a fraction of
+ * the device's maximum.
+ *
+ * Android stream volume is roughly logarithmic, so a quarter of the scale is
+ * far below a quarter of the loudness: on a 15-step phone that is index 3,
+ * about the level of quiet speech from a phone speaker and no use at all
+ * through a closed cabin door. The measured failure that prompted this was
+ * 2 of 15 (13%) on the media stream, so the threshold has to sit clearly
+ * above it; higher than a quarter would start nagging people who deliberately
+ * run a moderate alarm level in a quiet boat.
+ *
+ * The service raises the stream to an audible floor while the alarm actually
+ * sounds, so this is a disclosure rather than the whole defence — but Do Not
+ * Disturb can refuse that raise, which is exactly when the user needs to have
+ * been told.
+ */
+export const LOW_ALARM_VOLUME = 0.25;
+
+export const ALARM_VOLUME_TEXT = {
+  low: "Alarm volume is low — you may not hear the alarm.",
+  muted: "Alarm volume is off — you may not hear the alarm.",
+};
+
+/** The alarm-audibility half of the line; null when it's fine or unknown. */
+export function alarmVolumeLine(
+  status: AnchorWatchNativeStatus | null,
+): string | null {
+  if (!status) return null;
+  if (status.alarmVolumeMuted) return ALARM_VOLUME_TEXT.muted;
+  const volume = status.alarmVolume;
+  // Absent on older shells and on any device that can't report it — an
+  // unanswered question is never a warning.
+  if (typeof volume !== "number" || volume < 0) return null;
+  return volume < LOW_ALARM_VOLUME ? ALARM_VOLUME_TEXT.low : null;
+}
+
+/**
+ * Everything the armed view has to disclose about this watch, as one line:
+ * both halves state a standing condition the user can act on, and both are
+ * rare enough that the two together are still a line rather than a wall.
+ * Null when there is nothing to say.
+ */
+export function armedAdvisoryLine(
+  status: AnchorWatchNativeStatus | null,
+  armedForMs?: number,
+): string | null {
+  const parts = [
+    screenOffCoverLine(status, armedForMs),
+    alarmVolumeLine(status),
+  ].filter((part): part is string => part !== null);
+  return parts.length > 0 ? parts.join(" ") : null;
 }
 
 /**

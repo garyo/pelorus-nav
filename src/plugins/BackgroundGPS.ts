@@ -51,6 +51,15 @@ export interface AnchorWatchNativeStatus {
   gnssAvailable?: boolean;
   /** A native alarm is sounding right now. */
   alarmKind?: "drag" | "gps-loss";
+  /**
+   * The ALARM stream's volume as a fraction of its maximum, 0–1. This is the
+   * stream the native alarm plays on, so it is the number that decides
+   * whether a sleeping crew hears anything. Absent on native shells older
+   * than the field, and on any device that cannot report it.
+   */
+  alarmVolume?: number;
+  /** The ALARM stream is muted outright — no level will be heard. */
+  alarmVolumeMuted?: boolean;
 }
 
 export interface BackgroundGPSPlugin {
@@ -150,14 +159,26 @@ export interface BackgroundGPSPlugin {
   acknowledgeAnchorAlarm(): Promise<void>;
 
   /**
-   * Stop the native alarm audio because the JS alarm is now audible. Not an
-   * acknowledgment: the alarm, its notification and the watch are untouched,
-   * only the sound moves. Native takes it back the moment the app leaves the
-   * foreground, so this must only be called while JS is genuinely sounding —
-   * a WebView returning from suspension has a suspended AudioContext and
-   * would otherwise take the alarm over and fall silent.
+   * The JS watch's request for alarm noise, and the user's mute.
+   *
+   * All anchor-alarm sound is native (see src/anchor/native-anchor-alarm.ts):
+   * the service plays the device alarm ringtone on the ALARM stream whenever
+   * its own detector or this request wants noise, so an alarm raised with the
+   * app wide open is exactly as loud as one raised overnight. `muted`
+   * silences both sides — it is the user's explicit choice, and it is the
+   * only thing that does, short of acknowledging.
+   *
+   * Not an acknowledgment: the alarm state, its notification and the watch
+   * are untouched.
+   *
+   * Resolves with whether a foreground service was there to take the request.
+   * False means nothing native can make noise — arming without location
+   * permission cannot start one — and the caller has to sound for itself.
    */
-  handOffAnchorAlarm(): Promise<void>;
+  setAnchorAlarmSound(options: {
+    sounding: boolean;
+    muted: boolean;
+  }): Promise<{ serviceRunning: boolean }>;
 
   /**
    * Report that the app's own GPS source delivered a fix. That source is

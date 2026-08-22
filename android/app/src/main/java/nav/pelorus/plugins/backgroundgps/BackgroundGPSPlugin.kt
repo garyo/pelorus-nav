@@ -2,6 +2,7 @@ package nav.pelorus.plugins.backgroundgps
 
 import android.Manifest
 import android.content.Intent
+import android.media.AudioManager
 import android.os.Build
 import android.provider.Settings
 import android.util.Log
@@ -55,33 +56,10 @@ class BackgroundGPSPlugin : Plugin() {
                 true,
             )
         }
-        BackgroundTrackService.appForeground = true
         // A WebView reload restarts JS with no alarm running, whatever the
-        // previous page had handed off.
-        BackgroundTrackService.jsAlarmAudible = false
-    }
-
-    // Foreground tracking for the no-double-alarm rule: "foreground" is the
-    // activity's started window, because that is when the WebView runs its
-    // timers and can sound the JS alarm itself. onPause alone is too eager —
-    // a dialog over the app still leaves JS running.
-    override fun handleOnStart() {
-        setAppForeground(true)
-    }
-
-    override fun handleOnStop() {
-        setAppForeground(false)
-    }
-
-    private fun setAppForeground(foreground: Boolean) {
-        if (BackgroundTrackService.appForeground == foreground) return
-        BackgroundTrackService.appForeground = foreground
-        // Leaving the foreground suspends the WebView, so whatever JS was
-        // sounding stops being audible: the handoff is void. Set on the
-        // companion rather than the service so a later service start can't
-        // inherit a stale "JS has this covered".
-        if (!foreground) BackgroundTrackService.jsAlarmAudible = false
-        BackgroundTrackService.instance?.onAppForegroundChanged()
+        // previous page had asked for.
+        BackgroundTrackService.jsAlarmRequested = false
+        BackgroundTrackService.instance?.syncAnchorAlarmSound()
     }
 
     /**
@@ -467,6 +445,8 @@ class BackgroundGPSPlugin : Plugin() {
     @PluginMethod
     fun clearAnchorWatch(call: PluginCall) {
         BackgroundTrackService.anchorParams = null
+        // Standing the watch down ends its noise whatever JS last asked for.
+        BackgroundTrackService.jsAlarmRequested = false
         AnchorWatchStore.clear(context)
         BackgroundTrackService.instance?.applyAnchorWatch()
         // Stops the service only if nothing else wants it — track recording
@@ -509,6 +489,18 @@ class BackgroundGPSPlugin : Plugin() {
             // while the app is awake, whatever else the status says.
             put("locationPermission", hasServiceLocation())
             status?.alarmKind?.let { put("alarmKind", it) }
+            // Read here rather than in the service: the volume is a device
+            // setting, and the armed panel asks this question before the
+            // service has necessarily come up.
+            val audio = context.getSystemService(AudioManager::class.java)
+            if (audio != null) {
+                val fraction = alarmVolumeFraction(
+                    audio.getStreamVolume(AudioManager.STREAM_ALARM),
+                    audio.getStreamMaxVolume(AudioManager.STREAM_ALARM),
+                )
+                if (fraction >= 0) put("alarmVolume", fraction)
+                put("alarmVolumeMuted", audio.isStreamMute(AudioManager.STREAM_ALARM))
+            }
         })
     }
 
@@ -520,16 +512,27 @@ class BackgroundGPSPlugin : Plugin() {
     }
 
     /**
-     * JS has taken over the noise: its own alarm is running and audible, so
-     * the native one can stop sounding. The alarm itself is untouched — this
-     * is not an acknowledgment — and backgrounding the app takes it straight
-     * back, because a suspended WebView makes no sound.
+     * The JS watch's alarm request and the user's mute.
+     *
+     * The service makes every anchor-alarm sound, whichever detector raised it
+     * (see [BackgroundTrackService.syncAnchorAlarmSound]): the WebView's Web
+     * Audio plays on the media stream, which is routinely turned down to
+     * nothing, while this plays the alarm ringtone on the ALARM stream. So JS
+     * asks rather than sounds — and `muted` is the one thing that silences
+     * both sides, because it is the user's explicit choice.
+     *
+     * Answers with whether a service was there to take it: without one — a
+     * watch armed while location permission is denied cannot start a
+     * foreground service — nothing native can make noise, and JS has to sound
+     * for itself rather than fall silent.
      */
     @PluginMethod
-    fun handOffAnchorAlarm(call: PluginCall) {
-        BackgroundTrackService.jsAlarmAudible = true
-        BackgroundTrackService.instance?.handOffAnchorAlarmSound()
-        call.resolve()
+    fun setAnchorAlarmSound(call: PluginCall) {
+        BackgroundTrackService.jsAlarmRequested = call.getBoolean("sounding") ?: false
+        BackgroundTrackService.anchorAlarmMuted = call.getBoolean("muted") ?: false
+        val service = BackgroundTrackService.instance
+        service?.syncAnchorAlarmSound()
+        call.resolve(JSObject().put("serviceRunning", service != null))
     }
 
     /**
