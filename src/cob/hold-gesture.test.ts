@@ -140,6 +140,10 @@ describe("attachHoldGesture (stepped mode, fake clock)", () => {
     vi.advanceTimersByTime(500);
     // Without capture the release never reaches el — only window sees it.
     window.dispatchEvent(new Event("pointerup"));
+    // A pointer release waits out RELEASE_GRACE_MS in case the touchscreen
+    // merely dropped the contact; nothing comes back, so it cancels.
+    expect(r.cancelled).toBe(false);
+    vi.advanceTimersByTime(300);
     expect(r.cancelled).toBe(true);
     expect(r.completed).toBe(false);
     vi.advanceTimersByTime(2000);
@@ -167,5 +171,88 @@ describe("attachHoldGesture (stepped mode, fake clock)", () => {
     expect(r.cancelled).toBe(true);
     vi.advanceTimersByTime(2000);
     expect(r.completed).toBe(false);
+  });
+});
+
+describe("attachHoldGesture release grace (e-ink touch dropouts)", () => {
+  let el: HTMLButtonElement;
+
+  beforeEach(() => {
+    vi.useFakeTimers({
+      toFake: [
+        "setInterval",
+        "clearInterval",
+        "setTimeout",
+        "clearTimeout",
+        "performance",
+      ],
+    });
+    el = document.createElement("button");
+    document.body.appendChild(el);
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    el.remove();
+  });
+
+  function attach(): { completed: boolean; cancelled: boolean } {
+    const r = { completed: false, cancelled: false };
+    attachHoldGesture(el, {
+      holdMs: 1000,
+      onProgress: () => {},
+      onComplete: () => {
+        r.completed = true;
+      },
+      onCancel: () => {
+        r.cancelled = true;
+      },
+    });
+    return r;
+  }
+
+  const down = () =>
+    el.dispatchEvent(new PointerEvent("pointerdown", { isPrimary: true }));
+  const up = () => el.dispatchEvent(new PointerEvent("pointerup"));
+
+  it("rides through a dropped touch and still completes on time", () => {
+    // The digitizer reports a release the finger never made, then the
+    // contact returns: the hold must continue, not restart or die.
+    const r = attach();
+    down();
+    vi.advanceTimersByTime(400);
+    up();
+    vi.advanceTimersByTime(100);
+    down();
+    expect(r.cancelled).toBe(false);
+    // 600 ms of hold remained when the touch vanished, plus the 100 ms gap.
+    vi.advanceTimersByTime(590);
+    expect(r.completed).toBe(false);
+    vi.advanceTimersByTime(20);
+    expect(r.completed).toBe(true);
+  });
+
+  it("cancels when the touch does not come back", () => {
+    const r = attach();
+    down();
+    vi.advanceTimersByTime(400);
+    up();
+    vi.advanceTimersByTime(249);
+    expect(r.cancelled).toBe(false);
+    vi.advanceTimersByTime(2);
+    expect(r.cancelled).toBe(true);
+    expect(r.completed).toBe(false);
+  });
+
+  it("never completes a hold abandoned mid-grace", () => {
+    // The completion timer stops while paused, so a release just before the
+    // duration elapses cannot fire the guarded action.
+    const r = attach();
+    down();
+    vi.advanceTimersByTime(950);
+    up();
+    vi.advanceTimersByTime(300);
+    expect(r.completed).toBe(false);
+    expect(r.cancelled).toBe(true);
   });
 });
