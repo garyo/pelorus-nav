@@ -54,7 +54,18 @@ export type AnchorZone = "ok" | "warn" | "outside" | "gray";
  */
 export type AnchorGpsState = "ok" | "poor" | "stale" | "lost" | "waiting";
 
-export type AnchorAlarmKind = "drag" | "gps-loss";
+export type AnchorAlarmKind = "drag" | "gps-loss" | "watch-failure";
+
+/**
+ * Why a watch-failure alarm fired. "nothing-watching": the JS watch went
+ * silent and the native detector never had a GNSS fix this watch — nobody is
+ * watching the boat. "device-battery": the watching device's battery is low
+ * and not charging. Both are detected natively only (they matter precisely
+ * when the app may be asleep); JS adopts them via {@link
+ * AnchorWatchManager.noteNativeAlarm} and is told when they end via
+ * {@link AnchorWatchManager.noteNativeAlarmCleared}.
+ */
+export type WatchFailureReason = "nothing-watching" | "device-battery";
 
 export interface AnchorWatchConfig {
   /** Continuous seconds outside the radius before the drag alarm fires. */
@@ -81,9 +92,12 @@ export interface AnchorWatchSnapshot {
   /** Effective warning-ring radius (inset clamped for small circles). */
   warnRingM: number;
   zone: AnchorZone;
-  /** An alarm is currently sounding (drag or GPS-loss). */
+  /** An alarm is currently sounding (drag, GPS-loss, or watch-failure). */
   alarming: boolean;
+  /** The most urgent active alarm: drag > gps-loss > watch-failure. */
   alarmKind: AnchorAlarmKind | null;
+  /** Why the watch-failure alarm is up; null unless one is active. */
+  watchFailureReason: WatchFailureReason | null;
   /** An alarm was silenced by the user and its trigger still holds. */
   acknowledged: boolean;
   /**
@@ -119,6 +133,12 @@ export interface AnchorWatchManagerDeps {
    * (a plain `new CobAlarm()` works until those land).
    */
   gpsLossAlarm: Pick<CobAlarm, "start" | "stop" | "setMuted">;
+  /**
+   * Watch-failure meta-alarm — gentler chirps meaning "the watch itself is
+   * compromised, check it". Only ever started by {@link noteNativeAlarm}:
+   * its triggers are native-only.
+   */
+  watchFailureAlarm: Pick<CobAlarm, "start" | "stop" | "setMuted">;
   config?: Partial<AnchorWatchConfig>;
   /** Clock override for tests. */
   now?: () => number;
@@ -152,6 +172,14 @@ interface ArmedState {
   distanceAtAckM: number;
   gpsLossAlarming: boolean;
   gpsLossAcknowledged: boolean;
+  /**
+   * Watch-failure meta-alarm, adopted from the native side; JS never raises
+   * or clears it on its own evidence — see noteNativeAlarm/-Cleared.
+   */
+  watchFailureAlarming: boolean;
+  /** Watch-failure silenced by the user while the condition still holds. */
+  watchFailureAcknowledged: boolean;
+  watchFailureReason: WatchFailureReason | null;
   /** A fix has arrived since arming/restore — see AnchorGpsState.waiting. */
   hadFix: boolean;
   /** Wall-clock ms when staleness was first observed by the poll. */
@@ -206,6 +234,9 @@ export class AnchorWatchManager {
       distanceAtAckM: 0,
       gpsLossAlarming: false,
       gpsLossAcknowledged: false,
+      watchFailureAlarming: false,
+      watchFailureAcknowledged: false,
+      watchFailureReason: null,
       hadFix: !this.deps.navManager.isFixStale(),
       staleSinceMs: null,
       lastPersistMs: this.now(),
@@ -271,6 +302,12 @@ export class AnchorWatchManager {
       armed.gpsLossAcknowledged = true;
       changed = true;
     }
+    if (armed.watchFailureAlarming) {
+      this.deps.watchFailureAlarm.stop();
+      armed.watchFailureAlarming = false;
+      armed.watchFailureAcknowledged = true;
+      changed = true;
+    }
     if (!changed) return;
     this.persist(armed);
     this.notify();
@@ -284,15 +321,17 @@ export class AnchorWatchManager {
    * WebView resumes. From here the alarm behaves exactly like a
    * JS-detected one — including clearing itself the moment its trigger
    * stops holding, so a boat already back inside the radius, or a GPS that
-   * has since recovered, does not keep ringing.
+   * has since recovered, does not keep ringing. Watch-failure alarms are the
+   * exception: JS cannot observe their triggers, so they clear only via
+   * {@link noteNativeAlarmCleared}, an acknowledgment, or disarm.
    */
-  noteNativeAlarm(kind: AnchorAlarmKind): void {
+  noteNativeAlarm(kind: AnchorAlarmKind, reason?: WatchFailureReason): void {
     const armed = this.armed;
     if (!armed) return;
     if (kind === "drag") {
       if (armed.dragAlarming) return;
       this.startDragAlarm(armed);
-    } else {
+    } else if (kind === "gps-loss") {
       if (armed.gpsLossAlarming) return;
       // Native only alarms on loss after a fix, so the watch is proven —
       // adopting that keeps the state out of "waiting" while alarming.
@@ -302,7 +341,38 @@ export class AnchorWatchManager {
       if (armed.staleSinceMs === null) armed.staleSinceMs = this.now();
       this.deps.gpsLossAlarm.start(armed.muted);
       this.persist(armed);
+    } else {
+      // Watch-failure: unlike the two above, JS has no evidence of its own
+      // to clear it against — it ends via noteNativeAlarmCleared, an
+      // acknowledgment, or disarm. A repeat raise after an acknowledgment
+      // is a genuine native re-fire (the condition recurred, or the battery
+      // fell to critical) and starts the alarm again.
+      if (reason) armed.watchFailureReason = reason;
+      if (armed.watchFailureAlarming) {
+        this.notify();
+        return;
+      }
+      armed.watchFailureAlarming = true;
+      armed.watchFailureAcknowledged = false;
+      this.deps.watchFailureAlarm.start(armed.muted);
     }
+    this.notify();
+  }
+
+  /**
+   * The native side reports a watch-failure condition ended on its own — a
+   * GNSS fix arrived, the JS keepalive resumed, or the charger went in. Only
+   * this kind needs the event: drag and GPS-loss clear against evidence JS
+   * can see for itself (position, staleness), watch-failure cannot.
+   */
+  noteNativeAlarmCleared(kind: AnchorAlarmKind): void {
+    const armed = this.armed;
+    if (!armed || kind !== "watch-failure") return;
+    if (!armed.watchFailureAlarming && !armed.watchFailureAcknowledged) return;
+    if (armed.watchFailureAlarming) this.deps.watchFailureAlarm.stop();
+    armed.watchFailureAlarming = false;
+    armed.watchFailureAcknowledged = false;
+    armed.watchFailureReason = null;
     this.notify();
   }
 
@@ -313,6 +383,7 @@ export class AnchorWatchManager {
     armed.muted = muted;
     this.deps.alarm.setMuted(muted);
     this.deps.gpsLossAlarm.setMuted(muted);
+    this.deps.watchFailureAlarm.setMuted(muted);
     this.persist(armed);
     this.notify();
   }
@@ -344,11 +415,15 @@ export class AnchorWatchManager {
           : distanceM > warnRingM
             ? "warn"
             : "ok";
+    // Display priority when several are up: a boat outside its circle beats
+    // a lost fix beats a compromised watch.
     const alarmKind: AnchorAlarmKind | null = armed.dragAlarming
       ? "drag"
       : armed.gpsLossAlarming
         ? "gps-loss"
-        : null;
+        : armed.watchFailureAlarming
+          ? "watch-failure"
+          : null;
     // Counted against the wall clock, not the last fix: at anchor the
     // adaptive rate can stretch fixes to tens of seconds apart, and a
     // countdown that only moves on arrival reads as frozen. The alarm
@@ -378,7 +453,13 @@ export class AnchorWatchManager {
       zone,
       alarming: alarmKind !== null,
       alarmKind,
-      acknowledged: armed.dragAcknowledged || armed.gpsLossAcknowledged,
+      watchFailureReason: armed.watchFailureAlarming
+        ? armed.watchFailureReason
+        : null,
+      acknowledged:
+        armed.dragAcknowledged ||
+        armed.gpsLossAcknowledged ||
+        armed.watchFailureAcknowledged,
       alarmInS,
       muted: armed.muted,
       distanceM,
@@ -410,6 +491,9 @@ export class AnchorWatchManager {
       distanceAtAckM: 0,
       gpsLossAlarming: false,
       gpsLossAcknowledged: false,
+      watchFailureAlarming: false,
+      watchFailureAcknowledged: false,
+      watchFailureReason: null,
       hadFix: !this.deps.navManager.isFixStale(),
       staleSinceMs: null,
       lastPersistMs: this.now(),
@@ -590,8 +674,10 @@ export class AnchorWatchManager {
   private stopAlarms(armed: ArmedState): void {
     if (armed.dragAlarming) this.deps.alarm.stop();
     if (armed.gpsLossAlarming) this.deps.gpsLossAlarm.stop();
+    if (armed.watchFailureAlarming) this.deps.watchFailureAlarm.stop();
     armed.dragAlarming = false;
     armed.gpsLossAlarming = false;
+    armed.watchFailureAlarming = false;
   }
 
   private startWatching(): void {

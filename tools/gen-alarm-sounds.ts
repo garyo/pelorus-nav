@@ -3,7 +3,7 @@
  * service.
  *
  * Usage: bun tools/gen-alarm-sounds.ts
- * Output: android/app/src/main/res/raw/anchor_alarm_{drag,gps_loss}.wav
+ * Output: android/app/src/main/res/raw/anchor_alarm_{drag,gps_loss,watch_failure}.wav
  *
  * WHY THESE EXIST
  * The service used to sound the device's *default* alarm ringtone, which on a
@@ -16,10 +16,14 @@
  * Web Audio, from the same constants (src/anchor/anchor-alarm-tones.ts — this
  * script imports them rather than repeating them, so the two cannot drift):
  *
- *   drag      880 Hz then 660 Hz, 400 ms each, in a 1200 ms period
- *             (400 ms of silence closes it) — the urgent two-tone siren.
- *   gps-loss  520 Hz held for 800 ms in a 2000 ms period — one steady tone on
- *             a slower beat, so a lost fix never sounds like a dragging anchor.
+ *   drag           880 Hz then 660 Hz, 400 ms each, in a 1200 ms period
+ *                  (400 ms of silence closes it) — the urgent two-tone siren.
+ *   gps-loss       520 Hz held for 800 ms in a 2000 ms period — one steady tone
+ *                  on a slower beat, so a lost fix never sounds like a dragging
+ *                  anchor.
+ *   watch-failure  three 150 ms chirps at 660 Hz, 120 ms apart, in a 3000 ms
+ *                  period — the "check the watch" meta-alarm: waking, but
+ *                  gentler than either emergency above.
  *
  * Because each file is exactly one period long, MediaPlayer.isLooping
  * reproduces the Web Audio cadence with no scheduling of our own.
@@ -42,6 +46,7 @@ import { readFileSync, writeFileSync } from "node:fs";
 import {
   ANCHOR_DRAG_ALARM_TONE,
   ANCHOR_GPS_LOSS_ALARM_TONE,
+  ANCHOR_WATCH_FAILURE_ALARM_TONE,
 } from "../src/anchor/anchor-alarm-tones";
 import type { CobAlarmOptions } from "../src/cob/CobAlarm";
 
@@ -88,9 +93,11 @@ function renderBeat(tone: Required<CobAlarmOptions>): Float64Array {
   const total = Math.round((SAMPLE_RATE * tone.beatIntervalMs) / 1000);
   const out = new Float64Array(total);
   const toneSec = tone.toneMs / 1000;
+  // Tones start every toneMs + toneGapMs — the same stride CobAlarm schedules.
+  const strideSec = (tone.toneMs + tone.toneGapMs) / 1000;
   tone.toneHz.forEach((freqHz, index) => {
     const sampler = squareSampler(freqHz);
-    const start = Math.round(index * toneSec * SAMPLE_RATE);
+    const start = Math.round(index * strideSec * SAMPLE_RATE);
     const length = Math.round(toneSec * SAMPLE_RATE);
     for (let i = 0; i < length && start + i < total; i++) {
       const t = i / SAMPLE_RATE;
@@ -162,10 +169,12 @@ function selfCheck(path: string, tone: Required<CobAlarmOptions>): void {
   const sampleAt = (frame: number) => buf.readInt16LE(44 + frame * 2) / 32767;
   tone.toneHz.forEach((freqHz, index) => {
     const mid = Math.round(
-      ((index * tone.toneMs + tone.toneMs / 2) / 1000) * rate,
+      ((index * (tone.toneMs + tone.toneGapMs) + tone.toneMs / 2) / 1000) *
+        rate,
     );
-    const window = Math.round(0.1 * rate);
-    const from = mid - window / 2;
+    // Never wider than the tone itself — short chirps get a shorter probe.
+    const window = Math.round(Math.min(0.1, (tone.toneMs / 1000) * 0.6) * rate);
+    const from = Math.round(mid - window / 2);
     const power = (probeHz: number) => {
       let re = 0;
       let im = 0;
@@ -191,6 +200,7 @@ function selfCheck(path: string, tone: Required<CobAlarmOptions>): void {
 for (const [name, tone] of [
   ["anchor_alarm_drag", ANCHOR_DRAG_ALARM_TONE],
   ["anchor_alarm_gps_loss", ANCHOR_GPS_LOSS_ALARM_TONE],
+  ["anchor_alarm_watch_failure", ANCHOR_WATCH_FAILURE_ALARM_TONE],
 ] as const) {
   const path = `${OUT_DIR}/${name}.wav`;
   writeFileSync(path, encodeWav(renderBeat(tone)));

@@ -40,6 +40,7 @@ function snapshot(
     zone: "ok",
     alarming: false,
     alarmKind: null,
+    watchFailureReason: null,
     acknowledged: false,
     alarmInS: null,
     muted: false,
@@ -86,6 +87,7 @@ function makeHarness() {
     },
     getState: () => state,
     noteNativeAlarm: vi.fn(),
+    noteNativeAlarmCleared: vi.fn(),
     acknowledge: vi.fn(),
   };
   let emitFix: (fix: NavigationData) => void = () => {};
@@ -115,13 +117,24 @@ function makeHarness() {
       state = snap;
     },
     emitFix: () => emitFix({} as NavigationData),
-    fireAlarm(kind: "drag" | "gps-loss") {
+    fireAlarm(
+      kind: "drag" | "gps-loss" | "watch-failure",
+      reason?: "nothing-watching" | "device-battery",
+    ) {
       const handler = listenerFor("anchorAlarm") as (d: {
-        kind: "drag" | "gps-loss";
+        kind: "drag" | "gps-loss" | "watch-failure";
         distanceM: number;
         at: number;
+        reason?: "nothing-watching" | "device-battery";
       }) => void;
-      handler({ kind, distanceM: 61, at: 1000 });
+      handler({ kind, distanceM: 61, at: 1000, reason });
+    },
+    /** A watch-failure condition ended on its own, as a retained event. */
+    fireAlarmCleared(kind: "drag" | "gps-loss" | "watch-failure") {
+      const handler = listenerFor("anchorAlarmCleared") as (d: {
+        kind: "drag" | "gps-loss" | "watch-failure";
+      }) => void;
+      handler({ kind });
     },
     /** The notification's Silence action, arriving as a retained event. */
     fireAcknowledged() {
@@ -204,7 +217,34 @@ describe("connectNativeAnchorWatch", () => {
     const h = makeHarness();
     connect(h);
     h.fireAlarm("gps-loss");
-    expect(h.manager.noteNativeAlarm).toHaveBeenCalledWith("gps-loss");
+    expect(h.manager.noteNativeAlarm).toHaveBeenCalledWith(
+      "gps-loss",
+      undefined,
+    );
+  });
+
+  it("passes a watch-failure alarm through with its reason", () => {
+    const h = makeHarness();
+    connect(h);
+    h.fireAlarm("watch-failure", "nothing-watching");
+    expect(h.manager.noteNativeAlarm).toHaveBeenCalledWith(
+      "watch-failure",
+      "nothing-watching",
+    );
+    h.fireAlarm("watch-failure", "device-battery");
+    expect(h.manager.noteNativeAlarm).toHaveBeenLastCalledWith(
+      "watch-failure",
+      "device-battery",
+    );
+  });
+
+  it("forwards a native cleared event into the manager", () => {
+    const h = makeHarness();
+    connect(h);
+    h.fireAlarmCleared("watch-failure");
+    expect(h.manager.noteNativeAlarmCleared).toHaveBeenCalledWith(
+      "watch-failure",
+    );
   });
 
   it("survives a native shell without the anchor methods", async () => {

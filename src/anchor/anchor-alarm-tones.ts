@@ -1,5 +1,5 @@
 /**
- * What the two anchor alarms sound like — the single source of truth for both
+ * What the anchor alarms sound like — the single source of truth for both
  * players.
  *
  * On web {@link CobAlarm} synthesizes these with Web Audio; on Android the
@@ -24,4 +24,22 @@ export const ANCHOR_GPS_LOSS_ALARM_TONE: Required<CobAlarmOptions> = {
   ...COB_ALARM_DEFAULTS,
   toneHz: [520, 520],
   beatIntervalMs: 2000,
+};
+
+/**
+ * Watch failure: the anchor watch itself is compromised — nothing is watching,
+ * or the watching device's battery is dying. Three short 660 Hz chirps, then a
+ * long pause: quieter-but-waking, clearly different from both the drag siren
+ * (no two-tone sweep, mostly silence) and the GPS-loss drone (chirps, not a
+ * held tone). It says "get up and check", not "emergency" — the native player
+ * also floors its volume lower for this kind (ANCHOR_WATCH_FAILURE_VOLUME_FLOOR
+ * in AnchorWatch.kt).
+ */
+export const ANCHOR_WATCH_FAILURE_ALARM_TONE: Required<CobAlarmOptions> = {
+  ...COB_ALARM_DEFAULTS,
+  toneHz: [660, 660, 660],
+  toneMs: 150,
+  toneGapMs: 120,
+  beatIntervalMs: 3000,
+  vibratePattern: [150, 120, 150, 120, 150],
 };

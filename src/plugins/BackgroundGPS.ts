@@ -50,7 +50,7 @@ export interface AnchorWatchNativeStatus {
    */
   gnssAvailable?: boolean;
   /** A native alarm is sounding right now. */
-  alarmKind?: "drag" | "gps-loss";
+  alarmKind?: "drag" | "gps-loss" | "watch-failure";
   /**
    * The ALARM stream's volume as a fraction of its maximum, 0–1. This is the
    * stream the native alarm plays on, so it is the number that decides
@@ -181,7 +181,7 @@ export interface BackgroundGPSPlugin {
   setAnchorAlarmSound(options: {
     sounding: boolean;
     muted: boolean;
-    kind?: "drag" | "gps-loss";
+    kind?: "drag" | "gps-loss" | "watch-failure";
   }): Promise<{ serviceRunning: boolean }>;
 
   /**
@@ -275,9 +275,29 @@ export interface BackgroundGPSPlugin {
   addListener(
     eventName: "anchorAlarm",
     listenerFunc: (data: {
-      kind: "drag" | "gps-loss";
+      kind: "drag" | "gps-loss" | "watch-failure";
       distanceM: number;
       at: number;
+      /**
+       * Watch-failure only: what to check. "nothing-watching" — the JS watch
+       * went silent and the native detector never had a GNSS fix this watch;
+       * "device-battery" — the watching device's battery is low, uncharged.
+       */
+      reason?: "nothing-watching" | "device-battery";
+    }) => void,
+  ): Promise<PluginListenerHandle>;
+
+  /**
+   * Fired when a native watch-failure alarm cleared itself — a GNSS fix
+   * arrived, the JS keepalive resumed, or the charger went in. Watch-failure
+   * only: JS clears drag and GPS-loss against evidence it can see for
+   * itself; these conditions it cannot. Delivered retained, like the raise
+   * it undoes.
+   */
+  addListener(
+    eventName: "anchorAlarmCleared",
+    listenerFunc: (data: {
+      kind: "drag" | "gps-loss" | "watch-failure";
     }) => void,
   ): Promise<PluginListenerHandle>;
 

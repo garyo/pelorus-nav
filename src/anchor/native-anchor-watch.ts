@@ -40,6 +40,7 @@ import {
   type AnchorWatchSnapshot,
   DEFAULT_ALARM_DELAY_S,
   DEFAULT_GPS_LOSS_ALARM_S,
+  type WatchFailureReason,
 } from "./AnchorWatchManager";
 
 /**
@@ -77,7 +78,13 @@ export interface NativeAnchorPlugin {
       kind: AnchorAlarmKind;
       distanceM: number;
       at: number;
+      /** Watch-failure only: which failure to check. */
+      reason?: WatchFailureReason;
     }) => void,
+  ): Promise<unknown>;
+  addListener(
+    eventName: "anchorAlarmCleared",
+    listenerFunc: (data: { kind: AnchorAlarmKind }) => void,
   ): Promise<unknown>;
   addListener(
     eventName: "anchorAcknowledged",
@@ -88,7 +95,11 @@ export interface NativeAnchorPlugin {
 /** The manager surface this module needs; keeps the unit tests light. */
 export type NativeAnchorManager = Pick<
   AnchorWatchManager,
-  "subscribe" | "noteNativeAlarm" | "getState" | "acknowledge"
+  | "subscribe"
+  | "noteNativeAlarm"
+  | "noteNativeAlarmCleared"
+  | "getState"
+  | "acknowledge"
 >;
 
 /** Handle returned by {@link connectNativeAnchorWatch}. */
@@ -233,7 +244,18 @@ export function connectNativeAnchorWatch(
   });
 
   plugin
-    .addListener("anchorAlarm", (data) => manager.noteNativeAlarm(data.kind))
+    .addListener("anchorAlarm", (data) =>
+      manager.noteNativeAlarm(data.kind, data.reason),
+    )
+    .catch(ignore);
+
+  // Watch-failure only in practice: those conditions (fix arrived, keepalive
+  // resumed, charger plugged in) are invisible to JS, so their end has to be
+  // reported the way their start was. Retained like the raise it undoes.
+  plugin
+    .addListener("anchorAlarmCleared", (data) =>
+      manager.noteNativeAlarmCleared(data.kind),
+    )
     .catch(ignore);
 
   // The notification's Silence action acknowledged natively; without this the

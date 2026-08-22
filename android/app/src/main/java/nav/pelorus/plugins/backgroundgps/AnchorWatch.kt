@@ -11,6 +11,22 @@ import kotlin.math.sqrt
 const val ANCHOR_ALARM_DRAG = "drag"
 const val ANCHOR_ALARM_GPS_LOSS = "gps-loss"
 
+/**
+ * The meta-alarm: not "the boat moved" or "the fix is gone", but "the anchor
+ * watch itself is compromised — check it". Raised only by the native side
+ * (its triggers matter precisely when the app may be asleep) and carries a
+ * reason so the user knows what to check.
+ */
+const val ANCHOR_ALARM_WATCH_FAILURE = "watch-failure"
+
+/**
+ * Watch-failure reasons, matching WatchFailureReason in
+ * src/anchor/AnchorWatchManager.ts; travel in the retained `anchorAlarm`
+ * event and the alarm notification.
+ */
+const val ANCHOR_WATCH_FAILURE_NOTHING_WATCHING = "nothing-watching"
+const val ANCHOR_WATCH_FAILURE_DEVICE_BATTERY = "device-battery"
+
 /** Earth radius used by haversineDistanceNM in src/utils/coordinates.ts. */
 private const val EARTH_RADIUS_M = 3440.065 * 1852.0
 
@@ -162,28 +178,57 @@ fun alarmVolumeFraction(current: Int, max: Int): Double =
 const val ANCHOR_ALARM_VOLUME_FLOOR = 0.9
 
 /**
+ * The watch-failure floor is deliberately lower: it must wake a skipper, but
+ * it says "check the watch", not "emergency". 0.6 of a 15-step stream is
+ * index 9 — loud speech, clearly audible through a cabin at anchor-quiet
+ * night levels, without the near-maximum jolt the drag siren earns. The
+ * never-lower / restore semantics are identical; only the floor differs.
+ */
+const val ANCHOR_WATCH_FAILURE_VOLUME_FLOOR = 0.6
+
+/** The volume floor the given alarm kind is raised to while sounding. */
+fun anchorAlarmVolumeFloor(kind: String): Double =
+    if (kind == ANCHOR_ALARM_WATCH_FAILURE) ANCHOR_WATCH_FAILURE_VOLUME_FLOOR
+    else ANCHOR_ALARM_VOLUME_FLOOR
+
+/**
  * The stream index the alarm should raise the volume to, or -1 to leave it
  * alone. Never lowers: a crew who set the alarm stream above the floor meant
- * it.
+ * it. [floor] is per-kind — see [anchorAlarmVolumeFloor].
  */
-fun anchorAlarmRaiseIndex(current: Int, max: Int): Int {
+fun anchorAlarmRaiseIndex(
+    current: Int,
+    max: Int,
+    floor: Double = ANCHOR_ALARM_VOLUME_FLOOR,
+): Int {
     if (max <= 0) return -1
-    val target = ceil(max * ANCHOR_ALARM_VOLUME_FLOOR).toInt().coerceIn(1, max)
+    val target = ceil(max * floor).toInt().coerceIn(1, max)
     return if (current >= target) -1 else target
+}
+
+/**
+ * Urgency order for the alarm sound: a boat outside its circle beats a lost
+ * fix beats a compromised watch. An unrecognized kind (a newer JS talking to
+ * this service) ranks with GPS loss — wrong-but-alarming beats reassuring.
+ */
+private fun anchorAlarmSoundRank(kind: String): Int = when (kind) {
+    ANCHOR_ALARM_DRAG -> 0
+    ANCHOR_ALARM_GPS_LOSS -> 1
+    ANCHOR_ALARM_WATCH_FAILURE -> 2
+    else -> 1
 }
 
 /**
  * Which alarm tone to play, given what each detector is alarming on — this
  * service's own and the WebView's (pushed through setAnchorAlarmSound). Null
- * when neither wants noise.
- *
- * Drag wins when both are up: a boat outside its circle is the more urgent
- * fact, and a GPS-loss alarm that is also a drag alarm is a drag alarm.
+ * when neither wants noise; the more urgent kind wins when both are up
+ * (drag > gps-loss > watch-failure), the native side on a tie.
  */
 fun anchorAlarmSoundKind(nativeKind: String?, jsKind: String?): String? = when {
-    nativeKind == ANCHOR_ALARM_DRAG || jsKind == ANCHOR_ALARM_DRAG -> ANCHOR_ALARM_DRAG
-    nativeKind != null -> nativeKind
-    else -> jsKind
+    nativeKind == null -> jsKind
+    jsKind == null -> nativeKind
+    anchorAlarmSoundRank(jsKind) < anchorAlarmSoundRank(nativeKind) -> jsKind
+    else -> nativeKind
 }
 
 /**
@@ -412,6 +457,162 @@ class AnchorWatchDetector(params: AnchorWatchParams) {
         alarmKind = ANCHOR_ALARM_DRAG
         dragAcknowledged = false
         return AnchorTransition.DRAG_ALARM
+    }
+}
+
+/** What a watch-failure monitor's check changed. */
+enum class WatchFailureTransition { NONE, RAISE, CLEAR }
+
+/**
+ * How long the JS keepalive must have been silent before it counts toward
+ * "nothing is watching". Twice [ANCHOR_KEEPALIVE_STALE_MS]: staleness hands
+ * alarm authority to the native detector, which is routine (every screen-off
+ * night does it); this is the stronger claim that the JS watch is well and
+ * truly gone.
+ */
+const val NOTHING_WATCHING_KEEPALIVE_SILENT_MS = 60_000L
+
+/**
+ * How long "nothing is watching" must hold continuously before the meta-alarm
+ * fires. Generous on purpose: arming indoors and walking the phone out to the
+ * boat with the screen off is exactly this state for a few minutes, and the
+ * first GNSS fix on deck ends it — a real dead watch stays in it all night.
+ */
+const val NOTHING_WATCHING_PERSIST_MS = 180_000L
+
+/**
+ * The "nothing is watching" half of the watch-failure meta-alarm.
+ *
+ * The two detectors cover each other almost everywhere: JS watches while it
+ * runs, and the native GNSS detector carries the watch once the WebView
+ * freezes (measured ~90 s after screen-off on a phone). The one uncovered
+ * corner is *both* gone at once — the JS keepalive silent AND this device's
+ * own GNSS never having produced a fix this watch (a phone armed indoors; a
+ * GNSS-less tablet whose Bluetooth GPS died after its JS froze). Then nobody
+ * is watching the boat, no drag or GPS-loss alarm can ever fire, and the only
+ * honest move is to wake the skipper and say so.
+ *
+ * Pure logic, caller-clocked like [AnchorWatchDetector]. Fed by the 5 s
+ * keepalive check while armed and by the Doze-piercing anchor watchdog.
+ * The condition clears (and the state resets) the moment a GNSS fix arrives —
+ * `hadFix` latches, so this alarm can fire at most until the watch is first
+ * proven — or the keepalive resumes. An acknowledgment silences the current
+ * event only: it re-fires only if the condition clears and then recurs, never
+ * periodically while unchanged.
+ */
+class NothingWatchingMonitor {
+
+    /** The meta-alarm is raised and unacknowledged. */
+    var alarming = false
+        private set
+
+    /** Silenced by the user while the condition still holds. */
+    private var acknowledged = false
+
+    /** Elapsed-realtime when the condition was first seen holding, or null. */
+    private var conditionSinceElapsedMs: Long? = null
+
+    fun check(
+        hadFix: Boolean,
+        lastKeepaliveElapsedMs: Long,
+        nowElapsedMs: Long,
+    ): WatchFailureTransition {
+        val jsSilent = lastKeepaliveElapsedMs < 0 ||
+            nowElapsedMs - lastKeepaliveElapsedMs >= NOTHING_WATCHING_KEEPALIVE_SILENT_MS
+        if (hadFix || !jsSilent) {
+            val wasAlarming = alarming
+            alarming = false
+            acknowledged = false
+            conditionSinceElapsedMs = null
+            return if (wasAlarming) WatchFailureTransition.CLEAR else WatchFailureTransition.NONE
+        }
+        val since = conditionSinceElapsedMs
+            ?: nowElapsedMs.also { conditionSinceElapsedMs = it }
+        if (alarming || acknowledged) return WatchFailureTransition.NONE
+        if (nowElapsedMs - since < NOTHING_WATCHING_PERSIST_MS) return WatchFailureTransition.NONE
+        alarming = true
+        return WatchFailureTransition.RAISE
+    }
+
+    /** Silence the current event; returns true when something was silenced. */
+    fun acknowledge(): Boolean {
+        if (!alarming) return false
+        alarming = false
+        acknowledged = true
+        return true
+    }
+}
+
+/**
+ * Battery level at or below which the watch-failure alarm fires while the
+ * device is not charging. 15% is where Android's own low-battery warning
+ * lives, and it leaves a skipper woken at anchor enough charge to actually
+ * go find the cable.
+ */
+const val ANCHOR_BATTERY_LOW_PCT = 15
+
+/**
+ * One further, final re-fire when the battery keeps falling — the last call
+ * before the watch dies with the device. Below Android's default 10%
+ * power-saver kick-in, so this only speaks when the situation is genuinely
+ * terminal.
+ */
+const val ANCHOR_BATTERY_CRITICAL_PCT = 7
+
+/** Level/scale from ACTION_BATTERY_CHANGED as a percent, -1 when unreadable. */
+fun batteryPercent(level: Int, scale: Int): Int =
+    if (level < 0 || scale <= 0) -1 else (level * 100 / scale).coerceIn(0, 100)
+
+/**
+ * The device-battery half of the watch-failure meta-alarm: an anchor watch on
+ * a dying device is a watch about to fail silently, which the competitive
+ * survey found is table stakes for this category.
+ *
+ * Fires once at [ANCHOR_BATTERY_LOW_PCT] while not charging; an
+ * acknowledgment silences it, and it speaks exactly once more if the level
+ * later reaches [ANCHOR_BATTERY_CRITICAL_PCT] still uncharged. Plugging in
+ * clears the state entirely — including the fired-once latches, so a charger
+ * that falls out overnight gets a fresh alarm on the next decline. An
+ * unreadable reading changes nothing.
+ */
+class BatteryWatchMonitor {
+
+    /** The meta-alarm is raised and unacknowledged. */
+    var alarming = false
+        private set
+
+    private var firedLow = false
+    private var firedCritical = false
+
+    fun check(percent: Int, charging: Boolean): WatchFailureTransition {
+        if (percent < 0) return WatchFailureTransition.NONE
+        if (charging) {
+            val wasAlarming = alarming
+            alarming = false
+            firedLow = false
+            firedCritical = false
+            return if (wasAlarming) WatchFailureTransition.CLEAR else WatchFailureTransition.NONE
+        }
+        if (!firedLow && percent <= ANCHOR_BATTERY_LOW_PCT) {
+            firedLow = true
+            // Already critical at first sight: one alarm, not two in a row.
+            if (percent <= ANCHOR_BATTERY_CRITICAL_PCT) firedCritical = true
+            alarming = true
+            return WatchFailureTransition.RAISE
+        }
+        if (firedLow && !firedCritical && percent <= ANCHOR_BATTERY_CRITICAL_PCT) {
+            firedCritical = true
+            alarming = true
+            return WatchFailureTransition.RAISE
+        }
+        return WatchFailureTransition.NONE
+    }
+
+    /** Silence the current event; returns true when something was silenced. */
+    fun acknowledge(): Boolean {
+        if (!alarming) return false
+        alarming = false
+        return true
     }
 }
 

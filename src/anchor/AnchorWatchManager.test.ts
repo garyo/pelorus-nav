@@ -65,6 +65,11 @@ interface Harness {
     stop: ReturnType<typeof vi.fn>;
     setMuted: ReturnType<typeof vi.fn>;
   };
+  watchFailureAlarm: {
+    start: ReturnType<typeof vi.fn>;
+    stop: ReturnType<typeof vi.fn>;
+    setMuted: ReturnType<typeof vi.fn>;
+  };
   /** Broadcast a fix (marks GPS fresh) and advance the clock to its time. */
   emitFix(fix: NavigationData): void;
   /** Advance the injected clock and fake timers together, 1 s steps. */
@@ -81,6 +86,11 @@ function makeHarness(opts?: {
   const subscribers: Array<(d: NavigationData) => void> = [];
   const alarm = { start: vi.fn(), stop: vi.fn(), setMuted: vi.fn() };
   const gpsLossAlarm = { start: vi.fn(), stop: vi.fn(), setMuted: vi.fn() };
+  const watchFailureAlarm = {
+    start: vi.fn(),
+    stop: vi.fn(),
+    setMuted: vi.fn(),
+  };
 
   const deps: AnchorWatchManagerDeps = {
     navManager: {
@@ -94,6 +104,7 @@ function makeHarness(opts?: {
     },
     alarm,
     gpsLossAlarm,
+    watchFailureAlarm,
     now: () => clock.now,
     storage,
   };
@@ -105,6 +116,7 @@ function makeHarness(opts?: {
     nav,
     alarm,
     gpsLossAlarm,
+    watchFailureAlarm,
     emitFix(fix) {
       nav.lastFix = fix;
       nav.stale = false;
@@ -606,6 +618,77 @@ describe("noteNativeAlarm (screen-off reconciliation)", () => {
     h.manager.noteNativeAlarm("drag");
     h.manager.noteNativeAlarm("drag");
     expect(h.alarm.start).toHaveBeenCalledTimes(1);
+  });
+
+  it("adopts a watch-failure alarm and surfaces its reason", () => {
+    const h = makeHarness();
+    armAtAnchor(h);
+    h.manager.noteNativeAlarm("watch-failure", "nothing-watching");
+
+    const s = h.snapshot();
+    expect(s.alarming).toBe(true);
+    expect(s.alarmKind).toBe("watch-failure");
+    expect(s.watchFailureReason).toBe("nothing-watching");
+    expect(h.watchFailureAlarm.start).toHaveBeenCalledWith(false);
+  });
+
+  it("shows the more urgent kind when watch-failure overlaps a drag alarm", () => {
+    const h = makeHarness();
+    armAtAnchor(h);
+    h.manager.noteNativeAlarm("watch-failure", "device-battery");
+    h.manager.noteNativeAlarm("drag");
+    expect(h.snapshot().alarmKind).toBe("drag");
+    // The drag clears; the still-standing meta-alarm takes the banner back.
+    h.emitFix(fixAt(10, T0 + 60_000));
+    expect(h.snapshot().alarmKind).toBe("watch-failure");
+    expect(h.snapshot().watchFailureReason).toBe("device-battery");
+  });
+
+  it("acknowledge silences watch-failure and a native re-fire restarts it", () => {
+    const h = makeHarness();
+    armAtAnchor(h);
+    h.manager.noteNativeAlarm("watch-failure", "device-battery");
+    h.manager.acknowledge();
+    expect(h.watchFailureAlarm.stop).toHaveBeenCalledTimes(1);
+    expect(h.snapshot().alarming).toBe(false);
+    expect(h.snapshot().acknowledged).toBe(true);
+
+    // The battery fell to critical: native raises once more, and the
+    // acknowledgment does not swallow it.
+    h.manager.noteNativeAlarm("watch-failure", "device-battery");
+    expect(h.watchFailureAlarm.start).toHaveBeenCalledTimes(2);
+    expect(h.snapshot().alarmKind).toBe("watch-failure");
+  });
+
+  it("a native cleared event ends the alarm and the acknowledgment", () => {
+    const h = makeHarness();
+    armAtAnchor(h);
+    h.manager.noteNativeAlarm("watch-failure", "nothing-watching");
+    h.manager.noteNativeAlarmCleared("watch-failure");
+    expect(h.watchFailureAlarm.stop).toHaveBeenCalledTimes(1);
+    const s = h.snapshot();
+    expect(s.alarming).toBe(false);
+    expect(s.watchFailureReason).toBeNull();
+    expect(s.acknowledged).toBe(false);
+
+    // Acknowledged-then-cleared: the ack state resets too, so a later
+    // recurrence alarms afresh.
+    h.manager.noteNativeAlarm("watch-failure", "nothing-watching");
+    h.manager.acknowledge();
+    h.manager.noteNativeAlarmCleared("watch-failure");
+    expect(h.snapshot().acknowledged).toBe(false);
+    h.manager.noteNativeAlarm("watch-failure", "nothing-watching");
+    expect(h.snapshot().alarmKind).toBe("watch-failure");
+  });
+
+  it("watch-failure adoption is idempotent and respects mute", () => {
+    const h = makeHarness();
+    armAtAnchor(h);
+    h.manager.setMuted(true);
+    h.manager.noteNativeAlarm("watch-failure", "nothing-watching");
+    h.manager.noteNativeAlarm("watch-failure", "nothing-watching");
+    expect(h.watchFailureAlarm.start).toHaveBeenCalledTimes(1);
+    expect(h.watchFailureAlarm.start).toHaveBeenCalledWith(true);
   });
 });
 

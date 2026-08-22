@@ -17,6 +17,7 @@ import android.location.LocationManager
 import android.media.AudioAttributes
 import android.media.AudioManager
 import android.media.MediaPlayer
+import android.os.BatteryManager
 import android.os.Build
 import android.os.Bundle
 import android.os.Handler
@@ -195,9 +196,23 @@ class BackgroundTrackService : Service() {
         /**
          * Callback for reporting a native anchor alarm to the plugin, which
          * forwards it to JS as a retained event. Fires whether or not the app
-         * is in the foreground — JS needs to reconcile either way.
+         * is in the foreground — JS needs to reconcile either way. `reason` is
+         * non-null only for [ANCHOR_ALARM_WATCH_FAILURE], naming what to check.
          */
-        var anchorAlarmListener: ((kind: String, distanceM: Double, at: Long) -> Unit)? = null
+        var anchorAlarmListener: (
+            (kind: String, distanceM: Double, at: Long, reason: String?) -> Unit
+        )? = null
+
+        /**
+         * Callback for reporting that a native watch-failure alarm cleared
+         * itself — a GNSS fix arrived, the keepalive resumed, or the charger
+         * went in. Watch-failure only: JS cannot observe those conditions the
+         * way it observes position and staleness for drag/gps-loss, so without
+         * this event an adopted watch-failure alarm would ring until
+         * acknowledged even after the condition ended. Retained, like the
+         * raise it undoes.
+         */
+        var anchorAlarmClearedListener: ((kind: String) -> Unit)? = null
 
         /**
          * Callback for reporting a native acknowledge to the plugin, forwarded
@@ -394,6 +409,18 @@ class BackgroundTrackService : Service() {
     private var anchorAlarmAnnounced = false
     /** The suppressed-detection diag line has been written for this excursion. */
     private var anchorSuppressedLogged = false
+    /**
+     * The watch-failure meta-alarm's two monitors; non-null exactly while
+     * armed. Unlike the detector they are never suppressed by JS liveness:
+     * the nothing-watching trigger implies JS is dead, and the battery
+     * trigger has no JS detector to defer to.
+     */
+    @Volatile private var nothingWatchingMonitor: NothingWatchingMonitor? = null
+    @Volatile private var batteryMonitor: BatteryWatchMonitor? = null
+    /** Battery percent at the last armed check, for the alarm text; -1 unknown. */
+    private var lastBatteryPercent = -1
+    /** The alarm kind the alarm notification currently shows; null when none. */
+    private var presentedAlarmKind: String? = null
     /** The alarm sound (tone loop + vibration) is running. */
     private var anchorAlarmSounding = false
     /** The alarm kind the running player's tone belongs to; null when silent. */
@@ -977,6 +1004,8 @@ class BackgroundTrackService : Service() {
         val params = anchorParams
         if (params == null) {
             anchorDetector = null
+            nothingWatchingMonitor = null
+            batteryMonitor = null
             anchorRestoredFromStore = false
             anchorAlarmAnnounced = false
             anchorSuppressedLogged = false
@@ -1003,6 +1032,12 @@ class BackgroundTrackService : Service() {
                 nowElapsedMs = now,
             )
             anchorDetectorSinceElapsedMs = now
+            // Fresh watch, fresh meta-alarm state. A geometry update (the else
+            // branch) keeps both monitors, exactly like the detector keeps its
+            // hysteresis: moving the anchor changes nothing about whether the
+            // watch is being watched or the battery is dying.
+            nothingWatchingMonitor = NothingWatchingMonitor()
+            batteryMonitor = BatteryWatchMonitor()
         } else {
             handleAnchorTransition(existing.updateParams(params, now))
         }
@@ -1141,7 +1176,12 @@ class BackgroundTrackService : Service() {
      * "quiet unless the WebView still wants noise".
      */
     fun acknowledgeAnchorAlarm() {
-        val silenced = anchorDetector?.acknowledge() ?: false
+        var silenced = anchorDetector?.acknowledge() ?: false
+        // The meta-alarm shares acknowledge semantics: quiet now, still
+        // watching. It re-fires only if its condition clears and recurs
+        // (or, for battery, on the one critical-level escalation).
+        if (nothingWatchingMonitor?.acknowledge() == true) silenced = true
+        if (batteryMonitor?.acknowledge() == true) silenced = true
         jsAlarmKind = null
         anchorAlarmAnnounced = false
         anchorSuppressedLogged = false
@@ -1160,15 +1200,60 @@ class BackgroundTrackService : Service() {
      * quieter than the same alarm with the screen off.
      */
     fun syncAnchorAlarmSound() {
-        // The native detector contributes a sound kind only once its alarm is
-        // announced — a detection suppressed because the JS watch is alive
-        // makes no noise of its own. The JS-requested path ([jsAlarmKind]) is
-        // never gated: JS asking for noise is always honored.
-        val nativeKind = if (anchorAlarmAnnounced) anchorDetector?.alarmKind else null
         val kind =
             if (anchorAlarmMuted) null
-            else anchorAlarmSoundKind(nativeKind, jsAlarmKind)
+            else anchorAlarmSoundKind(announcedAlarmKind(), jsAlarmKind)
         if (kind != null) startAnchorAlarmSound(kind) else stopAnchorAlarmSound()
+    }
+
+    /**
+     * The alarm the native side is announcing right now — what the
+     * notification shows and what its half of the sound request carries.
+     *
+     * The detector contributes only once its alarm is announced — a detection
+     * suppressed because the JS watch is alive makes no noise of its own (the
+     * JS-requested path, [jsAlarmKind], is never gated: JS asking for noise is
+     * always honored). The watch-failure meta-alarm is the fallback voice: it
+     * is never suppressed by JS liveness (its nothing-watching trigger implies
+     * JS is dead, and battery has no JS detector to defer to), but a real
+     * detector alarm outranks it.
+     */
+    private fun announcedAlarmKind(): String? =
+        (if (anchorAlarmAnnounced) anchorDetector?.alarmKind else null)
+            ?: if (currentWatchFailureReason() != null) ANCHOR_ALARM_WATCH_FAILURE else null
+
+    /**
+     * Why the watch-failure alarm is up, or null when it isn't. With both
+     * triggers up at once, nothing-watching speaks: a watch nobody is
+     * standing is the more fundamental failure than one running out of
+     * battery.
+     */
+    private fun currentWatchFailureReason(): String? = when {
+        nothingWatchingMonitor?.alarming == true -> ANCHOR_WATCH_FAILURE_NOTHING_WATCHING
+        batteryMonitor?.alarming == true -> ANCHOR_WATCH_FAILURE_DEVICE_BATTERY
+        else -> null
+    }
+
+    /**
+     * Re-derive the alarm notification and sound from the current announced
+     * kind. Every raise and clear of either alarm layer funnels through here,
+     * which is what keeps overlap sane: a drag alarm posted over a sounding
+     * watch-failure replaces its notification, and clearing it falls back to
+     * the watch-failure presentation rather than to silence.
+     */
+    private fun syncAnchorAlarmPresentation() {
+        val kind = announcedAlarmKind()
+        if (kind == null) {
+            // Unconditional: a notification can outlive the process that
+            // posted it, so "nothing announced" must always mean none shown.
+            presentedAlarmKind = null
+            getSystemService(NotificationManager::class.java)
+                ?.cancel(ANCHOR_NOTIFICATION_ID)
+        } else if (kind != presentedAlarmKind) {
+            presentedAlarmKind = kind
+            showAnchorNotification(kind, anchorDetector?.lastDistanceM ?: 0.0)
+        }
+        syncAnchorAlarmSound()
     }
 
     /**
@@ -1250,7 +1335,8 @@ class BackgroundTrackService : Service() {
                 if (detector != null && detector.hadFix) now - detector.lastFixElapsedMs else -1L,
             armedMs = if (detector != null) now - anchorDetectorSinceElapsedMs else -1L,
             wakeLockHeld = anchorWakeLock?.isHeld == true,
-            alarmKind = detector?.alarmKind,
+            alarmKind = detector?.alarmKind
+                ?: currentWatchFailureReason()?.let { ANCHOR_ALARM_WATCH_FAILURE },
             gnssAvailable = anchorGnssAvailable,
         )
     }
@@ -1264,8 +1350,13 @@ class BackgroundTrackService : Service() {
         // fire while JS is only seconds dead — suppressed — with no further
         // fixes coming and, if the CPU is truly asleep, no handler ticks
         // either. The re-arm below wakes us again right when the keepalive
-        // verdict can flip, so the deferred announcement still happens.
+        // verdict can flip, so the deferred announcement still happens. The
+        // watch-failure monitors ride the same backstop: with no fix ever
+        // (`hadFix` false) the GPS-loss deadline is long past, so the re-arm
+        // respins at the minimum delay and keeps the nothing-watching clock
+        // ticking through Doze.
         checkAnchorKeepalive(now)
+        checkWatchFailure(now)
         if (detector.alarmKind == null) {
             armAnchorWatchdog(
                 maxOf(detector.gpsLossDeadlineElapsedMs() - now, ANCHOR_WATCHDOG_MIN_DELAY_MS),
@@ -1337,9 +1428,59 @@ class BackgroundTrackService : Service() {
 
     private val anchorKeepaliveCheckRunnable = object : Runnable {
         override fun run() {
-            checkAnchorKeepalive(SystemClock.elapsedRealtime())
+            val now = SystemClock.elapsedRealtime()
+            checkAnchorKeepalive(now)
+            checkWatchFailure(now)
             mainHandler.postDelayed(this, ANCHOR_KEEPALIVE_CHECK_MS)
         }
+    }
+
+    /**
+     * Run the two watch-failure monitors: from the 5 s keepalive check while
+     * armed, and — mirroring the deferred-announcement re-arm — from the
+     * Doze-piercing anchor watchdog, whose ≥[ANCHOR_WATCHDOG_MIN_DELAY_MS]
+     * respin after a passed GPS-loss deadline is exactly the no-fixes case
+     * the nothing-watching trigger exists for.
+     */
+    private fun checkWatchFailure(nowElapsedMs: Long) {
+        val detector = anchorDetector ?: return
+        nothingWatchingMonitor?.let { monitor ->
+            when (monitor.check(detector.hadFix, lastKeepaliveElapsedMs, nowElapsedMs)) {
+                WatchFailureTransition.RAISE ->
+                    raiseWatchFailureAlarm(ANCHOR_WATCH_FAILURE_NOTHING_WATCHING)
+                WatchFailureTransition.CLEAR ->
+                    clearWatchFailureAlarm(ANCHOR_WATCH_FAILURE_NOTHING_WATCHING)
+                WatchFailureTransition.NONE -> Unit
+            }
+        }
+        batteryMonitor?.let { monitor ->
+            val (percent, charging) = readBattery()
+            if (percent >= 0) lastBatteryPercent = percent
+            when (monitor.check(percent, charging)) {
+                WatchFailureTransition.RAISE ->
+                    raiseWatchFailureAlarm(ANCHOR_WATCH_FAILURE_DEVICE_BATTERY)
+                WatchFailureTransition.CLEAR ->
+                    clearWatchFailureAlarm(ANCHOR_WATCH_FAILURE_DEVICE_BATTERY)
+                WatchFailureTransition.NONE -> Unit
+            }
+        }
+    }
+
+    /**
+     * Percent (or -1) and charging state from the sticky ACTION_BATTERY_CHANGED
+     * broadcast — a cheap synchronous read of the last-broadcast values, no
+     * receiver registration churn in the 5 s loop.
+     */
+    private fun readBattery(): Pair<Int, Boolean> {
+        val intent = try {
+            registerReceiver(null, IntentFilter(Intent.ACTION_BATTERY_CHANGED))
+        } catch (e: Exception) {
+            null
+        } ?: return -1 to false
+        val level = intent.getIntExtra(BatteryManager.EXTRA_LEVEL, -1)
+        val scale = intent.getIntExtra(BatteryManager.EXTRA_SCALE, -1)
+        val plugged = intent.getIntExtra(BatteryManager.EXTRA_PLUGGED, 0)
+        return batteryPercent(level, scale) to (plugged != 0)
     }
 
     /** Runs exactly while armed; idempotent, like the arm path that calls it. */
@@ -1362,21 +1503,52 @@ class BackgroundTrackService : Service() {
                 "acc=${detector?.lastAccuracyM?.toInt()}m muted=$anchorAlarmMuted",
         )
         Log.w(TAG, "Anchor alarm: $kind at ${distanceM.toInt()}m")
-        showAnchorNotification(kind, distanceM)
         // Retained event: JS is usually suspended when this fires and learns
         // about it on resume.
-        anchorAlarmListener?.invoke(kind, distanceM, System.currentTimeMillis())
-        syncAnchorAlarmSound()
+        anchorAlarmListener?.invoke(kind, distanceM, System.currentTimeMillis(), null)
+        syncAnchorAlarmPresentation()
     }
 
     /**
-     * Drop the alarm notification and re-judge the noise — the JS watch may
-     * still be alarming on its own (its detector sees the app's GPS, which can
-     * be a receiver this service never hears from). The watch stays armed.
+     * The watch-failure meta-alarm fired: quieter voice, same machinery. Not
+     * gated on [nativeMayAnnounce] — the nothing-watching trigger holds only
+     * when the keepalive is long stale, and the battery trigger must reach
+     * the user whether or not JS is awake (JS has no detector for it, only
+     * this retained event).
+     */
+    private fun raiseWatchFailureAlarm(reason: String) {
+        DiagLog.log(
+            applicationContext,
+            "anchor",
+            "ALARM watch-failure reason=$reason battery=$lastBatteryPercent% " +
+                "muted=$anchorAlarmMuted",
+        )
+        Log.w(TAG, "Anchor watch-failure alarm: $reason")
+        anchorAlarmListener?.invoke(
+            ANCHOR_ALARM_WATCH_FAILURE,
+            anchorDetector?.lastDistanceM ?: 0.0,
+            System.currentTimeMillis(),
+            reason,
+        )
+        syncAnchorAlarmPresentation()
+    }
+
+    /** A watch-failure condition ended on its own; tell JS (see the listener doc). */
+    private fun clearWatchFailureAlarm(reason: String) {
+        DiagLog.log(applicationContext, "anchor", "watch-failure cleared reason=$reason")
+        anchorAlarmClearedListener?.invoke(ANCHOR_ALARM_WATCH_FAILURE)
+        syncAnchorAlarmPresentation()
+    }
+
+    /**
+     * A detector alarm ended (cleared or acknowledged): re-derive what is
+     * presented — a still-alarming watch-failure takes the notification back,
+     * and the JS watch may still be asking for noise on its own (its detector
+     * sees the app's GPS, which can be a receiver this service never hears
+     * from). The watch stays armed.
      */
     private fun clearAnchorAlarm() {
-        syncAnchorAlarmSound()
-        getSystemService(NotificationManager::class.java)?.cancel(ANCHOR_NOTIFICATION_ID)
+        syncAnchorAlarmPresentation()
     }
 
     /**
@@ -1397,8 +1569,11 @@ class BackgroundTrackService : Service() {
         val wasSounding = anchorAlarmSounding
         anchorAlarmSounding = true
         anchorAlarmSoundingKind = kind
+        // On every start *and* kind change: an escalation from watch-failure
+        // to drag has a higher floor to meet, and raiseAlarmVolume never
+        // lowers, so a de-escalation leaves the level alone.
+        raiseAlarmVolume(kind)
         if (!wasSounding) {
-            raiseAlarmVolume()
             vibrator()?.let { vib ->
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                     vib.vibrate(VibrationEffect.createWaveform(ANCHOR_VIBRATE_PATTERN, 0))
@@ -1445,8 +1620,11 @@ class BackgroundTrackService : Service() {
     }
 
     /** The bundled tone for an alarm kind; drag's siren covers anything else. */
-    private fun anchorAlarmResource(kind: String): Int =
-        if (kind == ANCHOR_ALARM_GPS_LOSS) R.raw.anchor_alarm_gps_loss else R.raw.anchor_alarm_drag
+    private fun anchorAlarmResource(kind: String): Int = when (kind) {
+        ANCHOR_ALARM_GPS_LOSS -> R.raw.anchor_alarm_gps_loss
+        ANCHOR_ALARM_WATCH_FAILURE -> R.raw.anchor_alarm_watch_failure
+        else -> R.raw.anchor_alarm_drag
+    }
 
     private fun releaseAnchorAlarmPlayer() {
         anchorAlarmPlayer?.let {
@@ -1475,21 +1653,25 @@ class BackgroundTrackService : Service() {
     }
 
     /**
-     * Lift the ALARM stream to [ANCHOR_ALARM_VOLUME_FLOOR] for the duration of
-     * the alarm. An anchor alarm the crew cannot hear is the failure this whole
-     * subsystem exists to prevent, and a device left at 2 of 15 has no other
-     * defence — the user is asleep and cannot turn it up. It never lowers the
-     * volume, and [restoreAlarmVolume] puts back what it found.
+     * Lift the ALARM stream to the kind's floor ([anchorAlarmVolumeFloor]:
+     * 0.9 for drag/gps-loss, 0.6 for the gentler watch-failure) for the
+     * duration of the alarm. An anchor alarm the crew cannot hear is the
+     * failure this whole subsystem exists to prevent, and a device left at
+     * 2 of 15 has no other defence — the user is asleep and cannot turn it
+     * up. It never lowers the volume, and [restoreAlarmVolume] puts back
+     * what it found.
      */
-    private fun raiseAlarmVolume() {
+    private fun raiseAlarmVolume(kind: String) {
         val am = getSystemService(AudioManager::class.java) ?: return
         val max = am.getStreamMaxVolume(AudioManager.STREAM_ALARM)
         val current = am.getStreamVolume(AudioManager.STREAM_ALARM)
-        val target = anchorAlarmRaiseIndex(current, max)
+        val target = anchorAlarmRaiseIndex(current, max, anchorAlarmVolumeFloor(kind))
         if (target < 0) return
         try {
             am.setStreamVolume(AudioManager.STREAM_ALARM, target, 0)
-            anchorAlarmPriorVolume = current
+            // A mid-alarm escalation must not overwrite the level the user
+            // actually had: the first raise's baseline is what gets restored.
+            if (anchorAlarmPriorVolume < 0) anchorAlarmPriorVolume = current
             anchorAlarmRaisedVolume = target
             DiagLog.log(applicationContext, "anchor", "alarm volume $current -> $target of $max")
         } catch (e: SecurityException) {
@@ -1542,11 +1724,22 @@ class BackgroundTrackService : Service() {
             Intent(this, BackgroundTrackService::class.java).setAction(ACTION_ANCHOR_SILENCE),
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
-        val title = if (kind == ANCHOR_ALARM_GPS_LOSS) "GPS LOST — anchor watch" else "ANCHOR DRAGGING"
-        val text = if (kind == ANCHOR_ALARM_GPS_LOSS) {
-            "No GPS fix. The anchor watch cannot see the boat."
-        } else {
-            "${distanceM.toInt()} m from the anchor."
+        val title = when (kind) {
+            ANCHOR_ALARM_GPS_LOSS -> "GPS LOST — anchor watch"
+            ANCHOR_ALARM_WATCH_FAILURE -> "ANCHOR WATCH IMPAIRED"
+            else -> "ANCHOR DRAGGING"
+        }
+        val text = when (kind) {
+            ANCHOR_ALARM_GPS_LOSS -> "No GPS fix. The anchor watch cannot see the boat."
+            ANCHOR_ALARM_WATCH_FAILURE ->
+                if (currentWatchFailureReason() == ANCHOR_WATCH_FAILURE_DEVICE_BATTERY) {
+                    "Battery low on this device" +
+                        (if (lastBatteryPercent >= 0) " ($lastBatteryPercent%)" else "") +
+                        " — charge it or the watch may die."
+                } else {
+                    "Nothing is watching the anchor: no GPS fix and the app is asleep."
+                }
+            else -> "${distanceM.toInt()} m from the anchor."
         }
         val notification = Notification.Builder(this, ANCHOR_CHANNEL_ID)
             .setContentTitle(title)
@@ -1608,7 +1801,8 @@ class BackgroundTrackService : Service() {
             "Anchor Alarm",
             NotificationManager.IMPORTANCE_HIGH,
         ).apply {
-            description = "Sounds when the anchor watch detects dragging or loses GPS"
+            description =
+                "Sounds when the anchor watch detects dragging, loses GPS, or is itself impaired"
             setSound(null, null)
             enableVibration(false)
             enableLights(true)

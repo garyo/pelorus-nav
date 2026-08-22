@@ -45,16 +45,24 @@ class BackgroundGPSPlugin : Plugin() {
         // alarm must reach JS whatever the tracking/power state is.
         // retainUntilConsumed — the alarm fires precisely when the WebView is
         // suspended, so JS learns about it when it resumes.
-        BackgroundTrackService.anchorAlarmListener = { kind, distanceM, at ->
+        BackgroundTrackService.anchorAlarmListener = { kind, distanceM, at, reason ->
             notifyListeners(
                 "anchorAlarm",
                 JSObject().apply {
                     put("kind", kind)
                     put("distanceM", distanceM)
                     put("at", at)
+                    // Watch-failure only: which failure to check.
+                    reason?.let { put("reason", it) }
                 },
                 true,
             )
+        }
+        // A watch-failure condition ended on its own (fix arrived, keepalive
+        // resumed, charger went in) — JS cannot observe any of those for this
+        // kind, so it is told. Retained like the raise it undoes.
+        BackgroundTrackService.anchorAlarmClearedListener = { kind ->
+            notifyListeners("anchorAlarmCleared", JSObject().put("kind", kind), true)
         }
         // The notification's Silence action acknowledged natively; JS has to
         // learn or its UI keeps showing an active alarm. Notification path

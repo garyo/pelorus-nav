@@ -37,6 +37,7 @@ import type { AnchorAlarmKind } from "./AnchorWatchManager";
 import {
   ANCHOR_DRAG_ALARM_TONE,
   ANCHOR_GPS_LOSS_ALARM_TONE,
+  ANCHOR_WATCH_FAILURE_ALARM_TONE,
 } from "./anchor-alarm-tones";
 
 /** The slice of the native plugin the alarm sound needs. */
@@ -78,28 +79,38 @@ export interface AnchorAlarmOptions {
 export function createAnchorAlarms(options: AnchorAlarmOptions = {}): {
   drag: AnchorAlarmSound;
   gpsLoss: AnchorAlarmSound;
+  watchFailure: AnchorAlarmSound;
 } {
   const isNative = options.isNative ?? Capacitor.isNativePlatform();
   if (!isNative) {
     return {
       drag: new CobAlarm(ANCHOR_DRAG_ALARM_TONE),
       gpsLoss: new CobAlarm(ANCHOR_GPS_LOSS_ALARM_TONE),
+      // Never started on web (its triggers are native-only), but the manager
+      // deps are platform-agnostic and the channel must exist.
+      watchFailure: new CobAlarm(ANCHOR_WATCH_FAILURE_ALARM_TONE),
     };
   }
   const sound = new NativeAnchorAlarmSound(options.plugin);
-  return { drag: sound.channel("drag"), gpsLoss: sound.channel("gps-loss") };
+  return {
+    drag: sound.channel("drag"),
+    gpsLoss: sound.channel("gps-loss"),
+    watchFailure: sound.channel("watch-failure"),
+  };
 }
 
 /**
- * Which alarm the one shared player should sound. Drag wins whenever both are
- * up: a boat leaving its circle is the more urgent fact, and the GPS-loss tone
- * is the one that can wait.
+ * Which alarm the one shared player should sound, most urgent first:
+ * drag > gps-loss > watch-failure. A boat leaving its circle is the most
+ * urgent fact there is; the meta-alarm about the watch itself is the one
+ * that can wait longest.
  */
 export function urgentAlarmKind(
   sounding: ReadonlySet<AnchorAlarmKind>,
 ): AnchorAlarmKind | null {
   if (sounding.has("drag")) return "drag";
-  return sounding.has("gps-loss") ? "gps-loss" : null;
+  if (sounding.has("gps-loss")) return "gps-loss";
+  return sounding.has("watch-failure") ? "watch-failure" : null;
 }
 
 /** The service-owned alarm sound, shared by the watch's alarm channels. */

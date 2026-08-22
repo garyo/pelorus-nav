@@ -1168,21 +1168,29 @@ export class AnchorPanel {
       this.alarmEl.classList.remove("open");
       return;
     }
-    const gpsLoss = snap.alarmKind === "gps-loss";
     this.alarmEl.dataset.kind = snap.alarmKind ?? "";
-    this.alarmTitle.textContent = gpsLoss
-      ? "GPS SIGNAL LOST"
-      : "ANCHOR DRAGGING";
-    this.alarmDetail.textContent = gpsLoss
-      ? "No position data — the watch cannot see the boat"
-      : `${
-          snap.distanceM !== null
-            ? formatDistanceNM(
-                snap.distanceM / NM_TO_METERS,
-                getSettings().depthUnit,
-              )
-            : "--"
-        } from anchor — watch radius ${formatLength(snap.radiusM, this.unit())}`;
+    if (snap.alarmKind === "gps-loss") {
+      this.alarmTitle.textContent = "GPS SIGNAL LOST";
+      this.alarmDetail.textContent =
+        "No position data — the watch cannot see the boat";
+    } else if (snap.alarmKind === "watch-failure") {
+      // The meta-alarm: the watch itself is compromised — say what to check.
+      this.alarmTitle.textContent = "ANCHOR WATCH IMPAIRED";
+      this.alarmDetail.textContent =
+        snap.watchFailureReason === "device-battery"
+          ? "Battery low on this device — charge it or the watch may die"
+          : "Nothing is watching the anchor — no GPS fix and the app was asleep";
+    } else {
+      this.alarmTitle.textContent = "ANCHOR DRAGGING";
+      this.alarmDetail.textContent = `${
+        snap.distanceM !== null
+          ? formatDistanceNM(
+              snap.distanceM / NM_TO_METERS,
+              getSettings().depthUnit,
+            )
+          : "--"
+      } from anchor — watch radius ${formatLength(snap.radiusM, this.unit())}`;
+    }
     if (!this.alarmEl.classList.contains("open")) {
       this.alarmEl.classList.add("open");
       this.alarmSurface.opened();

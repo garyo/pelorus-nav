@@ -1265,15 +1265,20 @@ chartManager.map.addControl(cobButton, "bottom-left");
 startCobChartAutoFit(chartManager.map, chartMode, cobManager, navManager);
 
 // --- Anchor watch ---
-// Two alarms so lost GPS never sounds like a drag. On native both are made by
-// the foreground service on the ALARM stream — Web Audio would land on the
-// media stream, which is where anchor alarms go to die.
-const { drag: anchorDragAlarm, gpsLoss: anchorGpsLossAlarm } =
-  createAnchorAlarms();
+// Three alarms so lost GPS never sounds like a drag, and a compromised watch
+// sounds like neither. On native all are made by the foreground service on
+// the ALARM stream — Web Audio would land on the media stream, which is where
+// anchor alarms go to die.
+const {
+  drag: anchorDragAlarm,
+  gpsLoss: anchorGpsLossAlarm,
+  watchFailure: anchorWatchFailureAlarm,
+} = createAnchorAlarms();
 const anchorManager = new AnchorWatchManager({
   navManager,
   alarm: anchorDragAlarm,
   gpsLossAlarm: anchorGpsLossAlarm,
+  watchFailureAlarm: anchorWatchFailureAlarm,
 });
 const anchorLayer = new AnchorLayer(chartManager.map);
 // Entering anchor mode is a map takeover like route editing: clear the
@@ -1292,7 +1297,7 @@ let anchorPanelRef: AnchorPanel | null = null;
 const anchorPanel = new AnchorPanel({
   manager: anchorManager,
   navManager,
-  alarms: [anchorDragAlarm, anchorGpsLossAlarm],
+  alarms: [anchorDragAlarm, anchorGpsLossAlarm, anchorWatchFailureAlarm],
   onExitMode: () => setMode("query"),
   onPreviewChange: () => renderAnchorLayer(),
 });

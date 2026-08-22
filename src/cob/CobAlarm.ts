@@ -10,10 +10,12 @@
 
 /** Cadence and timbre of the siren; every field defaults to the COB alarm. */
 export interface CobAlarmOptions {
-  /** The two tone frequencies (Hz), played in order within each beat. */
-  toneHz?: [number, number];
-  /** Duration of each of the two tones, in milliseconds. */
+  /** The tone frequencies (Hz), played in order within each beat. */
+  toneHz?: number[];
+  /** Duration of each tone, in milliseconds. */
   toneMs?: number;
+  /** Silence between successive tones within a beat, in milliseconds. */
+  toneGapMs?: number;
   /** Gap between the start of successive beats, in milliseconds. */
   beatIntervalMs?: number;
   /** Peak oscillator gain, 0–1. */
@@ -30,6 +32,7 @@ export interface CobAlarmOptions {
 export const COB_ALARM_DEFAULTS: Required<CobAlarmOptions> = {
   toneHz: [880, 660],
   toneMs: 400,
+  toneGapMs: 0,
   beatIntervalMs: 1200,
   gain: 0.4,
   vibratePattern: [400, 200, 400],
@@ -119,7 +122,7 @@ export class CobAlarm {
     for (const cb of this.blockedListeners) cb(blocked);
   }
 
-  /** One cycle of the loop: hi-lo tones + vibration burst. */
+  /** One cycle of the loop: the beat's tone sequence + vibration burst. */
   private beat(): void {
     if (this.muted) return;
     try {
@@ -143,10 +146,11 @@ export class CobAlarm {
     }
     try {
       const t0 = ctx.currentTime;
-      const [hiHz, loHz] = this.opts.toneHz;
       const toneSec = this.opts.toneMs / 1000;
-      this.tone(ctx, hiHz, t0, toneSec);
-      this.tone(ctx, loHz, t0 + toneSec, toneSec);
+      const strideSec = toneSec + this.opts.toneGapMs / 1000;
+      this.opts.toneHz.forEach((freqHz, index) => {
+        this.tone(ctx, freqHz, t0 + index * strideSec, toneSec);
+      });
       this.setBlocked(false);
     } catch {
       // scheduling failed — treat as silent beat
