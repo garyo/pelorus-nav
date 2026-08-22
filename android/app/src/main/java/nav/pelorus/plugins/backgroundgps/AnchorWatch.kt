@@ -655,36 +655,54 @@ const val ANCHOR_EVENT_RECORD_MAX = 6
  */
 data class AnchorAlarmEvent(val kind: String, val reason: String?, val wallMs: Long)
 
-/** Short human label for a recorded alarm. */
-fun anchorAlarmEventLabel(kind: String, reason: String?): String = when (kind) {
-    ANCHOR_ALARM_GPS_LOSS -> "GPS lost"
+/**
+ * Short label for the record title. Both GPS kinds read "GPS signal lost":
+ * to the skipper the distinction between a fix stream that stopped and a
+ * watch that never saw one is diagnostics, not news — the news is that the
+ * watch lost its eyes for a while. Diag logs keep the precise kind.
+ */
+fun anchorAlarmEventTitleLabel(kind: String, reason: String?): String = when (kind) {
     ANCHOR_ALARM_WATCH_FAILURE ->
-        if (reason == ANCHOR_WATCH_FAILURE_DEVICE_BATTERY) "Device battery low"
-        else "Nothing was watching"
-    else -> "Anchor drag detected"
+        if (reason == ANCHOR_WATCH_FAILURE_DEVICE_BATTERY) "device battery low"
+        else "GPS signal lost"
+    ANCHOR_ALARM_GPS_LOSS -> "GPS signal lost"
+    else -> "dragging detected"
+}
+
+/**
+ * One body line's description, true at read time: the record posts only
+ * after the condition ended, and how it ended differs by kind — a GPS-loss
+ * alarm clears only when the fix returns, a nothing-watching clear may
+ * still be fixless, a cleared drag means the boat came back inside.
+ */
+fun anchorAlarmEventLine(kind: String, reason: String?): String = when (kind) {
+    ANCHOR_ALARM_GPS_LOSS -> "lost GPS signal, fix returned"
+    ANCHOR_ALARM_WATCH_FAILURE ->
+        if (reason == ANCHOR_WATCH_FAILURE_DEVICE_BATTERY) "device battery low"
+        else "lost GPS signal, waiting for fix"
+    else -> "dragging detected, back inside the circle"
 }
 
 /** Record-notification title: the latest event, with a count when repeated. */
 fun anchorEventRecordTitle(events: List<AnchorAlarmEvent>): String {
     val latest = events.last()
-    val label = anchorAlarmEventLabel(latest.kind, latest.reason)
-    return if (events.size > 1) "Anchor alarms earlier (${events.size}) — $label"
-    else "Anchor alarm earlier: $label"
+    val label = anchorAlarmEventTitleLabel(latest.kind, latest.reason)
+    return if (events.size > 1) "Anchor alarms (${events.size}): $label"
+    else "Anchor alarm: $label"
 }
 
 /**
  * Record-notification body: one line per event, newest first, then the
- * reassurance that matters — these alarms ended on their own and the watch
- * is still armed. [formatTime] renders a wall-clock ms timestamp, injected
- * so callers use the device locale and tests stay deterministic.
+ * reassurance that matters — the watch is still armed. [formatTime] renders
+ * a wall-clock ms timestamp, injected so callers use the device locale and
+ * tests stay deterministic.
  */
 fun anchorEventRecordText(
     events: List<AnchorAlarmEvent>,
     formatTime: (Long) -> String,
 ): String {
     val lines = events.asReversed().map {
-        "${formatTime(it.wallMs)} · ${anchorAlarmEventLabel(it.kind, it.reason)}"
+        "${formatTime(it.wallMs)} — ${anchorAlarmEventLine(it.kind, it.reason)}"
     }
-    return (lines + "Each cleared on its own; the watch is still armed.")
-        .joinToString("\n")
+    return (lines + "Still armed.").joinToString("\n")
 }
