@@ -193,7 +193,7 @@ export const SCREEN_OFF_COVER_GRACE_MS = 60_000;
 export type ScreenOffCover =
   | { state: "unknown" }
   | { state: "covered" }
-  | { state: "none"; reason: "permission" };
+  | { state: "none"; reason: "permission" | "no-fix" };
 
 /**
  * The one disclosure worth making, because it is the one the user can act
@@ -211,6 +211,8 @@ export const SCREEN_OFF_COVER_TEXT: Record<
 > = {
   permission:
     "Location permission is off — the watch may stop when the screen is off. Turn it on in Settings.",
+  "no-fix":
+    "This device's GPS has no fix — dragging may go undetected once the screen is off. Move where the sky is clear.",
 };
 
 /**
@@ -250,6 +252,17 @@ export function assessScreenOffCover(
     return armedForMs < SCREEN_OFF_COVER_GRACE_MS
       ? { state: "unknown" }
       : { state: "none", reason: "permission" };
+  }
+  // The background watch is the only detector that survives the screen going
+  // off for long: Android throttles and then freezes the WebView about a
+  // minute in (measured — the fix drain's lag climbed to 5 s and then
+  // stopped), so the JS watch cannot be relied on. Until this device's own
+  // GNSS has produced a fix, the watch is awake-only, and the user can act
+  // on that by moving where the sky is clear.
+  if (status.hadFix === false) {
+    return armedForMs < SCREEN_OFF_COVER_GRACE_MS
+      ? { state: "unknown" }
+      : { state: "none", reason: "no-fix" };
   }
   return { state: "covered" };
 }

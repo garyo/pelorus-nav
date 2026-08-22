@@ -250,32 +250,45 @@ describe("connectNativeAnchorWatch", () => {
       expect(screenOffCoverLine(status())).toBeNull();
     });
 
-    it("stays quiet about the redundant watchdog's own state", () => {
-      // Field-proven on a BOOX with no GNSS at all: the JS watch ran through
-      // screen-off and a closed cover, because an armed watch keeps a
-      // foreground service and wake lock that hold the process awake. So no
-      // GNSS chip, no fix yet, and a service still starting all describe the
-      // watchdog, not the watch — reporting them would alarm the user about
-      // something working, with nothing to do about it.
-      const noGnss = status({
-        gnssAvailable: false,
-        hadFix: false,
-        armedMs: 0,
-      });
-      expect(assessScreenOffCover(noGnss, 0)).toEqual({ state: "covered" });
-      expect(screenOffCoverLine(noGnss, 0)).toBeNull();
-
-      const blind = status({
-        hadFix: false,
-        lastFixAgeMs: -1,
-        armedMs: SCREEN_OFF_COVER_GRACE_MS,
-      });
-      expect(screenOffCoverLine(blind)).toBeNull();
-
+    it("stays quiet while the watchdog is merely starting up", () => {
+      // A service still coming up, and a watch still acquiring, are both
+      // transient — reporting them flashed a warning on every arm.
       const starting = status({ serviceRunning: false, armedNatively: false });
+      expect(screenOffCoverLine(starting, 1_000)).toBeNull();
+      const acquiring = status({ hadFix: false, lastFixAgeMs: -1 });
+      expect(screenOffCoverLine(acquiring, 1_000)).toBeNull();
+    });
+
+    it("warns while the background watch has never had a GNSS fix", () => {
+      // Measured on a phone: about a minute after the screen goes off
+      // Android freezes the WebView, so the JS watch stops detecting and the
+      // native watchdog is the only cover. Until it has a fix of its own,
+      // the watch is awake-only — actionable by moving to open sky.
+      const blind = status({ hadFix: false, lastFixAgeMs: -1 });
+      expect(assessScreenOffCover(blind)).toEqual({
+        state: "none",
+        reason: "no-fix",
+      });
+      expect(screenOffCoverLine(blind)).toBe(SCREEN_OFF_COVER_TEXT["no-fix"]);
+    });
+
+    it("says nothing once the background watch has seen the boat", () => {
+      expect(assessScreenOffCover(status({ hadFix: true }))).toEqual({
+        state: "covered",
+      });
+      expect(screenOffCoverLine(status({ hadFix: true }))).toBeNull();
+    });
+
+    it("holds the no-fix warning through the acquisition grace", () => {
+      const acquiring = status({ hadFix: false, lastFixAgeMs: -1 });
+      expect(assessScreenOffCover(acquiring, 1_500)).toEqual({
+        state: "unknown",
+      });
+      expect(screenOffCoverLine(acquiring, 1_500)).toBeNull();
+      // …and speaks up once the grace has passed with still no fix.
       expect(
-        screenOffCoverLine(starting, SCREEN_OFF_COVER_GRACE_MS),
-      ).toBeNull();
+        assessScreenOffCover(acquiring, SCREEN_OFF_COVER_GRACE_MS),
+      ).toEqual({ state: "none", reason: "no-fix" });
     });
 
     it("names a missing permission, the one thing the user can fix", () => {
