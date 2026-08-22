@@ -5672,8 +5672,8 @@ body[data-instrument-layout="side"] .maplibregl-ctrl-top-left {
   color: #ffb74d;
   padding: 2px 0 4px;
 }
-.anchor-arm-btn:disabled {
-  opacity: 0.45;
+.anchor-arm-btn:disabled,
+.anchor-arm-btn.blocked {
   cursor: not-allowed;
 }
 [data-theme="eink"] .anchor-arm-blocked {
@@ -5727,4 +5727,16 @@ body[data-instrument-layout="side"] .maplibregl-ctrl-top-left {
 .anchor-arm-btn,
 .anchor-disarm-btn {
   position: relative;
+}
+
+/* Blocked arm: pressable (so a press can explain itself) but visibly not
+   ready. Dashed border reads on e-ink without relying on the dimming. */
+.anchor-arm-btn.blocked {
+  opacity: 0.5;
+  border-style: dashed;
+}
+[data-theme="eink"] .anchor-arm-btn.blocked {
+  opacity: 1;
+  background: #fff;
+  color: #666;
 }

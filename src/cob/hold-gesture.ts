@@ -6,6 +6,7 @@
  */
 
 import { startPaintTrace, stopPaintTrace } from "../diagnostics/paint-trace";
+import { diag } from "../utils/diag";
 
 export interface HoldTimer {
   /** Fraction complete in [0,1] at time `now`. */
@@ -101,12 +102,19 @@ export function attachHoldGesture(
 
   const finish = (completed: boolean, why = "release"): void => {
     if (!timer) return;
+    const heldMs = Math.round(performance.now() - startedAt);
     timer = null;
     if (graceTimer !== null) {
       clearTimeout(graceTimer);
       graceTimer = null;
     }
     stopPaintTrace(completed ? "done" : why);
+    // Aborted guarded holds are field-diagnosable or they repeat forever:
+    // one diag line names what ended the gesture (a system pointercancel, a
+    // capture loss, a release that outlived the grace) and how far in.
+    if (!completed && heldMs > 300) {
+      diag("hold", `aborted ${why} at ${heldMs}ms of ${opts.holdMs}ms`);
+    }
     stopTicking();
     removeWindowFallback();
     lastReported = -1;

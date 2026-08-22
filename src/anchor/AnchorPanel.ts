@@ -231,6 +231,8 @@ export class AnchorPanel {
   private holdActive = false;
   /** Alarm state that arrived mid-hold, applied once the hold ends. */
   private pendingAlarmSnap: AnchorWatchSnapshot | null | undefined = undefined;
+  /** A watch-state repaint is owed from mid-hold; replayed at hold end. */
+  private pendingWatchSnap = false;
   private armBlockedEl: HTMLDivElement | null = null;
   private readonly el: HTMLDivElement;
   private readonly alarmEl: HTMLDivElement;
@@ -613,8 +615,23 @@ export class AnchorPanel {
           this.renderHoldProgress(armProgress, armCount, frac, ARM_HOLD_MS);
         },
         onComplete: () => {
-          this.renderHoldProgress(armProgress, armCount, 1, ARM_HOLD_MS);
           this.setHoldActive(false);
+          const reason = this.armBlockedReason();
+          if (reason !== null) {
+            // The press must never die silently: name what's missing, big.
+            this.clearHoldProgress(armProgress, armCount);
+            showStatusBanner({
+              id: "anchor-arm-blocked",
+              message: `Not armed — ${reason}`,
+              onDismiss: () => {},
+            });
+            setTimeout(
+              () => hideStatusBanner("anchor-arm-blocked"),
+              NO_FIX_BANNER_MS,
+            );
+            return;
+          }
+          this.renderHoldProgress(armProgress, armCount, 1, ARM_HOLD_MS);
           this.arm();
         },
         onCancel: () => {
@@ -834,6 +851,14 @@ export class AnchorPanel {
   private onWatchChange(snap: AnchorWatchSnapshot | null): void {
     const newlyArmed = snap !== null && this.snap === null;
     this.snap = snap;
+    if (this.holdActive) {
+      // Mid-hold: remember only that a repaint is owed; setHoldActive
+      // replays the latest state when the gesture ends. Repainting now
+      // would refresh the panel under the user's finger (see renderTick).
+      this.pendingWatchSnap = true;
+      this.renderAlarm(snap);
+      return;
+    }
     // A new watch gets a fresh verdict; the last one described a service that
     // may not even have been running.
     if (!snap || newlyArmed) this.advisoryText = null;
@@ -1052,7 +1077,13 @@ export class AnchorPanel {
   private applyArmBlocker(): void {
     const reason = this.armBlockedReason();
     if (this.armBtn) {
-      this.armBtn.disabled = reason !== null;
+      // Never the `disabled` attribute: disabled buttons swallow pointer
+      // events, so a blocked press produced no response whatsoever — which
+      // on e-ink read as a successful arm (field-caught: user believed a
+      // watch was armed, screen off, twenty minutes unprotected). The
+      // button stays pressable; a press while blocked answers loudly
+      // instead of arming (see the arm hold's onComplete).
+      this.armBtn.classList.toggle("blocked", reason !== null);
       this.armBtn.setAttribute("aria-disabled", String(reason !== null));
     }
     if (this.armBlockedEl) {
@@ -1113,6 +1144,11 @@ export class AnchorPanel {
     if (this.holdActive === active) return;
     this.holdActive = active;
     if (active) return;
+    if (this.pendingWatchSnap) {
+      this.pendingWatchSnap = false;
+      this.onWatchChange(this.deps.manager.getState());
+      return;
+    }
     const pending = this.pendingAlarmSnap;
     if (pending !== undefined) {
       this.pendingAlarmSnap = undefined;
@@ -1391,6 +1427,11 @@ export class AnchorPanel {
 
   /** 1 Hz while the panel is visible: time at anchor, arm gate, scope, cover. */
   private renderTick(): void {
+    // Nothing repaints under a finger mid-hold: every DOM write costs an
+    // e-ink refresh, and refreshes make the digitizer drop the contact —
+    // which cancelled disarm holds repeatedly in the field. One or two
+    // skipped ticks of elapsed-time display is free.
+    if (this.holdActive) return;
     const snap = this.snap;
     if (snap) {
       this.elapsedEl.textContent = formatCobElapsed(Date.now() - snap.armedAt);
