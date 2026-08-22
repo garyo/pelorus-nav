@@ -249,25 +249,24 @@ export const SCREEN_OFF_COVER_GRACE_MS = 60_000;
 export type ScreenOffCover =
   | { state: "unknown" }
   | { state: "covered" }
-  | { state: "none"; reason: "permission" | "no-gnss" | "service" | "no-fix" };
+  | { state: "none"; reason: "permission" };
 
 /**
- * The disclosure text for each way the cover can be missing. Terse and
- * factual: the watch still works, just not unattended, and the user has to
- * be able to read that at a glance and decide.
+ * The one disclosure worth making, because it is the one the user can act
+ * on. Everything else the native side can report about itself — no GNSS
+ * chip, no fix, service still starting — describes the redundant watchdog,
+ * not the watch: field testing showed the JS watch running through
+ * screen-off and a closed cover on a device with no GNSS at all, because an
+ * armed watch keeps a foreground service and wake lock that hold the
+ * process awake. Reporting those states would frighten the user about a
+ * watch that is working, with nothing to do about it.
  */
 export const SCREEN_OFF_COVER_TEXT: Record<
   Extract<ScreenOffCover, { state: "none" }>["reason"],
   string
 > = {
   permission:
-    "No screen-off cover: location permission is off. The watch only runs while the app is awake.",
-  "no-gnss":
-    "No screen-off cover: this device has no GPS of its own. The watch only runs while the app is awake.",
-  service:
-    "No screen-off cover: the background watch is not running. The watch only runs while the app is awake.",
-  "no-fix":
-    "No screen-off cover: this device's own GPS has no fix. The watch only runs while the app is awake.",
+    "Location permission is off — the watch may stop when the screen is off. Turn it on in Settings.",
 };
 
 /**
@@ -299,26 +298,16 @@ export function assessScreenOffCover(
   armedForMs: number = Number.POSITIVE_INFINITY,
 ): ScreenOffCover {
   if (!status) return { state: "unknown" };
-  // Decisive on its own, and known immediately: the location-type foreground
-  // service cannot watch anything without it.
-  if (!status.locationPermission)
-    return { state: "none", reason: "permission" };
-  if (!status.serviceRunning || !status.armedNatively) {
+  // The only actionable state: without location permission the foreground
+  // service cannot start, and it is that service — not its GNSS fixes —
+  // that keeps the process awake for the JS watch while the screen is off.
+  // Granting permission is something the user can actually do.
+  if (!status.locationPermission) {
     return armedForMs < SCREEN_OFF_COVER_GRACE_MS
       ? { state: "unknown" }
-      : { state: "none", reason: "service" };
+      : { state: "none", reason: "permission" };
   }
-  // Now that the service is up and holding the watch, this field means what
-  // it says — and it is decisive without waiting: no amount of acquisition
-  // time gives a device a GNSS receiver. The service may be running
-  // perfectly, watching nothing.
-  if (status.gnssAvailable === false)
-    return { state: "none", reason: "no-gnss" };
-  if (status.hadFix) return { state: "covered" };
-  if (status.armedMs >= 0 && status.armedMs < SCREEN_OFF_COVER_GRACE_MS) {
-    return { state: "unknown" };
-  }
-  return { state: "none", reason: "no-fix" };
+  return { state: "covered" };
 }
 
 /** The panel's disclosure line, or null when there is nothing to disclose. */

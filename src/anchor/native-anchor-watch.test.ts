@@ -330,117 +330,50 @@ describe("connectNativeAnchorWatch", () => {
       expect(screenOffCoverLine(status())).toBeNull();
     });
 
-    it("holds its verdict while the watch is still acquiring", () => {
-      const acquiring = status({
-        hadFix: false,
-        lastFixAgeMs: -1,
-        armedMs: 20_000,
-      });
-      expect(assessScreenOffCover(acquiring)).toEqual({ state: "unknown" });
-    });
-
-    it("discloses a watch still blind past the acquisition grace", () => {
-      const blind = status({
-        hadFix: false,
-        lastFixAgeMs: -1,
-        armedMs: SCREEN_OFF_COVER_GRACE_MS,
-      });
-      expect(assessScreenOffCover(blind)).toEqual({
-        state: "none",
-        reason: "no-fix",
-      });
-      expect(screenOffCoverLine(blind)).toBe(SCREEN_OFF_COVER_TEXT["no-fix"]);
-    });
-
-    it("names a missing permission immediately, without waiting out the grace", () => {
-      const denied = status({
-        locationPermission: false,
-        hadFix: false,
-        armedMs: 0,
-      });
-      expect(assessScreenOffCover(denied)).toEqual({
-        state: "none",
-        reason: "permission",
-      });
-    });
-
-    it("reports a watch that is not running natively at all", () => {
-      expect(assessScreenOffCover(status({ serviceRunning: false }))).toEqual({
-        state: "none",
-        reason: "service",
-      });
-      expect(assessScreenOffCover(status({ armedNatively: false }))).toEqual({
-        state: "none",
-        reason: "service",
-      });
-    });
-
-    it("gives the service its grace period before calling it missing", () => {
-      // The regression: the service takes a second or two to start and adopt
-      // the watch, so every arm flashed "the background watch is not running".
-      const starting = status({
-        serviceRunning: false,
-        armedNatively: false,
-        hadFix: false,
-        armedMs: -1,
-      });
-      expect(assessScreenOffCover(starting, 1_500)).toEqual({
-        state: "unknown",
-      });
-      expect(screenOffCoverLine(starting, 1_500)).toBeNull();
-      // Still not up a minute later: that is real, and worth saying.
-      expect(assessScreenOffCover(starting, SCREEN_OFF_COVER_GRACE_MS)).toEqual(
-        { state: "none", reason: "service" },
-      );
-    });
-
-    it("names a missing permission during the grace, not after it", () => {
-      // Decisive, so it is never held back by the service's startup window.
-      expect(
-        assessScreenOffCover(
-          status({ serviceRunning: false, locationPermission: false }),
-          0,
-        ),
-      ).toEqual({ state: "none", reason: "permission" });
-    });
-
-    it("says plainly when the device has no GPS of its own", () => {
-      // The e-ink tablet whose only position source is the app's Bluetooth
-      // receiver: the service runs perfectly and watches nothing. Reported at
-      // once — waiting will not grow the device a GNSS chip.
+    it("stays quiet about the redundant watchdog's own state", () => {
+      // Field-proven on a BOOX with no GNSS at all: the JS watch ran through
+      // screen-off and a closed cover, because an armed watch keeps a
+      // foreground service and wake lock that hold the process awake. So no
+      // GNSS chip, no fix yet, and a service still starting all describe the
+      // watchdog, not the watch — reporting them would alarm the user about
+      // something working, with nothing to do about it.
       const noGnss = status({
         gnssAvailable: false,
         hadFix: false,
         armedMs: 0,
       });
-      expect(assessScreenOffCover(noGnss, 0)).toEqual({
-        state: "none",
-        reason: "no-gnss",
+      expect(assessScreenOffCover(noGnss, 0)).toEqual({ state: "covered" });
+      expect(screenOffCoverLine(noGnss, 0)).toBeNull();
+
+      const blind = status({
+        hadFix: false,
+        lastFixAgeMs: -1,
+        armedMs: SCREEN_OFF_COVER_GRACE_MS,
       });
-      expect(screenOffCoverLine(noGnss, 0)).toBe(
-        SCREEN_OFF_COVER_TEXT["no-gnss"],
-      );
-    });
+      expect(screenOffCoverLine(blind)).toBeNull();
 
-    it("does not read a starting service as a device with no GNSS", () => {
-      // The field is only meaningful once the service holds the watch; before
-      // that it is false simply because nothing has looked yet.
+      const starting = status({ serviceRunning: false, armedNatively: false });
       expect(
-        assessScreenOffCover(
-          status({
-            serviceRunning: false,
-            armedNatively: false,
-            gnssAvailable: false,
-          }),
-          1_000,
-        ),
-      ).toEqual({ state: "unknown" });
+        screenOffCoverLine(starting, SCREEN_OFF_COVER_GRACE_MS),
+      ).toBeNull();
     });
 
-    it("says nothing new on a native shell that cannot report GNSS", () => {
-      // Older APK, no gnssAvailable field: fall back to the fix-based verdicts.
-      const older = status({ gnssAvailable: undefined });
-      expect(assessScreenOffCover(older)).toEqual({ state: "covered" });
+    it("names a missing permission, the one thing the user can fix", () => {
+      // Without it the foreground service cannot start, and it is the service
+      // — not its fixes — that keeps the process awake while the screen is off.
+      const denied = status({ locationPermission: false });
+      expect(assessScreenOffCover(denied)).toEqual({
+        state: "none",
+        reason: "permission",
+      });
+      expect(screenOffCoverLine(denied)).toBe(SCREEN_OFF_COVER_TEXT.permission);
+    });
+
+    it("does not flash the permission warning while arming", () => {
+      // The status is read before the arm-time permission prompt resolves.
+      const denied = status({ locationPermission: false });
+      expect(assessScreenOffCover(denied, 1_500)).toEqual({ state: "unknown" });
+      expect(screenOffCoverLine(denied, 1_500)).toBeNull();
     });
 
     it("reads the status from the plugin, and null on web", async () => {
