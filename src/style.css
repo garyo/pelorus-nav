@@ -5328,10 +5328,10 @@ body.eink-refresh-tick {
   color: #ffcc66;
 }
 
-/* Screen-off cover disclosure: armed, but the device's own GPS is blind, so
-   nothing watches once the app sleeps. The rule and weight carry it in every
+/* Armed-watch disclosures: nothing watches once the app sleeps, or the alarm
+   stream is too quiet to wake anyone. The rule and weight carry them in every
    theme — greyscale e-ink included — and colour only reinforces. */
-.anchor-cover-line {
+.anchor-advisory-line {
   font-size: 12px;
   font-weight: bold;
   color: #ffcc66;
@@ -5472,7 +5472,7 @@ body[data-instrument-layout="side"] .maplibregl-ctrl-top-left {
   color: #c98a84;
 }
 [data-theme="dusk"] .anchor-scope-advisory,
-[data-theme="dusk"] .anchor-cover-line {
+[data-theme="dusk"] .anchor-advisory-line {
   color: #b39b3d;
 }
 
@@ -5504,7 +5504,7 @@ body[data-instrument-layout="side"] .maplibregl-ctrl-top-left {
 [data-theme="night"] .anchor-tide,
 [data-theme="night"] .anchor-tide[data-advice],
 [data-theme="night"] .anchor-scope-advisory,
-[data-theme="night"] .anchor-cover-line {
+[data-theme="night"] .anchor-advisory-line {
   color: #d08080;
 }
 [data-theme="night"] .anchor-arm-btn {
@@ -5555,7 +5555,7 @@ body[data-instrument-layout="side"] .maplibregl-ctrl-top-left {
 [data-theme="eink"] .anchor-tide,
 [data-theme="eink"] .anchor-tide[data-advice],
 [data-theme="eink"] .anchor-scope-advisory,
-[data-theme="eink"] .anchor-cover-line,
+[data-theme="eink"] .anchor-advisory-line,
 [data-theme="eink"] .anchor-audio-blocked {
   color: #000;
 }
@@ -5704,4 +5704,27 @@ body[data-instrument-layout="side"] .maplibregl-ctrl-top-left {
   font-weight: 700;
   border-left: 3px solid #d00000;
   padding-left: 6px;
+}
+
+/* E-ink hold progress: pips instead of a sliding fill, so a hold dirties a
+   few glyphs rather than repainting the whole bar. Pinned to the button's
+   top edge and sized large — a fingertip covers the middle of the button
+   while the hold is in progress, which is exactly when this has to be read. */
+/* Specific enough to beat `.anchor-arm-btn > span:not(.anchor-hold-progress)`,
+   which would otherwise force position:relative and lay the pips out inline,
+   where the button's overflow:hidden clips them away entirely. Pinned to a
+   corner rather than centred so each pip lights in a fixed spot. */
+.anchor-arm-btn > span.anchor-hold-count,
+.anchor-panel-btn > span.anchor-hold-count {
+  position: absolute;
+  top: 2px;
+  right: 8px;
+  font-size: 22px;
+  line-height: 1;
+  letter-spacing: 4px;
+  pointer-events: none;
+}
+.anchor-arm-btn,
+.anchor-disarm-btn {
+  position: relative;
 }

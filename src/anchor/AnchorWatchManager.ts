@@ -349,6 +349,11 @@ export class AnchorWatchManager {
       : armed.gpsLossAlarming
         ? "gps-loss"
         : null;
+    // Counted against the wall clock, not the last fix: at anchor the
+    // adaptive rate can stretch fixes to tens of seconds apart, and a
+    // countdown that only moves on arrival reads as frozen. The alarm
+    // itself still triggers on fix timestamps — this is the display of a
+    // deadline, not the deadline.
     const alarmInS =
       armed.outsideSinceTs !== null &&
       !armed.dragAlarming &&
@@ -359,7 +364,7 @@ export class AnchorWatchManager {
             Math.ceil(
               (armed.outsideSinceTs +
                 this.config.alarmDelayS * 1000 -
-                fix.timestamp) /
+                Math.max(fix.timestamp, this.now())) /
                 1000,
             ),
           )
@@ -622,8 +627,13 @@ export class AnchorWatchManager {
   private signature(
     snap: AnchorWatchSnapshot | null = this.getState(),
   ): string {
+    // alarmInS is in the signature so the 1 s poll pushes the excursion
+    // countdown every second. Without it the countdown only moved when a
+    // fix arrived, and a boat at anchor is exactly when the adaptive rate
+    // stretches that interval — leaving the number visibly stuck while an
+    // alarm was pending.
     return snap
-      ? `${snap.zone}|${snap.gpsState}|${snap.alarmKind}`
+      ? `${snap.zone}|${snap.gpsState}|${snap.alarmKind}|${snap.alarmInS}`
       : "disarmed";
   }
 

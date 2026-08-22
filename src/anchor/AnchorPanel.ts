@@ -79,23 +79,38 @@ import {
 } from "./anchor-setup";
 import { type AnchorRememberedParams, anchorParamsSlot } from "./anchor-state";
 import {
+  armedAdvisoryLine,
   getNativeAnchorStatus,
-  screenOffCoverLine,
 } from "./native-anchor-watch";
 
 /** Arming is deliberate but not an emergency — a short guarded hold. */
-const ARM_HOLD_MS = 600;
-/** Standing the watch down gets COB-grade friction. */
-const DISARM_HOLD_MS = 1500;
+const ARM_HOLD_MS = 1000;
+/**
+ * Standing the watch down gets COB-grade friction, and a little more: at
+ * 2 s the five pips land about 400 ms apart, roughly one e-ink refresh
+ * each, so the indicator can actually be read while it counts down.
+ */
+const DISARM_HOLD_MS = 2000;
 const MIN_RADIUS_M = 5;
+/**
+ * Measured e-ink panel refresh, near enough. One pip per refresh period is
+ * the most feedback the display can actually deliver: fewer wastes the hold,
+ * more asks for refreshes it cannot finish and they smear together.
+ */
+const EINK_REFRESH_MS = 350;
+
+/** Pips for a hold of this length — one per refresh the panel can manage. */
+function holdPips(holdMs: number): number {
+  return Math.min(5, Math.max(2, Math.round(holdMs / EINK_REFRESH_MS)));
+}
 const NO_FIX_BANNER_MS = 8000;
 /**
  * How often the armed view re-asks the native service whether it can actually
- * see the boat. The answer changes on the timescale of a GPS acquisition, so
- * the 1 Hz ticker drives it through a cache rather than calling the plugin
- * every second.
+ * see the boat, and whether the alarm stream can be heard. Both answers change
+ * on the timescale of a GPS acquisition or a volume-key press, so the 1 Hz
+ * ticker drives it through a cache rather than calling the plugin every second.
  */
-const COVER_POLL_MS = 15_000;
+const ADVISORY_POLL_MS = 15_000;
 /** Tide predictions move slowly — recompute at most this often. */
 const TIDE_REFRESH_MS = 5 * 60 * 1000;
 /** Cache-key rounding for the anchor position: ~1 km, far inside a station's reach. */
@@ -180,7 +195,11 @@ export interface AnchorPanelDeps {
     | "unsubscribe"
     | "getQualitySignals"
   >;
-  /** Both alarm instances, for blocked-audio detection and gesture unlock. */
+  /**
+   * Both alarm instances, for blocked-audio detection and gesture unlock.
+   * Native alarms are never blocked — the service makes the noise, not an
+   * AudioContext — so this disclosure is a web-only affair in practice.
+   */
   alarms: Array<
     Pick<CobAlarm, "isBlocked" | "onBlockedChange" | "retryUnlock">
   >;
@@ -200,6 +219,18 @@ const GPS_STATE_TEXT: Record<AnchorWatchSnapshot["gpsState"], string> = {
 
 export class AnchorPanel {
   private armBtn: HTMLButtonElement | null = null;
+  /** Arm button's hold indicator, reset when the view swaps. */
+  private armHold: { fill: HTMLSpanElement; count: HTMLSpanElement } | null =
+    null;
+  /** Disarm buttons' hold indicators (panel and alarm banner). */
+  private disarmHolds: Array<{
+    fill: HTMLSpanElement;
+    count: HTMLSpanElement;
+  }> = [];
+  /** A press-and-hold is running; see setHoldActive. */
+  private holdActive = false;
+  /** Alarm state that arrived mid-hold, applied once the hold ends. */
+  private pendingAlarmSnap: AnchorWatchSnapshot | null | undefined = undefined;
   private armBlockedEl: HTMLDivElement | null = null;
   private readonly el: HTMLDivElement;
   private readonly alarmEl: HTMLDivElement;
@@ -238,9 +269,9 @@ export class AnchorPanel {
   private radiusOverrideM: number | null = null;
   private snap: AnchorWatchSnapshot | null = null;
   /** Cached screen-off-cover disclosure; null = covered, or nothing to say. */
-  private coverText: string | null = null;
-  private coverCheckedAt = 0;
-  private coverPending = false;
+  private advisoryText: string | null = null;
+  private advisoryCheckedAt = 0;
+  private advisoryPending = false;
   private ticker: ReturnType<typeof setInterval> | null = null;
   private detachHolds: Array<() => void> = [];
 
@@ -281,7 +312,7 @@ export class AnchorPanel {
   private brgEl!: HTMLSpanElement;
   private radiusValueEl!: HTMLSpanElement;
   private gpsLineEl!: HTMLDivElement;
-  private coverEl!: HTMLDivElement;
+  private advisoryEl!: HTMLDivElement;
   private countdownEl!: HTMLDivElement;
   /** The scope/tide line, one per view (setup and armed show the same text). */
   private readonly tideEls: HTMLDivElement[] = [];
@@ -342,7 +373,7 @@ export class AnchorPanel {
         this.renderScope();
         // The card may have been closed for hours; don't open on a stale
         // verdict about whether the watch is covered.
-        this.refreshCover(true);
+        this.refreshAdvisory(true);
       } else this.renderSetupLive();
       this.el.classList.add("open");
       this.surface.opened();
@@ -566,22 +597,29 @@ export class AnchorPanel {
     this.armBtn = armBtn;
     const armProgress = document.createElement("span");
     armProgress.className = "anchor-hold-progress";
+    const armCount = document.createElement("span");
+    armCount.className = "anchor-hold-count";
     const armLabel = document.createElement("span");
     armLabel.textContent = "Hold to arm";
-    armBtn.append(armProgress, armLabel);
+    armBtn.append(armProgress, armLabel, armCount);
+    this.armHold = { fill: armProgress, count: armCount };
     this.detachHolds.push(
       attachHoldGesture(armBtn, {
         holdMs: ARM_HOLD_MS,
         stepped: () => getSettings().displayTheme === "eink",
+        steppedSteps: () => Math.max(1, holdPips(ARM_HOLD_MS) - 1),
+        onStart: () => this.setHoldActive(true),
         onProgress: (frac) => {
-          armProgress.style.width = `${frac * 100}%`;
+          this.renderHoldProgress(armProgress, armCount, frac, ARM_HOLD_MS);
         },
         onComplete: () => {
-          armProgress.style.width = "0%";
+          this.renderHoldProgress(armProgress, armCount, 1, ARM_HOLD_MS);
+          this.setHoldActive(false);
           this.arm();
         },
         onCancel: () => {
-          armProgress.style.width = "0%";
+          this.clearHoldProgress(armProgress, armCount);
+          this.setHoldActive(false);
         },
       }),
     );
@@ -656,10 +694,10 @@ export class AnchorPanel {
 
     this.gpsLineEl = document.createElement("div");
     this.gpsLineEl.className = "anchor-gps-line";
-    // Screen-off cover disclosure — see renderCover().
-    this.coverEl = document.createElement("div");
-    this.coverEl.className = "anchor-cover-line";
-    this.coverEl.style.display = "none";
+    // Screen-off cover and alarm-audibility disclosures — see renderAdvisory().
+    this.advisoryEl = document.createElement("div");
+    this.advisoryEl.className = "anchor-advisory-line";
+    this.advisoryEl.style.display = "none";
     this.countdownEl = document.createElement("div");
     this.countdownEl.className = "anchor-countdown";
 
@@ -687,11 +725,54 @@ export class AnchorPanel {
       radiusCell,
       this.countdownEl,
       this.gpsLineEl,
-      this.coverEl,
+      this.advisoryEl,
       tideLine,
       this.audioEl,
       actions,
     );
+  }
+
+  /**
+   * Show hold progress without repainting a wide region.
+   *
+   * The sliding fill changes an element's width, which forces layout and
+   * repaints the whole bar — on e-ink that is a visible flash several times
+   * per hold. There a short row of pips is used instead, filling as the hold
+   * progresses: it dirties a few characters, and unlike a bare numeral it
+   * cannot be misread as a seconds countdown (the steps span the hold, which
+   * is 0.6 s to arm and 1.5 s to disarm).
+   */
+  private renderHoldProgress(
+    fill: HTMLSpanElement,
+    count: HTMLSpanElement,
+    frac: number,
+    holdMs: number,
+  ): void {
+    if (getSettings().displayTheme === "eink") {
+      // The press lights the first pip — waiting for a step to elapse leaves
+      // the button looking dead exactly when the user needs to know it
+      // registered — and the last lights as the action fires, so the pips
+      // span the hold rather than running out early. The gesture is asked
+      // for one fewer step than there are pips to make that line up.
+      const pipCount = holdPips(holdMs);
+      const filled = Math.min(pipCount, 1 + Math.round(frac * (pipCount - 1)));
+      const pips = "●".repeat(filled) + "○".repeat(pipCount - filled);
+      // Only on change: the gesture reports more steps than there are pips,
+      // and a redundant write still dirties the node — which here costs a
+      // whole panel refresh.
+      if (count.textContent !== pips) count.textContent = pips;
+      return;
+    }
+    fill.style.width = `${frac * 100}%`;
+  }
+
+  /** Wipe the hold indicator; the gesture ended, however it ended. */
+  private clearHoldProgress(
+    fill: HTMLSpanElement,
+    count: HTMLSpanElement,
+  ): void {
+    if (count.textContent !== "") count.textContent = "";
+    fill.style.width = "0%";
   }
 
   private buildDisarmButton(label: string): HTMLButtonElement {
@@ -700,9 +781,12 @@ export class AnchorPanel {
     btn.className = "anchor-panel-btn anchor-disarm-btn";
     const progress = document.createElement("span");
     progress.className = "anchor-hold-progress";
+    const count = document.createElement("span");
+    count.className = "anchor-hold-count";
     const text = document.createElement("span");
     text.textContent = label;
-    btn.append(progress, text);
+    btn.append(progress, text, count);
+    this.disarmHolds.push({ fill: progress, count });
     // On the alarm banner a click on this button must not double as the
     // tap-to-acknowledge.
     btn.addEventListener("click", (e) => e.stopPropagation());
@@ -710,15 +794,19 @@ export class AnchorPanel {
       attachHoldGesture(btn, {
         holdMs: DISARM_HOLD_MS,
         stepped: () => getSettings().displayTheme === "eink",
+        steppedSteps: () => Math.max(1, holdPips(DISARM_HOLD_MS) - 1),
+        onStart: () => this.setHoldActive(true),
         onProgress: (frac) => {
-          progress.style.width = `${frac * 100}%`;
+          this.renderHoldProgress(progress, count, frac, DISARM_HOLD_MS);
         },
         onComplete: () => {
-          progress.style.width = "0%";
+          this.renderHoldProgress(progress, count, 1, DISARM_HOLD_MS);
+          this.setHoldActive(false);
           this.deps.manager.disarm();
         },
         onCancel: () => {
-          progress.style.width = "0%";
+          this.clearHoldProgress(progress, count);
+          this.setHoldActive(false);
         },
       }),
     );
@@ -748,15 +836,22 @@ export class AnchorPanel {
     this.snap = snap;
     // A new watch gets a fresh verdict; the last one described a service that
     // may not even have been running.
-    if (!snap || newlyArmed) this.coverText = null;
-    if (newlyArmed) this.refreshCover(true);
-    this.renderCover();
+    if (!snap || newlyArmed) this.advisoryText = null;
+    if (newlyArmed) this.refreshAdvisory(true);
+    this.renderAdvisory();
     this.el.dataset.armed = snap ? "1" : "0";
     if (snap) this.el.dataset.zone = snap.zone;
     else {
       delete this.el.dataset.zone;
       this.elapsedEl.textContent = "";
     }
+    // A completed hold deliberately leaves its pips filled — clear them as
+    // the views swap, or the next view opens showing the last gesture's
+    // finished indicator (all pips lit on "Hold to arm" right after a
+    // disarm).
+    if (this.armHold)
+      this.clearHoldProgress(this.armHold.fill, this.armHold.count);
+    for (const h of this.disarmHolds) this.clearHoldProgress(h.fill, h.count);
     this.setupEl.style.display = snap ? "none" : "";
     this.armedEl.style.display = snap ? "" : "none";
     if (snap) this.renderArmed(snap);
@@ -1006,7 +1101,30 @@ export class AnchorPanel {
     this.renderTick();
   }
 
+  /**
+   * Hold off swapping the card and the alarm banner while a hold is in
+   * progress. They share the bottom-center strip, so showing one hides the
+   * other — and hiding the element under the user's finger drops its pointer
+   * capture, cancelling the hold. With a small radius and jittery GPS the
+   * alarm can clear and re-fire repeatedly, which made disarming take
+   * several attempts. The swap runs as soon as the hold ends.
+   */
+  private setHoldActive(active: boolean): void {
+    if (this.holdActive === active) return;
+    this.holdActive = active;
+    if (active) return;
+    const pending = this.pendingAlarmSnap;
+    if (pending !== undefined) {
+      this.pendingAlarmSnap = undefined;
+      this.renderAlarm(pending);
+    }
+  }
+
   private renderAlarm(snap: AnchorWatchSnapshot | null): void {
+    if (this.holdActive) {
+      this.pendingAlarmSnap = snap;
+      return;
+    }
     // Both surfaces share the bottom-center strip; the card steps aside
     // while the banner is up (style.css hides it via this class).
     this.el.classList.toggle("anchor-alarm-showing", snap?.alarming === true);
@@ -1035,43 +1153,46 @@ export class AnchorPanel {
     }
   }
 
-  // --- Screen-off cover ---
+  // --- Armed disclosures ---
 
   /**
-   * Ask the native watch whether it can actually see the boat. Throttled to
-   * {@link COVER_POLL_MS} and driven off the panel's existing 1 Hz ticker, so
+   * Ask the native watch whether it can actually see the boat, and whether
+   * the alarm stream is loud enough to be heard. Throttled to
+   * {@link ADVISORY_POLL_MS} and driven off the panel's existing 1 Hz ticker, so
    * it costs one bridge call per 15 s of armed panel time and nothing at all
    * on web or while the panel is closed.
    */
-  private refreshCover(force = false): void {
-    if (!this.snap || this.coverPending) return;
+  private refreshAdvisory(force = false): void {
+    if (!this.snap || this.advisoryPending) return;
     const now = Date.now();
-    if (!force && now - this.coverCheckedAt < COVER_POLL_MS) return;
-    this.coverCheckedAt = now;
-    this.coverPending = true;
+    if (!force && now - this.advisoryCheckedAt < ADVISORY_POLL_MS) return;
+    this.advisoryCheckedAt = now;
+    this.advisoryPending = true;
     getNativeAnchorStatus().then(
       (status) => {
-        this.coverPending = false;
+        this.advisoryPending = false;
         if (this.disposed) return;
         // How long this side has been armed: the service needs a moment to
         // start, and "not running yet" must not read as "not covered".
         const armedForMs = this.snap ? Date.now() - this.snap.armedAt : 0;
-        this.coverText = screenOffCoverLine(status, armedForMs);
-        this.renderCover();
+        this.advisoryText = armedAdvisoryLine(status, armedForMs);
+        this.renderAdvisory();
       },
       () => {
-        this.coverPending = false;
+        this.advisoryPending = false;
       },
     );
   }
 
   /**
-   * The disclosure: armed, but nothing is watching once the screen goes off.
-   * A persistent line rather than a banner — it is a standing condition of
-   * this watch on this device, not an event, and the user's response is to
-   * plan around it (leave the app up, or move the tablet) rather than to
-   * dismiss it. It is never a gate on arming: a watch that only runs while
-   * the app is awake is still a watch.
+   * The standing disclosures: nothing is watching once the screen goes off,
+   * and/or the alarm stream is too quiet to wake anyone. A persistent line
+   * rather than a banner — these are standing conditions of this watch on
+   * this device, not events, and the user's response is to plan around them
+   * (leave the app up, move the tablet, turn the alarm volume up) rather than
+   * to dismiss them. Neither is ever a gate on arming: a watch that only runs
+   * while the app is awake is still a watch, and a quiet alarm is still an
+   * alarm.
    *
    * Armed view only. Before arming there is nothing to report: the service is
    * usually not running, so it has neither a fix nor a chance at one, and the
@@ -1079,10 +1200,10 @@ export class AnchorPanel {
    * would either be permanently pessimistic or tell the user to fix something
    * arming fixes for them.
    */
-  private renderCover(): void {
-    const text = this.snap ? this.coverText : null;
-    this.coverEl.textContent = text ?? "";
-    this.coverEl.style.display = text ? "" : "none";
+  private renderAdvisory(): void {
+    const text = this.snap ? this.advisoryText : null;
+    this.advisoryEl.textContent = text ?? "";
+    this.advisoryEl.style.display = text ? "" : "none";
   }
 
   private renderAudioBlocked(): void {
@@ -1273,8 +1394,8 @@ export class AnchorPanel {
     const snap = this.snap;
     if (snap) {
       this.elapsedEl.textContent = formatCobElapsed(Date.now() - snap.armedAt);
-      // Self-throttling; the plugin is asked once per COVER_POLL_MS.
-      this.refreshCover();
+      // Self-throttling; the plugin is asked once per ADVISORY_POLL_MS.
+      this.refreshAdvisory();
     } else {
       // Setup view: a fix can go stale with no event to announce it, so the
       // arm gate is re-evaluated on the clock.
