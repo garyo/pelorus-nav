@@ -481,6 +481,20 @@ describe("connectNativeAnchorWatch", () => {
       expect(screenOffCoverLine(blind)).toBe(SCREEN_OFF_COVER_TEXT["no-fix"]);
     });
 
+    it("judges the chosen alarm volume when one exists, not the stream", () => {
+      // With the slider set, the service sets the stream to the choice at
+      // alarm time — today's stream level predicts nothing.
+      const quietStream = status({ alarmVolume: 0.1 });
+      expect(armedAdvisoryLine(quietStream, undefined, 0.8)).toBeNull();
+      expect(armedAdvisoryLine(quietStream, undefined, 0.15)).toBe(
+        ALARM_VOLUME_TEXT.low,
+      );
+      // A muted stream still wins: muting can defeat the raise entirely.
+      expect(
+        armedAdvisoryLine(status({ alarmVolumeMuted: true }), undefined, 0.8),
+      ).toBe(ALARM_VOLUME_TEXT.muted);
+    });
+
     it("never claims cover with the service dead", () => {
       // A stopped service means no wake lock, native detector, or
       // meta-alarm — even on a GNSS-less device whose verdict is

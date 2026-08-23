@@ -269,6 +269,15 @@ class BackgroundTrackService : Service() {
         @Volatile var anchorAlarmMuted: Boolean = false
 
         /**
+         * The skipper's chosen alarm volume, 0–1 fraction of the ALARM
+         * stream's maximum, or negative when never set (per-kind default
+         * floors apply). Absolute: the stream is set to this level while an
+         * alarm sounds, in either direction. Pushed from JS
+         * (setAnchorAlarmVolume) and persisted with the watch.
+         */
+        @Volatile var anchorAlarmVolume: Double = -1.0
+
+        /**
          * What the last onStartCommand returned. The plugin re-starts a
          * running service when this no longer matches whether a watch is
          * armed — see [startResult] and syncServiceDemand.
@@ -508,6 +517,7 @@ class BackgroundTrackService : Service() {
                 // the skipper who muted a flapping watch would otherwise get
                 // the next false alarm at full volume after an OS kill.
                 anchorAlarmMuted = AnchorWatchStore.loadMuted(this)
+                anchorAlarmVolume = AnchorWatchStore.loadAlarmVolume(this)
                 // No JS survived the kill to set a power mode, and the
                 // companion default is ACTIVE @1 Hz — which, with the anchor
                 // wake lock held, would burn the battery all night. The
@@ -1827,7 +1837,7 @@ class BackgroundTrackService : Service() {
         val am = getSystemService(AudioManager::class.java) ?: return
         val max = am.getStreamMaxVolume(AudioManager.STREAM_ALARM)
         val current = am.getStreamVolume(AudioManager.STREAM_ALARM)
-        val target = anchorAlarmRaiseIndex(current, max, anchorAlarmVolumeFloor(kind))
+        val target = anchorAlarmTargetIndex(current, max, kind, anchorAlarmVolume)
         if (target < 0) return
         try {
             am.setStreamVolume(AudioManager.STREAM_ALARM, target, 0)
@@ -1842,6 +1852,15 @@ class BackgroundTrackService : Service() {
             // armed panel has already been saying it may be too quiet.
             DiagLog.log(applicationContext, "anchor", "alarm volume raise blocked: ${e.message}")
         }
+    }
+
+    /** A real alarm owns the stream; the volume preview defers to it. */
+    fun isAnchorAlarmSounding(): Boolean = anchorAlarmSounding
+
+    /** The slider moved mid-alarm: apply the new level to the sounding tone. */
+    fun applyAnchorAlarmVolume() = runAnchorOnMain {
+        val kind = anchorAlarmSoundingKind
+        if (anchorAlarmSounding && kind != null) raiseAlarmVolume(kind)
     }
 
     /** Put back the level the alarm raised, unless the user has since moved it. */

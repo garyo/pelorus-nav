@@ -88,6 +88,8 @@ export interface AnchorRememberedParams {
   lastRodeM?: number;
   /** Water depth entered at the last anchorage, meters. */
   lastDepthM?: number;
+  /** Chosen alarm loudness, 0-1 of the device's alarm-stream maximum. */
+  alarmVolume?: number;
 }
 
 export function isValidAnchorParams(
@@ -100,7 +102,8 @@ export function isValidAnchorParams(
     optionalFinite(v.boatLengthM) &&
     optionalFinite(v.bowHeightM) &&
     optionalFinite(v.lastRodeM) &&
-    optionalFinite(v.lastDepthM)
+    optionalFinite(v.lastDepthM) &&
+    optionalFinite(v.alarmVolume)
   );
 }
 

@@ -1295,10 +1295,42 @@ const enterAnchorMode = () => {
 // mutable binding lets renderAnchorLayer no-op through that first call
 // instead of hitting the temporal dead zone.
 let anchorPanelRef: AnchorPanel | null = null;
+// The alarm-volume control: on Android the chosen level is pushed to the
+// service, which sets the ALARM stream to it (absolute, both directions)
+// while an alarm sounds — and the preview plays the real drag WAV through
+// the same path. On web it scales the Web Audio alarms' gain.
+const anchorAlarmVolumeCtl = Capacitor.isNativePlatform()
+  ? {
+      set: (volume: number) =>
+        void BackgroundGPS.setAnchorAlarmVolume({ volume }).catch((err) =>
+          console.warn("anchor alarm volume", err),
+        ),
+      preview: () =>
+        void BackgroundGPS.previewAnchorAlarm().catch((err) =>
+          console.warn("anchor alarm preview", err),
+        ),
+    }
+  : {
+      set: (volume: number) => {
+        for (const a of [
+          anchorDragAlarm,
+          anchorGpsLossAlarm,
+          anchorWatchFailureAlarm,
+        ]) {
+          a.setVolume?.(volume);
+        }
+      },
+      preview: () => {
+        anchorDragAlarm.start(false);
+        setTimeout(() => anchorDragAlarm.stop(), 1500);
+      },
+    };
+
 const anchorPanel = new AnchorPanel({
   manager: anchorManager,
   navManager,
   alarms: [anchorDragAlarm, anchorGpsLossAlarm, anchorWatchFailureAlarm],
+  alarmVolume: anchorAlarmVolumeCtl,
   onExitMode: () => setMode("query"),
   onPreviewChange: () => renderAnchorLayer(),
 });

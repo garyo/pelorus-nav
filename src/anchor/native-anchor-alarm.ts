@@ -59,6 +59,12 @@ export interface AnchorAlarmSound {
   start(muted: boolean): void;
   stop(): void;
   setMuted(muted: boolean): void;
+  /**
+   * Scale loudness to the user's chosen level, 0-1. Web Audio only — the
+   * native channels' loudness is the ALARM stream level the service sets
+   * (see setAnchorAlarmVolume), so they have no per-channel scale.
+   */
+  setVolume?(volume: number): void;
   isBlocked(): boolean;
   onBlockedChange(cb: (blocked: boolean) => void): void;
   retryUnlock(): void;

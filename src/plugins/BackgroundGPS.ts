@@ -154,6 +154,14 @@ export interface BackgroundGPSPlugin {
    * Rejects on native shells older than this method — callers must catch.
    */
   getAnchorWatchStatus(): Promise<AnchorWatchNativeStatus>;
+  /**
+   * The skipper's chosen alarm volume, 0-1 of the ALARM stream's maximum.
+   * Absolute: while an alarm sounds the stream is set to this level in
+   * either direction, overriding the system volume. Persists with the watch.
+   */
+  setAnchorAlarmVolume(options: { volume: number }): Promise<void>;
+  /** Play ~one beat of the drag tone at the chosen volume (calibration). */
+  previewAnchorAlarm(): Promise<void>;
 
   /** Silence a sounding native anchor alarm; the native watch keeps running. */
   acknowledgeAnchorAlarm(): Promise<void>;

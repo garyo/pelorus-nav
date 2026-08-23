@@ -458,12 +458,22 @@ export const ALARM_VOLUME_TEXT = {
   muted: "Alarm volume is off — you may not hear the alarm.",
 };
 
-/** The alarm-audibility half of the line; null when it's fine or unknown. */
+/**
+ * The alarm-audibility half of the line; null when it's fine or unknown.
+ * With a user-chosen alarm volume the stream level no longer predicts the
+ * alarm's loudness (the service sets the stream to the choice), so the
+ * choice itself is what gets judged; a muted stream still wins — muting can
+ * defeat the raise entirely.
+ */
 export function alarmVolumeLine(
   status: AnchorWatchNativeStatus | null,
+  userVolume?: number,
 ): string | null {
   if (!status) return null;
   if (status.alarmVolumeMuted) return ALARM_VOLUME_TEXT.muted;
+  if (userVolume !== undefined) {
+    return userVolume < LOW_ALARM_VOLUME ? ALARM_VOLUME_TEXT.low : null;
+  }
   const volume = status.alarmVolume;
   // Absent on older shells and on any device that can't report it — an
   // unanswered question is never a warning.
@@ -480,10 +490,11 @@ export function alarmVolumeLine(
 export function armedAdvisoryLine(
   status: AnchorWatchNativeStatus | null,
   armedForMs?: number,
+  userVolume?: number,
 ): string | null {
   const parts = [
     screenOffCoverLine(status, armedForMs),
-    alarmVolumeLine(status),
+    alarmVolumeLine(status, userVolume),
   ].filter((part): part is string => part !== null);
   return parts.length > 0 ? parts.join(" ") : null;
 }

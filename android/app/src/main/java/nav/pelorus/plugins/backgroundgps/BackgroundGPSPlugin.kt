@@ -36,6 +36,7 @@ import com.getcapacitor.annotation.PermissionCallback
 class BackgroundGPSPlugin : Plugin() {
 
     private var trackDb: TrackDatabase? = null
+    private var previewPlayer: android.media.MediaPlayer? = null
     /** Arming has already prompted for location permission this session. */
     private var anchorPermissionAsked = false
 
@@ -599,6 +600,92 @@ class BackgroundGPSPlugin : Plugin() {
         val service = BackgroundTrackService.instance
         service?.syncAnchorAlarmSound()
         call.resolve(JSObject().put("serviceRunning", service != null))
+    }
+
+    /**
+     * The skipper's chosen alarm volume (0–1 of the ALARM stream's maximum).
+     * Absolute: while an alarm sounds the stream is set to this level in
+     * either direction — the slider, not the rocker, decides how loud a
+     * 3 a.m. alarm is. Persisted with the watch so a process restart keeps
+     * it, and applied live to an already-sounding alarm.
+     */
+    @PluginMethod
+    fun setAnchorAlarmVolume(call: PluginCall) {
+        val volume = call.getDouble("volume")
+        if (volume == null || volume.isNaN()) {
+            call.reject("volume (0-1) is required")
+            return
+        }
+        val clamped = volume.coerceIn(0.0, 1.0)
+        BackgroundTrackService.anchorAlarmVolume = clamped
+        AnchorWatchStore.saveAlarmVolume(context, clamped)
+        BackgroundTrackService.instance?.applyAnchorAlarmVolume()
+        call.resolve()
+    }
+
+    /**
+     * Play ~one beat of the drag tone at the chosen volume, on the ALARM
+     * stream — the exact sound and loudness a real alarm would have, so the
+     * slider can be calibrated at the dock without waking the marina. Works
+     * without the service (the slider lives on the setup card, pre-arm).
+     * A real sounding alarm owns the stream and is never interrupted.
+     */
+    @PluginMethod
+    fun previewAnchorAlarm(call: PluginCall) {
+        if (BackgroundTrackService.instance?.isAnchorAlarmSounding() == true) {
+            call.resolve()
+            return
+        }
+        try {
+            previewPlayer?.release()
+        } catch (_: Exception) {}
+        previewPlayer = null
+        val am = context.getSystemService(AudioManager::class.java)
+        val attrs = android.media.AudioAttributes.Builder()
+            .setUsage(android.media.AudioAttributes.USAGE_ALARM)
+            .setContentType(android.media.AudioAttributes.CONTENT_TYPE_SONIFICATION)
+            .build()
+        val player = android.media.MediaPlayer.create(
+            context,
+            nav.pelorus.app.R.raw.anchor_alarm_drag,
+            attrs,
+            am?.generateAudioSessionId() ?: 0,
+        )
+        if (player == null) {
+            call.reject("preview player unavailable")
+            return
+        }
+        var prior = -1
+        var target = -1
+        if (am != null) {
+            val max = am.getStreamMaxVolume(AudioManager.STREAM_ALARM)
+            val current = am.getStreamVolume(AudioManager.STREAM_ALARM)
+            target = anchorAlarmTargetIndex(
+                current, max, ANCHOR_ALARM_DRAG, BackgroundTrackService.anchorAlarmVolume,
+            )
+            if (target >= 0) {
+                try {
+                    am.setStreamVolume(AudioManager.STREAM_ALARM, target, 0)
+                    prior = current
+                } catch (_: SecurityException) {
+                    // DND refuses the change; preview at the current level.
+                }
+            }
+        }
+        previewPlayer = player
+        player.setOnCompletionListener {
+            try {
+                if (prior >= 0 && am != null &&
+                    am.getStreamVolume(AudioManager.STREAM_ALARM) == target
+                ) {
+                    am.setStreamVolume(AudioManager.STREAM_ALARM, prior, 0)
+                }
+            } catch (_: SecurityException) {}
+            it.release()
+            if (previewPlayer === it) previewPlayer = null
+        }
+        player.start()
+        call.resolve()
     }
 
     /**

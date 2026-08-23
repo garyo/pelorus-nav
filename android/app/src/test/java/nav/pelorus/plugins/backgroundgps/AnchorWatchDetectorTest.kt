@@ -333,20 +333,25 @@ class AnchorWatchDetectorTest {
     }
 
     @Test
-    fun `the alarm raises a quiet stream and leaves a loud one alone`() {
-        // 0.9 of a 15-step scale rounds up to 14, one below maximum.
-        assertEquals(14, anchorAlarmRaiseIndex(2, 15))
-        assertEquals(14, anchorAlarmRaiseIndex(0, 15))
-        // The field report: 11 of 15 (73%) was not loud enough, and used to be
-        // above the floor, so nothing was raised. Now it is.
-        assertEquals(14, anchorAlarmRaiseIndex(11, 15))
-        // Already at or above the floor: the user's level stands.
-        assertEquals(-1, anchorAlarmRaiseIndex(14, 15))
-        assertEquals(-1, anchorAlarmRaiseIndex(15, 15))
-        // Coarse scales still get an audible step, never a zero one.
-        assertEquals(1, anchorAlarmRaiseIndex(0, 1))
-        // No scale to raise on.
-        assertEquals(-1, anchorAlarmRaiseIndex(0, 0))
+    fun `the alarm sets the stream to the chosen level, both directions`() {
+        // No user setting: the default floor, 0.9 of 15 → index 14.
+        assertEquals(14, anchorAlarmTargetIndex(2, 15, ANCHOR_ALARM_DRAG))
+        assertEquals(14, anchorAlarmTargetIndex(0, 15, ANCHOR_ALARM_DRAG))
+        assertEquals(14, anchorAlarmTargetIndex(11, 15, ANCHOR_ALARM_DRAG))
+        // Absolute: system volume at maximum is brought DOWN to the choice —
+        // the skipper sleeping next to the phone set 30% deliberately.
+        assertEquals(5, anchorAlarmTargetIndex(15, 15, ANCHOR_ALARM_DRAG, 0.3))
+        assertEquals(5, anchorAlarmTargetIndex(0, 15, ANCHOR_ALARM_DRAG, 0.3))
+        // Already at the target: leave it alone.
+        assertEquals(-1, anchorAlarmTargetIndex(14, 15, ANCHOR_ALARM_DRAG))
+        assertEquals(-1, anchorAlarmTargetIndex(5, 15, ANCHOR_ALARM_DRAG, 0.3))
+        // A sounding alarm may be quiet, never silent.
+        assertEquals(1, anchorAlarmTargetIndex(0, 15, ANCHOR_ALARM_DRAG, 0.0))
+        assertEquals(1, anchorAlarmTargetIndex(0, 1, ANCHOR_ALARM_DRAG))
+        // Out-of-range settings fall back to the default floor.
+        assertEquals(14, anchorAlarmTargetIndex(2, 15, ANCHOR_ALARM_DRAG, 1.5))
+        // No scale to set on.
+        assertEquals(-1, anchorAlarmTargetIndex(0, 0, ANCHOR_ALARM_DRAG))
     }
 
     @Test

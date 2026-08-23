@@ -39,6 +39,14 @@ export const COB_ALARM_DEFAULTS: Required<CobAlarmOptions> = {
 };
 
 export class CobAlarm {
+  /** User loudness scale (anchor alarm volume slider), 0-1. */
+  private volumeScale = 1;
+
+  /** Scale the alarm's loudness; takes effect from the next tone onward. */
+  setVolume(scale: number): void {
+    this.volumeScale = Math.min(1, Math.max(0, scale));
+  }
+
   private ctx: AudioContext | null = null;
   private interval: ReturnType<typeof setInterval> | null = null;
   private muted = false;
@@ -165,7 +173,7 @@ export class CobAlarm {
   ): void {
     const osc = ctx.createOscillator();
     const gain = ctx.createGain();
-    const peak = this.opts.gain;
+    const peak = this.opts.gain * this.volumeScale;
     osc.type = "square";
     osc.frequency.value = freqHz;
     // Short attack/release ramps avoid clicks at tone edges.

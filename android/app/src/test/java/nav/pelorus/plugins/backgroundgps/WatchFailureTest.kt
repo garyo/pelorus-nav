@@ -271,11 +271,13 @@ class WatchFailureTest {
             1e-9,
         )
         // 0.6 of a 15-step scale: index 9 — waking, not startling.
-        assertEquals(9, anchorAlarmRaiseIndex(2, 15, ANCHOR_WATCH_FAILURE_VOLUME_FLOOR))
-        // Never lower: a level already past the floor stands.
-        assertEquals(-1, anchorAlarmRaiseIndex(9, 15, ANCHOR_WATCH_FAILURE_VOLUME_FLOOR))
-        assertEquals(-1, anchorAlarmRaiseIndex(14, 15, ANCHOR_WATCH_FAILURE_VOLUME_FLOOR))
-        // The default floor is unchanged for the real alarms.
-        assertEquals(14, anchorAlarmRaiseIndex(9, 15))
+        assertEquals(9, anchorAlarmTargetIndex(2, 15, ANCHOR_ALARM_WATCH_FAILURE))
+        // Absolute: a louder system level is brought down to the target too.
+        assertEquals(9, anchorAlarmTargetIndex(14, 15, ANCHOR_ALARM_WATCH_FAILURE))
+        assertEquals(-1, anchorAlarmTargetIndex(9, 15, ANCHOR_ALARM_WATCH_FAILURE))
+        // The chirp keeps its quieter relationship at any user setting.
+        assertEquals(6, anchorAlarmTargetIndex(2, 15, ANCHOR_ALARM_WATCH_FAILURE, 0.6))
+        // The default level is unchanged for the real alarms.
+        assertEquals(14, anchorAlarmTargetIndex(9, 15, ANCHOR_ALARM_DRAG))
     }
 }

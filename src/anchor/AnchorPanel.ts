@@ -105,6 +105,11 @@ function holdPips(holdMs: number): number {
 }
 const NO_FIX_BANNER_MS = 8000;
 /**
+ * Slider default when the user never chose a level — matches the native
+ * ANCHOR_ALARM_VOLUME_FLOOR the alarm used before the slider existed.
+ */
+const DEFAULT_ALARM_VOLUME = 0.9;
+/**
  * How often the armed view re-asks the native service whether it can actually
  * see the boat, and whether the alarm stream can be heard. Both answers change
  * on the timescale of a GPS acquisition or a volume-key press, so the 1 Hz
@@ -203,6 +208,16 @@ export interface AnchorPanelDeps {
   alarms: Array<
     Pick<CobAlarm, "isBlocked" | "onBlockedChange" | "retryUnlock">
   >;
+  /**
+   * The alarm-loudness control. `set` pushes the chosen level (0-1) to
+   * whatever makes the noise (the native ALARM stream, or Web Audio gain);
+   * `preview` plays one beat of the drag tone at that level so the slider
+   * can be calibrated at the dock without waking the marina.
+   */
+  alarmVolume: {
+    set(volume: number): void;
+    preview(): void;
+  };
   /** Leave anchor mode (the watch keeps running if armed). */
   onExitMode(): void;
   /** The pre-arm anchor preview changed — re-render the chart layer. */
@@ -294,7 +309,7 @@ export class AnchorPanel {
   // Setup elements
   private setupEl!: HTMLDivElement;
   private paramInputs!: Record<
-    keyof Omit<AnchorRememberedParams, "version">,
+    keyof Omit<AnchorRememberedParams, "version" | "alarmVolume">,
     HTMLInputElement
   >;
   private unitEls: HTMLSpanElement[] = [];
@@ -328,6 +343,9 @@ export class AnchorPanel {
   constructor(deps: AnchorPanelDeps) {
     this.deps = deps;
     this.params = anchorParamsSlot.load(this.storage) ?? { version: 1 };
+    if (this.params.alarmVolume !== undefined) {
+      deps.alarmVolume.set(this.params.alarmVolume);
+    }
 
     this.el = document.createElement("div");
     this.el.className = "anchor-panel";
@@ -461,7 +479,7 @@ export class AnchorPanel {
     fields.className = "anchor-fields";
     const paramField = (
       label: string,
-      key: keyof Omit<AnchorRememberedParams, "version">,
+      key: keyof Omit<AnchorRememberedParams, "version" | "alarmVolume">,
     ): HTMLInputElement => {
       const wrap = document.createElement("label");
       wrap.className = "anchor-field";
@@ -641,6 +659,43 @@ export class AnchorPanel {
       }),
     );
 
+    // Alarm loudness: an absolute level — the service sets the alarm stream
+    // to exactly this while sounding, overriding the system volume in both
+    // directions. A skipper sleeping next to the device doesn't need to
+    // wake the whole marina; the low end still has to wake *them*.
+    const volRow = document.createElement("div");
+    volRow.className = "anchor-volume-row";
+    const volLab = document.createElement("span");
+    volLab.className = "anchor-field-label";
+    volLab.textContent = "Alarm volume";
+    const volSlider = document.createElement("input");
+    volSlider.type = "range";
+    volSlider.min = "10";
+    volSlider.max = "100";
+    volSlider.step = "5";
+    volSlider.className = "anchor-volume-slider";
+    const volValue = document.createElement("span");
+    volValue.className = "anchor-field-unit anchor-volume-value";
+    const volPct = (): number =>
+      Math.round((this.params.alarmVolume ?? DEFAULT_ALARM_VOLUME) * 100);
+    volSlider.value = String(volPct());
+    volValue.textContent = `${volPct()}%`;
+    volSlider.addEventListener("input", () => {
+      const v = Number.parseInt(volSlider.value, 10) / 100;
+      this.params = { ...this.params, alarmVolume: v };
+      anchorParamsSlot.save(this.params, this.storage);
+      volValue.textContent = `${Math.round(v * 100)}%`;
+      this.deps.alarmVolume.set(v);
+      this.refreshAdvisory(true);
+    });
+    const volTest = document.createElement("button");
+    volTest.type = "button";
+    volTest.className = "anchor-volume-test";
+    volTest.textContent = "Test";
+    volTest.title = "Play one beat of the drag alarm at this volume";
+    volTest.addEventListener("click", () => this.deps.alarmVolume.preview());
+    volRow.append(volLab, volSlider, volValue, volTest);
+
     // Why arming is unavailable, when it is — arming must never be a
     // half-commitment, so the reason shows before the button is pressed.
     this.armBlockedEl = document.createElement("div");
@@ -653,6 +708,7 @@ export class AnchorPanel {
       this.radiusHint,
       posRow,
       this.posHint,
+      volRow,
       this.armBlockedEl,
       armBtn,
     );
@@ -1223,7 +1279,11 @@ export class AnchorPanel {
         // How long this side has been armed: the service needs a moment to
         // start, and "not running yet" must not read as "not covered".
         const armedForMs = this.snap ? Date.now() - this.snap.armedAt : 0;
-        this.advisoryText = armedAdvisoryLine(status, armedForMs);
+        this.advisoryText = armedAdvisoryLine(
+          status,
+          armedForMs,
+          this.params.alarmVolume,
+        );
         this.renderAdvisory();
       },
       () => {

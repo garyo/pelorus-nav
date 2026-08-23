@@ -30,6 +30,7 @@ object AnchorWatchStore {
     // its claim of a proven GNSS receiver across the upgrade.
     private const val KEY_HAD_FIX = "hadGnssFix"
     private const val KEY_MUTED = "muted"
+    private const val KEY_ALARM_VOLUME = "alarmVolume"
 
     private fun prefs(context: Context) =
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
@@ -59,6 +60,19 @@ object AnchorWatchStore {
             null
         }
 
+    /** The chosen alarm volume survives a process restart with the watch. */
+    fun saveAlarmVolume(context: Context, volume: Double) {
+        prefs(context).edit().putFloat(KEY_ALARM_VOLUME, volume.toFloat()).apply()
+    }
+
+    /** Negative when never set — the per-kind default floors apply. */
+    fun loadAlarmVolume(context: Context): Double =
+        try {
+            prefs(context).getFloat(KEY_ALARM_VOLUME, -1.0f).toDouble()
+        } catch (_: Exception) {
+            -1.0
+        }
+
     /** The user's explicit mute survives a process restart with the watch. */
     fun saveMuted(context: Context, muted: Boolean) {
         prefs(context).edit().putBoolean(KEY_MUTED, muted).apply()
@@ -81,7 +95,10 @@ object AnchorWatchStore {
 
     /** The user stood the watch down: nothing may resurrect it. */
     fun clear(context: Context) {
-        prefs(context).edit().remove(KEY_PARAMS).remove(KEY_HAD_FIX).remove(KEY_MUTED).apply()
+        prefs(context).edit()
+            .remove(KEY_PARAMS).remove(KEY_HAD_FIX).remove(KEY_MUTED)
+            .remove(KEY_ALARM_VOLUME)
+            .apply()
         clearArmedForBoot(context)
     }
 

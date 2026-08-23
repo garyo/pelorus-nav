@@ -186,24 +186,44 @@ const val ANCHOR_ALARM_VOLUME_FLOOR = 0.9
  */
 const val ANCHOR_WATCH_FAILURE_VOLUME_FLOOR = 0.6
 
-/** The volume floor the given alarm kind is raised to while sounding. */
+/** The volume level the given alarm kind sounds at when the user set none. */
 fun anchorAlarmVolumeFloor(kind: String): Double =
     if (kind == ANCHOR_ALARM_WATCH_FAILURE) ANCHOR_WATCH_FAILURE_VOLUME_FLOOR
     else ANCHOR_ALARM_VOLUME_FLOOR
 
 /**
- * The stream index the alarm should raise the volume to, or -1 to leave it
- * alone. Never lowers: a crew who set the alarm stream above the floor meant
- * it. [floor] is per-kind — see [anchorAlarmVolumeFloor].
+ * The stream index the alarm sets while sounding, or -1 to leave it alone
+ * (already there, or the stream is unusable).
+ *
+ * [userFraction] is the volume the skipper chose on the anchor alarm's own
+ * slider, 0–1, or negative when they never set one (→ the per-kind default
+ * floor). The chosen level is *absolute*: the stream is set to it in either
+ * direction, overriding whatever the system volume happens to be — a skipper
+ * sleeping next to the device chose that level deliberately and must not be
+ * blasted because a video earlier pushed the alarm stream to maximum. The
+ * watch-failure chirp keeps its quieter relationship at any setting (scaled
+ * by the two floors' ratio). Never index 0: a sounding alarm may be quiet,
+ * never silent — muting is its own explicit control.
  */
-fun anchorAlarmRaiseIndex(
+fun anchorAlarmTargetIndex(
     current: Int,
     max: Int,
-    floor: Double = ANCHOR_ALARM_VOLUME_FLOOR,
+    kind: String,
+    userFraction: Double = -1.0,
 ): Int {
     if (max <= 0) return -1
-    val target = ceil(max * floor).toInt().coerceIn(1, max)
-    return if (current >= target) -1 else target
+    val chosen =
+        if (userFraction in 0.0..1.0) {
+            if (kind == ANCHOR_ALARM_WATCH_FAILURE) {
+                userFraction * (ANCHOR_WATCH_FAILURE_VOLUME_FLOOR / ANCHOR_ALARM_VOLUME_FLOOR)
+            } else {
+                userFraction
+            }
+        } else {
+            anchorAlarmVolumeFloor(kind)
+        }
+    val target = ceil(max * chosen).toInt().coerceIn(1, max)
+    return if (current == target) -1 else target
 }
 
 /**

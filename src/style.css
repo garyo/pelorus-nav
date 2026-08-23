@@ -5158,14 +5158,27 @@ body.eink-refresh-tick {
 }
 
 .anchor-radius-row,
-.anchor-pos-row {
+.anchor-pos-row,
+.anchor-volume-row {
   display: flex;
   align-items: center;
   gap: 6px;
   flex-wrap: wrap;
 }
 
+.anchor-volume-slider {
+  flex: 1;
+  min-width: 80px;
+  accent-color: var(--accent, #4a90d9);
+}
+
+.anchor-volume-value {
+  min-width: 2.8em;
+  text-align: right;
+}
+
 .anchor-radius-auto,
+.anchor-volume-test,
 .anchor-pos-btn {
   padding: 3px 8px;
   background: rgba(255, 255, 255, 0.1);
@@ -5575,6 +5588,7 @@ body[data-instrument-layout="side"] .maplibregl-ctrl-top-left {
 [data-theme="eink"] .anchor-offset-dist,
 [data-theme="eink"] .anchor-offset-brg,
 [data-theme="eink"] .anchor-radius-auto,
+[data-theme="eink"] .anchor-volume-test,
 [data-theme="eink"] .anchor-pos-btn,
 [data-theme="eink"] .anchor-panel-btn,
 [data-theme="eink"] .anchor-radius-minus,
