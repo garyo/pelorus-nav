@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs";
 import type { Page } from "@playwright/test";
+import { ANCHOR_DISCLAIMER_VERSION } from "../../src/anchor/AnchorDisclaimer";
 import { DISCLAIMER_VERSION } from "../../src/ui/DisclaimerDialog";
 
 /** Current app version from package.json. */
@@ -83,6 +84,23 @@ export async function acceptDisclaimer(page: Page): Promise<void> {
       );
     },
     { version: DISCLAIMER_VERSION, appVersion: APP_VERSION },
+  );
+}
+
+/**
+ * Pre-accept the first-use anchor-watch disclaimer (AnchorDisclaimer.ts) —
+ * without this, entering anchor mode blocks on the "I Understand" dialog.
+ * Call before page.goto().
+ */
+export async function acceptAnchorDisclaimer(page: Page): Promise<void> {
+  await page.addInitScript(
+    ({ version, appVersion }) => {
+      localStorage.setItem(
+        "pelorus-nav-anchor-disclaimer",
+        JSON.stringify({ version, acceptedAt: Date.now(), appVersion }),
+      );
+    },
+    { version: ANCHOR_DISCLAIMER_VERSION, appVersion: APP_VERSION },
   );
 }
 

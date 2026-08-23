@@ -12,6 +12,7 @@ import "maplibre-gl/dist/maplibre-gl.css";
 import { Protocol } from "pmtiles";
 import "./style.css";
 import { AnchorBadge } from "./anchor/AnchorBadge";
+import { maybeShowAnchorDisclaimer } from "./anchor/AnchorDisclaimer";
 import { AnchorPanel } from "./anchor/AnchorPanel";
 import {
   AnchorWatchManager,
@@ -1335,6 +1336,9 @@ anchorManager.subscribe((snap) => {
 });
 onModeChange((mode) => {
   const active = mode === "anchor";
+  // First visit to anchor mode: a blocking "experimental — do not rely
+  // solely on this" acknowledgment. Declining backs out of the mode.
+  if (active) maybeShowAnchorDisclaimer(() => setMode("query"));
   anchorPanel.setModeActive(active);
   anchorBadge.setModeActive(active);
 });

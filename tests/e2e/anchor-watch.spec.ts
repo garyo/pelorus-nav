@@ -1,5 +1,6 @@
 import { expect, type Page, test } from "@playwright/test";
 import {
+  acceptAnchorDisclaimer,
   acceptDisclaimer,
   seedSettings,
   suppressWhatsNew,
@@ -25,6 +26,7 @@ async function holdElement(
 async function seedSimulatorSettings(page: Page): Promise<void> {
   await suppressWhatsNew(page);
   await acceptDisclaimer(page);
+  await acceptAnchorDisclaimer(page);
   await seedSettings(page, {
     gpsSource: "simulator",
     simulatorSpeed: 10,
@@ -41,6 +43,38 @@ async function bootWithSimulator(page: Page): Promise<void> {
     timeout: 15000,
   });
 }
+
+test("first visit to anchor mode shows the click-through disclaimer", async ({
+  page,
+}) => {
+  // Deliberately NOT acceptAnchorDisclaimer: this is the first-use path.
+  await suppressWhatsNew(page);
+  await acceptDisclaimer(page);
+  await seedSettings(page, { gpsSource: "simulator", simulatorSpeed: 10 });
+  await bootWithSimulator(page);
+
+  await page.getByRole("button", { name: "Anchor Watch" }).click();
+  const dialog = page.locator(".anchor-disclaimer");
+  await expect(dialog).toBeVisible();
+  await expect(dialog).toContainText("Do not rely solely on this feature!");
+
+  // "Not Now" declines: mode exits, setup card never opens.
+  await dialog.getByRole("button", { name: "Not Now" }).click();
+  await expect(dialog).not.toBeVisible();
+  await expect(page.locator(".anchor-panel")).not.toHaveClass(/open/);
+
+  // Second visit: acknowledge, and the panel is usable.
+  await page.getByRole("button", { name: "Anchor Watch" }).click();
+  await dialog.getByRole("button", { name: "I Understand" }).click();
+  await expect(dialog).not.toBeVisible();
+  await expect(page.locator(".anchor-panel")).toHaveClass(/open/);
+
+  // Acknowledged: leaving and re-entering the mode shows no dialog.
+  await page.keyboard.press("Escape");
+  await page.getByRole("button", { name: "Anchor Watch" }).click();
+  await expect(dialog).not.toBeVisible();
+  await expect(page.locator(".anchor-panel")).toHaveClass(/open/);
+});
 
 /**
  * The full drag scenario against the simulator: enter anchor mode from the
@@ -167,6 +201,7 @@ test("arming is blocked, with a reason, until there is a fix", async ({
 }) => {
   await suppressWhatsNew(page);
   await acceptDisclaimer(page);
+  await acceptAnchorDisclaimer(page);
   await seedSettings(page, { gpsSource: "none", depthUnit: "meters" });
   await page.goto("/");
   await expect(page.locator(".maplibregl-map")).toBeVisible({ timeout: 10000 });
