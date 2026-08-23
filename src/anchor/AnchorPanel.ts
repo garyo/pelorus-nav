@@ -435,7 +435,11 @@ export class AnchorPanel {
     header.className = "anchor-panel-header";
     const title = document.createElement("span");
     title.className = "anchor-panel-title";
-    title.textContent = "ANCHOR WATCH";
+    title.textContent = "ANCHOR WATCH · ";
+    const experimental = document.createElement("em");
+    experimental.className = "anchor-panel-experimental";
+    experimental.textContent = "EXPERIMENTAL";
+    title.appendChild(experimental);
     this.elapsedEl = document.createElement("span");
     this.elapsedEl.className = "anchor-panel-elapsed";
     const closeBtn = document.createElement("button");

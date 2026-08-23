@@ -5096,6 +5096,13 @@ body.eink-refresh-tick {
   letter-spacing: 0.5px;
 }
 
+.anchor-panel-experimental {
+  font-style: italic;
+  font-weight: normal;
+  opacity: 0.75;
+  font-size: 0.85em;
+}
+
 .anchor-panel-elapsed {
   margin-left: auto;
   font-variant-numeric: tabular-nums;
