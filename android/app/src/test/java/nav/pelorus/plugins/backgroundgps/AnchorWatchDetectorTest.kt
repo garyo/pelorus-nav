@@ -80,16 +80,38 @@ class AnchorWatchDetectorTest {
     }
 
     @Test
-    fun `returning inside clears an acknowledged drag`() {
+    fun `an acknowledged drag survives boundary flapping`() {
+        // Tide-turn reality: the fix cloud straddles the ring, so single
+        // inside fixes arrive all night. Each used to erase the
+        // acknowledgment, turning every following 15 s excursion into a
+        // fresh full-volume wake. The ack must hold through the flapping;
+        // genuine further drag still alarms via the re-alarm margin.
         val d = AnchorWatchDetector(params())
         fix(d, 0.0, 0L)
         fix(d, 55.0, 10_000L)
         fix(d, 55.0, 30_000L)
         d.acknowledge()
-        assertEquals(AnchorTransition.CLEARED, fix(d, 10.0, 40_000L))
-        // Back to a clean slate: a new excursion needs the full delay again.
+        assertEquals(AnchorTransition.NONE, fix(d, 10.0, 40_000L))
         assertEquals(AnchorTransition.NONE, fix(d, 55.0, 50_000L))
-        assertEquals(AnchorTransition.DRAG_ALARM, fix(d, 55.0, 70_000L))
+        assertEquals(AnchorTransition.NONE, fix(d, 55.0, 70_000L))
+        assertEquals(AnchorTransition.DRAG_ALARM, fix(d, 64.0, 80_000L))
+    }
+
+    @Test
+    fun `a sustained return inside stands the acknowledged drag down`() {
+        val d = AnchorWatchDetector(params())
+        fix(d, 0.0, 0L)
+        fix(d, 55.0, 10_000L)
+        fix(d, 55.0, 30_000L)
+        d.acknowledge()
+        assertEquals(AnchorTransition.NONE, fix(d, 10.0, 40_000L))
+        assertEquals(
+            AnchorTransition.CLEARED,
+            fix(d, 10.0, 40_000L + ANCHOR_ACK_RESET_INSIDE_MS),
+        )
+        // Clean slate again: a fresh excursion earns the full alarm.
+        assertEquals(AnchorTransition.NONE, fix(d, 55.0, 200_000L))
+        assertEquals(AnchorTransition.DRAG_ALARM, fix(d, 55.0, 216_000L))
     }
 
     @Test

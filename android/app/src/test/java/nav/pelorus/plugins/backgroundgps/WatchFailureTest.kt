@@ -126,71 +126,92 @@ class WatchFailureTest {
     @Test
     fun `fires once at the low threshold while not charging`() {
         val m = BatteryWatchMonitor()
-        assertEquals(WatchFailureTransition.NONE, m.check(50, charging = false))
-        assertEquals(WatchFailureTransition.NONE, m.check(ANCHOR_BATTERY_LOW_PCT + 1, false))
-        assertEquals(WatchFailureTransition.RAISE, m.check(ANCHOR_BATTERY_LOW_PCT, false))
+        assertEquals(WatchFailureTransition.NONE, m.check(50, charging = false, nowElapsedMs = 0L))
+        assertEquals(WatchFailureTransition.NONE, m.check(ANCHOR_BATTERY_LOW_PCT + 1, false, 5_000L))
+        assertEquals(WatchFailureTransition.RAISE, m.check(ANCHOR_BATTERY_LOW_PCT, false, 10_000L))
         assertTrue(m.alarming)
         // Falling further (above critical) does not re-announce.
-        assertEquals(WatchFailureTransition.NONE, m.check(12, false))
+        assertEquals(WatchFailureTransition.NONE, m.check(12, false, 15_000L))
     }
 
     @Test
     fun `never fires while charging, whatever the level`() {
         val m = BatteryWatchMonitor()
-        assertEquals(WatchFailureTransition.NONE, m.check(5, charging = true))
-        assertEquals(WatchFailureTransition.NONE, m.check(1, charging = true))
+        assertEquals(WatchFailureTransition.NONE, m.check(5, charging = true, nowElapsedMs = 0L))
+        assertEquals(WatchFailureTransition.NONE, m.check(1, charging = true, nowElapsedMs = 5_000L))
         assertFalse(m.alarming)
     }
 
     @Test
     fun `acknowledged, it speaks exactly once more at critical`() {
         val m = BatteryWatchMonitor()
-        m.check(ANCHOR_BATTERY_LOW_PCT, false)
+        m.check(ANCHOR_BATTERY_LOW_PCT, false, 0L)
         assertTrue(m.acknowledge())
-        assertEquals(WatchFailureTransition.NONE, m.check(10, false))
-        assertEquals(WatchFailureTransition.RAISE, m.check(ANCHOR_BATTERY_CRITICAL_PCT, false))
+        assertEquals(WatchFailureTransition.NONE, m.check(10, false, 5_000L))
+        assertEquals(WatchFailureTransition.RAISE, m.check(ANCHOR_BATTERY_CRITICAL_PCT, false, 10_000L))
         assertTrue(m.alarming)
         assertTrue(m.acknowledge())
         // Third act: there isn't one. The next voice is the device dying.
-        assertEquals(WatchFailureTransition.NONE, m.check(3, false))
-        assertEquals(WatchFailureTransition.NONE, m.check(1, false))
+        assertEquals(WatchFailureTransition.NONE, m.check(3, false, 15_000L))
+        assertEquals(WatchFailureTransition.NONE, m.check(1, false, 20_000L))
     }
 
     @Test
-    fun `plugging in clears the state entirely`() {
+    fun `sustained charging clears the state entirely`() {
         val m = BatteryWatchMonitor()
-        m.check(ANCHOR_BATTERY_LOW_PCT, false)
-        assertEquals(WatchFailureTransition.CLEAR, m.check(14, charging = true))
+        m.check(ANCHOR_BATTERY_LOW_PCT, false, 0L)
+        assertEquals(WatchFailureTransition.CLEAR, m.check(14, charging = true, nowElapsedMs = 5_000L))
         assertFalse(m.alarming)
-        // The charger fell out overnight: the decline alarms afresh, both acts.
-        assertEquals(WatchFailureTransition.RAISE, m.check(ANCHOR_BATTERY_LOW_PCT, false))
+        // The charger held long enough: a genuine unplug alarms afresh.
+        val resetAt = 5_000L + ANCHOR_BATTERY_RESET_CHARGING_MS
+        assertEquals(WatchFailureTransition.NONE, m.check(20, true, resetAt))
+        assertEquals(WatchFailureTransition.RAISE, m.check(ANCHOR_BATTERY_LOW_PCT, false, resetAt + 5_000L))
         m.acknowledge()
-        assertEquals(WatchFailureTransition.RAISE, m.check(ANCHOR_BATTERY_CRITICAL_PCT, false))
+        assertEquals(
+            WatchFailureTransition.RAISE,
+            m.check(ANCHOR_BATTERY_CRITICAL_PCT, false, resetAt + 10_000L),
+        )
     }
 
     @Test
-    fun `plugging in with no alarm up clears silently`() {
+    fun `a flapping charger does not re-arm the fired latches`() {
+        // A vibrating 12 V plug at 14%: each charging blip silences, but the
+        // brief charge must not turn every following unplugged sample into a
+        // fresh full alarm.
         val m = BatteryWatchMonitor()
-        m.check(ANCHOR_BATTERY_LOW_PCT, false)
+        assertEquals(WatchFailureTransition.RAISE, m.check(14, false, 0L))
+        m.acknowledge()
+        assertEquals(WatchFailureTransition.NONE, m.check(14, true, 5_000L))
+        assertEquals(WatchFailureTransition.NONE, m.check(14, false, 10_000L))
+        assertEquals(WatchFailureTransition.NONE, m.check(14, true, 15_000L))
+        assertEquals(WatchFailureTransition.NONE, m.check(14, false, 20_000L))
+    }
+
+    @Test
+    fun `plugging in with no alarm up clears silently after the hold`() {
+        val m = BatteryWatchMonitor()
+        m.check(ANCHOR_BATTERY_LOW_PCT, false, 0L)
         m.acknowledge()
         // Acknowledged (not alarming): the clear has no noise to stop.
-        assertEquals(WatchFailureTransition.NONE, m.check(20, charging = true))
-        // But the latches are gone: a fresh decline fires again.
-        assertEquals(WatchFailureTransition.RAISE, m.check(ANCHOR_BATTERY_LOW_PCT, false))
+        assertEquals(WatchFailureTransition.NONE, m.check(20, charging = true, nowElapsedMs = 5_000L))
+        val resetAt = 5_000L + ANCHOR_BATTERY_RESET_CHARGING_MS
+        m.check(20, true, resetAt)
+        // The latches are gone: a fresh decline fires again.
+        assertEquals(WatchFailureTransition.RAISE, m.check(ANCHOR_BATTERY_LOW_PCT, false, resetAt + 5_000L))
     }
 
     @Test
     fun `already critical at first sight fires once, not twice`() {
         val m = BatteryWatchMonitor()
-        assertEquals(WatchFailureTransition.RAISE, m.check(5, false))
-        assertEquals(WatchFailureTransition.NONE, m.check(4, false))
+        assertEquals(WatchFailureTransition.RAISE, m.check(5, false, 0L))
+        assertEquals(WatchFailureTransition.NONE, m.check(4, false, 5_000L))
     }
 
     @Test
     fun `an unreadable battery changes nothing`() {
         val m = BatteryWatchMonitor()
-        m.check(ANCHOR_BATTERY_LOW_PCT, false)
-        assertEquals(WatchFailureTransition.NONE, m.check(-1, false))
+        m.check(ANCHOR_BATTERY_LOW_PCT, false, 0L)
+        assertEquals(WatchFailureTransition.NONE, m.check(-1, false, 5_000L))
         assertTrue(m.alarming)
     }
 

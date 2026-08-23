@@ -504,6 +504,10 @@ class BackgroundTrackService : Service() {
             AnchorWatchStore.load(this)?.let {
                 anchorParams = it
                 anchorRestoredFromStore = true
+                // An explicit mute is a judgment the restart must not undo:
+                // the skipper who muted a flapping watch would otherwise get
+                // the next false alarm at full volume after an OS kill.
+                anchorAlarmMuted = AnchorWatchStore.loadMuted(this)
                 Log.i(TAG, "Restored armed anchor watch after process restart")
             }
         }
@@ -1465,7 +1469,13 @@ class BackgroundTrackService : Service() {
                 // a suppressed detection made no noise, and an acknowledged
                 // one already un-announced itself at the user's hand.
                 if (anchorAlarmAnnounced) {
-                    recordSelfClearedAlarm(presentedAlarmKind ?: ANCHOR_ALARM_DRAG, null)
+                    val kind = presentedAlarmKind ?: ANCHOR_ALARM_DRAG
+                    recordSelfClearedAlarm(kind, null)
+                    // Retained, pairing with the retained anchorAlarm raise:
+                    // a frozen WebView that thaws hours later replays both
+                    // and nets to silence, instead of blasting the siren for
+                    // an event that ended overnight.
+                    anchorAlarmClearedListener?.invoke(kind)
                 }
                 anchorAlarmAnnounced = false
                 anchorSuppressedLogged = false
@@ -1547,7 +1557,7 @@ class BackgroundTrackService : Service() {
         batteryMonitor?.let { monitor ->
             val (percent, charging) = readBattery()
             if (percent >= 0) lastBatteryPercent = percent
-            when (monitor.check(percent, charging)) {
+            when (monitor.check(percent, charging, nowElapsedMs)) {
                 WatchFailureTransition.RAISE ->
                     raiseWatchFailureAlarm(ANCHOR_WATCH_FAILURE_DEVICE_BATTERY)
                 WatchFailureTransition.CLEAR ->

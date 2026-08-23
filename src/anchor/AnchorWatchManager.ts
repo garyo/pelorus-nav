@@ -37,6 +37,13 @@ import {
 export const DEFAULT_WARN_M = 8;
 export const DEFAULT_ALARM_DELAY_S = 15;
 export const DEFAULT_GPS_LOSS_ALARM_S = 120;
+
+/**
+ * Continuous time back inside the ring before an acknowledged drag event
+ * stands down (re-arming the full alarm for later excursions). Mirrors
+ * ANCHOR_ACK_RESET_INSIDE_MS in AnchorWatch.kt.
+ */
+export const ACK_RESET_INSIDE_MS = 60_000;
 const DEFAULT_ACCURACY_THRESHOLD_M = 25;
 const SCATTER_SAMPLE_INTERVAL_MS = 10_000;
 const SCATTER_PERSIST_INTERVAL_MS = 60_000;
@@ -165,6 +172,8 @@ interface ArmedState {
   lastFix: NavigationData | null;
   /** Fix timestamp of the first fix in the current outside excursion. */
   outsideSinceTs: number | null;
+  /** When the boat came back inside, for the ack-reset dwell; null outside. */
+  insideSinceTs: number | null;
   dragAlarming: boolean;
   /** Drag alarm silenced by the user while still outside. */
   dragAcknowledged: boolean;
@@ -229,6 +238,7 @@ export class AnchorWatchManager {
       scatter: [],
       lastFix: this.deps.navManager.getLastData(),
       outsideSinceTs: null,
+      insideSinceTs: null,
       dragAlarming: false,
       dragAcknowledged: false,
       distanceAtAckM: 0,
@@ -367,13 +377,35 @@ export class AnchorWatchManager {
    */
   noteNativeAlarmCleared(kind: AnchorAlarmKind): void {
     const armed = this.armed;
-    if (!armed || kind !== "watch-failure") return;
-    if (!armed.watchFailureAlarming && !armed.watchFailureAcknowledged) return;
-    if (armed.watchFailureAlarming) this.deps.watchFailureAlarm.stop();
-    armed.watchFailureAlarming = false;
-    armed.watchFailureAcknowledged = false;
-    armed.watchFailureReason = null;
-    this.notify();
+    if (!armed) return;
+    if (kind === "watch-failure") {
+      if (!armed.watchFailureAlarming && !armed.watchFailureAcknowledged) {
+        return;
+      }
+      if (armed.watchFailureAlarming) this.deps.watchFailureAlarm.stop();
+      armed.watchFailureAlarming = false;
+      armed.watchFailureAcknowledged = false;
+      armed.watchFailureReason = null;
+      this.notify();
+      return;
+    }
+    // Drag / GPS-loss: the native event pairs with the retained raise, so a
+    // thawing WebView replays both and nets to silence instead of sounding
+    // an alarm that ended overnight. Safe against live conditions: this
+    // side's own detector re-raises from its own evidence within a fix (or
+    // one 1 s tick) if the boat really is still outside or still blind.
+    if (kind === "gps-loss" && armed.gpsLossAlarming) {
+      this.deps.gpsLossAlarm.stop();
+      armed.gpsLossAlarming = false;
+      this.notify();
+      return;
+    }
+    if (kind === "drag" && armed.dragAlarming) {
+      this.deps.alarm.stop();
+      armed.dragAlarming = false;
+      this.persist(armed);
+      this.notify();
+    }
   }
 
   /** Mute/unmute alarm audio for this watch (persists; alarms keep running). */
@@ -486,6 +518,7 @@ export class AnchorWatchManager {
       scatter: saved.scatter.slice(-SCATTER_MAX_POINTS),
       lastFix: this.deps.navManager.getLastData(),
       outsideSinceTs: null,
+      insideSinceTs: null,
       dragAlarming: saved.alarming,
       dragAcknowledged: false,
       distanceAtAckM: 0,
@@ -537,6 +570,7 @@ export class AnchorWatchManager {
   private evaluate(armed: ArmedState, fix: NavigationData): void {
     const distanceM = this.distanceMeters(armed, fix);
     if (distanceM > armed.radiusM) {
+      armed.insideSinceTs = null;
       if (armed.outsideSinceTs === null) armed.outsideSinceTs = fix.timestamp;
       if (armed.dragAcknowledged) {
         // Still dragging: a further warnM beyond the acknowledged distance
@@ -552,11 +586,23 @@ export class AnchorWatchManager {
       }
     } else {
       armed.outsideSinceTs = null;
-      if (armed.dragAlarming || armed.dragAcknowledged) {
-        if (armed.dragAlarming) this.deps.alarm.stop();
+      if (armed.dragAlarming) {
+        this.deps.alarm.stop();
         armed.dragAlarming = false;
-        armed.dragAcknowledged = false;
         this.persist(armed);
+      }
+      if (armed.dragAcknowledged) {
+        // The acknowledgment survives boundary flapping (mirrors the native
+        // detector): one inside fix at a tide turn is noise, and erasing the
+        // ack on it turned every later 15 s excursion into a fresh wake.
+        // Only a sustained return inside stands the event down; meanwhile
+        // the +warnM rule still alarms on genuine further drag.
+        if (armed.insideSinceTs === null) armed.insideSinceTs = fix.timestamp;
+        if (fix.timestamp - armed.insideSinceTs >= ACK_RESET_INSIDE_MS) {
+          armed.dragAcknowledged = false;
+          armed.insideSinceTs = null;
+          this.persist(armed);
+        }
       }
     }
   }

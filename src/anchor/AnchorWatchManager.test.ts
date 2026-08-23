@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { NavigationData } from "../navigation/NavigationData";
 import type { StorageLike } from "../utils/json-storage-slot";
 import {
+  ACK_RESET_INSIDE_MS,
   AnchorWatchManager,
   type AnchorWatchManagerDeps,
   type AnchorWatchSnapshot,
@@ -366,16 +367,37 @@ describe("acknowledge semantics", () => {
     expect(h.snapshot().alarming).toBe(true);
   });
 
-  it("re-alarms after re-entry and a fresh exit past the delay", () => {
+  it("holds the acknowledgment through boundary flapping", () => {
+    // One inside fix is noise, not the event ending: erasing the ack on it
+    // turned every later 15 s excursion into a fresh full-volume wake at a
+    // tide turn. Mirrors the native detector's dwell.
     const h = makeHarness();
     armAtAnchor(h);
     driveToDragAlarm(h);
     h.manager.acknowledge();
 
-    h.emitFix(fixAt(20, h.clock.now + 1000)); // back inside — event over
-    expect(h.snapshot().acknowledged).toBe(false);
+    h.emitFix(fixAt(20, h.clock.now + 1000)); // brief re-entry
+    expect(h.snapshot().acknowledged).toBe(true);
 
     const t1 = h.clock.now + 10_000;
+    h.emitFix(fixAt(55, t1));
+    h.emitFix(fixAt(56, t1 + 15_000));
+    // Still the acknowledged event: no second wake without real further drag.
+    expect(h.alarm.start).toHaveBeenCalledTimes(1);
+  });
+
+  it("re-alarms after a sustained re-entry and a fresh exit past the delay", () => {
+    const h = makeHarness();
+    armAtAnchor(h);
+    driveToDragAlarm(h);
+    h.manager.acknowledge();
+
+    const back = h.clock.now + 1000;
+    h.emitFix(fixAt(20, back));
+    h.emitFix(fixAt(20, back + ACK_RESET_INSIDE_MS)); // event truly over
+    expect(h.snapshot().acknowledged).toBe(false);
+
+    const t1 = back + ACK_RESET_INSIDE_MS + 10_000;
     h.emitFix(fixAt(55, t1));
     h.emitFix(fixAt(56, t1 + 15_000));
     expect(h.alarm.start).toHaveBeenCalledTimes(2);

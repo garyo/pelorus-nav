@@ -367,6 +367,7 @@ class AnchorWatchDetector(params: AnchorWatchParams) {
      */
     private var hasPosition = false
     private var outsideSinceElapsedMs: Long? = null
+    private var insideSinceElapsedMs: Long? = null
     private var dragAcknowledged = false
     private var distanceAtAckM = 0.0
     private var gpsLossAcknowledged = false
@@ -472,6 +473,7 @@ class AnchorWatchDetector(params: AnchorWatchParams) {
         val distanceM = haversineMeters(lastLat, lastLon, params.lat, params.lon)
         lastDistanceM = distanceM
         if (distanceM > effectiveRadiusM()) {
+            insideSinceElapsedMs = null
             val since = outsideSinceElapsedMs ?: nowElapsedMs.also { outsideSinceElapsedMs = it }
             if (dragAcknowledged) {
                 // Still dragging: a further margin beyond the acknowledged
@@ -484,10 +486,25 @@ class AnchorWatchDetector(params: AnchorWatchParams) {
             }
         } else {
             outsideSinceElapsedMs = null
-            if (alarmKind == ANCHOR_ALARM_DRAG || dragAcknowledged) {
+            if (alarmKind == ANCHOR_ALARM_DRAG) {
                 alarmKind = null
-                dragAcknowledged = false
                 return AnchorTransition.CLEARED
+            }
+            if (dragAcknowledged) {
+                // The acknowledgment survives boundary flapping: at a tide
+                // turn with the fix cloud straddling the ring, a single
+                // inside fix used to erase it, and the next 15 s excursion
+                // re-woke the crew at full volume — repeatedly, all through
+                // the stand. Only a sustained return inside stands the
+                // acknowledged event down; until then the +reAlarmMarginM
+                // rule still alarms on genuine further drag.
+                val inSince =
+                    insideSinceElapsedMs ?: nowElapsedMs.also { insideSinceElapsedMs = it }
+                if (nowElapsedMs - inSince >= ANCHOR_ACK_RESET_INSIDE_MS) {
+                    dragAcknowledged = false
+                    insideSinceElapsedMs = null
+                    return AnchorTransition.CLEARED
+                }
             }
         }
         return AnchorTransition.NONE
@@ -499,6 +516,13 @@ class AnchorWatchDetector(params: AnchorWatchParams) {
         return AnchorTransition.DRAG_ALARM
     }
 }
+
+/**
+ * Continuous time back inside the ring before an acknowledged drag event
+ * stands down (re-arming the full alarm for any later excursion). One fix
+ * inside is boundary noise; a minute inside is the boat genuinely back.
+ */
+const val ANCHOR_ACK_RESET_INSIDE_MS = 60_000L
 
 /** What a watch-failure monitor's check changed. */
 enum class WatchFailureTransition { NONE, RAISE, CLEAR }
@@ -599,6 +623,13 @@ const val ANCHOR_BATTERY_LOW_PCT = 15
  */
 const val ANCHOR_BATTERY_CRITICAL_PCT = 7
 
+/**
+ * Charging must hold this long before the battery alarm's fired-once
+ * latches reset. A charger that genuinely fell out overnight still gets a
+ * fresh alarm on the next decline; a flapping connection does not.
+ */
+const val ANCHOR_BATTERY_RESET_CHARGING_MS = 120_000L
+
 /** Level/scale from ACTION_BATTERY_CHANGED as a percent, -1 when unreadable. */
 fun batteryPercent(level: Int, scale: Int): Int =
     if (level < 0 || scale <= 0) -1 else (level * 100 / scale).coerceIn(0, 100)
@@ -624,15 +655,26 @@ class BatteryWatchMonitor {
     private var firedLow = false
     private var firedCritical = false
 
-    fun check(percent: Int, charging: Boolean): WatchFailureTransition {
+    private var chargingSinceElapsedMs: Long? = null
+
+    fun check(percent: Int, charging: Boolean, nowElapsedMs: Long): WatchFailureTransition {
         if (percent < 0) return WatchFailureTransition.NONE
         if (charging) {
+            // Silence immediately — plugging in is the fix — but reset the
+            // fired-once latches only after sustained charging: a vibrating
+            // 12 V plug or cycling inverter that flaps the charging state at
+            // 15% used to earn a fresh full alarm on every unplugged sample.
+            val since =
+                chargingSinceElapsedMs ?: nowElapsedMs.also { chargingSinceElapsedMs = it }
+            if (nowElapsedMs - since >= ANCHOR_BATTERY_RESET_CHARGING_MS) {
+                firedLow = false
+                firedCritical = false
+            }
             val wasAlarming = alarming
             alarming = false
-            firedLow = false
-            firedCritical = false
             return if (wasAlarming) WatchFailureTransition.CLEAR else WatchFailureTransition.NONE
         }
+        chargingSinceElapsedMs = null
         if (!firedLow && percent <= ANCHOR_BATTERY_LOW_PCT) {
             firedLow = true
             // Already critical at first sight: one alarm, not two in a row.

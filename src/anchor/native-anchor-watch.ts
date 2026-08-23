@@ -273,9 +273,11 @@ export function connectNativeAnchorWatch(
     )
     .catch(ignore);
 
-  // Watch-failure only in practice: those conditions (fix arrived, keepalive
-  // resumed, charger plugged in) are invisible to JS, so their end has to be
-  // reported the way their start was. Retained like the raise it undoes.
+  // Any kind whose raise was announced natively: watch-failure conditions
+  // (fix arrived, keepalive resumed, charger plugged in) are invisible to
+  // JS, and a drag or GPS loss that self-cleared while the WebView was
+  // frozen must cancel its queued raise instead of blasting a stale siren
+  // on thaw. Retained like the raise it undoes.
   plugin
     .addListener("anchorAlarmCleared", (data) =>
       deliver(() => manager.noteNativeAlarmCleared(data.kind)),

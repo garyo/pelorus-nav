@@ -29,6 +29,7 @@ object AnchorWatchStore {
     // network position, so a watch armed by an earlier build must not carry
     // its claim of a proven GNSS receiver across the upgrade.
     private const val KEY_HAD_FIX = "hadGnssFix"
+    private const val KEY_MUTED = "muted"
 
     private fun prefs(context: Context) =
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
@@ -58,6 +59,18 @@ object AnchorWatchStore {
             null
         }
 
+    /** The user's explicit mute survives a process restart with the watch. */
+    fun saveMuted(context: Context, muted: Boolean) {
+        prefs(context).edit().putBoolean(KEY_MUTED, muted).apply()
+    }
+
+    fun loadMuted(context: Context): Boolean =
+        try {
+            prefs(context).getBoolean(KEY_MUTED, false)
+        } catch (_: Exception) {
+            false
+        }
+
     /** See [markHadFix]. Meaningful only alongside a loaded [AnchorWatchParams]. */
     fun loadHadFix(context: Context): Boolean =
         try {
@@ -68,7 +81,7 @@ object AnchorWatchStore {
 
     /** The user stood the watch down: nothing may resurrect it. */
     fun clear(context: Context) {
-        prefs(context).edit().remove(KEY_PARAMS).remove(KEY_HAD_FIX).apply()
+        prefs(context).edit().remove(KEY_PARAMS).remove(KEY_HAD_FIX).remove(KEY_MUTED).apply()
         clearArmedForBoot(context)
     }
 

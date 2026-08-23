@@ -595,6 +595,7 @@ class BackgroundGPSPlugin : Plugin() {
         BackgroundTrackService.jsAlarmKind =
             if (sounding) call.getString("kind") ?: ANCHOR_ALARM_DRAG else null
         BackgroundTrackService.anchorAlarmMuted = call.getBoolean("muted") ?: false
+        AnchorWatchStore.saveMuted(context, BackgroundTrackService.anchorAlarmMuted)
         val service = BackgroundTrackService.instance
         service?.syncAnchorAlarmSound()
         call.resolve(JSObject().put("serviceRunning", service != null))
