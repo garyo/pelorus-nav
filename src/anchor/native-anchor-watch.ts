@@ -253,9 +253,23 @@ export function connectNativeAnchorWatch(
     plugin.noteExternalFix().catch(ignore);
   });
 
+  // Retained events replay the moment a listener registers — which is before
+  // the manager has restored its slot after a cold start. An event adopted
+  // while the manager is unarmed is silently dropped, and retained events
+  // are consumed on delivery, so the loss would be permanent: a native
+  // watch-failure or gps-loss from before a process kill would never reach
+  // the UI. Until reconcile() runs (after restore), events for a
+  // not-yet-armed manager are held and replayed then, in arrival order.
+  let reconciled = false;
+  const heldEvents: Array<() => void> = [];
+  const deliver = (event: () => void): void => {
+    if (reconciled || manager.getState() !== null) event();
+    else heldEvents.push(event);
+  };
+
   plugin
     .addListener("anchorAlarm", (data) =>
-      manager.noteNativeAlarm(data.kind, data.reason),
+      deliver(() => manager.noteNativeAlarm(data.kind, data.reason)),
     )
     .catch(ignore);
 
@@ -264,7 +278,7 @@ export function connectNativeAnchorWatch(
   // reported the way their start was. Retained like the raise it undoes.
   plugin
     .addListener("anchorAlarmCleared", (data) =>
-      manager.noteNativeAlarmCleared(data.kind),
+      deliver(() => manager.noteNativeAlarmCleared(data.kind)),
     )
     .catch(ignore);
 
@@ -274,11 +288,17 @@ export function connectNativeAnchorWatch(
   // side's acknowledgeAnchorAlarm), and acknowledge() is a no-op when nothing
   // is alarming, so even a stray retained event settles harmlessly.
   plugin
-    .addListener("anchorAcknowledged", () => manager.acknowledge())
+    .addListener("anchorAcknowledged", () =>
+      deliver(() => manager.acknowledge()),
+    )
     .catch(ignore);
 
   return {
-    reconcile: () => apply(manager.getState(), true),
+    reconcile: () => {
+      apply(manager.getState(), true);
+      reconciled = true;
+      while (heldEvents.length > 0) heldEvents.shift()?.();
+    },
     dispose: stopKeepalive,
   };
 }

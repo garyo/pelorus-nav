@@ -1146,6 +1146,10 @@ export class AnchorPanel {
     if (active) return;
     if (this.pendingWatchSnap) {
       this.pendingWatchSnap = false;
+      // The watch replay re-renders the alarm too — a snapshot held from an
+      // earlier hold must not survive to be replayed after a later one,
+      // where it would close a live alarm banner (or reopen a cleared one).
+      this.pendingAlarmSnap = undefined;
       this.onWatchChange(this.deps.manager.getState());
       return;
     }

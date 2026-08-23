@@ -216,6 +216,7 @@ describe("connectNativeAnchorWatch", () => {
   it("reconciles a native alarm into the manager", () => {
     const h = makeHarness();
     connect(h);
+    h.emit(snapshot());
     h.fireAlarm("gps-loss");
     expect(h.manager.noteNativeAlarm).toHaveBeenCalledWith(
       "gps-loss",
@@ -226,6 +227,7 @@ describe("connectNativeAnchorWatch", () => {
   it("passes a watch-failure alarm through with its reason", () => {
     const h = makeHarness();
     connect(h);
+    h.emit(snapshot());
     h.fireAlarm("watch-failure", "nothing-watching");
     expect(h.manager.noteNativeAlarm).toHaveBeenCalledWith(
       "watch-failure",
@@ -241,6 +243,7 @@ describe("connectNativeAnchorWatch", () => {
   it("forwards a native cleared event into the manager", () => {
     const h = makeHarness();
     connect(h);
+    h.emit(snapshot());
     h.fireAlarmCleared("watch-failure");
     expect(h.manager.noteNativeAlarmCleared).toHaveBeenCalledWith(
       "watch-failure",
@@ -259,6 +262,36 @@ describe("connectNativeAnchorWatch", () => {
   });
 
   describe("reconcile", () => {
+    it("holds retained events for an unarmed manager until reconcile", () => {
+      // Retained events replay as soon as listeners register — before
+      // restore() has re-armed the manager on a cold start. Delivering
+      // then would drop them (noteNativeAlarm ignores an unarmed manager)
+      // and retained events are consumed on delivery, so the loss would be
+      // permanent. They must wait for reconcile and land in order.
+      const h = makeHarness();
+      const handle = connect(h);
+      h.fireAlarm("watch-failure", "nothing-watching");
+      h.fireAlarmCleared("watch-failure");
+      expect(h.manager.noteNativeAlarm).not.toHaveBeenCalled();
+      h.setState(snapshot());
+      handle.reconcile();
+      expect(h.manager.noteNativeAlarm).toHaveBeenCalledWith(
+        "watch-failure",
+        "nothing-watching",
+      );
+      expect(h.manager.noteNativeAlarmCleared).toHaveBeenCalledWith(
+        "watch-failure",
+      );
+    });
+
+    it("delivers events immediately once the manager is armed", () => {
+      const h = makeHarness();
+      connect(h);
+      h.emit(snapshot());
+      h.fireAlarm("drag");
+      expect(h.manager.noteNativeAlarm).toHaveBeenCalledWith("drag", undefined);
+    });
+
     it("stands down a native watch this side has no record of", () => {
       const h = makeHarness();
       const handle = connect(h);
@@ -387,6 +420,7 @@ describe("connectNativeAnchorWatch", () => {
     it("forwards the notification's Silence into the manager", () => {
       const h = makeHarness();
       connect(h);
+      h.emit(snapshot({ alarming: true, alarmKind: "drag" }));
       h.fireAcknowledged();
       expect(h.manager.acknowledge).toHaveBeenCalledTimes(1);
     });
