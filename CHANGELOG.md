@@ -38,6 +38,9 @@ The format follows [Keep a Changelog](https://keepachangelog.com/).
   is slightly larger, too.
 
 ### Fixed
+- Buoy and light sound-signal marks (bell, gong, whistle) are now drawn
+  in a stronger magenta and placed clear of the buoy symbol, so it's
+  obvious at a glance that a mark has a sound signal.
 - The course projection line now disappears reliably when the vessel
   stops or the GPS signal is lost, instead of sometimes staying frozen
   at its last heading and length.
