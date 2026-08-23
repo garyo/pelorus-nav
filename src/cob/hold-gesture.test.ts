@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   attachHoldGesture,
   createHoldTimer,
+  RELEASE_GRACE_MS,
   stepProgress,
 } from "./hold-gesture";
 
@@ -143,7 +144,7 @@ describe("attachHoldGesture (stepped mode, fake clock)", () => {
     // A pointer release waits out RELEASE_GRACE_MS in case the touchscreen
     // merely dropped the contact; nothing comes back, so it cancels.
     expect(r.cancelled).toBe(false);
-    vi.advanceTimersByTime(300);
+    vi.advanceTimersByTime(RELEASE_GRACE_MS + 50);
     expect(r.cancelled).toBe(true);
     expect(r.completed).toBe(false);
     vi.advanceTimersByTime(2000);
@@ -265,7 +266,7 @@ describe("attachHoldGesture release grace (e-ink touch dropouts)", () => {
     down();
     vi.advanceTimersByTime(400);
     up();
-    vi.advanceTimersByTime(249);
+    vi.advanceTimersByTime(RELEASE_GRACE_MS - 1);
     expect(r.cancelled).toBe(false);
     vi.advanceTimersByTime(2);
     expect(r.cancelled).toBe(true);
@@ -279,7 +280,7 @@ describe("attachHoldGesture release grace (e-ink touch dropouts)", () => {
     down();
     vi.advanceTimersByTime(950);
     up();
-    vi.advanceTimersByTime(300);
+    vi.advanceTimersByTime(RELEASE_GRACE_MS + 50);
     expect(r.completed).toBe(false);
     expect(r.cancelled).toBe(true);
   });

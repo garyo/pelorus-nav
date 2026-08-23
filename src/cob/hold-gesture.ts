@@ -63,12 +63,17 @@ const STEPPED_STEPS = 4;
  * How long a touch may vanish before the hold is treated as released.
  *
  * E-ink digitizers drop the contact during a panel refresh, reporting a
- * pointerup the finger never made — and a hold that draws progress causes
- * refreshes, so it can interrupt itself. Within this window the hold pauses
- * rather than cancels, and a returning press resumes it where it left off;
- * a genuine release just costs this much latency before it cancels.
+ * pointerup the finger never made — and repaints the hold cannot freeze
+ * (HUD connection churn, map layers) keep landing during an alarm, so the
+ * hold must survive them. A full e-ink refresh blanks the digitizer for
+ * 400-600 ms; the field failure at 250 ms was the returning touch arriving
+ * after the hold had already cancelled, on every attempt. Within this
+ * window the hold pauses rather than cancels — the completion timer is
+ * stopped, so an abandoned hold can never fire — and a returning press
+ * resumes where it left off; a genuine release costs only this much
+ * latency before it cancels.
  */
-const RELEASE_GRACE_MS = 250;
+export const RELEASE_GRACE_MS = 800;
 const STEPPED_INTERVAL_MS = 100;
 
 /**
