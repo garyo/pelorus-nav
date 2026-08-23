@@ -508,6 +508,11 @@ class BackgroundTrackService : Service() {
                 // the skipper who muted a flapping watch would otherwise get
                 // the next false alarm at full volume after an OS kill.
                 anchorAlarmMuted = AnchorWatchStore.loadMuted(this)
+                // No JS survived the kill to set a power mode, and the
+                // companion default is ACTIVE @1 Hz — which, with the anchor
+                // wake lock held, would burn the battery all night. The
+                // anchor cadence lives in the PASSIVE branch of applyMode.
+                if (!trackingRequested) currentMode = MODE_PASSIVE
                 Log.i(TAG, "Restored armed anchor watch after process restart")
             }
         }
@@ -1738,6 +1743,19 @@ class BackgroundTrackService : Service() {
                         .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
                         .build(),
                 )
+                // A mid-loop player error otherwise dies silently while the
+                // state machine believes the tone is still up (vibration
+                // carries on, but the tone is what wakes a sleeping crew).
+                // Reset and re-derive: a fresh player is created if an alarm
+                // still wants noise.
+                setOnErrorListener { _, _, _ ->
+                    mainHandler.post {
+                        anchorAlarmSounding = false
+                        anchorAlarmSoundingKind = null
+                        syncAnchorAlarmSound()
+                    }
+                    true
+                }
                 // The CPU must stay up between loops with the screen off.
                 setWakeMode(applicationContext, PowerManager.PARTIAL_WAKE_LOCK)
                 applicationContext.resources.openRawResourceFd(anchorAlarmResource(kind))

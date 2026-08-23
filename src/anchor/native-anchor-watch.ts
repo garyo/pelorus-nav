@@ -159,6 +159,7 @@ export function connectNativeAnchorWatch(
   /** What was last pushed down: a geometry key, "cleared", or nothing yet. */
   let pushed: string | "cleared" | null = null;
   let wasAcknowledged = false;
+  let wasAlarmKind: AnchorAlarmKind | null = null;
   let armed = false;
   let lastExternalFixReport = 0;
 
@@ -228,16 +229,24 @@ export function connectNativeAnchorWatch(
     }
     // Acknowledging in the app silences the native alarm too — otherwise
     // the notification's sound would outlive the tap that stopped the
-    // in-app one.
-    if (snap.acknowledged && !wasAcknowledged) {
+    // in-app one. The edge test alone misses one case: `acknowledged` is
+    // the OR of the per-kind flags, so a second alarm acknowledged while an
+    // earlier kind's ack still stands shows no edge — an alarm ending with
+    // the flag up is pushed too. Duplicates are safe (native acknowledge is
+    // a no-op when nothing is alarming).
+    if (
+      snap.acknowledged &&
+      (!wasAcknowledged || (wasAlarmKind !== null && snap.alarmKind === null))
+    ) {
       plugin.acknowledgeAnchorAlarm().catch(ignore);
     }
     wasAcknowledged = snap.acknowledged;
+    wasAlarmKind = snap.alarmKind;
   };
 
   manager.subscribe((snap) => apply(snap));
 
-  options.navManager?.subscribe(() => {
+  options.navManager?.subscribe((fix) => {
     if (!armed) return;
     // A delivered fix is also proof of life. Chromium can throttle a hidden
     // page's timers while still executing bridge-delivered events, so a
@@ -248,6 +257,11 @@ export function connectNativeAnchorWatch(
       lastEventBeatMs = now();
       beat();
     }
+    // A simulator fix is not the boat: reporting it would hold off the
+    // native GPS-loss alarm (and clear a ringing one) on a fiction. The
+    // beat above still counts — the JS watch really is running, it is just
+    // watching data that must never vouch for the real position feed.
+    if (fix?.source === "simulator") return;
     if (now() - lastExternalFixReport < EXTERNAL_FIX_REPORT_MS) return;
     lastExternalFixReport = now();
     plugin.noteExternalFix().catch(ignore);
@@ -319,7 +333,7 @@ export const SCREEN_OFF_COVER_GRACE_MS = 60_000;
 export type ScreenOffCover =
   | { state: "unknown" }
   | { state: "covered" }
-  | { state: "none"; reason: "permission" | "no-fix" };
+  | { state: "none"; reason: "permission" | "no-fix" | "service" };
 
 /**
  * The one disclosure worth making, because it is the one the user can act
@@ -337,6 +351,8 @@ export const SCREEN_OFF_COVER_TEXT: Record<
 > = {
   permission:
     "Location permission is off — the watch may stop when the screen is off. Turn it on in Settings.",
+  service:
+    "The watch's background service is not running — dragging may go undetected once the screen is off. Disarm and re-arm the watch.",
   "no-fix":
     "This device's GPS has no fix — dragging may go undetected once the screen is off. Move where the sky is clear.",
 };
@@ -378,6 +394,14 @@ export function assessScreenOffCover(
     return armedForMs < SCREEN_OFF_COVER_GRACE_MS
       ? { state: "unknown" }
       : { state: "none", reason: "permission" };
+  }
+  // Whatever else the status claims, a stopped service means no wake lock,
+  // no native detector, and no meta-alarm: nothing survives the screen
+  // going off. Past the arming grace this is never "covered".
+  if (!status.serviceRunning) {
+    return armedForMs < SCREEN_OFF_COVER_GRACE_MS
+      ? { state: "unknown" }
+      : { state: "none", reason: "service" };
   }
   // A device with no GNSS receiver has no native watchdog to wait on, and
   // no user action will create one. There the JS watch — fed by the app's

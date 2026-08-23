@@ -19,6 +19,7 @@ import com.getcapacitor.annotation.PermissionCallback
 import java.io.IOException
 import java.util.UUID
 import nav.pelorus.plugins.backgroundgps.BackgroundTrackService
+import nav.pelorus.plugins.backgroundgps.DiagLog
 
 /**
  * Bluetooth Classic SPP (RFCOMM) transport for NMEA GPS receivers such as the
@@ -30,8 +31,13 @@ import nav.pelorus.plugins.backgroundgps.BackgroundTrackService
  * (there is no in-app pairing flow), so the JS side lists bonded devices and
  * connects by MAC address. The reader thread emits "data" events with decoded
  * text chunks; a broken link emits one "disconnected" event. Reconnect policy
- * lives entirely in the web layer (ReconnectingTransport) — this plugin only
- * opens, reads, and closes one socket at a time.
+ * lives in the web layer (ReconnectingTransport) — with one exception: while
+ * an anchor watch is armed, a dropped link is also retried natively (see
+ * [maybeStartAnchorReconnect]), because the WebView that would otherwise
+ * reconnect freezes minutes after the screen goes off, and on a GNSS-less
+ * tablet this stream is the anchor watch's only position source. Without the
+ * native retry, every transient Bluetooth dropout matured into a full
+ * GPS-loss alarm two minutes later — one guaranteed crew wake per dropout.
  */
 @CapacitorPlugin(
     name = "BluetoothSerial",
@@ -46,6 +52,8 @@ class BluetoothSerialPlugin : Plugin() {
     }
 
     @Volatile private var socket: BluetoothSocket? = null
+    /** Address of the most recently requested device, for the anchor retry. */
+    @Volatile private var lastDeviceId: String? = null
     // Identifies the current connection so a stale reader thread (whose socket
     // was replaced underneath it) can't emit a spurious "disconnected".
     @Volatile private var generation = 0
@@ -134,6 +142,7 @@ class BluetoothSerialPlugin : Plugin() {
         val adapter = this.adapter ?: return call.reject("Bluetooth unavailable")
         if (!adapter.isEnabled) return call.reject("Bluetooth is off")
 
+        lastDeviceId = deviceId
         closeSocket()
         val gen = ++generation
         Thread({
@@ -176,15 +185,22 @@ class BluetoothSerialPlugin : Plugin() {
                 if (n < 0) break
                 if (n > 0) {
                     val text = String(buffer, 0, n, Charsets.ISO_8859_1)
-                    val data = JSObject()
-                    data.put("data", text)
-                    notifyListeners("data", data)
+                    // Fan-out must not kill the read loop: an exception here
+                    // would leak the socket with no "disconnected" event —
+                    // both feeds dead while JS still shows connected.
+                    try {
+                        val data = JSObject()
+                        data.put("data", text)
+                        notifyListeners("data", data)
+                    } catch (_: Exception) {}
                     // The anchor watch reads the stream natively too: the
                     // WebView this event feeds freezes minutes after the
                     // screen goes off, and on a GNSS-less tablet this stream
                     // is the only thing that can see the boat. No-op unless
                     // a watch is armed.
-                    BackgroundTrackService.instance?.onSerialData(text)
+                    try {
+                        BackgroundTrackService.instance?.onSerialData(text)
+                    } catch (_: Exception) {}
                 }
             }
         } catch (_: IOException) {
@@ -193,7 +209,63 @@ class BluetoothSerialPlugin : Plugin() {
         if (gen == generation) {
             closeSocket()
             notifyListeners("disconnected", JSObject())
+            maybeStartAnchorReconnect()
         }
+    }
+
+    /**
+     * Keep the serial GPS feed alive for an armed anchor watch with no JS to
+     * do it: retry the last device with backoff until the link is back, the
+     * watch is disarmed, or a JS connect/disconnect supersedes us (any
+     * generation change). Sleeps first, so an awake WebView's own reconnect
+     * wins the race and this thread simply exits.
+     */
+    @SuppressLint("MissingPermission")
+    private fun maybeStartAnchorReconnect() {
+        val deviceId = lastDeviceId ?: return
+        if (BackgroundTrackService.anchorParams == null) return
+        val fromGen = generation
+        DiagLog.log(context, "conn", "bt-spp native reconnect loop started (anchor armed)")
+        Thread({
+            var delayMs = 2_000L
+            while (true) {
+                try {
+                    Thread.sleep(delayMs)
+                } catch (_: InterruptedException) {
+                    return@Thread
+                }
+                if (generation != fromGen) return@Thread
+                if (BackgroundTrackService.anchorParams == null) return@Thread
+                val adapter = this.adapter
+                if (adapter == null || !adapter.isEnabled) {
+                    delayMs = minOf(delayMs * 2, 20_000L)
+                    continue
+                }
+                try {
+                    val device = adapter.getRemoteDevice(deviceId)
+                    try {
+                        adapter.cancelDiscovery()
+                    } catch (_: SecurityException) {}
+                    val sock = device.createRfcommSocketToServiceRecord(SPP_UUID)
+                    sock.connect()
+                    synchronized(this) {
+                        if (generation != fromGen) {
+                            try { sock.close() } catch (_: IOException) {}
+                            return@Thread
+                        }
+                        socket = sock
+                    }
+                    DiagLog.log(context, "conn", "bt-spp native reconnected (anchor armed)")
+                    // Tell a live WebView the stream is back; a frozen one
+                    // simply keeps receiving native-side anchor fixes.
+                    notifyListeners("connected", JSObject())
+                    readLoop(sock, fromGen)
+                    return@Thread
+                } catch (_: Exception) {
+                    delayMs = minOf(delayMs * 2, 20_000L)
+                }
+            }
+        }, "bt-spp-anchor-reconnect").start()
     }
 
     private fun closeSocket() {

@@ -481,6 +481,19 @@ describe("connectNativeAnchorWatch", () => {
       expect(screenOffCoverLine(blind)).toBe(SCREEN_OFF_COVER_TEXT["no-fix"]);
     });
 
+    it("never claims cover with the service dead", () => {
+      // A stopped service means no wake lock, native detector, or
+      // meta-alarm — even on a GNSS-less device whose verdict is
+      // otherwise "covered".
+      const dead = status({ serviceRunning: false, gnssAvailable: false });
+      expect(assessScreenOffCover(dead)).toEqual({
+        state: "none",
+        reason: "service",
+      });
+      expect(assessScreenOffCover(dead, 1_000)).toEqual({ state: "unknown" });
+      expect(screenOffCoverLine(dead)).toBe(SCREEN_OFF_COVER_TEXT.service);
+    });
+
     it("never warns a device that has no GNSS to get a fix with", () => {
       // A GNSS-less tablet on an external GPS: hadFix stays false forever,
       // but "no fix — move where the sky is clear" beside a healthy GPS

@@ -51,9 +51,15 @@ fun parseNmeaRmc(line: String): NmeaFix? {
 private fun parseNmeaCoord(value: String, hemisphere: String, degreeDigits: Int): Double? {
     if (value.length <= degreeDigits) return null
     val degrees = value.substring(0, degreeDigits).toIntOrNull() ?: return null
+    if (degrees < 0) return null
     val minutes = value.substring(degreeDigits).toDoubleOrNull() ?: return null
-    if (minutes >= 60.0 || minutes < 0.0) return null
+    // NaN fails both range guards and would ride through to a NaN distance,
+    // which compares as "inside the ring" — the alarm-suppressing direction.
+    if (!minutes.isFinite() || minutes >= 60.0 || minutes < 0.0) return null
     val magnitude = degrees + minutes / 60.0
+    // 2-digit degrees caps latitude at 99, 3-digit longitude at 999: reject
+    // what no receiver can mean rather than hand it to the haversine.
+    if (magnitude > if (degreeDigits == 2) 90.0 else 180.0) return null
     return when (hemisphere) {
         "N", "E" -> magnitude
         "S", "W" -> -magnitude
