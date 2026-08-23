@@ -19,6 +19,9 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <!-- Boot disclosure only: an armed anchor watch killed by a reboot must
+         announce itself (AnchorBootReceiver). Nothing is auto-started. -->
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
 
     <!-- Notification permission (Android 13+) -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
@@ -128,6 +131,19 @@
             android:name="nav.pelorus.plugins.backgroundgps.BackgroundTrackService"
             android:foregroundServiceType="location"
             android:exported="false" />
+
+        <!-- Reboot disclosure for an armed anchor watch: a restart kills the
+             watch and nothing may do so silently. Direct-boot aware so the
+             alarm sounds even while the device sits locked. -->
+        <receiver
+            android:name="nav.pelorus.plugins.backgroundgps.AnchorBootReceiver"
+            android:directBootAware="true"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.LOCKED_BOOT_COMPLETED" />
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+            </intent-filter>
+        </receiver>
 
         <provider
             android:name="androidx.core.content.FileProvider"

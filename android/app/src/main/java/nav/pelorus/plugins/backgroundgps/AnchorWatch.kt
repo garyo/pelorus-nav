@@ -292,6 +292,38 @@ class AnchorWatchDetector(params: AnchorWatchParams) {
             this.hadFix = true
             this.lastFixElapsedMs = nowElapsedMs
         }
+
+        /**
+         * When the anchor watchdog must next run, given the alarm state. The
+         * watchdog is the only caller of [onTick], so this must never say
+         * "never" while a watch is armed: an armed watch with no scheduled
+         * watchdog and no incoming fixes is a dead sensor that looks like a
+         * safe boat. The three cases:
+         *  - no alarm: wake at the GPS-loss deadline;
+         *  - detected but suppressed (JS alive): wake when the keepalive
+         *    verdict can flip, so the deferred announcement happens;
+         *  - announced: keep ticking at the floor — the reviewed failure was
+         *    an announced-then-acknowledged alarm orphaning the watchdog,
+         *    which left GPS loss undetectable for the rest of the night when
+         *    the GPS had died during the alarm.
+         */
+        fun watchdogDelayMs(
+            alarmKind: String?,
+            announced: Boolean,
+            gpsLossDeadlineElapsedMs: Long,
+            lastKeepaliveElapsedMs: Long,
+            nowElapsedMs: Long,
+            minDelayMs: Long,
+        ): Long = when {
+            alarmKind == null ->
+                maxOf(gpsLossDeadlineElapsedMs - nowElapsedMs, minDelayMs)
+            !announced ->
+                maxOf(
+                    lastKeepaliveElapsedMs + ANCHOR_KEEPALIVE_STALE_MS - nowElapsedMs,
+                    minDelayMs,
+                )
+            else -> minDelayMs
+        }
     }
 
     var params: AnchorWatchParams = params
@@ -327,6 +359,13 @@ class AnchorWatchDetector(params: AnchorWatchParams) {
 
     private var lastLat = 0.0
     private var lastLon = 0.0
+    /**
+     * A real position has been fed *this process*. [hadFix] survives a
+     * restore but coordinates never do, so a restored detector must not
+     * evaluate geometry until this is true — judging the placeholder (0,0)
+     * reads as thousands of kilometres out and can raise a phantom drag.
+     */
+    private var hasPosition = false
     private var outsideSinceElapsedMs: Long? = null
     private var dragAcknowledged = false
     private var distanceAtAckM = 0.0
@@ -346,6 +385,7 @@ class AnchorWatchDetector(params: AnchorWatchParams) {
         accuracyM: Double = ANCHOR_ACCURACY_UNKNOWN,
     ): AnchorTransition {
         hadFix = true
+        hasPosition = true
         lastFixElapsedMs = nowElapsedMs
         lastLat = lat
         lastLon = lon
@@ -400,7 +440,7 @@ class AnchorWatchDetector(params: AnchorWatchParams) {
     fun updateParams(next: AnchorWatchParams, nowElapsedMs: Long): AnchorTransition {
         params = next
         outsideSinceElapsedMs = null
-        if (!hadFix) return AnchorTransition.NONE
+        if (!hasPosition) return AnchorTransition.NONE
         val transition = evaluate(nowElapsedMs)
         if (dragAcknowledged) distanceAtAckM = lastDistanceM
         return transition

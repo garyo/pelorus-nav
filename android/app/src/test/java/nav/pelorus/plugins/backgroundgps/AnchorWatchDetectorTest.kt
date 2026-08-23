@@ -228,6 +228,21 @@ class AnchorWatchDetectorTest {
     }
 
     @Test
+    fun `a restored watch never judges geometry before its first real fix`() {
+        // hadFix survives a restore but coordinates do not: a geometry push
+        // (reconcile always re-pushes) must not evaluate the placeholder
+        // (0,0) as a position thousands of kilometres outside the ring.
+        val d = AnchorWatchDetector.restored(params(), hadFix = true, nowElapsedMs = 0L)
+        assertEquals(AnchorTransition.NONE, d.updateParams(params(radiusM = 60.0), 1_000L))
+        assertEquals(0.0, d.lastDistanceM, 0.0)
+        // Even with the excursion delay long past, the first real fix outside
+        // starts a fresh excursion rather than alarming instantly.
+        assertEquals(AnchorTransition.NONE, fix(d, 100.0, 60_000L))
+        assertNull(d.alarmKind)
+        assertEquals(AnchorTransition.DRAG_ALARM, fix(d, 100.0, 76_000L))
+    }
+
+    @Test
     fun `a restored watch carries no acknowledgment`() {
         val d = AnchorWatchDetector.restored(params(), hadFix = true, nowElapsedMs = 0L)
         assertFalse(d.acknowledge())

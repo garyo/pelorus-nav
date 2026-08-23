@@ -1009,11 +1009,22 @@ class BackgroundTrackService : Service() {
     // --- Anchor watch ---------------------------------------------------
 
     /**
+     * Anchor state — the detector, monitors, alarm/sound machinery — is
+     * main-looper-confined, like [applyModeOnMain]: GNSS callbacks, the
+     * watchdog receiver, the keepalive runnable and the serial hop all run
+     * there. Capacitor invokes plugin methods on its own handler thread, so
+     * every plugin-reachable anchor entry point funnels through here.
+     */
+    private fun runAnchorOnMain(action: () -> Unit) {
+        if (Looper.myLooper() == Looper.getMainLooper()) action() else mainHandler.post(action)
+    }
+
+    /**
      * Adopt [anchorParams]: create the detector on arm, update it in place on
      * an anchor move or radius change (so hysteresis and the "has ever had a
      * fix" flag survive), tear everything down on disarm.
      */
-    fun applyAnchorWatch() {
+    fun applyAnchorWatch() = runAnchorOnMain {
         val params = anchorParams
         if (params == null) {
             anchorDetector = null
@@ -1029,9 +1040,13 @@ class BackgroundTrackService : Service() {
             releaseAnchorWakeLock()
             refreshNotification()
             applyMode()
-            return
+            return@runAnchorOnMain
         }
         acquireAnchorWakeLock()
+        // An armed watch supersedes any standing "watch not running" reboot
+        // disclosure (AnchorBootReceiver) — the condition it warned of ended.
+        getSystemService(NotificationManager::class.java)
+            ?.cancel(AnchorBootReceiver.NOTIFICATION_ID)
         startAnchorGnssUpdates()
         startAnchorKeepaliveCheck()
         val now = SystemClock.elapsedRealtime()
@@ -1039,9 +1054,16 @@ class BackgroundTrackService : Service() {
         if (existing == null) {
             // A watch adopted from disk was already proven to work if it had
             // seen a fix — see AnchorWatchDetector.restored for what survives.
+            // The disk flag is read unconditionally, not only on the store
+            // restore path: when the whole process died and the *app* came
+            // back first, JS re-pushes the watch before onCreate ever reads
+            // the store, but the proof is no less valid — dropping it there
+            // disabled GPS-loss for the night and re-opened the
+            // nothing-watching chirp. Safe because every disarm/stand-down
+            // clears the flag, so it always refers to the persisted watch.
             anchorDetector = AnchorWatchDetector.restored(
                 params,
-                hadFix = anchorRestoredFromStore && AnchorWatchStore.loadHadFix(this),
+                hadFix = AnchorWatchStore.loadHadFix(this),
                 nowElapsedMs = now,
             )
             anchorDetectorSinceElapsedMs = now
@@ -1195,7 +1217,7 @@ class BackgroundTrackService : Service() {
      * the app's own acknowledge, and the user who taps it means "quiet", not
      * "quiet unless the WebView still wants noise".
      */
-    fun acknowledgeAnchorAlarm() {
+    fun acknowledgeAnchorAlarm() = runAnchorOnMain {
         var silenced = anchorDetector?.acknowledge() ?: false
         // The meta-alarm shares acknowledge semantics: quiet now, still
         // watching. It re-fires only if its condition clears and recurs
@@ -1206,6 +1228,18 @@ class BackgroundTrackService : Service() {
         anchorAlarmAnnounced = false
         anchorSuppressedLogged = false
         clearAnchorAlarm()
+        // The watch outlives the silenced alarm, so watching must resume in
+        // full: with the GPS dead there will be no fix to re-arm the
+        // watchdog, and an acknowledged alarm must still be followed by a
+        // GPS-loss alarm when its deadline passes.
+        anchorDetector?.let {
+            armAnchorWatchdog(
+                maxOf(
+                    it.gpsLossDeadlineElapsedMs() - SystemClock.elapsedRealtime(),
+                    ANCHOR_WATCHDOG_MIN_DELAY_MS,
+                ),
+            )
+        }
         if (silenced) DiagLog.log(applicationContext, "anchor", "acknowledged")
     }
 
@@ -1219,7 +1253,7 @@ class BackgroundTrackService : Service() {
      * device, against 11 of 15 for ALARM) and made an alarm with the app open
      * quieter than the same alarm with the screen off.
      */
-    fun syncAnchorAlarmSound() {
+    fun syncAnchorAlarmSound() = runAnchorOnMain {
         val kind =
             if (anchorAlarmMuted) null
             else anchorAlarmSoundKind(announcedAlarmKind(), jsAlarmKind)
@@ -1281,8 +1315,8 @@ class BackgroundTrackService : Service() {
      * service never sees — delivered a fix. Keeps the GPS-loss deadline
      * honest while the WebView is awake; see [AnchorWatchDetector.onExternalFix].
      */
-    fun onExternalAnchorFix() {
-        val detector = anchorDetector ?: return
+    fun onExternalAnchorFix() = runAnchorOnMain {
+        val detector = anchorDetector ?: return@runAnchorOnMain
         handleAnchorTransition(detector.onExternalFix(SystemClock.elapsedRealtime()))
         armAnchorWatchdog(detector.params.gpsLossAlarmMs)
     }
@@ -1409,18 +1443,17 @@ class BackgroundTrackService : Service() {
         // ticking through Doze.
         checkAnchorKeepalive(now)
         checkWatchFailure(now)
-        if (detector.alarmKind == null) {
-            armAnchorWatchdog(
-                maxOf(detector.gpsLossDeadlineElapsedMs() - now, ANCHOR_WATCHDOG_MIN_DELAY_MS),
-            )
-        } else if (!anchorAlarmAnnounced) {
-            armAnchorWatchdog(
-                maxOf(
-                    lastKeepaliveElapsedMs + ANCHOR_KEEPALIVE_STALE_MS - now,
-                    ANCHOR_WATCHDOG_MIN_DELAY_MS,
-                ),
-            )
-        }
+        // Always re-armed while a detector exists — see watchdogDelayMs.
+        armAnchorWatchdog(
+            AnchorWatchDetector.watchdogDelayMs(
+                detector.alarmKind,
+                anchorAlarmAnnounced,
+                detector.gpsLossDeadlineElapsedMs(),
+                lastKeepaliveElapsedMs,
+                now,
+                ANCHOR_WATCHDOG_MIN_DELAY_MS,
+            ),
+        )
     }
 
     private fun handleAnchorTransition(transition: AnchorTransition) {

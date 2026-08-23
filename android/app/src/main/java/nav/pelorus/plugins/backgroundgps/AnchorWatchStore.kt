@@ -36,6 +36,7 @@ object AnchorWatchStore {
     /** Record the armed geometry. Called on arm, anchor move and radius change. */
     fun save(context: Context, params: AnchorWatchParams) {
         prefs(context).edit().putString(KEY_PARAMS, encodeAnchorWatchParams(params)).apply()
+        markArmedForBoot(context)
     }
 
     /**
@@ -68,7 +69,46 @@ object AnchorWatchStore {
     /** The user stood the watch down: nothing may resurrect it. */
     fun clear(context: Context) {
         prefs(context).edit().remove(KEY_PARAMS).remove(KEY_HAD_FIX).apply()
+        clearArmedForBoot(context)
     }
+
+    // --- Device-protected mirror for the boot receiver -------------------
+    // The main store lives in credential-protected storage, unreadable until
+    // first unlock — but a phone that reboots at 03:00 sits locked until
+    // morning, which is exactly when the "your watch is gone" disclosure must
+    // sound. A single boolean is mirrored where LOCKED_BOOT_COMPLETED can
+    // read it (see AnchorBootReceiver). No geometry crosses over: the flag
+    // says only that a watch was armed.
+
+    private const val BOOT_PREFS = "pelorus_anchor_watch_boot"
+    private const val KEY_BOOT_ARMED = "armed"
+
+    private fun bootPrefs(context: Context) =
+        context.createDeviceProtectedStorageContext()
+            .getSharedPreferences(BOOT_PREFS, Context.MODE_PRIVATE)
+
+    private fun markArmedForBoot(context: Context) {
+        try {
+            bootPrefs(context).edit().putBoolean(KEY_BOOT_ARMED, true).apply()
+        } catch (_: Exception) {
+            // Best-effort mirror; the credential-protected store is authoritative.
+        }
+    }
+
+    private fun clearArmedForBoot(context: Context) {
+        try {
+            bootPrefs(context).edit().remove(KEY_BOOT_ARMED).apply()
+        } catch (_: Exception) {
+        }
+    }
+
+    /** Whether a watch was armed when the device went down; boot-readable. */
+    fun wasArmedForBoot(context: Context): Boolean =
+        try {
+            bootPrefs(context).getBoolean(KEY_BOOT_ARMED, false)
+        } catch (_: Exception) {
+            false
+        }
 }
 
 /** Format marker: a decoder must reject anything it doesn't understand. */
