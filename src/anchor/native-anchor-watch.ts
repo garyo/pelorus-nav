@@ -459,6 +459,39 @@ export const ALARM_VOLUME_TEXT = {
 };
 
 /**
+ * Standing advisory for a watch armed on the web, where there is no native
+ * side at all: a hidden or sleeping page freezes JS and the whole watch
+ * with it, and nothing can wake the device. Honest and permanent — web is a
+ * daytime, screen-on tool.
+ */
+export const WEB_WATCH_ADVISORY =
+  "Browser version: the watch runs only while this page stays open with " +
+  "the screen on. It cannot wake a sleeping device — do not rely on it " +
+  "overnight. Install the app for screen-off protection.";
+
+export const BATTERY_OPTIMIZATION_TEXT =
+  "Battery optimization is on — Android may delay alarms while the device " +
+  "sleeps. Set Pelorus Nav to Unrestricted in battery settings.";
+
+export const PLUG_IN_TEXT =
+  "Running on battery — for overnight use, plug in this device (and an " +
+  "external GPS).";
+
+/** Doze can defer alarms unless the app is exempted; disclose when not. */
+export function batteryOptimizationLine(
+  status: AnchorWatchNativeStatus | null,
+): string | null {
+  return status?.batteryOptimized === true ? BATTERY_OPTIMIZATION_TEXT : null;
+}
+
+/** Overnight anchoring belongs on the charger; suggest it while unplugged. */
+export function plugInLine(
+  status: AnchorWatchNativeStatus | null,
+): string | null {
+  return status?.charging === false ? PLUG_IN_TEXT : null;
+}
+
+/**
  * The alarm-audibility half of the line; null when it's fine or unknown.
  * With a user-chosen alarm volume the stream level no longer predicts the
  * alarm's loudness (the service sets the stream to the choice), so the
@@ -495,6 +528,8 @@ export function armedAdvisoryLine(
   const parts = [
     screenOffCoverLine(status, armedForMs),
     alarmVolumeLine(status, userVolume),
+    batteryOptimizationLine(status),
+    plugInLine(status),
   ].filter((part): part is string => part !== null);
   return parts.length > 0 ? parts.join(" ") : null;
 }

@@ -1942,6 +1942,30 @@ class BackgroundTrackService : Service() {
         val am = alarmManager ?: return
         val pi = anchorWatchdogPendingIntent ?: return
         am.cancel(pi)
+        // Without the battery-optimization exemption, Doze can defer an
+        // allow-while-idle alarm by many minutes past a two-minute GPS-loss
+        // deadline. setAlarmClock is fully Doze-exempt (the OS treats it as
+        // a user-facing alarm clock, which an anchor alarm genuinely is) —
+        // used exactly when it is needed AND permitted, so the exempted
+        // common case keeps the quiet allow-while-idle path with no
+        // status-bar alarm icon.
+        val pm = getSystemService(PowerManager::class.java)
+        val exempt = pm?.isIgnoringBatteryOptimizations(packageName) == true
+        val canExact =
+            Build.VERSION.SDK_INT < Build.VERSION_CODES.S || am.canScheduleExactAlarms()
+        if (!exempt && canExact) {
+            val show = packageManager.getLaunchIntentForPackage(packageName)?.let {
+                PendingIntent.getActivity(
+                    this, 7, it,
+                    PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+                )
+            }
+            am.setAlarmClock(
+                AlarmManager.AlarmClockInfo(System.currentTimeMillis() + delayMs, show),
+                pi,
+            )
+            return
+        }
         am.setAndAllowWhileIdle(
             AlarmManager.ELAPSED_REALTIME_WAKEUP,
             SystemClock.elapsedRealtime() + delayMs,

@@ -495,6 +495,21 @@ describe("connectNativeAnchorWatch", () => {
       ).toBe(ALARM_VOLUME_TEXT.muted);
     });
 
+    it("discloses battery optimization and suggests the charger", () => {
+      expect(armedAdvisoryLine(status({ batteryOptimized: true }))).toContain(
+        "Battery optimization",
+      );
+      expect(armedAdvisoryLine(status({ charging: false }))).toContain(
+        "plug in",
+      );
+      // Exempt and on power: nothing to say.
+      expect(
+        armedAdvisoryLine(status({ batteryOptimized: false, charging: true })),
+      ).toBeNull();
+      // Unknown states are never warnings.
+      expect(armedAdvisoryLine(status())).toBeNull();
+    });
+
     it("never claims cover with the service dead", () => {
       // A stopped service means no wake lock, native detector, or
       // meta-alarm — even on a GNSS-less device whose verdict is

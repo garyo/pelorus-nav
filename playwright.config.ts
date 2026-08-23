@@ -15,6 +15,9 @@ const webglArgs = [
   "--enable-webgl",
   "--use-gl=angle",
   "--use-angle=swiftshader",
+  // The anchor specs drive real alarms, and headless Chromium plays Web
+  // Audio through the host's speakers. A test run must not siren the room.
+  "--mute-audio",
 ];
 
 export default defineConfig({

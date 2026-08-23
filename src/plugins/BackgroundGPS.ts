@@ -60,6 +60,14 @@ export interface AnchorWatchNativeStatus {
   alarmVolume?: number;
   /** The ALARM stream is muted outright — no level will be heard. */
   alarmVolumeMuted?: boolean;
+  /**
+   * The app is NOT exempt from battery optimization, so Doze may defer
+   * alarms. Disclosed in the armed panel; the exemption is requested once
+   * at first arm.
+   */
+  batteryOptimized?: boolean;
+  /** The device is on power; false suggests plugging in for the night. */
+  charging?: boolean;
 }
 
 export interface BackgroundGPSPlugin {

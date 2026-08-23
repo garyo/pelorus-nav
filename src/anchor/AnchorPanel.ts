@@ -22,6 +22,7 @@
  * the predictor doesn't like is advice in the setup view, not a gate.
  */
 
+import { Capacitor } from "@capacitor/core";
 import type { CobAlarm } from "../cob/CobAlarm";
 import { formatCobElapsed } from "../cob/cob-state";
 import { attachHoldGesture } from "../cob/hold-gesture";
@@ -81,6 +82,7 @@ import { type AnchorRememberedParams, anchorParamsSlot } from "./anchor-state";
 import {
   armedAdvisoryLine,
   getNativeAnchorStatus,
+  WEB_WATCH_ADVISORY,
 } from "./native-anchor-watch";
 
 /** Arming is deliberate but not an emergency — a short guarded hold. */
@@ -700,6 +702,16 @@ export class AnchorPanel {
     volTest.addEventListener("click", () => this.deps.alarmVolume.preview());
     volRow.append(volLab, volSlider, volValue, volTest);
 
+    // Web has no native side: a hidden or sleeping page freezes the whole
+    // watch. Said before arming, not only after.
+    const webNote = document.createElement("div");
+    webNote.className = "anchor-web-note";
+    if (Capacitor.isNativePlatform()) {
+      webNote.style.display = "none";
+    } else {
+      webNote.textContent = WEB_WATCH_ADVISORY;
+    }
+
     // Why arming is unavailable, when it is — arming must never be a
     // half-commitment, so the reason shows before the button is pressed.
     this.armBlockedEl = document.createElement("div");
@@ -713,6 +725,7 @@ export class AnchorPanel {
       posRow,
       this.posHint,
       volRow,
+      webNote,
       this.armBlockedEl,
       armBtn,
     );
@@ -1283,11 +1296,9 @@ export class AnchorPanel {
         // How long this side has been armed: the service needs a moment to
         // start, and "not running yet" must not read as "not covered".
         const armedForMs = this.snap ? Date.now() - this.snap.armedAt : 0;
-        this.advisoryText = armedAdvisoryLine(
-          status,
-          armedForMs,
-          this.params.alarmVolume,
-        );
+        this.advisoryText = status
+          ? armedAdvisoryLine(status, armedForMs, this.params.alarmVolume)
+          : WEB_WATCH_ADVISORY;
         this.renderAdvisory();
       },
       () => {

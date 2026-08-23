@@ -22,6 +22,11 @@
     <!-- Boot disclosure only: an armed anchor watch killed by a reboot must
          announce itself (AnchorBootReceiver). Nothing is auto-started. -->
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <!-- Anchor alarm timeliness in Doze: the exemption is requested once at
+         first arm (a sleeping anchored boat is the canonical justified use);
+         exact alarms are used opportunistically when the user allows them. -->
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
 
     <!-- Notification permission (Android 13+) -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />

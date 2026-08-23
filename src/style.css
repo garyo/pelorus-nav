@@ -5184,6 +5184,13 @@ body.eink-refresh-tick {
   text-align: right;
 }
 
+.anchor-web-note {
+  font-size: 11px;
+  font-style: italic;
+  opacity: 0.75;
+  line-height: 1.35;
+}
+
 .anchor-radius-auto,
 .anchor-volume-test,
 .anchor-pos-btn {

@@ -39,6 +39,8 @@ class BackgroundGPSPlugin : Plugin() {
     private var previewPlayer: android.media.MediaPlayer? = null
     /** Arming has already prompted for location permission this session. */
     private var anchorPermissionAsked = false
+    /** …and for notification permission. */
+    private var anchorNotifPermissionAsked = false
 
     override fun load() {
         trackDb = TrackDatabase(context)
@@ -393,7 +395,7 @@ class BackgroundGPSPlugin : Plugin() {
             requestPermissionForAlias("location", call, "handleAnchorLocationPermission")
             return
         }
-        armNativeAnchorWatch(call)
+        maybeRequestAnchorNotifications(call)
     }
 
     @PermissionCallback
@@ -405,7 +407,75 @@ class BackgroundGPSPlugin : Plugin() {
         if (!hasServiceLocation()) {
             DiagLog.log(context, "plugin", "setAnchorWatch without location permission")
         }
+        maybeRequestAnchorNotifications(call)
+    }
+
+    /**
+     * Second link in the arming permission chain. Without POST_NOTIFICATIONS
+     * the alarm still sounds and vibrates, but there is no notification —
+     * so no full-screen screen-wake (what revives the frozen WebView) and
+     * no Silence action. Asked once per session; a decline arms anyway.
+     */
+    private fun maybeRequestAnchorNotifications(call: PluginCall) {
+        if (Build.VERSION.SDK_INT >= 33 &&
+            getPermissionState("notifications") != PermissionState.GRANTED &&
+            !anchorNotifPermissionAsked
+        ) {
+            anchorNotifPermissionAsked = true
+            requestPermissionForAlias("notifications", call, "handleAnchorNotifPermission")
+            return
+        }
         armNativeAnchorWatch(call)
+    }
+
+    @PermissionCallback
+    private fun handleAnchorNotifPermission(call: PluginCall) {
+        if (getPermissionState("notifications") != PermissionState.GRANTED) {
+            DiagLog.log(context, "plugin", "setAnchorWatch without notification permission")
+        }
+        armNativeAnchorWatch(call)
+    }
+
+    /** Whether the device is on power, from the sticky battery broadcast. */
+    private fun readChargingState(): Boolean? =
+        try {
+            val intent = context.registerReceiver(
+                null,
+                android.content.IntentFilter(android.content.Intent.ACTION_BATTERY_CHANGED),
+            )
+            val plugged = intent?.getIntExtra(android.os.BatteryManager.EXTRA_PLUGGED, -1)
+            if (plugged == null || plugged < 0) null else plugged != 0
+        } catch (_: Exception) {
+            null
+        }
+
+    /**
+     * Ask Android to exempt the app from battery optimization, once per
+     * install, at first arm. Doze defers even allow-while-idle alarms by
+     * many minutes on a still, unplugged, screen-off device — an anchored
+     * boat at night is the textbook case — and the exemption is what
+     * un-defers them. Declining leaves a standing advisory in the armed
+     * panel (batteryOptimized in the status); this dialog never repeats.
+     */
+    private fun maybeRequestBatteryExemption() {
+        val pm = context.getSystemService(android.os.PowerManager::class.java) ?: return
+        if (pm.isIgnoringBatteryOptimizations(context.packageName)) return
+        val prefs = context.getSharedPreferences("pelorus_anchor_prompts", 0)
+        if (prefs.getBoolean("batteryExemptionAsked", false)) return
+        prefs.edit().putBoolean("batteryExemptionAsked", true).apply()
+        try {
+            val intent = android.content.Intent(
+                android.provider.Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,
+                android.net.Uri.parse("package:" + context.packageName),
+            )
+            (activity ?: context).let {
+                if (it === context) intent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                it.startActivity(intent)
+            }
+            DiagLog.log(context, "plugin", "battery exemption requested")
+        } catch (e: Exception) {
+            DiagLog.log(context, "plugin", "battery exemption request failed: ${e.message}")
+        }
     }
 
     /** Precise location, the foreground service's hard requirement. */
@@ -479,6 +549,7 @@ class BackgroundGPSPlugin : Plugin() {
             "setAnchorWatch r=${params.radiusM}m delay=${params.alarmDelayMs}ms",
         )
         call.resolve()
+        maybeRequestBatteryExemption()
     }
 
     /**
@@ -538,6 +609,16 @@ class BackgroundGPSPlugin : Plugin() {
             // while the app is awake, whatever else the status says.
             put("locationPermission", hasServiceLocation())
             status?.alarmKind?.let { put("alarmKind", it) }
+            // Doze can defer alarms unless the user exempts the app; the
+            // armed panel discloses when the exemption is missing.
+            val pm = context.getSystemService(android.os.PowerManager::class.java)
+            put(
+                "batteryOptimized",
+                pm?.isIgnoringBatteryOptimizations(context.packageName) == false,
+            )
+            // Overnight use should be on the charger; the armed panel
+            // suggests plugging in while running on battery.
+            readChargingState()?.let { put("charging", it) }
             // Read here rather than in the service: the volume is a device
             // setting, and the armed panel asks this question before the
             // service has necessarily come up.
