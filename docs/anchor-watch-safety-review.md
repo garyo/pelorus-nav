@@ -49,42 +49,26 @@ Also landed alongside the review: the self-cleared-alarm **record notification**
 Still armed.") — silent, dismissible, capped at six timestamped events — so
 overnight events always leave an explanation.
 
-## Open — decisions, not oversights
+## Open items — resolved 2026-08-23
 
-- **Doze.** Partial wake locks don't prevent Doze; `setAndAllowWhileIdle` can
-  be deferred ~9–15 min in deep idle, inflating the GPS-loss deadline and
-  drag latency when nothing else holds the device awake. Options: request the
-  battery-optimization exemption on arm (the anchor alarm is the canonical
-  justified use), and/or move the anchor watchdog to `setAlarmClock`.
-  Field tests so far have not shown deep-Doze deferral, but stock
-  Pixel/Samsung will do it eventually on a still, unplugged, screen-off
-  device.
-- **Unbounded accuracy widening.** `effectiveRadiusM = r + (acc − 10)` has no
-  cap: a chip reporting ±500 m keeps GPS-loss fed while making drag
-  undetectable — blind but looking fed. A cap (e.g. accuracy > radius ⇒
-  treat the fix as no-position, letting GPS-loss disclose) trades a possible
-  rainy-night nuisance alarm for disclosure; needs a policy call.
-- **Web/PWA honesty.** On web there is no native side: the watch dies with
-  the hidden page and nothing says so. Minimum: an armed-panel advisory
-  ("watch runs only while the app is on screen") + forcing the wake lock
-  while armed, like COB does. Larger: call web unsupported for arming.
-- **BLE pod parity.** The native serial feed covers SPP only. A GNSS-less
-  tablet on the BLE ESP32 pod (or Signal K) still relies on the chirp
-  backstop. Same native-feed treatment is possible with a small dedicated
-  BLE subscription.
-- **Notifications permission.** Arming never requests POST_NOTIFICATIONS and
-  a user-blocked channel is undetected — the tone and vibration still sound
-  (verified: the sound path is independent of notifications), but there is
-  no full-screen wake, no Silence action, and no disclosure.
-- **Deferred-announce without re-check.** A suppressed native detection is
-  announced the moment the keepalive goes stale, with no confirmation
-  window; a device chip whose multipath position disagrees with the app's
-  (better) receiver can sound ~90 s after every screen-off. Mitigated on
-  SPP boats by the native serial feed (the detector sees the good receiver
-  too); residual for phone-chip-only setups.
-- **Battery two-act design.** An unplugged tablet crossing 15% then 7%
-  wakes the crew twice by design. Judged acceptable (the second is the
-  last call before the watch dies), but it is a policy, not physics.
+- **Doze** — RESOLVED: arming requests the battery-optimization exemption
+  once per install; declining leaves a standing armed-panel advisory, and
+  the anchor watchdog upgrades to `setAlarmClock` (fully Doze-exempt) when
+  the exemption is missing but exact alarms are permitted.
+- **Unbounded accuracy widening** — DECLINED (maintainer): a truly degraded
+  receiver ends in fix loss, which raises the GPS-loss alarm.
+- **Web/PWA honesty** — RESOLVED: a standing advisory in the setup card and
+  armed view (watch runs only while the page is open with the screen on;
+  cannot wake a sleeping device; not for overnight use), on top of the
+  first-use click-through disclaimer.
+- **BLE pod parity** — DEFERRED (maintainer): commercial SPP receivers are
+  covered natively; BLE-pod tablets rely on the honest chirp backstop.
+- **Notifications permission** — RESOLVED: arming requests
+  POST_NOTIFICATIONS (once per session); without it the alarm still sounds
+  and vibrates but has no full-screen wake or Silence action.
+- **Battery two-act design** — kept as designed.
+- Additionally: the armed panel suggests the charger while on battery, for
+  overnight use.
 
 ## What the review verified sound (highlights)
 
