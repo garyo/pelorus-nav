@@ -185,6 +185,9 @@ class BluetoothSerialPlugin : Plugin() {
                 if (n < 0) break
                 if (n > 0) {
                     val text = String(buffer, 0, n, Charsets.ISO_8859_1)
+                    // Raw capture first: forensics wants the bytes even when
+                    // the fan-out below chokes on them.
+                    BtRawLog.append(context, text)
                     // Fan-out must not kill the read loop: an exception here
                     // would leak the socket with no "disconnected" event —
                     // both feeds dead while JS still shows connected.
