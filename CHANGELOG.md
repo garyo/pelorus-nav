@@ -5,34 +5,42 @@ Notable user-facing changes to Pelorus Nav. Downloads are on the
 
 The format follows [Keep a Changelog](https://keepachangelog.com/).
 
-## [Unreleased]
+## [0.23.0] - 2026-08-25
 
 ### Added
-- **Anchor watch.** A new Anchor Watch mode (hamburger menu) sets an anchor
-  position and watch radius and alarms if the boat drags outside it. The
-  radius is suggested from your rode, boat length, and live GPS accuracy;
-  the anchor can be placed at the vessel, by distance and bearing, or by
-  tapping the chart. While armed it shows distance and bearing back to the
-  anchor, the swing track, time at anchor, and — using the offline tide
-  data — your current scope and what it becomes at the next high water. A
-  separate alarm sounds if GPS is lost while anchored, so a blind watch
-  can't look like a safe boat. Tap an alarm to silence it (the watch stays
-  armed and re-alarms if the boat keeps moving); hold to disarm. The watch
-  keeps running when you leave the mode, showing a corner badge, and
-  survives an app restart. On Android the watch keeps working with the
-  screen off and the app in the background: drag and GPS-loss detection
-  run in the background GPS service, and the alarm sounds on the alarm
-  volume with vibration and a lock-screen notification (with a Silence
-  button) until you acknowledge it in the app. Arming starts that service
-  whatever GPS you navigate with — with the screen off the watch uses the
-  device's own GPS, since an external Bluetooth receiver can only reach
-  the app while it is awake — and keeps the device from sleeping, so an
-  armed watch uses noticeably more battery than an idle app. On Android
-  the armed watch also survives Android shutting the app down overnight,
-  and the armed panel says so plainly when the device's own GPS can't
-  see the boat — on a tablet with no GPS chip, or with location
-  permission off, the watch only runs while the app is awake, and it now
-  tells you that instead of leaving you to assume you're covered.
+- **Anchor watch** (experimental). A new Anchor Watch mode (hamburger menu)
+  sets an anchor position and watch radius and alarms if the boat drags
+  outside it. The radius is suggested from your rode, boat length, depth,
+  and live GPS accuracy; the anchor can be placed at the vessel, by
+  distance and bearing, or by tapping the chart. While armed it shows
+  distance and bearing back to the anchor, the swing track, time at
+  anchor, and — using the offline tide data — your current scope and what
+  it becomes at the next high water. Three distinct alarms: drag, GPS
+  lost (a blind watch must never look like a safe boat), and a quieter
+  "watch impaired" chirp when nothing is able to watch at all or the
+  device battery is nearly dead. Tap an alarm to silence it — the watch
+  stays armed and re-alarms on further movement; hold to disarm. An alarm
+  that resolves on its own leaves a notification explaining what happened
+  overnight. The watch keeps running when you leave the mode (corner
+  badge) and survives an app restart.
+
+  On Android the watch runs with the screen off and the app in the
+  background — with the device's own GPS or an external Bluetooth (SPP)
+  receiver, which the background service reads directly and reconnects if
+  the link drops. Alarms sound at a volume you choose on the new Alarm
+  volume slider — an absolute level, overriding the system volume, with a
+  Test button — plus vibration and a lock-screen notification with a
+  Silence button. Arming asks once for notification permission and a
+  battery-optimization exemption so a sleeping device can't miss or delay
+  an alarm; if the device restarts while armed, a loud notification says
+  the watch is no longer running. The armed panel discloses anything that
+  weakens the watch: no screen-off coverage, low alarm volume, battery
+  optimization, or running unplugged. First use requires acknowledging
+  that the feature is experimental and must not be your only drag alarm.
+  In the browser the watch runs only while the page is open with the
+  screen on, and says so.
+- A new [Anchor Watch chapter](https://pelorus-nav.com/doc/userguide/anchor-watch)
+  in the user guide.
 - The instrument bar now shows distance to the route's destination while
   navigating, on the right of the "Next:" caption line. The caption text
   is slightly larger, too.
@@ -64,6 +72,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/).
   already-passed waypoint).
 - Dragging waypoints and route points is smoother, especially on slower
   devices.
+- Long-press holds on e-ink devices (arming/disarming, COB) no longer
+  get cancelled by the panel refreshing under your finger.
 - Charts, routes, and tracks are now protected from browser storage
   eviction on web installs, and re-importing your own exported GPX no
   longer degrades a recorded track.
@@ -77,7 +87,6 @@ The format follows [Keep a Changelog](https://keepachangelog.com/).
   outside issue!). The official simplified symbol set collapses these to
   one color, so Pelorus uses its own banded variants of the simplified
   symbols, in every theme including e-ink.
-
 
 ## [0.22.0] - 2026-08-20
 

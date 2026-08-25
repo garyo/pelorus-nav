@@ -32,6 +32,7 @@ export default defineConfig({
           { text: "The Chart Display", link: "/chart-display" },
           { text: "Routes", link: "/routes" },
           { text: "Tracks", link: "/tracks" },
+          { text: "Anchor Watch", link: "/anchor-watch" },
           { text: "Tides, Wind & Sun", link: "/environment" },
           { text: "Traditional Plotting", link: "/plotting" },
         ],
