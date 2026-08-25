@@ -44,6 +44,21 @@ import {
 } from "./AnchorWatchManager";
 
 /**
+ * Whether the anchor watch is offered on this platform at all.
+ *
+ * iOS has no native anchor support yet, so the watch there would be the
+ * JS-only, screen-on-required mode — which on a phone in your pocket looks
+ * exactly like a real anchor watch and dies the moment the screen sleeps.
+ * For a safety feature that combination is worse than absence: hide it
+ * until the native iOS side exists. The browser keeps the JS-only mode
+ * because its standing advisory sets expectations a web page plausibly
+ * meets; a native app makes promises a hidden dead watch would break.
+ */
+export function anchorWatchSupported(): boolean {
+  return Capacitor.getPlatform() !== "ios";
+}
+
+/**
  * How often a fix from the app's own GPS is reported to the native watch.
  * Only the GPS-loss deadline (2 min by default) depends on it, so this can
  * be far slower than the fix rate.

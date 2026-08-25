@@ -13,6 +13,7 @@ import { Protocol } from "pmtiles";
 import "./style.css";
 import { AnchorBadge } from "./anchor/AnchorBadge";
 import { maybeShowAnchorDisclaimer } from "./anchor/AnchorDisclaimer";
+import { anchorWatchSupported } from "./anchor/native-anchor-watch";
 import { AnchorPanel } from "./anchor/AnchorPanel";
 import {
   AnchorWatchManager,
@@ -1473,15 +1474,19 @@ if (topbarMenu) {
   });
   topbarMenu.insertBefore(plotBtn, settingsWrapper);
 
-  // Anchor watch mode
-  const anchorBtn = buildTopbarAction(iconAnchor, "ANCH", "Anchor Watch", {
-    fullLabel: "Anchor Watch",
-  });
-  anchorBtn.addEventListener("click", () => {
-    enterAnchorMode();
-    closeHamburger();
-  });
-  topbarMenu.insertBefore(anchorBtn, settingsWrapper);
+  // Anchor watch mode. Hidden where unsupported (iOS): a menu entry that
+  // opened a screen-on-only watch in a native app would invite overnight
+  // reliance on a watch that dies with the screen.
+  if (anchorWatchSupported()) {
+    const anchorBtn = buildTopbarAction(iconAnchor, "ANCH", "Anchor Watch", {
+      fullLabel: "Anchor Watch",
+    });
+    anchorBtn.addEventListener("click", () => {
+      enterAnchorMode();
+      closeHamburger();
+    });
+    topbarMenu.insertBefore(anchorBtn, settingsWrapper);
+  }
 
   // Chart cache panel button
   const cachePanel = new ChartCachePanel();
