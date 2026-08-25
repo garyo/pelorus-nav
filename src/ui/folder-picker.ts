@@ -7,6 +7,8 @@
  * every choice is a full-width touch target.
  */
 
+import { showTextPrompt } from "./text-prompt";
+
 export interface FolderChoice {
   /** Chosen folder, or undefined for "no folder". */
   folder?: string;
@@ -49,8 +51,13 @@ export function showFolderPicker(
       choice(name, () => close({ folder: name }));
     }
     choice("New folder…", () => {
-      const name = prompt("New folder name:")?.trim();
-      if (name) close({ folder: name });
+      // Our own dialog, not window.prompt() — suppressed in fullscreen.
+      showTextPrompt("New folder name")
+        .then((name) => {
+          const trimmed = name?.trim();
+          if (trimmed) close({ folder: trimmed });
+        })
+        .catch(console.error);
     });
     choice("No folder", () => close({}), "folder-picker-none");
 

@@ -27,6 +27,7 @@ import {
 import { groupByFolder } from "./manager-folders";
 import { getPanelStack } from "./PanelStack";
 import { registerSurface } from "./SurfaceManager";
+import { showTextPrompt } from "./text-prompt";
 
 interface Leg {
   index: number;
@@ -377,8 +378,9 @@ export class RouteDetailPanel {
   }
 
   /** Footer: route summary + the folder picker. A native <select> keeps the
-   *  mobile UX simple (OS picker sheet, no drag/hover); "New folder…" uses
-   *  prompt(), matching the panel family's confirm()/alert() idiom. */
+   *  mobile UX simple (OS picker sheet, no drag/hover); "New folder…" asks
+   *  with the app's own text-prompt dialog (window.prompt is suppressed in
+   *  fullscreen). */
   private renderFooter(route: Route, summary: string): void {
     this.footer.innerHTML = "";
     const summaryEl = document.createElement("button");
@@ -420,10 +422,12 @@ export class RouteDetailPanel {
       })
       .catch(console.error);
 
-    select.addEventListener("change", () => {
+    select.addEventListener("change", async () => {
       let folder: string | undefined;
       if (select.value === NEW_SENTINEL) {
-        const name = prompt("New folder name:")?.trim();
+        // Our own dialog, not window.prompt(): the native one is suppressed
+        // in fullscreen — where a navigating user usually is.
+        const name = (await showTextPrompt("New folder name"))?.trim();
         if (!name) {
           select.value = route.folder ?? "";
           return;

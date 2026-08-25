@@ -1366,6 +1366,22 @@ body {
   color: #fff;
 }
 
+.text-prompt-input {
+  width: 100%;
+  box-sizing: border-box;
+  margin: 10px 0 4px;
+  padding: 8px 10px;
+  font-size: 15px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid #55617a;
+  border-radius: 6px;
+  color: inherit;
+}
+
+.text-prompt-card {
+  max-width: 320px;
+}
+
 .import-btn.primary {
   background: #36578a;
   border-color: #6688cc;

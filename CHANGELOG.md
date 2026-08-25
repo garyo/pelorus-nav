@@ -30,6 +30,9 @@ The format follows [Keep a Changelog](https://keepachangelog.com/).
   outside issue!). The official simplified symbol set collapses these to
   one color, so Pelorus uses its own banded variants of the simplified
   symbols, in every theme including e-ink.
+- "New folder…" now asks for the name with the app's own dialog — the
+  browser's native prompt is silently blocked in fullscreen, so creating
+  a folder while navigating did nothing.
 - Revealing a track, route, waypoint, or search result on the chart now
   releases follow mode — the camera no longer snaps straight back to the
   vessel on the next GPS fix. Recenter restores following, as after any
