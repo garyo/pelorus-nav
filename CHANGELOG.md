@@ -30,6 +30,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/).
   outside issue!). The official simplified symbol set collapses these to
   one color, so Pelorus uses its own banded variants of the simplified
   symbols, in every theme including e-ink.
+- Revealing a track, route, waypoint, or search result on the chart now
+  releases follow mode — the camera no longer snaps straight back to the
+  vessel on the next GPS fix. Recenter restores following, as after any
+  manual pan.
 - The course projection line now disappears reliably when the vessel
   stops or the GPS signal is lost, instead of sometimes staying frozen
   at its last heading and length.

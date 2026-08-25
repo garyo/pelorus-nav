@@ -15,7 +15,7 @@ import type { StandaloneWaypoint } from "../data/Waypoint";
 import { hideStatusBanner, showStatusBanner } from "../ui/StatusBanner";
 import { showToast } from "../ui/Toast";
 import { DraggablePoints } from "./DraggablePoints";
-import { focusMapOnPoint } from "./fit-bounds";
+import { focusMapOnPoint, releaseFollowForReveal } from "./fit-bounds";
 import { getMode, onModeChange } from "./InteractionMode";
 import { belowVesselLayerId } from "./layer-order";
 import { findPointCandidates } from "./point-candidates";
@@ -423,6 +423,7 @@ export class WaypointLayer {
       wp.updatedAt = Date.now();
       await this.updateWaypoint(wp);
     }
+    releaseFollowForReveal();
     focusMapOnPoint(this.map, [wp.lon, wp.lat]);
     this.showHalo(wp, REVEAL_HALO_MS);
   }

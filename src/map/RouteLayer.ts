@@ -13,7 +13,11 @@ import {
   densifyGreatCirclePath,
   haversineDistanceNM,
 } from "../utils/coordinates";
-import { fitMapToBounds, fitMapToBoundsIfNeeded } from "./fit-bounds";
+import {
+  fitMapToBounds,
+  fitMapToBoundsIfNeeded,
+  releaseFollowForReveal,
+} from "./fit-bounds";
 import { belowVesselLayerId } from "./layer-order";
 import {
   ensurePointIcons,
@@ -507,6 +511,7 @@ export class RouteLayer {
     if (legIndex < 0 || legIndex >= wps.length - 1) return;
     const a = wps[legIndex];
     const b = wps[legIndex + 1];
+    releaseFollowForReveal();
     fitMapToBounds(this.map, [
       [Math.min(a.lon, b.lon), Math.min(a.lat, b.lat)],
       [Math.max(a.lon, b.lon), Math.max(a.lat, b.lat)],
@@ -568,10 +573,12 @@ export class RouteLayer {
   fitRoute(route: Route): void {
     const bbox = routeBbox(route);
     if (!bbox) return;
-    fitMapToBoundsIfNeeded(this.map, [
+    const panned = fitMapToBoundsIfNeeded(this.map, [
       [bbox[0], bbox[1]],
       [bbox[2], bbox[3]],
     ]);
+    // A reveal the user asked for; see releaseFollowForReveal.
+    if (panned) releaseFollowForReveal();
   }
 
   private firstRouteLineLayer(): string | undefined {

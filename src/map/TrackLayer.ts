@@ -10,7 +10,7 @@ import type { NavigationData } from "../navigation/NavigationData";
 import type { NavigationDataManager } from "../navigation/NavigationDataManager";
 import { lightenHex } from "../utils/color";
 import { bboxOfCoords } from "../utils/coordinates";
-import { fitMapToBoundsIfNeeded } from "./fit-bounds";
+import { fitMapToBoundsIfNeeded, releaseFollowForReveal } from "./fit-bounds";
 import { GLOW_LIGHTEN } from "./selection-glow";
 import { SelectionHalo } from "./selection-halo";
 import type { TrackRecorder } from "./TrackRecorder";
@@ -293,10 +293,13 @@ export class TrackLayer {
     const points = allPoints.filter((p) => !p.dropped);
     const bbox = bboxOfCoords(points.map((p) => [p.lon, p.lat]));
     if (!bbox) return;
-    fitMapToBoundsIfNeeded(this.map, [
+    const panned = fitMapToBoundsIfNeeded(this.map, [
       [bbox[0], bbox[1]],
       [bbox[2], bbox[3]],
     ]);
+    // The user asked to see this track; follow mode must not snatch the
+    // camera back on the next fix.
+    if (panned) releaseFollowForReveal();
   }
 
   private firstTrackLineLayer(): string | undefined {

@@ -5,7 +5,7 @@
 
 import type * as maplibregl from "maplibre-gl";
 import type { SearchEntry } from "../data/search-index";
-import { fitMapToBounds } from "../map/fit-bounds";
+import { fitMapToBounds, releaseFollowForReveal } from "../map/fit-bounds";
 import { type SearchResult, searchFeatures } from "../search/feature-search";
 import { getSettings } from "../settings";
 import { formatLatLon, parseLatLon } from "../utils/coordinates";
@@ -359,6 +359,7 @@ export class SearchDialog {
   private selectResult(result: SearchResult): void {
     const entry = result.entry;
     if (entry.bbox) {
+      releaseFollowForReveal();
       fitMapToBounds(
         this.map,
         [

@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   needsFit,
   POINT_REVEAL_ZOOM,
@@ -60,5 +60,18 @@ describe("pointRevealZoom", () => {
   it("honours a caller's own minimum", () => {
     expect(pointRevealZoom(9, 12)).toBe(12);
     expect(pointRevealZoom(13, 12)).toBe(13);
+  });
+});
+
+describe("releaseFollowForReveal", () => {
+  it("is a no-op before wiring and calls the hook after", async () => {
+    const { setFollowRelease, releaseFollowForReveal } = await import(
+      "./fit-bounds"
+    );
+    expect(() => releaseFollowForReveal()).not.toThrow();
+    const release = vi.fn();
+    setFollowRelease(release);
+    releaseFollowForReveal();
+    expect(release).toHaveBeenCalledTimes(1);
   });
 });

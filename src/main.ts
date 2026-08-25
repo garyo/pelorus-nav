@@ -13,14 +13,16 @@ import { Protocol } from "pmtiles";
 import "./style.css";
 import { AnchorBadge } from "./anchor/AnchorBadge";
 import { maybeShowAnchorDisclaimer } from "./anchor/AnchorDisclaimer";
-import { anchorWatchSupported } from "./anchor/native-anchor-watch";
 import { AnchorPanel } from "./anchor/AnchorPanel";
 import {
   AnchorWatchManager,
   type AnchorWatchSnapshot,
 } from "./anchor/AnchorWatchManager";
 import { createAnchorAlarms } from "./anchor/native-anchor-alarm";
-import { connectNativeAnchorWatch } from "./anchor/native-anchor-watch";
+import {
+  anchorWatchSupported,
+  connectNativeAnchorWatch,
+} from "./anchor/native-anchor-watch";
 import { installFileOpenCapture } from "./app/fileOpenQueue";
 import { type IdleCloseable, runIdleAutoReturn } from "./app/idleAutoReturn";
 import { installOverlayDimming } from "./app/overlayDimming";
@@ -62,6 +64,7 @@ import { installConsoleHooks } from "./diagnostics/console-hooks";
 import { notePaintTraceRender } from "./diagnostics/paint-trace";
 import { AnchorLayer, type AnchorLayerState } from "./map/AnchorLayer";
 import { BearingLine } from "./map/BearingLine";
+import { setFollowRelease } from "./map/fit-bounds";
 import { getMode, onModeChange, setMode } from "./map/InteractionMode";
 import { MeasurementLayer } from "./map/MeasurementLayer";
 import { installPinchZoomGuard } from "./map/pinch-zoom-guard";
@@ -581,6 +584,10 @@ const courseSmoother = new CourseSmoothing();
 
 // Chart mode controller (follow, course-up, north-up, free)
 const chartMode = new ChartModeController(chartManager.map);
+// Programmatic "show me X" pans (track/route/waypoint reveals, search)
+// release vessel-follow, exactly like a manual pan — otherwise the next
+// fix snatches the camera back. Recenter restores follow as usual.
+setFollowRelease(() => chartMode.setMode("free"));
 
 // Chart-mode toggle in the bottom-left. The icon reflects the current
 // mode (free / follow / course-up / north-up) and tapping cycles through.

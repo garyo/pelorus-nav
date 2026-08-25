@@ -84,6 +84,29 @@ export function focusMapOnPoint(
   });
 }
 
+/**
+ * Release vessel-follow before a user-requested reveal pans the camera.
+ *
+ * ChartMode only notices *gestures*: a programmatic pan (show this track,
+ * fit this route, reveal this waypoint) leaves follow mode engaged, and the
+ * next fix yanks the camera straight back to the boat — the reveal the user
+ * asked for lasts one GPS update. Call sites that pan on the user's behalf
+ * call {@link releaseFollowForReveal} when they actually move the camera;
+ * automatic fits (COB chart-auto-fit) never do. The recenter button
+ * restores the previous follow mode, as after any manual pan.
+ */
+let followRelease: (() => void) | null = null;
+
+/** Wire the chart-mode release; called once from main.ts. */
+export function setFollowRelease(cb: () => void): void {
+  followRelease = cb;
+}
+
+/** See {@link setFollowRelease}. Safe before wiring (no-op). */
+export function releaseFollowForReveal(): void {
+  followRelease?.();
+}
+
 /** Fit the map to bounds, clearing any stale look-ahead padding first. */
 export function fitMapToBounds(
   map: maplibregl.Map,
@@ -94,12 +117,16 @@ export function fitMapToBounds(
   map.fitBounds(bounds, { ...DEFAULT_OPTIONS, ...options });
 }
 
-/** Fit the map to bounds unless they're already well-framed on screen. */
+/**
+ * Fit the map to bounds unless they're already well-framed on screen.
+ * Returns true when the camera actually moved, so user-initiated callers
+ * can release vessel-follow exactly when a reveal happened.
+ */
 export function fitMapToBoundsIfNeeded(
   map: maplibregl.Map,
   bounds: LonLatBounds,
   options?: maplibregl.FitBoundsOptions,
-): void {
+): boolean {
   const [[west, south], [east, north]] = bounds;
   const b = map.getBounds();
   const fullyVisible =
@@ -128,7 +155,8 @@ export function fitMapToBoundsIfNeeded(
       canvasHeight: canvas.clientHeight,
     })
   ) {
-    return;
+    return false;
   }
   fitMapToBounds(map, bounds, options);
+  return true;
 }
