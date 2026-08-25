@@ -10,6 +10,7 @@
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { type Browser, chromium, type Page } from "playwright";
+import { ANCHOR_DISCLAIMER_VERSION } from "../src/anchor/AnchorDisclaimer";
 import { REPLAY_TRACK } from "../src/navigation/replay-track";
 import { iconShareIOS } from "../src/ui/icons";
 
@@ -22,6 +23,17 @@ const APP_VERSION = JSON.parse(
 // Vessel pose: outer Boston Harbor at The Narrows, heading up the channel.
 const VESSEL: [number, number] = [42.337764, -70.949034]; // lat, lon
 const VESSEL_COG = 40;
+
+// Anchorage for the anchor-watch scenes: in the lee of Peddocks Island, in
+// about 16 ft. The map is centred south of the boat so the watch circle sits
+// above the setup card rather than behind it.
+const ANCHORAGE: [number, number] = [42.3045, -70.94];
+
+// A boat lying to its rode rather than sailing: the linear simulator's 6 kn
+// scaled down to a 0.6 kn sheer, so SOG and the distance to the anchor read
+// like a night at anchor. The drag scene keeps the full 6 kn — that is what
+// sails it out of the circle.
+const ANCHORED_SIM = { simulatorSpeed: 0.1 };
 
 // A tidy harbor route shown (and edited/followed) in the route scenes.
 const ROUTE_WPTS: Array<[number, number, string]> = [
@@ -236,6 +248,31 @@ async function clickTopbar(page: Page, title: string) {
 async function openRoutePanel(page: Page) {
   await clickTopbar(page, "Routes");
   await page.waitForSelector(".route-manager-panel.open");
+}
+
+/**
+ * Enter anchor mode and fill the setup card with a worked anchorage: a 40 ft
+ * boat lying to 100 ft of rode in 16 ft of water (the app's default depth
+ * unit is feet), which gives a 5:1 scope and a computed watch radius.
+ */
+async function openAnchorSetup(page: Page) {
+  await clickTopbar(page, "Anchor Watch");
+  await page.waitForSelector(".anchor-panel.open");
+  const fields = page.locator(".anchor-field-input");
+  const values = ["40", "4", "100", "16"]; // boat, bow height, rode, depth
+  for (let i = 0; i < values.length; i++) await fields.nth(i).fill(values[i]);
+  // Drop the focus ring so the card photographs as it looks at rest.
+  await page.evaluate(() => (document.activeElement as HTMLElement)?.blur());
+  await page.waitForTimeout(500);
+}
+
+/** Hold the arm button past ARM_HOLD_MS (1 s) and wait for the armed view. */
+async function armAnchorWatch(page: Page) {
+  await page.locator(".anchor-arm-btn").hover();
+  await page.mouse.down();
+  await page.waitForTimeout(1_300);
+  await page.mouse.up();
+  await page.waitForSelector('.anchor-panel[data-armed="1"]');
 }
 
 /**
@@ -523,6 +560,50 @@ const SCENES: Scene[] = [
       await page.waitForTimeout(1_500);
     },
   },
+  {
+    name: "anchor-setup",
+    zoom: 16.9,
+    center: [ANCHORAGE[1], ANCHORAGE[0] - 0.0004],
+    vessel: ANCHORAGE,
+    seedRoute: false,
+    settings: ANCHORED_SIM,
+    actions: openAnchorSetup,
+  },
+  {
+    name: "anchor-armed",
+    zoom: 16.9,
+    center: [ANCHORAGE[1], ANCHORAGE[0] - 0.0004],
+    vessel: ANCHORAGE,
+    seedRoute: false,
+    settings: ANCHORED_SIM,
+    actions: async (page) => {
+      await openAnchorSetup(page);
+      // Drop the hook 100 ft up-current of the boat, the way a skipper who
+      // has already paid out the rode enters it: the armed view then has a
+      // real distance and bearing to read.
+      await page.click('.anchor-pos-btn:has-text("Offset")');
+      await page.locator(".anchor-offset-dist").fill("100");
+      await page.locator(".anchor-offset-brg").fill("225");
+      await armAnchorWatch(page);
+      await page.waitForTimeout(10_000); // swing track, elapsed clock, scope
+    },
+  },
+  {
+    // The drag alarm, played out for real: a deliberately tight 100 ft watch
+    // that the 6 kn simulator sails out of, then the 15 s exit hysteresis.
+    name: "anchor-alarm",
+    zoom: 16.6,
+    center: [ANCHORAGE[1] + 0.0006, ANCHORAGE[0] - 0.0002],
+    vessel: ANCHORAGE,
+    seedRoute: false,
+    actions: async (page) => {
+      await openAnchorSetup(page);
+      await page.locator(".anchor-radius-input").fill("100");
+      await armAnchorWatch(page);
+      await page.waitForSelector(".anchor-alarm.open", { timeout: 90_000 });
+      await page.waitForTimeout(1_000);
+    },
+  },
 ];
 
 async function shoot(scene: Scene, browser: Browser) {
@@ -541,6 +622,7 @@ async function shoot(scene: Scene, browser: Browser) {
         settings?: Record<string, unknown>;
       };
       version: string;
+      anchorDisclaimerVersion: number;
       vessel: [number, number];
       wpts: typeof ROUTE_WPTS | null;
       track: typeof SEED_TRACK | null;
@@ -564,6 +646,16 @@ async function shoot(scene: Scene, browser: Browser) {
         "pelorus-nav-disclaimer-acceptance",
         JSON.stringify({
           disclaimerVersion: 2,
+          acceptedAt: Date.now(),
+          appVersion: cfg.version,
+        }),
+      );
+      // The anchor mode's own first-use disclaimer (AnchorDisclaimer.ts),
+      // which otherwise blocks the setup card behind a dialog.
+      localStorage.setItem(
+        "pelorus-nav-anchor-disclaimer",
+        JSON.stringify({
+          version: cfg.anchorDisclaimerVersion,
           acceptedAt: Date.now(),
           appVersion: cfg.version,
         }),
@@ -683,6 +775,7 @@ async function shoot(scene: Scene, browser: Browser) {
     {
       scene: scene,
       version: APP_VERSION,
+      anchorDisclaimerVersion: ANCHOR_DISCLAIMER_VERSION,
       vessel: scene.vessel ?? VESSEL,
       wpts: scene.seedRoute === false ? null : ROUTE_WPTS,
       track: scene.seedTrack ? SEED_TRACK : null,
@@ -732,7 +825,13 @@ if (only.length && scenes.length !== only.length) {
 
 mkdirSync(OUT, { recursive: true });
 const browser = await chromium.launch({
-  args: ["--enable-webgl", "--use-gl=angle", "--use-angle=swiftshader"],
+  // --mute-audio: the anchor scenes arm a real watch and let it alarm.
+  args: [
+    "--enable-webgl",
+    "--use-gl=angle",
+    "--use-angle=swiftshader",
+    "--mute-audio",
+  ],
 });
 for (const scene of scenes) {
   await shoot(scene, browser);

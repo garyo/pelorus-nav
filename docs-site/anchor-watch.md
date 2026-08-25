@@ -29,6 +29,8 @@ chart. Then **hold to arm**. Arming is blocked — with the reason shown —
 while there is no usable GPS fix, or while the fix is too vague for the
 circle you chose.
 
+![The anchor-watch setup card](/images/anchor-setup.png)
+
 ## The alarm volume
 
 The **Alarm volume** slider sets how loud alarms actually sound — it is an
@@ -47,6 +49,8 @@ The watch keeps running when you leave the mode (a corner badge remains)
 and survives an app restart. Adjust the radius or drag the anchor point at
 any time; the alarm geometry follows.
 
+![The armed watch, the boat inside its circle](/images/anchor-armed.png)
+
 The armed view also tells you plainly when something needs attention:
 location permission off, alarm volume low or muted, battery optimization
 active, or running on battery — **for overnight use, plug in the device
@@ -63,6 +67,8 @@ Three distinct sounds:
 - **Watch impaired** — a quieter triple chirp: the watch itself is
   compromised — nothing is currently watching the anchor, or the device
   battery is nearly dead. Check the setup.
+
+![The drag alarm](/images/anchor-alarm.png)
 
 **Tap an alarm to silence it.** The watch stays armed: a drag that
 continues re-alarms after another boat-length of movement, and a silenced
