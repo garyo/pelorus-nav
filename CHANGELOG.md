@@ -8,37 +8,13 @@ The format follows [Keep a Changelog](https://keepachangelog.com/).
 ## [0.23.0] - 2026-08-25
 
 ### Added
-- **Anchor watch** (experimental). A new Anchor Watch mode (hamburger menu)
-  sets an anchor position and watch radius and alarms if the boat drags
-  outside it. The radius is suggested from your rode, boat length, depth,
-  and live GPS accuracy; the anchor can be placed at the vessel, by
-  distance and bearing, or by tapping the chart. While armed it shows
-  distance and bearing back to the anchor, the swing track, time at
-  anchor, and — using the offline tide data — your current scope and what
-  it becomes at the next high water. Three distinct alarms: drag, GPS
-  lost (a blind watch must never look like a safe boat), and a quieter
-  "watch impaired" chirp when nothing is able to watch at all or the
-  device battery is nearly dead. Tap an alarm to silence it — the watch
-  stays armed and re-alarms on further movement; hold to disarm. An alarm
-  that resolves on its own leaves a notification explaining what happened
-  overnight. The watch keeps running when you leave the mode (corner
-  badge) and survives an app restart.
+- **Anchor watch** (experimental, Android only). A new Anchor Watch
+  mode (see the hamburger menu) sets an anchor position and watch
+  radius and alarms if the boat drags outside it. The radius is
+  suggested from your rode, boat length, depth, and live GPS accuracy;
+  the anchor can be placed at the vessel, by distance and bearing, or
+  by tapping the chart. See the User Guide for more info.
 
-  On Android the watch runs with the screen off and the app in the
-  background — with the device's own GPS or an external Bluetooth (SPP)
-  receiver, which the background service reads directly and reconnects if
-  the link drops. Alarms sound at a volume you choose on the new Alarm
-  volume slider — an absolute level, overriding the system volume, with a
-  Test button — plus vibration and a lock-screen notification with a
-  Silence button. Arming asks once for notification permission and a
-  battery-optimization exemption so a sleeping device can't miss or delay
-  an alarm; if the device restarts while armed, a loud notification says
-  the watch is no longer running. The armed panel discloses anything that
-  weakens the watch: no screen-off coverage, low alarm volume, battery
-  optimization, or running unplugged. First use requires acknowledging
-  that the feature is experimental and must not be your only drag alarm.
-  In the browser the watch runs only while the page is open with the
-  screen on, and says so.
 - A new [Anchor Watch chapter](https://pelorus-nav.com/doc/userguide/anchor-watch)
   in the user guide.
 - The instrument bar now shows distance to the route's destination while
@@ -47,8 +23,13 @@ The format follows [Keep a Changelog](https://keepachangelog.com/).
 
 ### Fixed
 - Buoy and light sound-signal marks (bell, gong, whistle) are now drawn
-  in a stronger magenta and placed clear of the buoy symbol, so it's
-  obvious at a glance that a mark has a sound signal.
+  in a stronger magenta and placed clear of the buoy symbol.
+- Preferred-channel (junction) buoys now show their contrasting band on
+  the chart — a green can with a red band is no longer drawn identical to
+  a plain green can (thanks to Jesús Esgueva for the report, our first
+  outside issue!). The official simplified symbol set collapses these to
+  one color, so Pelorus uses its own banded variants of the simplified
+  symbols, in every theme including e-ink.
 - The course projection line now disappears reliably when the vessel
   stops or the GPS signal is lost, instead of sometimes staying frozen
   at its last heading and length.
@@ -63,8 +44,9 @@ The format follows [Keep a Changelog](https://keepachangelog.com/).
   current arrows, restricted areas, and others were stuck at a fixed
   size.
 - Signal K sources reporting "unknown" course or speed no longer display
-  as a confident 0° / 0.0 kn, and switching Signal K servers can't
-  briefly show the old server's position.
+  as 0° / 0.0 kn, and switching Signal K servers can't
+  briefly show the old server's position. Note that Signal K is not yet a tested 
+  feature; if you have a Signal K device I would love to work with you to test it.
 - Automatic chart-region switching while under way no longer moves or
   re-zooms the chart.
 - Reloading the app mid-passage resumes navigation on the correct route
@@ -79,14 +61,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/).
   longer degrades a recorded track.
 - Assorted smaller fixes: Escape now closes only the topmost panel/menu;
   selection mode taps can't accidentally open items; coordinate display
-  can no longer show 60 minutes; whole-US chart view rebuilds styles
-  much faster.
-- Preferred-channel (junction) buoys now show their contrasting band on
-  the chart — a green can with a red band is no longer drawn identical to
-  a plain green can (thanks to Jesús Esgueva for the report, our first
-  outside issue!). The official simplified symbol set collapses these to
-  one color, so Pelorus uses its own banded variants of the simplified
-  symbols, in every theme including e-ink.
+  rounds properly; whole-US chart view rebuilds styles much faster.
 
 ## [0.22.0] - 2026-08-20
 

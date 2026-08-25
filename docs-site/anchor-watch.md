@@ -10,6 +10,8 @@ incorrect results. Do not rely solely on this feature.**
 Open **Anchor Watch** from the menu. The setup card and armed view both
 carry the `EXPERIMENTAL` label as a standing reminder.
 
+**NOTE:** This feature is not yet available in the iOS app.
+
 ## Setting up
 
 Enter your boat length, bow height, rode paid out, and the water depth.
@@ -20,12 +22,11 @@ From these the card computes:
   from the live fix quality. Override it freely; **Auto** returns to the
   computed value.
 - **Your scope**, shown tide-aware when tide data covers the anchorage:
-  "Scope 6.0:1 now → 4.2:1 at HW 4:12 PM". Poor scope is advice, never a
-  gate.
+  "Scope 6.0:1 now → 4.2:1 at HW 4:12 PM".
 
 Place the anchor at the vessel's position, offset from it by distance and
 bearing (for when you enter the mode after paying out), or by tapping the
-chart. Then **hold to arm**. Arming is blocked — with the reason shown —
+chart. Then **hold to arm**. Arming is blocked (with the reason shown)
 while there is no usable GPS fix, or while the fix is too vague for the
 circle you chose.
 
@@ -38,8 +39,7 @@ absolute level, not a scale on the system volume, so the alarm plays at
 exactly the level you chose even if the device's volume rocker was left
 somewhere else. **Test** plays one beat of the real alarm tone at that
 level. A skipper sleeping next to the device can pick a level that wakes
-them without waking the anchorage; the alarm can be quiet, but never
-silent.
+them without waking the whole anchorage.
 
 ## While armed
 
@@ -54,7 +54,7 @@ any time; the alarm geometry follows.
 The armed view also tells you plainly when something needs attention:
 location permission off, alarm volume low or muted, battery optimization
 active, or running on battery — **for overnight use, plug in the device
-(and an external GPS receiver)**.
+(and any external GPS receiver)**.
 
 ## The alarms
 
@@ -70,13 +70,13 @@ Three distinct sounds:
 
 ![The drag alarm](/images/anchor-alarm.png)
 
-**Tap an alarm to silence it.** The watch stays armed: a drag that
-continues re-alarms after another boat-length of movement, and a silenced
+**Tap an alarm to silence it.** The watch stays armed: if you continue to drag,
+it will re-alarm after another boat-length of movement. A silenced
 event fully re-arms once the boat has been back inside the circle for a
 minute. **Hold the disarm button** to stand the watch down entirely.
 
-An alarm condition that resolves on its own — the fix comes back, the boat
-swings back inside — stops sounding and leaves a quiet notification
+An alarm condition that resolves on its own (the fix comes back, the boat
+swings back inside) stops sounding and leaves a quiet notification
 ("Anchor alarm: GPS signal lost · 3:12 AM — lost GPS signal, fix returned ·
 Still armed.") so you always know in the morning what happened overnight.
 
