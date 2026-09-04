@@ -60,6 +60,10 @@ people change first, all on the **Appearance** tab:
   obviously colored.
 - **Keep screen on** — "When GPS active" keeps the display awake while
   you're underway.
+- **Screen lock & volume-key zoom** (Android) — the volume keys zoom the
+  chart, and **Lock screen** in the menu disables the touchscreen so spray
+  and stray taps can't change anything under way; one volume press unlocks.
+  Choosing Lock screen with this setting off offers to turn it on.
 - **Close dialogs & recenter when idle** — after a minute of inactivity,
   open panels close and the chart snaps back to your vessel. That's what
   you want underway (the chart is always where your boat is when you

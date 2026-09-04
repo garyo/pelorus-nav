@@ -7,7 +7,20 @@ The format follows [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Added
+- A setting to hide the zoom and compass buttons on the chart (Settings →
+  Appearance).
+- The Lock screen menu item is always present on Android; choosing it with
+  volume-key controls off offers to turn them on (a volume press is the
+  unlock).
+
 ### Fixed
+- The zoom buttons and the compass no longer drop the chart out of
+  follow, course-up or north-up mode. Pinching and dragging still do.
+- The long-press menu no longer closes by itself while the chart is
+  following a moving vessel, and it now rides along with the chart.
+- The context menu's Plot submenu stays on screen near the edges of the
+  display, and opens on tap on touch screens.
 - Track recording on Android now survives the system stopping the app
   under way. The background GPS service restarts on its own and keeps
   recording, the fixes it buffered while the app was closed are added to

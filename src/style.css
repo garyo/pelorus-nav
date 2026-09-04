@@ -646,9 +646,9 @@ body {
 
 .map-context-submenu {
   display: none;
-  position: absolute;
-  left: 100%;
-  top: -4px;
+  /* Placed by ContextMenu.ts (popup-placement) so it flips or slides to
+     stay on screen; the CSS only styles it. */
+  position: fixed;
   background: rgba(30, 30, 50, 0.95);
   border: 1px solid #555;
   border-radius: 6px;
@@ -657,7 +657,7 @@ body {
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
 }
 
-.map-context-submenu-parent:hover > .map-context-submenu {
+.map-context-submenu-parent.open > .map-context-submenu {
   display: block;
 }
 

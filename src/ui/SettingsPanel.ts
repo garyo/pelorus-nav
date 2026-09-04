@@ -271,6 +271,15 @@ function buildAppearanceTab(
     ),
   );
 
+  tab.appendChild(
+    buildCheckboxRow(
+      "Show zoom and compass buttons on the chart",
+      "settings-zoom-buttons",
+      settings.showZoomButtons,
+      (checked) => updateSettings({ showZoomButtons: checked }),
+    ),
+  );
+
   // ── Chart display ───────────────────────────────────────────────
 
   // Detail level slider
@@ -460,12 +469,13 @@ function buildAppearanceTab(
       ),
     );
 
-    // Volume-key controls: short press zooms, long press locks the screen.
-    // Android only — the HardwareKeys plugin has no iOS implementation.
+    // Volume-key controls: a press zooms the chart and unlocks the screen
+    // lock (the menu's Lock screen item). Android only — the HardwareKeys
+    // plugin has no iOS implementation.
     if (Capacitor.getPlatform() === "android") {
       tab.appendChild(
         buildCheckboxRow(
-          "Volume keys zoom chart (adds Lock screen to menu)",
+          "Screen lock & volume-key zoom (a volume press unlocks)",
           "settings-volume-keys",
           settings.volumeKeyControls,
           (checked) => updateSettings({ volumeKeyControls: checked }),

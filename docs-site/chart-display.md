@@ -16,7 +16,10 @@ follows your vessel. Tap it to cycle through:
 
 Panning the chart by hand always switches to **free** mode; tap the button
 to lock back onto the vessel. The button's icon shows the current mode, and
-it dims when there's no GPS fix.
+it dims when there's no GPS fix. The zoom buttons and the compass in the
+top-right corner are not a look-away: they keep whatever mode you're in.
+(Pinching also pans, so it switches to free.) You can hide that button
+group in Settings → Appearance.
 
 Two behaviors make the following modes work like a dedicated plotter:
 

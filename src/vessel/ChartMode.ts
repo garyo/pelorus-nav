@@ -133,6 +133,20 @@ type JumpToArgs = {
   padding: PaddingOptions;
 };
 
+/**
+ * Whether a camera move's `originalEvent` is the user looking away from the
+ * vessel — a drag, pinch, wheel or arrow-key pan — and so should release a
+ * follow mode. Programmatic moves carry no event. Keyboard zoom (+/−)
+ * zooms about the centre like the on-screen zoom buttons and the volume
+ * keys, so it keeps the mode. Pure — exported for testing.
+ */
+export function isFollowReleasingGesture(originalEvent: unknown): boolean {
+  if (!originalEvent || typeof originalEvent !== "object") return false;
+  const e = originalEvent as { type?: string; key?: string };
+  if (e.type === "keydown") return !["+", "=", "-", "_"].includes(e.key ?? "");
+  return true;
+}
+
 export class ChartModeController {
   private readonly map: maplibregl.Map;
   private mode: ChartModeType;
@@ -165,7 +179,9 @@ export class ChartModeController {
     this.map.on("movestart", (e) => {
       if (
         this.mode !== "free" &&
-        (e as unknown as maplibregl.MapMouseEvent).originalEvent
+        isFollowReleasingGesture(
+          (e as unknown as maplibregl.MapMouseEvent).originalEvent,
+        )
       ) {
         this.modeBeforeFree = this.mode;
         this.setMode("free");

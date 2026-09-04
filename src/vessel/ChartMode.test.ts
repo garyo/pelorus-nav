@@ -7,6 +7,7 @@ import {
   EINK_RECENTER_DRIFT_FRACTION,
   EINK_RECENTER_INTERVAL_MS,
   isEinkRecenterDue,
+  isFollowReleasingGesture,
   LOOK_AHEAD_FRACTION,
 } from "./ChartMode";
 
@@ -116,6 +117,26 @@ describe("ChartModeController", () => {
     // Simulate programmatic movestart (no originalEvent)
     mockMap._fire("movestart", {});
     expect(controller.getMode()).toBe("follow");
+  });
+
+  it("touch, wheel and arrow-key moves release follow mode", () => {
+    for (const originalEvent of [
+      { type: "touchstart" },
+      { type: "wheel" },
+      { type: "keydown", key: "ArrowLeft" },
+    ]) {
+      controller.setMode("north-up");
+      mockMap._fire("movestart", { originalEvent });
+      expect(controller.getMode()).toBe("free");
+    }
+  });
+
+  it("keyboard zoom keeps follow mode, like the zoom buttons and volume keys", () => {
+    for (const key of ["+", "=", "-", "_"]) {
+      controller.setMode("course-up");
+      mockMap._fire("movestart", { originalEvent: { type: "keydown", key } });
+      expect(controller.getMode()).toBe("course-up");
+    }
   });
 
   it("drops a stale smoothed position when the course goes invalid", () => {
@@ -377,5 +398,23 @@ describe("computeLookAheadPadding", () => {
     expect(p.right).toBeCloseTo(expectedX, 5);
     expect(p.bottom).toBeCloseTo(0, 5);
     expect(p.left).toBeCloseTo(0, 5);
+  });
+});
+
+describe("isFollowReleasingGesture", () => {
+  it("is false for programmatic moves and keyboard zoom", () => {
+    expect(isFollowReleasingGesture(undefined)).toBe(false);
+    expect(isFollowReleasingGesture(null)).toBe(false);
+    expect(isFollowReleasingGesture({ type: "keydown", key: "+" })).toBe(false);
+    expect(isFollowReleasingGesture({ type: "keydown", key: "_" })).toBe(false);
+  });
+
+  it("is true for pointer, wheel and panning keys", () => {
+    expect(isFollowReleasingGesture({ type: "mousedown" })).toBe(true);
+    expect(isFollowReleasingGesture({ type: "touchstart" })).toBe(true);
+    expect(isFollowReleasingGesture({ type: "wheel" })).toBe(true);
+    expect(isFollowReleasingGesture({ type: "keydown", key: "ArrowUp" })).toBe(
+      true,
+    );
   });
 });

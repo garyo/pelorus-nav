@@ -4,6 +4,7 @@
 import type * as maplibregl from "maplibre-gl";
 import type { SearchEntry } from "../data/search-index";
 import type { StandaloneWaypoint } from "../data/Waypoint";
+import { logUiAction } from "../diagnostics/uiActionLog";
 import { getMode, setMode } from "../map/InteractionMode";
 import type { MeasurementLayer } from "../map/MeasurementLayer";
 import type { PlottingLayer } from "../map/plotting/PlottingLayer";
@@ -17,6 +18,12 @@ import { findNearestNamedFeature } from "../search/feature-search";
 import { formatLatLon, parseLatLon } from "../utils/coordinates";
 import { abbreviateFeatureName } from "../utils/feature-name";
 import { generateUUID } from "../utils/uuid";
+import {
+  clampToViewport,
+  type Insets,
+  placeSubmenu,
+  type Viewport,
+} from "./popup-placement";
 
 export interface ContextMenuDeps {
   map: maplibregl.Map;
@@ -64,6 +71,7 @@ export function createContextMenu(deps: ContextMenuDeps): ContextMenuHandle {
 
   const hide = () => {
     menu.style.display = "none";
+    closeSubmenu();
   };
 
   // --- Build menu items ---
@@ -130,6 +138,85 @@ export function createContextMenu(deps: ContextMenuDeps): ContextMenuHandle {
   plotSub.append(plotBearing, plotLine, plotArc, plotSymbol);
   plotItem.appendChild(plotSub);
 
+  // --- Placement: keep the menu and submenu on screen ---
+
+  const viewport = (): Viewport => {
+    const vv = window.visualViewport;
+    return vv
+      ? {
+          left: vv.offsetLeft,
+          top: vv.offsetTop,
+          width: vv.width,
+          height: vv.height,
+        }
+      : {
+          left: 0,
+          top: 0,
+          width: window.innerWidth,
+          height: window.innerHeight,
+        };
+  };
+
+  /** The system-bar insets, as the stylesheet resolved them. */
+  const safeInsets = (): Insets => {
+    const style = getComputedStyle(document.documentElement);
+    const px = (name: string) =>
+      Number.parseFloat(style.getPropertyValue(name)) || 0;
+    return {
+      top: px("--safe-top"),
+      right: px("--safe-right"),
+      bottom: px("--safe-bottom"),
+      left: px("--safe-left"),
+    };
+  };
+
+  const positionSubmenu = () => {
+    const { x, y } = placeSubmenu(
+      plotItem.getBoundingClientRect(),
+      plotSub.offsetWidth,
+      plotSub.offsetHeight,
+      viewport(),
+      safeInsets(),
+    );
+    plotSub.style.left = `${x}px`;
+    plotSub.style.top = `${y}px`;
+  };
+
+  const openSubmenu = () => {
+    plotItem.classList.add("open");
+    positionSubmenu();
+  };
+
+  function closeSubmenu() {
+    plotItem.classList.remove("open");
+  }
+
+  /** Put the menu's top-left at a client point, pulled back inside the viewport. */
+  const position = (clientX: number, clientY: number) => {
+    const { x, y } = clampToViewport(
+      clientX,
+      clientY,
+      menu.offsetWidth,
+      menu.offsetHeight,
+      viewport(),
+      safeInsets(),
+    );
+    menu.style.left = `${x}px`;
+    menu.style.top = `${y}px`;
+    if (plotItem.classList.contains("open")) positionSubmenu();
+  };
+
+  // The submenu opens on tap (touch has no hover) and on hover; hover-out
+  // closes it. The submenu is a descendant of the row, so moving the mouse
+  // into it does not count as leaving. A click never closes: a mouse click
+  // arrives after the hover already opened it.
+  plotItem.addEventListener("click", (e) => {
+    if (plotSub.contains(e.target as Node)) return;
+    openSubmenu();
+  });
+  plotItem.addEventListener("mouseenter", openSubmenu);
+  plotItem.addEventListener("mouseleave", closeSubmenu);
+
   menu.append(
     objectRows,
     objectDivider,
@@ -190,12 +277,8 @@ export function createContextMenu(deps: ContextMenuDeps): ContextMenuHandle {
     buildObjectRows(clientX - rect.left, clientY - rect.top);
 
     menu.style.display = "block";
-    const menuW = menu.offsetWidth;
-    const menuH = menu.offsetHeight;
-    const left = Math.min(clientX, window.innerWidth - menuW - 4);
-    const top = Math.min(clientY, window.innerHeight - menuH - 4);
-    menu.style.left = `${left}px`;
-    menu.style.top = `${top}px`;
+    position(clientX, clientY);
+    logUiAction("open context-menu");
   };
 
   // --- Right-click (desktop) ---
@@ -309,6 +392,11 @@ export function createContextMenu(deps: ContextMenuDeps): ContextMenuHandle {
     gotoInput.style.display = "block";
     gotoInput.value = "";
     gotoInput.focus();
+    // The input grew the menu; keep its bottom on screen.
+    position(
+      Number.parseFloat(menu.style.left),
+      Number.parseFloat(menu.style.top),
+    );
   });
 
   const flyToInput = (value: string) => {
@@ -388,12 +476,24 @@ export function createContextMenu(deps: ContextMenuDeps): ContextMenuHandle {
     waypointLayer.addWaypoint(wp).then(onWaypointAdded).catch(console.error);
   });
 
-  // --- Dismiss on click elsewhere or map move ---
+  // --- Dismiss on click elsewhere or a user pan; ride along with the chart ---
 
   document.addEventListener("click", (e) => {
     if (!menu.contains(e.target as Node)) hide();
   });
-  map.on("movestart", hide);
+  // Only a user gesture dismisses. Follow modes recentre the chart on every
+  // fix with a programmatic jumpTo (no originalEvent), which closed the
+  // menu the instant a long-pressing finger lifted under way.
+  map.on("movestart", (e) => {
+    if ((e as unknown as maplibregl.MapMouseEvent).originalEvent) hide();
+  });
+  // …and while the chart moves under it, the menu stays on its point.
+  map.on("move", () => {
+    if (menu.style.display !== "block") return;
+    const p = map.project([ctxLng, ctxLat]);
+    const rect = map.getCanvas().getBoundingClientRect();
+    position(rect.left + p.x, rect.top + p.y);
+  });
 
   // --- ESC key: cancel active navigation, exit plot mode, or clear measurement ---
   //

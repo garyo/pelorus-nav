@@ -58,6 +58,8 @@ export interface Settings {
   collapsedWaypointFolders: string[];
   collapsedTrackFolders: string[];
   showInstrumentHUD: boolean;
+  /** The top-right zoom in / zoom out / compass group on the chart. */
+  showZoomButtons: boolean;
   /** Instrument HUD layout on landscape phones. */
   instrumentLayout: InstrumentLayout;
   instrumentCells: [string, string];
@@ -273,6 +275,7 @@ const DEFAULTS: Settings = {
   collapsedWaypointFolders: [],
   collapsedTrackFolders: [],
   showInstrumentHUD: false,
+  showZoomButtons: true,
   instrumentLayout: "side",
   instrumentCells: ["sog", "cog"],
   trackRecordingEnabled: false,

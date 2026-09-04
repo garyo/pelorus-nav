@@ -159,6 +159,7 @@ import { buildTopbarAction } from "./ui/topbarButton";
 import { WakeLockController } from "./ui/WakeLock";
 import { WaypointManagerPanel } from "./ui/WaypointManagerPanel";
 import { maybeShowWhatsNew } from "./ui/WhatsNewDialog";
+import { ZoomControl } from "./ui/ZoomControl";
 import { diag } from "./utils/diag";
 import { createThermalMonitor } from "./utils/thermal";
 import { ChartModeController } from "./vessel/ChartMode";
@@ -620,6 +621,7 @@ const recenterBtn = new RecenterButton({
   },
 });
 chartManager.map.addControl(recenterBtn, "bottom-left");
+chartManager.map.addControl(new ZoomControl(), "top-right");
 chartMode.onModeChange(() => recenterBtn.refresh());
 recenterBtn.setEnabled(false); // until first GPS fix arrives
 
@@ -1680,21 +1682,32 @@ if (topbarMenu) {
 
   // Lock screen (Android only, like the HardwareKeys plugin) — disables the
   // touchscreen so accidental taps are ignored under way; a volume-key press
-  // unlocks. Shown only while the volume-key controls setting is on (unlock
-  // relies on that interception).
+  // unlocks, so the lock needs the volume-key controls setting. The item is
+  // always in the menu (hiding it read as "this device has no lock mode");
+  // with the setting off it offers to turn the setting on first.
   if (Capacitor.getPlatform() === "android") {
     const lockBtn = buildTopbarAction(iconLock, "LOCK", "Lock screen", {
       fullLabel: "Lock screen",
     });
     lockBtn.addEventListener("click", () => {
-      hardwareKeys.lock();
       closeHamburger();
+      if (getSettings().volumeKeyControls) {
+        hardwareKeys.lock();
+        return;
+      }
+      showToast({
+        message:
+          "Locking the screen needs the volume keys as the unlock button.",
+        actionLabel: "Turn on & lock",
+        durationMs: 10_000,
+        onAction: () => {
+          // The setting change pushes the native enable ahead of the lock
+          // call; bridge calls land in order.
+          updateSettings({ volumeKeyControls: true });
+          hardwareKeys.lock();
+        },
+      });
     });
-    const updateLockBtnVisibility = (visible: boolean) => {
-      lockBtn.style.display = visible ? "" : "none";
-    };
-    updateLockBtnVisibility(getSettings().volumeKeyControls);
-    onSettingsChange((s) => updateLockBtnVisibility(s.volumeKeyControls));
     topbarMenu.insertBefore(lockBtn, settingsWrapper);
   }
 

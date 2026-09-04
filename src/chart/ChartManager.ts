@@ -133,7 +133,6 @@ export class ChartManager {
         hasStoredBasemap(getSettings().activeRegion),
     });
 
-    this.map.addControl(new maplibregl.NavigationControl(), "top-right");
     this.map.addControl(
       new maplibregl.ScaleControl({ unit: "nautical" }),
       "bottom-left",
