@@ -339,6 +339,12 @@ export interface BackgroundGPSPlugin {
     listenerFunc: () => void,
   ): Promise<PluginListenerHandle>;
 
+  /**
+   * Open the system dialog that exempts the app from battery optimization,
+   * unless it already is. Android only; resolves once the request is made.
+   */
+  requestBatteryExemption(): Promise<{ exempt: boolean }>;
+
   /** Remove all listeners for this plugin. */
   removeAllListeners(): Promise<void>;
 }

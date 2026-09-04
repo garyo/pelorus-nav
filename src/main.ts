@@ -7,6 +7,7 @@ import { type AddProtocolAction, addProtocol, setWorkerUrl } from "maplibre-gl";
 // worker pipeline (`?worker&url` emits a self-contained bundle — the raw dist
 // file imports a sibling module that wouldn't be emitted alongside it).
 import maplibreWorkerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url";
+import { describeBacklogRecovery } from "./map/backlog-notice";
 import { BackgroundGPS } from "./plugins/BackgroundGPS";
 import "maplibre-gl/dist/maplibre-gl.css";
 import { Protocol } from "pmtiles";
@@ -150,6 +151,7 @@ import { showSppDevicePicker } from "./ui/SppDevicePickerDialog";
 import { hideStatusBanner, showStatusBanner } from "./ui/StatusBanner";
 import { closeAllSurfaces, registerSurface } from "./ui/SurfaceManager";
 import { TimeBar } from "./ui/TimeBar";
+import { showToast } from "./ui/Toast";
 import { TrackManagerPanel } from "./ui/TrackManagerPanel";
 import { TrackViewerPanel } from "./ui/TrackViewerPanel";
 import { initTopbarOverflow } from "./ui/topbar-overflow";
@@ -1005,6 +1007,32 @@ onSettingsChange((s) => {
 
 // Start recording at boot if the setting is on.
 void startRecorderAfterRepair();
+
+// Fixes the native service buffered while no page was alive to drain them
+// (an OS kill under way) come back through the recorder at reconnect, and
+// the hole between that backlog and this boot is disclosed — with the
+// battery-optimization exemption as the remedy, since that is what lets
+// the system kill a recording app in the first place.
+gps.capacitorGPS?.setBacklogSink(async (points) => {
+  await startRecorderAfterRepair();
+  if (!trackRecorder.isRecording()) return;
+  const recorded = await trackRecorder.ingestBacklog(points);
+  trackLayer.refreshActive();
+  const notice = describeBacklogRecovery(points, recorded, Date.now());
+  if (!notice) return;
+  showToast({
+    message: notice.message,
+    durationMs: 12_000,
+    ...(notice.interrupted
+      ? {
+          actionLabel: "Battery settings",
+          onAction: () => {
+            BackgroundGPS.requestBatteryExemption().catch(console.error);
+          },
+        }
+      : {}),
+  });
+});
 
 // An armed anchor watch must keep GPS alive exactly like an active
 // recording — screen-off drag detection depends on fixes — without forcing

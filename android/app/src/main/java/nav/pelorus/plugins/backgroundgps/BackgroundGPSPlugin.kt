@@ -44,6 +44,7 @@ class BackgroundGPSPlugin : Plugin() {
 
     override fun load() {
         trackDb = TrackDatabase(context)
+        logProcessExits()
         // Installed here rather than in installBridgeListener(): the anchor
         // alarm must reach JS whatever the tracking/power state is.
         // retainUntilConsumed — the alarm fires precisely when the WebView is
@@ -99,7 +100,7 @@ class BackgroundGPSPlugin : Plugin() {
         val armed = BackgroundTrackService.anchorParams != null
         val wanted = BackgroundTrackService.trackingRequested || armed
         val running = BackgroundTrackService.instance != null
-        val stickinessStale = running && BackgroundTrackService.startedSticky != armed
+        val stickinessStale = running && BackgroundTrackService.startedSticky != wanted
         val intent = Intent(context, BackgroundTrackService::class.java)
         when (serviceDemandAction(wanted, running, stickinessStale)) {
             ServiceDemand.START ->
@@ -180,6 +181,7 @@ class BackgroundGPSPlugin : Plugin() {
         DiagLog.log(context, "plugin", "startTracking")
 
         BackgroundTrackService.trackingRequested = true
+        RecordingDemandStore.save(context, true)
         syncServiceDemand()
         // Already running for an armed anchor watch: nothing started it just
         // now, so nudge it into the tracking role (notification, and the
@@ -228,6 +230,7 @@ class BackgroundGPSPlugin : Plugin() {
         BackgroundTrackService.stoppedListener = null // JS-initiated — no event
         BackgroundTrackService.instance?.cancelPendingPassive()
         BackgroundTrackService.trackingRequested = false
+        RecordingDemandStore.save(context, false)
         // Keeps running if an anchor watch is armed — the watch is a client of
         // its own, and the device GPS provider disconnecting (or the app going
         // hidden without recording) must not stand a watch down.
@@ -477,6 +480,91 @@ class BackgroundGPSPlugin : Plugin() {
             DiagLog.log(context, "plugin", "battery exemption request failed: ${e.message}")
         }
     }
+
+    /**
+     * The recording-interruption notice's remedy: open the exemption
+     * dialog whenever asked (unlike the anchor watch's once-per-install
+     * prompt — here the user tapped the button).
+     */
+    @PluginMethod
+    fun requestBatteryExemption(call: PluginCall) {
+        val pm = context.getSystemService(android.os.PowerManager::class.java)
+        if (pm == null || pm.isIgnoringBatteryOptimizations(context.packageName)) {
+            call.resolve(JSObject().put("exempt", true))
+            return
+        }
+        try {
+            val intent = Intent(
+                Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,
+                android.net.Uri.parse("package:" + context.packageName),
+            )
+            (activity ?: context).let {
+                if (it === context) intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                it.startActivity(intent)
+            }
+            DiagLog.log(context, "plugin", "battery exemption requested (recording notice)")
+            call.resolve(JSObject().put("exempt", false))
+        } catch (e: Exception) {
+            call.reject("battery exemption request failed: ${e.message}")
+        }
+    }
+
+    /**
+     * Diag-log how earlier instances of this process ended. A kill under way
+     * shows in the diag log only as fixes stopping mid-cadence with no
+     * onDestroy; Android's own record says whether the system (low memory,
+     * the freezer, resource use), the user (swipe, force-stop) or a crash
+     * did it. Each exit is logged once (deduped by timestamp), alongside
+     * the battery-optimization state that governs how eager the system is.
+     */
+    private fun logProcessExits() {
+        val pm = context.getSystemService(android.os.PowerManager::class.java)
+        val optimized = pm?.isIgnoringBatteryOptimizations(context.packageName) == false
+        DiagLog.log(context, "plugin", "load batteryOptimized=$optimized")
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) return
+        try {
+            val am = context.getSystemService(android.app.ActivityManager::class.java) ?: return
+            val prefs = context.getSharedPreferences("pelorus_exit_reasons", 0)
+            val lastLogged = prefs.getLong("lastTimestamp", 0L)
+            var newest = lastLogged
+            val fmt = java.text.SimpleDateFormat("MM-dd HH:mm:ss", java.util.Locale.US)
+            // Newest first from the OS; log oldest first so the file reads in order.
+            for (info in am.getHistoricalProcessExitReasons(context.packageName, 0, 5).reversed()) {
+                if (info.timestamp <= lastLogged) continue
+                newest = maxOf(newest, info.timestamp)
+                DiagLog.log(
+                    context,
+                    "exit",
+                    "${exitReasonName(info.reason)} at=${fmt.format(java.util.Date(info.timestamp))} " +
+                        "importance=${info.importance} pss=${info.pss}kB desc=${info.description}",
+                )
+            }
+            if (newest != lastLogged) prefs.edit().putLong("lastTimestamp", newest).apply()
+        } catch (e: Exception) {
+            DiagLog.log(context, "plugin", "exit reasons unavailable: ${e.message}")
+        }
+    }
+
+    private fun exitReasonName(reason: Int): String =
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) "UNKNOWN($reason)" else when (reason) {
+            android.app.ApplicationExitInfo.REASON_ANR -> "ANR"
+            android.app.ApplicationExitInfo.REASON_CRASH -> "CRASH"
+            android.app.ApplicationExitInfo.REASON_CRASH_NATIVE -> "CRASH_NATIVE"
+            android.app.ApplicationExitInfo.REASON_DEPENDENCY_DIED -> "DEPENDENCY_DIED"
+            android.app.ApplicationExitInfo.REASON_EXCESSIVE_RESOURCE_USAGE -> "EXCESSIVE_RESOURCE_USAGE"
+            android.app.ApplicationExitInfo.REASON_EXIT_SELF -> "EXIT_SELF"
+            android.app.ApplicationExitInfo.REASON_FREEZER -> "FREEZER"
+            android.app.ApplicationExitInfo.REASON_INITIALIZATION_FAILURE -> "INITIALIZATION_FAILURE"
+            android.app.ApplicationExitInfo.REASON_LOW_MEMORY -> "LOW_MEMORY"
+            android.app.ApplicationExitInfo.REASON_OTHER -> "OTHER"
+            android.app.ApplicationExitInfo.REASON_PACKAGE_STATE_CHANGE -> "PACKAGE_STATE_CHANGE"
+            android.app.ApplicationExitInfo.REASON_PACKAGE_UPDATED -> "PACKAGE_UPDATED"
+            android.app.ApplicationExitInfo.REASON_PERMISSION_CHANGE -> "PERMISSION_CHANGE"
+            android.app.ApplicationExitInfo.REASON_SIGNALED -> "SIGNALED"
+            android.app.ApplicationExitInfo.REASON_USER_REQUESTED -> "USER_REQUESTED"
+            android.app.ApplicationExitInfo.REASON_USER_STOPPED -> "USER_STOPPED"
+            else -> "UNKNOWN($reason)"
+        }
 
     /** Precise location, the foreground service's hard requirement. */
     private fun hasServiceLocation(): Boolean =

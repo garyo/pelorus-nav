@@ -1,5 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { appendTrackPoint, getAllTrackMetas, saveTrackMeta } from "../data/db";
+import {
+  appendTrackPoint,
+  getAllTrackMetas,
+  getTrackPoints,
+  saveTrackMeta,
+} from "../data/db";
 import type { TrackMeta } from "../data/Track";
 import { appErrorLog } from "../diagnostics/errorLog";
 import type { NavigationData } from "../navigation/NavigationData";
@@ -472,5 +477,117 @@ describe("TrackRecorder periodic meta save vs panel edits", () => {
     releaseSave();
     await settle();
     expect(recorder.closingId()).toBeNull();
+  });
+});
+
+describe("TrackRecorder backlog ingest", () => {
+  const fakeStorage = new Map<string, string>();
+  const settle = () => new Promise<void>((r) => setTimeout(r, 0));
+  const t0 = Date.parse("2026-09-02T18:44:00.000Z");
+  const MIN = 60_000;
+  const savedTrack: TrackMeta = {
+    id: "saved-track",
+    name: "Pelorus Track",
+    createdAt: t0 - 60 * MIN,
+    color: "#ff4444",
+    visible: true,
+    pointCount: 1,
+    durationMs: 60 * MIN,
+    totalDistanceNM: 3,
+  };
+
+  beforeEach(() => {
+    fakeStorage.clear();
+    vi.stubGlobal("localStorage", {
+      getItem: (k: string) => fakeStorage.get(k) ?? null,
+      setItem: (k: string, v: string) => {
+        fakeStorage.set(k, v);
+      },
+      removeItem: (k: string) => {
+        fakeStorage.delete(k);
+      },
+    });
+    vi.mocked(appendTrackPoint).mockClear();
+    vi.mocked(saveTrackMeta).mockClear();
+    vi.mocked(getAllTrackMetas).mockResolvedValue([]);
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  /** A recorder resumed onto `savedTrack`, whose last stored point is at t0. */
+  async function resumedRecorder(): Promise<{
+    nav: FakeNavManager;
+    recorder: TrackRecorder;
+  }> {
+    fakeStorage.set("pelorus-nav-active-track", JSON.stringify(savedTrack));
+    vi.mocked(getTrackPoints).mockResolvedValueOnce([
+      { lat: 42.0, lon: -71.0, timestamp: t0, sog: null, cog: null },
+    ]);
+    const nav = new FakeNavManager();
+    const recorder = new TrackRecorder(nav as unknown as NavigationDataManager);
+    recorder.start();
+    await settle();
+    expect(recorder.getCurrentTrack()?.id).toBe(savedTrack.id);
+    return { nav, recorder };
+  }
+
+  it("appends backlog fixes newer than the last stored point and skips the rest", async () => {
+    const { recorder } = await resumedRecorder();
+
+    const recorded = await recorder.ingestBacklog([
+      fix(42.002, -71.0, t0 + 20_000),
+      fix(42.0, -71.0, t0), // the page's own last fix, echoed by native
+      fix(42.001, -71.0, t0 + 10_000),
+    ]);
+
+    expect(recorded).toBe(2);
+    const appended = vi.mocked(appendTrackPoint).mock.calls;
+    expect(appended.map((c) => c[0])).toEqual([savedTrack.id, savedTrack.id]);
+    expect(appended.map((c) => c[1].timestamp)).toEqual([
+      t0 + 10_000,
+      t0 + 20_000,
+    ]);
+    expect(recorder.getCurrentTrack()?.pointCount).toBe(3);
+  });
+
+  it("keeps a track continuous when the backlog fills a hole the resume alone would have split", async () => {
+    const { nav, recorder } = await resumedRecorder();
+
+    // The app died at t0+29 min and relaunched at t0+39 min: without the
+    // backlog, 39 min since the last stored point is past the split
+    // threshold; with it, no two consecutive fixes are more than 10 min apart.
+    const backlog = [];
+    for (let m = 1; m <= 29; m++) {
+      backlog.push(fix(42.0 + m * 0.002, -71.0, t0 + m * MIN));
+    }
+    await recorder.ingestBacklog(backlog);
+    nav.feed(fix(42.07, -71.0, t0 + 39 * MIN));
+    await settle();
+
+    expect(recorder.getCurrentTrack()?.id).toBe(savedTrack.id);
+    expect(recorder.getCurrentTrack()?.pointCount).toBe(1 + 29 + 1);
+  });
+
+  it("lets a backlog that starts after a long hole split off a new track", async () => {
+    const { recorder } = await resumedRecorder();
+
+    await recorder.ingestBacklog([
+      fix(42.05, -71.0, t0 + 40 * MIN),
+      fix(42.052, -71.0, t0 + 41 * MIN),
+    ]);
+
+    const track = recorder.getCurrentTrack();
+    expect(track?.id).not.toBe(savedTrack.id);
+    expect(track?.pointCount).toBe(2);
+    expect(track?.totalDistanceNM).toBeCloseTo(0.12, 1);
+  });
+
+  it("records nothing while not recording", async () => {
+    const nav = new FakeNavManager();
+    const recorder = new TrackRecorder(nav as unknown as NavigationDataManager);
+    expect(await recorder.ingestBacklog([fix(42.0, -71.0, t0)])).toBe(0);
+    expect(appendTrackPoint).not.toHaveBeenCalled();
   });
 });

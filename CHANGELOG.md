@@ -5,6 +5,18 @@ Notable user-facing changes to Pelorus Nav. Downloads are on the
 
 The format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [Unreleased]
+
+### Fixed
+- Track recording on Android now survives the system stopping the app
+  under way. The background GPS service restarts on its own and keeps
+  recording, the fixes it buffered while the app was closed are added to
+  the track at the next launch, and a notice reports how long recording was
+  interrupted, with a shortcut to exempt the app from battery optimization.
+- A hole in a track (recording stopped for more than five minutes) is now
+  drawn as a dashed bridge instead of a solid line across wherever the
+  vessel actually went.
+
 ## [0.23.0] - 2026-08-25
 
 ### Added

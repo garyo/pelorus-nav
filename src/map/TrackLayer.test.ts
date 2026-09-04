@@ -4,12 +4,72 @@ import { getTrackPoints } from "../data/db";
 import type { TrackMeta, TrackPoint } from "../data/Track";
 import type { NavigationData } from "../navigation/NavigationData";
 import type { NavigationDataManager } from "../navigation/NavigationDataManager";
-import { capDisplayPoints, TrackLayer } from "./TrackLayer";
+import { capDisplayPoints, TrackLayer, trackGeoJSON } from "./TrackLayer";
 import { TrackRecorder } from "./TrackRecorder";
 
 function point(lat: number, lon: number, timestamp: number): TrackPoint {
   return { lat, lon, timestamp, sog: null, cog: null };
 }
+
+describe("trackGeoJSON", () => {
+  const dp = (lon: number, lat: number, timestamp: number) => ({
+    lon,
+    lat,
+    timestamp,
+  });
+
+  it("draws a continuous track as one solid run and no gap feature", () => {
+    const fc = trackGeoJSON([dp(-71, 42, 0), dp(-71.1, 42.1, 10_000)]);
+    expect(fc.features).toHaveLength(1);
+    expect(fc.features[0].properties).toEqual({ kind: "line" });
+    expect(fc.features[0].geometry).toEqual({
+      type: "MultiLineString",
+      coordinates: [
+        [
+          [-71, 42],
+          [-71.1, 42.1],
+        ],
+      ],
+    });
+  });
+
+  it("breaks the solid line at a recording gap and bridges it with a gap feature", () => {
+    const fc = trackGeoJSON([
+      dp(-71, 42, 0),
+      dp(-71.1, 42.1, 10_000),
+      dp(-71.5, 42.5, 60 * 60 * 1000),
+      dp(-71.6, 42.6, 60 * 60 * 1000 + 10_000),
+    ]);
+    const line = fc.features.find((f) => f.properties?.kind === "line");
+    const gap = fc.features.find((f) => f.properties?.kind === "gap");
+    expect(line?.geometry).toEqual({
+      type: "MultiLineString",
+      coordinates: [
+        [
+          [-71, 42],
+          [-71.1, 42.1],
+        ],
+        [
+          [-71.5, 42.5],
+          [-71.6, 42.6],
+        ],
+      ],
+    });
+    expect(gap?.geometry).toEqual({
+      type: "MultiLineString",
+      coordinates: [
+        [
+          [-71.1, 42.1],
+          [-71.5, 42.5],
+        ],
+      ],
+    });
+  });
+
+  it("renders nothing for fewer than two points", () => {
+    expect(trackGeoJSON([dp(-71, 42, 0)]).features).toEqual([]);
+  });
+});
 
 describe("capDisplayPoints", () => {
   it("maps stored points to display points in order", () => {
@@ -131,15 +191,15 @@ class FakeMap {
   getStyle = vi.fn(() => ({ layers: [] }));
 }
 
-/** Coordinates rendered for a track's line source, or undefined if never drawn. */
+/** Coordinates rendered for a track's solid line, or undefined if never drawn. */
 function renderedCoords(
   map: FakeMap,
   trackId: string,
 ): [number, number][] | undefined {
   const fc = map.sources.get(`_track-${trackId}`);
-  const feature = fc?.features[0];
-  if (!feature || feature.geometry.type !== "LineString") return undefined;
-  return feature.geometry.coordinates as [number, number][];
+  const feature = fc?.features.find((f) => f.properties?.kind === "line");
+  if (!feature || feature.geometry.type !== "MultiLineString") return undefined;
+  return feature.geometry.coordinates.flat() as [number, number][];
 }
 
 async function flush(times = 20): Promise<void> {

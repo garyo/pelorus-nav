@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { TrackPointNative } from "../plugins/BackgroundGPS";
 
 // vi.mock is hoisted to the top of the file, so any local references it
@@ -267,5 +267,127 @@ describe("CapacitorGPSProvider drain", () => {
     expect(mockPlugin.getRecordedPoints).toHaveBeenNthCalledWith(2, {
       sinceTimestamp: 1000,
     });
+  });
+});
+
+describe("CapacitorGPSProvider backlog recovery", () => {
+  let provider: CapacitorGPSProvider;
+  let received: NavigationData[];
+  const settle = () => new Promise<void>((r) => setTimeout(r, 0));
+  const MIN = 60_000;
+
+  beforeEach(() => {
+    for (const fn of Object.values(mockPlugin)) {
+      if (typeof fn === "function" && "mockClear" in fn) fn.mockClear();
+    }
+    mockPlugin.getRecordedPoints.mockResolvedValue({ points: [] });
+    mockPlugin.addListener.mockImplementation(() =>
+      Promise.resolve({ remove: vi.fn() }),
+    );
+    vi.stubGlobal("document", {
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      visibilityState: "visible",
+    });
+    provider = new CapacitorGPSProvider();
+    received = [];
+    provider.subscribe((d) => received.push({ ...d }));
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("hands the buffered fixes to the sink before the live listener exists, then prunes", async () => {
+    const now = Date.now();
+    mockPlugin.getRecordedPoints.mockResolvedValueOnce({
+      points: [
+        pt(now - 30 * MIN, 42.0, -71.0),
+        pt(now - 29 * MIN, 42.1, -71.1),
+      ],
+    });
+    const order: string[] = [];
+    mockPlugin.addListener.mockImplementation(async () => {
+      order.push("listener");
+      return { remove: vi.fn() };
+    });
+    const sink = vi.fn(async (points: NavigationData[]) => {
+      order.push(`sink:${points.length}`);
+    });
+    provider.setBacklogSink(sink);
+
+    provider.connect();
+    await settle();
+
+    expect(order[0]).toBe("sink:2");
+    expect(sink.mock.calls[0][0].map((d) => d.timestamp)).toEqual([
+      now - 30 * MIN,
+      now - 29 * MIN,
+    ]);
+    // History is recorded, never broadcast as live data.
+    expect(received).toEqual([]);
+    expect(mockPlugin.pruneRecordedPoints).toHaveBeenCalledTimes(1);
+    expect(mockPlugin.startTracking).toHaveBeenCalledTimes(1);
+  });
+
+  it("leaves rows newer than the connect for the first live drain", async () => {
+    const now = Date.now();
+    mockPlugin.getRecordedPoints.mockResolvedValueOnce({
+      points: [pt(now - MIN, 42.0, -71.0), pt(now + 5 * MIN, 42.1, -71.1)],
+    });
+    const sink = vi.fn(async (_points: NavigationData[]) => {});
+    provider.setBacklogSink(sink);
+
+    provider.connect();
+    await settle();
+
+    expect(sink.mock.calls[0][0].map((d) => d.timestamp)).toEqual([now - MIN]);
+  });
+
+  it("ignores a backlog older than a day", async () => {
+    const now = Date.now();
+    mockPlugin.getRecordedPoints.mockResolvedValueOnce({
+      points: [pt(now - 30 * 60 * MIN, 42.0, -71.0)],
+    });
+    const sink = vi.fn(async (_points: NavigationData[]) => {});
+    provider.setBacklogSink(sink);
+
+    provider.connect();
+    await settle();
+
+    expect(sink).not.toHaveBeenCalled();
+    expect(mockPlugin.pruneRecordedPoints).toHaveBeenCalledTimes(1);
+  });
+
+  it("discards the backlog when there is no sink", async () => {
+    mockPlugin.getRecordedPoints.mockResolvedValueOnce({
+      points: [pt(Date.now() - MIN, 42.0, -71.0)],
+    });
+
+    provider.connect();
+    await settle();
+
+    expect(received).toEqual([]);
+    expect(mockPlugin.pruneRecordedPoints).toHaveBeenCalledTimes(1);
+    expect(mockPlugin.startTracking).toHaveBeenCalledTimes(1);
+  });
+
+  it("still connects when the sink fails", async () => {
+    mockPlugin.getRecordedPoints.mockResolvedValueOnce({
+      points: [pt(Date.now() - MIN, 42.0, -71.0)],
+    });
+    provider.setBacklogSink(
+      vi.fn(async () => {
+        throw new Error("IDB quota");
+      }),
+    );
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    provider.connect();
+    await settle();
+
+    expect(provider.isConnected()).toBe(true);
+    expect(mockPlugin.startTracking).toHaveBeenCalledTimes(1);
+    errorSpy.mockRestore();
   });
 });

@@ -502,6 +502,9 @@ class BackgroundTrackService : Service() {
     /** True when this instance adopted its watch from disk, not from JS. */
     private var anchorRestoredFromStore = false
 
+    /** True when this instance adopted the tracking demand from disk, not from JS. */
+    private var trackingRestoredFromStore = false
+
     override fun onCreate() {
         super.onCreate()
         // Recover an armed watch before anything else: after an OS kill the
@@ -525,6 +528,16 @@ class BackgroundTrackService : Service() {
                 if (!trackingRequested) currentMode = MODE_PASSIVE
                 Log.i(TAG, "Restored armed anchor watch after process restart")
             }
+        }
+        // Likewise a recording the OS killed under way: re-adopt the demand
+        // so the buffer keeps filling for the next launch to drain. No JS
+        // is alive to choose a rate, and the screen is almost certainly
+        // off, so start in the passive cadence.
+        if (!trackingRequested && RecordingDemandStore.load(this)) {
+            trackingRequested = true
+            trackingRestoredFromStore = true
+            currentMode = MODE_PASSIVE
+            Log.i(TAG, "Restored tracking demand after process restart")
         }
         // Satisfy the startForegroundService() deadline as the very first
         // thing: at cold boot the main looper is saturated with WebView
@@ -673,6 +686,9 @@ class BackgroundTrackService : Service() {
         if (anchorRestoredFromStore) {
             DiagLog.log(this, "anchor", "restored from store after process restart")
         }
+        if (trackingRestoredFromStore) {
+            DiagLog.log(this, "svc", "restored tracking demand after process restart")
+        }
         DiagLog.log(this, "svc", "onCreate")
     }
 
@@ -691,12 +707,14 @@ class BackgroundTrackService : Service() {
      * Stop or the alarm's Silence — actions that must not be replayed against a
      * freshly restored watch.
      *
-     * With no watch armed nothing changes: track recording is re-started by JS
-     * when the app returns to the foreground, so a sticky restart would only
-     * resurrect a service with no client.
+     * START_STICKY while tracking is wanted, for the same reason: a recording
+     * the OS kills under way must keep buffering fixes for the next launch to
+     * drain — [onCreate] re-adopts the demand from [RecordingDemandStore].
+     * An explicit stop (JS stopTracking, the notification's Stop) clears the
+     * store, so a service nobody wants is never resurrected.
      */
     private fun startResult(): Int {
-        val sticky = anchorParams != null
+        val sticky = anchorParams != null || trackingRequested
         startedSticky = sticky
         return if (sticky) START_STICKY else START_NOT_STICKY
     }
@@ -710,6 +728,7 @@ class BackgroundTrackService : Service() {
             // and leak per-fix callbacks if the service were ever restarted.
             DiagLog.log(this, "svc", "stopped via notification action")
             trackingRequested = false
+            RecordingDemandStore.save(this, false)
             locationListener = null
             stoppedListener?.invoke("notification")
             // Stop ends tracking, not the anchor watch: standing a watch down

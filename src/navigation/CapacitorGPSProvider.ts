@@ -24,6 +24,18 @@ import type {
 } from "./NavigationData";
 import type { ProviderNotice } from "./ProviderNotice";
 
+/**
+ * Receives the fixes the native service buffered while no JS was alive to
+ * drain them (a process kill under way; see startNative). They are history,
+ * not live data: the sink records them but never broadcasts them.
+ */
+export type BacklogSink = (points: NavigationData[]) => Promise<void>;
+
+/** Buffered fixes older than this are stale beyond use, whatever their span. */
+const MAX_BACKLOG_AGE_MS = 24 * 60 * 60 * 1000;
+/** Bounds the ingest cost at boot; passive recording adds ~4 points/min. */
+const MAX_BACKLOG_POINTS = 10_000;
+
 export class CapacitorGPSProvider implements NavigationDataProvider {
   readonly id = "capacitor-gps";
   readonly name = "Device GPS";
@@ -40,6 +52,7 @@ export class CapacitorGPSProvider implements NavigationDataProvider {
   /** Re-entrancy hint: a wakeup arrived during a drain — drain again on exit. */
   private drainRequested = false;
   private visibilityHandler: (() => void) | null = null;
+  private backlogSink: BacklogSink | null = null;
   /**
    * Serializes start/stop chains: connect() and disconnect() spawn async
    * native calls, and a quick toggle (or resetActiveProvider's
@@ -126,6 +139,11 @@ export class CapacitorGPSProvider implements NavigationDataProvider {
     this.listeners.push(callback);
   }
 
+  /** Where a connect-time backlog goes; without one it is discarded. */
+  setBacklogSink(sink: BacklogSink | null): void {
+    this.backlogSink = sink;
+  }
+
   unsubscribe(callback: NavigationDataCallback): void {
     const idx = this.listeners.indexOf(callback);
     if (idx >= 0) this.listeners.splice(idx, 1);
@@ -176,25 +194,43 @@ export class CapacitorGPSProvider implements NavigationDataProvider {
   }
 
   private async startNative(): Promise<void> {
-    // Discard whatever is in the SQLite buffer from previous sessions —
-    // we don't want a fresh connect() to replay stale fixes through the
-    // filter as if they were live.
-    this.lastSeenTimestamp = Date.now();
+    // Everything in the SQLite buffer from before this connect is history:
+    // fixes the service kept recording after the last JS died mid-trip (an
+    // OS kill under way, a WebView reload). It must not replay through the
+    // filter as if it were live, but it is the missing piece of the track,
+    // so it goes to the backlog sink — before the live listener is
+    // registered, so no drain can interleave with it — and is then pruned.
+    const connectTimestamp = Date.now();
+    this.lastSeenTimestamp = connectTimestamp;
 
-    // Measure what this prune throws away. On a clean launch the buffer is
-    // empty; a non-trivial, *recent* span here means a mid-trip WebView/
-    // process reload left an un-drained backlog that we're about to lose —
-    // the signal that decides whether a recovery path is worth building.
     const existing = await BackgroundGPS.getRecordedPoints({
       sinceTimestamp: 0,
     }).catch(() => ({ points: [] as TrackPointNative[] }));
     if (existing.points.length > 0) {
+      const backlog = existing.points
+        .filter(
+          (p) =>
+            p.timestamp <= connectTimestamp &&
+            p.timestamp >= connectTimestamp - MAX_BACKLOG_AGE_MS,
+        )
+        .sort((a, b) => a.timestamp - b.timestamp)
+        .slice(-MAX_BACKLOG_POINTS);
       const oldest = existing.points[0].timestamp;
       const newest = existing.points[existing.points.length - 1].timestamp;
+      const fate =
+        this.backlogSink && backlog.length > 0 ? "recover" : "discard";
       diag(
         "drain",
-        `connect discard n=${existing.points.length} ageMs=${Date.now() - newest} spanMs=${newest - oldest}`,
+        `connect ${fate} n=${existing.points.length} ageMs=${connectTimestamp - newest} spanMs=${newest - oldest}`,
       );
+      if (fate === "recover" && this.backlogSink) {
+        try {
+          await this.backlogSink(backlog.map(toNavigationData));
+        } catch (err) {
+          console.error("Backlog recovery failed:", err);
+          diag("drain", `backlog recovery failed: ${String(err)}`);
+        }
+      }
     }
 
     await BackgroundGPS.pruneRecordedPoints({
@@ -305,18 +341,22 @@ export class CapacitorGPSProvider implements NavigationDataProvider {
   }
 
   private emit(point: TrackPointNative): void {
-    const data: NavigationData = {
-      latitude: point.lat,
-      longitude: point.lon,
-      cog: point.course >= 0 ? point.course : null,
-      sog: point.speed >= 0 ? point.speed * MS_TO_KNOTS : null,
-      heading: null,
-      accuracy: point.accuracy >= 0 ? point.accuracy : null,
-      timestamp: point.timestamp,
-      source: "capacitor-gps",
-    };
+    const data = toNavigationData(point);
     for (const fn of this.listeners) {
       fn(data);
     }
   }
+}
+
+function toNavigationData(point: TrackPointNative): NavigationData {
+  return {
+    latitude: point.lat,
+    longitude: point.lon,
+    cog: point.course >= 0 ? point.course : null,
+    sog: point.speed >= 0 ? point.speed * MS_TO_KNOTS : null,
+    heading: null,
+    accuracy: point.accuracy >= 0 ? point.accuracy : null,
+    timestamp: point.timestamp,
+    source: "capacitor-gps",
+  };
 }

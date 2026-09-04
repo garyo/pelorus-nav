@@ -14,6 +14,7 @@ import { fitMapToBoundsIfNeeded, releaseFollowForReveal } from "./fit-bounds";
 import { GLOW_LIGHTEN } from "./selection-glow";
 import { SelectionHalo } from "./selection-halo";
 import type { TrackRecorder } from "./TrackRecorder";
+import { splitAtGaps } from "./track-gaps";
 
 /** Display point with timestamp for the active track buffer. */
 export interface DisplayPoint {
@@ -50,6 +51,39 @@ function sourceId(trackId: string): string {
 
 function layerId(trackId: string): string {
   return `_track-line-${trackId}`;
+}
+
+/** The dashed bridge drawn across each recording gap in a track. */
+function gapLayerId(trackId: string): string {
+  return `_track-gap-${trackId}`;
+}
+
+/**
+ * A track as two features over one source: the recorded runs as a solid
+ * MultiLineString, and a dashed bridge across each gap where recording
+ * stopped (see track-gaps.ts) so a hole never reads as a sailed line.
+ * Pure — exported for testing.
+ */
+export function trackGeoJSON(
+  points: DisplayPoint[],
+): GeoJSON.FeatureCollection {
+  const { segments, bridges } = splitAtGaps(points);
+  const toCoords = (run: DisplayPoint[]) =>
+    run.map((p) => [p.lon, p.lat] as [number, number]);
+  const lines = segments.filter((s) => s.length >= 2).map(toCoords);
+  const gaps = bridges.map(toCoords);
+  const feature = (
+    kind: "line" | "gap",
+    coordinates: [number, number][][],
+  ): GeoJSON.Feature => ({
+    type: "Feature",
+    properties: { kind },
+    geometry: { type: "MultiLineString", coordinates },
+  });
+  const features: GeoJSON.Feature[] = [];
+  if (lines.length > 0) features.push(feature("line", lines));
+  if (gaps.length > 0) features.push(feature("gap", gaps));
+  return { type: "FeatureCollection", features };
 }
 
 export class TrackLayer {
@@ -146,14 +180,24 @@ export class TrackLayer {
       // (or shows only a stray live point) until the next GPS fix arrives.
       const track = this.recorder.getCurrentTrack();
       if (track && track.id === trackId) {
-        const coords = this.activePoints.map(
-          (p) => [p.lon, p.lat] as [number, number],
-        );
-        this.addTrackLine(trackId, track.color, coords);
+        this.addTrackLine(trackId, track.color, this.activePoints);
       }
     } finally {
       if (this.seedingTrackId === trackId) this.seedingTrackId = null;
     }
+  }
+
+  /**
+   * Re-seed the live-render buffer for the current recording from IndexedDB.
+   * For the one case where stored points land behind the buffer's back: a
+   * backlog the native service recorded while this page was dead, ingested
+   * after the resume notification already seeded the buffer.
+   */
+  refreshActive(): void {
+    const track = this.recorder.getCurrentTrack();
+    if (!track || !this.recorder.isRecording()) return;
+    this.currentTrackId = null;
+    this.ensureTrackBuffer(track.id);
   }
 
   /**
@@ -210,29 +254,33 @@ export class TrackLayer {
     // Outliers from Stop-time post-processing are kept in IDB so we can
     // still see the raw fix in debug tooling, but they're hidden from
     // rendering — the polyline reads cleaner without them.
-    const coords = points
+    const display = points
       .filter((p: TrackPoint) => !p.dropped)
-      .map((p: TrackPoint) => [p.lon, p.lat] as [number, number]);
-    this.addTrackLine(meta.id, meta.color, coords);
+      .map((p: TrackPoint) => ({
+        lon: p.lon,
+        lat: p.lat,
+        timestamp: p.timestamp,
+      }));
+    this.addTrackLine(meta.id, meta.color, display);
   }
 
   private addTrackLine(
     id: string,
     color: string,
-    coords: [number, number][],
+    points: DisplayPoint[],
   ): void {
     const sid = sourceId(id);
     const lid = layerId(id);
 
     if (this.map.getSource(sid)) {
       const src = this.map.getSource(sid) as maplibregl.GeoJSONSource;
-      src.setData(this.lineGeoJSON(coords));
+      src.setData(trackGeoJSON(points));
       return;
     }
 
     this.map.addSource(sid, {
       type: "geojson",
-      data: this.lineGeoJSON(coords),
+      data: trackGeoJSON(points),
       // Render the track faithfully — MapLibre's default 0.375 tile-space
       // simplification decimates a track sitting in a small area down to a
       // handful of points. We keep our own (already sparse) buffer instead.
@@ -243,18 +291,32 @@ export class TrackLayer {
       id: lid,
       type: "line",
       source: sid,
+      filter: ["==", ["get", "kind"], "line"],
       paint: {
         "line-color": color,
         "line-width": 2.5,
         "line-opacity": 0.8,
       },
     });
+    this.map.addLayer({
+      id: gapLayerId(id),
+      type: "line",
+      source: sid,
+      filter: ["==", ["get", "kind"], "gap"],
+      paint: {
+        "line-color": color,
+        "line-width": 1.5,
+        "line-opacity": 0.5,
+        "line-dasharray": [2, 3],
+      },
+    });
   }
 
   private removeTrackLayer(id: string): void {
-    const lid = layerId(id);
     const sid = sourceId(id);
-    if (this.map.getLayer(lid)) this.map.removeLayer(lid);
+    for (const lid of [layerId(id), gapLayerId(id)]) {
+      if (this.map.getLayer(lid)) this.map.removeLayer(lid);
+    }
     if (this.map.getSource(sid)) this.map.removeSource(sid);
   }
 
@@ -353,25 +415,6 @@ export class TrackLayer {
     }
 
     // Update or create the active track line
-    const coords = this.activePoints.map(
-      (p) => [p.lon, p.lat] as [number, number],
-    );
-    this.addTrackLine(track.id, track.color, coords);
-  }
-
-  private lineGeoJSON(coords: [number, number][]): GeoJSON.FeatureCollection {
-    if (coords.length < 2) {
-      return { type: "FeatureCollection", features: [] };
-    }
-    return {
-      type: "FeatureCollection",
-      features: [
-        {
-          type: "Feature",
-          properties: {},
-          geometry: { type: "LineString", coordinates: coords },
-        },
-      ],
-    };
+    this.addTrackLine(track.id, track.color, this.activePoints);
   }
 }

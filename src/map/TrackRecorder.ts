@@ -4,8 +4,8 @@
  * and skips points < 5m from the last recorded point.
  *
  * Survives page refresh: persists the active track ID in localStorage.
- * On start(), resumes appending to the previous track if it's recent enough
- * (within GAP_THRESHOLD_MS). Otherwise starts a new track.
+ * On start(), resumes the previous track; the first fix then either
+ * continues it or, after a gap longer than GAP_THRESHOLD_MS, starts a new one.
  * Track meta is not saved until the first point arrives (avoids zero-point tracks).
  */
 
@@ -336,8 +336,44 @@ export class TrackRecorder {
   }
 
   /**
-   * Try to resume the previously active track after a page refresh.
-   * Loads the last point's timestamp; if within GAP_THRESHOLD_MS, resumes.
+   * Fixes the native service recorded while this page was dead (a process
+   * kill under way, a WebView reload), handed over by the GPS provider at
+   * reconnect. Each one takes the same path as a live fix — accuracy gate,
+   * glitch cap, throttle, and the gap split — so the backlog either extends
+   * the track it belongs to or opens the next one exactly as live fixes
+   * would have. Points at or before the last stored fix are skipped: they
+   * are the ones this page recorded itself before it died, or the cached
+   * last-known fix FLP echoes on start. Resolves to the number recorded.
+   */
+  async ingestBacklog(points: NavigationData[]): Promise<number> {
+    if (!this.recording) return 0;
+    if (this.resumePromise) await this.resumePromise;
+    const sorted = [...points].sort((a, b) => a.timestamp - b.timestamp);
+    let recorded = 0;
+    for (const data of sorted) {
+      if (data.timestamp <= this.lastRecordedTime) continue;
+      const before = this.currentTrack;
+      const countBefore = before?.pointCount ?? 0;
+      try {
+        await this.onNavData(data);
+      } catch (err) {
+        this.recordSaveError(err);
+        break;
+      }
+      const after = this.currentTrack;
+      if (after && (after !== before || after.pointCount > countBefore)) {
+        recorded++;
+      }
+    }
+    diag("rec", `backlog n=${sorted.length} recorded=${recorded}`);
+    return recorded;
+  }
+
+  /**
+   * Resume the previously active track after a page reload. Whether the
+   * next fix continues it or splits off a new track is decided by the fix
+   * itself (see the gap check in onNavData) — a backlog recovered from the
+   * native service can be much older than "now" and still belong to it.
    */
   private async tryResumeTrack(): Promise<void> {
     const saved = localStorage.getItem(ACTIVE_TRACK_KEY);
@@ -345,17 +381,13 @@ export class TrackRecorder {
 
     try {
       const meta = JSON.parse(saved) as TrackMeta;
-      // Load last recorded point to check timing
       const points = await getTrackPoints(meta.id);
       if (points.length === 0) return; // zero-point track, don't resume
 
       const lastPoint = points[points.length - 1];
-      const elapsed = Date.now() - lastPoint.timestamp;
-      if (elapsed > GAP_THRESHOLD_MS) return; // too old, start fresh
 
-      // Defensive: if onNavData/recovery already created a track (they
-      // should now await resumePromise so this shouldn't fire), don't
-      // clobber it.
+      // Defensive: if onNavData already created a track (it awaits
+      // resumePromise so this shouldn't fire), don't clobber it.
       if (this.currentTrack) return;
 
       // Resume this track
@@ -504,8 +536,8 @@ export class TrackRecorder {
       now - this.currentTrack.createdAt,
     );
 
-    // Update state BEFORE awaiting, so a concurrent recoverBackgroundPoints
-    // sees the new lastRecordedTime and skips this same fix from SQLite.
+    // Update state BEFORE awaiting, so a fix arriving mid-write is measured
+    // against this one rather than its predecessor.
     this.lastRecordedTime = now;
     this.lastLat = data.latitude;
     this.lastLon = data.longitude;
