@@ -18,6 +18,13 @@ import {
 } from "../utils/coordinates";
 import type { NavigationData } from "./NavigationData";
 import type { NavigationDataManager } from "./NavigationDataManager";
+import {
+  CORRIDOR_FLOOR_NM,
+  distanceToLegNM,
+  type JoinFix,
+  pickJoinLeg,
+  suggestReverse,
+} from "./route-join";
 
 const STORAGE_KEY = "pelorus-nav-active-nav";
 
@@ -60,87 +67,18 @@ export function shouldAdvanceLeg(
 }
 
 /**
- * Choose the initial leg index when route navigation starts.
- *
- * Normally the first waypoint is the route's origin and nav targets
- * waypoint[1] (legIndex 1). But the first waypoint may instead be a point
- * out ahead of the vessel — in that case it should be the next target
- * (legIndex 0). Returns 0 while the vessel is still short of waypoint[0],
- * and 1 once it has reached it (within the arrival radius) or already passed
- * its perpendicular heading toward waypoint[1].
- */
-export function pickStartLeg(
-  vesselLat: number,
-  vesselLon: number,
-  route: Route,
-  arrivalRadiusNM: number,
-): number {
-  const wp0 = route.waypoints[0];
-  const wp1 = route.waypoints[1];
-  if (!wp0 || !wp1) return 1;
-  const reachedWp0 =
-    haversineDistanceNM(vesselLat, vesselLon, wp0.lat, wp0.lon) <
-      arrivalRadiusNM ||
-    alongTrackDistanceNM(
-      wp0.lat,
-      wp0.lon,
-      wp1.lat,
-      wp1.lon,
-      vesselLat,
-      vesselLon,
-    ) > 0;
-  return reachedWp0 ? 1 : 0;
-}
-
-/**
- * Corridor half-width for restore-time leg validation, floored at a couple of
- * miles so ordinary cross-track error (hand steering, drift while the app was
- * down) never fails a legitimately resumed leg.
- */
-const RESTORE_CORRIDOR_FLOOR_NM = 2;
-
-/** Shortest distance from a point to the leg segment from→to, in NM. */
-function distanceToLegNM(
-  lat: number,
-  lon: number,
-  from: Waypoint,
-  to: Waypoint,
-): number {
-  const legDist = haversineDistanceNM(from.lat, from.lon, to.lat, to.lon);
-  const dFrom = haversineDistanceNM(lat, lon, from.lat, from.lon);
-  const dTo = haversineDistanceNM(lat, lon, to.lat, to.lon);
-  if (legDist < 1e-6) return Math.min(dFrom, dTo);
-  const atd = alongTrackDistanceNM(
-    from.lat,
-    from.lon,
-    to.lat,
-    to.lon,
-    lat,
-    lon,
-  );
-  if (atd <= 0) return dFrom;
-  if (atd >= legDist) return dTo;
-  // Cross-track distance via Pythagoras on the start-distance/along-track pair
-  // (planar approximation — fine at corridor scales of a few NM).
-  return Math.sqrt(Math.max(0, dFrom * dFrom - atd * atd));
-}
-
-/**
  * Pick the leg to resume after a restart, trusting persisted passage progress.
  *
- * pickStartLeg only examines waypoints 0 and 1, so on a route that doubles
- * back toward its origin it can re-target an already-passed outbound waypoint
- * and stall a mid-passage resume. Instead, keep the persisted leg when the
- * vessel is plausibly still on it — within a corridor of the leg segment —
- * and otherwise scan *forward* to the first remaining leg whose corridor
- * contains the vessel (it may have progressed while the app was down;
- * auto-advance still converges from there). Only when the vessel is near none
- * of the remaining legs did the restart move it somewhere unrelated to its
- * persisted progress — e.g. the dev simulator resetting the boat to its start
- * position on reload — and only then does pickStartLeg re-derive from scratch.
- * A persisted leg of 0 (still approaching the route's first waypoint) has no
- * corridor to test and goes straight to pickStartLeg, which re-answers the
- * 0-vs-1 question from the current position.
+ * Keep the persisted leg when the vessel is plausibly still on it — within a
+ * corridor of the leg segment — and otherwise scan *forward* to the first
+ * remaining leg whose corridor contains the vessel (it may have progressed
+ * while the app was down; auto-advance still converges from there). Only
+ * when the vessel is near none of the remaining legs did the restart move it
+ * somewhere unrelated to its persisted progress — e.g. the dev simulator
+ * resetting the boat to its start position on reload — and only then is the
+ * leg re-derived from scratch (pickJoinLeg). A persisted leg of 0 (still
+ * approaching the route's first waypoint) has no corridor to test and goes
+ * straight to that re-derivation.
  */
 export function resolveRestoredLeg(
   vesselLat: number,
@@ -148,9 +86,10 @@ export function resolveRestoredLeg(
   route: Route,
   persistedLeg: number,
   arrivalRadiusNM: number,
+  cog: number | null = null,
 ): number {
   const count = route.waypoints.length;
-  const corridorNM = Math.max(RESTORE_CORRIDOR_FLOOR_NM, 2 * arrivalRadiusNM);
+  const corridorNM = Math.max(CORRIDOR_FLOOR_NM, 2 * arrivalRadiusNM);
   if (
     Number.isInteger(persistedLeg) &&
     persistedLeg >= 1 &&
@@ -164,7 +103,9 @@ export function resolveRestoredLeg(
       }
     }
   }
-  return pickStartLeg(vesselLat, vesselLon, route, arrivalRadiusNM);
+  return pickJoinLeg({ lat: vesselLat, lon: vesselLon, cog }, route, {
+    arrivalRadiusNM,
+  }).legIndex;
 }
 
 /** Pure computation — extract for testing. */
@@ -210,9 +151,23 @@ export type ActiveNavCallback = (
   state: ActiveNavigationState,
 ) => void;
 
+/** An automatic leg advance: the vessel reached (or passed) a waypoint. */
+export interface ArrivalEvent {
+  route: Route;
+  waypoint: Waypoint;
+  /** Index of `waypoint` in the route. */
+  index: number;
+  /** The new target, or null when `waypoint` was the last one. */
+  next: Waypoint | null;
+}
+
+export type ArrivalListener = (event: ArrivalEvent) => void;
+
 export class ActiveNavigationManager {
   private state: ActiveNavigationState = { type: "idle" };
   private listeners: ActiveNavCallback[] = [];
+  private arrivalListeners: ArrivalListener[] = [];
+  private reverseListeners: Array<(route: Route) => void> = [];
   private navManager: NavigationDataManager;
   private lastInfo: ActiveNavigationInfo | null = null;
   /**
@@ -240,6 +195,7 @@ export class ActiveNavigationManager {
         this.state.route,
         this.state.legIndex,
         getSettings().arrivalRadiusNM,
+        data.cog ?? data.heading ?? null,
       );
       if (resolved !== this.state.legIndex) {
         this.state = { ...this.state, legIndex: resolved };
@@ -308,13 +264,21 @@ export class ActiveNavigationManager {
       }
 
       if (advance) {
+        const route = this.state.route;
+        const reached = route.waypoints[this.state.legIndex];
         if (!isLastWaypoint) {
           this.state = {
             type: "route",
-            route: this.state.route,
+            route,
             legIndex: nextIndex,
           };
           this.persist();
+          this.emitArrival({
+            route,
+            waypoint: reached,
+            index: nextIndex - 1,
+            next: route.waypoints[nextIndex],
+          });
           // Recompute for new target
           const newTarget = this.getTarget();
           if (newTarget) {
@@ -337,6 +301,12 @@ export class ActiveNavigationManager {
           }
         } else {
           // Arrived at final waypoint
+          this.emitArrival({
+            route,
+            waypoint: reached,
+            index: this.state.legIndex,
+            next: null,
+          });
           this.stop();
           return;
         }
@@ -398,25 +368,47 @@ export class ActiveNavigationManager {
 
   startRoute(route: Route, startLeg?: number): void {
     if (route.waypoints.length < 2) return;
-    const leg = startLeg ?? this.pickStartLeg(route);
-    logUiAction(`nav route ${route.name || "(unnamed)"} (leg ${leg})`);
+    const { leg, reason } =
+      startLeg === undefined
+        ? this.pickStartLeg(route)
+        : { leg: startLeg, reason: "chosen" };
+    logUiAction(
+      `nav route ${route.name || "(unnamed)"} (leg ${leg}, ${reason})`,
+    );
     this.pendingRestoreLegCheck = false;
     this.state = { type: "route", route, legIndex: leg };
     this.persist();
     this.recompute();
+    // Offer to reverse a route the course runs against — after the state is
+    // set, so a listener that reverses and restarts sees a consistent manager.
+    if (startLeg === undefined) {
+      const fix = this.joinFix();
+      const opts = { arrivalRadiusNM: getSettings().arrivalRadiusNM };
+      if (fix && suggestReverse(fix, route, opts)) {
+        for (const fn of this.reverseListeners) fn(route);
+      }
+    }
+  }
+
+  private joinFix(): JoinFix | null {
+    const data = this.navManager.getLastData();
+    return data
+      ? {
+          lat: data.latitude,
+          lon: data.longitude,
+          cog: data.cog ?? data.heading ?? null,
+        }
+      : null;
   }
 
   /** Pick the initial leg from current GPS, falling back to leg 1 if unknown. */
-  private pickStartLeg(route: Route): number {
-    const data = this.navManager.getLastData();
-    return data
-      ? pickStartLeg(
-          data.latitude,
-          data.longitude,
-          route,
-          getSettings().arrivalRadiusNM,
-        )
-      : 1;
+  private pickStartLeg(route: Route): { leg: number; reason: string } {
+    const fix = this.joinFix();
+    if (!fix) return { leg: 1, reason: "no fix" };
+    const choice = pickJoinLeg(fix, route, {
+      arrivalRadiusNM: getSettings().arrivalRadiusNM,
+    });
+    return { leg: choice.legIndex, reason: choice.reason };
   }
 
   stop(): void {
@@ -451,7 +443,11 @@ export class ActiveNavigationManager {
     }
     logUiAction(`nav route re-targeted after edit (${route.name || "?"})`);
     this.pendingRestoreLegCheck = false;
-    this.state = { type: "route", route, legIndex: this.pickStartLeg(route) };
+    this.state = {
+      type: "route",
+      route,
+      legIndex: this.pickStartLeg(route).leg,
+    };
     this.persist();
     this.recompute();
   }
@@ -508,6 +504,27 @@ export class ActiveNavigationManager {
 
   subscribe(callback: ActiveNavCallback): void {
     this.listeners.push(callback);
+  }
+
+  /**
+   * Automatic leg advances only — reaching or passing a waypoint under way.
+   * A user jumping legs by hand (setLeg/nextLeg) is not an arrival.
+   */
+  onArrival(callback: ArrivalListener): void {
+    this.arrivalListeners.push(callback);
+  }
+
+  /**
+   * Route navigation started on a route whose direction runs against the
+   * vessel's course (see suggestReverse). The listener decides what to do —
+   * typically offer to reverse the route and start again.
+   */
+  onReverseSuggested(callback: (route: Route) => void): void {
+    this.reverseListeners.push(callback);
+  }
+
+  private emitArrival(event: ArrivalEvent): void {
+    for (const fn of this.arrivalListeners) fn(event);
   }
 
   unsubscribe(callback: ActiveNavCallback): void {
@@ -584,7 +601,7 @@ export class ActiveNavigationManager {
           const data = this.navManager.getLastData();
           let legIndex: number;
           if (!valid) {
-            legIndex = this.pickStartLeg(route);
+            legIndex = this.pickStartLeg(route).leg;
           } else if (data) {
             legIndex = resolveRestoredLeg(
               data.latitude,
@@ -592,6 +609,7 @@ export class ActiveNavigationManager {
               route,
               persisted,
               getSettings().arrivalRadiusNM,
+              data.cog ?? data.heading ?? null,
             );
           } else {
             legIndex = persisted;
@@ -637,5 +655,7 @@ export class ActiveNavigationManager {
   dispose(): void {
     this.navManager.unsubscribe(this.onGPSUpdate);
     this.listeners.length = 0;
+    this.arrivalListeners.length = 0;
+    this.reverseListeners.length = 0;
   }
 }

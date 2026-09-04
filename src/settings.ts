@@ -75,6 +75,8 @@ export interface Settings {
   symbologyScheme: SymbologyScheme;
   /** Arrival radius in NM — auto-advance route legs when closer than this. */
   arrivalRadiusNM: number;
+  /** Chime (and vibrate) when route navigation passes a waypoint. */
+  waypointArrivalAlert: boolean;
   /** Planning speed (knots) for route pre-visualization ETAs. */
   routePlanSpeedKn: number;
   /** Show auto-detected maneuver markers in the track viewer. */
@@ -283,6 +285,7 @@ const DEFAULTS: Settings = {
   activeRegion: "northern-new-england",
   courseLineDuration: "auto",
   arrivalRadiusNM: 0.1,
+  waypointArrivalAlert: true,
   routePlanSpeedKn: 5,
   trackShowManeuvers: true,
   simulatorSpeed: 1,

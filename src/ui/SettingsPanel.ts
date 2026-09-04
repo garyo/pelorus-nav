@@ -841,6 +841,15 @@ function buildNavigationTab(
     ),
   );
 
+  tab.appendChild(
+    buildCheckboxRow(
+      "Beep when passing a waypoint",
+      "settings-waypoint-alert",
+      settings.waypointArrivalAlert,
+      (checked) => updateSettings({ waypointArrivalAlert: checked }),
+    ),
+  );
+
   return tab;
 }
 

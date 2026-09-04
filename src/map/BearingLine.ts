@@ -4,6 +4,7 @@
  */
 
 import type * as maplibregl from "maplibre-gl";
+import { s52Colour } from "../chart/s52-colours";
 import type {
   ActiveNavigationInfo,
   ActiveNavigationManager,
@@ -58,6 +59,12 @@ export class BearingLine {
 
   private setup(): void {
     if (this.map.getSource(SOURCE_ID)) return;
+    // S-52 "user information" orange, per theme: distinct from the chart's
+    // own yellows (special-purpose buoys, caution areas), from the blue
+    // course projection and from the red track — the same family as the
+    // default waypoint marker and the measuring tape. Theme changes reload
+    // the style and re-run setup().
+    const colour = s52Colour("UINFO");
 
     this.map.addSource(SOURCE_ID, {
       type: "geojson",
@@ -71,7 +78,7 @@ export class BearingLine {
       source: SOURCE_ID,
       filter: ["==", ["geometry-type"], "LineString"],
       paint: {
-        "line-color": "#ffdd00",
+        "line-color": colour,
         "line-width": 2.5,
         "line-opacity": 0.8,
         "line-dasharray": [4, 3],
@@ -86,7 +93,7 @@ export class BearingLine {
       paint: {
         "circle-radius": 8,
         "circle-color": "transparent",
-        "circle-stroke-color": "#ffdd00",
+        "circle-stroke-color": colour,
         "circle-stroke-width": 2.5,
       },
     });

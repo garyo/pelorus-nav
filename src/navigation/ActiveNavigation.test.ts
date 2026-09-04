@@ -3,7 +3,6 @@ import type { Route } from "../data/Route";
 import {
   ActiveNavigationManager,
   computeNavigation,
-  pickStartLeg,
   resolveRestoredLeg,
   shouldAdvanceLeg,
 } from "./ActiveNavigation";
@@ -100,42 +99,6 @@ describe("shouldAdvanceLeg", () => {
     expect(
       shouldAdvanceLeg(0, 1.01, fromLat, fromLon, toLat, toLon, arrivalRadius),
     ).toBe(true);
-  });
-});
-
-describe("pickStartLeg", () => {
-  // Route along the equator: wp0 at (0, 0), wp1 at (0, 1) — due east.
-  const route: Route = {
-    id: "r1",
-    name: "Test",
-    createdAt: 0,
-    color: "#000",
-    visible: true,
-    waypoints: [
-      { lat: 0, lon: 0, name: "WP0" },
-      { lat: 0, lon: 1, name: "WP1" },
-    ],
-  };
-  const arrivalRadius = 0.1; // NM
-
-  it("targets waypoint[0] when the vessel is still short of it", () => {
-    // Vessel west of wp0 (behind the route start) — wp0 is ahead.
-    expect(pickStartLeg(0, -0.5, route, arrivalRadius)).toBe(0);
-  });
-
-  it("starts at leg 1 once the vessel has passed waypoint[0]", () => {
-    // Vessel between wp0 and wp1 — already past wp0's perpendicular.
-    expect(pickStartLeg(0, 0.5, route, arrivalRadius)).toBe(1);
-  });
-
-  it("starts at leg 1 when the vessel is within waypoint[0]'s arrival radius", () => {
-    // Vessel essentially at wp0 (but a touch west, so not past perpendicular).
-    expect(pickStartLeg(0, -0.0001, route, arrivalRadius)).toBe(1);
-  });
-
-  it("defaults to leg 1 for a degenerate single-waypoint route", () => {
-    const single: Route = { ...route, waypoints: [route.waypoints[0]] };
-    expect(pickStartLeg(0, -0.5, single, arrivalRadius)).toBe(1);
   });
 });
 
@@ -274,11 +237,11 @@ describe("restore", () => {
     expect(legOf(nav)).toBe(1);
   });
 
-  it("falls back when the persisted legIndex is out of range", async () => {
+  it("re-derives the leg when the persisted legIndex is out of range", async () => {
     persistLeg(99);
-    const nav = makeNav({ lat: 0.05, lon: 0.5 });
+    const nav = makeNav({ lat: 0.05, lon: 0.5 }); // mid-return-leg
     await nav.restore();
-    expect(legOf(nav)).toBe(1);
+    expect(legOf(nav)).toBe(2);
   });
 });
 
@@ -450,5 +413,114 @@ describe("destDistanceNM", () => {
     const nav = makeNavWithFix(42.05, -71.0);
     nav.startGoto({ id: "w9", name: "WP", lat: 42.0, lon: -71.0 });
     expect(nav.getInfo()?.destDistanceNM).toBeNull();
+  });
+});
+
+describe("arrival events", () => {
+  const KEY = "pelorus-nav-active-nav";
+  let onGPS: ((d: NavigationData) => void) | null;
+  let last: NavigationData | null;
+
+  // Three waypoints due east along the equator, 6 NM apart.
+  const straight: Route = {
+    id: "r-straight",
+    name: "Straight",
+    color: "#00f",
+    visible: true,
+    createdAt: 0,
+    waypoints: [
+      { name: "A", lat: 0, lon: 0 },
+      { name: "B", lat: 0, lon: 0.1 },
+      { name: "C", lat: 0, lon: 0.2 },
+    ],
+  };
+
+  beforeEach(() => {
+    onGPS = null;
+    last = null;
+    const storage = new Map<string, string>();
+    vi.stubGlobal("localStorage", {
+      getItem: (k: string) => storage.get(k) ?? null,
+      setItem: (k: string, v: string) => storage.set(k, v),
+      removeItem: (k: string) => storage.delete(k),
+    });
+    storage.delete(KEY);
+  });
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  function makeNav(): ActiveNavigationManager {
+    const navManager = {
+      subscribe: (cb: (d: NavigationData) => void) => {
+        onGPS = cb;
+      },
+      getLastData: () => last,
+    } as unknown as ConstructorParameters<typeof ActiveNavigationManager>[0];
+    return new ActiveNavigationManager(navManager);
+  }
+
+  const fix = (lat: number, lon: number): NavigationData =>
+    ({ latitude: lat, longitude: lon, cog: 90, sog: 5 }) as NavigationData;
+
+  function feed(d: NavigationData): void {
+    last = d;
+    onGPS?.(d);
+  }
+
+  it("fires once per automatic advance, and with next=null at the last waypoint", () => {
+    const nav = makeNav();
+    const events: { waypoint: string; index: number; next: string | null }[] =
+      [];
+    nav.onArrival((e) =>
+      events.push({
+        waypoint: e.waypoint.name,
+        index: e.index,
+        next: e.next?.name ?? null,
+      }),
+    );
+    last = fix(0, 0.05);
+    nav.startRoute(straight);
+    expect(nav.getState()).toMatchObject({ type: "route", legIndex: 1 });
+
+    feed(fix(0, 0.05)); // still on leg 1
+    expect(events).toEqual([]);
+
+    feed(fix(0, 0.1005)); // within B's arrival radius
+    expect(events).toEqual([{ waypoint: "B", index: 1, next: "C" }]);
+
+    feed(fix(0, 0.15)); // on leg 2, nothing new
+    expect(events).toHaveLength(1);
+
+    feed(fix(0, 0.2)); // arrived at C: final
+    expect(events).toEqual([
+      { waypoint: "B", index: 1, next: "C" },
+      { waypoint: "C", index: 2, next: null },
+    ]);
+    expect(nav.getState().type).toBe("idle");
+  });
+
+  it("does not fire for a leg the user jumps to by hand", () => {
+    const nav = makeNav();
+    const events: unknown[] = [];
+    nav.onArrival((e) => events.push(e));
+    last = fix(0, 0.05);
+    nav.startRoute(straight);
+    nav.nextLeg();
+    nav.setLeg(1);
+    expect(events).toEqual([]);
+  });
+
+  it("suggests reversing a route the course runs against", () => {
+    const nav = makeNav();
+    const suggested: string[] = [];
+    nav.onReverseSuggested((r) => suggested.push(r.id));
+    // Between A and B, sailing west — against the route.
+    last = { latitude: 0, longitude: 0.05, cog: 270, sog: 5 } as NavigationData;
+    nav.startRoute(straight);
+    expect(suggested).toEqual(["r-straight"]);
+    // …but not when a leg is chosen explicitly.
+    nav.startRoute(straight, 2);
+    expect(suggested).toHaveLength(1);
   });
 });

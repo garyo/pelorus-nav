@@ -200,10 +200,20 @@ active leg:
 - **STR** — steer indicator: how far and which way to turn to point at the
   waypoint (`0°` means dead ahead; `←15°` means come left fifteen degrees).
 
+The orange dashed line runs from your vessel to the waypoint you're
+steering for; the solid blue line with time ticks is your projected course.
+
 When you arrive at a waypoint (within the arrival radius of 0.1 NM),
-navigation advances to the next leg automatically. To start from a
-different leg — say you're joining a route halfway — open the route's
-detail panel and tap the ► marker on the leg you want.
+navigation advances to the next leg automatically, with a short two-tone
+beep and a notice (three notes at the last waypoint). Turn the beep off
+with **Beep when passing a waypoint** in Settings → Navigation.
+
+You can start navigating from anywhere along a route: Pelorus steers for
+the leg ahead of you — the nearest leg whose next waypoint lies within
+about 75° of your course, so joining a route halfway needs no manual leg
+selection. If your course runs against the route's direction, a notice
+offers to reverse it. To pick a leg yourself, open the route's detail
+panel and tap the ► marker on the leg you want.
 
 Stop navigating with the **Cancel navigation** button that appears at the
 bottom-left of the chart, the route's stop button, or the Escape key.

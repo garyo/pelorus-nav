@@ -8,13 +8,28 @@ The format follows [Keep a Changelog](https://keepachangelog.com/).
 ## [Unreleased]
 
 ### Added
+- A short beep (and a vibration on phones) with a notice each time route
+  navigation passes a waypoint; three notes on arriving at the last one.
+  "Beep when passing a waypoint" in Settings → Navigation turns it off.
+- Starting navigation on a route that runs the other way from your course
+  offers to reverse it.
+- `bun tools/route-join-scenarios.ts` prints random route-join scenarios
+  with the leg chosen for each, for reviewing the rule.
 - A setting to hide the zoom and compass buttons on the chart (Settings →
   Appearance).
 - The Lock screen menu item is always present on Android; choosing it with
   volume-key controls off offers to turn them on (a volume press is the
   unlock).
 
+### Changed
+- The bearing line to the waypoint you're navigating to is orange (the
+  S-52 user-information colour, per theme) instead of yellow, which the
+  chart also uses for special-purpose buoys and caution areas.
+
 ### Fixed
+- Starting navigation on a route from somewhere along it now steers for
+  the leg ahead of you — the nearest leg whose next waypoint lies within
+  75° of your course — instead of always the route's second waypoint.
 - The zoom buttons and the compass no longer drop the chart out of
   follow, course-up or north-up mode. Pinching and dragging still do.
 - The long-press menu no longer closes by itself while the chart is

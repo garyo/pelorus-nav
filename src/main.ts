@@ -8,6 +8,7 @@ import { type AddProtocolAction, addProtocol, setWorkerUrl } from "maplibre-gl";
 // file imports a sibling module that wouldn't be emitted alongside it).
 import maplibreWorkerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url";
 import { describeBacklogRecovery } from "./map/backlog-notice";
+import { playWaypointChime } from "./navigation/waypoint-chime";
 import { BackgroundGPS } from "./plugins/BackgroundGPS";
 import "maplibre-gl/dist/maplibre-gl.css";
 import { Protocol } from "pmtiles";
@@ -59,7 +60,8 @@ import {
   getStreamingVersions,
   refreshStreamingVersions,
 } from "./data/chart-update-checker";
-import { getAllWaypoints, repairTrackPointCounts } from "./data/db";
+import { getAllWaypoints, repairTrackPointCounts, saveRoute } from "./data/db";
+import { reverseWaypoints } from "./data/Route";
 import { loadAllSearchIndices, type SearchEntry } from "./data/search-index";
 import { installConsoleHooks } from "./diagnostics/console-hooks";
 import { notePaintTraceRender } from "./diagnostics/paint-trace";
@@ -1195,6 +1197,40 @@ const navHud = new NavigationHUD(
 );
 new CenterCrosshair(chartManager.map, navHud.getCursorCoordsEl());
 new BearingLine(chartManager.map, activeNav, navManager);
+
+// Passing a route waypoint: a short chime (vibration on a phone) and a
+// notice; three notes on arriving at the last one.
+activeNav.onArrival(({ waypoint, next }) => {
+  if (!getSettings().waypointArrivalAlert) return;
+  playWaypointChime(next === null);
+  const name = waypoint.name || "waypoint";
+  showToast({
+    message:
+      next === null
+        ? `Arrived at ${name}`
+        : `Passed ${name} — next: ${next.name || "waypoint"}`,
+    durationMs: 5000,
+  });
+});
+
+// Navigation started on a route the course runs against — usually a route
+// drawn from the destination back to here. Offer to turn it around.
+activeNav.onReverseSuggested((route) => {
+  showToast({
+    message: "This route runs the other way from your course.",
+    actionLabel: "Reverse route",
+    durationMs: 12_000,
+    onAction: () => {
+      reverseWaypoints(route);
+      saveRoute(route)
+        .then(() => {
+          routeLayer.updateRoute(route);
+          activeNav.startRoute(route);
+        })
+        .catch(console.error);
+    },
+  });
+});
 const waypointPanel = new WaypointManagerPanel(waypointLayer, activeNav);
 idleCloseables.push(waypointPanel);
 routePanel.setActiveNav(activeNav);

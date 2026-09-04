@@ -9,6 +9,8 @@
  */
 
 /** Cadence and timbre of the siren; every field defaults to the COB alarm. */
+import { playTone } from "../utils/tone";
+
 export interface CobAlarmOptions {
   /** The tone frequencies (Hz), played in order within each beat. */
   toneHz?: number[];
@@ -171,18 +173,6 @@ export class CobAlarm {
     at: number,
     durationSec: number,
   ): void {
-    const osc = ctx.createOscillator();
-    const gain = ctx.createGain();
-    const peak = this.opts.gain * this.volumeScale;
-    osc.type = "square";
-    osc.frequency.value = freqHz;
-    // Short attack/release ramps avoid clicks at tone edges.
-    gain.gain.setValueAtTime(0, at);
-    gain.gain.linearRampToValueAtTime(peak, at + 0.02);
-    gain.gain.setValueAtTime(peak, at + durationSec - 0.05);
-    gain.gain.linearRampToValueAtTime(0, at + durationSec);
-    osc.connect(gain).connect(ctx.destination);
-    osc.start(at);
-    osc.stop(at + durationSec);
+    playTone(ctx, freqHz, at, durationSec, this.opts.gain * this.volumeScale);
   }
 }
