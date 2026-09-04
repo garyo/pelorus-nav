@@ -36,6 +36,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/).
   following a moving vessel, and it now rides along with the chart.
 - The context menu's Plot submenu stays on screen near the edges of the
   display, and opens on tap on touch screens.
+- The auto-length course line stays on screen: it is sized along the
+  course to the edge of the display, so a course toward a near edge no
+  longer runs the line and its label off the chart; in free mode the
+  length follows wherever you have panned the vessel, and settles after a
+  pan.
+- The About dialog has a close button.
 - Track recording on Android now survives the system stopping the app
   under way. The background GPS service restarts on its own and keeps
   recording, the fixes it buffered while the app was closed are added to

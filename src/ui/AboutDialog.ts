@@ -9,6 +9,7 @@ import {
 import { logUiAction } from "../diagnostics/uiActionLog";
 import { showBugReportDialog } from "./BugReportDialog";
 import { showTermsDialog } from "./DisclaimerDialog";
+import { iconX, setIcon } from "./icons";
 
 declare const __APP_VERSION__: string;
 declare const __BUILD_ID__: string;
@@ -85,10 +86,21 @@ export class AboutDialog {
     const card = document.createElement("div");
     card.className = "about-card";
 
-    // App name + version
+    // App name + version, with a close button: on a phone the card fills
+    // the screen and leaves no gutter to tap outside of.
+    const header = document.createElement("div");
+    header.className = "about-header";
     const title = document.createElement("div");
     title.className = "about-title";
     title.textContent = `Pelorus Nav v${__APP_VERSION__}`;
+    const closeBtn = document.createElement("button");
+    closeBtn.type = "button";
+    closeBtn.className = "manager-close about-close";
+    closeBtn.title = "Close";
+    closeBtn.setAttribute("aria-label", "Close");
+    setIcon(closeBtn, iconX);
+    closeBtn.addEventListener("click", () => this.hide());
+    header.append(title, closeBtn);
 
     // Tagline
     const tagline = document.createElement("div");
@@ -251,7 +263,7 @@ export class AboutDialog {
     });
 
     card.append(
-      title,
+      header,
       tagline,
       author,
       disclaimer,

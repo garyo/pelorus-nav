@@ -932,6 +932,16 @@ body {
   justify-content: flex-end;
 }
 
+.about-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.about-header .about-title {
+  flex: 1;
+}
+
 .about-title {
   font-size: 18px;
   font-weight: bold;

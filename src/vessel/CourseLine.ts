@@ -12,6 +12,7 @@ import {
   onSettingsChange,
 } from "../settings";
 import { projectPoint } from "../utils/coordinates";
+import { autoAheadPx } from "./course-line-auto";
 
 const SOURCE_ID = "_course-line";
 const LAYER_ID = "_course-line-layer";
@@ -27,6 +28,13 @@ const MIN_LENGTH_M = 200;
 
 /** Tick half-length in screen pixels (each side of the main line). */
 const TICK_HALF_PX = 6;
+
+/**
+ * In free mode the auto length depends on where the user has panned the
+ * vessel to, which no camera key captures; recompute this long after the
+ * last camera move settles.
+ */
+const SETTLED_PAN_MS = 750;
 
 /** Tick spacing in minutes, keyed by course-line duration in minutes. */
 const TICK_SPACING_MIN: Record<number, number> = {
@@ -99,6 +107,7 @@ export class CourseLine {
   // don't fire one full setData per gesture frame — pile-ups stall the JS
   // thread on e-ink hardware and make pinch zoom feel runaway.
   private rafPending = false;
+  private settledPanTimer: ReturnType<typeof setTimeout> | null = null;
 
   constructor(map: maplibregl.Map) {
     this.map = map;
@@ -118,6 +127,23 @@ export class CourseLine {
     // Ticks are sized in screen pixels, so redraw on zoom/rotate/pan —
     // but coalesced via rAF.
     this.map.on("move", () => this.scheduleRedraw());
+    this.map.on("moveend", () => this.scheduleSettledRedraw());
+  }
+
+  /**
+   * A pan changes the vessel's screen position without changing the camera
+   * key, and in auto mode that position sets the line's length. Follow
+   * modes redraw per fix anyway; this is for free mode (and e-ink, whose
+   * fixes can be 20 s apart), once the gesture has settled.
+   */
+  private scheduleSettledRedraw(): void {
+    if (this.duration !== "auto") return;
+    if (this.settledPanTimer) clearTimeout(this.settledPanTimer);
+    this.settledPanTimer = setTimeout(() => {
+      this.settledPanTimer = null;
+      if (this.map.isMoving()) return;
+      this.redraw();
+    }, SETTLED_PAN_MS);
   }
 
   private scheduleRedraw(): void {
@@ -181,6 +207,7 @@ export class CourseLine {
 
     const { durationMin, tickMin } = this.resolveDuration(
       smoothed.sog,
+      smoothed.cog,
       startLat,
       startLon,
     );
@@ -206,14 +233,18 @@ export class CourseLine {
   /**
    * Pick the concrete duration + tick interval for this draw, either from
    * the fixed user setting or computed from sog + viewport in Auto mode.
-   * In Auto mode we target a line whose midpoint lands near the canvas
-   * centre (the look-ahead offset is radial so this is geometrically
-   * achievable), but the duration is rounded to a bucket so the endpoint
-   * label shows a clean number — readers care more about "the line ends
-   * at 15 min" than about millimetre-perfect centring.
+   *
+   * Auto mode sizes the line in screen pixels, then rounds the duration to
+   * a bucket so the endpoint label shows a clean number — readers care more
+   * about "the line ends at 15 min" than about millimetre-perfect fit.
+   * Follow modes aim the line's midpoint at the canvas centre (the
+   * look-ahead offset is radial, so that is geometrically achievable) but
+   * never past the edge ahead; free mode, where the user has put the vessel
+   * wherever they like, simply keeps the line on screen.
    */
   private resolveDuration(
     sog: number,
+    cog: number,
     vesselLat: number,
     vesselLon: number,
   ): { durationMin: number; tickMin: number } {
@@ -223,25 +254,30 @@ export class CourseLine {
       const a = this.map.project([c.lng, c.lat]);
       const b = this.map.project([c.lng, c.lat + 0.001]);
       const pxPerNM = Math.abs(b.y - a.y) / 0.001 / 60;
-      // Target line length = 2 × distance(vessel → canvas-centre) in
-      // screen pixels (line passes through canvas centre because the
-      // look-ahead offset is radial along COG — see computeLookAheadOffsetPx).
-      // Floor at half the canvas height so the line stays visible even
-      // when the vessel sits at the centre (no offset applied).
       const container = this.map.getContainer();
+      const viewport = {
+        width: container.clientWidth,
+        height: container.clientHeight,
+      };
       const vesselPx = this.map.project([vesselLon, vesselLat]);
-      const dx = container.clientWidth / 2 - vesselPx.x;
-      const dy = container.clientHeight / 2 - vesselPx.y;
-      const distToCenterPx = Math.sqrt(dx * dx + dy * dy);
-      // Cap the look-ahead at one canvas height. When the vessel is far
-      // off-centre — panned away in free mode, or run off toward an edge —
-      // targeting the now-distant canvas centre would otherwise stretch the
-      // line clear across the chart. In follow modes the vessel offset is
-      // bounded (LOOK_AHEAD_FRACTION) well under this, so the cap never bites.
-      const aheadPx = Math.min(
-        Math.max(2 * distToCenterPx, container.clientHeight * 0.5),
-        container.clientHeight,
+      const toEdgePx = autoAheadPx(
+        vesselPx,
+        cog - this.map.getBearing(),
+        viewport,
       );
+      let aheadPx = toEdgePx;
+      if (getSettings().chartMode !== "free") {
+        // Midpoint at the canvas centre: 2 × distance(vessel → centre),
+        // floored at half the height so the line is visible with the vessel
+        // dead centre (no offset applied).
+        const dx = viewport.width / 2 - vesselPx.x;
+        const dy = viewport.height / 2 - vesselPx.y;
+        const distToCenterPx = Math.sqrt(dx * dx + dy * dy);
+        aheadPx = Math.min(
+          Math.max(2 * distToCenterPx, viewport.height * 0.5),
+          toEdgePx,
+        );
+      }
       const targetNM = pxPerNM > 0 ? aheadPx / pxPerNM : 1;
       const targetMin = (targetNM / Math.max(sog, 0.5)) * 60;
       const bucket = selectAutoBucket(targetMin);
