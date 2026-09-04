@@ -16,6 +16,11 @@ The format follows [Keep a Changelog](https://keepachangelog.com/).
 - A hole in a track (recording stopped for more than five minutes) is now
   drawn as a dashed bridge instead of a solid line across wherever the
   vessel actually went.
+- The Android status bar (clock, signal, battery) is readable again: its
+  icons were drawn dark on the app's dark top bar on Android 15 and 16.
+- Chart controls, panels and bottom cards keep clear of the system
+  navigation bar and the iOS home indicator, including the side edge in
+  landscape.
 
 ## [0.23.0] - 2026-08-25
 

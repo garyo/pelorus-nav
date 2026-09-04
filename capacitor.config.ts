@@ -21,6 +21,13 @@ const config: CapacitorConfig = {
     // Usage: CAP_DEV_SERVER=http://192.168.0.46:5173 bun run cap:run
     ...(DEV_SERVER ? { url: DEV_SERVER, cleartext: true } : {}),
   },
+  plugins: {
+    // Light status-bar icons from the first frame: the app's top bar is
+    // dark in every theme but e-ink, and the default (follow the device's
+    // light/dark mode) drew a black clock on it. main.ts re-applies the
+    // style per theme.
+    SystemBars: { style: "DARK" },
+  },
 };
 
 export default config;

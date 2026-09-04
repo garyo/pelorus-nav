@@ -40,11 +40,15 @@ export function trackInstrumentHUD(hudElement: HTMLElement): void {
     // (landscape "side" layout): sit beside it, anchored at its top instead.
     const top = rect.width >= window.innerWidth * 0.6 ? rect.bottom : rect.top;
     stack.style.top = `${top}px`;
-    stack.style.maxHeight = `calc(100vh - ${top + 10}px)`;
+    stack.style.maxHeight = `calc(100vh - ${top + 10}px - var(--safe-bottom))`;
   };
 
   const observer = new ResizeObserver(update);
   observer.observe(hudElement);
+  // The native shell injects the safe-area insets after first paint, which
+  // grows the top bar — and so moves the HUD — without resizing the HUD.
+  const topBar = document.getElementById("top-bar");
+  if (topBar) observer.observe(topBar);
 
   // The observer only fires on HUD *size* changes. Entering fullscreen (or
   // Safari showing/hiding its chrome) shifts the HUD's position via a

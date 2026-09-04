@@ -1,7 +1,7 @@
 // FIRST import: installs global JS error capture before any other module
 // evaluates, so even module-init crashes land in the persistent error log.
 import "./diagnostics/errorCaptureBoot";
-import { Capacitor } from "@capacitor/core";
+import { Capacitor, SystemBars, SystemBarsStyle } from "@capacitor/core";
 import { type AddProtocolAction, addProtocol, setWorkerUrl } from "maplibre-gl";
 // maplibre-gl v6 loads its worker by URL at runtime; route it through Vite's
 // worker pipeline (`?worker&url` emits a self-contained bundle — the raw dist
@@ -290,12 +290,19 @@ registerOSMTileProtocol();
 // or unreadable) are logged inside; charts fall back to streaming.
 await offlineCharts.reloadOfflineCharts();
 
-// Apply display theme to body element
+// Apply display theme to body element, and to the native status bar: its
+// clock and icons must contrast with the app's top bar, which is dark in
+// every theme but e-ink.
 const applyDisplayTheme = (theme: string) => {
   if (theme === "day") {
     delete document.body.dataset.theme;
   } else {
     document.body.dataset.theme = theme;
+  }
+  if (Capacitor.isNativePlatform()) {
+    SystemBars.setStyle({
+      style: theme === "eink" ? SystemBarsStyle.Light : SystemBarsStyle.Dark,
+    }).catch(console.error);
   }
 };
 applyDisplayTheme(getSettings().displayTheme);
