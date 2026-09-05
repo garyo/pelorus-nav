@@ -47,7 +47,7 @@ export function relayoutTopbar(
   hooks: TopbarOverflowHooks = {},
 ): void {
   const { topBar, actions, menu, hamburger } = els;
-  const fits = hooks.fits ?? (() => topBar.scrollWidth <= topBar.clientWidth);
+  const fits = hooks.fits ?? (() => rowFitsWithinPadding(topBar));
   // Key off the CSS breakpoint directly, not the hamburger's display — this
   // function now controls that display, so reading it back would feed on
   // itself.
@@ -157,4 +157,31 @@ export function initTopbarOverflow(
   });
 
   relayoutTopbar(els, promoted, hooks);
+}
+
+/**
+ * Whether the bar's visible row ends inside its right padding. scrollWidth
+ * is not enough: it omits the right padding once content overflows, so a
+ * row ending exactly at the bar's edge — the edge that a side navigation
+ * bar covers in landscape, which is what the padding keeps clear — passed
+ * as fitting. Measures the rightmost laid-out descendant instead; the menu
+ * is `display: contents` inline, so its children are what have boxes.
+ */
+function rowFitsWithinPadding(topBar: HTMLElement): boolean {
+  const bar = topBar.getBoundingClientRect();
+  const limit =
+    bar.right -
+    (Number.parseFloat(getComputedStyle(topBar).paddingRight) || 0) +
+    0.5;
+  let rightmost = bar.left;
+  const visit = (el: HTMLElement) => {
+    if (getComputedStyle(el).display === "contents") {
+      for (const child of el.children) visit(child as HTMLElement);
+      return;
+    }
+    const rect = el.getBoundingClientRect();
+    if (rect.width > 0) rightmost = Math.max(rightmost, rect.right);
+  };
+  for (const child of topBar.children) visit(child as HTMLElement);
+  return rightmost <= limit && topBar.scrollWidth <= topBar.clientWidth;
 }

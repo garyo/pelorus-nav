@@ -60,9 +60,23 @@ test("right-edge controls and the top bar clear a side navigation bar in landsca
     })
     .toBeLessThanOrEqual(780 - INSET);
 
-  // The top bar pads its content down by the top inset.
+  // The top bar pads its content down by the top inset…
   const paddingTop = await page
     .locator("#top-bar")
     .evaluate((el) => getComputedStyle(el).paddingTop);
   expect(paddingTop).toBe("10px");
+
+  // …and its rightmost button (the gear, or the hamburger once the row
+  // overflows) stays clear of a side navigation bar.
+  await page.setViewportSize({ width: 781, height: 360 });
+  await expect
+    .poll(async () => {
+      const boxes = await page
+        .locator("#top-bar button:visible")
+        .evaluateAll((els) =>
+          els.map((el) => el.getBoundingClientRect().right),
+        );
+      return Math.max(...boxes);
+    })
+    .toBeLessThanOrEqual(781 - INSET);
 });

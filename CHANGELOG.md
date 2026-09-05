@@ -28,8 +28,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/).
 ### Changed
 - The Plot button moved later in the top bar (after Time), so on a phone
   it lives in the ☰ menu instead of taking one of the visible slots.
-- The bottom-centre chart readout ("ft · °M · ENC") now clears the
-  Android navigation bar too.
+- The bottom-centre chart readout ("ft · °M · ENC"), the feature-info
+  card's prev/next footer, the track viewer, the settings panel, the Sun
+  popup, the menu dropdown and the top bar's last button now all clear the
+  Android navigation bar, in portrait and in landscape.
 - Wind barbs: panning or zooming repaints the cached barbs at once but
   fetches new areas only after the chart has been still for ten seconds
   (a view with no barbs at all fetches immediately), and fetched wind is

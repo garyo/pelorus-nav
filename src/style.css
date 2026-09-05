@@ -570,7 +570,7 @@ body {
 .sun-popup {
   position: fixed;
   top: calc(var(--topbar-bottom) + 6px);
-  right: 8px;
+  right: calc(8px + var(--safe-right));
   background: rgba(30, 30, 50, 0.95);
   border: 1px solid #555;
   border-radius: 6px;
@@ -2866,7 +2866,7 @@ body {
 @media (max-width: 480px) {
   .track-viewer-panel {
     width: calc(100vw - 12px);
-    bottom: 6px;
+    bottom: calc(6px + var(--safe-bottom));
     padding: 8px 10px;
     gap: 6px;
   }
@@ -2893,7 +2893,7 @@ body {
    the chart is already a scrubber — and everything tightens up. */
 @media (orientation: landscape) and (max-height: 500px) {
   .track-viewer-panel {
-    bottom: 6px;
+    bottom: calc(6px + var(--safe-bottom));
     padding: 6px 10px;
     gap: 4px;
   }
@@ -3885,7 +3885,7 @@ body {
   .feature-info-panel {
     width: 100%;
     max-width: 100%;
-    bottom: 0;
+    bottom: var(--safe-bottom);
     border-radius: 8px 8px 0 0;
   }
 }
@@ -4013,7 +4013,7 @@ body {
   display: none;
   position: absolute;
   top: 100%;
-  right: 0;
+  right: var(--safe-right);
   width: 220px;
   flex-direction: column;
   background: rgba(26, 26, 46, 0.95);
@@ -4104,7 +4104,7 @@ body {
 /* ── Landscape small screens ─────────────────────────────────────── */
 @media (max-height: 500px) {
   .settings-panel {
-    max-height: calc(100vh - 50px);
+    max-height: calc(100vh - 50px - var(--safe-bottom));
     overflow-y: auto;
   }
 }
