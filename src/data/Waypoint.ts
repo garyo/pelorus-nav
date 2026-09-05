@@ -43,6 +43,9 @@ export interface StandaloneWaypoint {
   /** Drawn on the chart. Records written before this field existed have no
    *  value; getAllWaypoints defaults them to visible. */
   visible: boolean;
+  /** A "Navigate to here" target: exists only while being navigated to, and
+   *  is deleted on arrival or when that navigation is cancelled. */
+  temporary?: boolean;
   /** Optional one-level grouping in the waypoint manager. Absent = top level. */
   folder?: string;
   /** The `<extensions>` this item arrived with, serialized and kept verbatim

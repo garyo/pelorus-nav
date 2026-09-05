@@ -118,6 +118,9 @@ Right-click (or long-press on touch screens) anywhere on the chart:
 ![The map context menu](/images/context-menu.png)
 
 - **Copy …** — copies the tapped position's coordinates.
+- **Navigate to here** — starts navigating straight to the tapped point.
+  The target is a temporary waypoint: it disappears when you arrive
+  (within the arrival radius) or cancel the navigation.
 - **Mark waypoint here** — drops a waypoint, auto-named after the nearest
   charted feature.
 - **Measure from here** — a tape measure: tap points to measure range and

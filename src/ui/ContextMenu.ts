@@ -107,6 +107,10 @@ export function createContextMenu(deps: ContextMenuDeps): ContextMenuHandle {
   routeItem.className = "map-context-item";
   routeItem.textContent = "Route from here";
 
+  const navigateItem = document.createElement("div");
+  navigateItem.className = "map-context-item";
+  navigateItem.textContent = "Navigate to here";
+
   const waypointItem = document.createElement("div");
   waypointItem.className = "map-context-item";
   waypointItem.textContent = "Mark waypoint here";
@@ -221,6 +225,7 @@ export function createContextMenu(deps: ContextMenuDeps): ContextMenuHandle {
     objectRows,
     objectDivider,
     copyItem,
+    navigateItem,
     waypointItem,
     measureItem,
     routeItem,
@@ -450,10 +455,9 @@ export function createContextMenu(deps: ContextMenuDeps): ContextMenuHandle {
     routeEditor.startFromPoint(ctxLat, ctxLng);
   });
 
-  waypointItem.addEventListener("click", () => {
-    hide();
-    // Try to auto-name from a nearby charted feature; fall back to the
-    // latitude-based default if no index loaded or nothing close.
+  /** A waypoint at the pressed point, auto-named from a nearby charted
+   *  feature, else from its latitude. */
+  const waypointHere = (): StandaloneWaypoint => {
     const entries = getSearchEntries?.();
     const nearby =
       entries && entries.length > 0
@@ -462,7 +466,7 @@ export function createContextMenu(deps: ContextMenuDeps): ContextMenuHandle {
     const name = nearby
       ? abbreviateFeatureName(nearby.name)
       : `WP ${formatLatLon(ctxLat, "lat")}`;
-    const wp: StandaloneWaypoint = {
+    return {
       id: generateUUID(),
       lat: ctxLat,
       lon: ctxLng,
@@ -473,7 +477,26 @@ export function createContextMenu(deps: ContextMenuDeps): ContextMenuHandle {
       updatedAt: Date.now(),
       visible: true,
     };
-    waypointLayer.addWaypoint(wp).then(onWaypointAdded).catch(console.error);
+  };
+
+  waypointItem.addEventListener("click", () => {
+    hide();
+    waypointLayer
+      .addWaypoint(waypointHere())
+      .then(onWaypointAdded)
+      .catch(console.error);
+  });
+
+  // A temporary target: saved like any waypoint (so the navigation survives
+  // a reload) but flagged, and removed once arrived at or cancelled — see
+  // the cleanup in main.ts.
+  navigateItem.addEventListener("click", () => {
+    hide();
+    const wp = { ...waypointHere(), temporary: true };
+    waypointLayer
+      .addWaypoint(wp)
+      .then(() => activeNav.startGoto(wp))
+      .catch(console.error);
   });
 
   // --- Dismiss on click elsewhere or a user pan; ride along with the chart ---

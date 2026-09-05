@@ -63,6 +63,7 @@ import {
 import { getAllWaypoints, repairTrackPointCounts, saveRoute } from "./data/db";
 import { reverseWaypoints } from "./data/Route";
 import { loadAllSearchIndices, type SearchEntry } from "./data/search-index";
+import type { StandaloneWaypoint } from "./data/Waypoint";
 import { installConsoleHooks } from "./diagnostics/console-hooks";
 import { notePaintTraceRender } from "./diagnostics/paint-trace";
 import { AnchorLayer, type AnchorLayerState } from "./map/AnchorLayer";
@@ -1217,6 +1218,23 @@ activeNav.onArrival(({ waypoint, next }) => {
         : `Passed ${name} — next: ${next.name || "waypoint"}`,
     durationMs: 5000,
   });
+});
+
+// A "Navigate to here" target lives only while being navigated to: once
+// navigation leaves it — arrival, cancel, or another target — it goes.
+let temporaryTargetId: string | null = null;
+activeNav.subscribe((_info, state) => {
+  const current =
+    state.type === "goto" &&
+    "temporary" in state.waypoint &&
+    state.waypoint.temporary
+      ? (state.waypoint as StandaloneWaypoint).id
+      : null;
+  const finished = temporaryTargetId;
+  temporaryTargetId = current;
+  if (finished && finished !== current) {
+    waypointLayer.removeWaypoint(finished).catch(console.error);
+  }
 });
 
 // Navigation started on a route the course runs against — usually a route

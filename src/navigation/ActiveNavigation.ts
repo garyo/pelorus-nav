@@ -151,9 +151,13 @@ export type ActiveNavCallback = (
   state: ActiveNavigationState,
 ) => void;
 
-/** An automatic leg advance: the vessel reached (or passed) a waypoint. */
+/**
+ * The vessel reached (or passed) a waypoint: an automatic route-leg
+ * advance, or arrival at a temporary "Navigate to here" target.
+ */
 export interface ArrivalEvent {
-  route: Route;
+  /** null for a goto target. */
+  route: Route | null;
   waypoint: Waypoint;
   /** Index of `waypoint` in the route. */
   index: number;
@@ -223,6 +227,25 @@ export class ActiveNavigationManager {
       nextWaypointName: this.getNextWaypointName(),
       destDistanceNM: this.destDistanceNM(result.distanceNM),
     };
+
+    // A temporary goto target is done with on arrival: report it and stop,
+    // so the target can be cleaned up. Other goto targets keep guiding —
+    // a COB position or a saved waypoint is still wanted once reached.
+    if (
+      this.state.type === "goto" &&
+      "temporary" in this.state.waypoint &&
+      this.state.waypoint.temporary &&
+      result.distanceNM < getSettings().arrivalRadiusNM
+    ) {
+      this.emitArrival({
+        route: null,
+        waypoint: this.state.waypoint,
+        index: 0,
+        next: null,
+      });
+      this.stop();
+      return;
+    }
 
     // Route mode: auto-advance on arrival or perpendicular crossing
     if (this.state.type === "route") {

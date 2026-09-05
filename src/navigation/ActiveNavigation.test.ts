@@ -524,3 +524,77 @@ describe("arrival events", () => {
     expect(suggested).toHaveLength(1);
   });
 });
+
+describe("temporary goto targets", () => {
+  let onGPS: ((d: NavigationData) => void) | null;
+  let last: NavigationData | null;
+
+  beforeEach(() => {
+    onGPS = null;
+    last = null;
+    const storage = new Map<string, string>();
+    vi.stubGlobal("localStorage", {
+      getItem: (k: string) => storage.get(k) ?? null,
+      setItem: (k: string, v: string) => storage.set(k, v),
+      removeItem: (k: string) => storage.delete(k),
+    });
+  });
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  function makeNav(): ActiveNavigationManager {
+    const navManager = {
+      subscribe: (cb: (d: NavigationData) => void) => {
+        onGPS = cb;
+      },
+      getLastData: () => last,
+    } as unknown as ConstructorParameters<typeof ActiveNavigationManager>[0];
+    return new ActiveNavigationManager(navManager);
+  }
+
+  const target = (temporary: boolean) => ({
+    id: "wp-here",
+    lat: 0,
+    lon: 0.1,
+    name: "Here",
+    notes: "",
+    icon: "default" as const,
+    createdAt: 0,
+    updatedAt: 0,
+    visible: true,
+    ...(temporary ? { temporary: true } : {}),
+  });
+  const fix = (lon: number): NavigationData =>
+    ({ latitude: 0, longitude: lon, cog: 90, sog: 5 }) as NavigationData;
+
+  it("stops with an arrival event on reaching a temporary target", () => {
+    const nav = makeNav();
+    const events: string[] = [];
+    nav.onArrival((e) =>
+      events.push(`${e.waypoint.name}:${e.route}:${e.next}`),
+    );
+    last = fix(0.05);
+    nav.startGoto(target(true));
+    expect(nav.getState().type).toBe("goto");
+
+    onGPS?.(fix(0.09)); // 0.6 NM off: still going
+    expect(nav.getState().type).toBe("goto");
+    expect(events).toEqual([]);
+
+    onGPS?.(fix(0.0995)); // inside the 0.1 NM arrival radius
+    expect(events).toEqual(["Here:null:null"]);
+    expect(nav.getState().type).toBe("idle");
+  });
+
+  it("keeps guiding to an ordinary waypoint after reaching it", () => {
+    const nav = makeNav();
+    const events: unknown[] = [];
+    nav.onArrival((e) => events.push(e));
+    last = fix(0.05);
+    nav.startGoto(target(false));
+    onGPS?.(fix(0.0995));
+    expect(nav.getState().type).toBe("goto");
+    expect(events).toEqual([]);
+  });
+});
