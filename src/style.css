@@ -317,6 +317,30 @@ body {
   accent-color: #6688cc;
 }
 
+/* Touch screens: taller rows, and a checkbox row that is a finger-sized
+   target along its whole width (the label is the tap target, so a tap on
+   the text toggles the box). */
+@media (hover: none) {
+  .settings-row {
+    padding: 6px 0;
+    min-height: 40px;
+  }
+
+  .settings-toggle {
+    flex: 1;
+    min-height: 40px;
+    padding: 4px 0;
+    gap: 10px;
+    font-size: 13px;
+  }
+
+  .settings-toggle input[type="checkbox"] {
+    width: 20px;
+    height: 20px;
+    flex-shrink: 0;
+  }
+}
+
 .settings-action-btn {
   background: #2a2a3e;
   color: #ddd;
