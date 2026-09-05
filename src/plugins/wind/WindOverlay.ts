@@ -14,6 +14,7 @@
 
 import type { Feature, FeatureCollection } from "geojson";
 import type * as maplibregl from "maplibre-gl";
+import { createDebounceMaxWait } from "../../utils/debounce-max-wait";
 import type { MapOverlay, PluginHost, PluginMap } from "../types";
 import { type BarbImg, barbImage } from "./wind-barb";
 import {
@@ -38,8 +39,21 @@ export const WIND_LAYER_GROUP = "wind";
 const MIN_ZOOM = 4;
 /** How often to re-evaluate the view and refresh any TTL-stale visible barbs. */
 const REFRESH_MS = 5 * 60 * 1000;
-/** Samples older than this are refetched; revisits within it are free. */
-const CACHE_TTL_MS = 30 * 60 * 1000;
+/**
+ * Samples older than this are refetched; revisits within it are free. Model
+ * runs update hourly at best, so a longer TTL costs nothing in accuracy and
+ * cuts the steady-state refetch of every visible point under way ~4×.
+ */
+const CACHE_TTL_MS = 2 * 60 * 60 * 1000;
+/**
+ * A pan or zoom paints cached barbs at once but fetches the new area only
+ * after the map has settled — a quick look around costs one request, not
+ * one per gesture. The ceiling keeps a follow mode, whose per-fix moveend
+ * never goes quiet, fetching regularly; a view with no barbs at all fetches
+ * immediately.
+ */
+const FETCH_DEBOUNCE_MS = 10 * 1000;
+const FETCH_MAX_WAIT_MS = 30 * 1000;
 /**
  * Bounded cache. Each entry now holds a multi-day hourly series (one fetch
  * serves every time-bar offset), so far fewer entries are needed than when
@@ -101,6 +115,11 @@ export class WindOverlay implements MapOverlay {
   private status: WindStatus = "off";
   /** Timer that self-hides the transient "needs Internet" chip. */
   private offlineChipTimer: ReturnType<typeof setTimeout> | null = null;
+  private readonly fetchDebounce = createDebounceMaxWait(
+    () => void this.fetchMissing(),
+    FETCH_DEBOUNCE_MS,
+    FETCH_MAX_WAIT_MS,
+  );
 
   constructor(host: PluginHost) {
     this.host = host;
@@ -110,11 +129,21 @@ export class WindOverlay implements MapOverlay {
     this.enabled = host.settings.isLayerGroupEnabled(WIND_LAYER_GROUP);
 
     host.events.onMapMove(() => {
-      if (this.enabled) this.scheduleRefresh();
+      if (this.enabled) this.scheduleRefresh(false);
     }, 500);
     host.events.onTimeTick(() => {
-      if (this.enabled) this.scheduleRefresh();
+      if (this.enabled) this.scheduleRefresh(true);
     }, REFRESH_MS);
+    // Fetches skipped for want of a network or a visible page run as soon as
+    // either comes back.
+    if (typeof window !== "undefined") {
+      window.addEventListener("online", () => {
+        if (this.enabled) this.fetchDebounce.flush();
+      });
+      document.addEventListener("visibilitychange", () => {
+        if (this.enabled && !document.hidden) this.fetchDebounce.flush();
+      });
+    }
     // Time-bar offset changes: re-pick the forecast hour from cached series and
     // repaint — no refetch (the series already spans the whole window).
     host.time.onChange(() => {
@@ -126,7 +155,7 @@ export class WindOverlay implements MapOverlay {
         this.enabled = now;
         this.applyVisibility();
         if (now) {
-          this.scheduleRefresh();
+          this.scheduleRefresh(true);
         } else {
           this.refreshStatus(); // remove the status chip; cache is kept
         }
@@ -173,7 +202,7 @@ export class WindOverlay implements MapOverlay {
   update(): void {
     this.enabled = this.host.settings.isLayerGroupEnabled(WIND_LAYER_GROUP);
     this.applyVisibility();
-    if (this.enabled) this.scheduleRefresh();
+    if (this.enabled) this.scheduleRefresh(true);
     else this.refreshStatus();
   }
 
@@ -227,49 +256,86 @@ export class WindOverlay implements MapOverlay {
     }
   }
 
-  private scheduleRefresh(): void {
+  /**
+   * Repaint from the cache shortly (coalescing a burst of moves), then fetch
+   * whatever the view still lacks: right away when asked or when nothing is
+   * on screen, otherwise once the map has settled.
+   */
+  private scheduleRefresh(fetchNow: boolean): void {
     if (this.debounce) clearTimeout(this.debounce);
-    this.debounce = setTimeout(() => void this.refresh(), 150);
+    this.debounce = setTimeout(() => {
+      const view = this.repaint();
+      if (!view || view.need.length === 0) return;
+      if (fetchNow || view.have.length === 0) this.fetchDebounce.flush();
+      else this.fetchDebounce.trigger();
+    }, 150);
   }
 
-  /**
-   * Re-evaluate the visible lattice: render whatever we already have (so a
-   * revisit shows barbs instantly), then fetch only the points that are missing
-   * or stale — reusing the cache everywhere else. Points already being fetched
-   * by an in-flight request are excluded, so an overlapping refresh (e.g. from
-   * continued panning) doesn't duplicate that request.
-   */
-  private async refresh(): Promise<void> {
-    const map = this.pmap?.raw;
-    if (!map || !this.enabled) return;
-    if (map.getZoom() < MIN_ZOOM) {
-      this.setData({ type: "FeatureCollection", features: [] });
-      this.setStatus("off");
-      return;
-    }
+  /** The API points the current view wants, split by cache state. */
+  private viewPoints(map: maplibregl.Map): {
+    need: LatticePoint[];
+    have: LatticePoint[];
+    points: LatticePoint[];
+  } {
     const b = map.getBounds();
-    const zoom = Math.round(map.getZoom());
-    const now = Date.now();
     const points = selectApiPoints(
       b.getWest(),
       b.getEast(),
       b.getSouth(),
       b.getNorth(),
-      zoom,
+      Math.round(map.getZoom()),
     );
+    return { ...this.cache.partition(points, Date.now()), points };
+  }
 
-    // Paint cached barbs (fresh or stale) right away — no blink on revisit.
-    const { need, have } = this.cache.partition(points, now);
-    const atMs = this.host.time.now().getTime();
-    this.setData(this.render(zoom, b, atMs));
+  /**
+   * Paint cached barbs (fresh or stale) for the current view — no blink on a
+   * revisit, and barbs never vanish while a fetch waits. Returns what the
+   * view still needs, or null when there is nothing to show at this zoom.
+   */
+  private repaint(): { need: LatticePoint[]; have: LatticePoint[] } | null {
+    const map = this.pmap?.raw;
+    if (!map || !this.enabled) return null;
+    if (map.getZoom() < MIN_ZOOM) {
+      this.setData({ type: "FeatureCollection", features: [] });
+      this.setStatus("off");
+      return null;
+    }
+    const { need, have } = this.viewPoints(map);
+    this.setData(
+      this.render(
+        Math.round(map.getZoom()),
+        map.getBounds(),
+        this.host.time.now().getTime(),
+      ),
+    );
+    if (need.length === 0) this.setStatus(have.length ? "ok" : "no-data");
+    return { need, have };
+  }
 
+  /**
+   * Fetch the points the view is missing or holds stale — reusing the cache
+   * everywhere else. Points already being fetched by an in-flight request
+   * are excluded, so an overlapping fetch doesn't duplicate that request.
+   */
+  private async fetchMissing(): Promise<void> {
+    const map = this.pmap?.raw;
+    if (!map || !this.enabled || map.getZoom() < MIN_ZOOM) return;
+    const { need, have, points } = this.viewPoints(map);
     const toFetch = this.inFlight.filterNew(need);
     if (toFetch.length === 0) {
       this.setStatus(have.length ? "ok" : "no-data");
       return;
     }
+    // A hidden page fetches nothing; visibilitychange flushes when it returns.
+    if (typeof document !== "undefined" && document.hidden) return;
+    if (typeof navigator !== "undefined" && navigator.onLine === false) {
+      this.setStatus(have.length ? "ok" : "offline");
+      return;
+    }
+    const now = Date.now();
     if (now < this.rateLimitUntil) {
-      // Can't fetch the new points yet; keep the cached barbs we just drew.
+      // Can't fetch the new points yet; keep the cached barbs already drawn.
       this.setStatus(have.length ? "ok" : "rate-limited");
       return;
     }
@@ -406,14 +472,15 @@ export class WindOverlay implements MapOverlay {
     const lats = points.map((p) => p.lat.toFixed(3)).join(",");
     const lons = points.map((p) => p.lon.toFixed(3)).join(",");
     // Hourly series (not just `current`) so a single fetch covers every
-    // time-bar offset. forecast_days=3 = 72 hourly slots from 00:00 UTC today,
-    // which always spans now…now+48h (current UTC hour ≤ 23, +48 ≤ 71).
-    // unixtime gives epoch seconds directly (no timezone parsing).
+    // time-bar offset. forecast_days=4 = 96 hourly slots from 00:00 UTC today:
+    // a sample fetched late in the UTC day and kept for the cache TTL must
+    // still cover now…now+48h after UTC midnight (3 days ran out at +48h
+    // for a 23:00 fetch). unixtime gives epoch seconds directly.
     const url =
       "https://api.open-meteo.com/v1/forecast" +
       `?latitude=${lats}&longitude=${lons}` +
       "&hourly=wind_speed_10m,wind_direction_10m&wind_speed_unit=kn" +
-      "&forecast_days=3&timeformat=unixtime";
+      "&forecast_days=4&timeformat=unixtime";
     let data: unknown;
     try {
       const resp = await fetch(url);
