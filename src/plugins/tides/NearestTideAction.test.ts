@@ -25,16 +25,18 @@ function fakeHost(
 ) {
   const shown: FeatureInfo[][] = [];
   const setStatus = vi.fn();
+  const flyTo = vi.fn();
+  const fire = vi.fn();
   const host = {
     nav: { lastFix: () => fix },
-    map: { raw: { getCenter: () => centre } },
+    map: { raw: { getCenter: () => centre, getZoom: () => 9, flyTo, fire } },
     settings: { get: () => ({ depthUnit: "feet" }) },
     ui: {
       showInfo: (infos: FeatureInfo[]) => shown.push(infos),
       setStatus,
     },
   } as unknown as PluginHost;
-  return { host, shown, setStatus };
+  return { host, shown, setStatus, flyTo, fire };
 }
 
 const deps = (b: TidesBundle = bundle) => ({
@@ -57,7 +59,22 @@ describe("createNearestTideAction", () => {
       label: "Distance",
       value: expect.stringMatching(/nm from vessel$/),
     });
-    expect(card.actions).toBeUndefined();
+    expect(card.actions?.map((a) => a.label)).toEqual(["Show on chart"]);
+  });
+
+  it("'Show on chart' flies to the station and releases follow mode", async () => {
+    const { host, shown, flyTo, fire } = fakeHost({
+      lat: 42.354,
+      lon: -71.05,
+      stale: false,
+    });
+    await createNearestTideAction(host, deps())();
+    shown[0][0].actions?.[0].run();
+    expect(fire).toHaveBeenCalledWith("pelorus:navigate");
+    expect(flyTo).toHaveBeenCalledWith({
+      center: [-71.05028, 42.35389],
+      zoom: 12,
+    });
   });
 
   it("falls back to the chart centre when the fix is stale", async () => {
@@ -82,12 +99,13 @@ describe("createNearestTideAction", () => {
     )();
     const card = shown[0][0];
     expect(card.actions?.map((a) => a.label)).toEqual([
+      "Show on chart",
       expect.stringMatching(/^Far Cove · \d+\.\d+ nm · /),
     ]);
-    card.actions?.[0].run();
+    card.actions?.[1].run();
     expect(shown[1][0].name).toBe("Far Cove");
     // …whose card offers the way back.
-    expect(shown[1][0].actions?.[0].label).toMatch(/^BOSTON · /);
+    expect(shown[1][0].actions?.[1].label).toMatch(/^BOSTON · /);
   });
 
   it("reports when no station is in range or the data is unavailable", async () => {

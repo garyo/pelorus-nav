@@ -16,8 +16,9 @@ The format follows [Keep a Changelog](https://keepachangelog.com/).
 - `bun tools/route-join-scenarios.ts` prints random route-join scenarios
   with the leg chosen for each, for reviewing the rule.
 - **TIDE** in the top bar shows the nearest tide station's times (from
-  your vessel, or the chart centre without a fix), with a button for each
-  nearby station whose next high or low differs by more than ten minutes.
+  your vessel, or the chart centre without a fix), with a "Show on chart"
+  button and one for each nearby station whose next high or low differs
+  by more than ten minutes.
 - A setting to hide the zoom and compass buttons on the chart (Settings →
   Appearance).
 - The Lock screen menu item is always present on Android; choosing it with

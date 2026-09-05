@@ -21,6 +21,8 @@ export interface NearestTideDeps {
 
 /** How long the status chip stays up when there is nothing to show. */
 const STATUS_MS = 4000;
+/** "Show on chart" zooms in at least this far — the station icon needs it. */
+const STATION_ZOOM = 12;
 
 export function createNearestTideAction(
   host: PluginHost,
@@ -69,10 +71,25 @@ export function createNearestTideAction(
       );
       const info = buildTideStationInfo(choice.station, index, now, depthUnit, {
         distance: `${formatDistanceShort(choice.distanceNM)} ${origin}`,
-        actions: others.map((other) => ({
-          label: formatStationChoice(other, now, depthUnit),
-          run: () => host.ui.showInfo([cardFor(other, all)]),
-        })),
+        actions: [
+          {
+            label: "Show on chart",
+            run: () => {
+              const map = host.map.raw;
+              // A deliberate look-away, like a search result: release follow
+              // mode so the next fix doesn't snap the camera back.
+              map.fire("pelorus:navigate" as never);
+              map.flyTo({
+                center: [choice.station.lng, choice.station.lat],
+                zoom: Math.max(map.getZoom(), STATION_ZOOM),
+              });
+            },
+          },
+          ...others.map((other) => ({
+            label: formatStationChoice(other, now, depthUnit),
+            run: () => host.ui.showInfo([cardFor(other, all)]),
+          })),
+        ],
       });
       // A station tideState() cannot predict was already filtered out.
       return (
