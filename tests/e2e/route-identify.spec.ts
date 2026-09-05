@@ -71,6 +71,10 @@ test("tapping a route line identifies it and opens the Routes panel selected", a
     `Route: ${ROUTE_NAME}`,
   );
 
+  // The card also offers to navigate the route, with the nav icon.
+  const navigate = infoPanel.getByRole("button", { name: "Navigate route" });
+  await expect(navigate).toBeVisible();
+  await expect(navigate.locator("svg")).toHaveCount(1);
   await infoPanel.getByRole("button", { name: "Open in Routes panel" }).click();
 
   await expect(page.locator(".manager-panel.route-manager-panel")).toHaveClass(

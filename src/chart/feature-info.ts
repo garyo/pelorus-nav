@@ -13,8 +13,10 @@ export interface FeatureInfo {
   details: { label: string; value: string; dir?: number }[];
   /** Child features grouped under this parent (e.g. lights on a buoy). */
   children?: FeatureInfo[];
-  /** Action buttons rendered under the details (e.g. "Open in Routes panel"). */
-  actions?: { label: string; run: () => void }[];
+  /** Action buttons rendered under the details (e.g. "Open in Routes panel").
+   *  `icon` is inline SVG markup (an export of src/ui/icons) shown before
+   *  the label. */
+  actions?: { label: string; icon?: string; run: () => void }[];
   /** Called each time this card becomes the displayed card, including via
    *  prev/next cycling — e.g. to select the tapped route. */
   onDisplay?: () => void;

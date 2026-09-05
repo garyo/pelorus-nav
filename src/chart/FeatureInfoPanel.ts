@@ -125,7 +125,8 @@ export class FeatureInfoPanel {
       for (const action of info.actions) {
         const btn = document.createElement("button");
         btn.className = "feature-info-action-btn";
-        btn.textContent = action.label;
+        if (action.icon) setIcon(btn, action.icon);
+        btn.append(action.label);
         btn.addEventListener("click", () => action.run());
         actionsRow.appendChild(btn);
       }

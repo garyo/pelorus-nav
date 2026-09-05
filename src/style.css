@@ -558,6 +558,9 @@ body {
 }
 
 .feature-info-action-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
   background: #f0f6ff;
   border: 1px solid #c8daf4;
   color: #0066cc;
@@ -565,6 +568,11 @@ body {
   padding: 4px 10px;
   font-size: 13px;
   cursor: pointer;
+}
+
+.feature-info-action-btn svg {
+  width: 14px;
+  height: 14px;
 }
 
 .feature-info-action-btn:hover {

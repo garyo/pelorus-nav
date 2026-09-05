@@ -1266,6 +1266,16 @@ setImportLayers({ routeLayer, trackLayer, waypointLayer });
 // the unified feature-info list, sharing the Routes panel's selection.
 registerRouteWaypointPick(pickRegistry, routeLayer, waypointLayer, {
   onRouteShown: (route) => routePanel.selectExternal(route),
+  isNavigating: (route) => {
+    const state = activeNav.getState();
+    return state.type === "route" && state.route.id === route.id;
+  },
+  navigateRoute: (route) => {
+    const state = activeNav.getState();
+    if (state.type === "route" && state.route.id === route.id) activeNav.stop();
+    else activeNav.startRoute(route);
+    featureQueryHandler.dismiss();
+  },
   openRoute: (route) => {
     routePanel.openWithSelection(route).catch(console.error);
   },

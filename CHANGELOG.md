@@ -8,6 +8,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/).
 ## [Unreleased]
 
 ### Added
+- Tapping a route on the chart offers **Navigate route** (or Stop
+  navigation) on its card, beside Open in Routes panel.
 - **Navigate to here** in the chart's long-press / right-click menu: starts
   navigating straight to the tapped point. The target is a temporary
   waypoint, removed on arrival or when the navigation is cancelled.

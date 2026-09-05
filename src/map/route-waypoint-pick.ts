@@ -14,6 +14,7 @@ import type { Route } from "../data/Route";
 import type { StandaloneWaypoint } from "../data/Waypoint";
 import { type PickRegistry, pickBbox } from "../plugins/picking";
 import { getSettings } from "../settings";
+import { iconNavigation } from "../ui/icons";
 import { formatLatLon, pathDistanceNM } from "../utils/coordinates";
 import { formatDistanceInSpeedUnits } from "../utils/units";
 import type { RouteLayer } from "./RouteLayer";
@@ -24,6 +25,9 @@ export interface RouteWaypointPickActions {
   onRouteShown(route: Route): void;
   /** "Open in Routes panel": open the manager with this route selected. */
   openRoute(route: Route): void;
+  /** "Navigate route" — or stop, when this route is already being navigated. */
+  navigateRoute(route: Route): void;
+  isNavigating(route: Route): boolean;
   /** "Open in Waypoints panel": open the manager scrolled to this waypoint. */
   openWaypoint(wp: StandaloneWaypoint): void;
 }
@@ -78,6 +82,13 @@ function routeCard(
     name: route.name,
     details,
     actions: [
+      {
+        label: actions.isNavigating(route)
+          ? "Stop navigation"
+          : "Navigate route",
+        icon: iconNavigation,
+        run: () => actions.navigateRoute(route),
+      },
       { label: "Open in Routes panel", run: () => actions.openRoute(route) },
     ],
     onDisplay: () => actions.onRouteShown(route),
