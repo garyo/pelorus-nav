@@ -52,6 +52,11 @@ class HardwareKeysPlugin : Plugin() {
     /** Called from MainActivity.dispatchTouchEvent — true means swallow the touch. */
     fun isTouchLocked(): Boolean = touchLocked
 
+    /** The on-screen fallback: a long still hold anywhere unlocks. */
+    fun unlockByHold() {
+        if (touchLocked) setLocked(false)
+    }
+
     /**
      * Called from MainActivity.dispatchKeyEvent. Returns true when the event
      * was a volume key we handled (and therefore consumed). We act on the key

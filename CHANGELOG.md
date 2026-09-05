@@ -26,7 +26,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/).
   Appearance).
 - The Lock screen menu item is always present on Android; choosing it with
   volume-key controls off offers to turn them on (a volume press is the
-  unlock).
+  unlock). Holding a finger still on the screen for three seconds also
+  unlocks, for devices whose volume keys never reach the app.
 
 ### Changed
 - The Plot button moved later in the top bar (after Time), so on a phone

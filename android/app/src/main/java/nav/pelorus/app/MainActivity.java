@@ -2,8 +2,11 @@ package nav.pelorus.app;
 
 import android.content.Intent;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import android.view.KeyEvent;
 import android.view.MotionEvent;
+import android.view.ViewConfiguration;
 import com.getcapacitor.BridgeActivity;
 import com.getcapacitor.PluginHandle;
 import nav.pelorus.plugins.backgroundgps.BackgroundGPSPlugin;
@@ -61,15 +64,50 @@ public class MainActivity extends BridgeActivity {
     }
 
     // While the touchscreen is locked, swallow all touch events before they
-    // reach the WebView. The lock is released via a volume long-press, which
-    // arrives through dispatchKeyEvent above (keys are unaffected).
+    // reach the WebView. The lock is released by a volume-key press, which
+    // arrives through dispatchKeyEvent above (keys are unaffected) — or, for
+    // a device whose volume keys never reach the app, by holding a finger
+    // still anywhere on the screen for UNLOCK_HOLD_MS.
     @Override
     public boolean dispatchTouchEvent(MotionEvent event) {
         HardwareKeysPlugin keys = keysPlugin();
         if (keys != null && keys.isTouchLocked()) {
+            trackUnlockHold(event, keys);
             return true;
         }
         return super.dispatchTouchEvent(event);
+    }
+
+    private static final long UNLOCK_HOLD_MS = 3000;
+    private final Handler holdHandler = new Handler(Looper.getMainLooper());
+    private Runnable unlockHold;
+    private float holdX, holdY;
+
+    private void trackUnlockHold(MotionEvent event, HardwareKeysPlugin keys) {
+        switch (event.getActionMasked()) {
+            case MotionEvent.ACTION_DOWN:
+                holdX = event.getX();
+                holdY = event.getY();
+                cancelUnlockHold();
+                unlockHold = keys::unlockByHold;
+                holdHandler.postDelayed(unlockHold, UNLOCK_HOLD_MS);
+                break;
+            case MotionEvent.ACTION_MOVE:
+                float slop = ViewConfiguration.get(this).getScaledTouchSlop() * 3;
+                if (Math.abs(event.getX() - holdX) > slop || Math.abs(event.getY() - holdY) > slop) {
+                    cancelUnlockHold();
+                }
+                break;
+            default:
+                cancelUnlockHold();
+        }
+    }
+
+    private void cancelUnlockHold() {
+        if (unlockHold != null) {
+            holdHandler.removeCallbacks(unlockHold);
+            unlockHold = null;
+        }
     }
 
     private HardwareKeysPlugin keysPlugin() {

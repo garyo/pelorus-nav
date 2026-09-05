@@ -66,7 +66,8 @@ class TouchLockBanner {
   constructor() {
     this.el = document.createElement("div");
     this.el.className = "touch-lock-banner";
-    this.el.textContent = "🔒 Screen locked — press a volume key to unlock";
+    this.el.textContent =
+      "🔒 Screen locked — press a volume key, or hold the screen for 3 s, to unlock";
     document.body.appendChild(this.el);
   }
 
