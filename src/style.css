@@ -94,7 +94,12 @@ body {
   font-weight: 600;
   letter-spacing: 0.5px;
   line-height: 1;
-  opacity: 0.85;
+  /* Dimmed by mixing toward the bar colour, not by opacity or an alpha
+     colour: the Android WebView drops the tiles for translucent text over
+     the translucent bar whenever the dropdown opens or the screen rotates,
+     and the labels vanish. Older WebViews without color-mix just show the
+     full colour. */
+  color: color-mix(in srgb, currentColor 85%, #1a1a2e);
   /* Don't compete with the icon for vertical space when wrapped. */
   white-space: nowrap;
 }

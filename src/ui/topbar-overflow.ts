@@ -175,10 +175,13 @@ function rowFitsWithinPadding(topBar: HTMLElement): boolean {
     0.5;
   let rightmost = bar.left;
   const visit = (el: HTMLElement) => {
-    if (getComputedStyle(el).display === "contents") {
+    const style = getComputedStyle(el);
+    if (style.display === "contents") {
       for (const child of el.children) visit(child as HTMLElement);
       return;
     }
+    // The open dropdown is absolutely positioned below the bar: not row content.
+    if (style.position === "absolute" || style.position === "fixed") return;
     const rect = el.getBoundingClientRect();
     if (rect.width > 0) rightmost = Math.max(rightmost, rect.right);
   };

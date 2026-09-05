@@ -60,6 +60,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/).
   length follows wherever you have panned the vessel, and settles after a
   pan.
 - The About dialog has a close button.
+- Android: the short labels under the top-bar buttons no longer vanish when
+  the menu opens or the screen rotates.
 - Fog signals: the magenta arc beside a buoy or light is drawn above the
   buoy's label instead of under it, slightly larger, and from zoom 12 a
   small label says what it is — Bell, Whis, Gong, Horn.
