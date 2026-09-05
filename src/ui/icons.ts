@@ -188,6 +188,12 @@ export const iconLock = svg(
 );
 
 /** Sun — sunrise/sunset. */
+/** Tide: two stacked waves. */
+export const iconTide = svg(
+  '<path d="M2 9c2.5 0 2.5-2 5-2s2.5 2 5 2 2.5-2 5-2 2.5 2 5 2"/>' +
+    '<path d="M2 16c2.5 0 2.5-2 5-2s2.5 2 5 2 2.5-2 5-2 2.5 2 5 2"/>',
+);
+
 export const iconSun = svg(
   '<circle cx="12" cy="12" r="4"/>' +
     '<path d="M12 2v2"/><path d="M12 20v2"/>' +

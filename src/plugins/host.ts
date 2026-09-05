@@ -67,6 +67,8 @@ export interface HostDeps {
   topbar: TopbarRegistrar;
   /** Register a predicate that suppresses chart picks while it returns true. */
   suppressPick: (active: () => boolean) => void;
+  /** Show feature-info cards in the app's info panel (ui.showInfo). */
+  showInfos: (infos: FeatureInfo[]) => void;
 }
 
 /** Per-plugin teardown handle returned by `createHost`. */
@@ -196,6 +198,17 @@ export function activatePlugin(plugin: Plugin, deps: HostDeps): ActivePlugin {
         require("nav.provider");
         deps.navManager.registerProvider(provider);
       },
+      lastFix() {
+        require("nav.read");
+        const data = deps.navManager.getLastData();
+        return data
+          ? {
+              lat: data.latitude,
+              lon: data.longitude,
+              stale: deps.navManager.isFixStale(),
+            }
+          : null;
+      },
     },
 
     data: {
@@ -256,6 +269,9 @@ export function activatePlugin(plugin: Plugin, deps: HostDeps): ActivePlugin {
         });
         cleanups.push(() => handle.remove());
         return handle;
+      },
+      showInfo(infos) {
+        deps.showInfos(infos);
       },
     },
 

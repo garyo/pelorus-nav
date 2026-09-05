@@ -15,6 +15,9 @@ The format follows [Keep a Changelog](https://keepachangelog.com/).
   offers to reverse it.
 - `bun tools/route-join-scenarios.ts` prints random route-join scenarios
   with the leg chosen for each, for reviewing the rule.
+- **TIDE** in the top bar shows the nearest tide station's times (from
+  your vessel, or the chart centre without a fix), with a button for each
+  nearby station whose next high or low differs by more than ten minutes.
 - A setting to hide the zoom and compass buttons on the chart (Settings →
   Appearance).
 - The Lock screen menu item is always present on Android; choosing it with
@@ -22,6 +25,11 @@ The format follows [Keep a Changelog](https://keepachangelog.com/).
   unlock).
 
 ### Changed
+- Wind barbs: panning or zooming repaints the cached barbs at once but
+  fetches new areas only after the chart has been still for ten seconds
+  (a view with no barbs at all fetches immediately), and fetched wind is
+  kept for two hours instead of thirty minutes — far fewer requests
+  against the forecast service's limit under way.
 - The bearing line to the waypoint you're navigating to is orange (the
   S-52 user-information colour, per theme) instead of yellow, which the
   chart also uses for special-purpose buoys and caution areas.
@@ -42,6 +50,9 @@ The format follows [Keep a Changelog](https://keepachangelog.com/).
   length follows wherever you have panned the vessel, and settles after a
   pan.
 - The About dialog has a close button.
+- Fog signals: the magenta arc beside a buoy or light is drawn above the
+  buoy's label instead of under it, slightly larger, and from zoom 12 a
+  small label says what it is — Bell, Whis, Gong, Horn.
 - Track recording on Android now survives the system stopping the app
   under way. The background GPS service restarts on its own and keeps
   recording, the fixes it buffered while the app was closed are added to

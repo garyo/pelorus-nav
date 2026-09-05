@@ -35,7 +35,11 @@ function createFakeMap() {
   };
 }
 
-function activateTestPlugin(map: ReturnType<typeof createFakeMap>) {
+function activateTestPlugin(
+  map: ReturnType<typeof createFakeMap>,
+  capabilities: Plugin["manifest"]["capabilities"] = [],
+  overrides: Partial<HostDeps> = {},
+) {
   let capturedHost: PluginHost | undefined;
   const plugin: Plugin = {
     manifest: {
@@ -43,7 +47,7 @@ function activateTestPlugin(map: ReturnType<typeof createFakeMap>) {
       name: "Test",
       version: "1.0.0",
       apiVersion: "1.0.0",
-      capabilities: [],
+      capabilities,
     },
     activate(host) {
       capturedHost = host;
@@ -60,6 +64,8 @@ function activateTestPlugin(map: ReturnType<typeof createFakeMap>) {
     } as unknown as LegendHost,
     topbar: { register: vi.fn() },
     suppressPick: vi.fn(),
+    showInfos: vi.fn(),
+    ...overrides,
   };
   activatePlugin(plugin, deps);
   if (!capturedHost) throw new Error("plugin did not activate");
@@ -107,5 +113,42 @@ describe("PluginHost events.onMapMove", () => {
     map._fire("moveend"); // no actual movement
     vi.advanceTimersByTime(150);
     expect(fn).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("PluginHost nav.lastFix and ui.showInfo", () => {
+  it("refuses lastFix without the nav.read capability", () => {
+    const host = activateTestPlugin(createFakeMap());
+    expect(() => host.nav.lastFix()).toThrow(/nav.read/);
+  });
+
+  it("returns the last fix with its staleness", () => {
+    const navManager = {
+      getLastData: () => ({ latitude: 42.3, longitude: -71.0 }),
+      isFixStale: () => true,
+    } as unknown as NavigationDataManager;
+    const host = activateTestPlugin(createFakeMap(), ["nav.read"], {
+      navManager,
+    });
+    expect(host.nav.lastFix()).toEqual({ lat: 42.3, lon: -71.0, stale: true });
+  });
+
+  it("returns null before any fix", () => {
+    const navManager = {
+      getLastData: () => null,
+      isFixStale: () => true,
+    } as unknown as NavigationDataManager;
+    const host = activateTestPlugin(createFakeMap(), ["nav.read"], {
+      navManager,
+    });
+    expect(host.nav.lastFix()).toBeNull();
+  });
+
+  it("forwards showInfo to the app's info panel", () => {
+    const showInfos = vi.fn();
+    const host = activateTestPlugin(createFakeMap(), [], { showInfos });
+    const info = { type: "Tide Station", name: "Boston", details: [] };
+    host.ui.showInfo([info]);
+    expect(showInfos).toHaveBeenCalledWith([info]);
   });
 });

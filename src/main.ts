@@ -445,8 +445,13 @@ const pluginTopbar: TopbarRegistrar = {
       fullLabel: action.fullLabel,
       extraClass: "topbar-plugin-action",
     });
-    btn.addEventListener("click", () => action.onSelect());
     const menu = document.getElementById("topbar-menu");
+    btn.addEventListener("click", () => {
+      // On a narrow screen the button lives in the hamburger dropdown; an
+      // action that opens a card (not a corner surface) must close it itself.
+      menu?.classList.remove("open");
+      action.onSelect();
+    });
     menu?.insertBefore(btn, menu.querySelector(".settings-wrapper"));
     return {
       setActive: (active) => btn.classList.toggle("active", active),
@@ -463,6 +468,7 @@ const pluginManager = new PluginManager({
   legends: new LegendHost(chartManager.map.getContainer()),
   topbar: pluginTopbar,
   suppressPick: (fn) => featureQueryHandler.addPickSuppressor(fn),
+  showInfos: (infos) => featureQueryHandler.showInfos(infos),
 });
 for (const plugin of BUILTIN_PLUGINS) pluginManager.register(plugin);
 pluginManager.activateAll();

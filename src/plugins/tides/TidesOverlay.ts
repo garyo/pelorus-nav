@@ -31,13 +31,12 @@ import {
   formatCurrentEvent,
   formatEventTime,
   formatSpeed,
-  formatTideEvent,
-  formatTideHeight,
   formatTimeUntil,
 } from "../../tides/format";
-import { tideNow, tideState } from "../../tides/predictor";
+import { tideNow } from "../../tides/predictor";
 import { shortTimeZone } from "../../utils/timezone";
 import type { MapOverlay, PluginHost, PluginMap } from "../types";
+import { buildTideStationInfo, CARD_WINDOW_HRS } from "./station-card";
 
 export const TIDES_LAYER_GROUP = "tidesCurrents";
 
@@ -65,7 +64,7 @@ const REFRESH_EINK_MS = 15 * 60 * 1000;
 
 /** Hours of upcoming events to list in the station popup (the popup body
  *  scrolls, so three days of tides/currents fit without crowding the map). */
-const POPUP_WINDOW_HRS = 72;
+const POPUP_WINDOW_HRS = CARD_WINDOW_HRS;
 
 interface SpriteSet {
   tideNeutral: string;
@@ -451,36 +450,8 @@ export class TidesOverlay implements MapOverlay {
     if (!index || !station) return null;
     // The popup is a "now and upcoming" detail view — always real now, not the
     // time-bar offset (the offset only shifts the at-a-glance map icons).
-    const now = new Date();
-    const state = tideState(station, index, now, POPUP_WINDOW_HRS);
-    if (!state) return null;
-
     const { depthUnit } = this.host.settings.get();
-    const tz = shortTimeZone();
-    const nowLabel = tz ? `Now (${tz})` : "Now";
-    const details: { label: string; value: string }[] = [];
-    if (state.heightMeters != null) {
-      details.push({
-        label: nowLabel,
-        value: `${formatTideHeight(state.heightMeters, depthUnit)} (${state.trend})`,
-      });
-    } else {
-      details.push({ label: nowLabel, value: state.trend });
-    }
-    state.events.forEach((ev, i) => {
-      details.push({
-        label:
-          i === 0
-            ? `${formatEventTime(ev.time, now)} ${formatTimeUntil(ev.time, now)}`
-            : formatEventTime(ev.time, now),
-        value: formatTideEvent(ev, depthUnit),
-      });
-    });
-    // Subordinate stations carry NOAA offset-derived (approximate) predictions.
-    const type = isTideRef(station)
-      ? "Tide Station"
-      : "Tide Station (secondary)";
-    return { type, name: station.name, details };
+    return buildTideStationInfo(station, index, new Date(), depthUnit);
   }
 
   private currentInfo(id: string): FeatureInfo | null {

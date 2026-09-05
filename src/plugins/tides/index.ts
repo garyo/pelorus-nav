@@ -7,7 +7,9 @@
  * absorb an existing feature with no loss of behavior.
  */
 
+import { iconTide } from "../../ui/icons";
 import { PLUGIN_API_VERSION, type Plugin } from "../types";
+import { createNearestTideAction } from "./NearestTideAction";
 import { TIDES_PICK_LAYERS, TidesOverlay } from "./TidesOverlay";
 
 export const tidesPlugin: Plugin = {
@@ -19,7 +21,7 @@ export const tidesPlugin: Plugin = {
     description:
       "Offline tide and tidal-current predictions from bundled NOAA harmonics.",
     author: "Pelorus Nav",
-    capabilities: ["map.overlay", "data.network", "settings"],
+    capabilities: ["map.overlay", "data.network", "settings", "nav.read"],
     layerGroups: [
       { id: "tidesCurrents", label: "Tides & Currents", default: false },
     ],
@@ -40,6 +42,16 @@ export const tidesPlugin: Plugin = {
     host.picking.register({
       layers: TIDES_PICK_LAYERS,
       resolve: (feature) => overlay.resolveInfo(feature),
+    });
+    // The nearest station's times on demand, whatever the layer toggle says.
+    const nearest = createNearestTideAction(host);
+    host.ui.registerAction({
+      id: "nearest-tide",
+      icon: iconTide,
+      label: "TIDE",
+      title: "Nearest tide station",
+      fullLabel: "Nearest tide",
+      onSelect: () => void nearest(),
     });
     return { deactivate: () => overlay.destroy() };
   },

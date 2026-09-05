@@ -38,6 +38,17 @@ and lows for tide stations; max flood, slack, and max ebb for current
 stations. Secondary stations (predicted by offsets from a nearby reference
 station) are labeled as such and are approximate.
 
+### The nearest tide station
+
+Tap **TIDE** in the top bar (in the ☰ menu on a phone) for the tide
+station nearest your vessel — or nearest the chart centre when there is
+no GPS fix — without hunting for it on the chart or turning the layer on.
+The card opens with its distance and the same schedule as a tap on the
+station. Nearby stations whose next high or low differs by more than ten
+minutes appear as buttons under the schedule, each showing its distance
+and next event, so you can pick the one that fits your spot; stations
+that agree within a few minutes are left out as the same answer.
+
 ## The time bar
 
 The chart normally shows conditions **now**. Tap **TIME** and a bar

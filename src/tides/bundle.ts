@@ -99,17 +99,23 @@ export const DEFAULT_NEAREST_STATION_NM = 25;
 
 const NM_PER_DEGREE_LAT = 60;
 
+export interface NearbyStation<S> {
+  station: S;
+  distanceNM: number;
+}
+
 /**
- * Nearest station to a position within `maxNM`, or null if none is in range.
+ * The `limit` nearest stations to a position within `maxNM`, nearest first.
  * A bounding box prefilters the (few thousand) stations before the exact
  * great-circle ranking.
  */
-export function nearestStation<S extends StationBase>(
+export function nearestStations<S extends StationBase>(
   stations: S[],
   lat: number,
   lon: number,
   maxNM = DEFAULT_NEAREST_STATION_NM,
-): S | null {
+  limit = 1,
+): NearbyStation<S>[] {
   const dLat = maxNM / NM_PER_DEGREE_LAT;
   // Longitude degrees per nm grow towards the poles; a full sweep near them.
   const cosLat = Math.cos(toRadians(lat));
@@ -120,17 +126,23 @@ export function nearestStation<S extends StationBase>(
     east: lon + dLng,
     north: lat + dLat,
   });
-
-  let best: S | null = null;
-  let bestNM = maxNM;
-  for (const s of candidates) {
-    const nm = haversineDistanceNM(lat, lon, s.lat, s.lng);
-    if (nm <= bestNM) {
-      best = s;
-      bestNM = nm;
-    }
+  const ranked: NearbyStation<S>[] = [];
+  for (const station of candidates) {
+    const distanceNM = haversineDistanceNM(lat, lon, station.lat, station.lng);
+    if (distanceNM <= maxNM) ranked.push({ station, distanceNM });
   }
-  return best;
+  ranked.sort((a, b) => a.distanceNM - b.distanceNM);
+  return ranked.slice(0, limit);
+}
+
+/** Nearest station to a position within `maxNM`, or null if none is in range. */
+export function nearestStation<S extends StationBase>(
+  stations: S[],
+  lat: number,
+  lon: number,
+  maxNM = DEFAULT_NEAREST_STATION_NM,
+): S | null {
+  return nearestStations(stations, lat, lon, maxNM, 1)[0]?.station ?? null;
 }
 
 /** Nearest tide station (reference or subordinate) to a position. */

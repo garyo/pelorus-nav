@@ -19,13 +19,15 @@ import type { LegendSpec } from "./legend";
 import type { TileCacheHandle, TileCacheOptions } from "./tile-cache";
 
 /** SDK version. Bump the major on any breaking change to this contract. */
-export const PLUGIN_API_VERSION = "1.0.0";
+export const PLUGIN_API_VERSION = "1.1.0";
 
 /** Things a plugin may ask to do; the host grants the matching host facets. */
 export type Capability =
   | "map.overlay"
   | "chart.provider"
   | "nav.provider"
+  /** Read the vessel's position (see NavRegistrar.lastFix). */
+  | "nav.read"
   | "data.network"
   | "data.files"
   | "settings";
@@ -116,8 +118,18 @@ export interface ChartRegistrar {
   register(provider: ChartProvider): void;
 }
 
+/** The vessel's most recent position, for plugins that answer "near me". */
+export interface PluginFix {
+  lat: number;
+  lon: number;
+  /** The fix is old enough that the app itself no longer trusts it. */
+  stale: boolean;
+}
+
 export interface NavRegistrar {
   register(provider: NavigationDataProvider): void;
+  /** The last fix, or null before any. Requires the `nav.read` capability. */
+  lastFix(): PluginFix | null;
 }
 
 export interface DataRegistrar {
@@ -185,6 +197,12 @@ export interface UiRegistrar {
   setStatus(text: string | null): void;
   /** Add a top-bar action button; the returned handle updates/removes it. */
   registerAction(action: PluginAction): PluginActionHandle;
+  /**
+   * Show feature-info cards in the app's info panel — the same panel a chart
+   * tap opens, with its prev/next cycling — without a map click. For actions
+   * that answer a question ("the nearest tide station") rather than a pick.
+   */
+  showInfo(infos: FeatureInfo[]): void;
 }
 
 export interface HostEvents {

@@ -478,6 +478,19 @@ export class FeatureQueryHandler {
   // No mousemove handler — the CSS crosshair cursor (!important) overrides
   // any cursor changes, so querying features on every mouse move was wasted work.
 
+  /**
+   * Show plugin-built cards without a map click (a plugin action answering
+   * "what's near me"). Same list, panel and prev/next cycling as a pick.
+   * Ignored outside query mode, where a mode takeover (route editing) owns
+   * the map and dismisses the panel.
+   */
+  showInfos(infos: FeatureInfo[]): void {
+    if (getMode() !== "query" || infos.length === 0) return;
+    this.currentItems = infos.map((info) => ({ kind: "info", info }));
+    this.currentIndex = 0;
+    this.showCurrent();
+  }
+
   private showCurrent(): void {
     const item = this.currentItems[this.currentIndex];
     if (!item) return;
