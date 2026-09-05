@@ -3,7 +3,12 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { test } from "@playwright/test";
-import { acceptDisclaimer, seedMapPosition, seedSettings } from "./helpers";
+import {
+  acceptDisclaimer,
+  seedMapPosition,
+  seedSettings,
+  suppressWhatsNew,
+} from "./helpers";
 
 /**
  * Headless render-coverage harness for the synthetic S-57 test chart.
@@ -97,6 +102,9 @@ test("S-57 test-chart render coverage", async ({ page }) => {
   ];
 
   await acceptDisclaimer(page);
+  // Seeded settings make the profile look upgraded, not fresh, so the
+  // What's New dialog would otherwise sit over every render.
+  await suppressWhatsNew(page);
 
   for (const scheme of SCHEMES) {
     // Seed settings before boot: day theme, no GPS, no network underlays, the

@@ -23,6 +23,7 @@ import {
   getAdditionalPointLayers,
   getBuoyBeaconLayers,
   getDaymarkTopmarkLayers,
+  getFogSignalIconLayer,
   getHazardLayers,
   getNavAidLayers,
   getOtherNavAidLayers,
@@ -215,6 +216,7 @@ export const LAYER_CATEGORIES: Record<
   "s57-lights": "STANDARD",
   "s57-lights-glow": "STANDARD",
   "s57-fogsig": "STANDARD",
+  "s57-fogsig-label": "STANDARD",
   "s57-lndmrk": "STANDARD",
   "s57-lndare-label": "STANDARD",
   "s57-seaare-label": "STANDARD",
@@ -501,6 +503,9 @@ export function getNauticalLayers(
     // 12. Buoys + beacons — placed last for highest collision priority.
     // Their labels win over soundings, SBDARE, and other info text.
     ...getBuoyBeaconLayers(ctx),
+
+    // 13. Fog-signal arcs, painted over the buoy labels' halos.
+    getFogSignalIconLayer(ctx),
   ];
 
   // Apply display-category (detail level) filtering. This is structural — it

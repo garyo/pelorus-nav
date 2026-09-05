@@ -250,7 +250,7 @@ const S52_OFFSETS: Record<string, [number, number]> = {
   FSHTMP01: [0, -20],
   SWPARE01: [0, 0],
   // Other navaids
-  FOGSIG01: [-16, 13],
+  FOGSIG01: [-14, 4],
   MORFAC03: [-1, 0],
   PILPNT02: [0.5, 0.5],
   BRIDGE01: [0, 0],

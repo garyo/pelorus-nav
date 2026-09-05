@@ -898,30 +898,66 @@ function isolatedDangerLayers(ctx: StyleContext): LayerSpecification[] {
 
 /** Other nav aid layers: fog signals, pilings, mooring, special beacons, seabed. */
 export function getOtherNavAidLayers(ctx: StyleContext): LayerSpecification[] {
-  const fogsig = ctx.layerExprs("FOGSIG");
   const pilpnt = ctx.layerExprs("PILPNT");
   const morfac = ctx.layerExprs("MORFAC");
   const bcnspp = ctx.layerExprs("BCNSPP");
 
   return [
-    // Fog signals — S-52 CS(FOGSIG02): icon only, details via cursor pick
+    // Fog signal type beside the mark — "Bell", "Whis", "Gong", "Horn" — the
+    // paper-chart cue, since between the fog-signal minzoom and the zoom the
+    // buoy's full name appears the small arc is the only other hint. The
+    // pipeline writes LABEL from CATFOG; the match is for tiles without it.
     {
-      id: "s57-fogsig",
+      id: "s57-fogsig-label",
       type: "symbol",
       source: ctx.sourceId,
       "source-layer": "FOGSIG",
-      minzoom: 6,
-      layout: withOffset(
-        {
-          "symbol-sort-key": SORT_KEY_NAVAID,
-          "icon-image": fogsig.iconExpr,
-          "icon-size": scaledIconSize(0.6, ctx),
-          "icon-allow-overlap": true,
-          "icon-ignore-placement": true,
-        },
-        fogsig.offsetExpr,
-      ),
-      paint: {},
+      minzoom: ctx.detailMinzoom(12),
+      layout: {
+        "symbol-sort-key": SORT_KEY_LIGHT_CHAR,
+        "text-field": [
+          "coalesce",
+          ["get", "LABEL"],
+          [
+            "match",
+            listAttrFirstNumber("CATFOG"),
+            1,
+            "Explos",
+            2,
+            "Dia",
+            3,
+            "Siren",
+            4,
+            "Nauto",
+            5,
+            "Reed",
+            6,
+            "Tyfon",
+            7,
+            "Bell",
+            8,
+            "Whis",
+            9,
+            "Gong",
+            10,
+            "Horn",
+            "",
+          ],
+        ] as unknown as ExpressionSpecification,
+        "text-font": ["Noto Sans Italic"],
+        "text-size": scaledTextSize(9, ctx),
+        // Left of the mark, where the fog-signal arc sits; the buoy's own
+        // label takes the right and below.
+        "text-variable-anchor": ["right", "bottom-right", "top-right"],
+        "text-radial-offset": 1.8,
+        "text-justify": "auto",
+        "text-allow-overlap": false,
+      },
+      paint: {
+        "text-color": ctx.colour("CHMGD"),
+        "text-halo-color": ctx.colour("NAIDH"),
+        "text-halo-width": 1.5,
+      },
     },
     // Pilings
     {
@@ -1441,4 +1477,32 @@ export function getDaymarkTopmarkLayers(
       paint: {},
     },
   ];
+}
+
+/**
+ * The fog-signal arc (S-52 FOGSIG01) beside a buoy or light. Drawn after the
+ * buoys and beacons: it neither collides nor is collided with, so its place
+ * in the layer order is purely paint order, and under the buoy label's halo
+ * it was invisible. Details via cursor pick.
+ */
+export function getFogSignalIconLayer(ctx: StyleContext): LayerSpecification {
+  const fogsig = ctx.layerExprs("FOGSIG");
+  return {
+    id: "s57-fogsig",
+    type: "symbol",
+    source: ctx.sourceId,
+    "source-layer": "FOGSIG",
+    minzoom: 6,
+    layout: withOffset(
+      {
+        "symbol-sort-key": SORT_KEY_NAVAID,
+        "icon-image": fogsig.iconExpr,
+        "icon-size": scaledIconSize(0.75, ctx),
+        "icon-allow-overlap": true,
+        "icon-ignore-placement": true,
+      },
+      fogsig.offsetExpr,
+    ),
+    paint: {},
+  };
 }

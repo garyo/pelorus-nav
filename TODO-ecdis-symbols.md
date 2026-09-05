@@ -338,7 +338,7 @@ S-57: FOGSIG, attrs: CATFOG, SIGGRP, SIGPER, VALMXR
 S-52: CS(FOGSIG02)
 - [x] Fog signal symbol — SY(FOGSIG01)
 - [x] **Fog signal type label** — CATFOG abbreviation (Horn, Bell, Whis, etc.)
-      generated in pipeline LABEL + displayed below fog signal icon.
+      generated in pipeline LABEL + displayed beside the fog signal arc (s57-fogsig-label, z12+).
 
 ### S: Radar, Radio, Satellite
 S-57: RADRFL, RTPBCN, RDOSTA, RADSTA, CRANES, SISTAT

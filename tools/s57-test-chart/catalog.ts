@@ -255,7 +255,13 @@ const SPECS: Spec[] = [
   {
     cls: "FOGSIG",
     geoms: ["Point"],
-    profiles: one({ CATFOG: 1, SIGGRP: "(2)", SIGPER: 30, OBJNAM: "Horn" }),
+    profiles: [
+      {
+        name: "default",
+        props: { CATFOG: 1, SIGGRP: "(2)", SIGPER: 30, OBJNAM: "Horn" },
+      },
+      { name: "bell", props: { CATFOG: 7, LABEL: "Bell", OBJNAM: "Bell" } },
+    ],
   },
   {
     cls: "DAYMAR",
