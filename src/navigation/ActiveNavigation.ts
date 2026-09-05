@@ -108,6 +108,13 @@ export function resolveRestoredLeg(
   }).legIndex;
 }
 
+/** " from 42.35252,-71.02816 cog 95", or "" without a fix — for the action log. */
+function describeFix(fix: JoinFix | null): string {
+  if (!fix) return "";
+  const cog = fix.cog === null ? "-" : String(Math.round(fix.cog));
+  return ` from ${fix.lat.toFixed(5)},${fix.lon.toFixed(5)} cog ${cog}`;
+}
+
 /** Pure computation — extract for testing. */
 export function computeNavigation(
   vesselLat: number,
@@ -180,6 +187,12 @@ export class ActiveNavigationManager {
    * leg change in the meantime clears it (the user's choice supersedes).
    */
   private pendingRestoreLegCheck = false;
+  /**
+   * Set when startRoute() ran with no fix on hand and fell back to leg 1.
+   * The first fix picks the leg properly (pickJoinLeg); any explicit leg
+   * change in the meantime clears it.
+   */
+  private pendingJoinCheck = false;
 
   constructor(navManager: NavigationDataManager) {
     this.navManager = navManager;
@@ -188,6 +201,29 @@ export class ActiveNavigationManager {
 
   private readonly onGPSUpdate = (data: NavigationData): void => {
     if (this.state.type === "idle") return;
+
+    // A route started before any fix: choose the leg now, from this fix,
+    // before the target computation and auto-advance run against it.
+    if (this.state.type === "route" && this.pendingJoinCheck) {
+      this.pendingJoinCheck = false;
+      const fix = {
+        lat: data.latitude,
+        lon: data.longitude,
+        cog: data.cog ?? data.heading ?? null,
+      };
+      const route = this.state.route;
+      const choice = pickJoinLeg(fix, route, {
+        arrivalRadiusNM: getSettings().arrivalRadiusNM,
+      });
+      logUiAction(
+        `nav route join on first fix (leg ${choice.legIndex}, ${choice.reason})${describeFix(fix)}`,
+      );
+      if (choice.legIndex !== this.state.legIndex) {
+        this.state = { ...this.state, legIndex: choice.legIndex };
+        this.persist();
+      }
+      this.maybeSuggestReverse(route, fix);
+    }
 
     // A restored leg awaiting its first fix: validate it now, before this
     // tick's target computation and auto-advance run against it.
@@ -383,7 +419,7 @@ export class ActiveNavigationManager {
 
   startGoto(waypoint: StandaloneWaypoint | Waypoint): void {
     logUiAction(`nav goto ${waypoint.name || "(unnamed)"}`);
-    this.pendingRestoreLegCheck = false;
+    this.clearPendingChecks();
     this.state = { type: "goto", waypoint };
     this.persist();
     this.recompute();
@@ -391,26 +427,35 @@ export class ActiveNavigationManager {
 
   startRoute(route: Route, startLeg?: number): void {
     if (route.waypoints.length < 2) return;
+    const fix = this.joinFix();
     const { leg, reason } =
       startLeg === undefined
         ? this.pickStartLeg(route)
         : { leg: startLeg, reason: "chosen" };
+    // The fix behind the choice, so a field report can replay it.
     logUiAction(
-      `nav route ${route.name || "(unnamed)"} (leg ${leg}, ${reason})`,
+      `nav route ${route.name || "(unnamed)"} (leg ${leg}, ${reason})${describeFix(fix)}`,
     );
-    this.pendingRestoreLegCheck = false;
+    this.clearPendingChecks();
+    this.pendingJoinCheck = startLeg === undefined && fix === null;
     this.state = { type: "route", route, legIndex: leg };
     this.persist();
     this.recompute();
     // Offer to reverse a route the course runs against — after the state is
     // set, so a listener that reverses and restarts sees a consistent manager.
-    if (startLeg === undefined) {
-      const fix = this.joinFix();
-      const opts = { arrivalRadiusNM: getSettings().arrivalRadiusNM };
-      if (fix && suggestReverse(fix, route, opts)) {
-        for (const fn of this.reverseListeners) fn(route);
-      }
+    if (startLeg === undefined && fix) this.maybeSuggestReverse(route, fix);
+  }
+
+  private maybeSuggestReverse(route: Route, fix: JoinFix): void {
+    const opts = { arrivalRadiusNM: getSettings().arrivalRadiusNM };
+    if (suggestReverse(fix, route, opts)) {
+      for (const fn of this.reverseListeners) fn(route);
     }
+  }
+
+  private clearPendingChecks(): void {
+    this.pendingRestoreLegCheck = false;
+    this.pendingJoinCheck = false;
   }
 
   private joinFix(): JoinFix | null {
@@ -436,7 +481,7 @@ export class ActiveNavigationManager {
 
   stop(): void {
     if (this.state.type !== "idle") logUiAction("nav stop");
-    this.pendingRestoreLegCheck = false;
+    this.clearPendingChecks();
     this.state = { type: "idle" };
     this.lastInfo = null;
     this.persist();
@@ -465,7 +510,7 @@ export class ActiveNavigationManager {
       return;
     }
     logUiAction(`nav route re-targeted after edit (${route.name || "?"})`);
-    this.pendingRestoreLegCheck = false;
+    this.clearPendingChecks();
     this.state = {
       type: "route",
       route,
@@ -490,7 +535,7 @@ export class ActiveNavigationManager {
   setLeg(index: number): void {
     if (this.state.type !== "route") return;
     if (index < 0 || index >= this.state.route.waypoints.length) return;
-    this.pendingRestoreLegCheck = false;
+    this.clearPendingChecks();
     this.state = { ...this.state, legIndex: index };
     this.persist();
     this.recompute();
@@ -500,7 +545,7 @@ export class ActiveNavigationManager {
     if (this.state.type !== "route") return;
     const next = this.state.legIndex + 1;
     if (next < this.state.route.waypoints.length) {
-      this.pendingRestoreLegCheck = false;
+      this.clearPendingChecks();
       this.state = { ...this.state, legIndex: next };
       this.persist();
       this.recompute();
@@ -510,7 +555,7 @@ export class ActiveNavigationManager {
   prevLeg(): void {
     if (this.state.type !== "route") return;
     if (this.state.legIndex > 0) {
-      this.pendingRestoreLegCheck = false;
+      this.clearPendingChecks();
       this.state = { ...this.state, legIndex: this.state.legIndex - 1 };
       this.persist();
       this.recompute();

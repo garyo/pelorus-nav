@@ -598,3 +598,79 @@ describe("temporary goto targets", () => {
     expect(events).toEqual([]);
   });
 });
+
+describe("starting a route before the first fix", () => {
+  let onGPS: ((d: NavigationData) => void) | null;
+  let last: NavigationData | null;
+
+  // Four waypoints due east, 6 NM apart.
+  const straight: Route = {
+    id: "r-straight",
+    name: "Straight",
+    color: "#00f",
+    visible: true,
+    createdAt: 0,
+    waypoints: [
+      { name: "A", lat: 0, lon: 0 },
+      { name: "B", lat: 0, lon: 0.1 },
+      { name: "C", lat: 0, lon: 0.2 },
+      { name: "D", lat: 0, lon: 0.3 },
+    ],
+  };
+
+  beforeEach(() => {
+    onGPS = null;
+    last = null;
+    const storage = new Map<string, string>();
+    vi.stubGlobal("localStorage", {
+      getItem: (k: string) => storage.get(k) ?? null,
+      setItem: (k: string, v: string) => storage.set(k, v),
+      removeItem: (k: string) => storage.delete(k),
+    });
+  });
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  function makeNav(): ActiveNavigationManager {
+    const navManager = {
+      subscribe: (cb: (d: NavigationData) => void) => {
+        onGPS = cb;
+      },
+      getLastData: () => last,
+    } as unknown as ConstructorParameters<typeof ActiveNavigationManager>[0];
+    return new ActiveNavigationManager(navManager);
+  }
+  const legOf = (nav: ActiveNavigationManager) => {
+    const s = nav.getState();
+    return s.type === "route" ? s.legIndex : null;
+  };
+  const fix = (lon: number, cog: number): NavigationData =>
+    ({ latitude: 0, longitude: lon, cog, sog: 5 }) as NavigationData;
+
+  it("re-derives the leg from the first fix: the first waypoint when it is ahead", () => {
+    const nav = makeNav();
+    nav.startRoute(straight);
+    expect(legOf(nav)).toBe(1); // the fixless fallback
+    last = fix(-0.05, 90); // 3 NM short of A, heading for it
+    onGPS?.(last);
+    expect(legOf(nav)).toBe(0);
+  });
+
+  it("re-derives the leg from the first fix: the leg abeam of the vessel", () => {
+    const nav = makeNav();
+    nav.startRoute(straight);
+    last = fix(0.25, 90); // between C and D
+    onGPS?.(last);
+    expect(legOf(nav)).toBe(3);
+  });
+
+  it("keeps a leg the user chose explicitly before the first fix", () => {
+    const nav = makeNav();
+    nav.startRoute(straight);
+    nav.setLeg(2);
+    last = fix(-0.05, 90);
+    onGPS?.(last);
+    expect(legOf(nav)).toBe(2);
+  });
+});
