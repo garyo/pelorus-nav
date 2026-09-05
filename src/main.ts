@@ -1558,7 +1558,9 @@ if (topbarMenu) {
     plottingLayer.enterPlotMode();
     closeHamburger();
   });
-  topbarMenu.insertBefore(plotBtn, settingsWrapper);
+  // Inserted after Time below: menu order is promotion order on a narrow
+  // screen, and manual chartwork is not worth one of a phone's few visible
+  // slots.
 
   // Anchor watch mode. Hidden where unsupported (iOS): a menu entry that
   // opened a screen-on-only watch in a native app would invite overnight
@@ -1659,6 +1661,7 @@ if (topbarMenu) {
   timeBar.onVisibilityChange = (open) =>
     timeBtn.classList.toggle("active", open);
   topbarMenu.insertBefore(timeBtn, settingsWrapper);
+  topbarMenu.insertBefore(plotBtn, settingsWrapper);
 
   // Settings opening evicts other panels via the SurfaceManager; the
   // hamburger dropdown still needs an explicit close (separate wiring).

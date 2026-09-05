@@ -55,7 +55,7 @@ export class ChartInUseReadout {
     this.el.className = "chart-in-use";
     Object.assign(this.el.style, {
       position: "absolute",
-      bottom: "8px",
+      bottom: "calc(8px + var(--safe-bottom))",
       left: "50%",
       transform: "translateX(-50%)",
       font: "11px/1.2 system-ui, sans-serif",
