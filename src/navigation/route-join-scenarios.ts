@@ -5,12 +5,12 @@
  */
 
 import type { Route } from "../data/Route";
+import { bearingDelta } from "../utils/coordinates";
 import {
-  bearingDelta,
-  haversineDistanceNM,
-  initialBearingDeg,
-} from "../utils/coordinates";
-import { DEFAULT_CONE_HALF_ANGLE_DEG, distanceToLegNM } from "./route-join";
+  DEFAULT_CONE_HALF_ANGLE_DEG,
+  describeJoinLegs,
+  type LegMetrics,
+} from "./route-join";
 
 /** Deterministic PRNG (mulberry32) so a failing seed can be replayed. */
 export function mulberry32(seed: number): () => number {
@@ -53,29 +53,23 @@ export function randomScenario(rand: () => number): Scenario {
   };
 }
 
-export interface LegDescription {
-  leg: number;
-  distToDest: number;
-  brgToDest: number;
-  /** Distance from the leg segment (for leg 0, from its waypoint). */
-  xtd: number;
+export interface LegDescription extends LegMetrics {
   /** Destination within the forward cone of the course; null when stationary. */
   inCone: boolean | null;
 }
 
-/** Brute-force restatement of the rule's per-leg numbers, for cross-checking. */
-export function describeLegs(s: Scenario): LegDescription[] {
-  const { waypoints } = s.route;
-  const { lat, lon, cog } = s.fix;
-  return waypoints.map((wp, i) => {
-    const distToDest = haversineDistanceNM(lat, lon, wp.lat, wp.lon);
-    const brgToDest = initialBearingDeg(lat, lon, wp.lat, wp.lon);
-    const from = i === 0 ? null : waypoints[i - 1];
-    const xtd = from ? distanceToLegNM(lat, lon, from, wp) : distToDest;
-    const inCone =
+/** The rule's own per-leg numbers plus cone membership, for cross-checking. */
+export function describeLegs(
+  s: Scenario,
+  arrivalRadiusNM = 0.1,
+): LegDescription[] {
+  const { cog } = s.fix;
+  return describeJoinLegs(s.fix, s.route, { arrivalRadiusNM }).map((m) => ({
+    ...m,
+    inCone:
       cog === null
         ? null
-        : Math.abs(bearingDelta(brgToDest, cog)) <= DEFAULT_CONE_HALF_ANGLE_DEG;
-    return { leg: i, distToDest, brgToDest, xtd, inCone };
-  });
+        : Math.abs(bearingDelta(m.brgToDest, cog)) <=
+          DEFAULT_CONE_HALF_ANGLE_DEG,
+  }));
 }

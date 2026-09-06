@@ -51,7 +51,7 @@ describe("pickJoinLeg — the original start-of-route cases", () => {
     });
     expect(pickJoinLeg(fix(0, 0.5, null), twoLegs, opts)).toEqual({
       legIndex: 1,
-      reason: "along-leg",
+      reason: "nearest",
     });
   });
 
@@ -81,10 +81,10 @@ describe("pickJoinLeg — joining a route mid-way", () => {
     expect(choice).toEqual({ legIndex: 3, reason: "ahead" });
   });
 
-  it("uses the leg bearing when stationary", () => {
+  it("takes the nearest leg when stationary", () => {
     expect(pickJoinLeg(fix(0.0033, 2.5, null), straight, opts)).toEqual({
       legIndex: 3,
-      reason: "along-leg",
+      reason: "nearest",
     });
   });
 
@@ -163,6 +163,33 @@ describe("pickJoinLeg — a route that doubles back", () => {
   });
 });
 
+// Gary's review of the random scenario plots (seed 20260904, 2026-09-05):
+// the cases he called, replayed exactly from the generator.
+describe("pickJoinLeg — reviewed random scenarios", () => {
+  const rand = mulberry32(20260904);
+  const scenarios = Array.from({ length: 24 }, () => randomScenario(rand));
+  const pick = (n: number) => {
+    const s = scenarios[n - 1];
+    return pickJoinLeg(s.fix, s.route, opts).legIndex;
+  };
+
+  it("#4: level with WP1 and heading along leg 2, takes leg 2 rather than the leg arriving at WP1", () => {
+    expect(pick(4)).toBe(2);
+  });
+
+  it("#6: well past WP1 in leg 1's direction and heading roughly along leg 2, takes leg 2", () => {
+    expect(pick(6)).toBe(2);
+  });
+
+  it("#8: stationary 4 NM from WP0, approaches WP0 rather than a far leg", () => {
+    expect(pick(8)).toBe(0);
+  });
+
+  it("#10: stationary 2.5 NM off leg 5, takes leg 5", () => {
+    expect(pick(10)).toBe(5);
+  });
+});
+
 describe("suggestReverse", () => {
   const straight = route([
     [0, 0],
@@ -212,6 +239,8 @@ describe("distanceToLegNM", () => {
 describe("pickJoinLeg — randomised invariants", () => {
   const rand = mulberry32(20260904);
   const scenarios = Array.from({ length: 400 }, () => randomScenario(rand));
+  /** Near-equal cross-track distances are a tie the rule may break either way. */
+  const slack = (xtd: number) => Math.max(0.05, 0.1 * xtd) + 1e-9;
 
   it("always returns a leg of the route", () => {
     for (const s of scenarios) {
@@ -221,42 +250,39 @@ describe("pickJoinLeg — randomised invariants", () => {
     }
   });
 
-  it("with a course, an 'ahead' choice is inside the cone and the nearest such leg", () => {
+  it("under way, an 'ahead' choice is the nearest unpassed leg whose destination is in the cone", () => {
     for (const s of scenarios) {
-      if (s.fix.cog === null) continue;
       const choice = pickJoinLeg(s.fix, s.route, opts);
+      if (choice.reason !== "ahead" && choice.reason !== "ahead-far") continue;
       const legs = describeLegs(s);
       const chosen = legs[choice.legIndex];
-      if (choice.reason === "ahead" || choice.reason === "ahead-far") {
-        expect(chosen.inCone).toBe(true);
-        // Never a waypoint already within the arrival radius.
-        expect(chosen.distToDest).toBeGreaterThanOrEqual(0.1);
-      }
-      if (choice.reason === "ahead") {
-        // Nothing in the cone is meaningfully closer to the vessel's track.
-        for (const l of legs) {
-          if (l.inCone && l.distToDest >= 0.1) {
-            expect(chosen.xtd).toBeLessThanOrEqual(l.xtd + 0.5);
-          }
-        }
-      }
+      expect(chosen.inCone).toBe(true);
+      expect(chosen.passed).toBe(false);
+      const eligible = legs.filter((l) => l.inCone && !l.passed);
+      const nearest = Math.min(...eligible.map((l) => l.xtd));
+      expect(chosen.xtd).toBeLessThanOrEqual(nearest + slack(chosen.xtd));
     }
   });
 
-  it("never falls back to 'nearest' while some destination lies ahead on its leg", () => {
+  it("a 'nearest' choice is the nearest unpassed leg, and only when nothing lies ahead", () => {
     for (const s of scenarios) {
       const choice = pickJoinLeg(s.fix, s.route, opts);
       if (choice.reason !== "nearest") continue;
-      // The fallback promises every destination was behind the vessel
-      // relative to both the course and its own leg — so the chosen one is
-      // at least the nearest of the unpassed, or the last waypoint.
       const legs = describeLegs(s);
+      // Nothing was ahead (or the vessel is stationary)…
+      if (s.fix.cog !== null) {
+        expect(legs.some((l) => l.inCone && !l.passed)).toBe(false);
+      }
+      // …and the pick is the nearest leg not yet passed, if any is left.
+      const unpassed = legs.filter((l) => !l.passed);
+      if (unpassed.length === 0) {
+        expect(choice.legIndex).toBe(s.route.waypoints.length - 1);
+        continue;
+      }
       const chosen = legs[choice.legIndex];
-      const nearest = Math.min(...legs.map((l) => l.distToDest));
-      expect(
-        chosen.distToDest === nearest ||
-          choice.legIndex === s.route.waypoints.length - 1,
-      ).toBe(true);
+      expect(chosen.passed).toBe(false);
+      const nearest = Math.min(...unpassed.map((l) => l.xtd));
+      expect(chosen.xtd).toBeLessThanOrEqual(nearest + slack(chosen.xtd));
     }
   });
 });

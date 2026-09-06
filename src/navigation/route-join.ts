@@ -2,15 +2,13 @@
  * Which leg to steer for when navigation starts on a route — from anywhere
  * along it, in either direction.
  *
- * A leg is a candidate when its destination waypoint lies within a forward
- * cone of the vessel's course and the vessel has not already passed it.
- * Candidates near a leg (inside a corridor) are ranked by cross-track
- * distance, the rest by distance to their destination; ties go to the leg
- * best aligned with the course, then to the one further along the route.
- * With no course (stationary), "ahead" is judged along each leg's own
- * bearing instead, and the same rule is the second pass when the course
- * points at no leg at all. The last resort is the nearest unpassed
- * waypoint.
+ * Under way, a leg is a candidate when its destination waypoint lies within
+ * a forward cone of the course and the vessel has not already passed it;
+ * candidates rank by cross-track distance — the leg the vessel is nearest
+ * wins — with course alignment, then route order, as tie-breaks. So a
+ * vessel level with a waypoint takes the leg leaving it, not the one
+ * arriving. Stationary, or when the course points at no leg, the nearest
+ * unpassed leg wins outright.
  */
 
 import type { Route, Waypoint } from "../data/Route";
@@ -37,13 +35,11 @@ export interface JoinOptions {
 }
 
 export type JoinReason =
-  /** Nearest leg the course points along. */
+  /** The leg the vessel is on, its destination ahead. */
   | "ahead"
-  /** No leg nearby; the closest destination the course points at. */
+  /** No leg nearby; the nearest leg whose destination is ahead. */
   | "ahead-far"
-  /** Judged by leg bearing: stationary, or the course points at no leg. */
-  | "along-leg"
-  /** Nothing ahead at all: the nearest waypoint not yet passed. */
+  /** Stationary, or nothing ahead: the nearest leg not yet passed. */
   | "nearest";
 
 export interface JoinChoice {
@@ -60,8 +56,9 @@ export const DEFAULT_CONE_HALF_ANGLE_DEG = 75;
  */
 export const CORRIDOR_FLOOR_NM = 2;
 
-/** Cross-track / destination distances closer than this are a tie. */
+/** Cross-track distances this close (absolute, or as a fraction) are a tie. */
 const TIE_NM = 0.05;
+const TIE_FRACTION = 0.1;
 
 /** Shortest distance from a point to the leg segment from→to, in NM. */
 export function distanceToLegNM(
@@ -99,7 +96,7 @@ function alongTrack(from: Waypoint, to: Waypoint, lat: number, lon: number) {
   return Number.isNaN(atd) ? 0 : atd;
 }
 
-interface LegMetrics {
+export interface LegMetrics {
   leg: number;
   /** Distance from the leg segment (for leg 0, from its waypoint). */
   xtd: number;
@@ -114,6 +111,8 @@ interface LegMetrics {
    * still ahead however the route leaves it.
    */
   passed: boolean;
+  /** The vessel is beyond the leg's end (for leg 0, beyond its waypoint). */
+  beyondEnd: boolean;
 }
 
 function legMetrics(
@@ -128,6 +127,7 @@ function legMetrics(
     initialBearingDeg(fix.lat, fix.lon, wp.lat, wp.lon);
   const [wp0, wp1] = waypoints;
   const d0 = dist(wp0);
+  const beyond0 = alongTrack(wp0, wp1, fix.lat, fix.lon) > 0;
   const metrics: LegMetrics[] = [
     {
       leg: 0,
@@ -135,9 +135,8 @@ function legMetrics(
       distToDest: d0,
       brgToDest: brgTo(wp0),
       legBrg: initialBearingDeg(wp0.lat, wp0.lon, wp1.lat, wp1.lon),
-      passed:
-        d0 < arrivalRadiusNM ||
-        (d0 <= corridorNM && alongTrack(wp0, wp1, fix.lat, fix.lon) > 0),
+      passed: d0 < arrivalRadiusNM || (d0 <= corridorNM && beyond0),
+      beyondEnd: beyond0,
     },
   ];
   for (let leg = 1; leg < waypoints.length; leg++) {
@@ -146,66 +145,63 @@ function legMetrics(
     const legDist = haversineDistanceNM(from.lat, from.lon, to.lat, to.lon);
     const dTo = dist(to);
     const xtd = distanceToLegNM(fix.lat, fix.lon, from, to);
+    const beyondEnd =
+      alongTrack(from, to, fix.lat, fix.lon) >= legDist - arrivalRadiusNM;
     metrics.push({
       leg,
       xtd,
       distToDest: dTo,
       brgToDest: brgTo(to),
       legBrg: initialBearingDeg(from.lat, from.lon, to.lat, to.lon),
-      passed:
-        dTo < arrivalRadiusNM ||
-        (xtd <= corridorNM &&
-          alongTrack(from, to, fix.lat, fix.lon) >= legDist - arrivalRadiusNM),
+      passed: dTo < arrivalRadiusNM || (xtd <= corridorNM && beyondEnd),
+      beyondEnd,
     });
   }
   return metrics;
 }
 
 interface Candidate extends LegMetrics {
-  /** How far the leg's bearing is off the reference course. */
+  /** How far the leg's bearing is off the course; 0 when stationary. */
   alignment: number;
 }
 
-interface Selection {
-  leg: number;
-  /** No candidate was inside the corridor. */
-  far: boolean;
+/**
+ * Rank by cross-track distance. Near-equal distances — a vessel level with
+ * the waypoint two legs share, or short of the route's start — go to a leg
+ * the vessel has not already run past the end of (the leg leaving that
+ * waypoint, not the one arriving), then to the leg best aligned with the
+ * course, then to route order.
+ */
+function rank(a: Candidate, b: Candidate): number {
+  const d = a.xtd - b.xtd;
+  const tie = Math.max(TIE_NM, TIE_FRACTION * Math.max(a.xtd, b.xtd));
+  if (Math.abs(d) > tie) return d;
+  if (a.beyondEnd !== b.beyondEnd) return a.beyondEnd ? 1 : -1;
+  if (a.alignment !== b.alignment) return a.alignment - b.alignment;
+  return a.leg - b.leg;
 }
 
-/** Rank by a distance, treating near-equal distances as a tie. */
-function rank(key: (c: Candidate) => number) {
-  return (a: Candidate, b: Candidate): number => {
-    const d = key(a) - key(b);
-    if (Math.abs(d) > TIE_NM) return d;
-    if (a.alignment !== b.alignment) return a.alignment - b.alignment;
-    return b.leg - a.leg;
-  };
-}
-
-function select(
+/** Unpassed legs whose destination lies within the cone of `cog`, best first. */
+function aheadCandidates(
   metrics: LegMetrics[],
-  reference: (m: LegMetrics) => number,
+  cog: number,
   coneHalfAngleDeg: number,
-  corridorNM: number,
-): Selection | null {
+): Candidate[] {
   const candidates: Candidate[] = [];
   for (const m of metrics) {
     if (m.passed) continue;
-    const ref = reference(m);
-    if (Math.abs(bearingDelta(m.brgToDest, ref)) > coneHalfAngleDeg) continue;
-    candidates.push({ ...m, alignment: Math.abs(bearingDelta(m.legBrg, ref)) });
+    if (Math.abs(bearingDelta(m.brgToDest, cog)) > coneHalfAngleDeg) continue;
+    candidates.push({ ...m, alignment: Math.abs(bearingDelta(m.legBrg, cog)) });
   }
-  const near = candidates.filter((c) => c.xtd <= corridorNM);
-  if (near.length > 0) {
-    return { leg: near.sort(rank((c) => c.xtd))[0].leg, far: false };
-  }
-  if (candidates.length > 0) {
-    return {
-      leg: candidates.sort(rank((c) => c.distToDest))[0].leg,
-      far: true,
-    };
-  }
-  return null;
+  return candidates.sort(rank);
+}
+
+/** Unpassed legs by proximity, best first. */
+function nearestCandidates(metrics: LegMetrics[]): Candidate[] {
+  return metrics
+    .filter((m) => !m.passed)
+    .map((m) => ({ ...m, alignment: 0 }))
+    .sort(rank);
 }
 
 function resolveOptions(opts: JoinOptions) {
@@ -214,6 +210,17 @@ function resolveOptions(opts: JoinOptions) {
     corridor:
       opts.corridorNM ?? Math.max(CORRIDOR_FLOOR_NM, 2 * opts.arrivalRadiusNM),
   };
+}
+
+/** The per-leg numbers behind a choice, for tests and the review tool. */
+export function describeJoinLegs(
+  fix: JoinFix,
+  route: Route,
+  opts: JoinOptions,
+): LegMetrics[] {
+  if (route.waypoints.length < 2) return [];
+  const { corridor } = resolveOptions(opts);
+  return legMetrics(fix, route.waypoints, opts.arrivalRadiusNM, corridor);
 }
 
 export function pickJoinLeg(
@@ -227,21 +234,19 @@ export function pickJoinLeg(
   const metrics = legMetrics(fix, waypoints, opts.arrivalRadiusNM, corridor);
 
   if (fix.cog !== null) {
-    const cog = fix.cog;
-    const ahead = select(metrics, () => cog, cone, corridor);
-    if (ahead) {
-      return { legIndex: ahead.leg, reason: ahead.far ? "ahead-far" : "ahead" };
+    const [best] = aheadCandidates(metrics, fix.cog, cone);
+    if (best) {
+      return {
+        legIndex: best.leg,
+        reason: best.xtd <= corridor ? "ahead" : "ahead-far",
+      };
     }
   }
-  const along = select(metrics, (m) => m.legBrg, cone, corridor);
-  if (along) return { legIndex: along.leg, reason: "along-leg" };
-
-  const unpassed = metrics.filter((m) => !m.passed);
-  if (unpassed.length === 0) {
-    return { legIndex: waypoints.length - 1, reason: "nearest" };
-  }
-  unpassed.sort((a, b) => a.distToDest - b.distToDest);
-  return { legIndex: unpassed[0].leg, reason: "nearest" };
+  const [nearest] = nearestCandidates(metrics);
+  return {
+    legIndex: nearest ? nearest.leg : waypoints.length - 1,
+    reason: "nearest",
+  };
 }
 
 /**
@@ -259,8 +264,8 @@ export function suggestReverse(
   const { cone, corridor } = resolveOptions(opts);
   const onLeg = (waypoints: readonly Waypoint[]) => {
     const metrics = legMetrics(fix, waypoints, opts.arrivalRadiusNM, corridor);
-    const s = select(metrics, () => cog, cone, corridor);
-    return s !== null && !s.far;
+    const [best] = aheadCandidates(metrics, cog, cone);
+    return best !== undefined && best.xtd <= corridor;
   };
   return !onLeg(route.waypoints) && onLeg([...route.waypoints].reverse());
 }
