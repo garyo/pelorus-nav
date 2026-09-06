@@ -5,7 +5,7 @@ Notable user-facing changes to Pelorus Nav. Downloads are on the
 
 The format follows [Keep a Changelog](https://keepachangelog.com/).
 
-## [Unreleased]
+## [0.24.0] - 2026-09-06
 
 ### Added
 - Tapping a route on the chart offers **Navigate route** (or Stop
