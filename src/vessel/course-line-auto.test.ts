@@ -40,8 +40,8 @@ describe("autoAheadPx", () => {
 
   it("shortens for a course toward a near side edge (the reported case)", () => {
     // Vessel left of centre heading east-north-east on a phone in north-up:
-    // the old rule floored the line at half the height (390 px) and ran it
-    // off the right edge ~330 px away.
+    // the right edge is ~330 px away along the course, so the line must be
+    // shorter than that, and never shorter than the floor.
     const px = autoAheadPx({ x: 148, y: 437 }, 60, phone);
     expect(px).toBeLessThan(330);
     expect(px).toBeGreaterThanOrEqual(MIN_FRACTION * 360);

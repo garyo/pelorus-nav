@@ -16,8 +16,8 @@ import {
 } from "./bundle";
 import { type TideEvent, tideState } from "./predictor";
 
-/** The nearest station plus up to this many alternatives are considered. */
-export const NEAREST_TIDE_COUNT = 4;
+/** Up to this many alternatives beyond the nearest station are considered. */
+export const NEAREST_TIDE_ALTERNATIVES = 3;
 /** Next-event times closer than this agree. */
 export const TIDE_AGREE_MIN = 10;
 /**
@@ -46,7 +46,8 @@ export interface NearestTideResult {
 
 export interface NearestTideOptions {
   maxNM?: number;
-  count?: number;
+  /** Alternatives to consider beyond the nearest station. */
+  alternatives?: number;
   agreeMin?: number;
 }
 
@@ -77,7 +78,7 @@ export function chooseNearestTide(
   opts: NearestTideOptions = {},
 ): NearestTideResult | null {
   const maxNM = opts.maxNM ?? DEFAULT_NEAREST_STATION_NM;
-  const count = opts.count ?? NEAREST_TIDE_COUNT;
+  const limit = 1 + (opts.alternatives ?? NEAREST_TIDE_ALTERNATIVES);
   const agreeMs = (opts.agreeMin ?? TIDE_AGREE_MIN) * MIN_MS;
   const from = new Date(at.getTime() - BACK_PAD_HRS * 3_600_000);
 
@@ -87,7 +88,7 @@ export function chooseNearestTide(
     lat,
     lon,
     maxNM,
-    count,
+    limit,
   )) {
     const state = tideState(station, index, from, WINDOW_HRS);
     const next = state?.events.find((e) => e.time >= at);

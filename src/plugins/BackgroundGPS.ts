@@ -340,6 +340,13 @@ export interface BackgroundGPSPlugin {
   ): Promise<PluginListenerHandle>;
 
   /**
+   * Whether a track is being recorded from the device GPS. While it is, the
+   * native service survives an OS kill and keeps buffering fixes for the
+   * next launch. Android only.
+   */
+  setRecordingDemand(options: { recording: boolean }): Promise<void>;
+
+  /**
    * Open the system dialog that exempts the app from battery optimization,
    * unless it already is. Android only; resolves once the request is made.
    */

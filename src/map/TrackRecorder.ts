@@ -139,6 +139,9 @@ export class TrackRecorder {
    * orphan zero-point meta in IDB.
    */
   private resumePromise: Promise<void> | null = null;
+  /** True while ingestBacklog feeds fixes; per-fix listener/resume-key
+   *  updates are held until it finishes. */
+  private ingesting = false;
 
   constructor(navManager: NavigationDataManager) {
     this.navManager = navManager;
@@ -221,6 +224,7 @@ export class TrackRecorder {
     };
     this.navManager.subscribe(this.navCallback);
     this.updateNativeNotification("Recording track");
+    this.setNativeRecordingDemand(true);
     this.notify();
   }
 
@@ -268,6 +272,7 @@ export class TrackRecorder {
     this.resumePromise = null;
     localStorage.removeItem(ACTIVE_TRACK_KEY);
     this.updateNativeNotification("Navigating");
+    this.setNativeRecordingDemand(false);
     this.notify();
 
     if (
@@ -327,6 +332,12 @@ export class TrackRecorder {
     BackgroundGPS.setNotificationText({ text }).catch(console.error);
   }
 
+  /** Keeps the native GPS service alive across an OS kill while recording. */
+  private setNativeRecordingDemand(recording: boolean): void {
+    if (Capacitor.getPlatform() !== "android") return;
+    BackgroundGPS.setRecordingDemand({ recording }).catch(console.error);
+  }
+
   onRecordingChange(fn: RecorderListener): void {
     this.listeners.push(fn);
   }
@@ -350,23 +361,39 @@ export class TrackRecorder {
     if (this.resumePromise) await this.resumePromise;
     const sorted = [...points].sort((a, b) => a.timestamp - b.timestamp);
     let recorded = 0;
-    for (const data of sorted) {
-      if (data.timestamp <= this.lastRecordedTime) continue;
-      const before = this.currentTrack;
-      const countBefore = before?.pointCount ?? 0;
-      try {
-        await this.onNavData(data);
-      } catch (err) {
-        this.recordSaveError(err);
-        break;
+    // Listeners (the track manager re-reads every track meta on each
+    // notify) and the resume key are updated once at the end, not per fix.
+    this.ingesting = true;
+    try {
+      for (const data of sorted) {
+        if (data.timestamp <= this.lastRecordedTime) continue;
+        const before = this.currentTrack;
+        const countBefore = before?.pointCount ?? 0;
+        try {
+          await this.onNavData(data);
+        } catch (err) {
+          this.recordSaveError(err);
+          break;
+        }
+        const after = this.currentTrack;
+        if (after && (after !== before || after.pointCount > countBefore)) {
+          recorded++;
+        }
       }
-      const after = this.currentTrack;
-      if (after && (after !== before || after.pointCount > countBefore)) {
-        recorded++;
-      }
+    } finally {
+      this.ingesting = false;
+    }
+    if (recorded > 0) {
+      this.persistActiveTrack();
+      this.notify();
     }
     diag("rec", `backlog n=${sorted.length} recorded=${recorded}`);
     return recorded;
+  }
+
+  private persistActiveTrack(): void {
+    if (!this.currentTrack) return;
+    localStorage.setItem(ACTIVE_TRACK_KEY, JSON.stringify(this.currentTrack));
   }
 
   /**
@@ -421,6 +448,27 @@ export class TrackRecorder {
 
     const now = data.timestamp;
 
+    // Time gap → start a new track. Checked before the glitch test, which
+    // must never measure a fix against an anchor from the previous track
+    // (a resumed track's last point can be days old).
+    if (
+      this.currentTrack &&
+      this.lastRecordedTime > 0 &&
+      now - this.lastRecordedTime > GAP_THRESHOLD_MS
+    ) {
+      // Save final state of old track before starting new one
+      if (this.trackPersisted) {
+        await saveTrackMeta(await this.mergeWithStoredMeta(this.currentTrack));
+      }
+      this.currentTrack = null;
+      this.trackPersisted = false;
+      // Treat the first post-gap fix as a first point: without this, the
+      // segment distance below is computed against the old track's last fix,
+      // and the gap-jump itself (anchored overnight, motored off at dawn)
+      // gets baked into the new track's totalDistanceNM.
+      this.lastRecordedTime = 0;
+    }
+
     // Single-point glitch reject: gap + implausibly high implied speed
     // signals a "GPS came back online in the wrong place" fix. Drop it;
     // we leave lastLat/lastLon/lastRecordedTime untouched so the *next*
@@ -447,25 +495,6 @@ export class TrackRecorder {
         return;
       }
       this.glitchRejectedSinceAccept = false;
-    }
-
-    // Check for time gap → start new track
-    if (
-      this.currentTrack &&
-      this.lastRecordedTime > 0 &&
-      now - this.lastRecordedTime > GAP_THRESHOLD_MS
-    ) {
-      // Save final state of old track before starting new one
-      if (this.trackPersisted) {
-        await saveTrackMeta(await this.mergeWithStoredMeta(this.currentTrack));
-      }
-      this.currentTrack = null;
-      this.trackPersisted = false;
-      // Treat the first post-gap fix as a first point: without this, the
-      // segment distance below is computed against the old track's last fix,
-      // and the gap-jump itself (anchored overnight, motored off at dawn)
-      // gets baked into the new track's totalDistanceNM.
-      this.lastRecordedTime = 0;
     }
 
     // Throttle: min 1 second between points
@@ -580,9 +609,9 @@ export class TrackRecorder {
       this.currentTrack = await this.mergeWithStoredMeta(this.currentTrack);
       await saveTrackMeta(this.currentTrack);
     }
+    if (this.ingesting) return;
     this.notify();
-
     // Persist active track ID for resume-after-refresh
-    localStorage.setItem(ACTIVE_TRACK_KEY, JSON.stringify(this.currentTrack));
+    this.persistActiveTrack();
   }
 }

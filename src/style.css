@@ -129,7 +129,7 @@ body {
   flex-direction: column;
   position: fixed;
   z-index: 50;
-  top: 40px;
+  top: calc(40px + var(--safe-top));
   right: calc(12px + var(--safe-right));
   /* Cap to the viewport so a tall tab (or short landscape screen) scrolls
      instead of spilling past the bottom edge unreachably. vh fallback first in

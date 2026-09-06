@@ -3,19 +3,19 @@ package nav.pelorus.plugins.backgroundgps
 import android.content.Context
 
 /**
- * Durable record that the app wants GPS tracking.
+ * Durable record that a track is being recorded from the device GPS.
  *
- * The demand itself lives in the service companion
- * ([BackgroundTrackService.trackingRequested]) and dies with the process.
- * Under way with the screen off, an OS kill — battery management, low
- * memory — used to end recording until the user next opened the app, and
- * the track simply stopped. With the demand on disk the service is
- * START_STICKY while tracking is wanted and re-adopts the demand in
- * onCreate when Android recreates it, so the buffer keeps filling for the
- * next launch to drain.
+ * The service companion's state dies with the process, and a recording
+ * must not: with this on disk the service is START_STICKY and re-adopts
+ * the demand in onCreate when Android recreates it after an OS kill, so
+ * the buffer keeps filling for the next launch to drain. It is written
+ * from the app's recording state (setRecordingDemand), not from the
+ * device-GPS provider merely connecting — a chart being viewed is not a
+ * recording, and must not leave a GPS service running with no consumer.
  *
- * Only an explicit stop clears it: the JS provider's stopTracking, or the
- * notification's Stop action. A process kill deliberately leaves it.
+ * Only an explicit end clears it: the app stopping the recording or the
+ * device-GPS provider, or the notification's Stop action. A process kill
+ * deliberately leaves it.
  */
 object RecordingDemandStore {
 

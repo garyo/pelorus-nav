@@ -53,6 +53,9 @@ export class CapacitorGPSProvider implements NavigationDataProvider {
   private drainRequested = false;
   private visibilityHandler: (() => void) | null = null;
   private backlogSink: BacklogSink | null = null;
+  /** The connect-time backlog ingest; a drain waits for it so the track
+   *  receives history before live fixes. */
+  private ingest: Promise<void> | null = null;
   /**
    * Serializes start/stop chains: connect() and disconnect() spawn async
    * native calls, and a quick toggle (or resetActiveProvider's
@@ -198,16 +201,19 @@ export class CapacitorGPSProvider implements NavigationDataProvider {
     // fixes the service kept recording after the last JS died mid-trip (an
     // OS kill under way, a WebView reload). It must not replay through the
     // filter as if it were live, but it is the missing piece of the track,
-    // so it goes to the backlog sink — before the live listener is
-    // registered, so no drain can interleave with it — and is then pruned.
+    // so it goes to the backlog sink and is then pruned. The ingest runs
+    // in the background — thousands of fixes take a while on a slow
+    // device, and the live position must not wait for them — and drain()
+    // waits for it, so the track still receives history before live fixes.
     const connectTimestamp = Date.now();
     this.lastSeenTimestamp = connectTimestamp;
 
     const existing = await BackgroundGPS.getRecordedPoints({
       sinceTimestamp: 0,
     }).catch(() => ({ points: [] as TrackPointNative[] }));
+    let backlog: TrackPointNative[] = [];
     if (existing.points.length > 0) {
-      const backlog = existing.points
+      backlog = existing.points
         .filter(
           (p) =>
             p.timestamp <= connectTimestamp &&
@@ -223,19 +229,21 @@ export class CapacitorGPSProvider implements NavigationDataProvider {
         "drain",
         `connect ${fate} n=${existing.points.length} ageMs=${connectTimestamp - newest} spanMs=${newest - oldest}`,
       );
-      if (fate === "recover" && this.backlogSink) {
+    }
+    const sink = this.backlogSink;
+    this.ingest = (async () => {
+      if (sink && backlog.length > 0) {
         try {
-          await this.backlogSink(backlog.map(toNavigationData));
+          await sink(backlog.map(toNavigationData));
         } catch (err) {
           console.error("Backlog recovery failed:", err);
           diag("drain", `backlog recovery failed: ${String(err)}`);
         }
       }
-    }
-
-    await BackgroundGPS.pruneRecordedPoints({
-      beforeTimestamp: this.lastSeenTimestamp,
-    }).catch(console.error);
+      await BackgroundGPS.pruneRecordedPoints({
+        beforeTimestamp: connectTimestamp,
+      }).catch(console.error);
+    })();
 
     // Bridge events are wakeups, not data: every fix is in SQLite already,
     // and reading back from SQLite is what gives us race-free ordering.
@@ -308,6 +316,7 @@ export class CapacitorGPSProvider implements NavigationDataProvider {
     if (this.draining) return;
     this.draining = true;
     try {
+      if (this.ingest) await this.ingest;
       do {
         this.drainRequested = false;
         const { points } = await BackgroundGPS.getRecordedPoints({

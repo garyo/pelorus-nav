@@ -27,16 +27,32 @@ function fakeHost(
   const setStatus = vi.fn();
   const flyTo = vi.fn();
   const fire = vi.fn();
+  const setLayerGroupEnabled = vi.fn();
+  let panelAvailable = true;
   const host = {
     nav: { lastFix: () => fix },
     map: { raw: { getCenter: () => centre, getZoom: () => 9, flyTo, fire } },
-    settings: { get: () => ({ depthUnit: "feet" }) },
+    settings: { get: () => ({ depthUnit: "feet" }), setLayerGroupEnabled },
     ui: {
-      showInfo: (infos: FeatureInfo[]) => shown.push(infos),
+      showInfo: (infos: FeatureInfo[]) => {
+        if (!panelAvailable) return false;
+        shown.push(infos);
+        return true;
+      },
       setStatus,
     },
   } as unknown as PluginHost;
-  return { host, shown, setStatus, flyTo, fire };
+  return {
+    host,
+    shown,
+    setStatus,
+    flyTo,
+    fire,
+    setLayerGroupEnabled,
+    blockPanel: () => {
+      panelAvailable = false;
+    },
+  };
 }
 
 const deps = (b: TidesBundle = bundle) => ({
@@ -62,14 +78,15 @@ describe("createNearestTideAction", () => {
     expect(card.actions?.map((a) => a.label)).toEqual(["Show on chart"]);
   });
 
-  it("'Show on chart' flies to the station and releases follow mode", async () => {
-    const { host, shown, flyTo, fire } = fakeHost({
+  it("'Show on chart' turns the tides layer on, flies to the station and releases follow mode", async () => {
+    const { host, shown, flyTo, fire, setLayerGroupEnabled } = fakeHost({
       lat: 42.354,
       lon: -71.05,
       stale: false,
     });
     await createNearestTideAction(host, deps())();
     shown[0][0].actions?.[0].run();
+    expect(setLayerGroupEnabled).toHaveBeenCalledWith("tidesCurrents", true);
     expect(fire).toHaveBeenCalledWith("pelorus:navigate");
     expect(flyTo).toHaveBeenCalledWith({
       center: [-71.05028, 42.35389],
@@ -106,6 +123,14 @@ describe("createNearestTideAction", () => {
     expect(shown[1][0].name).toBe("Far Cove");
     // …whose card offers the way back.
     expect(shown[1][0].actions?.[1].label).toMatch(/^BOSTON · /);
+  });
+
+  it("says so when another mode holds the info panel", async () => {
+    const h = fakeHost({ lat: 42.354, lon: -71.05, stale: false });
+    h.blockPanel();
+    await createNearestTideAction(h.host, deps())();
+    expect(h.shown).toEqual([]);
+    expect(h.setStatus).toHaveBeenCalledWith("Finish editing to see tides");
   });
 
   it("reports when no station is in range or the data is unavailable", async () => {

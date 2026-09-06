@@ -201,8 +201,10 @@ export interface UiRegistrar {
    * Show feature-info cards in the app's info panel — the same panel a chart
    * tap opens, with its prev/next cycling — without a map click. For actions
    * that answer a question ("the nearest tide station") rather than a pick.
+   * False when the panel is unavailable (a mode such as route editing owns
+   * the map), so the caller can say so.
    */
-  showInfo(infos: FeatureInfo[]): void;
+  showInfo(infos: FeatureInfo[]): boolean;
 }
 
 export interface HostEvents {
@@ -238,6 +240,8 @@ export interface PluginSettings {
   onChange(fn: (s: Readonly<Settings>) => void): () => void;
   /** Whether a layer-group toggle (core or plugin-registered) is enabled. */
   isLayerGroupEnabled(groupId: string): boolean;
+  /** Turn a layer group on or off, as the Layers settings tab would. */
+  setLayerGroupEnabled(groupId: string, enabled: boolean): void;
   /** Read this plugin's own setting, falling back to its schema default. */
   getOwn<T = unknown>(key: string): T | undefined;
   /** Persist one of this plugin's own settings. */

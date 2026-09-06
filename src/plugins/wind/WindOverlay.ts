@@ -309,7 +309,11 @@ export class WindOverlay implements MapOverlay {
         this.host.time.now().getTime(),
       ),
     );
-    if (need.length === 0) this.setStatus(have.length ? "ok" : "no-data");
+    // Barbs on screen mean things are fine for now, whatever the last
+    // fetch said; an empty view with nothing to fetch has no data here.
+    // An empty view that needs a fetch keeps its status for fetchMissing.
+    if (have.length > 0) this.setStatus("ok");
+    else if (need.length === 0) this.setStatus("no-data");
     return { need, have };
   }
 

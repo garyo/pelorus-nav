@@ -100,7 +100,8 @@ class BackgroundGPSPlugin : Plugin() {
         val armed = BackgroundTrackService.anchorParams != null
         val wanted = BackgroundTrackService.trackingRequested || armed
         val running = BackgroundTrackService.instance != null
-        val stickinessStale = running && BackgroundTrackService.startedSticky != wanted
+        val sticky = armed || BackgroundTrackService.recordingWanted
+        val stickinessStale = running && BackgroundTrackService.startedSticky != sticky
         val intent = Intent(context, BackgroundTrackService::class.java)
         when (serviceDemandAction(wanted, running, stickinessStale)) {
             ServiceDemand.START ->
@@ -181,7 +182,6 @@ class BackgroundGPSPlugin : Plugin() {
         DiagLog.log(context, "plugin", "startTracking")
 
         BackgroundTrackService.trackingRequested = true
-        RecordingDemandStore.save(context, true)
         syncServiceDemand()
         // Already running for an armed anchor watch: nothing started it just
         // now, so nudge it into the tracking role (notification, and the
@@ -230,6 +230,7 @@ class BackgroundGPSPlugin : Plugin() {
         BackgroundTrackService.stoppedListener = null // JS-initiated — no event
         BackgroundTrackService.instance?.cancelPendingPassive()
         BackgroundTrackService.trackingRequested = false
+        BackgroundTrackService.recordingWanted = false
         RecordingDemandStore.save(context, false)
         // Keeps running if an anchor watch is armed — the watch is a client of
         // its own, and the device GPS provider disconnecting (or the app going
@@ -479,6 +480,20 @@ class BackgroundGPSPlugin : Plugin() {
         } catch (e: Exception) {
             DiagLog.log(context, "plugin", "battery exemption request failed: ${e.message}")
         }
+    }
+
+    /**
+     * The app's recording state: while a track is being recorded from the
+     * device GPS the service is sticky and the demand is on disk, so an OS
+     * kill under way does not end the recording (see RecordingDemandStore).
+     */
+    @PluginMethod
+    fun setRecordingDemand(call: PluginCall) {
+        val recording = call.getBoolean("recording", false) == true
+        BackgroundTrackService.recordingWanted = recording
+        RecordingDemandStore.save(context, recording)
+        syncServiceDemand()
+        call.resolve()
     }
 
     /**

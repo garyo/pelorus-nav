@@ -4,6 +4,7 @@
  * a button for each nearby station that would give a different answer.
  */
 
+import type { FeatureInfo } from "../../chart/feature-info";
 import { loadTidesIndex, type TidesIndex } from "../../tides/bundle";
 import {
   chooseNearestTide,
@@ -23,6 +24,8 @@ export interface NearestTideDeps {
 const STATUS_MS = 4000;
 /** "Show on chart" zooms in at least this far — the station icon needs it. */
 const STATION_ZOOM = 12;
+/** The layer group that draws the stations (tides plugin manifest). */
+const TIDES_LAYER_GROUP = "tidesCurrents";
 
 export function createNearestTideAction(
   host: PluginHost,
@@ -62,7 +65,12 @@ export function createNearestTideAction(
       flash("No tide station within 25 nm");
       return;
     }
-    host.ui.showInfo([cardFor(result.primary, result)]);
+    show(cardFor(result.primary, result));
+
+    /** The info panel is unavailable while another mode owns the map. */
+    function show(card: FeatureInfo): void {
+      if (!host.ui.showInfo([card])) flash("Finish editing to see tides");
+    }
 
     function cardFor(choice: StationChoice, all: NearestTideResult) {
       const { depthUnit } = host.settings.get();
@@ -76,6 +84,9 @@ export function createNearestTideAction(
             label: "Show on chart",
             run: () => {
               const map = host.map.raw;
+              // The station is drawn by the Tides & Currents layer, which is
+              // off by default: flying to an empty patch of water helps no one.
+              host.settings.setLayerGroupEnabled(TIDES_LAYER_GROUP, true);
               // A deliberate look-away, like a search result: release follow
               // mode so the next fix doesn't snap the camera back.
               map.fire("pelorus:navigate" as never);
@@ -87,7 +98,7 @@ export function createNearestTideAction(
           },
           ...others.map((other) => ({
             label: formatStationChoice(other, now, depthUnit),
-            run: () => host.ui.showInfo([cardFor(other, all)]),
+            run: () => show(cardFor(other, all)),
           })),
         ],
       });

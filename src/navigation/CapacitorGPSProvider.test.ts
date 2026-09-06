@@ -298,7 +298,7 @@ describe("CapacitorGPSProvider backlog recovery", () => {
     vi.unstubAllGlobals();
   });
 
-  it("hands the buffered fixes to the sink before the live listener exists, then prunes", async () => {
+  it("hands the buffered fixes to the sink without holding up the live listener, and a drain waits for the ingest", async () => {
     const now = Date.now();
     mockPlugin.getRecordedPoints.mockResolvedValueOnce({
       points: [
@@ -311,23 +311,39 @@ describe("CapacitorGPSProvider backlog recovery", () => {
       order.push("listener");
       return { remove: vi.fn() };
     });
-    const sink = vi.fn(async (points: NavigationData[]) => {
-      order.push(`sink:${points.length}`);
-    });
+    let finishIngest: () => void = () => {};
+    const sink = vi.fn(
+      (points: NavigationData[]) =>
+        new Promise<void>((resolve) => {
+          order.push(`sink:${points.length}`);
+          finishIngest = resolve;
+        }),
+    );
     provider.setBacklogSink(sink);
 
     provider.connect();
     await settle();
 
-    expect(order[0]).toBe("sink:2");
+    // The listener and native start do not wait for a slow ingest…
+    expect(order).toEqual(["sink:2", "listener", "listener", "listener"]);
+    expect(mockPlugin.startTracking).toHaveBeenCalledTimes(1);
     expect(sink.mock.calls[0][0].map((d) => d.timestamp)).toEqual([
       now - 30 * MIN,
       now - 29 * MIN,
     ]);
-    // History is recorded, never broadcast as live data.
+    // …but a live drain does, so history reaches the track first.
+    mockPlugin.getRecordedPoints.mockResolvedValueOnce({
+      points: [pt(now + 1000, 42.2, -71.2)],
+    });
+    const drained = provider.drain();
+    await settle();
     expect(received).toEqual([]);
-    expect(mockPlugin.pruneRecordedPoints).toHaveBeenCalledTimes(1);
-    expect(mockPlugin.startTracking).toHaveBeenCalledTimes(1);
+    expect(mockPlugin.pruneRecordedPoints).not.toHaveBeenCalled();
+    finishIngest();
+    await drained;
+    // History was recorded, never broadcast; the live fix was.
+    expect(received.map((d) => d.timestamp)).toEqual([now + 1000]);
+    expect(mockPlugin.pruneRecordedPoints).toHaveBeenCalledTimes(2);
   });
 
   it("leaves rows newer than the connect for the first live drain", async () => {

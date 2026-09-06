@@ -252,6 +252,14 @@ class BackgroundTrackService : Service() {
         @Volatile var trackingRequested: Boolean = false
 
         /**
+         * A track is being recorded from this GPS (the app's recording
+         * state, pushed by the plugin's setRecordingDemand and persisted in
+         * [RecordingDemandStore]). The reason the service is START_STICKY
+         * without an anchor watch — see [startResult].
+         */
+        @Volatile var recordingWanted: Boolean = false
+
+        /**
          * Which alarm the JS watch is asking noise for ([ANCHOR_ALARM_DRAG] or
          * [ANCHOR_ALARM_GPS_LOSS]), null when it wants none. Set by the
          * plugin's setAnchorAlarmSound(). All anchor-alarm sound is made here,
@@ -535,9 +543,10 @@ class BackgroundTrackService : Service() {
         // off, so start in the passive cadence.
         if (!trackingRequested && RecordingDemandStore.load(this)) {
             trackingRequested = true
+            recordingWanted = true
             trackingRestoredFromStore = true
             currentMode = MODE_PASSIVE
-            Log.i(TAG, "Restored tracking demand after process restart")
+            Log.i(TAG, "Restored recording demand after process restart")
         }
         // Satisfy the startForegroundService() deadline as the very first
         // thing: at cold boot the main looper is saturated with WebView
@@ -707,14 +716,16 @@ class BackgroundTrackService : Service() {
      * Stop or the alarm's Silence — actions that must not be replayed against a
      * freshly restored watch.
      *
-     * START_STICKY while tracking is wanted, for the same reason: a recording
-     * the OS kills under way must keep buffering fixes for the next launch to
-     * drain — [onCreate] re-adopts the demand from [RecordingDemandStore].
-     * An explicit stop (JS stopTracking, the notification's Stop) clears the
-     * store, so a service nobody wants is never resurrected.
+     * START_STICKY while a track is being recorded, for the same reason: a
+     * recording the OS kills under way must keep buffering fixes for the
+     * next launch to drain — [onCreate] re-adopts the demand from
+     * [RecordingDemandStore]. Merely viewing the chart with the device GPS is
+     * not sticky: an explicit end (the app stopping the recording or the
+     * provider, the notification's Stop) clears the store, so a service
+     * nobody wants is never resurrected.
      */
     private fun startResult(): Int {
-        val sticky = anchorParams != null || trackingRequested
+        val sticky = anchorParams != null || recordingWanted
         startedSticky = sticky
         return if (sticky) START_STICKY else START_NOT_STICKY
     }
@@ -728,6 +739,7 @@ class BackgroundTrackService : Service() {
             // and leak per-fix callbacks if the service were ever restarted.
             DiagLog.log(this, "svc", "stopped via notification action")
             trackingRequested = false
+            recordingWanted = false
             RecordingDemandStore.save(this, false)
             locationListener = null
             stoppedListener?.invoke("notification")

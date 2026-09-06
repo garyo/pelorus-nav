@@ -26,6 +26,7 @@ import {
   registerPluginSettingsSchema,
   type Settings,
   setPluginSetting,
+  updateSettings,
 } from "../settings";
 import {
   displayTime,
@@ -68,7 +69,7 @@ export interface HostDeps {
   /** Register a predicate that suppresses chart picks while it returns true. */
   suppressPick: (active: () => boolean) => void;
   /** Show feature-info cards in the app's info panel (ui.showInfo). */
-  showInfos: (infos: FeatureInfo[]) => void;
+  showInfos: (infos: FeatureInfo[]) => boolean;
 }
 
 /** Per-plugin teardown handle returned by `createHost`. */
@@ -271,7 +272,7 @@ export function activatePlugin(plugin: Plugin, deps: HostDeps): ActivePlugin {
         return handle;
       },
       showInfo(infos) {
-        deps.showInfos(infos);
+        return deps.showInfos(infos);
       },
     },
 
@@ -340,6 +341,11 @@ export function activatePlugin(plugin: Plugin, deps: HostDeps): ActivePlugin {
       },
       isLayerGroupEnabled(groupId: string) {
         return isLayerGroupEnabled(groupId);
+      },
+      setLayerGroupEnabled(groupId: string, enabled: boolean) {
+        updateSettings({
+          layerGroups: { ...getSettings().layerGroups, [groupId]: enabled },
+        });
       },
       getOwn<T = unknown>(key: string): T | undefined {
         const stored = getPluginSetting<T>(manifest.id, key);

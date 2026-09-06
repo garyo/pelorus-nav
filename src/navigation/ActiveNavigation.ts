@@ -273,6 +273,9 @@ export class ActiveNavigationManager {
       this.state.waypoint.temporary &&
       result.distanceNM < getSettings().arrivalRadiusNM
     ) {
+      // Subscribers must see the goto state before it ends: the target's
+      // cleanup keys on having been told about it.
+      this.notify();
       this.emitArrival({
         route: null,
         waypoint: this.state.waypoint,

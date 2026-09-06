@@ -481,14 +481,15 @@ export class FeatureQueryHandler {
   /**
    * Show plugin-built cards without a map click (a plugin action answering
    * "what's near me"). Same list, panel and prev/next cycling as a pick.
-   * Ignored outside query mode, where a mode takeover (route editing) owns
+   * False outside query mode, where a mode takeover (route editing) owns
    * the map and dismisses the panel.
    */
-  showInfos(infos: FeatureInfo[]): void {
-    if (getMode() !== "query" || infos.length === 0) return;
+  showInfos(infos: FeatureInfo[]): boolean {
+    if (getMode() !== "query" || infos.length === 0) return false;
     this.currentItems = infos.map((info) => ({ kind: "info", info }));
     this.currentIndex = 0;
     this.showCurrent();
+    return true;
   }
 
   private showCurrent(): void {

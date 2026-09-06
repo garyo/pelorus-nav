@@ -504,9 +504,9 @@ export function createContextMenu(deps: ContextMenuDeps): ContextMenuHandle {
   document.addEventListener("click", (e) => {
     if (!menu.contains(e.target as Node)) hide();
   });
-  // Only a user gesture dismisses. Follow modes recentre the chart on every
-  // fix with a programmatic jumpTo (no originalEvent), which closed the
-  // menu the instant a long-pressing finger lifted under way.
+  // Only a user gesture dismisses: follow modes recentre the chart on every
+  // fix with a programmatic jumpTo (no originalEvent), and the menu must
+  // outlive that.
   map.on("movestart", (e) => {
     if ((e as unknown as maplibregl.MapMouseEvent).originalEvent) hide();
   });

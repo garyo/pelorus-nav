@@ -64,7 +64,7 @@ function activateTestPlugin(
     } as unknown as LegendHost,
     topbar: { register: vi.fn() },
     suppressPick: vi.fn(),
-    showInfos: vi.fn(),
+    showInfos: vi.fn(() => true),
     ...overrides,
   };
   activatePlugin(plugin, deps);
@@ -144,11 +144,11 @@ describe("PluginHost nav.lastFix and ui.showInfo", () => {
     expect(host.nav.lastFix()).toBeNull();
   });
 
-  it("forwards showInfo to the app's info panel", () => {
-    const showInfos = vi.fn();
+  it("forwards showInfo to the app's info panel and reports whether it showed", () => {
+    const showInfos = vi.fn(() => false);
     const host = activateTestPlugin(createFakeMap(), [], { showInfos });
     const info = { type: "Tide Station", name: "Boston", details: [] };
-    host.ui.showInfo([info]);
+    expect(host.ui.showInfo([info])).toBe(false);
     expect(showInfos).toHaveBeenCalledWith([info]);
   });
 });

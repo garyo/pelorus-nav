@@ -1041,7 +1041,8 @@ gps.capacitorGPS?.setBacklogSink(async (points) => {
   showToast({
     message: notice.message,
     durationMs: 12_000,
-    ...(notice.interrupted
+    // The exemption dialog is Android's; iOS has no equivalent to offer.
+    ...(notice.interrupted && Capacitor.getPlatform() === "android"
       ? {
           actionLabel: "Battery settings",
           onAction: () => {
@@ -1245,11 +1246,15 @@ activeNav.onReverseSuggested((route) => {
     actionLabel: "Reverse route",
     durationMs: 12_000,
     onAction: () => {
-      reverseWaypoints(route);
-      saveRoute(route)
+      // A copy: the manager is still navigating the original, and a fix
+      // arriving during the save must not run auto-advance against
+      // reversed waypoints with the old leg index.
+      const reversed = { ...route, waypoints: [...route.waypoints] };
+      reverseWaypoints(reversed);
+      saveRoute(reversed)
         .then(() => {
-          routeLayer.updateRoute(route);
-          activeNav.startRoute(route);
+          routeLayer.updateRoute(reversed);
+          activeNav.startRoute(reversed);
         })
         .catch(console.error);
     },

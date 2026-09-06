@@ -1482,8 +1482,8 @@ export function getDaymarkTopmarkLayers(
 /**
  * The fog-signal arc (S-52 FOGSIG01) beside a buoy or light. Drawn after the
  * buoys and beacons: it neither collides nor is collided with, so its place
- * in the layer order is purely paint order, and under the buoy label's halo
- * it was invisible. Details via cursor pick.
+ * in the layer order is purely paint order, and it has to paint over the
+ * buoy label's halo to be seen. Details via cursor pick.
  */
 export function getFogSignalIconLayer(ctx: StyleContext): LayerSpecification {
   const fogsig = ctx.layerExprs("FOGSIG");
