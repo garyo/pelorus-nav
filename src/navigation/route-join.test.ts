@@ -88,15 +88,53 @@ describe("pickJoinLeg — joining a route mid-way", () => {
     });
   });
 
-  it("sailing the route backwards steers for the waypoint ahead, and suggests reversing", () => {
-    // Between WP2 and WP3 heading west: WP3 is astern, WP2 is dead ahead
-    // (beyond its own leg's end, but that perpendicular only counts when
-    // the vessel is on that leg).
+  it("sailing the route backwards keeps the leg the vessel is on, and suggests reversing", () => {
+    // Between WP2 and WP3 heading west: WP3 is astern and WP2 dead ahead,
+    // but the vessel is already past WP2's perpendicular — steering for it
+    // would only chime and advance on the next fix. Stay on leg 3 and offer
+    // the reversed route instead.
     expect(pickJoinLeg(fix(0, 2.5, 270), straight, opts)).toEqual({
-      legIndex: 2,
-      reason: "ahead-far",
+      legIndex: 3,
+      reason: "nearest",
     });
     expect(suggestReverse(fix(0, 2.5, 270), straight, opts)).toBe(true);
+  });
+
+  it("leaving a harbour along a route drawn the other way (field case, 2026-09-06)", () => {
+    // Salem → Boston ending at Lewis Wharf; the vessel is off the wharf
+    // heading out past Boston Main Channel 10 — the last two legs
+    // backwards. Every Boston-area leg is beyond its end, so the pick
+    // used to be a leg 3 NM astern and auto-advance rang the chime twice
+    // on the way back to the last leg.
+    const salemToBoston = route([
+      [42.52156, -70.87783],
+      [42.52207, -70.86756],
+      [42.54111, -70.84795],
+      [42.54451, -70.8318],
+      [42.52878, -70.82638],
+      [42.50492, -70.82277],
+      [42.4955, -70.82353],
+      [42.45997, -70.83375],
+      [42.36986, -70.91793],
+      [42.33845, -70.94579],
+      [42.33484, -70.9704],
+      [42.34473, -71.01092],
+      [42.36351, -71.04879],
+    ]);
+    const leaving = fix(42.35824, -71.04056, 136);
+    expect(pickJoinLeg(leaving, salemToBoston, opts)).toEqual({
+      legIndex: 12,
+      reason: "nearest",
+    });
+    expect(suggestReverse(leaving, salemToBoston, opts)).toBe(true);
+    const reversed = {
+      ...salemToBoston,
+      waypoints: [...salemToBoston.waypoints].reverse(),
+    };
+    expect(pickJoinLeg(leaving, reversed, opts)).toEqual({
+      legIndex: 1,
+      reason: "ahead",
+    });
   });
 
   it("well off the route, picks the destination the course points at", () => {
@@ -250,38 +288,41 @@ describe("pickJoinLeg — randomised invariants", () => {
     }
   });
 
-  it("under way, an 'ahead' choice is the nearest unpassed leg whose destination is in the cone", () => {
+  it("under way, an 'ahead' choice is the nearest open leg whose destination is in the cone", () => {
     for (const s of scenarios) {
       const choice = pickJoinLeg(s.fix, s.route, opts);
       if (choice.reason !== "ahead" && choice.reason !== "ahead-far") continue;
       const legs = describeLegs(s);
       const chosen = legs[choice.legIndex];
       expect(chosen.inCone).toBe(true);
-      expect(chosen.passed).toBe(false);
-      const eligible = legs.filter((l) => l.inCone && !l.passed);
+      expect(chosen.open).toBe(true);
+      const eligible = legs.filter((l) => l.inCone && l.open);
       const nearest = Math.min(...eligible.map((l) => l.xtd));
       expect(chosen.xtd).toBeLessThanOrEqual(nearest + slack(chosen.xtd));
     }
   });
 
-  it("a 'nearest' choice is the nearest unpassed leg, and only when nothing lies ahead", () => {
+  it("a 'nearest' choice is the nearest open leg, and only when nothing lies ahead", () => {
     for (const s of scenarios) {
       const choice = pickJoinLeg(s.fix, s.route, opts);
       if (choice.reason !== "nearest") continue;
       const legs = describeLegs(s);
       // Nothing was ahead (or the vessel is stationary)…
       if (s.fix.cog !== null) {
-        expect(legs.some((l) => l.inCone && !l.passed)).toBe(false);
+        expect(legs.some((l) => l.inCone && l.open)).toBe(false);
       }
-      // …and the pick is the nearest leg not yet passed, if any is left.
+      // …and the pick is the nearest open leg — falling back to the
+      // nearest unpassed one when the vessel is beyond the end of them all.
       const unpassed = legs.filter((l) => !l.passed);
       if (unpassed.length === 0) {
         expect(choice.legIndex).toBe(s.route.waypoints.length - 1);
         continue;
       }
+      const open = unpassed.filter((l) => l.open);
+      const pool = open.length > 0 ? open : unpassed;
       const chosen = legs[choice.legIndex];
-      expect(chosen.passed).toBe(false);
-      const nearest = Math.min(...unpassed.map((l) => l.xtd));
+      expect(pool).toContain(chosen);
+      const nearest = Math.min(...pool.map((l) => l.xtd));
       expect(chosen.xtd).toBeLessThanOrEqual(nearest + slack(chosen.xtd));
     }
   });

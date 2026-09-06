@@ -37,14 +37,16 @@ for (let i = 0; i < count; i++) {
     `#${i + 1}  vessel (${nm(s.fix.lon)}, ${nm(s.fix.lat)}) ${cog}` +
       `  →  leg ${choice.legIndex} (${choice.reason})${reverse ? "  [suggest reverse]" : ""}`,
   );
-  console.log("    leg  waypoint (E, N)     dist   brg   xtd   cone  passed");
+  console.log(
+    "    leg  waypoint (E, N)     dist   brg   xtd   cone  passed  open",
+  );
   for (const l of describeLegs(s)) {
     const wp = s.route.waypoints[l.leg];
     const mark = l.leg === choice.legIndex ? "▶" : " ";
     console.log(
       `  ${mark} ${pad(l.leg, 2)}  (${pad(nm(wp.lon), 5)}, ${pad(nm(wp.lat), 5)})` +
         `  ${pad(l.distToDest.toFixed(1), 5)}  ${pad(Math.round(l.brgToDest), 3)}°` +
-        `  ${pad(l.xtd.toFixed(1), 5)}  ${l.inCone === null ? "  -" : l.inCone ? "yes" : " no"}  ${l.passed ? "yes" : "   "}`,
+        `  ${pad(l.xtd.toFixed(1), 5)}  ${l.inCone === null ? "  -" : l.inCone ? "yes" : " no"}  ${l.passed ? "yes" : "   "}     ${l.open ? "yes" : "   "}`,
     );
   }
   console.log();

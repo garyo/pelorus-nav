@@ -8,6 +8,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/).
 ## [Unreleased]
 
 ### Fixed
+- Starting a route while sailing it the other way (leaving the harbour a
+  route ends at, say) no longer steers for a waypoint the boat is already
+  past, which rang the arrival chime twice and buried the "Reverse route"
+  offer under arrival toasts.
 - The What's New dialog renders the release notes' bold, italic, code and
   links instead of showing the Markdown marks.
 

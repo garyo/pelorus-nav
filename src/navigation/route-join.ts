@@ -2,13 +2,15 @@
  * Which leg to steer for when navigation starts on a route — from anywhere
  * along it, in either direction.
  *
- * Under way, a leg is a candidate when its destination waypoint lies within
- * a forward cone of the course and the vessel has not already passed it;
- * candidates rank by cross-track distance — the leg the vessel is nearest
- * wins — with course alignment, then route order, as tie-breaks. So a
- * vessel level with a waypoint takes the leg leaving it, not the one
- * arriving. Stationary, or when the course points at no leg, the nearest
- * unpassed leg wins outright.
+ * Only open legs are considered: not passed, and not already run past the
+ * end of — auto-advance would drop such a leg on the next fix, so choosing
+ * it would only ring the arrival chime for a waypoint the vessel never
+ * steered for. Under way, an open leg is a candidate when its
+ * destination waypoint lies within a forward cone of the course; candidates
+ * rank by cross-track distance — the leg the vessel is nearest wins — with
+ * course alignment, then route order, as tie-breaks. So a vessel level with
+ * a waypoint takes the leg leaving it, not the one arriving. Stationary, or
+ * when the course points at no leg, the nearest open leg wins outright.
  */
 
 import type { Route, Waypoint } from "../data/Route";
@@ -113,6 +115,12 @@ export interface LegMetrics {
   passed: boolean;
   /** The vessel is beyond the leg's end (for leg 0, beyond its waypoint). */
   beyondEnd: boolean;
+  /**
+   * Still worth steering for: not passed, and — unless this is the final
+   * leg, which only arrival ends — not run past the end of, since
+   * auto-advance would drop such a leg on the next fix.
+   */
+  open: boolean;
 }
 
 function legMetrics(
@@ -128,6 +136,7 @@ function legMetrics(
   const [wp0, wp1] = waypoints;
   const d0 = dist(wp0);
   const beyond0 = alongTrack(wp0, wp1, fix.lat, fix.lon) > 0;
+  const passed0 = d0 < arrivalRadiusNM || (d0 <= corridorNM && beyond0);
   const metrics: LegMetrics[] = [
     {
       leg: 0,
@@ -135,11 +144,13 @@ function legMetrics(
       distToDest: d0,
       brgToDest: brgTo(wp0),
       legBrg: initialBearingDeg(wp0.lat, wp0.lon, wp1.lat, wp1.lon),
-      passed: d0 < arrivalRadiusNM || (d0 <= corridorNM && beyond0),
+      passed: passed0,
       beyondEnd: beyond0,
+      open: !passed0 && !beyond0,
     },
   ];
-  for (let leg = 1; leg < waypoints.length; leg++) {
+  const last = waypoints.length - 1;
+  for (let leg = 1; leg <= last; leg++) {
     const from = waypoints[leg - 1];
     const to = waypoints[leg];
     const legDist = haversineDistanceNM(from.lat, from.lon, to.lat, to.lon);
@@ -147,14 +158,16 @@ function legMetrics(
     const xtd = distanceToLegNM(fix.lat, fix.lon, from, to);
     const beyondEnd =
       alongTrack(from, to, fix.lat, fix.lon) >= legDist - arrivalRadiusNM;
+    const passed = dTo < arrivalRadiusNM || (xtd <= corridorNM && beyondEnd);
     metrics.push({
       leg,
       xtd,
       distToDest: dTo,
       brgToDest: brgTo(to),
       legBrg: initialBearingDeg(from.lat, from.lon, to.lat, to.lon),
-      passed: dTo < arrivalRadiusNM || (xtd <= corridorNM && beyondEnd),
+      passed,
       beyondEnd,
+      open: !passed && (leg === last || !beyondEnd),
     });
   }
   return metrics;
@@ -166,22 +179,28 @@ interface Candidate extends LegMetrics {
 }
 
 /**
- * Rank by cross-track distance. Near-equal distances — a vessel level with
- * the waypoint two legs share, or short of the route's start — go to a leg
- * the vessel has not already run past the end of (the leg leaving that
- * waypoint, not the one arriving), then to the leg best aligned with the
- * course, then to route order.
+ * Rank by cross-track distance. Near-equal distances — a vessel short of
+ * the route's start, or level with the waypoint two legs share — go to the
+ * leg best aligned with the course, then to route order.
  */
 function rank(a: Candidate, b: Candidate): number {
   const d = a.xtd - b.xtd;
   const tie = Math.max(TIE_NM, TIE_FRACTION * Math.max(a.xtd, b.xtd));
   if (Math.abs(d) > tie) return d;
-  if (a.beyondEnd !== b.beyondEnd) return a.beyondEnd ? 1 : -1;
   if (a.alignment !== b.alignment) return a.alignment - b.alignment;
   return a.leg - b.leg;
 }
 
-/** Unpassed legs whose destination lies within the cone of `cog`, best first. */
+/**
+ * Open legs, or — for a vessel beyond the end of every one, which can only
+ * happen with the final leg passed — whatever unpassed legs are left.
+ */
+function openLegs(metrics: LegMetrics[]): LegMetrics[] {
+  const open = metrics.filter((m) => m.open);
+  return open.length > 0 ? open : metrics.filter((m) => !m.passed);
+}
+
+/** Open legs whose destination lies within the cone of `cog`, best first. */
 function aheadCandidates(
   metrics: LegMetrics[],
   cog: number,
@@ -189,17 +208,16 @@ function aheadCandidates(
 ): Candidate[] {
   const candidates: Candidate[] = [];
   for (const m of metrics) {
-    if (m.passed) continue;
+    if (!m.open) continue;
     if (Math.abs(bearingDelta(m.brgToDest, cog)) > coneHalfAngleDeg) continue;
     candidates.push({ ...m, alignment: Math.abs(bearingDelta(m.legBrg, cog)) });
   }
   return candidates.sort(rank);
 }
 
-/** Unpassed legs by proximity, best first. */
+/** Open legs by proximity, best first. */
 function nearestCandidates(metrics: LegMetrics[]): Candidate[] {
-  return metrics
-    .filter((m) => !m.passed)
+  return openLegs(metrics)
     .map((m) => ({ ...m, alignment: 0 }))
     .sort(rank);
 }
