@@ -10,6 +10,7 @@ import {
   type ChangelogSection,
   parseChangelogSection,
 } from "./changelog-parse";
+import { renderInlineMarkdown } from "./inline-markdown";
 
 declare const __APP_VERSION__: string;
 
@@ -75,7 +76,7 @@ class WhatsNewDialog {
     for (const para of section.preamble) {
       const p = document.createElement("p");
       p.className = "whatsnew-preamble";
-      p.textContent = para;
+      p.append(renderInlineMarkdown(para));
       card.appendChild(p);
     }
 
@@ -90,7 +91,7 @@ class WhatsNewDialog {
       ul.className = "whatsnew-list";
       for (const item of group.items) {
         const li = document.createElement("li");
-        li.textContent = item;
+        li.append(renderInlineMarkdown(item));
         ul.appendChild(li);
       }
       card.appendChild(ul);

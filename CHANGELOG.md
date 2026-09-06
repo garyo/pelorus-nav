@@ -5,6 +5,12 @@ Notable user-facing changes to Pelorus Nav. Downloads are on the
 
 The format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [Unreleased]
+
+### Fixed
+- The What's New dialog renders the release notes' bold, italic, code and
+  links instead of showing the Markdown marks.
+
 ## [0.24.0] - 2026-09-06
 
 ### Added
