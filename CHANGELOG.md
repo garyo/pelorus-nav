@@ -18,8 +18,6 @@ The format follows [Keep a Changelog](https://keepachangelog.com/).
   "Beep when passing a waypoint" in Settings → Navigation turns it off.
 - Starting navigation on a route that runs the other way from your course
   offers to reverse it.
-- `bun tools/route-join-scenarios.ts` prints random route-join scenarios
-  with the leg chosen for each, for reviewing the rule.
 - **TIDE** in the top bar shows the nearest tide station's times (from
   your vessel, or the chart centre without a fix), with a "Show on chart"
   button and one for each nearby station whose next high or low differs
@@ -54,9 +52,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/).
 - The zoom buttons and the compass no longer drop the chart out of
   follow, course-up or north-up mode. Pinching and dragging still do.
 - The long-press menu no longer closes by itself while the chart is
-  following a moving vessel, and it now rides along with the chart.
+  following a moving vessel.
 - The context menu's Plot submenu stays on screen near the edges of the
-  display, and opens on tap on touch screens.
+  display, and tapping the "Plot ▸" row opens it (it used to open only on
+  mouse hover, so touch screens could miss it).
 - The auto-length course line stays on screen: it is sized along the
   course to the edge of the display, so a course toward a near edge no
   longer runs the line and its label off the chart; in free mode the
