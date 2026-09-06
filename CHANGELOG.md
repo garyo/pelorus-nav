@@ -30,17 +30,17 @@ The format follows [Keep a Changelog](https://keepachangelog.com/).
   unlocks, for devices whose volume keys never reach the app.
 
 ### Changed
+- Wind barbs: panning or zooming repaints the cached barbs at once but
+  fetches new areas only after the chart has been still for ten seconds
+  (a view with no barbs at all fetches immediately), and fetched wind is
+  kept for two hours instead of thirty minutes — far fewer requests
+  against the forecast service's limit under way.
 - The Plot button moved later in the top bar (after Time), so on a phone
   it lives in the ☰ menu instead of taking one of the visible slots.
 - The bottom-centre chart readout ("ft · °M · ENC"), the feature-info
   card's prev/next footer, the track viewer, the settings panel, the Sun
   popup, the menu dropdown and the top bar's last button now all clear the
   Android navigation bar, in portrait and in landscape.
-- Wind barbs: panning or zooming repaints the cached barbs at once but
-  fetches new areas only after the chart has been still for ten seconds
-  (a view with no barbs at all fetches immediately), and fetched wind is
-  kept for two hours instead of thirty minutes — far fewer requests
-  against the forecast service's limit under way.
 - The bearing line to the waypoint you're navigating to is orange (the
   S-52 user-information colour, per theme) instead of yellow, which the
   chart also uses for special-purpose buoys and caution areas.
@@ -49,6 +49,17 @@ The format follows [Keep a Changelog](https://keepachangelog.com/).
 - Starting navigation on a route from somewhere along it now steers for
   the leg ahead of you — the nearest leg whose next waypoint lies within
   75° of your course — instead of always the route's second waypoint.
+- Track recording on Android now survives the system stopping the app
+  under way. The background GPS service restarts on its own and keeps
+  recording, the fixes it buffered while the app was closed are added to
+  the track at the next launch, and a notice reports how long recording was
+  interrupted, with a shortcut to exempt the app from battery optimization.
+- A hole in a track (recording stopped for more than five minutes) is now
+  drawn as a dashed bridge instead of a solid line across wherever the
+  vessel actually went.
+- Chart controls, panels and bottom cards keep clear of the system
+  navigation bar and the iOS home indicator, including the side edge in
+  landscape.
 - The zoom buttons and the compass no longer drop the chart out of
   follow, course-up or north-up mode. Pinching and dragging still do.
 - The long-press menu no longer closes by itself while the chart is
@@ -66,22 +77,11 @@ The format follows [Keep a Changelog](https://keepachangelog.com/).
   from a tap anywhere along it, with a larger checkbox.
 - Android: the short labels under the top-bar buttons no longer vanish when
   the menu opens or the screen rotates.
-- Fog signals: the magenta arc beside a buoy or light is drawn above the
+- Fog signals: the magenta arc beside a buoy or light is drawn over the
   buoy's label instead of under it, slightly larger, and from zoom 12 a
   small label says what it is — Bell, Whis, Gong, Horn.
-- Track recording on Android now survives the system stopping the app
-  under way. The background GPS service restarts on its own and keeps
-  recording, the fixes it buffered while the app was closed are added to
-  the track at the next launch, and a notice reports how long recording was
-  interrupted, with a shortcut to exempt the app from battery optimization.
-- A hole in a track (recording stopped for more than five minutes) is now
-  drawn as a dashed bridge instead of a solid line across wherever the
-  vessel actually went.
 - The Android status bar (clock, signal, battery) is readable again: its
   icons were drawn dark on the app's dark top bar on Android 15 and 16.
-- Chart controls, panels and bottom cards keep clear of the system
-  navigation bar and the iOS home indicator, including the side edge in
-  landscape.
 
 ## [0.23.0] - 2026-08-25
 
