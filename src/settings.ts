@@ -119,6 +119,11 @@ export interface Settings {
   waypointScale: number;
   /** Sort order for the routes & waypoints manager lists. */
   managerSort: "name" | "recent";
+  /**
+   * Look for a newer app build at startup: the native apps ask GitHub for
+   * the latest release; the web app polls its service worker while open.
+   */
+  checkForUpdates: boolean;
   /** Per-plugin settings namespace, keyed by plugin id. */
   plugins?: Record<string, Record<string, unknown>>;
 }
@@ -306,6 +311,7 @@ const DEFAULTS: Settings = {
   iconScale: 1,
   waypointScale: 1,
   managerSort: "name",
+  checkForUpdates: true,
 };
 
 type SettingsListener = (settings: Settings) => void;

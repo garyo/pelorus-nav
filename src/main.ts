@@ -145,6 +145,7 @@ import { NavigationHUD } from "./ui/NavigationHUD";
 import { registerNavInstruments } from "./ui/nav-instruments";
 import { trackInstrumentHUD } from "./ui/PanelStack";
 import { RecenterButton } from "./ui/RecenterButton";
+import { startReleaseCheck } from "./ui/ReleaseCheck";
 import { RouteManagerPanel } from "./ui/RouteManagerPanel";
 import { SatelliteStatusPanel } from "./ui/SatelliteStatusPanel";
 import { maybeShowScreenTimeoutWarning } from "./ui/ScreenTimeoutDialog";
@@ -217,7 +218,10 @@ if (!Capacitor.isNativePlatform() && navigator.storage?.persist) {
 // activeNav/trackRecorder exist) so an update arriving during startup's
 // top-level awaits can't hit their TDZ.
 let appUpdateBusy = () => false;
-startAppUpdateNotifier(() => appUpdateBusy());
+startAppUpdateNotifier(
+  () => appUpdateBusy(),
+  () => getSettings().checkForUpdates,
+);
 
 // Start capturing "open with" file events before the disclaimer parks this
 // module — a cold start via a file association delivers one immediately, and
@@ -1865,6 +1869,12 @@ maybeShowScreenTimeoutWarning().catch(console.error);
 
 // After an app update, show this version's changelog highlights once.
 maybeShowWhatsNew();
+// Native builds have no service worker to fetch new code — ask GitHub for
+// the latest release instead (no-op on the web).
+startReleaseCheck({
+  currentVersion: __APP_VERSION__,
+  enabled: () => getSettings().checkForUpdates,
+});
 
 // Upload any bug reports queued while offline (startup + online events).
 initBugReportOutbox();

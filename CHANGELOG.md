@@ -13,6 +13,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/).
   on any leg in the route's detail panel (previously only while already
   navigating). Either overrides the automatic choice of starting leg and
   also retargets navigation already under way.
+- The Android and iOS apps check GitHub for a newer release at startup and
+  show a notice linking to it. **Check for updates at startup** in the
+  About dialog turns this off (on the web it also stops the background
+  polling for new builds).
 
 ### Fixed
 - Starting a route while sailing it the other way (leaving the harbour a

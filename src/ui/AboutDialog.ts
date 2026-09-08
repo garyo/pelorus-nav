@@ -7,6 +7,7 @@ import {
   collectDiagnostics,
 } from "../diagnostics/collectDiagnostics";
 import { logUiAction } from "../diagnostics/uiActionLog";
+import { getSettings, updateSettings } from "../settings";
 import { showBugReportDialog } from "./BugReportDialog";
 import { showTermsDialog } from "./DisclaimerDialog";
 import { iconX, setIcon } from "./icons";
@@ -216,6 +217,18 @@ export class AboutDialog {
     tidesDate.className = "about-build-id";
     tidesDate.textContent = `Tide & current data: ${__TIDES_DATA_DATE__}`;
 
+    // Update checks: the native apps ask GitHub for a newer release at
+    // startup, the web app polls its service worker — one switch for both.
+    const updateCheck = document.createElement("label");
+    updateCheck.className = "about-update-check";
+    const updateCheckBox = document.createElement("input");
+    updateCheckBox.type = "checkbox";
+    updateCheckBox.checked = getSettings().checkForUpdates;
+    updateCheckBox.addEventListener("change", () => {
+      updateSettings({ checkForUpdates: updateCheckBox.checked });
+    });
+    updateCheck.append(updateCheckBox, " Check for updates at startup");
+
     // Share diagnostics button — one plain-text report (settings, connection
     // log, JS errors, storage state, native diag log) via the share sheet /
     // browser download, so a beta tester can email it to the developer.
@@ -272,6 +285,7 @@ export class AboutDialog {
       creditsList,
       buildId,
       tidesDate,
+      updateCheck,
       shareDiagBtn,
       clearBtn,
     );

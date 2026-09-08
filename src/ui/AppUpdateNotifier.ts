@@ -26,9 +26,13 @@ const IDLE_RELOAD_DELAY_MS = 10_000;
 /**
  * @param isBusy Read-only check for "don't reload right now" — e.g. active
  * navigation or track recording in progress. Defaults to never busy.
+ * @param shouldCheck Gates the periodic and on-return update polls (the
+ * user's "Check for updates at startup" setting). The browser still checks
+ * the service worker script on its own when the app loads.
  */
 export function startAppUpdateNotifier(
   isBusy: () => boolean = () => false,
+  shouldCheck: () => boolean = () => true,
 ): void {
   if (Capacitor.isNativePlatform() || !("serviceWorker" in navigator)) return;
 
@@ -45,7 +49,9 @@ export function startAppUpdateNotifier(
     .register(`${import.meta.env.BASE_URL}sw.js`)
     .then((registration) => {
       const check = () => {
-        if (navigator.onLine) registration.update().catch(() => {});
+        if (navigator.onLine && shouldCheck()) {
+          registration.update().catch(() => {});
+        }
       };
       setInterval(check, UPDATE_CHECK_INTERVAL_MS);
       document.addEventListener("visibilitychange", () => {

@@ -83,6 +83,33 @@ describe("startAppUpdateNotifier", () => {
     expect(noticeEl()).not.toBeNull();
   });
 
+  it("skips the periodic and on-return polls while update checks are off", async () => {
+    startAppUpdateNotifier(
+      () => false,
+      () => false,
+    );
+    await Promise.resolve(); // let register() resolve and arm the polls
+    const registration = await sw.register.mock.results[0]?.value;
+
+    vi.advanceTimersByTime(2 * 60 * 60 * 1000);
+    setVisibility("hidden");
+    setVisibility("visible");
+    expect(registration.update).not.toHaveBeenCalled();
+  });
+
+  it("polls on return to the foreground when update checks are on", async () => {
+    startAppUpdateNotifier(
+      () => false,
+      () => true,
+    );
+    await Promise.resolve();
+    const registration = await sw.register.mock.results[0]?.value;
+
+    setVisibility("hidden");
+    setVisibility("visible");
+    expect(registration.update).toHaveBeenCalledOnce();
+  });
+
   it("defers the reload while the app reports itself busy (navigating/recording)", () => {
     sw.controller = {};
     let busy = true;

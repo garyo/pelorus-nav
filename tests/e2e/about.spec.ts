@@ -20,3 +20,30 @@ test("the About dialog closes from its own close button", async ({ page }) => {
   await page.locator(".about-close").click();
   await expect(overlay).toBeHidden();
 });
+
+test("the About dialog's update-check switch persists to settings", async ({
+  page,
+}) => {
+  await acceptDisclaimer(page);
+  await page.goto("/");
+  await expect(page.locator(".maplibregl-map")).toBeVisible({
+    timeout: 10000,
+  });
+
+  const hamburger = page.locator("#hamburger-btn");
+  if (await hamburger.isVisible()) await hamburger.click();
+  await page.locator('button[title="About"]').click();
+
+  const box = page.locator(".about-update-check input");
+  await expect(box).toBeChecked();
+  await box.uncheck();
+  await expect
+    .poll(() =>
+      page.evaluate(
+        () =>
+          JSON.parse(localStorage.getItem("pelorus-nav-settings") ?? "{}")
+            .checkForUpdates,
+      ),
+    )
+    .toBe(false);
+});

@@ -12,6 +12,13 @@ For use on the water, install it:
   latest [GitHub release](https://github.com/garyo/pelorus-nav/releases).
 - **iOS** — available through TestFlight (beta).
 
+The web app updates itself: when a new build is published it loads in the
+background and the app reloads at a quiet moment (or tap **Reload now**).
+The Android and iOS apps instead check GitHub for a newer release each time
+they start and show a notice with a link to it. Untick **Check for updates
+at startup** in the About dialog (menu → About) to stop either kind of
+check.
+
 On first launch the app shows a navigation warning and user agreement, and
 asks for location permission the first time GPS is used. By default the chart
 opens on the built-in NOAA vector charts, streaming tiles as you pan — no

@@ -1618,6 +1618,16 @@ body {
   cursor: pointer;
   align-self: center;
 }
+.about-update-check {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 14px;
+  font-size: 12px;
+  color: #ccc;
+  cursor: pointer;
+}
+
 .about-clear-cache:hover {
   background: #555;
 }
