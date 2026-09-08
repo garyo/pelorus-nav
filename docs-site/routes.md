@@ -212,8 +212,11 @@ You can start navigating from anywhere along a route: Pelorus steers for
 the leg ahead of you — the nearest leg whose next waypoint lies within
 about 75° of your course, so joining a route halfway needs no manual leg
 selection. If your course runs against the route's direction, a notice
-offers to reverse it. To pick a leg yourself, open the route's detail
-panel and tap the ► marker on the leg you want.
+offers to reverse it. When the guess is wrong, or you want to start
+somewhere else, choose the first waypoint yourself: tap that waypoint on
+the chart and choose **Steer for this waypoint** on the route's card, or
+open the route's detail panel and tap the ► marker on the leg you want.
+Both also retarget navigation that is already under way.
 
 Stop navigating with the **Cancel navigation** button that appears at the
 bottom-left of the chart, the route's stop button, or the Escape key.

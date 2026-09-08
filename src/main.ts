@@ -1281,6 +1281,15 @@ registerRouteWaypointPick(pickRegistry, routeLayer, waypointLayer, {
     else activeNav.startRoute(route);
     featureQueryHandler.dismiss();
   },
+  navigateRouteFrom: (route, waypointIndex) => {
+    const state = activeNav.getState();
+    if (state.type === "route" && state.route.id === route.id) {
+      activeNav.setLeg(waypointIndex);
+    } else {
+      activeNav.startRoute(route, waypointIndex);
+    }
+    featureQueryHandler.dismiss();
+  },
   openRoute: (route) => {
     routePanel.openWithSelection(route).catch(console.error);
   },

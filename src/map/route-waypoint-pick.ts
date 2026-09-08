@@ -27,6 +27,12 @@ export interface RouteWaypointPickActions {
   openRoute(route: Route): void;
   /** "Navigate route" — or stop, when this route is already being navigated. */
   navigateRoute(route: Route): void;
+  /**
+   * "Steer for this waypoint": navigate the route with `waypointIndex` as the
+   * first target — starting navigation, or retargeting if already under way
+   * on this route. Bypasses the automatic join-leg guess.
+   */
+  navigateRouteFrom(route: Route, waypointIndex: number): void;
   isNavigating(route: Route): boolean;
   /** "Open in Waypoints panel": open the manager scrolled to this waypoint. */
   openWaypoint(wp: StandaloneWaypoint): void;
@@ -71,26 +77,34 @@ function routeCard(
     },
   ];
   const wp = waypointIndex != null ? route.waypoints[waypointIndex] : undefined;
+  const cardActions: NonNullable<FeatureInfo["actions"]> = [
+    {
+      label: actions.isNavigating(route) ? "Stop navigation" : "Navigate route",
+      icon: iconNavigation,
+      run: () => actions.navigateRoute(route),
+    },
+  ];
   if (wp && waypointIndex != null) {
     details.push({
       label: "Waypoint",
       value: `${wp.name} (${waypointIndex + 1} of ${route.waypoints.length})`,
     });
+    // The tapped waypoint is an explicit answer to "which leg first?" —
+    // offer it, so the automatic join guess can always be overridden.
+    cardActions.push({
+      label: "Steer for this waypoint",
+      run: () => actions.navigateRouteFrom(route, waypointIndex),
+    });
   }
+  cardActions.push({
+    label: "Open in Routes panel",
+    run: () => actions.openRoute(route),
+  });
   return {
     type: "Route",
     name: route.name,
     details,
-    actions: [
-      {
-        label: actions.isNavigating(route)
-          ? "Stop navigation"
-          : "Navigate route",
-        icon: iconNavigation,
-        run: () => actions.navigateRoute(route),
-      },
-      { label: "Open in Routes panel", run: () => actions.openRoute(route) },
-    ],
+    actions: cardActions,
     onDisplay: () => actions.onRouteShown(route),
   };
 }

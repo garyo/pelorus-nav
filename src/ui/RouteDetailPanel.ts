@@ -511,25 +511,28 @@ export class RouteDetailPanel {
       if (isActiveLeg) legRow.classList.add("active");
       legRow.title = `${leg.from} → ${leg.to}`;
 
-      // Optional ► nav-to control on the left (only while navigating).
-      if (navigating) {
-        const marker = document.createElement("span");
-        marker.className = "route-list-leg-marker";
-        if (isActiveLeg) {
-          marker.classList.add("active-marker");
-          marker.textContent = "►";
-          marker.title = "Current target";
-        } else {
-          marker.classList.add("nav-btn");
-          marker.textContent = "►";
-          marker.title = "Navigate to this leg";
-          marker.addEventListener("click", (e) => {
-            e.stopPropagation();
-            this.activeNav?.setLeg(leg.index + 1);
-          });
-        }
-        legRow.appendChild(marker);
+      // ► control on the left: the current target while navigating;
+      // otherwise a tap steers for this leg — retargeting under way, or
+      // starting navigation here instead of at the automatically chosen
+      // join leg.
+      const marker = document.createElement("span");
+      marker.className = "route-list-leg-marker";
+      marker.textContent = "►";
+      if (isActiveLeg) {
+        marker.classList.add("active-marker");
+        marker.title = "Current target";
+      } else {
+        marker.classList.add("nav-btn");
+        marker.title = navigating
+          ? "Navigate to this leg"
+          : "Start navigation at this leg";
+        marker.addEventListener("click", (e) => {
+          e.stopPropagation();
+          if (navigating) this.activeNav?.setLeg(leg.index + 1);
+          else this.activeNav?.startRoute(route, leg.index + 1);
+        });
       }
+      legRow.appendChild(marker);
 
       const course = document.createElement("span");
       course.className = "route-list-leg-course";

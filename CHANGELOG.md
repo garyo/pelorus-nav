@@ -7,6 +7,13 @@ The format follows [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Added
+- Choose the first waypoint to steer for yourself: tap a route's waypoint
+  on the chart and choose **Steer for this waypoint**, or tap the ► marker
+  on any leg in the route's detail panel (previously only while already
+  navigating). Either overrides the automatic choice of starting leg and
+  also retargets navigation already under way.
+
 ### Fixed
 - Starting a route while sailing it the other way (leaving the harbour a
   route ends at, say) no longer steers for a waypoint the boat is already

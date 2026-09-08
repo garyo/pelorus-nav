@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, type Page, test } from "@playwright/test";
 import {
   acceptDisclaimer,
   seedRoute,
@@ -12,14 +12,8 @@ const B: [number, number] = [42.352039, -71.032698];
 const ROUTE_ID = "e2e-route-identify";
 const ROUTE_NAME = "E2E Identify Loop";
 
-/**
- * Tap-to-identify: click a visible route's line on the chart, expect the
- * feature-info card naming the route, then use its "Open in Routes panel"
- * action and expect the route manager open with that row selected.
- */
-test("tapping a route line identifies it and opens the Routes panel selected", async ({
-  page,
-}) => {
+/** Seed the two-waypoint route and reload so RouteLayer draws it. */
+async function openSeededRoute(page: Page): Promise<void> {
   await suppressWhatsNew(page);
   await acceptDisclaimer(page);
 
@@ -45,25 +39,36 @@ test("tapping a route line identifies it and opens the Routes panel selected", a
   await page.reload();
   await expect(page.locator(".maplibregl-map")).toBeVisible({ timeout: 10000 });
   await waitForAppReady(page);
+}
 
-  // Center on the route's midpoint and wait for the map to settle so the
-  // route line is rendered (hit-testable) at a known screen position.
-  const mid: [number, number] = [(A[0] + B[0]) / 2, (A[1] + B[1]) / 2];
+/** Center on `at`, wait for the map to settle, and click that position. */
+async function clickChartAt(page: Page, at: [number, number]): Promise<void> {
   await page.evaluate(async ([lat, lon]) => {
     await new Promise<void>((resolve) => {
       window.__map.once("idle", () => resolve());
       window.__map.jumpTo({ center: [lon, lat], zoom: 13 });
     });
-  }, mid);
-
-  // Project the midpoint (on the line, away from both waypoint markers)
-  // to window coordinates and click it.
+  }, at);
   const pt = await page.evaluate(([lat, lon]) => {
     const p = window.__map.project([lon, lat]);
     const rect = window.__map.getContainer().getBoundingClientRect();
     return { x: rect.left + p.x, y: rect.top + p.y };
-  }, mid);
+  }, at);
   await page.mouse.click(pt.x, pt.y);
+}
+
+/**
+ * Tap-to-identify: click a visible route's line on the chart, expect the
+ * feature-info card naming the route, then use its "Open in Routes panel"
+ * action and expect the route manager open with that row selected.
+ */
+test("tapping a route line identifies it and opens the Routes panel selected", async ({
+  page,
+}) => {
+  await openSeededRoute(page);
+
+  // The midpoint is on the line, away from both waypoint markers.
+  await clickChartAt(page, [(A[0] + B[0]) / 2, (A[1] + B[1]) / 2]);
 
   const infoPanel = page.locator(".feature-info-panel");
   await expect(infoPanel).toHaveClass(/visible/, { timeout: 5000 });
@@ -83,4 +88,34 @@ test("tapping a route line identifies it and opens the Routes panel selected", a
   const row = page.locator(`.manager-item[data-route-id="${ROUTE_ID}"]`);
   await expect(row).toBeVisible({ timeout: 5000 });
   await expect(row).toHaveClass(/selected/);
+});
+
+/**
+ * Tapping a route's waypoint names it on the card and offers "Steer for
+ * this waypoint", which starts navigation targeting exactly that waypoint —
+ * bypassing the automatic join-leg choice.
+ */
+test("steering for a tapped route waypoint starts navigation on that leg", async ({
+  page,
+}) => {
+  await openSeededRoute(page);
+  await clickChartAt(page, B);
+
+  const infoPanel = page.locator(".feature-info-panel");
+  await expect(infoPanel).toHaveClass(/visible/, { timeout: 5000 });
+  await expect(infoPanel.locator(".feature-info-title")).toHaveText(
+    `Route: ${ROUTE_NAME}`,
+  );
+  await expect(infoPanel).toContainText("Castle Island (2 of 2)");
+  await infoPanel
+    .getByRole("button", { name: "Steer for this waypoint" })
+    .click();
+
+  await expect
+    .poll(() =>
+      page.evaluate(() =>
+        JSON.parse(localStorage.getItem("pelorus-nav-active-nav") ?? "null"),
+      ),
+    )
+    .toMatchObject({ type: "route", routeId: ROUTE_ID, legIndex: 1 });
 });
