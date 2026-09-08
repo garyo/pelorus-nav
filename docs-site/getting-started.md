@@ -14,8 +14,9 @@ For use on the water, install it:
 
 The web app updates itself: when a new build is published it loads in the
 background and the app reloads at a quiet moment (or tap **Reload now**).
-The Android and iOS apps instead check GitHub for a newer release each time
-they start and show a notice with a link to it. Untick **Check for updates
+The Android and iOS apps instead check for a newer release each time they
+start and show a notice: on Android it opens the Play Store listing, on iOS
+the release notes (TestFlight installs the update itself). Untick **Check for updates
 at startup** in the About dialog (menu → About) to stop either kind of
 check.
 

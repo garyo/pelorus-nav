@@ -4,7 +4,8 @@
  * The web PWA updates itself through its service worker (AppUpdateNotifier);
  * an installed Android or iOS build has no such channel, so each launch asks
  * GitHub for the latest release and, when it is newer than the running
- * version, offers its release page. "Check for updates at startup" in the
+ * version, offers the Play Store listing (Android) or the release notes
+ * (iOS). "Check for updates at startup" in the
  * About dialog turns this off. One check per launch: a "Later" is honoured
  * until the next start.
  */
@@ -16,6 +17,9 @@ import { showUpdateNotice } from "./updateNotice";
 
 const LATEST_RELEASE_URL =
   "https://api.github.com/repos/garyo/pelorus-nav/releases/latest";
+/** The Play Store listing (private beta: visible to enrolled testers). */
+const PLAY_STORE_URL =
+  "https://play.google.com/store/apps/details?id=nav.pelorus.app";
 
 export interface ReleaseInfo {
   version: string;
@@ -60,14 +64,15 @@ export function startReleaseCheck(opts: ReleaseCheckOptions): void {
   fetchNewerRelease(opts.currentVersion).then((release) => {
     if (!release) return;
     logUiAction(`release check: v${release.version} available`);
-    // The GitHub release carries the Android APK; TestFlight delivers iOS
-    // builds itself, so there the page is just the notes.
+    // Android updates come from the Play Store (the release's APK is for
+    // sideloading only); TestFlight delivers iOS builds itself, so there
+    // the release page is just the notes.
     const android = Capacitor.getPlatform() === "android";
     showUpdateNotice({
       id: "app-release-notice",
       message: `Pelorus Nav v${release.version} is available`,
-      actionLabel: android ? "Get update" : "Release notes",
-      onAction: () => openExternal(release.url),
+      actionLabel: android ? "Open Play Store" : "Release notes",
+      onAction: () => openExternal(android ? PLAY_STORE_URL : release.url),
     });
   });
 }
