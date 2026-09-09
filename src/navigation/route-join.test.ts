@@ -228,6 +228,45 @@ describe("pickJoinLeg — reviewed random scenarios", () => {
   });
 });
 
+describe("pickJoinLeg — field case: near-coincident first waypoints", () => {
+  // Bug report 2026-09-02 ("wrong wp on course", v0.22.0): a route whose
+  // first two waypoints sat ~60 m apart, the departure mark dropped twice.
+  // That stub leg pointed backwards, so the vessel leaving it northbound
+  // was forever "short of" waypoint[0] — the old start rule targeted it and
+  // auto-advance never let go. Equator-scaled: 0.001° ≈ 0.06 NM.
+  const doubled = route([
+    [0.0004, 0.0006], // "DC"
+    [0, 0], // WP5, right beside it
+    [0.06, 0.01], // WP6, 3.6 NM north
+    [0.09, 0.07],
+  ]);
+
+  it("leaving the doubled mark under way, steers for the leg ahead", () => {
+    expect(pickJoinLeg(fix(0.0067, 0.001, 10), doubled, opts)).toEqual({
+      legIndex: 2,
+      reason: "ahead",
+    });
+  });
+
+  it("past the doubled mark but stationary, still never targets it", () => {
+    expect(pickJoinLeg(fix(0.0067, 0.001, null), doubled, opts)).toEqual({
+      legIndex: 2,
+      reason: "nearest",
+    });
+  });
+
+  it("copes with exactly coincident waypoints (no NaN, no stub-leg pick)", () => {
+    const dup = route([
+      [0, 0],
+      [0, 0],
+      [0.06, 0.01],
+      [0.09, 0.07],
+    ]);
+    expect(pickJoinLeg(fix(0.0067, 0.001, 10), dup, opts).legIndex).toBe(2);
+    expect(pickJoinLeg(fix(0.0067, 0.001, null), dup, opts).legIndex).toBe(2);
+  });
+});
+
 describe("suggestReverse", () => {
   const straight = route([
     [0, 0],
