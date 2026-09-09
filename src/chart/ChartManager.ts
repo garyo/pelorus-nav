@@ -76,6 +76,7 @@ export class ChartManager {
   private prevActiveRegion: string;
   private prevShallowDepth: number;
   private prevDeepDepth: number;
+  private prevWhiteDeepWater: boolean;
   private prevTextScale: number;
   private prevIconScale: number;
   private prevHiddenRasterCharts: string;
@@ -165,6 +166,7 @@ export class ChartManager {
     this.prevActiveRegion = initial.activeRegion;
     this.prevShallowDepth = initial.shallowDepth;
     this.prevDeepDepth = initial.deepDepth;
+    this.prevWhiteDeepWater = initial.whiteDeepWater;
     this.prevTextScale = initial.textScale;
     this.prevIconScale = initial.iconScale;
     this.prevHiddenRasterCharts = JSON.stringify(initial.hiddenRasterCharts);
@@ -184,6 +186,7 @@ export class ChartManager {
         s.activeRegion !== this.prevActiveRegion ||
         s.shallowDepth !== this.prevShallowDepth ||
         s.deepDepth !== this.prevDeepDepth ||
+        s.whiteDeepWater !== this.prevWhiteDeepWater ||
         s.textScale !== this.prevTextScale ||
         s.iconScale !== this.prevIconScale ||
         JSON.stringify(s.hiddenRasterCharts) !== this.prevHiddenRasterCharts;
@@ -201,6 +204,7 @@ export class ChartManager {
         this.prevActiveRegion = s.activeRegion;
         this.prevShallowDepth = s.shallowDepth;
         this.prevDeepDepth = s.deepDepth;
+        this.prevWhiteDeepWater = s.whiteDeepWater;
         this.prevTextScale = s.textScale;
         this.prevIconScale = s.iconScale;
         this.prevHiddenRasterCharts = JSON.stringify(s.hiddenRasterCharts);

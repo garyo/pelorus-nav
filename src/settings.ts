@@ -97,6 +97,11 @@ export interface Settings {
   safetyDepth: number;
   /** Deep water threshold in meters (areas >= this get DEPDW color). */
   deepDepth: number;
+  /**
+   * Draw deep water white instead of S-52's pale blue. Day theme only:
+   * dusk and night use black deep water, and e-ink is already white.
+   */
+  whiteDeepWater: boolean;
   /** Screen wake lock: off, when GPS active, or always. */
   wakeLock: WakeLockMode;
   /** Auto-dim the screen after a stretch of no user interaction (native only). */
@@ -303,6 +308,7 @@ const DEFAULTS: Settings = {
   shallowDepth: 1.83,
   safetyDepth: 6.1,
   deepDepth: 15.24,
+  whiteDeepWater: false,
   wakeLock: "when-nav",
   autoDimWhenIdle: false,
   autoReturnWhenIdle: true,

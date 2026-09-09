@@ -65,7 +65,9 @@ people change first, all on the **Appearance** tab:
 - **Depth shading** — the Shallow / Safety / Deep thresholds control the
   blue depth tinting. Set them for *your* boat — e.g. with a 6 ft draft you
   might use 8 ft shallow and 12 ft safety, so water you can't enter is
-  obviously colored.
+  obviously colored. **White deep water** draws deep water white instead
+  of pale blue in the Day theme, for a paper-chart look or a brighter
+  screen in sunlight.
 - **Keep screen on** — "When GPS active" keeps the display awake while
   you're underway.
 - **Screen lock & volume-key zoom** (Android) — the volume keys zoom the

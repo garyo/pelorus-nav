@@ -17,6 +17,9 @@ The format follows [Keep a Changelog](https://keepachangelog.com/).
   a notice: Android opens the Play Store listing, iOS the release notes. **Check for updates at startup** in the
   About dialog turns this off (on the web it also stops the background
   polling for new builds).
+- **White deep water** (Settings → Appearance → Depth shading) draws deep
+  water white instead of pale blue in the Day theme, as the E-ink theme
+  already does.
 
 ### Fixed
 - Starting a route while sailing it the other way (leaving the harbour a

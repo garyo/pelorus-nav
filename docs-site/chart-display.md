@@ -83,7 +83,8 @@ where there are no prediction stations.
 
 Depth shading (the blue tint bands) is configured on the Appearance tab —
 set the **Shallow**, **Safety**, and **Deep** thresholds to match your
-draft, and the chart colors water depths accordingly.
+draft, and the chart colors water depths accordingly. **White deep water**
+swaps the Day theme's pale-blue deep water for plain white.
 
 ## Display themes
 

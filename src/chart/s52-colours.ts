@@ -339,13 +339,29 @@ export function themeToColourScheme(theme: DisplayTheme): ColourScheme {
 }
 
 /**
+ * Tokens that S-52 defines as "the deep-water colour": the fill itself and
+ * the halos/whites that must match it so text sits on the water seamlessly.
+ * The "white deep water" preference overrides all of them together.
+ */
+const DEEP_WATER_TOKENS = new Set(["DEPDW", "CHWHT", "SNDGH", "NAIDH"]);
+
+/**
  * Look up an S-52 colour token value.
  * Without an explicit scheme, resolves against the current display theme
- * from settings at call time.
+ * from settings at call time. The DAY palette honours the `whiteDeepWater`
+ * setting whichever way the scheme was chosen.
  */
 export function s52Colour(token: string, scheme?: ColourScheme): string {
+  const settings = getSettings();
   const palette =
-    PALETTES[scheme ?? themeToColourScheme(getSettings().displayTheme)];
+    PALETTES[scheme ?? themeToColourScheme(settings.displayTheme)];
+  if (
+    palette === DAY &&
+    settings.whiteDeepWater &&
+    DEEP_WATER_TOKENS.has(token)
+  ) {
+    return "#FFFFFF";
+  }
   const value = palette[token];
   if (value === undefined) {
     // Fall back to DAY palette if token not found in current scheme

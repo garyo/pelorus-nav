@@ -401,6 +401,14 @@ function buildAppearanceTab(
   // ── Depth shading thresholds ────────────────────────────────────
   tab.appendChild(buildSectionHeader("Depth shading"));
   tab.appendChild(buildDepthThresholdSliders());
+  tab.appendChild(
+    buildCheckboxRow(
+      "White deep water (day theme)",
+      "settings-white-deep-water",
+      settings.whiteDeepWater,
+      (checked) => updateSettings({ whiteDeepWater: checked }),
+    ),
+  );
 
   // ── Vessel ──────────────────────────────────────────────────────
   tab.appendChild(buildSectionHeader("Vessel"));
