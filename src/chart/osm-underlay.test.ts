@@ -16,6 +16,13 @@ const s57Layers: LayerSpecification[] = [
     paint: { "fill-color": "#d2b48c" },
   },
   {
+    id: "s57-boston-test-buisgl",
+    type: "fill",
+    source: "s57",
+    "source-layer": "BUISGL",
+    paint: { "fill-color": "#8b7355", "fill-opacity": 0.7 },
+  },
+  {
     id: "s57-boston-test-lakare",
     type: "fill",
     source: "s57",
@@ -68,7 +75,16 @@ describe("applyOSMUnderlay", () => {
       0,
     );
     const land = byId.get("s57-boston-test-lndare");
-    expect(land?.type === "fill" && land.paint?.["fill-opacity"]).toBe(0.3);
+    expect(land?.type === "fill" && land.paint?.["fill-opacity"]).toBe(1);
+    expect(land?.type === "fill" && land.paint?.["fill-layer-opacity"]).toBe(
+      0.3,
+    );
+  });
+
+  it("dims buildings slightly less than land, as a whole layer", () => {
+    const bld = byId.get("s57-boston-test-buisgl");
+    expect(bld?.type === "fill" && bld.paint?.["fill-opacity"]).toBe(1);
+    expect(bld?.type === "fill" && bld.paint?.["fill-layer-opacity"]).toBe(0.4);
   });
 
   it("makes water-area fills fully opaque", () => {

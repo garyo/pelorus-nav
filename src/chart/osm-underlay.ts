@@ -98,6 +98,13 @@ export function applyOSMUnderlay(
  * - Makes water-area fills fully opaque to hide the underlay on water
  * - Reduces land area opacity so the underlay shows through
  *
+ * Land and building opacity is applied with `fill-layer-opacity`, which
+ * composites the whole layer once, rather than per-feature `fill-opacity`,
+ * which accumulates: the tiles carry overlapping land polygons wherever ENC
+ * cells overlap (same-band neighbours are merged unclipped, and multi-band
+ * compositing keeps a ~1 km overlap to avoid slivers), so per-feature alpha
+ * would stack into darker patches along every cell boundary.
+ *
  * Uses suffix matching so this works with multi-region prefixed layer IDs
  * (e.g. s57-northern-new-england-lndare, s57-usvi-lndare).
  */
@@ -122,7 +129,14 @@ export function applyUnderlay(
     }
     if (layer.type === "fill" && layer.id.endsWith("-lndare")) {
       const fill = layer as FillLayerSpecification;
-      return { ...fill, paint: { ...fill.paint, "fill-opacity": landOpacity } };
+      return {
+        ...fill,
+        paint: {
+          ...fill.paint,
+          "fill-opacity": 1,
+          "fill-layer-opacity": landOpacity,
+        },
+      };
     }
     if (layer.type === "fill" && layer.id.endsWith("-buisgl")) {
       const fill = layer as FillLayerSpecification;
@@ -130,7 +144,8 @@ export function applyUnderlay(
         ...fill,
         paint: {
           ...fill.paint,
-          "fill-opacity": Math.min(landOpacity + 0.1, 0.8),
+          "fill-opacity": 1,
+          "fill-layer-opacity": Math.min(landOpacity + 0.1, 0.8),
         },
       };
     }

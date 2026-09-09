@@ -64,8 +64,10 @@ export function isLayerPrunedAtZoom(
 /**
  * Chart provider for S-57 ENC vector tiles in PMTiles format.
  * Renders ALL regions simultaneously — each region gets its own
- * vector source and prefixed layers. Regions are non-overlapping
- * geographically so layer interleave order doesn't matter.
+ * vector source and prefixed layers. Tile-center ownership in the
+ * pipeline keeps regions disjoint at z8+, and where two sources do
+ * serve the same tile (z0–7, or overlapping region bboxes) the content
+ * is identical, so layer interleave order doesn't matter.
  *
  * `activeRegionId` tracks which region the user is in (for UI purposes
  * like map center on manual region select), but does NOT affect rendering.
