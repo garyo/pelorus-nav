@@ -11,7 +11,9 @@ Cross-cutting behavior not visible in the table:
 - `\*` marks a layer with a feature filter. Three are detail-dependent:
   at Standard and Base, `s57-soundg` hides soundings deeper than the
   user's deep threshold until z13, and `s57-lights`/`s57-lights-glow`
-  hide lights with range < 10 nm until z10.
+  hide lights with range < 10 nm until z10. `s57-fogsig` and `s57-topmar`
+  follow their parent: a fog signal or topmark attached to a buoy or
+  beacon waits for that class's minzoom at the current detail level.
 - Hazard icons (UWTROC/OBSTRN/WRECKS) claim collision space below z13 at
   every detail level, so dense clusters self-thin; at z13+ all draw.
 - Layer-group toggles (Settings › Charts & Layers) flip `visibility` on
@@ -77,7 +79,7 @@ Cross-cutting behavior not visible in the table:
 | FERYRT | `s57-feryrt` | all | all | all | all |
 | FLODOC | `s57-flodoc` | all | all | all | all |
 | FLODOC | `s57-flodoc-outline` | all | all | all | all |
-| FOGSIG | `s57-fogsig` | z6+ | z6+ | z6+ | z6+ |
+| FOGSIG | `s57-fogsig` | z6+ \* | z6+ \* | z6+ \* | z6+ \* |
 | FOGSIG | `s57-fogsig-label` | z12+ | z12+ | z12+ | z12+ |
 | FORSTC | `s57-forstc` | z13+ | z13+ | z13+ | z13+ |
 | FORSTC | `s57-forstc-outline` | z13+ | z13+ | z13+ | z13+ |
@@ -164,7 +166,7 @@ Cross-cutting behavior not visible in the table:
 | SWPARE | `s57-swpare` | all | all | all | all |
 | SWPARE | `s57-swpare-label` | all \* | all \* | all \* | all \* |
 | TESARE | `s57-tesare` | z12+ | z12+ | z12+ | z12+ |
-| TOPMAR | `s57-topmar` | z8+ | z8+ | z8+ | z8+ |
+| TOPMAR | `s57-topmar` | z8+ \* | z8+ \* | z8+ \* | z8+ \* |
 | TSEZNE | `s57-tsezne` | all | all | all | all |
 | TSEZNE | `s57-tsezne-outline` | all | all | all | all |
 | TSSBND | `s57-tssbnd` | all | all | all | all |

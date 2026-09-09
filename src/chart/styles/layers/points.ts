@@ -56,11 +56,66 @@ function withOffset(
 }
 
 /**
- * Symbol layer for one buoy/beacon class. The nine classes share a single
- * layout/paint recipe and differ only in id, source-layer, icon size
- * (0.75 for most buoys, 0.7 for special-purpose buoys and all beacons),
- * and minzoom (isolated-danger buoys appear from z6, the rest from z8).
+ * The buoy and beacon classes, one symbol layer each. Icon size is 0.75
+ * for most buoys, 0.7 for special-purpose buoys and all beacons; isolated
+ * danger buoys appear from z6, the rest from z8.
  */
+const BUOY_BEACON_CLASSES: readonly {
+  id: string;
+  sourceLayer: string;
+  iconSize: number;
+  minzoom?: number;
+}[] = [
+  { id: "s57-boylat", sourceLayer: "BOYLAT", iconSize: 0.75 },
+  { id: "s57-boycar", sourceLayer: "BOYCAR", iconSize: 0.75 },
+  { id: "s57-boysaw", sourceLayer: "BOYSAW", iconSize: 0.75 },
+  { id: "s57-boyspp", sourceLayer: "BOYSPP", iconSize: 0.7 },
+  { id: "s57-boyisd", sourceLayer: "BOYISD", iconSize: 0.75, minzoom: 6 },
+  { id: "s57-bcnlat", sourceLayer: "BCNLAT", iconSize: 0.7 },
+  { id: "s57-bcncar", sourceLayer: "BCNCAR", iconSize: 0.7 },
+  { id: "s57-bcnisd", sourceLayer: "BCNISD", iconSize: 0.7 },
+  { id: "s57-bcnsaw", sourceLayer: "BCNSAW", iconSize: 0.7 },
+];
+
+/** Buoy/beacon layer id → its S-57 source layer, for parent lookups. */
+export const BUOY_BEACON_SOURCE_LAYER: ReadonlyMap<string, string> = new Map(
+  BUOY_BEACON_CLASSES.map((cls) => [cls.id, cls.sourceLayer]),
+);
+
+/**
+ * Layers drawn for a child object of a buoy or beacon (S-57 "slave"
+ * features). The pipeline stamps each with PARENT_LAYER; see
+ * parentZoomFilter.
+ */
+export const PARENT_GATED_LAYER_IDS: ReadonlySet<string> = new Set([
+  "s57-fogsig",
+  "s57-topmar",
+]);
+
+/**
+ * Filter that shows a child feature (fog signal, topmark) only from the
+ * zoom its parent buoy or beacon appears at, so a whistle arc never floats
+ * over open water without its buoy. `parentMinzoom` maps S-57 layer names
+ * to the parent layer's effective minzoom; children of anything else
+ * (lighthouses, unattached signals) fall back to `fallback`, normally the
+ * child layer's own minzoom.
+ */
+export function parentZoomFilter(
+  parentMinzoom: ReadonlyMap<string, number>,
+  fallback: number,
+): ExpressionSpecification {
+  const branches = [...parentMinzoom].flatMap(([layer, minzoom]) => [
+    layer,
+    minzoom,
+  ]);
+  return [
+    ">=",
+    ["zoom"],
+    ["match", ["coalesce", ["get", "PARENT_LAYER"], ""], ...branches, fallback],
+  ] as unknown as ExpressionSpecification;
+}
+
+/** Symbol layer for one buoy/beacon class; all share this recipe. */
 function buoyBeaconLayer(
   ctx: StyleContext,
   opts: {
@@ -236,61 +291,7 @@ export function getBuoyBeaconLayers(ctx: StyleContext): LayerSpecification[] {
       },
     },
 
-    // Lateral buoys
-    buoyBeaconLayer(ctx, {
-      id: "s57-boylat",
-      sourceLayer: "BOYLAT",
-      iconSize: 0.75,
-    }),
-    // Cardinal buoys
-    buoyBeaconLayer(ctx, {
-      id: "s57-boycar",
-      sourceLayer: "BOYCAR",
-      iconSize: 0.75,
-    }),
-    // Safe water buoys
-    buoyBeaconLayer(ctx, {
-      id: "s57-boysaw",
-      sourceLayer: "BOYSAW",
-      iconSize: 0.75,
-    }),
-    // Special purpose buoys
-    buoyBeaconLayer(ctx, {
-      id: "s57-boyspp",
-      sourceLayer: "BOYSPP",
-      iconSize: 0.7,
-    }),
-    // Isolated danger buoys
-    buoyBeaconLayer(ctx, {
-      id: "s57-boyisd",
-      sourceLayer: "BOYISD",
-      iconSize: 0.75,
-      minzoom: 6,
-    }),
-    // Lateral beacons
-    buoyBeaconLayer(ctx, {
-      id: "s57-bcnlat",
-      sourceLayer: "BCNLAT",
-      iconSize: 0.7,
-    }),
-    // Cardinal beacons
-    buoyBeaconLayer(ctx, {
-      id: "s57-bcncar",
-      sourceLayer: "BCNCAR",
-      iconSize: 0.7,
-    }),
-    // Isolated danger beacons
-    buoyBeaconLayer(ctx, {
-      id: "s57-bcnisd",
-      sourceLayer: "BCNISD",
-      iconSize: 0.7,
-    }),
-    // Safe water beacons
-    buoyBeaconLayer(ctx, {
-      id: "s57-bcnsaw",
-      sourceLayer: "BCNSAW",
-      iconSize: 0.7,
-    }),
+    ...BUOY_BEACON_CLASSES.map((cls) => buoyBeaconLayer(ctx, cls)),
   ];
 }
 

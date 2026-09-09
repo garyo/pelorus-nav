@@ -4,7 +4,7 @@
  * getNauticalLayers() builds the full S-52 layer set, composed from
  * category-specific layer modules.
  */
-import type { LayerSpecification } from "maplibre-gl";
+import type { FilterSpecification, LayerSpecification } from "maplibre-gl";
 import {
   getAdditionalAreaLayers,
   getAreaLayers,
@@ -20,6 +20,7 @@ import {
   getNavigationRoutingLayers,
 } from "./layers/navigation";
 import {
+  BUOY_BEACON_SOURCE_LAYER,
   getAdditionalPointLayers,
   getBuoyBeaconLayers,
   getDaymarkTopmarkLayers,
@@ -28,6 +29,8 @@ import {
   getNavAidLayers,
   getOtherNavAidLayers,
   getOtherPointLayers,
+  PARENT_GATED_LAYER_IDS,
+  parentZoomFilter,
 } from "./layers/points";
 import { getTextLayers } from "./layers/text";
 import { createStyleContext, type StyleContextOptions } from "./style-context";
@@ -390,6 +393,30 @@ const STANDARD_DETAIL_MINZOOM: Record<string, number> = {
   "s57-bcnsaw": 10,
 };
 
+/**
+ * Fog signals and topmarks are children of a buoy or beacon and must not
+ * appear before it does. Runs after the detail-level passes so the gate
+ * uses each parent layer's effective minzoom.
+ */
+function gateChildrenOnParentZoom(layers: LayerSpecification[]): void {
+  const parentMinzoom = new Map<string, number>();
+  for (const layer of layers) {
+    const sourceLayer = BUOY_BEACON_SOURCE_LAYER.get(layer.id);
+    if (sourceLayer !== undefined) {
+      parentMinzoom.set(sourceLayer, layer.minzoom ?? 0);
+    }
+  }
+  for (const layer of layers) {
+    if (!PARENT_GATED_LAYER_IDS.has(layer.id) || layer.type === "background") {
+      continue;
+    }
+    const gate = parentZoomFilter(parentMinzoom, layer.minzoom ?? 0);
+    layer.filter = (
+      layer.filter ? ["all", layer.filter, gate] : gate
+    ) as FilterSpecification;
+  }
+}
+
 /** Category visibility filter helper. */
 function catFilter(
   category: "DISPLAYBASE" | "STANDARD" | "OTHER",
@@ -548,6 +575,8 @@ export function getNauticalLayers(
     }
     return true;
   });
+
+  gateChildrenOnParentZoom(filtered);
 
   // Layer-group membership is applied as `visibility`, not by removing the
   // layer, and tagged in `metadata.group`. That lets ChartManager toggle a

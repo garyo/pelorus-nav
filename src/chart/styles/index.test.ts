@@ -14,6 +14,7 @@
  * one produced layer id is fully wired into both tables, every other layer
  * id drawn from that same source-layer must be too.
  */
+import { featureFilter } from "@maplibre/maplibre-gl-style-spec";
 import { describe, expect, it } from "vitest";
 import { getNauticalLayers, LAYER_CATEGORIES, LAYER_GROUPS } from "./index";
 
@@ -110,5 +111,49 @@ describe("layer registry invariants", () => {
     const ids = new Set(displayBaseOnly.map((l) => l.id));
     expect(ids.has("s57-achare-symbol")).toBe(false);
     expect(ids.has("s57-tsslpt-arrow")).toBe(false);
+  });
+});
+
+describe("fog signals and topmarks follow their parent buoy/beacon", () => {
+  const passes = (
+    layers: ReturnType<typeof getNauticalLayers>,
+    id: string,
+    zoom: number,
+    parentLayer?: string,
+  ) => {
+    const layer = layers.find((l) => l.id === id);
+    if (layer === undefined || layer.type === "background") {
+      throw new Error(`${id} missing`);
+    }
+    return featureFilter(layer.filter).filter(
+      { zoom },
+      { type: 1, properties: parentLayer ? { PARENT_LAYER: parentLayer } : {} },
+    );
+  };
+  const minzoomOf = (
+    layers: ReturnType<typeof getNauticalLayers>,
+    id: string,
+  ) => layers.find((l) => l.id === id)?.minzoom ?? 0;
+
+  for (const [label, detailOffset] of [
+    ["Standard", 0],
+    ["Full", 2],
+  ] as const) {
+    it(`gates on the parent's effective minzoom at ${label} detail`, () => {
+      const layers = getNauticalLayers({ sourceId: "s", detailOffset });
+      const buoyZoom = minzoomOf(layers, "s57-boysaw");
+      for (const id of ["s57-fogsig", "s57-topmar"]) {
+        expect(passes(layers, id, buoyZoom - 1, "BOYSAW")).toBe(false);
+        expect(passes(layers, id, buoyZoom, "BOYSAW")).toBe(true);
+      }
+    });
+  }
+
+  it("keeps the layer's own minzoom for children of other structures", () => {
+    const layers = getNauticalLayers({ sourceId: "s", detailOffset: 0 });
+    const own = minzoomOf(layers, "s57-fogsig");
+    expect(passes(layers, "s57-fogsig", own, "LNDMRK")).toBe(true);
+    expect(passes(layers, "s57-fogsig", own)).toBe(true);
+    expect(passes(layers, "s57-fogsig", own - 1, "LNDMRK")).toBe(false);
   });
 });

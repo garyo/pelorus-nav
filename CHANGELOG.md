@@ -24,6 +24,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/).
 ### Fixed
 - With the street underlay on, land no longer shows darker rectangular
   patches where chart cells overlap.
+- A buoy's fog signal and topmark no longer appear at zooms where the buoy
+  itself is still hidden.
 - Starting a route while sailing it the other way (leaving the harbour a
   route ends at, say) no longer steers for a waypoint the boat is already
   past, which rang the arrival chime twice and buried the "Reverse route"
