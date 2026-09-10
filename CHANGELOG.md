@@ -20,13 +20,11 @@ The format follows [Keep a Changelog](https://keepachangelog.com/).
 - **White deep water** (Settings → Appearance → Depth shading) draws deep
   water white instead of pale blue in the Day theme, as the E-ink theme
   already does.
-- Time to the next waypoint and arrival time at the route's destination
-  while navigating, on the instruments' caption line: `Next: Castle
-  Island · 25m` and `Dest: 12.4 NM / 2:32 PM`. Both use your average speed over the last three minutes, so
-  they hold steady in gusts; after a real speed change they follow the
-  last 30 seconds and show a `~` until the average settles. `--` means
-  no average yet (the first 30 seconds) or you are not closing on the
-  waypoint.
+- Time to the next waypoint and arrival time at the destination while
+  navigating a route, on the instruments' caption line: `Next: Castle
+  Island · 25m` and `Dest: 12.4 NM / 2:32 PM`. They use your average
+  speed over the last few minutes; `~` marks a time still settling after
+  a speed change, `--` no average yet or not closing on the waypoint.
 
 ### Fixed
 - With the street underlay on, land no longer shows darker rectangular
