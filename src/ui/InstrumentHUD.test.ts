@@ -5,7 +5,6 @@ import type { NavigationData } from "../navigation/NavigationData";
 import type { NavigationDataManager } from "../navigation/NavigationDataManager";
 import { getSettings, updateSettings } from "../settings";
 import { createInstrumentHUD } from "./InstrumentHUD";
-import { registerNavInstruments } from "./nav-instruments";
 
 /** Minimal fake standing in for NavigationDataManager's subscribe/isFixStale. */
 class FakeNavManager {
@@ -111,7 +110,7 @@ describe("nav caption strip", () => {
     );
   });
 
-  it("shows time to the waypoint beside DTW and the arrival clock time", () => {
+  it("shows time to the waypoint beside its name and the arrival clock time", () => {
     vi.setSystemTime(new Date(2026, 8, 9, 14, 0, 0));
     const fakeNav = new FakeNavManager();
     const handle = createInstrumentHUD(
@@ -130,15 +129,14 @@ describe("nav caption strip", () => {
       getState: () => ({ type: "route" }),
       getInfo: () => info,
     } as unknown as ActiveNavigationManager;
-    registerNavInstruments(activeNav);
     handle.setActiveNav(activeNav);
     fakeNav.pushFix();
 
-    const dtw = handle.element.querySelector(
-      ".instrument-cell--nav .instrument-secondary",
+    const ttg = handle.element.querySelector(
+      ".instrument-next-wp-ttg",
     ) as HTMLElement;
-    expect(dtw.hidden).toBe(false);
-    expect(dtw.textContent).toBe("25m");
+    expect(ttg.hidden).toBe(false);
+    expect(ttg.textContent).toBe("25m");
     const dest = handle.element.querySelector(".instrument-next-wp-dest");
     const eta = dest?.querySelector(".instrument-next-wp-eta");
     expect(dest?.firstChild?.textContent).toBe("Dest: 12.4 NM");
@@ -147,7 +145,7 @@ describe("nav caption strip", () => {
     // While the average speed settles after a change, both are provisional.
     info.speedSettling = true;
     fakeNav.pushFix();
-    expect(dtw.textContent).toBe("~25m");
+    expect(ttg.textContent).toBe("~25m");
     expect(eta?.textContent).toBe("~4:32 PM");
   });
 });

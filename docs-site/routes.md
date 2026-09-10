@@ -192,14 +192,14 @@ active leg:
 
 ![Navigating a route](/images/route-navigation.png)
 
-- **Next** — the waypoint you're steering for.
-- **DTW** — distance to that waypoint, and after the `/` the time to reach
-  it at your average speed over the last few minutes. A `~` means that
-  average is still settling after a speed change (the time then follows the
-  last 30 seconds); `--` means there is no average yet (the first 30 seconds
-  under way) or you are not closing on the waypoint.
+- **Next** — the waypoint you're steering for, and after the `·` the time
+  to reach it at your average speed over the last few minutes. A `~` means
+  that average is still settling after a speed change (the time then
+  follows the last 30 seconds); `--` means there is no average yet (the
+  first 30 seconds under way) or you are not closing on the waypoint.
 - **Dest** — distance to the route's last waypoint and, after the `/`, the
   clock time you'll arrive there at the same average speed.
+- **DTW** — distance to the next waypoint.
 - **BRG** — bearing to it, magnetic or true per your settings.
 - **VMG** — your speed *toward the waypoint*; if it goes negative you're
   sailing away from it.

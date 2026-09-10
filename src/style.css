@@ -1955,6 +1955,34 @@ body {
   color: #555;
 }
 
+/* Waypoint name and the time to it: the name shrinks to an ellipsis, the
+   time keeps its full width. */
+.instrument-next-wp-next {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.instrument-next-wp-ttg {
+  flex: none;
+  white-space: nowrap;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.instrument-next-wp-ttg::before {
+  content: "· ";
+  font-weight: 400;
+  color: #999;
+}
+
+/* An unnamed target (a "Navigate to here" spot) shows the time on its own. */
+.instrument-next-wp-name:empty + .instrument-next-wp-ttg::before {
+  content: none;
+}
+
 .instrument-next-wp-name {
   min-width: 0;
   white-space: nowrap;
@@ -2000,25 +2028,6 @@ body {
   font-size: 13px;
 }
 
-/* Time to the waypoint beside the DTW digits, "/"-separated and smaller,
-   sharing the digits' baseline. */
-.instrument-secondary {
-  font-weight: 600;
-  color: #444;
-  white-space: nowrap;
-  font-variant-numeric: tabular-nums;
-}
-
-.instrument-secondary::before {
-  content: "/ ";
-  font-weight: 400;
-  color: #999;
-}
-
-.instrument-cell--nav .instrument-secondary {
-  font-size: clamp(15px, 3vw, 24px);
-}
-
 /* Nav cells share the standard label-over-unit layout, just smaller and with
    tighter spacing so 4 cells fit beside their digits on a narrow phone. */
 .instrument-cell--nav .instrument-value-row {
@@ -2035,8 +2044,22 @@ body {
     height: 38px;
   }
 
-  .instrument-cell--nav .instrument-secondary {
-    font-size: clamp(11px, 2.8vw, 18px);
+  /* Narrow screens can't hold name, time, distance and arrival on one
+     line without losing the name, so the caption is always two lines here:
+     name and time to it, then the destination. */
+  .instrument-next-wp {
+    flex-wrap: wrap;
+    gap: 0;
+    padding: 4px 12px 2px;
+    font-size: 15px;
+  }
+
+  .instrument-next-wp-next {
+    flex-basis: 100%;
+  }
+
+  .instrument-next-wp-dest {
+    margin-left: auto;
   }
 
   /* Sized so value + stacked label/unit fit 4-across down to ~360 px,
@@ -3378,13 +3401,13 @@ body {
 
 [data-theme="night"] .instrument-label,
 [data-theme="night"] .instrument-unit,
-[data-theme="night"] .instrument-secondary,
-[data-theme="night"] .instrument-secondary::before,
+[data-theme="night"] .instrument-next-wp-ttg::before,
 [data-theme="night"] .instrument-next-wp-eta::before,
 [data-theme="night"] .instrument-next-wp {
   color: #882222;
 }
 
+[data-theme="night"] .instrument-next-wp-ttg,
 [data-theme="night"] .instrument-next-wp-dest {
   color: #cc3333;
 }
@@ -3524,13 +3547,13 @@ body {
 
 [data-theme="dusk"] .instrument-label,
 [data-theme="dusk"] .instrument-unit,
-[data-theme="dusk"] .instrument-secondary,
-[data-theme="dusk"] .instrument-secondary::before,
+[data-theme="dusk"] .instrument-next-wp-ttg::before,
 [data-theme="dusk"] .instrument-next-wp-eta::before,
 [data-theme="dusk"] .instrument-next-wp {
   color: #808090;
 }
 
+[data-theme="dusk"] .instrument-next-wp-ttg,
 [data-theme="dusk"] .instrument-next-wp-dest {
   color: #b0b0c0;
 }
@@ -3687,13 +3710,13 @@ body {
 }
 
 [data-theme="eink"] .instrument-unit,
-[data-theme="eink"] .instrument-secondary,
-[data-theme="eink"] .instrument-secondary::before,
+[data-theme="eink"] .instrument-next-wp-ttg::before,
 [data-theme="eink"] .instrument-next-wp-eta::before,
 [data-theme="eink"] .instrument-next-wp {
   color: #444444;
 }
 
+[data-theme="eink"] .instrument-next-wp-ttg,
 [data-theme="eink"] .instrument-next-wp-dest {
   color: #000000;
 }
@@ -4340,21 +4363,17 @@ body {
     font-size: clamp(24px, 5.5vh, 38px);
   }
 
-  body[data-instrument-layout="side"]
-    .instrument-cell--nav
-    .instrument-secondary {
-    font-size: clamp(13px, 3vh, 20px);
-  }
-
   /* The column is too narrow for the caption's one-line form: stack the
      waypoint name, the destination distance, and its arrival time. */
   body[data-instrument-layout="side"] .instrument-next-wp {
+    flex-wrap: wrap;
+    gap: 0;
     /* 13px in 8px padding: "Dest: 125.3 NM" fits the 130px column floor. */
     padding: 4px 8px 2px;
     font-size: 13px;
   }
 
-  body[data-instrument-layout="side"] .instrument-next-wp-name {
+  body[data-instrument-layout="side"] .instrument-next-wp-next {
     flex-basis: 100%;
   }
 
@@ -4473,19 +4492,13 @@ body {
 
   /* Always two lines: the name (kept clear of the corner GPS badge, whose
      widest state is "✕ NO DATA") over the destination, right-aligned. */
-  body:not([data-instrument-layout="side"]) .instrument-next-wp-name {
+  body:not([data-instrument-layout="side"]) .instrument-next-wp-next {
     flex-basis: 100%;
     padding-right: 60px;
   }
 
   body:not([data-instrument-layout="side"]) .instrument-next-wp-dest {
     margin-left: auto;
-  }
-
-  body:not([data-instrument-layout="side"])
-    .instrument-cell--nav
-    .instrument-secondary {
-    font-size: calc(var(--instr-nav-size) * 0.55);
   }
 
   /* 2×2 grid filling the group's pinned width and remaining height. */

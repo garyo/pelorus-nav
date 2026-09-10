@@ -551,11 +551,11 @@ const SCENES: Scene[] = [
       await openRoutePanel(page);
       await page.click('.route-manager-panel button[title="Navigate route"]');
       await page.waitForSelector(".instrument-nav-group");
-      // The DTW time needs 30 s of fixes behind its average before it shows.
+      // The waypoint time needs 30 s of fixes behind its average to show.
       await page.waitForFunction(
         () => {
           const t = document.querySelector(
-            ".instrument-cell--nav .instrument-secondary",
+            ".instrument-next-wp-ttg",
           )?.textContent;
           return !!t && t !== "--";
         },
