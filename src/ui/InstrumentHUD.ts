@@ -380,7 +380,8 @@ function buildCell(
   meta.className = "instrument-meta";
   meta.append(label, unitEl);
 
-  valueRow.append(valuEl, secondaryEl, meta);
+  // Baseline reads "3.36 NM / 9m": digits, label-over-unit, then the time.
+  valueRow.append(valuEl, meta, secondaryEl);
   cell.append(valueRow);
   return { cell, valuEl, unitEl, secondaryEl };
 }
