@@ -4368,8 +4368,9 @@ body {
   body[data-instrument-layout="side"] .instrument-next-wp {
     flex-wrap: wrap;
     gap: 0;
-    /* 13px in 8px padding: "Dest: 125.3 NM" fits the 130px column floor. */
-    padding: 4px 8px 2px;
+    /* 13px in 6px padding: "Dest: 125 NM" fits the 130px column floor in
+       wider system fonts than macOS's. */
+    padding: 4px 6px 2px;
     font-size: 13px;
   }
 
@@ -4380,6 +4381,8 @@ body {
   body[data-instrument-layout="side"] .instrument-next-wp-eta {
     display: block;
     text-align: right;
+    /* The widest line: "ETA ~Tue 11:58 AM". */
+    font-size: 12px;
   }
 
   body[data-instrument-layout="side"] .instrument-next-wp-eta::before {
