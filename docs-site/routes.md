@@ -206,6 +206,13 @@ active leg:
 - **STR** — steer indicator: how far and which way to turn to point at the
   waypoint (`0°` means dead ahead; `←15°` means come left fifteen degrees).
 
+The times are based on your average motion over the last few minutes
+rather than the speed of the moment, so gusts and waves don't make them
+jump. The time to the next waypoint uses your speed made good *toward*
+it, so tacking is accounted for; the legs beyond it are timed at your
+average speed over ground. After a turn onto a new leg the waypoint time
+reads long for a minute or two while the average catches up.
+
 The orange dashed line runs from your vessel to the waypoint you're
 steering for; the solid blue line with time ticks is your projected course.
 
