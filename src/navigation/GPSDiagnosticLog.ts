@@ -28,6 +28,10 @@ interface GPSLogEntry {
   broadcast: boolean;
   // GPS quality score in [0, 1] (0=good, 1=jittery). Drives filter strength.
   qualityScore: number;
+  // Passage-average SOG (knots) feeding ETAs, and whether it is still
+  // settling after a speed change.
+  avgSog: number | null;
+  avgSettling: boolean;
 }
 
 const MAX_ENTRIES = 10_000; // ~5.5 hours at 2s intervals
@@ -104,6 +108,13 @@ class GPSDiagnosticLog {
     this.currentEntry.qualityScore = q;
   }
 
+  /** Record the passage-average speed state after this fix. */
+  logAverage(avgSog: number | null, settling: boolean): void {
+    if (!this._enabled || !this.currentEntry) return;
+    this.currentEntry.avgSog = avgSog;
+    this.currentEntry.avgSettling = settling;
+  }
+
   /** Stage 4: Record course-smoothed output (called on broadcast only). */
   logSmoothed(sog: number | null, cog: number | null): void {
     if (!this._enabled || !this.currentEntry) return;
@@ -140,6 +151,8 @@ class GPSDiagnosticLog {
       "adaptive_interval_ms",
       "broadcast",
       "quality_q",
+      "avg_sog",
+      "avg_settling",
     ];
     const lines = [headers.join(",")];
     const rows = lastN ? this.entries.slice(-lastN) : this.entries;
@@ -162,6 +175,8 @@ class GPSDiagnosticLog {
           e.adaptiveIntervalMs,
           e.broadcast,
           e.qualityScore ?? "",
+          e.avgSog ?? "",
+          e.avgSettling ?? "",
         ].join(","),
       );
     }

@@ -9,26 +9,11 @@ import {
   depthUnitLabel,
   type SpeedUnit,
 } from "../settings";
-import { formatDurationShort } from "../utils/format";
 import { convertSpeed, speedUnitLabel } from "../utils/units";
 import type { CurrentEvent } from "./currents";
 import type { TideEvent } from "./predictor";
 
-/** "(+1h 30m)" — how soon `time` arrives; for the next-event row. */
-export function formatTimeUntil(time: Date, now: Date): string {
-  return `(+${formatDurationShort(time.getTime() - now.getTime())})`;
-}
-
-/** "2:32 PM" if `time` falls on `now`'s local date, else "Tue 2:32 AM". */
-export function formatEventTime(time: Date, now: Date): string {
-  const clock = time.toLocaleTimeString(undefined, {
-    hour: "numeric",
-    minute: "2-digit",
-  });
-  if (time.toDateString() === now.toDateString()) return clock;
-  const day = time.toLocaleDateString(undefined, { weekday: "short" });
-  return `${day} ${clock}`;
-}
+export { formatEventTime, formatTimeUntil } from "../utils/format";
 
 /** Tide height with one decimal in the user's depth unit ("9.7ft"). */
 export function formatTideHeight(meters: number, unit: DepthUnit): string {

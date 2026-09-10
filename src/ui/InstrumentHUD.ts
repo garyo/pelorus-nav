@@ -5,6 +5,7 @@
  */
 
 import type {
+  ActiveNavigationInfo,
   ActiveNavigationManager,
   ActiveNavigationState,
 } from "../navigation/ActiveNavigation";
@@ -12,6 +13,7 @@ import type { NavigationData } from "../navigation/NavigationData";
 import type { NavigationDataManager } from "../navigation/NavigationDataManager";
 import type { Settings } from "../settings";
 import { getSettings, onSettingsChange } from "../settings";
+import { formatEventTime } from "../utils/format";
 import { applyDeclination, bearingModeLabel } from "../utils/magnetic";
 import {
   convertSpeed,
@@ -28,7 +30,12 @@ export interface InstrumentDef {
   format(
     data: NavigationData | null,
     settings: Settings,
-  ): { value: string; unit: string };
+  ): {
+    value: string;
+    unit: string;
+    /** Smaller companion after the value, "/"-separated (the DTW time). */
+    secondary?: string;
+  };
 }
 
 export const INSTRUMENTS: Map<string, InstrumentDef> = new Map([
@@ -145,6 +152,7 @@ export function createInstrumentHUD(
   type CellRef = {
     valuEl: HTMLSpanElement;
     unitEl: HTMLSpanElement;
+    secondaryEl: HTMLSpanElement;
     def: InstrumentDef;
   };
   let baseCells: CellRef[] = [];
@@ -153,6 +161,8 @@ export function createInstrumentHUD(
   let nextWpEl: HTMLDivElement | null = null;
   let nextWpNameEl: HTMLSpanElement | null = null;
   let nextWpDestEl: HTMLSpanElement | null = null;
+  let nextWpDestText: Text | null = null;
+  let nextWpEtaEl: HTMLSpanElement | null = null;
   let activeNavRef: ActiveNavigationManager | null = null;
 
   /** Rebuild DOM structure (only when cell config or nav active state changes). */
@@ -170,8 +180,13 @@ export function createInstrumentHUD(
     for (let i = 0; i < baseIds.length; i++) {
       const def = INSTRUMENTS.get(baseIds[i]);
       if (!def) continue;
-      const { cell, valuEl, unitEl } = buildCell(def, i > 0, lastData, s);
-      baseCells.push({ valuEl, unitEl, def });
+      const { cell, valuEl, unitEl, secondaryEl } = buildCell(
+        def,
+        i > 0,
+        lastData,
+        s,
+      );
+      baseCells.push({ valuEl, unitEl, secondaryEl, def });
       container.appendChild(cell);
     }
 
@@ -191,6 +206,10 @@ export function createInstrumentHUD(
       nextWpNameEl.className = "instrument-next-wp-name";
       nextWpDestEl = document.createElement("span");
       nextWpDestEl.className = "instrument-next-wp-dest";
+      nextWpDestText = document.createTextNode("");
+      nextWpEtaEl = document.createElement("span");
+      nextWpEtaEl.className = "instrument-next-wp-eta";
+      nextWpDestEl.append(nextWpDestText, nextWpEtaEl);
       nextWpEl.append(nextWpNameEl, nextWpDestEl);
       navGroup.appendChild(nextWpEl);
       // Row containing DTW / BRG / VMG / STEER. Sized smaller than the
@@ -200,9 +219,14 @@ export function createInstrumentHUD(
       for (let i = 0; i < NAV_INSTRUMENT_IDS.length; i++) {
         const def = INSTRUMENTS.get(NAV_INSTRUMENT_IDS[i]);
         if (!def) continue;
-        const { cell, valuEl, unitEl } = buildCell(def, i > 0, lastData, s);
+        const { cell, valuEl, unitEl, secondaryEl } = buildCell(
+          def,
+          i > 0,
+          lastData,
+          s,
+        );
         cell.classList.add("instrument-cell--nav");
-        navCells.push({ valuEl, unitEl, def });
+        navCells.push({ valuEl, unitEl, secondaryEl, def });
         navRow.appendChild(cell);
       }
       navGroup.appendChild(navRow);
@@ -222,25 +246,24 @@ export function createInstrumentHUD(
     // linger forever (e.g. frozen at 40 kn in a tunnel). Treat a stale fix as
     // no data so every motion/nav cell reads "--".
     const data = navManager.isFixStale() ? null : lastData;
-    for (const c of baseCells) {
+    for (const c of [...baseCells, ...navCells]) {
       const f = c.def.format(data, s);
       c.valuEl.textContent = f.value;
       c.unitEl.textContent = f.unit;
+      c.secondaryEl.textContent = f.secondary ?? "";
+      c.secondaryEl.hidden = !f.secondary;
     }
-    for (const c of navCells) {
-      const f = c.def.format(data, s);
-      c.valuEl.textContent = f.value;
-      c.unitEl.textContent = f.unit;
-    }
-    if (nextWpEl && nextWpNameEl && nextWpDestEl) {
+    if (nextWpEl && nextWpNameEl && nextWpDestText && nextWpEtaEl) {
       const info = activeNavRef?.getInfo() ?? null;
       const name = info?.nextWaypointName ?? null;
       // Dest distance is position-derived, so blank it on a stale fix just
       // like the DTW cell.
       const dest = data ? (info?.destDistanceNM ?? null) : null;
       nextWpNameEl.textContent = name ? `Next: ${name}` : "";
-      nextWpDestEl.textContent =
+      nextWpDestText.data =
         dest != null ? `Dest: ${formatNavDistanceNM(dest)} NM` : "";
+      nextWpEtaEl.textContent = dest != null ? destEta(info) : "";
+      nextWpEtaEl.hidden = dest == null;
       nextWpEl.style.display = name || dest != null ? "" : "none";
     }
   };
@@ -318,7 +341,12 @@ function buildCell(
   bordered: boolean,
   data: NavigationData | null,
   settings: Settings,
-): { cell: HTMLDivElement; valuEl: HTMLSpanElement; unitEl: HTMLSpanElement } {
+): {
+  cell: HTMLDivElement;
+  valuEl: HTMLSpanElement;
+  unitEl: HTMLSpanElement;
+  secondaryEl: HTMLSpanElement;
+} {
   const cell = document.createElement("div");
   cell.className = "instrument-cell";
   if (bordered) cell.classList.add("instrument-cell--bordered");
@@ -342,12 +370,28 @@ function buildCell(
   unitEl.className = "instrument-unit";
   unitEl.textContent = formatted.unit;
 
+  const secondaryEl = document.createElement("span");
+  secondaryEl.className = "instrument-secondary";
+  secondaryEl.textContent = formatted.secondary ?? "";
+  secondaryEl.hidden = !formatted.secondary;
+
   // Meta column to the right of the digits: label on top, unit on bottom.
   const meta = document.createElement("div");
   meta.className = "instrument-meta";
   meta.append(label, unitEl);
 
-  valueRow.append(valuEl, meta);
+  valueRow.append(valuEl, secondaryEl, meta);
   cell.append(valueRow);
-  return { cell, valuEl, unitEl };
+  return { cell, valuEl, unitEl, secondaryEl };
+}
+
+/**
+ * "2:32 PM": arrival at the route's destination at the passage-average
+ * speed; "~" while that average is still settling, "--" before it exists.
+ */
+function destEta(info: ActiveNavigationInfo | null): string {
+  if (info?.ttgDestMs == null) return "--";
+  const now = new Date();
+  const eta = formatEventTime(new Date(now.getTime() + info.ttgDestMs), now);
+  return `${info.speedSettling ? "~" : ""}${eta}`;
 }

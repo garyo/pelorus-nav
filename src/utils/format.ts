@@ -15,6 +15,22 @@ export function formatDurationShort(ms: number): string {
   return min === 0 ? `${hours}h` : `${hours}h ${min}m`;
 }
 
+/** "(+1h 30m)" — how soon `time` arrives. */
+export function formatTimeUntil(time: Date, now: Date): string {
+  return `(+${formatDurationShort(time.getTime() - now.getTime())})`;
+}
+
+/** "2:32 PM" if `time` falls on `now`'s local date, else "Tue 2:32 AM". */
+export function formatEventTime(time: Date, now: Date): string {
+  const clock = time.toLocaleTimeString(undefined, {
+    hour: "numeric",
+    minute: "2-digit",
+  });
+  if (time.toDateString() === now.toDateString()) return clock;
+  const day = time.toLocaleDateString(undefined, { weekday: "short" });
+  return `${day} ${clock}`;
+}
+
 /** "0.30 nm", "12.4 nm", "127 nm". */
 export function formatDistanceShort(nm: number): string {
   if (nm < 0) nm = 0;

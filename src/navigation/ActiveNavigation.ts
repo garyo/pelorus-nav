@@ -25,8 +25,14 @@ import {
   pickJoinLeg,
   suggestReverse,
 } from "./route-join";
+import { closingSpeedKn } from "./speed-average";
 
 const STORAGE_KEY = "pelorus-nav-active-nav";
+
+/** Below this average closing speed no time to go is offered: the vessel
+ *  is drifting, stopped, or sailing away, and the ETA would be nonsense. */
+const MIN_CLOSING_KN = 0.5;
+const MS_PER_HOUR = 3_600_000;
 
 /** Serializable form of active navigation state for localStorage. */
 type PersistedNavState =
@@ -151,6 +157,18 @@ export interface ActiveNavigationInfo {
    * is the destination.
    */
   destDistanceNM: number | null;
+  /**
+   * Time to the active target at the passage-average closing speed, ms.
+   * null with no average yet (first 30 s of fixes) or when not closing.
+   */
+  ttgWaypointMs: number | null;
+  /** Time to the route's final waypoint, ms. null in goto mode, or as above. */
+  ttgDestMs: number | null;
+  /**
+   * True while the average speed is still settling after a change; the
+   * times come from a short window then and the HUD marks them provisional.
+   */
+  speedSettling: boolean;
 }
 
 export type ActiveNavCallback = (
@@ -261,7 +279,7 @@ export class ActiveNavigationManager {
       targetLon: target.lon,
       ...this.deriveCourseInfo(result.bearingDeg, data),
       nextWaypointName: this.getNextWaypointName(),
-      destDistanceNM: this.destDistanceNM(result.distanceNM),
+      ...this.deriveRemaining(result.bearingDeg, result.distanceNM),
     };
 
     // A temporary goto target is done with on arrival: report it and stop,
@@ -358,7 +376,10 @@ export class ActiveNavigationManager {
               targetLon: newTarget.lon,
               ...this.deriveCourseInfo(newResult.bearingDeg, data),
               nextWaypointName: this.getNextWaypointName(),
-              destDistanceNM: this.destDistanceNM(newResult.distanceNM),
+              ...this.deriveRemaining(
+                newResult.bearingDeg,
+                newResult.distanceNM,
+              ),
             };
           }
         } else {
@@ -389,6 +410,47 @@ export class ActiveNavigationManager {
     const steer = bearingDelta(bearingDeg, cog);
     const vmg = sog != null ? sog * Math.cos((steer * Math.PI) / 180) : null;
     return { vmgKn: vmg, steerDeg: steer };
+  }
+
+  /**
+   * Distance and time to the route's end, plus time to the active target.
+   * Times use the passage-average speed (see speed-average.ts): the current
+   * leg at the average speed made good toward the target, the legs beyond
+   * it at the plain average speed, since their bearings differ from the
+   * present course. Times are null with no average yet or when not closing.
+   */
+  private deriveRemaining(
+    bearingDeg: number,
+    distanceNM: number,
+  ): {
+    destDistanceNM: number | null;
+    ttgWaypointMs: number | null;
+    ttgDestMs: number | null;
+    speedSettling: boolean;
+  } {
+    const destDistanceNM = this.destDistanceNM(distanceNM);
+    const avg = this.navManager.getSpeedAverage();
+    const closing = avg ? closingSpeedKn(avg, bearingDeg) : 0;
+    if (avg === null || closing < MIN_CLOSING_KN) {
+      return {
+        destDistanceNM,
+        ttgWaypointMs: null,
+        ttgDestMs: null,
+        speedSettling: avg?.settling ?? false,
+      };
+    }
+    const ttgWaypointMs = (distanceNM / closing) * MS_PER_HOUR;
+    const ttgDestMs =
+      destDistanceNM === null
+        ? null
+        : ttgWaypointMs +
+          ((destDistanceNM - distanceNM) / avg.speedKn) * MS_PER_HOUR;
+    return {
+      destDistanceNM,
+      ttgWaypointMs,
+      ttgDestMs,
+      speedSettling: avg.settling,
+    };
   }
 
   /**
@@ -627,6 +689,9 @@ export class ActiveNavigationManager {
           steerDeg: null,
           nextWaypointName: this.getNextWaypointName(),
           destDistanceNM: this.destDistanceNM(0),
+          ttgWaypointMs: null,
+          ttgDestMs: null,
+          speedSettling: false,
         };
       }
       this.notify();

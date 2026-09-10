@@ -20,6 +20,14 @@ The format follows [Keep a Changelog](https://keepachangelog.com/).
 - **White deep water** (Settings → Appearance → Depth shading) draws deep
   water white instead of pale blue in the Day theme, as the E-ink theme
   already does.
+- Time to the next waypoint and arrival time at the route's destination
+  while navigating: the DTW cell shows the time after the distance
+  (`2.34 / 25m`) and the Dest caption the clock time (`Dest: 12.4 NM /
+  2:32 PM`). Both use your average speed over the last three minutes, so
+  they hold steady in gusts; after a real speed change they follow the
+  last 30 seconds and show a `~` until the average settles. `--` means
+  no average yet (the first 30 seconds) or you are not closing on the
+  waypoint.
 
 ### Fixed
 - With the street underlay on, land no longer shows darker rectangular

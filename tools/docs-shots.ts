@@ -551,6 +551,16 @@ const SCENES: Scene[] = [
       await openRoutePanel(page);
       await page.click('.route-manager-panel button[title="Navigate route"]');
       await page.waitForSelector(".instrument-nav-group");
+      // The DTW time needs 30 s of fixes behind its average before it shows.
+      await page.waitForFunction(
+        () => {
+          const t = document.querySelector(
+            ".instrument-cell--nav .instrument-secondary",
+          )?.textContent;
+          return !!t && t !== "--";
+        },
+        { timeout: 60_000 },
+      );
       // Close any open panels so the chart, nav instruments, and cancel
       // button carry the shot.
       for (const panel of [".route-detail-panel", ".route-manager-panel"]) {

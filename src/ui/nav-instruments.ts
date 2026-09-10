@@ -4,6 +4,7 @@
  * the ActiveNavigationManager, so they register here once it exists.
  */
 import type { ActiveNavigationManager } from "../navigation/ActiveNavigation";
+import { formatDurationShort } from "../utils/format";
 import { applyDeclination, bearingModeLabel } from "../utils/magnetic";
 import {
   convertSpeed,
@@ -44,7 +45,18 @@ export function registerNavInstruments(
       const info = activeNav.getInfo();
       // Blank on a stale fix (data null) — see the BRG formatter.
       if (!info || !data) return { value: "--", unit: "NM" };
-      return { value: formatNavDistanceNM(info.distanceNM), unit: "NM" };
+      // Time to go at the passage-average closing speed; "~" while that
+      // average is still settling after a speed change, "--" before it
+      // exists or while not closing on the waypoint.
+      const ttg =
+        info.ttgWaypointMs == null
+          ? "--"
+          : `${info.speedSettling ? "~" : ""}${formatDurationShort(info.ttgWaypointMs)}`;
+      return {
+        value: formatNavDistanceNM(info.distanceNM),
+        unit: "NM",
+        secondary: ttg,
+      };
     },
   });
 

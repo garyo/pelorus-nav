@@ -7,6 +7,7 @@ import {
   shouldAdvanceLeg,
 } from "./ActiveNavigation";
 import type { NavigationData } from "./NavigationData";
+import type { SpeedAverage } from "./speed-average";
 
 // restore() loads routes/waypoints from IndexedDB — serve them from memory.
 const dbMock = vi.hoisted(() => ({ routes: [] as unknown[] }));
@@ -182,6 +183,7 @@ describe("restore", () => {
       subscribe: (cb: (d: NavigationData) => void) => {
         onGPS = cb;
       },
+      getSpeedAverage: () => null,
       getLastData: () =>
         fix
           ? ({ latitude: fix.lat, longitude: fix.lon } as NavigationData)
@@ -260,6 +262,7 @@ describe("stop-on-delete", () => {
   function makeNav() {
     const navManager = {
       subscribe: () => {},
+      getSpeedAverage: () => null,
       getLastData: () => null,
     } as unknown as ConstructorParameters<typeof ActiveNavigationManager>[0];
     return new ActiveNavigationManager(navManager);
@@ -377,6 +380,7 @@ describe("destDistanceNM", () => {
   function makeNavWithFix(lat: number, lon: number) {
     const navManager = {
       subscribe: () => {},
+      getSpeedAverage: () => null,
       getLastData: () => ({
         latitude: lat,
         longitude: lon,
@@ -455,6 +459,7 @@ describe("arrival events", () => {
       subscribe: (cb: (d: NavigationData) => void) => {
         onGPS = cb;
       },
+      getSpeedAverage: () => null,
       getLastData: () => last,
     } as unknown as ConstructorParameters<typeof ActiveNavigationManager>[0];
     return new ActiveNavigationManager(navManager);
@@ -548,6 +553,7 @@ describe("temporary goto targets", () => {
       subscribe: (cb: (d: NavigationData) => void) => {
         onGPS = cb;
       },
+      getSpeedAverage: () => null,
       getLastData: () => last,
     } as unknown as ConstructorParameters<typeof ActiveNavigationManager>[0];
     return new ActiveNavigationManager(navManager);
@@ -637,6 +643,7 @@ describe("starting a route before the first fix", () => {
       subscribe: (cb: (d: NavigationData) => void) => {
         onGPS = cb;
       },
+      getSpeedAverage: () => null,
       getLastData: () => last,
     } as unknown as ConstructorParameters<typeof ActiveNavigationManager>[0];
     return new ActiveNavigationManager(navManager);
@@ -672,5 +679,108 @@ describe("starting a route before the first fix", () => {
     last = fix(-0.05, 90);
     onGPS?.(last);
     expect(legOf(nav)).toBe(2);
+  });
+});
+
+describe("time to go", () => {
+  beforeEach(() => {
+    vi.stubGlobal("localStorage", {
+      getItem: () => null,
+      setItem: () => {},
+      removeItem: () => {},
+    });
+  });
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  // A(42.0) → B(42.1) → C(42.3) due north along -71.0; the vessel sits
+  // halfway up leg A→B, 3 NM from B with 12 NM of route beyond it.
+  const route = {
+    id: "r-ttg",
+    name: "TTG",
+    color: "#000",
+    visible: true,
+    waypoints: [
+      { id: "w1", name: "A", lat: 42.0, lon: -71.0 },
+      { id: "w2", name: "B", lat: 42.1, lon: -71.0 },
+      { id: "w3", name: "C", lat: 42.3, lon: -71.0 },
+    ],
+    createdAt: 0,
+    updatedAt: 0,
+  } as unknown as Route;
+  const HOUR = 3_600_000;
+
+  /** A settled 6 kn average on the given course. */
+  function avgOn(cogDeg: number, settling = false): SpeedAverage {
+    const r = (cogDeg * Math.PI) / 180;
+    return {
+      speedKn: 6,
+      velocity: { east: 6 * Math.sin(r), north: 6 * Math.cos(r) },
+      sdKn: 0.2,
+      settling,
+      spanMs: 180_000,
+    };
+  }
+
+  function makeNav(avg: SpeedAverage | null) {
+    const navManager = {
+      subscribe: () => {},
+      getSpeedAverage: () => avg,
+      getLastData: () => ({
+        latitude: 42.05,
+        longitude: -71.0,
+        sog: 6,
+        cog: 0,
+        heading: null,
+      }),
+    } as unknown as ConstructorParameters<typeof ActiveNavigationManager>[0];
+    return new ActiveNavigationManager(navManager);
+  }
+
+  it("times the leg at the closing speed and the legs beyond at the average", () => {
+    const nav = makeNav(avgOn(0));
+    nav.startRoute(route, 1);
+    const info = nav.getInfo();
+    if (!info || info.destDistanceNM == null) throw new Error("no info");
+    expect(info.ttgWaypointMs).toBeCloseTo((info.distanceNM / 6) * HOUR, -3);
+    expect(info.ttgDestMs).toBeCloseTo((info.destDistanceNM / 6) * HOUR, -3);
+    expect(info.speedSettling).toBe(false);
+  });
+
+  it("uses only the closing component when steering off the bearing", () => {
+    // 60° off the bearing: closing at 3 kn, so the leg takes twice as long
+    // while the legs beyond still assume the full 6 kn.
+    const nav = makeNav(avgOn(60));
+    nav.startRoute(route, 1);
+    const info = nav.getInfo();
+    if (!info || info.destDistanceNM == null) throw new Error("no info");
+    const leg = (info.distanceNM / 3) * HOUR;
+    expect(info.ttgWaypointMs).toBeCloseTo(leg, -3);
+    expect(info.ttgDestMs).toBeCloseTo(
+      leg + ((info.destDistanceNM - info.distanceNM) / 6) * HOUR,
+      -3,
+    );
+  });
+
+  it("offers no time without an average or while not closing", () => {
+    const none = makeNav(null);
+    none.startRoute(route, 1);
+    expect(none.getInfo()?.ttgWaypointMs).toBeNull();
+    expect(none.getInfo()?.ttgDestMs).toBeNull();
+
+    const away = makeNav(avgOn(180));
+    away.startRoute(route, 1);
+    expect(away.getInfo()?.ttgWaypointMs).toBeNull();
+    expect(away.getInfo()?.ttgDestMs).toBeNull();
+  });
+
+  it("has no destination time in goto mode and passes settling through", () => {
+    const nav = makeNav(avgOn(0, true));
+    nav.startGoto({ id: "w9", name: "WP", lat: 42.1, lon: -71.0 });
+    const info = nav.getInfo();
+    expect(info?.ttgWaypointMs).toBeGreaterThan(0);
+    expect(info?.ttgDestMs).toBeNull();
+    expect(info?.speedSettling).toBe(true);
   });
 });

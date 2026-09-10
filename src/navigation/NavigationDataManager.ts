@@ -19,6 +19,7 @@ import type {
   NavigationDataCallback,
   NavigationDataProvider,
 } from "./NavigationData";
+import { createSpeedAverager, type SpeedAverage } from "./speed-average";
 
 export type RateMode = "adaptive" | "manual";
 export type FilterMode = "auto" | "strong" | "normal";
@@ -83,6 +84,8 @@ export class NavigationDataManager {
   private gpsFilter = new GPSFilter();
   // GPS quality detector (feeds adaptive filter strength)
   private qualityDetector = new GPSQualityDetector();
+  // Passage-average speed for ETAs (fed every fix, not just broadcasts)
+  private speedAverager = createSpeedAverager();
   private filterMode: FilterMode = "auto";
   private qualityListeners: QualityListener[] = [];
   // Adaptive rate control
@@ -127,6 +130,9 @@ export class NavigationDataManager {
 
     const data = this.gpsFilter.filter(raw, q);
     this.lastData = data;
+    this.speedAverager.addSample(data.sog, data.cog, data.timestamp);
+    const avg = this.speedAverager.get();
+    gpsDiagLog.logAverage(avg?.speedKn ?? null, avg?.settling ?? false);
 
     if (GPS_TRACE) {
       const nowMs = Date.now();
@@ -339,6 +345,11 @@ export class NavigationDataManager {
     return this.lastData;
   }
 
+  /** Passage-average speed for ETAs; null until 30 s of fixes exist. */
+  getSpeedAverage(): SpeedAverage | null {
+    return this.speedAverager.get();
+  }
+
   /** Wall-clock ms since the last fix was broadcast (Infinity before any fix
    *  or after a provider switch / disconnect). */
   getFixAgeMs(): number {
@@ -422,6 +433,7 @@ export class NavigationDataManager {
     this.clearDeferredTimer();
     this.gpsFilter.reset();
     this.qualityDetector.reset();
+    this.speedAverager.reset();
     this.adaptiveCtrl.reset();
     this.lastHintedIntervalMs = -1;
     const provider = this.providers.find((p) => p.id === id) ?? null;

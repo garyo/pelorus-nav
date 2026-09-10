@@ -1944,8 +1944,9 @@ body {
    numbers but worth showing. */
 .instrument-next-wp {
   display: flex;
+  flex-wrap: wrap;
   justify-content: space-between;
-  gap: 12px;
+  gap: 0 12px;
   padding: 5px 16px 3px;
   font-size: 16px;
   font-weight: 500;
@@ -1961,9 +1962,17 @@ body {
 
 .instrument-next-wp-dest {
   flex: none;
+  margin-left: auto;
   white-space: nowrap;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
+}
+
+/* Arrival time after the destination distance, "/"-separated. */
+.instrument-next-wp-eta::before {
+  content: " / ";
+  font-weight: 400;
+  color: #999;
 }
 
 .instrument-nav-row .instrument-cell--bordered {
@@ -1990,6 +1999,25 @@ body {
   font-size: 13px;
 }
 
+/* Time to the waypoint beside the DTW digits, "/"-separated and smaller,
+   sharing the digits' baseline. */
+.instrument-secondary {
+  font-weight: 600;
+  color: #444;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.instrument-secondary::before {
+  content: "/ ";
+  font-weight: 400;
+  color: #999;
+}
+
+.instrument-cell--nav .instrument-secondary {
+  font-size: clamp(15px, 3vw, 24px);
+}
+
 /* Nav cells share the standard label-over-unit layout, just smaller and with
    tighter spacing so 4 cells fit beside their digits on a narrow phone. */
 .instrument-cell--nav .instrument-value-row {
@@ -2004,6 +2032,10 @@ body {
 @media (max-width: 600px) {
   .instrument-cell--nav {
     height: 38px;
+  }
+
+  .instrument-cell--nav .instrument-secondary {
+    font-size: clamp(11px, 2.8vw, 18px);
   }
 
   /* Sized so value + stacked label/unit fit 4-across down to ~360 px,
@@ -3344,8 +3376,16 @@ body {
 }
 
 [data-theme="night"] .instrument-label,
-[data-theme="night"] .instrument-unit {
+[data-theme="night"] .instrument-unit,
+[data-theme="night"] .instrument-secondary,
+[data-theme="night"] .instrument-secondary::before,
+[data-theme="night"] .instrument-next-wp-eta::before,
+[data-theme="night"] .instrument-next-wp {
   color: #882222;
+}
+
+[data-theme="night"] .instrument-next-wp-dest {
+  color: #cc3333;
 }
 
 [data-theme="night"] .manager-panel {
@@ -3482,8 +3522,16 @@ body {
 }
 
 [data-theme="dusk"] .instrument-label,
-[data-theme="dusk"] .instrument-unit {
+[data-theme="dusk"] .instrument-unit,
+[data-theme="dusk"] .instrument-secondary,
+[data-theme="dusk"] .instrument-secondary::before,
+[data-theme="dusk"] .instrument-next-wp-eta::before,
+[data-theme="dusk"] .instrument-next-wp {
   color: #808090;
+}
+
+[data-theme="dusk"] .instrument-next-wp-dest {
+  color: #b0b0c0;
 }
 
 /* E-ink: pure black/white, no transparency, no rounded corners, no shadows */
@@ -3637,8 +3685,16 @@ body {
   color: #444444;
 }
 
-[data-theme="eink"] .instrument-unit {
+[data-theme="eink"] .instrument-unit,
+[data-theme="eink"] .instrument-secondary,
+[data-theme="eink"] .instrument-secondary::before,
+[data-theme="eink"] .instrument-next-wp-eta::before,
+[data-theme="eink"] .instrument-next-wp {
   color: #444444;
+}
+
+[data-theme="eink"] .instrument-next-wp-dest {
+  color: #000000;
 }
 
 [data-theme="eink"] .instrument-cell--bordered {
@@ -4284,6 +4340,32 @@ body {
   }
 
   body[data-instrument-layout="side"]
+    .instrument-cell--nav
+    .instrument-secondary {
+    font-size: clamp(13px, 3vh, 20px);
+  }
+
+  /* The column is too narrow for the caption's one-line form: stack the
+     waypoint name, the destination distance, and its arrival time. */
+  body[data-instrument-layout="side"] .instrument-next-wp {
+    padding: 4px 10px 2px;
+    font-size: 14px;
+  }
+
+  body[data-instrument-layout="side"] .instrument-next-wp-name {
+    flex-basis: 100%;
+  }
+
+  body[data-instrument-layout="side"] .instrument-next-wp-eta {
+    display: block;
+    text-align: right;
+  }
+
+  body[data-instrument-layout="side"] .instrument-next-wp-eta::before {
+    content: "ETA ";
+  }
+
+  body[data-instrument-layout="side"]
     .instrument-nav-row
     .instrument-cell--bordered {
     border-left: none;
@@ -4372,7 +4454,7 @@ body {
     /* 200px floor: each grid column must hold a 20px-floor nav value plus
        its label/unit stack, or the cells overflow their tracks just above
        the layout's 600px gate. */
-    width: clamp(200px, 30vw, 380px);
+    width: clamp(240px, 34vw, 420px);
     border-top: none;
     border-left: 1px solid #ccc;
   }
@@ -4382,6 +4464,13 @@ body {
      70px clears the widest state, "✕ NO DATA". */
   body:not([data-instrument-layout="side"]) .instrument-next-wp {
     padding: 4px 70px 2px 10px;
+    font-size: 14px;
+  }
+
+  body:not([data-instrument-layout="side"])
+    .instrument-cell--nav
+    .instrument-secondary {
+    font-size: calc(var(--instr-nav-size) * 0.55);
   }
 
   /* 2×2 grid filling the group's pinned width and remaining height. */
