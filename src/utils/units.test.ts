@@ -95,11 +95,12 @@ describe("formatDistanceNM", () => {
 });
 
 describe("formatNavDistanceNM", () => {
-  it("uses hundredths below 10 NM and tenths above", () => {
+  it("uses hundredths below 10 NM, tenths to 100, whole miles beyond", () => {
     expect(formatNavDistanceNM(2.345)).toBe("2.35");
     expect(formatNavDistanceNM(9.999)).toBe("10.00");
     expect(formatNavDistanceNM(10)).toBe("10.0");
-    expect(formatNavDistanceNM(123.45)).toBe("123.5");
+    expect(formatNavDistanceNM(99.95)).toBe("100.0");
+    expect(formatNavDistanceNM(123.45)).toBe("123");
   });
 });
 

@@ -52,10 +52,12 @@ export function formatDistanceInSpeedUnits(
 
 /**
  * Format a nav-instrument distance in NM (digits only, no unit):
- * hundredths below 10 NM, tenths above — the DTW cell's precision.
+ * hundredths below 10 NM, tenths to 100, whole miles beyond — the DTW
+ * cell's precision, and never more than five characters.
  */
 export function formatNavDistanceNM(nm: number): string {
-  return nm < 10 ? nm.toFixed(2) : nm.toFixed(1);
+  if (nm < 10) return nm.toFixed(2);
+  return nm < 100 ? nm.toFixed(1) : nm.toFixed(0);
 }
 
 /**

@@ -4472,10 +4472,11 @@ body {
      to its full name and squeeze the mains. */
   body:not([data-instrument-layout="side"]) .instrument-nav-group {
     flex: 0 0 auto;
-    /* 200px floor: each grid column must hold a 20px-floor nav value plus
-       its label/unit stack, or the cells overflow their tracks just above
-       the layout's 600px gate. */
-    width: clamp(240px, 34vw, 420px);
+    /* 260px floor: the caption's destination line ("Dest: 125 NM / ~Tue
+       11:58 AM") must fit just above the layout's 600px gate, in wider
+       system fonts than macOS's too; each grid column then easily holds a
+       20px-floor nav value plus its label/unit stack. */
+    width: clamp(260px, 34vw, 420px);
     border-top: none;
     border-left: 1px solid #ccc;
   }
@@ -4487,7 +4488,7 @@ body {
     flex-wrap: wrap;
     gap: 0;
     padding: 4px 10px 2px;
-    font-size: 14px;
+    font-size: clamp(12px, 1.8vw, 14px);
   }
 
   /* Always two lines: the name (kept clear of the corner GPS badge, whose
