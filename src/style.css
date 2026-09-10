@@ -1944,12 +1944,15 @@ body {
    important than the numbers but worth showing. One line: the name gives
    way (ellipsis) so a longer name or time can never change the strip's
    height and shift everything below it. The landscape layouts fix their
-   own line counts the same way. */
+   own line counts the same way. A bundled condensed face: it fits a
+   waypoint name, time, distance and arrival where the system font would
+   not, and renders alike on every platform. */
 .instrument-next-wp {
   display: flex;
   justify-content: space-between;
   gap: 12px;
   padding: 5px 16px 3px;
+  font-family: "Roboto Condensed", system-ui, sans-serif;
   font-size: 16px;
   font-weight: 500;
   color: #555;
@@ -4491,7 +4494,7 @@ body {
     flex-wrap: wrap;
     gap: 0;
     padding: 4px 10px 2px;
-    font-size: clamp(12px, 1.8vw, 14px);
+    font-size: 14px;
   }
 
   /* Always two lines: the name (kept clear of the corner GPS badge, whose

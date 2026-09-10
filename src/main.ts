@@ -11,6 +11,9 @@ import { describeBacklogRecovery } from "./map/backlog-notice";
 import { playWaypointChime } from "./navigation/waypoint-chime";
 import { BackgroundGPS } from "./plugins/BackgroundGPS";
 import "maplibre-gl/dist/maplibre-gl.css";
+// Latin subset only: the caption strip above the nav instruments.
+import "@fontsource/roboto-condensed/latin-500.css";
+import "@fontsource/roboto-condensed/latin-700.css";
 import { Protocol } from "pmtiles";
 import "./style.css";
 import { AnchorBadge } from "./anchor/AnchorBadge";
