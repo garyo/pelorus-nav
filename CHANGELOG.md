@@ -7,6 +7,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.25.0] - 2026-09-10
+
 ### Added
 - Choose the first waypoint to steer for yourself: tap a route's waypoint
   on the chart and choose **Steer for this waypoint**, or tap the ► marker
