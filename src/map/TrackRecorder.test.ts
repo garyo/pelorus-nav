@@ -295,6 +295,30 @@ describe("TrackRecorder save-failure handling", () => {
     expect(appErrorLog.log).toHaveBeenCalledTimes(1);
   });
 
+  it("lets a write outlive stop() without throwing or latching an error", async () => {
+    const { nav, recorder } = await startRecorder();
+    let finishWrite: (() => void) | null = null;
+    vi.mocked(appendTrackPoint).mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve) => {
+          finishWrite = resolve;
+        }),
+    );
+
+    nav.feed(fix(42.0, -71.0, t0));
+    await settle();
+    expect(finishWrite).not.toBeNull();
+    // Stop lands while the point is still being written (a drained burst
+    // of fixes queues many such writes).
+    recorder.stop();
+    (finishWrite as unknown as () => void)();
+    await settle();
+
+    expect(recorder.isSaveFailing()).toBe(false);
+    expect(recorder.isRecording()).toBe(false);
+    expect(appErrorLog.log).not.toHaveBeenCalled();
+  });
+
   it("does not advance the anchor or aggregates on a failed append", async () => {
     const { nav, recorder } = await startRecorder();
 

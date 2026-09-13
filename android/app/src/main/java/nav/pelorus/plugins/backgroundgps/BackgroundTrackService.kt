@@ -773,6 +773,7 @@ class BackgroundTrackService : Service() {
             startForeground(NOTIFICATION_ID, buildNotification())
         } catch (e: Exception) {
             Log.e(TAG, "Failed to start foreground service, stopping", e)
+            DiagLog.log(this, "svc", "foreground start refused: ${e.javaClass.simpleName}: ${e.message}")
             locationListener = null
             stoppedListener?.invoke("foreground-start-failed")
             stopSelf()

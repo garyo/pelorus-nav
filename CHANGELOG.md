@@ -7,6 +7,14 @@ The format follows [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Fixed
+- Android: when the system relaunched the app in the background after
+  killing it mid-recording, the device GPS stayed off with a "tracking
+  stopped (foreground-start-failed)" banner until Retry was tapped. The app
+  now restarts the GPS on its own as soon as it is back on screen.
+- Stopping a track recording while a burst of fixes was still being written
+  no longer logs a "track save failed" error for each of them.
+
 ## [0.25.0] - 2026-09-10
 
 ### Added

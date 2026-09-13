@@ -540,6 +540,12 @@ export class TrackRecorder {
       accuracy: data.accuracy,
     };
 
+    // The track this fix belongs to. stop() can null currentTrack while
+    // the write below is in flight (a drained burst of fixes queues many
+    // writes), so everything after the await goes through this reference
+    // and bails if the track has changed hands.
+    const track = this.currentTrack;
+
     // Snapshot the anchor + aggregates so a failed write can roll them
     // back: the next fix must be measured against the last point that
     // actually reached the store, or a save outage punches a silent
@@ -547,23 +553,19 @@ export class TrackRecorder {
     const prevRecordedTime = this.lastRecordedTime;
     const prevLat = this.lastLat;
     const prevLon = this.lastLon;
-    const prevTotalDistanceNM = this.currentTrack.totalDistanceNM;
-    const prevDurationMs = this.currentTrack.durationMs;
+    const prevTotalDistanceNM = track.totalDistanceNM;
+    const prevDurationMs = track.durationMs;
 
     // Incremental track aggregates so the panel can show "X min · Y nm"
     // without rescanning every point. createdAt is the first point's
     // timestamp (preserved across resume), so `now − createdAt` is the
     // full recording span.
     if (segmentNM > 0) {
-      this.currentTrack.totalDistanceNM =
-        (this.currentTrack.totalDistanceNM ?? 0) + segmentNM;
+      track.totalDistanceNM = (track.totalDistanceNM ?? 0) + segmentNM;
       // ↑ ?? guard for resume-from-localStorage of a legacy track
       //   whose persisted meta predates these fields.
     }
-    this.currentTrack.durationMs = Math.max(
-      0,
-      now - this.currentTrack.createdAt,
-    );
+    track.durationMs = Math.max(0, now - track.createdAt);
 
     // Update state BEFORE awaiting, so a fix arriving mid-write is measured
     // against this one rather than its predecessor.
@@ -572,42 +574,49 @@ export class TrackRecorder {
     this.lastLon = data.longitude;
 
     try {
-      await appendTrackPoint(this.currentTrack.id, point);
+      await appendTrackPoint(track.id, point);
     } catch (err) {
+      if (this.currentTrack !== track) return;
       // The write failed (quota exhaustion, corrupt DB): roll back so the
       // next fix retries against the last stored point, latch the error
       // state (one log entry + banner, not one per point), and bail.
       this.lastRecordedTime = prevRecordedTime;
       this.lastLat = prevLat;
       this.lastLon = prevLon;
-      this.currentTrack.totalDistanceNM = prevTotalDistanceNM;
-      this.currentTrack.durationMs = prevDurationMs;
+      track.totalDistanceNM = prevTotalDistanceNM;
+      track.durationMs = prevDurationMs;
       this.recordSaveError(err);
       return;
     }
+    // The point is stored either way; the bookkeeping below is only for
+    // a track that is still the one being recorded.
+    if (this.currentTrack !== track) return;
     this.clearSaveError();
-    this.currentTrack.pointCount++;
+    track.pointCount++;
 
     // Trace each recorded point to compare the recorder's rate against the
     // raw-fix / broadcast rate in the GPS_TRACE lines (debug builds only).
     if (REC_TRACE) {
       diag(
         "rec",
-        `pt n=${this.currentTrack.pointCount} seg_m=${Math.round(segmentNM * 1852)} sog=${data.sog === null ? "-" : Math.round(data.sog * 100) / 100}`,
+        `pt n=${track.pointCount} seg_m=${Math.round(segmentNM * 1852)} sog=${data.sog === null ? "-" : Math.round(data.sog * 100) / 100}`,
       );
     }
 
     // Persist meta only after the first point is in the store, so a meta
     // record always corresponds to ≥ 1 stored point.
     if (!this.trackPersisted) {
-      await saveTrackMeta(this.currentTrack);
+      await saveTrackMeta(track);
+      if (this.currentTrack !== track) return;
       this.trackPersisted = true;
-    } else if (this.currentTrack.pointCount % 60 === 0) {
+    } else if (track.pointCount % 60 === 0) {
       // Periodic point-count/aggregate save. Adopt the stored copy's
       // user-editable fields first, so a mid-recording rename in the track
       // manager survives this write and flows into the resume copy below.
-      this.currentTrack = await this.mergeWithStoredMeta(this.currentTrack);
-      await saveTrackMeta(this.currentTrack);
+      const merged = await this.mergeWithStoredMeta(track);
+      if (this.currentTrack !== track) return;
+      this.currentTrack = merged;
+      await saveTrackMeta(merged);
     }
     if (this.ingesting) return;
     this.notify();

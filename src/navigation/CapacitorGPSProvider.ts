@@ -52,6 +52,13 @@ export class CapacitorGPSProvider implements NavigationDataProvider {
   /** Re-entrancy hint: a wakeup arrived during a drain — drain again on exit. */
   private drainRequested = false;
   private visibilityHandler: (() => void) | null = null;
+  /**
+   * Android refused the foreground-service start because the app was in
+   * the background (a process relaunched with the WebView hidden). The
+   * same start is allowed once the app is visible, so it is re-issued on
+   * the next visibilitychange instead of being reported as a failure.
+   */
+  private retryStartWhenVisible = false;
   private backlogSink: BacklogSink | null = null;
   /** The connect-time backlog ingest; a drain waits for it so the track
    *  receives history before live fixes. */
@@ -124,9 +131,20 @@ export class CapacitorGPSProvider implements NavigationDataProvider {
     this.onNotice?.({ kind: "connect-failed", detail: message });
   }
 
-  /** Native reported a stop we didn't ask for (notification Stop action). */
+  /**
+   * Native reported a stop we didn't ask for: the notification's Stop
+   * action, or a refused foreground start.
+   */
   private handleTrackingStopped(reason: string): void {
     if (!this.connected) return; // our own stopTracking during disconnect
+    if (
+      reason === "foreground-start-failed" &&
+      document.visibilityState !== "visible"
+    ) {
+      this.retryStartWhenVisible = true;
+      connectionLog.log(this.id, "error", "start refused while hidden");
+      return;
+    }
     this.connected = false;
     connectionLog.log(this.id, "disconnected", reason);
     this.onNotice?.({
@@ -267,12 +285,27 @@ export class CapacitorGPSProvider implements NavigationDataProvider {
       ]);
 
     this.visibilityHandler = () => {
-      if (document.visibilityState === "visible") this.requestDrain();
+      if (document.visibilityState !== "visible") return;
+      if (this.retryStartWhenVisible) {
+        this.retryStartWhenVisible = false;
+        this.enqueue(() => this.restartNative()).catch((err) =>
+          this.handleStartFailure(err),
+        );
+      }
+      this.requestDrain();
     };
     document.addEventListener("visibilitychange", this.visibilityHandler);
 
     await BackgroundGPS.startTracking();
     connectionLog.log(this.id, "connected");
+    this.onNotice?.({ kind: "connected" });
+  }
+
+  /** Re-issue the native start after a refusal; listeners are still installed. */
+  private async restartNative(): Promise<void> {
+    if (!this.connected) return;
+    await BackgroundGPS.startTracking();
+    connectionLog.log(this.id, "connected", "retry");
     this.onNotice?.({ kind: "connected" });
   }
 

@@ -217,6 +217,50 @@ describe("CapacitorGPSProvider drain", () => {
     vi.unstubAllGlobals();
   });
 
+  it("re-issues a foreground start refused while hidden once the app is visible", async () => {
+    const doc = {
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      visibilityState: "hidden",
+    };
+    vi.stubGlobal("document", doc);
+    const notices: Array<{ kind: string; detail?: string }> = [];
+    const events = new Map<string, (data: { reason: string }) => void>();
+    (
+      mockPlugin.addListener as unknown as {
+        mockImplementation(fn: unknown): void;
+      }
+    ).mockImplementation(
+      (name: string, cb: (data: { reason: string }) => void) => {
+        events.set(name, cb);
+        return Promise.resolve({ remove: vi.fn() });
+      },
+    );
+    const p = new CapacitorGPSProvider((n) => notices.push(n));
+    p.connect();
+    await vi.waitFor(() =>
+      expect(notices).toContainEqual({ kind: "connected" }),
+    );
+    expect(mockPlugin.startTracking).toHaveBeenCalledTimes(1);
+
+    // Android refused the service start from the background: no banner,
+    // still connected, waiting for the app to come to the foreground.
+    events.get("trackingStopped")?.({ reason: "foreground-start-failed" });
+    expect(p.isConnected()).toBe(true);
+    expect(notices.some((n) => n.kind === "connect-failed")).toBe(false);
+
+    doc.visibilityState = "visible";
+    const onVisibility = doc.addEventListener.mock.calls.find(
+      ([name]) => name === "visibilitychange",
+    )?.[1] as (() => void) | undefined;
+    onVisibility?.();
+    await vi.waitFor(() =>
+      expect(mockPlugin.startTracking).toHaveBeenCalledTimes(2),
+    );
+    expect(p.isConnected()).toBe(true);
+    vi.unstubAllGlobals();
+  });
+
   it("surfaces a startTracking rejection (coarse-only permission)", async () => {
     stubDocument();
     const notices: Array<{ kind: string; detail?: string }> = [];
