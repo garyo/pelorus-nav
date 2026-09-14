@@ -27,8 +27,36 @@ const { ChartCachePanel } = await import("./ChartCachePanel");
 type ChartCachePanelInternals = {
   el: HTMLDivElement;
   regionJob(region: ChartRegion): unknown;
-  runDownloads(jobs: unknown[]): Promise<void>;
+  enqueue(jobs: unknown[]): Promise<void>;
 };
+
+/** A panel plus its root element (the shared panel stack may be detached
+ * from the document by an earlier body reset, so tests query the panel). */
+function makePanel(): {
+  panel: InstanceType<typeof ChartCachePanel>;
+  el: HTMLDivElement;
+} {
+  const panel = new ChartCachePanel();
+  return { panel, el: (panel as unknown as ChartCachePanelInternals).el };
+}
+
+/** Resolve the mocked downloadChart by hand, one call at a time. */
+function manualDownloads(): { resolveNext: () => void; count: () => number } {
+  const resolvers: (() => void)[] = [];
+  tileStoreMocks.downloadChart.mockImplementation(
+    (_url: string, _file: string, _p: unknown, signal?: AbortSignal) =>
+      new Promise<void>((resolve, reject) => {
+        resolvers.push(resolve);
+        signal?.addEventListener("abort", () =>
+          reject(new DOMException("Aborted", "AbortError")),
+        );
+      }),
+  );
+  return {
+    resolveNext: () => resolvers.shift()?.(),
+    count: () => tileStoreMocks.downloadChart.mock.calls.length,
+  };
+}
 
 function makeRegion(): ChartRegion {
   return {
@@ -55,27 +83,15 @@ describe("ChartCachePanel.isBusy", () => {
   });
 
   it("is true while a download is in flight and false once it settles", async () => {
-    let resolveDownload: () => void = () => {};
-    tileStoreMocks.downloadChart.mockImplementation(
-      () =>
-        new Promise<void>((resolve) => {
-          resolveDownload = resolve;
-        }),
-    );
-
+    const downloads = manualDownloads();
     const panel = new ChartCachePanel();
     const internals = panel as unknown as ChartCachePanelInternals;
-    const downloadPromise = internals.runDownloads([
-      internals.regionJob(makeRegion()),
-    ]);
-
-    // Let the download kick off (AbortController assigned) before checking.
-    await Promise.resolve();
+    await internals.enqueue([internals.regionJob(makeRegion())]);
     expect(panel.isBusy()).toBe(true);
 
-    resolveDownload();
-    await downloadPromise;
-    expect(panel.isBusy()).toBe(false);
+    await vi.waitFor(() => expect(downloads.count()).toBe(1));
+    downloads.resolveNext();
+    await vi.waitFor(() => expect(panel.isBusy()).toBe(false));
   });
 });
 
@@ -116,10 +132,7 @@ describe("ChartCachePanel update all", () => {
     );
     tileStoreMocks.isUpdateAvailable.mockReturnValue(true);
 
-    const panel = new ChartCachePanel();
-    // The panel lives in the shared panel stack, which an earlier body reset
-    // may have detached from the document — so query the panel itself.
-    const el = (panel as unknown as ChartCachePanelInternals).el;
+    const { panel, el } = makePanel();
     panel.show();
 
     const text = () =>
@@ -145,13 +158,122 @@ describe("ChartCachePanel update all", () => {
     tileStoreMocks.fetchRemoteChartMeta.mockResolvedValue({ etag: "old" });
     tileStoreMocks.isUpdateAvailable.mockReturnValue(false);
 
-    const panel = new ChartCachePanel();
-    const el = (panel as unknown as ChartCachePanelInternals).el;
+    const { panel, el } = makePanel();
     panel.show();
     await vi.waitFor(() =>
       expect(el.querySelectorAll(".manager-item").length).toBeGreaterThan(0),
     );
     await new Promise((resolve) => setTimeout(resolve, 10));
     expect(el.querySelector(".chart-cache-update-all")).toBeNull();
+  });
+});
+
+describe("ChartCachePanel download queue", () => {
+  const [first, second] = CHART_REGIONS;
+  const downloadButton = (el: HTMLElement, region: ChartRegion) =>
+    el.querySelector<HTMLButtonElement>(
+      `[data-region-id="${region.id}"] button[title="Download for offline use"]`,
+    );
+  const detail = (el: HTMLElement, region: ChartRegion) =>
+    el.querySelector(`[data-region-id="${region.id}"] .manager-item-detail`)
+      ?.textContent ?? "";
+
+  beforeEach(() => {
+    document.body.innerHTML = "";
+    tileStoreMocks.downloadChart.mockReset();
+    tileStoreMocks.listStoredCharts.mockReset();
+    tileStoreMocks.listStoredCharts.mockResolvedValue([]);
+    tileStoreMocks.fetchRemoteChartMeta.mockReset();
+    tileStoreMocks.fetchRemoteChartMeta.mockResolvedValue(null);
+    tileStoreMocks.getStorageEstimate.mockResolvedValue({ used: 0, quota: 0 });
+  });
+
+  async function openPanel() {
+    const { panel, el } = makePanel();
+    panel.show();
+    await vi.waitFor(() => expect(downloadButton(el, first)).not.toBeNull());
+    return { panel, el };
+  }
+
+  it("keeps the list live and queues a second download behind the first", async () => {
+    const downloads = manualDownloads();
+    const { panel, el } = await openPanel();
+
+    downloadButton(el, first)?.click();
+    await vi.waitFor(() => expect(downloads.count()).toBe(1));
+    await vi.waitFor(() => expect(detail(el, first)).toContain("Downloading"));
+    // The rest of the list is still there to tap on
+    expect(el.querySelectorAll(".manager-item").length).toBeGreaterThan(1);
+
+    downloadButton(el, second)?.click();
+    await vi.waitFor(() => expect(detail(el, second)).toContain("Queued"));
+    expect(downloads.count()).toBe(1); // one at a time
+    expect(el.querySelector(".chart-cache-queue-text")?.textContent).toContain(
+      "2 downloads",
+    );
+
+    downloads.resolveNext();
+    await vi.waitFor(() => expect(downloads.count()).toBe(2));
+    expect(tileStoreMocks.downloadChart.mock.calls[1][1]).toBe(second.filename);
+    expect(el.querySelector(".chart-cache-queue-text")?.textContent).toContain(
+      "1 download ",
+    );
+
+    downloads.resolveNext();
+    await vi.waitFor(() => expect(panel.isBusy()).toBe(false));
+    expect(el.querySelector(".chart-cache-queue")).toBeNull();
+  });
+
+  it("removes a waiting download and cancels the active one", async () => {
+    const downloads = manualDownloads();
+    const { panel, el } = await openPanel();
+
+    downloadButton(el, first)?.click();
+    await vi.waitFor(() => expect(downloads.count()).toBe(1));
+    downloadButton(el, second)?.click();
+    await vi.waitFor(() => expect(detail(el, second)).toContain("Queued"));
+
+    el.querySelector<HTMLButtonElement>(
+      `[data-region-id="${second.id}"] button[title="Remove from queue"]`,
+    )?.click();
+    await vi.waitFor(() => expect(downloadButton(el, second)).not.toBeNull());
+
+    el.querySelector<HTMLButtonElement>(
+      `[data-region-id="${first.id}"] button[title="Cancel download"]`,
+    )?.click();
+    await vi.waitFor(() => expect(panel.isBusy()).toBe(false));
+    expect(downloads.count()).toBe(1); // the removed one never started
+    expect(detail(el, first)).not.toContain("failed");
+  });
+
+  it("reports a failed download on its row and moves on to the next", async () => {
+    tileStoreMocks.downloadChart
+      .mockRejectedValueOnce(new Error("boom"))
+      .mockResolvedValue(undefined);
+    const { panel, el } = await openPanel();
+
+    downloadButton(el, first)?.click();
+    downloadButton(el, second)?.click();
+    await vi.waitFor(() =>
+      expect(tileStoreMocks.downloadChart).toHaveBeenCalledTimes(2),
+    );
+    await vi.waitFor(() => expect(panel.isBusy()).toBe(false));
+    expect(detail(el, first)).toContain("Download failed: boom");
+    expect(downloadButton(el, first)).not.toBeNull(); // retry is a tap away
+  });
+
+  it("refuses a batch that would not fit in free storage", async () => {
+    tileStoreMocks.getStorageEstimate.mockResolvedValue({
+      used: 900,
+      quota: 1000,
+    });
+    const { panel, el } = await openPanel();
+
+    downloadButton(el, first)?.click();
+    await vi.waitFor(() =>
+      expect(detail(el, first)).toContain("Not enough storage"),
+    );
+    expect(panel.isBusy()).toBe(false);
+    expect(tileStoreMocks.downloadChart).not.toHaveBeenCalled();
   });
 });

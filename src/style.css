@@ -3184,7 +3184,9 @@ body {
   vertical-align: middle;
 }
 
-/* "N updates available · Update All" row pinned above the region list */
+/* Rows pinned above the region list: the download queue ("N downloads ·
+   ~X remaining · Cancel All") and "N updates available · Update All" */
+.chart-cache-queue,
 .chart-cache-update-all {
   display: flex;
   align-items: center;
@@ -3193,32 +3195,26 @@ body {
   padding: 8px 12px;
   border-bottom: 1px solid #333;
   font-size: 12px;
+  color: #ccc;
+}
+
+.chart-cache-update-all {
   color: #ff8800;
 }
 
+.chart-cache-queue .chart-cache-btn,
 .chart-cache-update-all .chart-cache-btn {
   width: auto;
   flex-shrink: 0;
 }
 
-.chart-cache-progress {
-  padding: 12px;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  align-items: center;
-}
-
-.chart-cache-progress-label {
-  font-size: 13px;
-  color: #ccc;
-}
-
+/* In-row progress bar of the file being downloaded */
 .chart-cache-progress-bar {
   width: 100%;
-  height: 6px;
+  height: 4px;
+  margin: 3px 0;
   background: #333;
-  border-radius: 3px;
+  border-radius: 2px;
   overflow: hidden;
 }
 
@@ -3230,15 +3226,8 @@ body {
   transition: width 0.2s ease;
 }
 
-.chart-cache-progress-stats {
-  font-size: 12px;
-  color: #999;
-}
-
-.chart-cache-error {
-  padding: 8px 12px;
+.manager-item-detail--error {
   color: #ff6666;
-  font-size: 13px;
 }
 
 .chart-cache-footer {

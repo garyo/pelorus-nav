@@ -99,8 +99,10 @@ under ☰ on small screens).
 Each region covers a stretch of coast (Northern New England, Southern New
 England, New York & NJ, …) and shows its approximate download size. Tap the
 download button to store it; downloaded regions show a ✓ with their size and
-date. The radio button selects your **active region** — the one used for
-place-name search.
+date. Downloads queue: tap several and they arrive one after another, each
+row showing its progress, with a **Cancel All** row at the top that also
+shows how much is left. The radio button selects your **active region** —
+the one used for place-name search.
 
 Most regions also offer an optional **street basemap** — an offline copy of
 the land map that otherwise streams from OpenStreetMap. Download it too if
@@ -110,8 +112,8 @@ chart's own land areas.
 When a chart update is published, downloaded regions show an
 **Update available** button — updating re-downloads only that region. With
 several regions or basemaps out of date, an **Update All** row at the top of
-the panel fetches them one after another. The panel footer shows total
-storage used. Downloaded charts can be removed individually or all at once.
+the panel queues them all. The panel footer shows total storage used.
+Downloaded charts can be removed individually or all at once.
 
 ## Save your home port
 

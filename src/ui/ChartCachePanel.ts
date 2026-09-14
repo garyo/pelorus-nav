@@ -49,13 +49,25 @@ import {
 import { getPanelStack } from "./PanelStack";
 import { registerSurface } from "./SurfaceManager";
 
-/** One entry in the panel's download queue: a chart file plus its aux files. */
+/** A downloadable chart file plus its aux files. */
 interface DownloadJob {
-  /** The primary stored file — identifies the job in the update queue. */
+  /** The primary stored file — identifies the job in the download queue. */
   filename: string;
-  /** Shown as "Downloading <label>..." */
   label: string;
+  /** Catalog estimate, for the queue's remaining-size readout and storage check. */
+  sizeEstimate: number;
   run: (ctx: DownloadContext) => Promise<void>;
+}
+
+/** A job waiting in, or being served by, the panel's download queue. */
+interface QueueEntry {
+  job: DownloadJob;
+  controller: AbortController;
+  active: boolean;
+  loaded: number;
+  total: number;
+  /** Caption override while a job fetches its aux files. */
+  status: string | null;
 }
 
 interface DownloadContext {
@@ -81,7 +93,15 @@ export class ChartCachePanel {
   private readonly el: HTMLDivElement;
   private readonly body: HTMLDivElement;
   private readonly storageInfo: HTMLDivElement;
-  private downloadController: AbortController | null = null;
+  /** Downloads in order; the head entry is the one in flight once running. */
+  private readonly queue: QueueEntry[] = [];
+  private queueRunning = false;
+  /** Last failure per file, shown in its row until retried or the panel closes. */
+  private readonly failures = new Map<string, string>();
+  /** Live readouts rebound on every render: the active row's bar and the header. */
+  private activeProgress: { fill: HTMLElement; stats: HTMLElement } | null =
+    null;
+  private queueReadout: HTMLElement | null = null;
   private readonly fileInput: HTMLInputElement;
   private onChartsChanged?: () => void | Promise<void>;
   private onShowChart?: (chart: RasterChart) => void;
@@ -236,21 +256,27 @@ export class ChartCachePanel {
 
   hide(): void {
     this.el.classList.remove("open");
+    this.failures.clear();
   }
 
-  /** True while a chart/basemap download is in flight — idle auto-return must not hide the panel mid-download. */
+  /** True while downloads are queued or in flight — idle auto-return must not hide the panel mid-download. */
   isBusy(): boolean {
-    return this.downloadController !== null;
+    return this.queue.length > 0;
   }
 
   private async refresh(): Promise<void> {
     const token = ++this.refreshToken;
     const storedCharts = await listStoredCharts();
+    if (token !== this.refreshToken) return; // superseded while reading
     const storedMap = new Map(storedCharts.map((c) => [c.filename, c]));
     const activeRegion = getSettings().activeRegion;
 
     this.body.innerHTML = "";
     this.pendingUpdates.clear();
+    this.activeProgress = null;
+    this.queueReadout = null;
+
+    if (this.queue.length > 0) this.body.appendChild(this.createQueueHeader());
 
     // Region list — one row per catalog region (+ basemap sub-row if built)
     for (const region of CHART_REGIONS) {
@@ -305,8 +331,8 @@ export class ChartCachePanel {
     importBtn.addEventListener("click", () => this.importFile());
     actions.appendChild(importBtn);
 
-    // Flush all button (only if any charts stored)
-    if (storedCharts.length > 0) {
+    // Flush all button (only if any charts stored, and none arriving)
+    if (storedCharts.length > 0 && this.queue.length === 0) {
       const flushBtn = document.createElement("button");
       flushBtn.className = "chart-cache-btn chart-cache-btn--danger";
       flushBtn.innerHTML = `${iconTrash} Remove All Offline`;
@@ -374,6 +400,7 @@ export class ChartCachePanel {
   ): void {
     const item = this.body.querySelector<HTMLElement>(rowSelector);
     if (!item || item.querySelector(".chart-region-update")) return;
+    if (this.queueEntry(job.filename)) return; // already on its way
 
     const detail = item.querySelector<HTMLElement>(".manager-item-detail");
     if (detail) {
@@ -390,7 +417,7 @@ export class ChartCachePanel {
       setIcon(updateBtn, iconRefresh);
       updateBtn.title = title;
       updateBtn.addEventListener("click", () => {
-        void this.runDownloads([job]);
+        void this.enqueue([job]);
       });
       actions.prepend(updateBtn);
     }
@@ -411,10 +438,12 @@ export class ChartCachePanel {
       btn.className = "chart-cache-btn";
       btn.innerHTML = `${iconRefresh} Update All`;
       btn.addEventListener("click", () => {
-        void this.runDownloads(this.pendingUpdateJobs());
+        void this.enqueue(this.pendingUpdateJobs());
       });
       row.append(text, btn);
-      this.body.prepend(row);
+      // Below the queue header when downloads are running, else on top
+      const header = this.body.querySelector(".chart-cache-queue");
+      this.body.insertBefore(row, header?.nextSibling ?? this.body.firstChild);
     }
     const n = this.pendingUpdates.size;
     const text = row.querySelector(".chart-cache-update-all-text");
@@ -464,19 +493,25 @@ export class ChartCachePanel {
 
     const detail = document.createElement("div");
     detail.className = "manager-item-detail";
-    if (stored) {
+    const entry = this.queueEntry(region.filename);
+    if (entry) {
+      this.renderQueuedDetail(detail, entry);
+    } else if (stored) {
       const date = new Date(stored.downloadedAt).toLocaleDateString();
       detail.innerHTML = `${iconCheckCircle} Downloaded \u00b7 ${formatBytes(stored.sizeBytes)} \u00b7 ${date}`;
     } else {
       detail.textContent = `Streaming \u00b7 ~${formatBytes(region.sizeEstimate)}`;
     }
+    this.applyFailure(detail, region.filename);
 
     info.append(name, detail);
 
     const actions = document.createElement("div");
     actions.className = "manager-item-actions";
 
-    if (stored) {
+    if (entry) {
+      actions.appendChild(this.createCancelButton(entry));
+    } else if (stored) {
       // Delete offline copy
       const deleteBtn = document.createElement("button");
       deleteBtn.className = "manager-item-btn";
@@ -506,7 +541,7 @@ export class ChartCachePanel {
       setIcon(dlBtn, iconDownload);
       dlBtn.title = "Download for offline use";
       dlBtn.addEventListener("click", () => {
-        void this.runDownloads([this.regionJob(region)]);
+        void this.enqueue([this.regionJob(region)]);
       });
       actions.appendChild(dlBtn);
     }
@@ -533,7 +568,11 @@ export class ChartCachePanel {
 
     const detail = document.createElement("div");
     detail.className = "manager-item-detail";
-    if (stored) {
+    const filename = region.basemapFilename ?? "";
+    const entry = this.queueEntry(filename);
+    if (entry) {
+      this.renderQueuedDetail(detail, entry);
+    } else if (stored) {
       const date = new Date(stored.downloadedAt).toLocaleDateString();
       detail.innerHTML = `${iconCheckCircle} Downloaded · ${formatBytes(stored.sizeBytes)} · ${date}`;
     } else {
@@ -543,13 +582,16 @@ export class ChartCachePanel {
           : "Streaming (OSM)";
       detail.textContent = `${label} · ~${formatBytes(region.basemapSizeEstimate ?? 0)}`;
     }
+    this.applyFailure(detail, filename);
 
     info.append(name, detail);
 
     const actions = document.createElement("div");
     actions.className = "manager-item-actions";
 
-    if (stored) {
+    if (entry) {
+      actions.appendChild(this.createCancelButton(entry));
+    } else if (stored) {
       const deleteBtn = document.createElement("button");
       deleteBtn.className = "manager-item-btn";
       setIcon(deleteBtn, iconTrash);
@@ -573,9 +615,8 @@ export class ChartCachePanel {
       dlBtn.title =
         "Download offline street basemap — crisper themed vector maps that work without a connection. Otherwise streams online OSM raster tiles.";
       dlBtn.addEventListener("click", () => {
-        const filename = region.basemapFilename;
         if (!filename) return;
-        void this.runDownloads([this.basemapJob(region, filename)]);
+        void this.enqueue([this.basemapJob(region, filename)]);
       });
       actions.appendChild(dlBtn);
     }
@@ -602,13 +643,17 @@ export class ChartCachePanel {
 
     const detail = document.createElement("div");
     detail.className = "manager-item-detail";
-    if (stored) {
+    const entry = this.queueEntry(chart.filename);
+    if (entry) {
+      this.renderQueuedDetail(detail, entry);
+    } else if (stored) {
       const verb = chart.imported ? "Imported" : "Downloaded";
       const date = new Date(stored.downloadedAt).toLocaleDateString();
       detail.innerHTML = `${iconCheckCircle} ${verb} · ${formatBytes(stored.sizeBytes)} · ${date}`;
     } else {
       detail.textContent = `Streaming · ~${formatBytes(chart.sizeEstimate)}`;
     }
+    this.applyFailure(detail, chart.filename);
 
     info.append(name, detail);
 
@@ -640,7 +685,9 @@ export class ChartCachePanel {
     showBtn.addEventListener("click", () => this.onShowChart?.(chart));
     actions.appendChild(showBtn);
 
-    if (stored) {
+    if (entry) {
+      actions.appendChild(this.createCancelButton(entry));
+    } else if (stored) {
       const deleteBtn = document.createElement("button");
       deleteBtn.className = "manager-item-btn";
       setIcon(deleteBtn, iconTrash);
@@ -671,7 +718,7 @@ export class ChartCachePanel {
       setIcon(dlBtn, iconDownload);
       dlBtn.title = "Download for offline use";
       dlBtn.addEventListener("click", () => {
-        void this.runDownloads([this.rasterJob(chart)]);
+        void this.enqueue([this.rasterJob(chart)]);
       });
       actions.appendChild(dlBtn);
     }
@@ -685,6 +732,7 @@ export class ChartCachePanel {
     return {
       filename: region.filename,
       label: region.name,
+      sizeEstimate: region.sizeEstimate,
       run: async ({ signal, onProgress, setStatus }) => {
         await downloadChart(
           `${chartAssetBase()}/${region.filename}`,
@@ -714,6 +762,7 @@ export class ChartCachePanel {
     return {
       filename,
       label: `${region.name} basemap`,
+      sizeEstimate: region.basemapSizeEstimate ?? 0,
       run: ({ signal, onProgress }) =>
         downloadChart(
           `${chartAssetBase()}/${filename}`,
@@ -728,6 +777,7 @@ export class ChartCachePanel {
     return {
       filename: chart.filename,
       label: chart.name,
+      sizeEstimate: chart.sizeEstimate,
       run: async ({ signal, onProgress }) => {
         await downloadChart(
           `${chartAssetBase()}/${chart.filename}`,
@@ -742,88 +792,211 @@ export class ChartCachePanel {
     };
   }
 
-  /**
-   * Run download jobs one after another behind the panel's progress UI, then
-   * refresh the list. Cancel aborts the current job and drops the rest; a
-   * failure stops the queue and shows the error.
-   */
-  private async runDownloads(jobs: DownloadJob[]): Promise<void> {
-    if (jobs.length === 0) return;
-    this.body.innerHTML = "";
+  // ---- Download queue -----------------------------------------------------
+  // Files download one at a time, in the order they were requested; the list
+  // stays live so more can be queued, cancelled or removed meanwhile. Rows
+  // render from queue state, so re-renders mid-download (region switch,
+  // reopening the panel) keep showing progress.
 
-    const progressContainer = document.createElement("div");
-    progressContainer.className = "chart-cache-progress";
+  private queueEntry(filename: string): QueueEntry | undefined {
+    return this.queue.find((e) => e.job.filename === filename);
+  }
 
-    const labelDiv = document.createElement("div");
-    labelDiv.className = "chart-cache-progress-label";
+  /** Append jobs not already queued and start the queue if idle. */
+  private async enqueue(jobs: DownloadJob[]): Promise<void> {
+    const fresh = jobs.filter((job) => !this.queueEntry(job.filename));
+    if (fresh.length === 0) return;
 
-    const barOuter = document.createElement("div");
-    barOuter.className = "chart-cache-progress-bar";
-    const barInner = document.createElement("div");
-    barInner.className = "chart-cache-progress-fill";
-    barOuter.appendChild(barInner);
-
-    const stats = document.createElement("div");
-    stats.className = "chart-cache-progress-stats";
-
-    const cancelBtn = document.createElement("button");
-    cancelBtn.className = "chart-cache-btn chart-cache-btn--danger";
-    cancelBtn.textContent = "Cancel";
-
-    const controller = new AbortController();
-    this.downloadController = controller;
-    cancelBtn.addEventListener("click", () => {
-      if (this.downloadController) {
-        this.downloadController.abort();
-      } else {
-        // Post-error state: the controller is gone (nulled in finally), so
-        // the button dismisses the stale progress UI + error message instead.
-        void this.refresh();
-      }
-    });
-
-    progressContainer.append(labelDiv, barOuter, stats, cancelBtn);
-    this.body.appendChild(progressContainer);
-
-    const onProgress = (loaded: number, total: number) => {
-      const pct = total > 0 ? (loaded / total) * 100 : 0;
-      barInner.style.width = `${pct}%`;
-      stats.textContent = `${formatBytes(loaded)} / ${total > 0 ? formatBytes(total) : "?"}`;
-    };
-
-    let current: DownloadJob | undefined;
-    try {
-      for (const [i, job] of jobs.entries()) {
-        current = job;
-        const prefix = jobs.length > 1 ? `${i + 1} of ${jobs.length}: ` : "";
-        const setStatus = (text: string) => {
-          labelDiv.textContent = prefix + text;
-        };
-        setStatus(`Downloading ${job.label}...`);
-        onProgress(0, 0);
-        await job.run({ signal: controller.signal, onProgress, setStatus });
-        await this.onChartsChanged?.();
-      }
-    } catch (err) {
-      if (!(err instanceof DOMException && err.name === "AbortError")) {
-        const msg = err instanceof Error ? err.message : "Unknown error";
-        diag(
-          "download",
-          `${current?.filename} failed: ${err instanceof Error ? err.name : "?"}: ${msg}`,
-        );
-        const errorDiv = document.createElement("div");
-        errorDiv.className = "chart-cache-error";
-        errorDiv.textContent = `Download failed: ${msg}`;
-        this.body.appendChild(errorDiv);
-        cancelBtn.textContent = "Close";
-        return;
-      }
-      // User cancelled — fall through to the refresh
-    } finally {
-      this.downloadController = null;
+    const shortfall = await this.storageShortfall(fresh);
+    if (shortfall) {
+      for (const job of fresh) this.failures.set(job.filename, shortfall);
+      await this.refresh();
+      return;
     }
 
+    for (const job of fresh) {
+      this.failures.delete(job.filename);
+      this.queue.push({
+        job,
+        controller: new AbortController(),
+        active: false,
+        loaded: 0,
+        total: 0,
+        status: null,
+      });
+    }
     await this.refresh();
+    void this.runQueue();
+  }
+
+  /**
+   * A message when the queue plus these jobs would not fit in free storage,
+   * else null. Catches a batch that would fail on its last item after
+   * hundreds of megabytes on cellular. Unknown quota (0) skips the check.
+   */
+  private async storageShortfall(jobs: DownloadJob[]): Promise<string | null> {
+    let est: { used: number; quota: number };
+    try {
+      est = await getStorageEstimate();
+    } catch {
+      return null;
+    }
+    if (est.quota <= 0) return null;
+    const needed = [...this.queue.map((e) => e.job), ...jobs].reduce(
+      (sum, job) => sum + job.sizeEstimate,
+      0,
+    );
+    const free = Math.max(0, est.quota - est.used);
+    return needed > free
+      ? `Not enough storage: needs ~${formatBytes(needed)}, ${formatBytes(free)} free`
+      : null;
+  }
+
+  private async runQueue(): Promise<void> {
+    if (this.queueRunning) return;
+    this.queueRunning = true;
+    try {
+      while (this.queue.length > 0) {
+        const entry = this.queue[0];
+        entry.active = true;
+        await this.refresh();
+        await this.runEntry(entry);
+        this.removeEntry(entry);
+        await this.refresh();
+      }
+    } finally {
+      this.queueRunning = false;
+    }
+  }
+
+  /** Run one job to completion, cancel, or failure (recorded for its row). */
+  private async runEntry(entry: QueueEntry): Promise<void> {
+    const { job, controller } = entry;
+    try {
+      await job.run({
+        signal: controller.signal,
+        onProgress: (loaded, total) => {
+          entry.loaded = loaded;
+          entry.total = total;
+          this.paintProgress(entry);
+        },
+        setStatus: (text) => {
+          entry.status = text;
+          this.paintProgress(entry);
+        },
+      });
+      await this.onChartsChanged?.();
+    } catch (err) {
+      if (err instanceof DOMException && err.name === "AbortError") return;
+      const msg = err instanceof Error ? err.message : "Unknown error";
+      diag(
+        "download",
+        `${job.filename} failed: ${err instanceof Error ? err.name : "?"}: ${msg}`,
+      );
+      this.failures.set(job.filename, msg);
+    }
+  }
+
+  private removeEntry(entry: QueueEntry): void {
+    const i = this.queue.indexOf(entry);
+    if (i >= 0) this.queue.splice(i, 1);
+  }
+
+  /** Abort an in-flight entry (the queue moves on) or drop a waiting one. */
+  private cancelEntry(entry: QueueEntry): void {
+    if (entry.active) {
+      entry.controller.abort();
+    } else {
+      this.removeEntry(entry);
+      void this.refresh();
+    }
+  }
+
+  private cancelAll(): void {
+    for (const entry of this.queue.filter((e) => !e.active)) {
+      this.removeEntry(entry);
+    }
+    this.queue.find((e) => e.active)?.controller.abort();
+    void this.refresh();
+  }
+
+  /** Bytes still to fetch: the active job's remainder plus waiting estimates. */
+  private queueRemainingBytes(): number {
+    return this.queue.reduce((sum, e) => {
+      const active = e.active && e.total > 0;
+      return (
+        sum + (active ? Math.max(0, e.total - e.loaded) : e.job.sizeEstimate)
+      );
+    }, 0);
+  }
+
+  private queueSummary(): string {
+    const n = this.queue.length;
+    return `${n} download${n === 1 ? "" : "s"} · ~${formatBytes(this.queueRemainingBytes())} remaining`;
+  }
+
+  /** "N downloads · ~X remaining" with Cancel All, above the region list. */
+  private createQueueHeader(): HTMLDivElement {
+    const row = document.createElement("div");
+    row.className = "chart-cache-queue";
+    const text = document.createElement("span");
+    text.className = "chart-cache-queue-text";
+    text.textContent = this.queueSummary();
+    this.queueReadout = text;
+    const btn = document.createElement("button");
+    btn.className = "chart-cache-btn chart-cache-btn--danger";
+    btn.textContent = "Cancel All";
+    btn.addEventListener("click", () => this.cancelAll());
+    row.append(text, btn);
+    return row;
+  }
+
+  /** A row's detail line while its file is queued or downloading. */
+  private renderQueuedDetail(detail: HTMLElement, entry: QueueEntry): void {
+    if (!entry.active) {
+      detail.textContent = `Queued · ~${formatBytes(entry.job.sizeEstimate)}`;
+      return;
+    }
+    const bar = document.createElement("div");
+    bar.className = "chart-cache-progress-bar";
+    const fill = document.createElement("div");
+    fill.className = "chart-cache-progress-fill";
+    bar.appendChild(fill);
+    const stats = document.createElement("span");
+    detail.append(bar, stats);
+    this.activeProgress = { fill, stats };
+    this.paintProgress(entry);
+  }
+
+  /** Push the active entry's progress into the row bar and the header. */
+  private paintProgress(entry: QueueEntry): void {
+    if (!entry.active) return;
+    if (this.activeProgress) {
+      const { fill, stats } = this.activeProgress;
+      const pct = entry.total > 0 ? (entry.loaded / entry.total) * 100 : 0;
+      fill.style.width = `${pct}%`;
+      stats.textContent =
+        entry.status ??
+        `Downloading · ${formatBytes(entry.loaded)} / ${entry.total > 0 ? formatBytes(entry.total) : "?"}`;
+    }
+    if (this.queueReadout) this.queueReadout.textContent = this.queueSummary();
+  }
+
+  private createCancelButton(entry: QueueEntry): HTMLButtonElement {
+    const btn = document.createElement("button");
+    btn.className = "manager-item-btn chart-region-cancel";
+    setIcon(btn, iconX);
+    btn.title = entry.active ? "Cancel download" : "Remove from queue";
+    btn.addEventListener("click", () => this.cancelEntry(entry));
+    return btn;
+  }
+
+  /** Annotate a row with its last failed download, if any. */
+  private applyFailure(detail: HTMLElement, filename: string): void {
+    const failure = this.failures.get(filename);
+    if (!failure) return;
+    detail.classList.add("manager-item-detail--error");
+    detail.textContent = `Download failed: ${failure}`;
   }
 
   /** Create a row for a manually imported file not in the catalog. */

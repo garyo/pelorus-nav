@@ -8,9 +8,17 @@ The format follows [Keep a Changelog](https://keepachangelog.com/).
 ## [Unreleased]
 
 ### Added
+- Chart Regions: downloads now queue. Tap download on several regions,
+  basemaps or charts and they fetch one after another while the list stays
+  usable; each row shows its progress or queued size, a row at the top shows
+  how much is left with **Cancel All**, and a queued item can be removed
+  before it starts. A download that fails shows the reason on its row and
+  the queue moves on.
 - Chart Regions: when more than one downloaded region or street basemap is
-  out of date, an **Update All** button at the top of the panel re-downloads
-  them one after another.
+  out of date, an **Update All** button at the top of the panel queues them
+  all.
+- Chart Regions: a batch that would not fit in the device's free storage is
+  refused up front, with the shortfall shown, instead of failing part-way.
 
 ## [0.25.1] - 2026-09-13
 
