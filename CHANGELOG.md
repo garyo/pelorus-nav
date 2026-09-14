@@ -7,6 +7,11 @@ The format follows [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Added
+- Chart Regions: when more than one downloaded region or street basemap is
+  out of date, an **Update All** button at the top of the panel re-downloads
+  them one after another.
+
 ## [0.25.1] - 2026-09-13
 
 ### Fixed

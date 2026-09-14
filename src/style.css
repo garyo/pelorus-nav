@@ -3184,6 +3184,23 @@ body {
   vertical-align: middle;
 }
 
+/* "N updates available · Update All" row pinned above the region list */
+.chart-cache-update-all {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 12px;
+  border-bottom: 1px solid #333;
+  font-size: 12px;
+  color: #ff8800;
+}
+
+.chart-cache-update-all .chart-cache-btn {
+  width: auto;
+  flex-shrink: 0;
+}
+
 .chart-cache-progress {
   padding: 12px;
   display: flex;

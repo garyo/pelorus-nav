@@ -108,9 +108,10 @@ you want street-level land detail offshore; without it you still get the
 chart's own land areas.
 
 When a chart update is published, downloaded regions show an
-**Update available** button — updating re-downloads only that region. The
-panel footer shows total storage used. Downloaded charts can be removed
-individually or all at once.
+**Update available** button — updating re-downloads only that region. With
+several regions or basemaps out of date, an **Update All** row at the top of
+the panel fetches them one after another. The panel footer shows total
+storage used. Downloaded charts can be removed individually or all at once.
 
 ## Save your home port
 

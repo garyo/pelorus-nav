@@ -49,6 +49,34 @@ import {
 import { getPanelStack } from "./PanelStack";
 import { registerSurface } from "./SurfaceManager";
 
+/** One entry in the panel's download queue: a chart file plus its aux files. */
+interface DownloadJob {
+  /** The primary stored file — identifies the job in the update queue. */
+  filename: string;
+  /** Shown as "Downloading <label>..." */
+  label: string;
+  run: (ctx: DownloadContext) => Promise<void>;
+}
+
+interface DownloadContext {
+  signal: AbortSignal;
+  onProgress: (loaded: number, total: number) => void;
+  /** Replace the progress caption, e.g. while fetching a region's aux files. */
+  setStatus: (text: string) => void;
+}
+
+/** Fetch an aux file whose absence is tolerable; a user cancel still propagates. */
+async function downloadOptionalAux(
+  filename: string,
+  signal: AbortSignal,
+): Promise<void> {
+  try {
+    await downloadAuxFile(`${chartAssetBase()}/${filename}`, filename, signal);
+  } catch (err) {
+    if (signal.aborted) throw err;
+  }
+}
+
 export class ChartCachePanel {
   private readonly el: HTMLDivElement;
   private readonly body: HTMLDivElement;
@@ -60,6 +88,8 @@ export class ChartCachePanel {
   private onRegionSelected?: (region: ChartRegion) => void;
   /** Bumped on each refresh so stale async update-checks are ignored. */
   private refreshToken = 0;
+  /** Out-of-date downloads found by the last update check, keyed by filename. */
+  private readonly pendingUpdates = new Map<string, DownloadJob>();
 
   constructor() {
     this.el = document.createElement("div");
@@ -220,6 +250,7 @@ export class ChartCachePanel {
     const activeRegion = getSettings().activeRegion;
 
     this.body.innerHTML = "";
+    this.pendingUpdates.clear();
 
     // Region list — one row per catalog region (+ basemap sub-row if built)
     for (const region of CHART_REGIONS) {
@@ -297,12 +328,9 @@ export class ChartCachePanel {
    */
   private checkForUpdates(token: number, stored: StoredChartInfo[]): void {
     const storedByFile = new Map(stored.map((c) => [c.filename, c]));
-    const check = (
-      filename: string | undefined,
-      onUpdate: () => void,
-    ): void => {
-      const info = filename ? storedByFile.get(filename) : undefined;
-      if (!info || !filename) return;
+    const check = (filename: string, onUpdate: () => void): void => {
+      const info = storedByFile.get(filename);
+      if (!info) return;
       fetchRemoteChartMeta(`${chartAssetBase()}/${filename}`)
         .then((remote) => {
           if (token !== this.refreshToken) return; // panel re-rendered
@@ -315,18 +343,36 @@ export class ChartCachePanel {
         });
     };
     for (const region of CHART_REGIONS) {
-      check(region.filename, () => this.markUpdateAvailable(region));
-      check(region.basemapFilename, () =>
-        this.markBasemapUpdateAvailable(region),
+      check(region.filename, () =>
+        this.markUpdateAvailable(
+          `[data-region-id="${region.id}"]`,
+          `Update ${region.name} to the latest charts`,
+          this.regionJob(region),
+        ),
       );
+      const basemap = region.basemapFilename;
+      if (basemap) {
+        check(basemap, () =>
+          this.markUpdateAvailable(
+            `[data-basemap-id="${region.id}"]`,
+            `Update ${region.name} basemap`,
+            this.basemapJob(region, basemap),
+          ),
+        );
+      }
     }
   }
 
-  /** Flag a downloaded region's row as having an update, adding an update button. */
-  private markUpdateAvailable(region: ChartRegion): void {
-    const item = this.body.querySelector<HTMLElement>(
-      `[data-region-id="${region.id}"]`,
-    );
+  /**
+   * Flag a downloaded row as having an update: a badge, a per-row update
+   * button, and a place in the "Update All" queue at the top of the list.
+   */
+  private markUpdateAvailable(
+    rowSelector: string,
+    title: string,
+    job: DownloadJob,
+  ): void {
+    const item = this.body.querySelector<HTMLElement>(rowSelector);
     if (!item || item.querySelector(".chart-region-update")) return;
 
     const detail = item.querySelector<HTMLElement>(".manager-item-detail");
@@ -342,38 +388,49 @@ export class ChartCachePanel {
       const updateBtn = document.createElement("button");
       updateBtn.className = "manager-item-btn chart-region-update";
       setIcon(updateBtn, iconRefresh);
-      updateBtn.title = `Update ${region.name} to the latest charts`;
-      updateBtn.addEventListener("click", () => this.startDownload(region));
-      actions.prepend(updateBtn);
-    }
-  }
-
-  /** Flag a downloaded basemap's row as having an update. */
-  private markBasemapUpdateAvailable(region: ChartRegion): void {
-    const item = this.body.querySelector<HTMLElement>(
-      `[data-basemap-id="${region.id}"]`,
-    );
-    if (!item || item.querySelector(".chart-region-update")) return;
-
-    const detail = item.querySelector<HTMLElement>(".manager-item-detail");
-    if (detail) {
-      detail.classList.add("manager-item-detail--update");
-      const badge = document.createElement("span");
-      badge.textContent = "Update available · ";
-      detail.prepend(badge);
-    }
-
-    const actions = item.querySelector<HTMLElement>(".manager-item-actions");
-    if (actions) {
-      const updateBtn = document.createElement("button");
-      updateBtn.className = "manager-item-btn chart-region-update";
-      setIcon(updateBtn, iconRefresh);
-      updateBtn.title = `Update ${region.name} basemap`;
+      updateBtn.title = title;
       updateBtn.addEventListener("click", () => {
-        this.startBasemapDownload(region);
+        void this.runDownloads([job]);
       });
       actions.prepend(updateBtn);
     }
+
+    this.pendingUpdates.set(job.filename, job);
+    this.renderUpdateAll();
+  }
+
+  /** Keep an "N updates available · Update All" row at the top of the list. */
+  private renderUpdateAll(): void {
+    let row = this.body.querySelector<HTMLElement>(".chart-cache-update-all");
+    if (!row) {
+      row = document.createElement("div");
+      row.className = "chart-cache-update-all";
+      const text = document.createElement("span");
+      text.className = "chart-cache-update-all-text";
+      const btn = document.createElement("button");
+      btn.className = "chart-cache-btn";
+      btn.innerHTML = `${iconRefresh} Update All`;
+      btn.addEventListener("click", () => {
+        void this.runDownloads(this.pendingUpdateJobs());
+      });
+      row.append(text, btn);
+      this.body.prepend(row);
+    }
+    const n = this.pendingUpdates.size;
+    const text = row.querySelector(".chart-cache-update-all-text");
+    if (text) text.textContent = `${n} update${n === 1 ? "" : "s"} available`;
+  }
+
+  /** Pending updates in catalog order (HEAD replies arrive in any order). */
+  private pendingUpdateJobs(): DownloadJob[] {
+    const jobs: DownloadJob[] = [];
+    for (const region of CHART_REGIONS) {
+      for (const filename of [region.filename, region.basemapFilename]) {
+        const job = filename && this.pendingUpdates.get(filename);
+        if (job) jobs.push(job);
+      }
+    }
+    return jobs;
   }
 
   /** Create a row for a catalog region. */
@@ -449,7 +506,7 @@ export class ChartCachePanel {
       setIcon(dlBtn, iconDownload);
       dlBtn.title = "Download for offline use";
       dlBtn.addEventListener("click", () => {
-        this.startDownload(region);
+        void this.runDownloads([this.regionJob(region)]);
       });
       actions.appendChild(dlBtn);
     }
@@ -516,23 +573,15 @@ export class ChartCachePanel {
       dlBtn.title =
         "Download offline street basemap — crisper themed vector maps that work without a connection. Otherwise streams online OSM raster tiles.";
       dlBtn.addEventListener("click", () => {
-        this.startBasemapDownload(region);
+        const filename = region.basemapFilename;
+        if (!filename) return;
+        void this.runDownloads([this.basemapJob(region, filename)]);
       });
       actions.appendChild(dlBtn);
     }
 
     item.append(info, actions);
     return item;
-  }
-
-  private async startBasemapDownload(region: ChartRegion): Promise<void> {
-    const filename = region.basemapFilename;
-    if (!filename) return;
-    await this.downloadWithProgress(
-      `${region.name} basemap`,
-      `${chartAssetBase()}/${filename}`,
-      filename,
-    );
   }
 
   /** Create a row for a raster chart (RNC) — auto-quilted to fill ENC gaps. */
@@ -622,7 +671,7 @@ export class ChartCachePanel {
       setIcon(dlBtn, iconDownload);
       dlBtn.title = "Download for offline use";
       dlBtn.addEventListener("click", () => {
-        this.startRasterDownload(chart);
+        void this.runDownloads([this.rasterJob(chart)]);
       });
       actions.appendChild(dlBtn);
     }
@@ -631,33 +680,75 @@ export class ChartCachePanel {
     return item;
   }
 
-  private async startRasterDownload(chart: RasterChart): Promise<void> {
-    await this.downloadWithProgress(
-      chart.name,
-      `${chartAssetBase()}/${chart.filename}`,
-      chart.filename,
-      async (signal) => {
-        // Coverage footprint for the chart-in-use readout (non-fatal if absent).
-        try {
-          await downloadAuxFile(
-            `${chartAssetBase()}/${chart.coverageFilename}`,
-            chart.coverageFilename,
-            signal,
-          );
-        } catch {
-          // Coverage is optional — quilting falls back to the catalog bbox.
-        }
+  /** Region charts plus coverage, search index and the unified coverage. */
+  private regionJob(region: ChartRegion): DownloadJob {
+    return {
+      filename: region.filename,
+      label: region.name,
+      run: async ({ signal, onProgress, setStatus }) => {
+        await downloadChart(
+          `${chartAssetBase()}/${region.filename}`,
+          region.filename,
+          onProgress,
+          signal,
+        );
+        setStatus(`Downloading ${region.name} coverage...`);
+        await downloadAuxFile(
+          `${chartAssetBase()}/${region.coverageFilename}`,
+          region.coverageFilename,
+          signal,
+        );
+        // Search index — may not exist yet for this region, not critical
+        await downloadOptionalAux(
+          region.filename.replace(".pmtiles", ".search.json"),
+          signal,
+        );
+        // Always refresh the unified coverage so the no-coverage mask works
+        // offshore. It's tiny and represents all regions, not just this one.
+        await downloadOptionalAux(UNIFIED_COVERAGE_FILENAME, signal);
       },
-    );
+    };
   }
 
-  /** Single-file download with the panel's progress UI, then refresh. */
-  private async downloadWithProgress(
-    label: string,
-    url: string,
-    filename: string,
-    downloadAux?: (signal: AbortSignal) => Promise<void>,
-  ): Promise<void> {
+  private basemapJob(region: ChartRegion, filename: string): DownloadJob {
+    return {
+      filename,
+      label: `${region.name} basemap`,
+      run: ({ signal, onProgress }) =>
+        downloadChart(
+          `${chartAssetBase()}/${filename}`,
+          filename,
+          onProgress,
+          signal,
+        ),
+    };
+  }
+
+  private rasterJob(chart: RasterChart): DownloadJob {
+    return {
+      filename: chart.filename,
+      label: chart.name,
+      run: async ({ signal, onProgress }) => {
+        await downloadChart(
+          `${chartAssetBase()}/${chart.filename}`,
+          chart.filename,
+          onProgress,
+          signal,
+        );
+        // Coverage footprint for the chart-in-use readout; without it
+        // quilting falls back to the catalog bbox.
+        await downloadOptionalAux(chart.coverageFilename, signal);
+      },
+    };
+  }
+
+  /**
+   * Run download jobs one after another behind the panel's progress UI, then
+   * refresh the list. Cancel aborts the current job and drops the rest; a
+   * failure stops the queue and shows the error.
+   */
+  private async runDownloads(jobs: DownloadJob[]): Promise<void> {
+    if (jobs.length === 0) return;
     this.body.innerHTML = "";
 
     const progressContainer = document.createElement("div");
@@ -665,7 +756,6 @@ export class ChartCachePanel {
 
     const labelDiv = document.createElement("div");
     labelDiv.className = "chart-cache-progress-label";
-    labelDiv.textContent = `Downloading ${label}...`;
 
     const barOuter = document.createElement("div");
     barOuter.className = "chart-cache-progress-bar";
@@ -675,13 +765,13 @@ export class ChartCachePanel {
 
     const stats = document.createElement("div");
     stats.className = "chart-cache-progress-stats";
-    stats.textContent = "0 MB / ? MB";
 
     const cancelBtn = document.createElement("button");
     cancelBtn.className = "chart-cache-btn chart-cache-btn--danger";
     cancelBtn.textContent = "Cancel";
 
-    this.downloadController = new AbortController();
+    const controller = new AbortController();
+    this.downloadController = controller;
     cancelBtn.addEventListener("click", () => {
       if (this.downloadController) {
         this.downloadController.abort();
@@ -695,27 +785,31 @@ export class ChartCachePanel {
     progressContainer.append(labelDiv, barOuter, stats, cancelBtn);
     this.body.appendChild(progressContainer);
 
+    const onProgress = (loaded: number, total: number) => {
+      const pct = total > 0 ? (loaded / total) * 100 : 0;
+      barInner.style.width = `${pct}%`;
+      stats.textContent = `${formatBytes(loaded)} / ${total > 0 ? formatBytes(total) : "?"}`;
+    };
+
+    let current: DownloadJob | undefined;
     try {
-      await downloadChart(
-        url,
-        filename,
-        (loaded, total) => {
-          const pct = total > 0 ? (loaded / total) * 100 : 0;
-          barInner.style.width = `${pct}%`;
-          stats.textContent = `${formatBytes(loaded)} / ${total > 0 ? formatBytes(total) : "?"}`;
-        },
-        this.downloadController.signal,
-      );
-      await downloadAux?.(this.downloadController.signal);
-      await this.onChartsChanged?.();
+      for (const [i, job] of jobs.entries()) {
+        current = job;
+        const prefix = jobs.length > 1 ? `${i + 1} of ${jobs.length}: ` : "";
+        const setStatus = (text: string) => {
+          labelDiv.textContent = prefix + text;
+        };
+        setStatus(`Downloading ${job.label}...`);
+        onProgress(0, 0);
+        await job.run({ signal: controller.signal, onProgress, setStatus });
+        await this.onChartsChanged?.();
+      }
     } catch (err) {
-      if (err instanceof DOMException && err.name === "AbortError") {
-        // User cancelled
-      } else {
+      if (!(err instanceof DOMException && err.name === "AbortError")) {
         const msg = err instanceof Error ? err.message : "Unknown error";
         diag(
           "download",
-          `${filename} failed: ${err instanceof Error ? err.name : "?"}: ${msg}`,
+          `${current?.filename} failed: ${err instanceof Error ? err.name : "?"}: ${msg}`,
         );
         const errorDiv = document.createElement("div");
         errorDiv.className = "chart-cache-error";
@@ -724,6 +818,7 @@ export class ChartCachePanel {
         cancelBtn.textContent = "Close";
         return;
       }
+      // User cancelled — fall through to the refresh
     } finally {
       this.downloadController = null;
     }
@@ -772,111 +867,6 @@ export class ChartCachePanel {
     actions.appendChild(deleteBtn);
     item.append(info, actions);
     return item;
-  }
-
-  private async startDownload(region: ChartRegion): Promise<void> {
-    this.body.innerHTML = "";
-
-    const progressContainer = document.createElement("div");
-    progressContainer.className = "chart-cache-progress";
-
-    const label = document.createElement("div");
-    label.className = "chart-cache-progress-label";
-    label.textContent = `Downloading ${region.name}...`;
-
-    const barOuter = document.createElement("div");
-    barOuter.className = "chart-cache-progress-bar";
-    const barInner = document.createElement("div");
-    barInner.className = "chart-cache-progress-fill";
-    barOuter.appendChild(barInner);
-
-    const stats = document.createElement("div");
-    stats.className = "chart-cache-progress-stats";
-    stats.textContent = "0 MB / ? MB";
-
-    const cancelBtn = document.createElement("button");
-    cancelBtn.className = "chart-cache-btn chart-cache-btn--danger";
-    cancelBtn.textContent = "Cancel";
-
-    this.downloadController = new AbortController();
-    cancelBtn.addEventListener("click", () => {
-      if (this.downloadController) {
-        this.downloadController.abort();
-      } else {
-        // Post-error state: the controller is gone (nulled in finally), so
-        // the button dismisses the stale progress UI + error message instead.
-        void this.refresh();
-      }
-    });
-
-    progressContainer.append(label, barOuter, stats, cancelBtn);
-    this.body.appendChild(progressContainer);
-
-    try {
-      await downloadChart(
-        `${chartAssetBase()}/${region.filename}`,
-        region.filename,
-        (loaded, total) => {
-          const pct = total > 0 ? (loaded / total) * 100 : 0;
-          barInner.style.width = `${pct}%`;
-          stats.textContent = `${formatBytes(loaded)} / ${total > 0 ? formatBytes(total) : "?"}`;
-        },
-        this.downloadController.signal,
-      );
-      // Also download the coverage GeoJSON for offline use
-      label.textContent = `Downloading ${region.name} coverage...`;
-      await downloadAuxFile(
-        `${chartAssetBase()}/${region.coverageFilename}`,
-        region.coverageFilename,
-        this.downloadController.signal,
-      );
-      // Download search index (non-fatal if missing)
-      const searchFilename = region.filename.replace(
-        ".pmtiles",
-        ".search.json",
-      );
-      try {
-        await downloadAuxFile(
-          `${chartAssetBase()}/${searchFilename}`,
-          searchFilename,
-          this.downloadController.signal,
-        );
-      } catch {
-        // Search index may not exist yet for this region — not critical
-      }
-      // Always refresh the unified coverage so the no-coverage mask works
-      // offshore. It's tiny and represents all regions, not just this one.
-      try {
-        await downloadAuxFile(
-          `${chartAssetBase()}/${UNIFIED_COVERAGE_FILENAME}`,
-          UNIFIED_COVERAGE_FILENAME,
-          this.downloadController.signal,
-        );
-      } catch {
-        // Non-fatal: region tiles still work, mask falls back to online fetch
-      }
-      await this.onChartsChanged?.();
-    } catch (err) {
-      if (err instanceof DOMException && err.name === "AbortError") {
-        // User cancelled
-      } else {
-        const msg = err instanceof Error ? err.message : "Unknown error";
-        diag(
-          "download",
-          `region=${region.id} failed: ${err instanceof Error ? err.name : "?"}: ${msg}`,
-        );
-        const errorDiv = document.createElement("div");
-        errorDiv.className = "chart-cache-error";
-        errorDiv.textContent = `Download failed: ${msg}`;
-        this.body.appendChild(errorDiv);
-        cancelBtn.textContent = "Close";
-        return;
-      }
-    } finally {
-      this.downloadController = null;
-    }
-
-    await this.refresh();
   }
 
   /** Persistent hidden input (built in the constructor) — programmatic click
