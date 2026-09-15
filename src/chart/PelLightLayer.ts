@@ -19,8 +19,9 @@
  *     clutter, matching the NOAA ENC viewer.
  *   - One parent-name feature per cluster renders the parent's OBJNAM
  *     in quotes at z14+.
- *   - PEL children are hidden from the raw s57-lights layer via a dynamic
- *     filter; non-PEL lights render there unchanged.
+ *   - PEL children are hidden from the raw s57-lights layer via a runtime
+ *     filter clause (layer-filter-clauses.ts); non-PEL lights render there
+ *     unchanged.
  */
 
 import type {
@@ -31,6 +32,10 @@ import type { Feature, FeatureCollection, Point, Position } from "geojson";
 import type * as maplibregl from "maplibre-gl";
 import { getRegionLayerIds } from "../data/chart-catalog";
 import { getSettings, onSettingsChange } from "../settings";
+import {
+  getLayerFilterClauses,
+  type LayerFilterClauses,
+} from "./layer-filter-clauses";
 import { queryAllLights } from "./lights-query";
 import { s52Colour } from "./s52-colours";
 import { buildLayerExpressions, getIconScheme } from "./styles/icon-sets";
@@ -58,6 +63,9 @@ const LAYER_PARENT_NAME = "_pel-parent-name";
  * {@link getRegionLayerIds} at apply time.
  */
 const SUPPRESSED_LAYER_SUFFIXES = ["lights", "lights-glow"] as const;
+
+/** Our clause key on those layers (see LayerFilterClauses). */
+const CLAUSE_KEY = "pel-children";
 
 /** Minimum zoom to show PEL clusters — matches `s57-lights` minzoom. */
 const MIN_ZOOM = 6;
@@ -339,12 +347,12 @@ export class PelLightLayer {
    * (see `pelLightsSignature`), to skip the clustering/build/setData pass
    * when the queried features haven't changed. */
   private lastInputSig: string | null = null;
-  /** Original filter on each suppressed layer so we can restore it. */
-  private originalFilters: Map<string, unknown> = new Map();
+  private readonly clauses: LayerFilterClauses;
   private readonly gate: ViewportGate;
 
   constructor(map: maplibregl.Map) {
     this.map = map;
+    this.clauses = getLayerFilterClauses(map);
     this.gate = createViewportGate(map);
 
     map.on("style.load", () => this.setup());
@@ -397,7 +405,6 @@ export class PelLightLayer {
   }
 
   private setup(): void {
-    this.captureOriginalFilters();
     this.addSourceAndLayers();
 
     // A style rebuild (e.g. toggling a layer group) wipes any filters we
@@ -415,17 +422,6 @@ export class PelLightLayer {
     return SUPPRESSED_LAYER_SUFFIXES.flatMap((suffix) =>
       getRegionLayerIds(suffix),
     );
-  }
-
-  private captureOriginalFilters(): void {
-    // Capture the layers' style-time filters (s57-lights carries a
-    // minor-light zoom gate at Standard detail) so the suppression filter
-    // can compose with them instead of clobbering them.
-    for (const id of this.suppressedLayerIds()) {
-      if (this.map.getLayer(id)) {
-        this.originalFilters.set(id, this.map.getFilter(id));
-      }
-    }
   }
 
   private removeLayers(): void {
@@ -581,31 +577,15 @@ export class PelLightLayer {
     this.suppressedLnams = next;
 
     const lnamList = Array.from(next);
-    const filterExpr =
+    const clause =
       lnamList.length === 0
         ? null
         : ([
             "!",
             ["in", ["get", "LNAM"], ["literal", lnamList]],
           ] as unknown as maplibregl.FilterSpecification);
-
-    // Compose with the layer's own style-time filter (e.g. the minor-light
-    // zoom gate at Standard detail) rather than replacing it.
     for (const id of this.suppressedLayerIds()) {
-      if (!this.map.getLayer(id)) continue;
-      const base = (this.originalFilters.get(id) ??
-        null) as maplibregl.FilterSpecification | null;
-      const combined =
-        filterExpr === null
-          ? base
-          : base
-            ? ([
-                "all",
-                base,
-                filterExpr,
-              ] as unknown as maplibregl.FilterSpecification)
-            : filterExpr;
-      this.map.setFilter(id, combined);
+      this.clauses.set(id, CLAUSE_KEY, clause);
     }
   }
 }
