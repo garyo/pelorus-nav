@@ -102,6 +102,18 @@ INTU_SCALE_BAND: dict[int, int] = {
     1: 0, 2: 1, 3: 2, 4: 3, 5: 4, 6: 5,
 }
 
+# Tile zoom → scale band the compositor fills first where several bands
+# cover the same area (any other zoom: highest band first). Empty in
+# production. Harbour cells (band 4) reach z11 under the production zoom
+# shift; `{11: 3}` instead gives z11 the approach cell's generalized
+# content (a candidate for a "Standard-" detail level: far fewer navaids,
+# but also far fewer depth areas and soundings), with harbour cells still
+# filling wherever no approach cell exists.
+COMPOSITE_PREFERRED_BAND: dict[int, int] = {}
+
+# MVT layers the preference applies to; None applies it to the whole tile.
+COMPOSITE_PREFERRED_LAYERS: frozenset[str] | None = None
+
 
 def compute_intu_zoom_ranges(
     present_intus: set[int],

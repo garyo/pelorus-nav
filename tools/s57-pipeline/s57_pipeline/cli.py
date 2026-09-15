@@ -29,7 +29,14 @@ from .scamin import (
     intu_to_scale_band,
     intu_to_zoom_range,
 )
-from .state import StateDB, compute_config_hash, is_cell_dirty, is_region_dirty, migrate_json_state
+from .state import (
+    StateDB,
+    compute_composite_hash,
+    compute_config_hash,
+    is_cell_dirty,
+    is_region_dirty,
+    migrate_json_state,
+)
 from .tile import tile_geojson_files
 
 
@@ -490,7 +497,8 @@ def cmd_pipeline(args: argparse.Namespace) -> None:
     migrate_json_state(db, Path("data/enc-update-state.json"))
     zoom_shift = getattr(args, "zoom_shift", 0)
     config_hash = compute_config_hash(zoom_shift)
-    progress.info(f"Config hash: {config_hash}")
+    composite_hash = compute_composite_hash(config_hash)
+    progress.info(f"Config hash: {config_hash} (composite {composite_hash})")
 
     # Pass 1: Scan INTU values and M_COVR coverage polygons (parallel)
     pass1_start = time.monotonic()
@@ -588,7 +596,7 @@ def cmd_pipeline(args: argparse.Namespace) -> None:
     region_name = args.region or "default"
     region_cell_names = [p.stem for p in enc_files]
     if not args.force and not composite_only and not is_region_dirty(
-        region_name, db, config_hash, region_cell_names,
+        region_name, db, composite_hash, region_cell_names,
     ):
         pipeline_elapsed = time.monotonic() - pipeline_start
         progress.info(f"Pass 3: Region '{region_name}' unchanged, skipping composite")
@@ -739,7 +747,7 @@ def cmd_pipeline(args: argparse.Namespace) -> None:
     # Record composite state and cell snapshot
     output_size = output_path.stat().st_size if output_path.exists() else 0
     db.set_composite_state(
-        region_name, config_hash, output_size,
+        region_name, composite_hash, output_size,
         output_checksum=None, success=True,
     )
     snapshot = {

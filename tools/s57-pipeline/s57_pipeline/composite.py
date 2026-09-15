@@ -3,7 +3,8 @@
 For each tile (z,x,y) across all cells, composites features from
 multiple ENC cells/bands using exact M_COVR coverage polygons.
 Highest-band data fills first, then progressively lower bands fill
-remaining gaps until the tile is 100% covered.
+remaining gaps until the tile is 100% covered (navaid layers at z11 fill
+from the approach band first — see _fill_passes).
 
 Replaces the old tile-join + priority-merge steps.
 """
@@ -29,6 +30,7 @@ from shapely.io import from_wkb, to_wkb
 from pmtiles.convert import all_tiles, write
 from pmtiles.reader import MmapSource, Reader, zxy_to_tileid
 
+from .scamin import COMPOSITE_PREFERRED_BAND, COMPOSITE_PREFERRED_LAYERS
 from .tilemath import latlon_to_tile as _latlon_to_tile
 from .tilemath import tile_to_bbox as _tile_to_bbox
 
@@ -53,6 +55,127 @@ class CellTileSource:
     band: int
     coverage: BaseGeometry  # M_COVR polygon for this cell
     cell_name: str = ""  # ENC cell name for grouping layers from same cell
+
+
+# One multi-band fill pass: cell order key (used with reverse=True) over
+# (band, cell_name), and which MVT layers the pass fills (None = all).
+_FillPass = tuple[
+    Callable[[tuple[int, str]], tuple[bool, int]],
+    Callable[[str], bool] | None,
+]
+
+
+def _by_band(key: tuple[int, str]) -> tuple[bool, int]:
+    return (False, key[0])
+
+
+def _fill_passes(z: int) -> list[_FillPass]:
+    """Fill passes for a multi-band tile at zoom z: normally one, highest
+    band first. Where COMPOSITE_PREFERRED_BAND names a band for z, the
+    COMPOSITE_PREFERRED_LAYERS fill from that band first in a second pass
+    (or the whole tile does, when the layer set is None)."""
+    preferred = COMPOSITE_PREFERRED_BAND.get(z)
+    if preferred is None:
+        return [(_by_band, None)]
+
+    def prefer(key: tuple[int, str]) -> tuple[bool, int]:
+        return (key[0] == preferred, key[0])
+
+    layers = COMPOSITE_PREFERRED_LAYERS
+    if layers is None:
+        return [(prefer, None)]
+    return [
+        (_by_band, lambda name: name not in layers),
+        (prefer, lambda name: name in layers),
+    ]
+
+
+def _group_cells(
+    entries: list[_SerEntry],
+) -> dict[tuple[int, str], list[tuple[bytes, BaseGeometry]]]:
+    """Group a tile's entries by cell (band + cell_name share one coverage)."""
+    cell_groups: dict[tuple[int, str], list[tuple[bytes, BaseGeometry]]] = {}
+    for band_val, cell_name, data, cov_wkb in entries:
+        cell_groups.setdefault((band_val, cell_name), []).append(
+            (data, from_wkb(cov_wkb))
+        )
+    return cell_groups
+
+
+def _fill_multi_band(
+    z: int,
+    tile_bbox: BaseGeometry,
+    cell_groups: dict[tuple[int, str], list[tuple[bytes, BaseGeometry]]],
+) -> tuple[dict[str, list[dict]], set[str], bool, _DropCounts]:
+    """Composite one multi-band tile: each pass walks the cells in its
+    order, clipping every cell's features to its M_COVR ∩ the area earlier
+    cells left unfilled, until the tile is covered.
+
+    Returns (features by layer, used cells, fully_filled, dropped counts);
+    fully_filled reflects the first pass, which covers the base layers.
+    """
+    output_features: dict[str, list[dict]] = {}
+    used: set[str] = set()
+    drops: _DropCounts = {}
+    fully_filled = False
+
+    for pass_index, (order_key, keep_layer) in enumerate(_fill_passes(z)):
+        filled = shape({"type": "Polygon", "coordinates": []})  # empty
+        for cell_key in sorted(cell_groups, key=order_key, reverse=True):
+            cell_entries = cell_groups[cell_key]
+            coverage = cell_entries[0][1]
+            _band_val, cell_name = cell_key
+
+            cell_coverage = coverage.intersection(tile_bbox)
+            if cell_coverage.is_empty:
+                continue
+
+            unfilled = tile_bbox.difference(filled)
+            if unfilled.is_empty:
+                break
+
+            usable = make_valid(cell_coverage.intersection(unfilled))
+            if usable.is_empty:
+                continue
+
+            # Expand clipping region slightly (~1km) so features extend past
+            # the M_COVR boundary.  Tippecanoe simplification can pull polygon
+            # vertices away from the boundary at low zoom, leaving thin gaps
+            # between adjacent cells.  The extra overlap is harmless (same
+            # depth polygons from both cells stack) and prevents white slivers.
+            #
+            # The buffer is clipped to tile_bbox only — NOT to region_bbox.
+            # Region boundary overlap is prevented by tile-center ownership
+            # (each tile is assigned to exactly one region), so the buffer
+            # can safely extend past the region boundary within this tile.
+            #
+            # Hazard layers are exempt from the buffer (clipped to the exact
+            # unfilled coverage): a lower band's OBSTRN/WRECKS/UWTROC leaking
+            # into detailed-cell coverage shows the overview copy — often
+            # missing CATOBS — inside an area the detailed cell owns.
+            clip_region = make_valid(usable.buffer(0.01)).intersection(tile_bbox)
+
+            for data, _cov in cell_entries:
+                features, dropped = _clip_mvt_features(
+                    data, clip_region, tile_bbox,
+                    hazard_region=usable, keep_layer=keep_layer,
+                )
+                _merge_drops(drops, cell_name, dropped)
+                if features:
+                    used.add(cell_name)
+                    for ln, feats in features.items():
+                        output_features.setdefault(ln, []).extend(feats)
+
+            # Track filled area with the *original* (unbuffered) coverage so
+            # adjacent cells can still fill the gap from their side.
+            filled = make_valid(filled.union(cell_coverage))
+            if filled.contains(tile_bbox):
+                break
+
+        if pass_index == 0:
+            fully_filled = filled.contains(tile_bbox)
+
+    return output_features, used, fully_filled, drops
 
 
 def _tile_bbox_polygon(z: int, x: int, y: int) -> BaseGeometry:
@@ -105,6 +228,7 @@ def _clip_mvt_features(
     usable_region: BaseGeometry,
     tile_bbox: BaseGeometry,
     hazard_region: BaseGeometry | None = None,
+    keep_layer: Callable[[str], bool] | None = None,
 ) -> tuple[dict[str, list[dict]] | None, dict[str, int]]:
     """Decode an MVT tile and clip features to a usable region.
 
@@ -115,6 +239,7 @@ def _clip_mvt_features(
         tile_bbox: The tile's bounding box polygon (in geographic coords).
         hazard_region: When set, layers in _HAZARD_LAYER_NAMES are clipped
             to this (exact, unbuffered) region instead of usable_region.
+        keep_layer: When set, layers it rejects are skipped entirely.
 
     Returns:
         (layers, dropped): layers is a dict of layer_name → list of
@@ -138,6 +263,8 @@ def _clip_mvt_features(
     has_features = False
 
     for layer_name, layer_data in decoded.items():
+        if keep_layer is not None and not keep_layer(layer_name):
+            continue
         clip_to = usable_region
         if hazard_region is not None and layer_name in _HAZARD_LAYER_NAMES:
             clip_to = hazard_region
@@ -289,81 +416,9 @@ def _composite_one_multi_band(
     z, x, y, entries = args
     tile_id = zxy_to_tileid(z, x, y)
     tile_bbox = _tile_bbox_polygon(z, x, y)
-    used: set[str] = set()
-    drops: _DropCounts = {}
-
-    # Group entries by cell (band + cell_name share the same coverage)
-    cell_groups: dict[
-        tuple[int, str], list[tuple[bytes, BaseGeometry]]
-    ] = {}
-    for band_val, cell_name, data, cov_wkb in entries:
-        coverage = from_wkb(cov_wkb)
-        cell_groups.setdefault((band_val, cell_name), []).append(
-            (data, coverage)
-        )
-
-    # Sort cells by band descending (highest first)
-    sorted_cells = sorted(cell_groups.keys(), key=lambda k: k[0], reverse=True)
-
-    filled = shape({"type": "Polygon", "coordinates": []})  # empty
-    output_features: dict[str, list[dict]] = {}
-
-    for cell_key in sorted_cells:
-        cell_entries = cell_groups[cell_key]
-        coverage = cell_entries[0][1]
-        _band_val, cell_name = cell_key
-
-        cell_coverage = coverage.intersection(tile_bbox)
-        if cell_coverage.is_empty:
-            continue
-
-        unfilled = tile_bbox.difference(filled)
-        if unfilled.is_empty:
-            break
-
-        usable = cell_coverage.intersection(unfilled)
-        if usable.is_empty:
-            continue
-
-        usable = make_valid(usable)
-        if usable.is_empty:
-            continue
-
-        # Expand clipping region slightly (~1km) so features extend past
-        # the M_COVR boundary.  Tippecanoe simplification can pull polygon
-        # vertices away from the boundary at low zoom, leaving thin gaps
-        # between adjacent cells.  The extra overlap is harmless (same
-        # depth polygons from both cells stack) and prevents white slivers.
-        #
-        # The buffer is clipped to tile_bbox only — NOT to region_bbox.
-        # Region boundary overlap is prevented by tile-center ownership
-        # (each tile is assigned to exactly one region), so the buffer
-        # can safely extend past the region boundary within this tile.
-        #
-        # Hazard layers are exempt from the buffer (clipped to the exact
-        # unfilled coverage): a lower band's OBSTRN/WRECKS/UWTROC leaking
-        # into detailed-cell coverage shows the overview copy — often
-        # missing CATOBS — inside an area the detailed cell owns.
-        clip_region = make_valid(usable.buffer(0.01))
-        clip_region = clip_region.intersection(tile_bbox)
-
-        for data, _cov in cell_entries:
-            features, dropped = _clip_mvt_features(
-                data, clip_region, tile_bbox, hazard_region=usable
-            )
-            _merge_drops(drops, cell_name, dropped)
-            if features:
-                used.add(cell_name)
-                for ln, feats in features.items():
-                    output_features.setdefault(ln, []).extend(feats)
-
-        # Track filled area with the *original* (unbuffered) coverage so
-        # adjacent cells can still fill the gap from their side.
-        filled = make_valid(filled.union(cell_coverage))
-        if filled.contains(tile_bbox):
-            break
-
-    fully_filled = filled.contains(tile_bbox)
+    output_features, used, fully_filled, drops = _fill_multi_band(
+        z, tile_bbox, _group_cells(entries)
+    )
     if output_features:
         return (
             tile_id,
@@ -391,8 +446,10 @@ def composite_tiles(
 
     For each tile (z,x,y):
     1. Collect all cells that produced a tile at this position
-    2. Sort by band descending (highest/most-detailed first)
-    3. Fill progressively: highest band first, then lower bands fill gaps
+    2. Sort by band descending (highest/most-detailed first); at zooms in
+       COMPOSITE_PREFERRED_BAND the COMPOSITE_PREFERRED_LAYERS instead
+       fill from the preferred band first (see _fill_passes)
+    3. Fill progressively: each band fills only what earlier ones left
     4. Clip each cell's features to its M_COVR ∩ unfilled area
     5. Stop when tile is 100% covered
 
@@ -653,63 +710,13 @@ def composite_tiles(
                 for b in sorted(cells_by_band, reverse=True):
                     print(f"    band {b}: cells={sorted(set(cells_by_band[b]))}")
 
-            cell_groups: dict[
-                tuple[int, str], list[tuple[bytes, BaseGeometry]]
-            ] = {}
-            for band_val, cell_name, data, cov_wkb_entry in entries:
-                coverage = from_wkb(cov_wkb_entry)
-                cell_groups.setdefault((band_val, cell_name), []).append(
-                    (data, coverage)
-                )
-
-            sorted_cells = sorted(cell_groups.keys(), key=lambda k: k[0], reverse=True)
-            filled = shape({"type": "Polygon", "coordinates": []})
-            output_features: dict[str, list[dict]] = {}
-
-            for cell_key in sorted_cells:
-                cell_entries_inner = cell_groups[cell_key]
-                coverage = cell_entries_inner[0][1]
-                band_val, cell_name = cell_key
-
-                cell_coverage = coverage.intersection(tile_bbox)
-                if cell_coverage.is_empty:
-                    continue
-
-                unfilled = tile_bbox.difference(filled)
-                if unfilled.is_empty:
-                    break
-
-                usable = cell_coverage.intersection(unfilled)
-                if usable.is_empty:
-                    continue
-
-                usable = make_valid(usable)
-                if usable.is_empty:
-                    continue
-
-                # Expand clipping region slightly (~1km) to cover
-                # tippecanoe simplification gaps at cell boundaries.
-                # Hazard layers clip to the exact coverage (see the
-                # worker variant above for why).
-                clip_region = make_valid(usable.buffer(0.01))
-                clip_region = clip_region.intersection(tile_bbox)
-
-                for data, _cov in cell_entries_inner:
-                    features, dropped = _clip_mvt_features(
-                        data, clip_region, tile_bbox, hazard_region=usable
-                    )
-                    _merge_drops(dropped_features, cell_name, dropped)
-                    if features:
-                        used_cells.add(cell_name)
-                        for ln, feats in features.items():
-                            output_features.setdefault(ln, []).extend(feats)
-
-                # Track filled with original coverage (not buffered)
-                filled = make_valid(filled.union(cell_coverage))
-                if filled.contains(tile_bbox):
-                    break
-
-            if not filled.contains(tile_bbox):
+            output_features, used, fully_filled, drops = _fill_multi_band(
+                z, tile_bbox, _group_cells(entries)
+            )
+            used_cells.update(used)
+            for key, n in drops.items():
+                dropped_features[key] = dropped_features.get(key, 0) + n
+            if not fully_filled:
                 not_fully_filled += 1
 
             if output_features:

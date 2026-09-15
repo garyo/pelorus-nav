@@ -332,6 +332,19 @@ def compute_config_hash(zoom_shift: int) -> str:
     return hashlib.sha256("\n".join(parts).encode()).hexdigest()[:12]
 
 
+def compute_composite_hash(config_hash: str) -> str:
+    """Hash for region composite state: the cell config hash plus the
+    compositor's band policy, so a policy change re-composites every
+    region without reconverting its cells."""
+    from .scamin import COMPOSITE_PREFERRED_BAND, COMPOSITE_PREFERRED_LAYERS
+
+    if not COMPOSITE_PREFERRED_BAND:
+        return config_hash  # no policy: plain config hash, nothing to redo
+    layers = sorted(COMPOSITE_PREFERRED_LAYERS or [])
+    policy = json.dumps([COMPOSITE_PREFERRED_BAND, layers], sort_keys=True)
+    return hashlib.sha256(f"{config_hash}\n{policy}".encode()).hexdigest()[:12]
+
+
 # ── Migration ────────────────────────────────────────────────────────────
 
 

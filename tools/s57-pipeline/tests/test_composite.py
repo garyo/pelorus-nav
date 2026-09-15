@@ -8,8 +8,10 @@ from pathlib import Path
 import mapbox_vector_tile
 from shapely.geometry import box, mapping
 
+from s57_pipeline import composite
 from s57_pipeline.composite import (
     CellTileSource,
+    _fill_passes,
     _clip_mvt_features,
     _encode_mvt,
     _tile_bbox_polygon,
@@ -510,3 +512,43 @@ class TestDroppedFeatureCounting:
         result, dropped = comp._clip_mvt_features(tile_data, tile_bbox, tile_bbox)
         assert result is None
         assert dropped == {"test": 1}
+
+
+CELLS = [(2, "coastal"), (4, "harbour"), (3, "approach"), (0, "overview")]
+NAVAIDS = frozenset({"BOYLAT", "LIGHTS", "TOPMAR"})
+
+
+def test_fill_passes_prefer_band_for_listed_layers(monkeypatch):
+    monkeypatch.setattr(composite, "COMPOSITE_PREFERRED_BAND", {11: 3})
+    monkeypatch.setattr(composite, "COMPOSITE_PREFERRED_LAYERS", NAVAIDS)
+    passes = _fill_passes(11)
+    assert len(passes) == 2
+    base_key, base_layers = passes[0]
+    navaid_key, navaid_layers = passes[1]
+    assert sorted(CELLS, key=base_key, reverse=True)[0] == (4, "harbour")
+    assert sorted(CELLS, key=navaid_key, reverse=True) == [
+        (3, "approach"), (4, "harbour"), (2, "coastal"), (0, "overview"),
+    ]
+    assert base_layers is not None and navaid_layers is not None
+    for name in ("DEPARE", "SOUNDG", "UWTROC"):
+        assert base_layers(name) and not navaid_layers(name)
+    for name in NAVAIDS:
+        assert navaid_layers(name) and not base_layers(name)
+    assert len(_fill_passes(12)) == 1
+
+
+def test_fill_passes_prefer_band_for_whole_tile(monkeypatch):
+    monkeypatch.setattr(composite, "COMPOSITE_PREFERRED_BAND", {11: 3})
+    monkeypatch.setattr(composite, "COMPOSITE_PREFERRED_LAYERS", None)
+    (key, layers), = _fill_passes(11)
+    assert layers is None
+    assert sorted(CELLS, key=key, reverse=True)[0] == (3, "approach")
+
+
+def test_fill_passes_default_is_highest_band_first():
+    for z in (10, 11, 12, 13):
+        (key, layers), = _fill_passes(z)
+        assert layers is None
+        assert sorted(CELLS, key=key, reverse=True) == [
+            (4, "harbour"), (3, "approach"), (2, "coastal"), (0, "overview"),
+        ]

@@ -9,6 +9,7 @@ import pytest
 
 from s57_pipeline.state import (
     StateDB,
+    compute_composite_hash,
     compute_config_hash,
     is_cell_dirty,
     is_region_dirty,
@@ -214,3 +215,14 @@ class TestMigration:
         # Second call: JSON file is gone, should no-op
         migrate_json_state(db, json_path)
         assert db.get_noaa_date("CELL") == "date1"
+
+
+def test_composite_hash_tracks_band_policy(monkeypatch):
+    from s57_pipeline import scamin
+
+    base = compute_config_hash(2)
+    assert compute_composite_hash(base) == base  # no policy → unchanged
+    monkeypatch.setattr(scamin, "COMPOSITE_PREFERRED_BAND", {11: 3})
+    with_policy = compute_composite_hash(base)
+    assert with_policy != base
+    assert with_policy != compute_composite_hash(compute_config_hash(0))
