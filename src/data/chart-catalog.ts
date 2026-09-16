@@ -48,7 +48,8 @@ const DISPLAY: Record<string, DisplayMeta> = {
     sizeEstimate: 150 * 1024 * 1024,
     basemapSizeEstimate: 240 * 1024 * 1024,
     center: [-71.01, 42.34],
-    defaultZoom: 12,
+    // Boston Harbor is dense; a hair past z12 reads cleanly on first open.
+    defaultZoom: 12.5,
   },
   "southern-new-england": {
     sizeEstimate: 150 * 1024 * 1024,
