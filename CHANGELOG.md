@@ -34,6 +34,9 @@ The format follows [Keep a Changelog](https://keepachangelog.com/).
   sounding, and were offset far enough from the berth to sit out over the
   water — a berth number could be read as a depth. They are now italic and
   sit on the berth.
+- Position entry: a latitude/longitude pasted with a typographic minus or
+  dash, as text copied from a document or web page often carries, is now
+  accepted instead of rejected.
 
 ## [0.25.1] - 2026-09-13
 

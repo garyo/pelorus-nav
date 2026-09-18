@@ -106,6 +106,28 @@ describe("formatLatLon", () => {
 });
 
 describe("parseLatLon", () => {
+  it.each([
+    ["minus sign", "33.552840, \u2212117.776013"],
+    ["en dash", "33.552840, \u2013117.776013"],
+    ["em dash", "33.552840, \u2014117.776013"],
+    ["hyphen", "33.552840, \u2010117.776013"],
+    ["fullwidth hyphen-minus", "33.552840, \uFF0D117.776013"],
+  ])("accepts a %s in place of a hyphen", (_label, input) => {
+    const result = parseLatLon(input);
+    expect(result).not.toBeNull();
+    if (!result) return;
+    expect(result[0]).toBeCloseTo(33.55284);
+    expect(result[1]).toBeCloseTo(-117.776013);
+  });
+
+  it("accepts a typographic minus on both components", () => {
+    const result = parseLatLon("\u221233.55, \u2212117.77");
+    expect(result).not.toBeNull();
+    if (!result) return;
+    expect(result[0]).toBeCloseTo(-33.55);
+    expect(result[1]).toBeCloseTo(-117.77);
+  });
+
   it("parses decimal degrees with comma", () => {
     const result = parseLatLon("42.305, -70.946");
     expect(result).not.toBeNull();

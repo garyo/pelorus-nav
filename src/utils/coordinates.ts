@@ -221,16 +221,20 @@ export function formatLatLon(value: number, type: "lat" | "lon"): string {
  * - Decimal: 42.305N, -70.946, 42.305
  * - Negative sign as S/W: -42.305 = 42.305S
  * - "deg" as degree symbol: 42deg18.295N
+ * - Typographic minus or dash for "-": −117.776, –117.776
  */
 function parseDDMComponent(s: string): number {
-  // Normalise: replace "deg" with °, convert curly quotes/primes to ASCII
-  // equivalents so users can paste formatted text, strip trailing comma
+  // Normalise: replace "deg" with °, convert curly quotes/primes and dash
+  // lookalikes to ASCII so users can paste formatted text — coordinates
+  // copied from a document or web page routinely carry a real minus sign
+  // or an en dash rather than a hyphen. Also strips a trailing comma.
   const trimmed = s
     .trim()
     .replace(/deg/gi, "°")
     .replace(/\u00BA/g, "°") // ordinal indicator → degree
     .replace(/[\u2018\u2019\u02B9\u2032\u00B4`]/g, "'") // curly/prime → '
     .replace(/[\u201C\u201D\u02BA\u2033]/g, '"') // curly/prime → "
+    .replace(/[\u2010\u2011\u2012\u2013\u2014\u2015\u2212\uFE63\uFF0D]/g, "-") // dash/minus → -
     .replace(/,\s*$/, "");
 
   // Extract leading sign and trailing hemisphere
