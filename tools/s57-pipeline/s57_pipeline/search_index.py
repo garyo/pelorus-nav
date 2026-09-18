@@ -13,12 +13,18 @@ from pathlib import Path
 from shapely.geometry import shape
 
 
-# Layers to skip — either unnamed or too numerous/uninteresting for search.
+# Layers to skip. Only features carrying OBJNAM are ever indexed (see below),
+# so a layer belongs here only when its *named* features would be noise —
+# either far too numerous to index, or duplicates of an entry another layer
+# already contributes. Anything that merely tends to be unnamed can stay out
+# of this list at no cost, and dropping it would lose the names it does have:
+# DRGARE alone carries 273 named channels around Boston, RIVERS 62 creeks,
+# LAKARE 25 ponds, SBDARE 11 named rocks and SLCONS 8 wharves.
 _SKIP_LAYERS = frozenset({
-    "SOUNDG", "DEPARE", "DEPCNT", "SBDARE", "MAGVAR",
-    "UNSARE", "DRGARE", "LAKARE", "RIVERS",
+    "SOUNDG",  # hundreds of thousands of soundings; names are freak cases
+    "DEPARE", "DEPCNT", "MAGVAR", "UNSARE",  # unnamed, and very numerous
     "TOPMAR", "DAYMAR",  # topmarks/daymarks are co-located with parent navaids
-    "COALNE", "SLCONS",  # coastline/shoreline — unnamed line features
+    "COALNE",  # coastline — unnamed line features
     "DYKCON", "SLOTOP",  # unnamed terrain lines
 })
 
