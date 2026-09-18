@@ -29,7 +29,11 @@
                 missing: location.pathname.slice(0, 200),
               })
             : page();
-        });
+        })
+        // A blocked or unreachable tracker is expected, not an app fault, so
+        // it stays out of the diagnostics error log — that log is how real
+        // bugs get found, and a content blocker must not fill it with noise.
+        .catch(() => {});
       }
     </script>
   </head>
