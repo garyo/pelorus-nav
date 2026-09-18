@@ -30,6 +30,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/).
   They now draw as docks, and appear at harbour zoom even at Standard detail.
 - Chart: narrow watercourses were painted as filled blotches over the land
   instead of drawn as rivers.
+- Chart: berth numbers were drawn in the same font, size and grey as a depth
+  sounding, and were offset far enough from the berth to sit out over the
+  water — a berth number could be read as a depth. They are now italic and
+  sit on the berth.
 
 ## [0.25.1] - 2026-09-13
 

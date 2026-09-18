@@ -220,6 +220,10 @@ export function getTextLayers(ctx: StyleContext): LayerSpecification[] {
       },
     },
     {
+      // A berth number is a bare integer sitting by the water's edge, so it
+      // reads as a sounding unless it's set apart: italic (no sounding ever
+      // is), and centred on the berth rather than offset, which on a narrow
+      // wharf threw the number clear of the quay and out over the water.
       id: "s57-berths-label",
       type: "symbol",
       source: ctx.sourceId,
@@ -227,8 +231,8 @@ export function getTextLayers(ctx: StyleContext): LayerSpecification[] {
       minzoom: ctx.detailMinzoom(13),
       filter: ["has", "OBJNAM"],
       layout: {
-        "text-font": ["Noto Sans Regular"],
-        ...VARIABLE_ANCHOR_LAYOUT,
+        "text-font": ["Noto Sans Italic"],
+        "text-anchor": "center",
         "symbol-sort-key": SORT_KEY_FACILITY,
         "text-field": ["get", "OBJNAM"],
         "text-size": scaledTextSize(10, ctx),
