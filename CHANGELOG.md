@@ -19,6 +19,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/).
   all.
 - Chart Regions: a batch that would not fit in the device's free storage is
   refused up front, with the shortfall shown, instead of failing part-way.
+- Chart: tapping a floating dock identifies it, like other charted
+  structures.
 
 ### Fixed
 - Report a Bug: the chart screenshot attached to a report came out as noise on
