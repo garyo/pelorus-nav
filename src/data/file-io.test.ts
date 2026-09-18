@@ -32,6 +32,7 @@ import {
   deleteInboxCopy,
   filenameFromUrl,
   GPX_ACCEPT,
+  openOrShareTextFile,
   readFileUrl,
   shareOrDownloadFile,
 } from "./file-io";
@@ -192,5 +193,81 @@ describe("shareOrDownloadFile (native)", () => {
     await expect(
       shareOrDownloadFile("hello", "diag.txt", "text/plain"),
     ).rejects.toThrow("no share targets");
+  });
+});
+
+describe("openOrShareTextFile", () => {
+  beforeEach(() => {
+    mocks.writeFile.mockReset();
+    mocks.share.mockReset();
+    mocks.writeFile.mockResolvedValue({ uri: "file:///cache/x.txt" });
+    mocks.share.mockResolvedValue(undefined);
+    vi.unstubAllGlobals();
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+  });
+
+  it("opens a blob URL in a new tab on the web", async () => {
+    mocks.isNative = false;
+    const open = vi.fn().mockReturnValue({} as Window);
+    const createObjectURL = vi.fn().mockReturnValue("blob:diag");
+    const revokeObjectURL = vi.fn();
+    vi.stubGlobal("window", { open });
+    vi.stubGlobal("URL", { createObjectURL, revokeObjectURL });
+
+    await openOrShareTextFile("body", "diag.txt");
+
+    expect(open).toHaveBeenCalledWith("blob:diag", "_blank");
+    expect(mocks.share).not.toHaveBeenCalled();
+    // The URL must outlive the call so the new tab can still fetch it.
+    expect(revokeObjectURL).not.toHaveBeenCalled();
+    vi.runAllTimers();
+    expect(revokeObjectURL).toHaveBeenCalledWith("blob:diag");
+  });
+
+  it("falls back to a download when the browser blocks the tab", async () => {
+    mocks.isNative = false;
+    vi.stubGlobal("window", { open: vi.fn().mockReturnValue(null) });
+    vi.stubGlobal("URL", {
+      createObjectURL: vi.fn().mockReturnValue("blob:diag"),
+      revokeObjectURL: vi.fn(),
+    });
+    // The download path is DOM-driven; this file has no document of its own.
+    const anchor: Record<string, unknown> = { click: vi.fn() };
+    vi.stubGlobal("Blob", class {});
+    vi.stubGlobal("document", {
+      createElement: () => anchor,
+      body: { appendChild: vi.fn(), removeChild: vi.fn() },
+    });
+
+    await openOrShareTextFile("body", "diag.txt");
+
+    expect(anchor.click).toHaveBeenCalled();
+    expect(anchor.download).toBe("diag.txt");
+  });
+
+  it("shares on native, where there is no tab to open", async () => {
+    mocks.isNative = true;
+    const open = vi.fn();
+    vi.stubGlobal("window", { open });
+
+    await openOrShareTextFile("body", "diag.txt");
+
+    expect(open).not.toHaveBeenCalled();
+    expect(mocks.share).toHaveBeenCalledWith(
+      expect.objectContaining({ url: "file:///cache/x.txt" }),
+    );
+  });
+
+  it("defaults to text/plain so a browser renders it inline", async () => {
+    mocks.isNative = true;
+    await openOrShareTextFile("body", "diag.txt");
+    expect(mocks.writeFile).toHaveBeenCalledWith(
+      expect.objectContaining({ data: "body", path: "diag.txt" }),
+    );
   });
 });

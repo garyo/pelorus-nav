@@ -81,6 +81,32 @@ export async function shareOrDownloadFile(
   return "downloaded";
 }
 
+/**
+ * How long a blob URL stays alive for the tab that is opening it, ms.
+ * Revoking immediately races the new tab's fetch on slower devices.
+ */
+const BLOB_URL_LIFETIME_MS = 60_000;
+
+/**
+ * Show a text file to the user rather than hand it over: a new tab on the
+ * web, the native share sheet otherwise, since a WebView has nowhere to open
+ * a tab. Falls back to a download if the browser refuses the tab (popup
+ * blocking), so the content is always reachable somehow.
+ */
+export async function openOrShareTextFile(
+  content: string,
+  filename: string,
+  mimeType = "text/plain",
+): Promise<void> {
+  if (!Capacitor.isNativePlatform()) {
+    const url = URL.createObjectURL(new Blob([content], { type: mimeType }));
+    const opened = window.open(url, "_blank");
+    setTimeout(() => URL.revokeObjectURL(url), BLOB_URL_LIFETIME_MS);
+    if (opened) return;
+  }
+  await shareOrDownloadFile(content, filename, mimeType);
+}
+
 /** Fire-and-forget wrapper around shareOrDownloadFile for legacy callers. */
 export function downloadFile(
   content: string,

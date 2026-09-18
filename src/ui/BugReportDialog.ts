@@ -10,7 +10,7 @@ import {
   queueAndScheduleBugReport,
   sendBugReport,
 } from "../data/bug-report-outbox";
-import { shareOrDownloadFile } from "../data/file-io";
+import { openOrShareTextFile, shareOrDownloadFile } from "../data/file-io";
 import { diagnosticsFilename } from "../diagnostics/collectDiagnostics";
 import { logUiAction } from "../diagnostics/uiActionLog";
 
@@ -66,11 +66,38 @@ export function showBugReportDialog(options: BugReportOptions): void {
   email.placeholder = "Email (optional — if you'd like a reply)";
   email.maxLength = 254;
 
+  // "App diagnostics" opens the exact text that would be sent, so nobody has
+  // to take the summary on trust. Collected on demand: the same call the send
+  // path makes, so what's shown is what goes.
   const note = document.createElement("div");
   note.className = "bugreport-note";
-  note.textContent =
-    "App diagnostics are included automatically: device info, settings, " +
-    "recent logs, and GPS data.";
+  const diagLink = document.createElement("button");
+  diagLink.type = "button";
+  diagLink.className = "bugreport-note-link";
+  diagLink.textContent = "App diagnostics";
+  diagLink.addEventListener("click", async () => {
+    diagLink.disabled = true;
+    const shown = diagLink.textContent;
+    diagLink.textContent = "Collecting\u2026";
+    try {
+      await openOrShareTextFile(
+        await options.collectDiagnostics(),
+        diagnosticsFilename(),
+      );
+    } catch (e) {
+      status.textContent = `Could not show diagnostics: ${String(e)}`;
+    } finally {
+      diagLink.textContent = shown;
+      diagLink.disabled = false;
+    }
+  });
+  note.append(
+    diagLink,
+    document.createTextNode(
+      " are included automatically: device info, settings, recent logs, and" +
+        " GPS data.",
+    ),
+  );
 
   // Chart screenshot: captured when the dialog opens (the overlay is DOM, so
   // it never appears in the WebGL capture); the row stays hidden until the

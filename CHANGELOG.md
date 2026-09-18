@@ -21,6 +21,9 @@ The format follows [Keep a Changelog](https://keepachangelog.com/).
   refused up front, with the shortfall shown, instead of failing part-way.
 - Chart: tapping a floating dock identifies it, like other charted
   structures.
+- Report a Bug: "App diagnostics" in the note is now a link that opens the
+  exact text the report would send, so what is attached can be read before
+  sending it.
 
 ### Fixed
 - Report a Bug: the chart screenshot attached to a report came out as noise on

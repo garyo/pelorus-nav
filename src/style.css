@@ -1564,6 +1564,28 @@ body {
   margin-bottom: 10px;
 }
 
+/* A button, not an anchor — it has no URL to go to. Styled as the inline link
+   it reads as, and sized to the note text around it. */
+.bugreport-note-link {
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: #6af;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.bugreport-note-link:hover {
+  text-decoration: underline;
+}
+
+.bugreport-note-link:disabled {
+  color: #999;
+  cursor: default;
+  text-decoration: none;
+}
+
 .bugreport-status {
   font-size: 12px;
   color: #ddd;
@@ -1600,6 +1622,13 @@ body {
 [data-theme="eink"] .about-card .bugreport-status,
 [data-theme="eink"] .about-card .bugreport-screenshot {
   color: #1a1a1a;
+}
+
+/* Greyscale e-ink renders the link blue as a pale grey, so the underline
+   carries the affordance on its own. */
+[data-theme="eink"] .about-card .bugreport-note-link {
+  color: #1a1a1a;
+  text-decoration: underline;
 }
 
 [data-theme="eink"] .about-card .bugreport-screenshot-thumb {
