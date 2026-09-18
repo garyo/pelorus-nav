@@ -136,6 +136,10 @@ export function getAreaLayers(ctx: StyleContext): LayerSpecification[] {
       type: "fill",
       source: ctx.sourceId,
       "source-layer": "RIVERS",
+      // Polygons only — narrow watercourses arrive as line geometry, and a
+      // fill layer turns those into blotches across the land. s57-rivers-line
+      // draws them as the rivers they are.
+      filter: ["==", ["geometry-type"], "Polygon"],
       layout: { "fill-sort-key": SCALE_SORT_KEY },
       paint: {
         "fill-color": ctx.colour("DEPMD"),
@@ -205,10 +209,31 @@ export function getAreaLayers(ctx: StyleContext): LayerSpecification[] {
       type: "fill",
       source: ctx.sourceId,
       "source-layer": "PONTON",
+      // Polygons only. PONTON is overwhelmingly line geometry (marina finger
+      // docks), and a fill layer doesn't skip those — it fills the open path,
+      // scattering grey slivers and triangles across the water. The docks
+      // themselves are drawn by s57-ponton-line.
+      filter: ["==", ["geometry-type"], "Polygon"],
       layout: { "fill-sort-key": SCALE_SORT_KEY },
       paint: {
         "fill-color": ctx.colour("NODTA"),
         "fill-opacity": 0.8,
+      },
+    },
+    // A handful of pontoons are encoded as bare points, which neither the
+    // fill nor the line layer can draw.
+    {
+      id: "s57-ponton-point",
+      type: "circle",
+      source: ctx.sourceId,
+      "source-layer": "PONTON",
+      minzoom: ctx.detailMinzoom(13),
+      filter: ["==", ["geometry-type"], "Point"],
+      paint: {
+        "circle-radius": 3,
+        "circle-color": ctx.colour("NODTA"),
+        "circle-stroke-color": ctx.colour("CHGRF"),
+        "circle-stroke-width": 0.5,
       },
     },
     {

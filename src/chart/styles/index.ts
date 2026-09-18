@@ -184,6 +184,7 @@ export const LAYER_CATEGORIES: Record<
   // STANDARD
   "s57-lakare": "STANDARD",
   "s57-rivers": "STANDARD",
+  "s57-rivers-line": "STANDARD",
   "s57-drgare": "STANDARD",
   "s57-drgare-outline": "STANDARD",
   "s57-slcons": "STANDARD",
@@ -238,6 +239,8 @@ export const LAYER_CATEGORIES: Record<
   "s57-buisgl": "STANDARD",
   "s57-buisgl-outline": "STANDARD",
   "s57-ponton": "OTHER",
+  "s57-ponton-line": "OTHER",
+  "s57-ponton-point": "OTHER",
   "s57-berths-label": "OTHER",
   "s57-pilpnt": "OTHER",
   "s57-morfac": "OTHER",
@@ -346,6 +349,11 @@ const OTHER_STANDARD_MINZOOM: Record<string, number> = {
   "s57-ofsplf": 14,
   "s57-buisgl": 14,
   "s57-morfac": 12,
+  // Floating docks: a marina's finger piers are an obstruction you steer
+  // around, so they show at berth-picking zoom even at Standard detail.
+  "s57-ponton": 14,
+  "s57-ponton-line": 14,
+  "s57-ponton-point": 14,
   // Seabed nature labels — anchoring aid, approach scale.
   "s57-sbdare": 12,
   // Cable/pipeline areas (the cblsub/cblohd lines are STANDARD already).

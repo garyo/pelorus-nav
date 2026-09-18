@@ -130,6 +130,9 @@ Cross-cutting behavior not visible in the table:
 | PIPOHD | `s57-pipohd` | all | all | all | all |
 | PIPOHD | `s57-pipohd-label` | z14+ \* | z14+ \* | z14+ \* | z14+ \* |
 | PIPSOL | `s57-pipsol` | z12+ | z12+ | z12+ | z12+ |
+| PONTON | `s57-ponton` | z14+ \* | z14+ \* | z14+ \* | z14+ \* |
+| PONTON | `s57-ponton-line` | z14+ | z14+ | z14+ | z14+ |
+| PONTON | `s57-ponton-point` | z14+ \* | z14+ \* | z14+ \* | z14+ \* |
 | PRCARE | `s57-prcare` | all | all | all | all |
 | PRCARE | `s57-prcare-outline` | all | all | all | all |
 | PYLONS | `s57-pylons` | z14+ | z14+ | z14+ | z14+ |
@@ -141,7 +144,8 @@ Cross-cutting behavior not visible in the table:
 | RESARE | `s57-resare-entry-prohib` | z10+ \* | z10+ \* | z10+ \* | z10+ \* |
 | RESARE | `s57-resare-fish-prohib` | z10+ \* | z10+ \* | z10+ \* | z10+ \* |
 | RETRFL | `s57-retrfl` | z10+ | z10+ | z10+ | z10+ |
-| RIVERS | `s57-rivers` | all | all | all | all |
+| RIVERS | `s57-rivers` | all \* | all \* | all \* | all \* |
+| RIVERS | `s57-rivers-line` | all \* | all \* | all \* | all \* |
 | RSCSTA | `s57-rscsta` | z10+ | z10+ | z10+ | z10+ |
 | RTPBCN | `s57-rtpbcn` | z10+ | z10+ | z10+ | z10+ |
 | RUNWAY | `s57-runway` | z13+ | z13+ | z13+ | z13+ |

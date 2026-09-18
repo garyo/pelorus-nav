@@ -144,6 +144,36 @@ export function getLineLayers(ctx: StyleContext): LayerSpecification[] {
       },
     },
     {
+      // Narrow watercourses, which the ENC carries as line geometry rather
+      // than an area (s57-rivers fills the wide ones). A step darker down the
+      // water ramp than that fill, so a thin line still reads where it runs
+      // over land.
+      id: "s57-rivers-line",
+      type: "line",
+      source: ctx.sourceId,
+      "source-layer": "RIVERS",
+      filter: ["==", ["geometry-type"], "LineString"],
+      layout: { "line-sort-key": SCALE_SORT_KEY },
+      paint: {
+        "line-color": ctx.colour("DEPVS"),
+        "line-width": 2,
+      },
+    },
+    {
+      // Floating docks. Marina finger piers come through as lines, not areas
+      // — the fill layer (s57-ponton) only ever catches the handful encoded
+      // as polygons, whose rings this draws as an outline.
+      id: "s57-ponton-line",
+      type: "line",
+      source: ctx.sourceId,
+      "source-layer": "PONTON",
+      layout: { "line-sort-key": SCALE_SORT_KEY },
+      paint: {
+        "line-color": ctx.colour("CHGRF"),
+        "line-width": 1.6,
+      },
+    },
+    {
       id: "s57-bridge",
       type: "line",
       source: ctx.sourceId,

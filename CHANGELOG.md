@@ -23,6 +23,11 @@ The format follows [Keep a Changelog](https://keepachangelog.com/).
 ### Fixed
 - Report a Bug: the chart screenshot attached to a report came out as noise on
   some browsers instead of the chart that was on screen.
+- Chart: marina finger piers and other floating docks were missing, and their
+  centrelines were painted as grey slivers and triangles across the water.
+  They now draw as docks, and appear at harbour zoom even at Standard detail.
+- Chart: narrow watercourses were painted as filled blotches over the land
+  instead of drawn as rivers.
 
 ## [0.25.1] - 2026-09-13
 
