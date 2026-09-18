@@ -20,6 +20,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/).
 - Chart Regions: a batch that would not fit in the device's free storage is
   refused up front, with the shortfall shown, instead of failing part-way.
 
+### Fixed
+- Report a Bug: the chart screenshot attached to a report came out as noise on
+  some browsers instead of the chart that was on screen.
+
 ## [0.25.1] - 2026-09-13
 
 ### Fixed
