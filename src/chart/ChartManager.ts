@@ -26,8 +26,7 @@ import {
   type ChartLoadStatus,
 } from "./ChartLoadMonitor";
 import type { ChartProvider } from "./ChartProvider";
-import { maxCanvasSize } from "./gl-limits";
-import { isLayerOpacitySupported } from "./layer-opacity-probe";
+import { canvasWouldExceedTextureLimit, maxCanvasSize } from "./gl-limits";
 import {
   applyOSMUnderlay,
   applyUnderlay,
@@ -505,13 +504,13 @@ export class ChartManager {
           ],
           0.3,
           basemapLayers.filter(isLiftedBasemapLabel),
-          { layerOpacitySupported: isLayerOpacitySupported() },
+          { layerOpacitySupported: !canvasWouldExceedTextureLimit() },
         );
       } else {
         const osm = getOSMUnderlaySource();
         sources = { ...sources, [osm.id]: osm.source };
         layers = applyOSMUnderlay(layers, 0.3, settings.displayTheme, {
-          layerOpacitySupported: isLayerOpacitySupported(),
+          layerOpacitySupported: !canvasWouldExceedTextureLimit(),
         });
       }
     }

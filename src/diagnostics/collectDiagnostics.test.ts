@@ -9,12 +9,6 @@ vi.mock("@capacitor/core", () => ({
 vi.mock("../data/tile-store", () => ({
   listStoredCharts: () => Promise.resolve([]),
 }));
-const probeMock = vi.hoisted(() => ({
-  result: null as { supported: boolean; detail: string } | null,
-}));
-vi.mock("../chart/layer-opacity-probe", () => ({
-  getLayerOpacityProbe: () => probeMock.result,
-}));
 vi.mock("../plugins/BackgroundGPS", () => ({
   BackgroundGPS: {
     readDiag: () => Promise.reject(new Error("not implemented")),
@@ -126,35 +120,10 @@ describe("RENDERING section", () => {
     return await section.collect();
   };
 
-  it("says so loudly when the layer-opacity composite is broken", async () => {
-    probeMock.result = {
-      supported: false,
-      detail: "composite leaked past its layer: bare half #6b0000",
-    };
-    const text = await render();
-    // A reader skimming the report has to catch this without knowing the
-    // property name, since it changes how the whole chart is drawn.
-    expect(text).toContain("UNSUPPORTED");
-    expect(text).toContain("fill-opacity fallback");
-    expect(text).toContain("#6b0000");
-  });
-
-  it("reports a healthy stack without alarm", async () => {
-    probeMock.result = { supported: true, detail: "ok (bare #ff0000)" };
-    const text = await render();
-    expect(text).toContain("supported");
-    expect(text).not.toContain("UNSUPPORTED");
-  });
-
-  it("distinguishes never having probed from a passing probe", async () => {
-    probeMock.result = null;
-    expect(await render()).toContain("not probed");
-  });
-
-  it("survives a context it cannot create", async () => {
-    probeMock.result = { supported: true, detail: "ok" };
-    // No document in this environment: the section must still report the
-    // verdict rather than sink the whole diagnostics export.
-    await expect(render()).resolves.toContain("fill-layer-opacity");
+  it("survives an environment with no WebGL to ask", async () => {
+    // No document here: the section must report that it could not look
+    // rather than throw, since one failing section would otherwise cost us
+    // the whole report — the only channel these arrive on.
+    await expect(render()).resolves.toContain("gl probe failed");
   });
 });

@@ -97,7 +97,7 @@ export function applyOSMUnderlay(
 export interface UnderlayOptions {
   /**
    * Whether `fill-layer-opacity` can be trusted on this stack (see
-   * layer-opacity-probe). False falls back to per-feature `fill-opacity`,
+   * gl-limits). False falls back to per-feature `fill-opacity`,
    * which stacks alpha wherever ENC cells overlap and draws a darker seam
    * along their boundaries — the lesser of the two evils when the layer
    * composite dims the whole chart.

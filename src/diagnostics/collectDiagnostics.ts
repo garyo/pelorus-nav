@@ -11,7 +11,6 @@ import {
   canvasWouldExceedTextureLimit,
   maxCanvasSize,
 } from "../chart/gl-limits";
-import { getLayerOpacityProbe } from "../chart/layer-opacity-probe";
 import { listStoredCharts } from "../data/tile-store";
 import { editTapLog } from "../map/editTapDiag";
 import { connectionLog } from "../navigation/ConnectionEventLog";
@@ -220,14 +219,7 @@ export function buildDefaultSections(
       // details that say which stack produced it.
       title: "RENDERING",
       collect: () => {
-        const probe = getLayerOpacityProbe();
-        const lines = [
-          `fill-layer-opacity: ${
-            probe
-              ? `${probe.supported ? "supported" : "UNSUPPORTED — using fill-opacity fallback"} (${probe.detail})`
-              : "(not probed — native, or startup did not reach it)"
-          }`,
-        ];
+        const lines: string[] = [];
         try {
           const canvas = document.createElement("canvas");
           const gl = (canvas.getContext("webgl2") ??
