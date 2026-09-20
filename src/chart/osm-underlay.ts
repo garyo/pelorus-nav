@@ -83,8 +83,44 @@ export function applyOSMUnderlay(
   s57Layers: LayerSpecification[],
   landOpacity: number,
   theme: DisplayTheme,
+  options: UnderlayOptions = {},
 ): LayerSpecification[] {
-  return applyUnderlay(s57Layers, [getOSMUnderlayLayer(theme)], landOpacity);
+  return applyUnderlay(
+    s57Layers,
+    [getOSMUnderlayLayer(theme)],
+    landOpacity,
+    [],
+    options,
+  );
+}
+
+export interface UnderlayOptions {
+  /**
+   * Whether `fill-layer-opacity` can be trusted on this stack (see
+   * layer-opacity-probe). False falls back to per-feature `fill-opacity`,
+   * which stacks alpha wherever ENC cells overlap and draws a darker seam
+   * along their boundaries — the lesser of the two evils when the layer
+   * composite dims the whole chart.
+   */
+  layerOpacitySupported?: boolean;
+}
+
+/** Tint one fill layer, by whichever opacity mechanism this stack supports. */
+function tintFill(
+  fill: FillLayerSpecification,
+  opacity: number,
+  layerOpacitySupported: boolean,
+): FillLayerSpecification {
+  return layerOpacitySupported
+    ? {
+        ...fill,
+        paint: {
+          ...fill.paint,
+          "fill-opacity": 1,
+          "fill-layer-opacity": opacity,
+        },
+      }
+    : { ...fill, paint: { ...fill.paint, "fill-opacity": opacity } };
 }
 
 /**
@@ -113,6 +149,7 @@ export function applyUnderlay(
   underlayLayers: LayerSpecification[],
   landOpacity: number,
   underlayLabels: LayerSpecification[] = [],
+  { layerOpacitySupported = true }: UnderlayOptions = {},
 ): LayerSpecification[] {
   const fallback: LayerSpecification[] = s57Layers
     .filter(
@@ -128,26 +165,18 @@ export function applyUnderlay(
       return { ...bg, paint: { ...bg.paint, "background-opacity": 0 } };
     }
     if (layer.type === "fill" && layer.id.endsWith("-lndare")) {
-      const fill = layer as FillLayerSpecification;
-      return {
-        ...fill,
-        paint: {
-          ...fill.paint,
-          "fill-opacity": 1,
-          "fill-layer-opacity": landOpacity,
-        },
-      };
+      return tintFill(
+        layer as FillLayerSpecification,
+        landOpacity,
+        layerOpacitySupported,
+      );
     }
     if (layer.type === "fill" && layer.id.endsWith("-buisgl")) {
-      const fill = layer as FillLayerSpecification;
-      return {
-        ...fill,
-        paint: {
-          ...fill.paint,
-          "fill-opacity": 1,
-          "fill-layer-opacity": Math.min(landOpacity + 0.1, 0.8),
-        },
-      };
+      return tintFill(
+        layer as FillLayerSpecification,
+        Math.min(landOpacity + 0.1, 0.8),
+        layerOpacitySupported,
+      );
     }
     // Make water-area fills opaque to hide OSM on water
     if (

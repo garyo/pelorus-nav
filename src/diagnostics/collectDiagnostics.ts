@@ -7,6 +7,7 @@
  */
 
 import { Capacitor } from "@capacitor/core";
+import { getLayerOpacityProbe } from "../chart/layer-opacity-probe";
 import { listStoredCharts } from "../data/tile-store";
 import { editTapLog } from "../map/editTapDiag";
 import { connectionLog } from "../navigation/ConnectionEventLog";
@@ -204,6 +205,41 @@ export function buildDefaultSections(
           }
         } catch {
           // no battery API — omit the line
+        }
+        return lines.join("\n");
+      },
+    },
+    {
+      // Everything needed to explain a chart that renders wrong without the
+      // reporter having to describe colours over email: the layer-opacity
+      // verdict that picks the underlay's tinting mechanism, and the GL
+      // details that say which stack produced it.
+      title: "RENDERING",
+      collect: () => {
+        const probe = getLayerOpacityProbe();
+        const lines = [
+          `fill-layer-opacity: ${
+            probe
+              ? `${probe.supported ? "supported" : "UNSUPPORTED — using fill-opacity fallback"} (${probe.detail})`
+              : "(not probed — native, or startup did not reach it)"
+          }`,
+        ];
+        try {
+          const canvas = document.createElement("canvas");
+          const gl = (canvas.getContext("webgl2") ??
+            canvas.getContext("webgl")) as WebGLRenderingContext | null;
+          if (!gl) return `${lines.join("\n")}\nwebgl: (unavailable)`;
+          const dbg = gl.getExtension("WEBGL_debug_renderer_info");
+          lines.push(
+            `renderer: ${String(dbg ? gl.getParameter(dbg.UNMASKED_RENDERER_WEBGL) : gl.getParameter(gl.RENDERER))}`,
+            `vendor: ${String(dbg ? gl.getParameter(dbg.UNMASKED_VENDOR_WEBGL) : gl.getParameter(gl.VENDOR))}`,
+            `renderer info masked: ${dbg ? "no" : "yes (privacy.resistFingerprinting or similar)"}`,
+            `version: ${String(gl.getParameter(gl.VERSION))}`,
+            `max texture size: ${String(gl.getParameter(gl.MAX_TEXTURE_SIZE))}`,
+            `context attributes: ${JSON.stringify(gl.getContextAttributes())}`,
+          );
+        } catch (e) {
+          lines.push(`gl probe failed: ${String(e)}`);
         }
         return lines.join("\n");
       },

@@ -99,3 +99,51 @@ describe("applyOSMUnderlay", () => {
     );
   });
 });
+
+describe("applyOSMUnderlay land tinting", () => {
+  const paintOf = (layers: LayerSpecification[], id: string) =>
+    (layers.find((l) => l.id === id) as { paint?: Record<string, unknown> })
+      ?.paint ?? {};
+
+  it("tints with fill-layer-opacity when the composite is trusted", () => {
+    const out = applyOSMUnderlay(s57Layers, 0.3, "day");
+    expect(paintOf(out, "s57-boston-test-lndare")).toMatchObject({
+      "fill-opacity": 1,
+      "fill-layer-opacity": 0.3,
+    });
+    // Buildings sit a touch more opaque than the land under them.
+    expect(paintOf(out, "s57-boston-test-buisgl")).toMatchObject({
+      "fill-opacity": 1,
+      "fill-layer-opacity": 0.4,
+    });
+  });
+
+  it("falls back to per-feature fill-opacity when it is not", () => {
+    const out = applyOSMUnderlay(s57Layers, 0.3, "day", {
+      layerOpacitySupported: false,
+    });
+    const land = paintOf(out, "s57-boston-test-lndare");
+    expect(land["fill-opacity"]).toBe(0.3);
+    // The broken property must be gone, not merely overridden: leaving it in
+    // is what dims the whole chart on the stacks this fallback exists for.
+    expect(land).not.toHaveProperty("fill-layer-opacity");
+    const buildings = paintOf(out, "s57-boston-test-buisgl");
+    expect(buildings["fill-opacity"]).toBe(0.4);
+    expect(buildings).not.toHaveProperty("fill-layer-opacity");
+  });
+
+  it("leaves everything else alone on the fallback path", () => {
+    const trusted = applyOSMUnderlay(s57Layers, 0.3, "day");
+    const fallback = applyOSMUnderlay(s57Layers, 0.3, "day", {
+      layerOpacitySupported: false,
+    });
+    expect(fallback.map((l) => l.id)).toEqual(trusted.map((l) => l.id));
+    // Water still hides the underlay, and the background still steps aside.
+    expect(paintOf(fallback, "s57-boston-test-lakare")).toMatchObject({
+      "fill-opacity": 1,
+    });
+    expect(paintOf(fallback, "s57-background")).toMatchObject({
+      "background-opacity": 0,
+    });
+  });
+});

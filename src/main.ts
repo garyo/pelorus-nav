@@ -44,6 +44,7 @@ import {
 import { loadBasemapCoverage } from "./chart/basemap-underlay";
 import { reportChartFetch } from "./chart/ChartLoadMonitor";
 import { LightSectorLayer } from "./chart/LightSectorLayer";
+import { probeLayerOpacity } from "./chart/layer-opacity-probe";
 import { createOfflineChartRegistry } from "./chart/offline-protocol";
 import { registerOSMTileProtocol } from "./chart/osm-tile-cache";
 import {
@@ -296,10 +297,20 @@ const offlineCharts = createOfflineChartRegistry(protocol);
 // Register the cached OSM tile protocol (offline-capable raster underlay)
 registerOSMTileProtocol();
 
+// Check that `fill-layer-opacity` composites correctly before the first style
+// is built, since the street underlay picks its tinting mechanism from the
+// answer (see layer-opacity-probe). Native WebViews are a known-good, fixed
+// pair of engines, so only the web pays for it — and it runs alongside the
+// OPFS load below rather than after it, so it costs no startup time.
+const layerOpacityProbe = Capacitor.isNativePlatform()
+  ? Promise.resolve()
+  : probeLayerOpacity();
+
 // Load any offline PMTiles from OPFS before creating the map — before the map
 // exists, so the initial style gets the right OSM cap. Failures (OPFS missing
 // or unreadable) are logged inside; charts fall back to streaming.
 await offlineCharts.reloadOfflineCharts();
+await layerOpacityProbe;
 
 // Apply display theme to body element, and to the native status bar: its
 // clock and icons must contrast with the app's top bar, which is dark in

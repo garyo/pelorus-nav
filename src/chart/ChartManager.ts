@@ -26,6 +26,7 @@ import {
   type ChartLoadStatus,
 } from "./ChartLoadMonitor";
 import type { ChartProvider } from "./ChartProvider";
+import { isLayerOpacitySupported } from "./layer-opacity-probe";
 import {
   applyOSMUnderlay,
   applyUnderlay,
@@ -498,11 +499,14 @@ export class ChartManager {
           ],
           0.3,
           basemapLayers.filter(isLiftedBasemapLabel),
+          { layerOpacitySupported: isLayerOpacitySupported() },
         );
       } else {
         const osm = getOSMUnderlaySource();
         sources = { ...sources, [osm.id]: osm.source };
-        layers = applyOSMUnderlay(layers, 0.3, settings.displayTheme);
+        layers = applyOSMUnderlay(layers, 0.3, settings.displayTheme, {
+          layerOpacitySupported: isLayerOpacitySupported(),
+        });
       }
     }
 

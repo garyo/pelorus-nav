@@ -28,6 +28,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/).
 ### Fixed
 - Report a Bug: the chart screenshot attached to a report came out as noise on
   some browsers instead of the chart that was on screen.
+- Chart: on some Linux/Firefox graphics stacks the whole chart dimmed to about
+  40% brightness a second after it drew, in every theme, whenever the street
+  underlay was on. The app now checks that path at startup and tints land a
+  different way where it is broken.
 - Chart: marina finger piers and other floating docks were missing, and their
   centrelines were painted as grey slivers and triangles across the water.
   They now draw as docks, and appear at harbour zoom even at Standard detail.
