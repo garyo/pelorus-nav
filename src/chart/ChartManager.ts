@@ -26,6 +26,7 @@ import {
   type ChartLoadStatus,
 } from "./ChartLoadMonitor";
 import type { ChartProvider } from "./ChartProvider";
+import { maxCanvasSize } from "./gl-limits";
 import { isLayerOpacitySupported } from "./layer-opacity-probe";
 import {
   applyOSMUnderlay,
@@ -120,6 +121,11 @@ export class ChartManager {
       canvasContextAttributes: import.meta.env.DEV
         ? { preserveDrawingBuffer: true }
         : undefined,
+      // MapLibre's default cap assumes MAX_TEXTURE_SIZE is at least 4096.
+      // Where the driver reports less, a canvas larger than that limit makes
+      // the offscreen render targets sized from it fail to allocate — see
+      // gl-limits.
+      maxCanvasSize: maxCanvasSize(),
     });
 
     this.activeProviderId = initialId;

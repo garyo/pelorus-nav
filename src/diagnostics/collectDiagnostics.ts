@@ -7,6 +7,10 @@
  */
 
 import { Capacitor } from "@capacitor/core";
+import {
+  canvasWouldExceedTextureLimit,
+  maxCanvasSize,
+} from "../chart/gl-limits";
 import { getLayerOpacityProbe } from "../chart/layer-opacity-probe";
 import { listStoredCharts } from "../data/tile-store";
 import { editTapLog } from "../map/editTapDiag";
@@ -230,12 +234,27 @@ export function buildDefaultSections(
             canvas.getContext("webgl")) as WebGLRenderingContext | null;
           if (!gl) return `${lines.join("\n")}\nwebgl: (unavailable)`;
           const dbg = gl.getExtension("WEBGL_debug_renderer_info");
+          const renderer = String(
+            dbg
+              ? gl.getParameter(dbg.UNMASKED_RENDERER_WEBGL)
+              : gl.getParameter(gl.RENDERER),
+          );
+          const vendor = String(
+            dbg
+              ? gl.getParameter(dbg.UNMASKED_VENDOR_WEBGL)
+              : gl.getParameter(gl.VENDOR),
+          );
           lines.push(
-            `renderer: ${String(dbg ? gl.getParameter(dbg.UNMASKED_RENDERER_WEBGL) : gl.getParameter(gl.RENDERER))}`,
-            `vendor: ${String(dbg ? gl.getParameter(dbg.UNMASKED_VENDOR_WEBGL) : gl.getParameter(gl.VENDOR))}`,
-            `renderer info masked: ${dbg ? "no" : "yes (privacy.resistFingerprinting or similar)"}`,
+            `renderer: ${renderer}`,
+            `vendor: ${vendor}`,
+            // The extension can exist and still hand back placeholders, which
+            // is what a hardened profile does — so judge the values, not
+            // whether the extension was there.
+            `renderer info masked: ${/^(mozilla|google inc\.?|unknown)$/i.test(renderer) ? "yes (values are generic)" : "no"}`,
             `version: ${String(gl.getParameter(gl.VERSION))}`,
             `max texture size: ${String(gl.getParameter(gl.MAX_TEXTURE_SIZE))}`,
+            `canvas cap applied: ${maxCanvasSize().join("x")}`,
+            `canvas would exceed texture limit uncapped: ${canvasWouldExceedTextureLimit() ? "YES — layer-opacity render target could not allocate" : "no"}`,
             `context attributes: ${JSON.stringify(gl.getContextAttributes())}`,
           );
         } catch (e) {

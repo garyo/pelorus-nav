@@ -147,34 +147,44 @@ function readFrame(map: maplibregl.Map): Promise<ProbePixels | null> {
     };
     const timer = setTimeout(() => finish(null), PROBE_TIMEOUT_MS);
 
-    map.addLayer({
-      id: "_probe-read",
-      type: "custom",
-      renderingMode: "2d",
-      // Reading here, mid-frame, needs no preserveDrawingBuffer — the buffer
-      // is only undefined once the browser has composited.
-      render: (gl: WebGL2RenderingContext) => {
-        if (settled) return;
-        const w = gl.drawingBufferWidth;
-        const h = gl.drawingBufferHeight;
-        if (w < 4 || h < 4) return finish(null);
-        const read = (fx: number): [number, number, number] => {
-          const buf = new Uint8Array(4);
-          gl.readPixels(
-            Math.round(w * fx),
-            Math.round(h / 2),
-            1,
-            1,
-            gl.RGBA,
-            gl.UNSIGNED_BYTE,
-            buf,
-          );
-          return [buf[0], buf[1], buf[2]];
-        };
-        finish({ bare: read(0.75), tinted: read(0.25) });
-      },
-    });
-    map.triggerRepaint();
+    // addLayer throws "Style is not done loading" if it lands before the
+    // style is up, and how soon that happens varies by machine — on a slower
+    // one the probe threw, reported itself inconclusive, and the fallback it
+    // exists to trigger never ran.
+    const addProbeLayer = () => {
+      if (settled) return;
+      map.addLayer({
+        id: "_probe-read",
+        type: "custom",
+        renderingMode: "2d",
+        // Reading here, mid-frame, needs no preserveDrawingBuffer — the buffer
+        // is only undefined once the browser has composited.
+        render: (gl: WebGL2RenderingContext) => {
+          if (settled) return;
+          const w = gl.drawingBufferWidth;
+          const h = gl.drawingBufferHeight;
+          if (w < 4 || h < 4) return finish(null);
+          const read = (fx: number): [number, number, number] => {
+            const buf = new Uint8Array(4);
+            gl.readPixels(
+              Math.round(w * fx),
+              Math.round(h / 2),
+              1,
+              1,
+              gl.RGBA,
+              gl.UNSIGNED_BYTE,
+              buf,
+            );
+            return [buf[0], buf[1], buf[2]];
+          };
+          finish({ bare: read(0.75), tinted: read(0.25) });
+        },
+      });
+      map.triggerRepaint();
+    };
+
+    if (map.isStyleLoaded()) addProbeLayer();
+    else map.once("load", addProbeLayer);
   });
 }
 
