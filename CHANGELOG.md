@@ -11,6 +11,11 @@ The format follows [Keep a Changelog](https://keepachangelog.com/).
 - Search: named dredged channels, creeks and rivers, ponds, wharves and rocks
   are now findable by name.
 
+### Fixed
+- Chart: a buoy or beacon whose name carried no short designation was
+  labelled with its whole name — "Boston Hbr Entrance" beside the symbol
+  where a chart shows "6" or "12A", or nothing. Those labels are gone.
+
 ## [0.26.0] - 2026-09-21
 
 ### Added

@@ -249,13 +249,18 @@ def _buoy_number(props: dict) -> str | None:
 
     # Fallback: strip buoy/beacon type suffixes to get the place name.
     # "Whale Rock Danger Buoy" → "Whale Rock"
+    stripped = objnam.strip()
     name = re.sub(
         r'\s+(?:Lighted\s+)?(?:Danger\s+|Hazard\s+|Research\s+|Security\s+Zone\s+)?'
         r'(?:Buoy|Bell Buoy|Gong Buoy|Whistle Buoy|Can Buoy|Nun Buoy|'
         r'Daybeacon|Beacon)\s*$',
-        '', objnam.strip(), flags=re.IGNORECASE,
+        '', stripped, flags=re.IGNORECASE,
     )
-    if name:
+    # re.sub hands back the input untouched when nothing matched, so an OBJNAM
+    # that is neither numbered nor named for its buoy — "Boston Harbor
+    # Entrance" — must fall through to None rather than be relabelled with its
+    # own full name.
+    if name and name != stripped:
         return _abbreviate_to_fit(name, 20)
     return None
 

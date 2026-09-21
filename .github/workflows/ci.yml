@@ -28,6 +28,25 @@ jobs:
       - name: Test
         run: bun run test
 
+  # The S-57 pipeline's own suite. Pure Python — shapely and friends, no gdal
+  # or tippecanoe — so it needs no system packages, and it runs alongside the
+  # jobs above rather than lengthening the run.
+  pipeline:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: tools/s57-pipeline
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - uses: astral-sh/setup-uv@bec219d24cd3e171d82865faccec33120bb574f4 # v10.1.0
+        with:
+          enable-cache: true
+          cache-dependency-glob: tools/s57-pipeline/uv.lock
+
+      - name: Pipeline tests
+        run: uv run pytest
+
   e2e:
     runs-on: ubuntu-latest
     steps:
