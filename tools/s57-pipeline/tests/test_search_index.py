@@ -99,21 +99,45 @@ def test_skips_unnamed_features():
 
 
 def test_skips_excluded_layers():
-    """SOUNDG, DEPARE, etc. are skipped entirely."""
+    """Layers whose named features would be noise are skipped entirely."""
     with tempfile.TemporaryDirectory() as tmp:
         tmp_path = Path(tmp)
         cell_names = _setup_cells(tmp_path, {
             "US5MA22M": {
                 "SOUNDG": [_make_feature("Deep Spot")],
                 "DEPARE": [_make_feature("Some Area")],
-                "SBDARE": [_make_feature("Sandy Bottom")],
                 "MAGVAR": [_make_feature("MagVar Point")],
+                "DAYMAR": [_make_feature("Duplicate Of Its Navaid")],
                 "BUAARE": [_make_feature("Boston")],
             },
         })
         result = extract_search_index(tmp_path, cell_names)
         assert len(result) == 1
         assert result[0]["n"] == "Boston"
+
+
+def test_indexes_layers_that_carry_real_names():
+    """Named channels, watercourses, wharves and rocks are searchable."""
+    with tempfile.TemporaryDirectory() as tmp:
+        tmp_path = Path(tmp)
+        cell_names = _setup_cells(tmp_path, {
+            "US5MA22M": {
+                "DRGARE": [_make_feature("Emory Channel")],
+                "RIVERS": [_make_feature("Aliso Creek")],
+                "LAKARE": [_make_feature("Almy Pond")],
+                "SBDARE": [_make_feature("Bass Rock")],
+                "SLCONS": [_make_feature("Derby Wharf")],
+            },
+        })
+        result = extract_search_index(tmp_path, cell_names)
+
+    assert sorted(e["n"] for e in result) == [
+        "Aliso Creek",
+        "Almy Pond",
+        "Bass Rock",
+        "Derby Wharf",
+        "Emory Channel",
+    ]
 
 
 def test_deduplicates_across_cells():
@@ -215,3 +239,39 @@ def test_empty_cells():
         tmp_path = Path(tmp)
         result = extract_search_index(tmp_path, ["NONEXISTENT"])
         assert result == []
+
+
+def test_skips_numeric_and_very_short_names() -> None:
+    """Pier/berth numbering matches every query and identifies nothing."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        tmp = Path(tmpdir)
+        cells = _setup_cells(tmp, {
+            "US5MA22M": {
+                "slcons": [
+                    _make_feature("1"),
+                    _make_feature("12"),
+                    _make_feature("3.5"),
+                    _make_feature("22-4"),
+                    _make_feature("AB"),
+                    _make_feature("Derby Wharf"),
+                    _make_feature("Pier 4"),
+                    _make_feature("12A Berth"),
+                ],
+            },
+        })
+        entries = extract_search_index(tmp, cells)
+
+    names = sorted(e["n"] for e in entries)
+    assert names == ["12A Berth", "Derby Wharf", "Pier 4"]
+
+
+def test_keeps_a_three_character_name_with_a_letter() -> None:
+    """The cut is at two characters, not three — "Ash" is a real name."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        tmp = Path(tmpdir)
+        cells = _setup_cells(tmp, {
+            "US5MA22M": {"lndrgn": [_make_feature("Ash")]},
+        })
+        entries = extract_search_index(tmp, cells)
+
+    assert [e["n"] for e in entries] == ["Ash"]

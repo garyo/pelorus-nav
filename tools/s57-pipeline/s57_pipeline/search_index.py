@@ -29,6 +29,18 @@ _SKIP_LAYERS = frozenset({
 })
 
 
+def _is_searchable_name(name: str) -> bool:
+    """Whether a name is worth offering as a search result.
+
+    Some classes number their features rather than name them — pier and berth
+    numbering leaves OBJNAM values like "1" or "12" — and those match almost
+    any query while telling the user nothing. Requiring a letter and more than
+    two characters drops them. It also drops two-letter names such as state
+    abbreviations, which the ENCs do not use as OBJNAM anyway.
+    """
+    return len(name) > 2 and any(ch.isalpha() for ch in name)
+
+
 def _centroid(geometry: dict) -> tuple[float, float] | None:
     """Return (lon, lat) centroid for a GeoJSON geometry, or None."""
     geom_type = geometry.get("type")
@@ -110,6 +122,8 @@ def extract_search_index(
                     continue
 
                 name = str(objnam).strip()
+                if not _is_searchable_name(name):
+                    continue
                 geometry = feature.get("geometry")
                 if not geometry:
                     continue

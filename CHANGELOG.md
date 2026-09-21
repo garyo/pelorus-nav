@@ -5,6 +5,12 @@ Notable user-facing changes to Pelorus Nav. Downloads are on the
 
 The format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [Unreleased]
+
+### Added
+- Search: named dredged channels, creeks and rivers, ponds, wharves and rocks
+  are now findable by name.
+
 ## [0.26.0] - 2026-09-21
 
 ### Added
