@@ -5,46 +5,42 @@ Notable user-facing changes to Pelorus Nav. Downloads are on the
 
 The format follows [Keep a Changelog](https://keepachangelog.com/).
 
-## [Unreleased]
+## [0.26.0] - 2026-09-21
 
 ### Added
 - Chart Regions: downloads now queue. Tap download on several regions,
   basemaps or charts and they fetch one after another while the list stays
   usable; each row shows its progress or queued size, a row at the top shows
   how much is left with **Cancel All**, and a queued item can be removed
-  before it starts. A download that fails shows the reason on its row and
-  the queue moves on.
-- Chart Regions: when more than one downloaded region or street basemap is
-  out of date, an **Update All** button at the top of the panel queues them
-  all.
+  before it starts. A download that fails shows the reason and the queue
+  moves on.
+- Chart Regions: **Update All** queues every downloaded region and street
+  basemap that is out of date.
 - Chart Regions: a batch that would not fit in the device's free storage is
   refused up front, with the shortfall shown, instead of failing part-way.
 - Chart: tapping a floating dock identifies it, like other charted
   structures.
-- Report a Bug: "App diagnostics" in the note is now a link that opens the
-  exact text the report would send, so what is attached can be read before
-  sending it.
+- Report a Bug: "App diagnostics" is now a link that opens the exact text the
+  report would send, so it can be read before sending.
 
 ### Fixed
-- Report a Bug: the chart screenshot attached to a report came out as noise on
-  some browsers instead of the chart that was on screen.
-- Chart: where the graphics driver reports a small maximum texture size — as
-  hardened or software Linux/Firefox setups do — the whole chart dimmed to
-  about 40% brightness once the charts loaded, in every theme, whenever the
-  street underlay was on. The map now keeps its canvas inside what the driver
-  can actually allocate.
 - Chart: marina finger piers and other floating docks were missing, and their
   centrelines were painted as grey slivers and triangles across the water.
   They now draw as docks, and appear at harbour zoom even at Standard detail.
 - Chart: narrow watercourses were painted as filled blotches over the land
   instead of drawn as rivers.
-- Chart: berth numbers were drawn in the same font, size and grey as a depth
-  sounding, and were offset far enough from the berth to sit out over the
-  water — a berth number could be read as a depth. They are now italic and
-  sit on the berth.
+- Chart: berth numbers could be misread as depth soundings — same font, size
+  and colour, and offset far enough from the berth to sit out over the water.
+  They are now italic and sit on the berth.
+- Chart: where the graphics driver reports a small maximum texture size, as
+  some hardened or software Linux/Firefox setups do, the whole chart dimmed
+  to about 40% brightness once the charts loaded, in every theme, whenever
+  the street underlay was on.
+- Report a Bug: the attached chart screenshot came out as noise on some
+  browsers instead of the chart that was on screen.
 - Position entry: a latitude/longitude pasted with a typographic minus or
   dash, as text copied from a document or web page often carries, is now
-  accepted instead of rejected.
+  accepted.
 
 ## [0.25.1] - 2026-09-13
 
