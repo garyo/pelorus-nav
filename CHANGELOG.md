@@ -12,6 +12,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/).
   are now findable by name.
 
 ### Fixed
+- Routes: tapping a waypoint that several routes pass through offers a card
+  per route, but led with whichever route happened to draw on top, so the
+  Navigate and Steer actions acted on an arbitrary one. The selected route
+  now comes first.
 - Chart: a buoy or beacon whose name carried no short designation was
   labelled with its whole name — "Boston Hbr Entrance" beside the symbol
   where a chart shows "6" or "12A", or nothing. Those labels are gone.

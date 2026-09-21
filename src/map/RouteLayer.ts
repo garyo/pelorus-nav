@@ -236,9 +236,16 @@ export class RouteLayer {
   }
 
   /**
-   * Routes rendered within a screen-space box, topmost first, one entry per
-   * route. A hit on a waypoint marker or its label carries that waypoint's
-   * index; a line/chevron hit leaves it undefined.
+   * Routes rendered within a screen-space box, one entry per route: the
+   * selected route first, then topmost first. A hit on a waypoint marker or
+   * its label carries that waypoint's index; a line/chevron hit leaves it
+   * undefined.
+   *
+   * Leading with the selection matters where routes share a waypoint. Each
+   * route becomes its own pick card, and which one is topmost is the order
+   * their layers were added — arbitrary to someone who tapped a mark two
+   * routes pass through, who would then act on whichever card happened to be
+   * showing.
    */
   hitTest(
     box: [maplibregl.PointLike, maplibregl.PointLike],
@@ -273,6 +280,10 @@ export class RouteLayer {
         entry.waypointIndex = idx;
       }
     }
+    const selected = results.findIndex(
+      (r) => r.route.id === this.selectedRouteId,
+    );
+    if (selected > 0) results.unshift(...results.splice(selected, 1));
     return results;
   }
 
