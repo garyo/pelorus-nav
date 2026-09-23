@@ -79,7 +79,7 @@ describe("redactSettings", () => {
       weather: { apiKey: "sk-live-123", units: "metric" },
       other: { myToken: "abc", normal: "keep-me" },
     },
-    signalkUrl: "ws://192.168.0.53:3000",
+    signalkServer: "ws://192.168.0.53:3000",
   } as unknown as Settings;
 
   it("redacts schema-flagged secrets and key-like names, keeps the rest", () => {
@@ -98,9 +98,7 @@ describe("redactSettings", () => {
     expect(plugins.weather.units).toBe("metric");
     expect(plugins.other.myToken).toBe("(redacted)"); // name-based match
     expect(plugins.other.normal).toBe("keep-me");
-    expect((out as unknown as { signalkUrl: string }).signalkUrl).toBe(
-      "ws://192.168.0.53:3000",
-    );
+    expect(out.signalkServer).toBe("ws://192.168.0.53:3000");
   });
 
   it("does not mutate the input", () => {

@@ -56,23 +56,18 @@ export class SignalKProvider implements NavigationDataProvider {
 
   private listeners: NavigationDataCallback[] = [];
   private ws: WebSocket | null = null;
-  private url: string;
+  /** Stream URL; null until the user has entered a server address. */
+  private url: string | null;
   private periodMs = 1000;
-  private hasPosition = false;
   private readonly core: ReconnectingTransport;
   private readonly onNotice?: (notice: ProviderNotice) => void;
 
-  // Accumulated state from partial updates
-  private latitude = 0;
-  private longitude = 0;
+  // Latest values from partial updates, carried onto the next position fix
   private cog: number | null = null;
   private sog: number | null = null;
   private heading: number | null = null;
 
-  constructor(
-    url = "ws://localhost:3000/signalk/v1/stream?subscribe=none",
-    onNotice?: (notice: ProviderNotice) => void,
-  ) {
+  constructor(url: string | null, onNotice?: (notice: ProviderNotice) => void) {
     this.url = url;
     this.onNotice = onNotice;
     this.core = new ReconnectingTransport(
@@ -98,12 +93,19 @@ export class SignalKProvider implements NavigationDataProvider {
     return this.core.lastRawDataMs();
   }
 
+  /** False while no server is entered: nothing is being retried. */
   isReconnecting(): boolean {
-    return this.core.isReconnecting();
+    return this.url !== null && this.core.isReconnecting();
   }
 
   connect(): void {
     if (!this.core.noteConnectRequested()) return;
+    // No server entered yet: hold the intent but stay dormant (no attempts,
+    // no "cannot reach" notices) until setUrl supplies an address.
+    if (this.url === null) {
+      this.core.suspend();
+      return;
+    }
     void this.startConnect();
   }
 
@@ -114,6 +116,7 @@ export class SignalKProvider implements NavigationDataProvider {
 
   /** Manual reconnect (UI button): drop the current socket and retry now. */
   async reconnect(): Promise<void> {
+    if (this.url === null) return;
     this.teardownSocket();
     this.core.claimIntent();
     try {
@@ -134,14 +137,18 @@ export class SignalKProvider implements NavigationDataProvider {
     if (idx >= 0) this.listeners.splice(idx, 1);
   }
 
-  setUrl(url: string): void {
+  setUrl(url: string | null): void {
     if (url === this.url) return;
     this.url = url;
     if (!this.core.wantConnected) return;
     // Move the connection to the new server: drop the old socket quietly and
     // retry immediately (the stale socket's close event is ignored by the
-    // this.ws identity guard).
+    // this.ws identity guard). A cleared address goes dormant instead.
     this.teardownSocket();
+    if (url === null) {
+      this.core.suspend();
+      return;
+    }
     this.core.claimIntent();
     this.core.requestRetry();
   }
@@ -189,8 +196,10 @@ export class SignalKProvider implements NavigationDataProvider {
     // handlers just early-return on the identity guard forever, leaking one
     // subscribed connection per silence trip.
     this.teardownSocket();
+    const url = this.url;
+    if (url === null) return Promise.reject(new Error("no server address"));
     return new Promise((resolve, reject) => {
-      const sock = new WebSocket(this.url);
+      const sock = new WebSocket(url);
       let opened = false;
       this.ws = sock;
       sock.onopen = () => {
@@ -235,24 +244,20 @@ export class SignalKProvider implements NavigationDataProvider {
   }
 
   private handleEstablished(): void {
-    connectionLog.log(this.id, "connected", this.url);
+    connectionLog.log(this.id, "connected", this.url ?? undefined);
     this.onNotice?.({ kind: "connected" });
   }
 
   // Close whatever socket is current, quietly: nulling this.ws first makes
   // the identity guard swallow the resulting close event. Also forgets the
-  // accumulated fix — openSocket tears down before opening every replacement,
-  // so each connection emits only from its own deltas and can never stamp a
-  // previous server's position with a fresh timestamp (e.g. after setUrl).
-  // The subscription requests navigation.position every period, so the cost
-  // is at most one period of withheld output after a reconnect.
+  // carried COG/SOG/heading — openSocket tears down before opening every
+  // replacement, so a new connection's fixes never wear a previous server's
+  // course (e.g. after setUrl). Positions are never carried at all: each fix
+  // takes its position from the message that emits it.
   private teardownSocket(): void {
     const sock = this.ws;
     this.ws = null;
     sock?.close();
-    this.hasPosition = false;
-    this.latitude = 0;
-    this.longitude = 0;
     this.cog = null;
     this.sog = null;
     this.heading = null;
@@ -279,46 +284,44 @@ export class SignalKProvider implements NavigationDataProvider {
       | undefined;
     if (!updates) return;
 
-    let changed = false;
+    // A fix is emitted only for a message carrying a position. Real servers
+    // (signalk-server) deliver each subscribed path as its own delta, so
+    // emitting on every COG/SOG/heading message would restamp the last
+    // position as a fresh fix several times a period; those values are held
+    // and ride on the next position instead (at most one period late).
+    let position: { latitude: number; longitude: number } | null = null;
 
     for (const update of updates) {
       for (const { path, value } of update.values ?? []) {
         switch (path) {
           case "navigation.position": {
-            const pos = asPosition(value);
-            if (!pos) break; // malformed: skip, keep the rest of the message
-            this.latitude = pos.latitude;
-            this.longitude = pos.longitude;
-            this.hasPosition = true;
-            changed = true;
+            // A malformed position is skipped; the rest of the message stands.
+            position = asPosition(value) ?? position;
             break;
           }
           case "navigation.courseOverGroundTrue": {
             const rad = asFiniteNumber(value);
             this.cog = rad === null ? null : toDegrees(rad);
-            changed = true;
             break;
           }
           case "navigation.speedOverGround": {
             const mps = asFiniteNumber(value);
             this.sog = mps === null ? null : mps * MS_TO_KNOTS;
-            changed = true;
             break;
           }
           case "navigation.headingTrue": {
             const rad = asFiniteNumber(value);
             this.heading = rad === null ? null : toDegrees(rad);
-            changed = true;
             break;
           }
         }
       }
     }
 
-    if (changed && this.hasPosition) {
+    if (position) {
       const data: NavigationData = {
-        latitude: this.latitude,
-        longitude: this.longitude,
+        latitude: position.latitude,
+        longitude: position.longitude,
         cog: this.cog,
         sog: this.sog,
         heading: this.heading,

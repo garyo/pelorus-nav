@@ -5,6 +5,7 @@
 
 import { Capacitor } from "@capacitor/core";
 import { CapacitorGPSProvider } from "../navigation/CapacitorGPSProvider";
+import { signalkStreamUrl } from "../navigation/signalk-url";
 import {
   type BearingMode,
   type ChartBlend,
@@ -37,6 +38,7 @@ import {
   resetScreenTimeoutDismissal,
 } from "./ScreenTimeoutDialog";
 import { registerSurface } from "./SurfaceManager";
+import { type FixState, signalkLinkStatus } from "./signalk-status";
 import { buildTopbarAction } from "./topbarButton";
 
 const DEPTH_UNITS: { value: DepthUnit; label: string }[] = [
@@ -68,10 +70,12 @@ export interface ChartProvidersOpt {
   setActive: (id: string) => void;
 }
 
-/** Live BLE link state + actions for the Navigation tab's status row. */
+/** Live GPS link state + actions for the Navigation tab's status rows. */
 export interface GpsLinkOpt {
   isConnected: () => boolean;
   isReconnecting: () => boolean;
+  /** Whether a live fix is arriving, or why not. */
+  fixState: () => FixState;
   /** Manual reconnect (reuses the chosen device where possible). */
   reconnect: () => void;
   /** Hard reset: full disconnect→connect, to clear a wedged link. */
@@ -648,6 +652,87 @@ function buildTextRow(
   return row;
 }
 
+/**
+ * The Signal K server field: full width (addresses are long), a phone
+ * keyboard suited to addresses, a hint showing the stream URL the entry
+ * resolves to, and a live status line for the link. On an HTTPS web page the
+ * browser blocks plain ws:// sockets, which is what nearly every boat server
+ * speaks, so the hint says so.
+ */
+function buildSignalkServerRow(
+  value: string,
+  gpsLink: GpsLinkOpt,
+): { row: HTMLElement; update: () => void } {
+  const row = buildTextRow(
+    "Signal K server",
+    "settings-signalk-server",
+    value,
+    (v) => updateSettings({ signalkServer: v }),
+    { placeholder: "192.168.1.50 or openplotter.local" },
+  );
+  row.classList.add("settings-row-wide");
+  const input = row.querySelector("input") as HTMLInputElement;
+  input.inputMode = "url";
+  input.autocapitalize = "none";
+  input.spellcheck = false;
+  input.setAttribute("autocorrect", "off");
+
+  const hint = document.createElement("div");
+  hint.className = "settings-hint";
+  row.appendChild(hint);
+  const securePage =
+    !Capacitor.isNativePlatform() && location.protocol === "https:";
+  const updateHint = () => {
+    const text = input.value.trim();
+    const url = signalkStreamUrl(text);
+    const lines: string[] = [];
+    if (text) {
+      lines.push(url ? `Connects to ${url}` : "Not a valid server address");
+    }
+    if (securePage && !url?.startsWith("wss:")) {
+      lines.push(
+        "This web page can only reach a secure (wss://) server. For a typical boat server, use the Android or iOS app.",
+      );
+    }
+    hint.textContent = lines.join("\n");
+    hint.hidden = lines.length === 0;
+  };
+  input.addEventListener("input", updateHint);
+  updateHint();
+
+  const status = document.createElement("div");
+  row.appendChild(status);
+  let connectedSince = 0;
+  let reconnectingSince = 0;
+  // Polled; written only on a real change (on e-ink a rewrite is a refresh).
+  const update = () => {
+    if (row.style.display === "none") {
+      // Another source is active: its link isn't this row's, so start the
+      // grace periods afresh when Signal K is chosen again.
+      connectedSince = 0;
+      reconnectingSince = 0;
+      return;
+    }
+    const now = Date.now();
+    const connected = gpsLink.isConnected();
+    const reconnecting = !connected && gpsLink.isReconnecting();
+    connectedSince = connected ? connectedSince || now : 0;
+    reconnectingSince = reconnecting ? reconnectingSince || now : 0;
+    const shown = getSettings().signalkServer !== "";
+    const { text, tone } = signalkLinkStatus({
+      connectedMs: connected ? now - connectedSince : null,
+      reconnectingMs: reconnecting ? now - reconnectingSince : null,
+      fixState: gpsLink.fixState(),
+    });
+    const className = `settings-signalk-status settings-link-${tone}`;
+    if (status.hidden === shown) status.hidden = !shown;
+    if (status.textContent !== text) status.textContent = text;
+    if (status.className !== className) status.className = className;
+  };
+  update();
+  return { row, update };
+}
+
 function buildNavigationTab(
   settings: ReturnType<typeof getSettings>,
   gpsLink: GpsLinkOpt,
@@ -756,19 +841,14 @@ function buildNavigationTab(
   onSettingsChange((s) => updateSimRows(s.gpsSource));
   for (const row of simRows) tab.appendChild(row);
 
-  // Signal K server URL (shown only when Signal K is the GPS source)
-  const signalkRow = buildTextRow(
-    "Signal K URL",
-    "settings-signalk-url",
-    settings.signalkUrl,
-    (v) => updateSettings({ signalkUrl: v }),
-    { placeholder: "ws://192.168.1.50:3000/signalk/v1/stream" },
-  );
-  signalkRow.style.display = settings.gpsSource === "signalk" ? "" : "none";
+  // Signal K server (shown only when Signal K is the GPS source)
+  const signalk = buildSignalkServerRow(settings.signalkServer, gpsLink);
+  signalk.row.style.display = settings.gpsSource === "signalk" ? "" : "none";
   onSettingsChange((s) => {
-    signalkRow.style.display = s.gpsSource === "signalk" ? "" : "none";
+    signalk.row.style.display = s.gpsSource === "signalk" ? "" : "none";
   });
-  tab.appendChild(signalkRow);
+  tab.appendChild(signalk.row);
+  setInterval(signalk.update, 1000);
 
   // GPS update rate: "Auto" (adaptive — as fast as useful, eased back to save
   // power/e-ink refreshes) or a fixed interval. One control mapped onto the two

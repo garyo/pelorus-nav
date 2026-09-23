@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Boat data servers (Signal K) are plain ws:// on the local network, at
+     whatever address the boat's router hands out. A network security config
+     can't scope cleartext to an IP range, so it's allowed app-wide; the app's
+     own traffic (charts, APIs) is all HTTPS regardless. -->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="true" />
+</network-security-config>

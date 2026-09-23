@@ -74,6 +74,41 @@ describe("settings migration", () => {
     vi.resetModules();
   });
 
+  it("carries a user's Signal K URL into signalkServer and persists once", async () => {
+    const stored = {
+      settingsVersion: 2,
+      signalkUrl: "ws://192.168.1.50:3000/signalk/v1/stream?subscribe=none",
+    };
+    const setItem = vi.fn();
+    vi.stubGlobal("localStorage", {
+      getItem: () => JSON.stringify(stored),
+      setItem,
+    });
+    vi.resetModules();
+    const { getSettings } = await import("./settings");
+    expect(getSettings().signalkServer).toBe(stored.signalkUrl);
+    expect("signalkUrl" in getSettings()).toBe(false);
+    expect(setItem).toHaveBeenCalledTimes(1);
+    vi.unstubAllGlobals();
+    vi.resetModules();
+  });
+
+  it("blanks the untouched localhost Signal K default", async () => {
+    const stored = {
+      settingsVersion: 2,
+      signalkUrl: "ws://localhost:3000/signalk/v1/stream?subscribe=none",
+    };
+    vi.stubGlobal("localStorage", {
+      getItem: () => JSON.stringify(stored),
+      setItem: () => {},
+    });
+    vi.resetModules();
+    const { getSettings } = await import("./settings");
+    expect(getSettings().signalkServer).toBe("");
+    vi.unstubAllGlobals();
+    vi.resetModules();
+  });
+
   it("coerces a legacy simplified-minimal symbology to iho-s52", async () => {
     const stored = {
       settingsVersion: 2,

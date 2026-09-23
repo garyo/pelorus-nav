@@ -104,6 +104,7 @@ import {
 } from "./navigation/GpsPowerManager";
 import { setupGpsProviders } from "./navigation/provider-setup";
 import { RegionAutoSwitch } from "./navigation/RegionAutoSwitch";
+import { signalkStreamUrl } from "./navigation/signalk-url";
 import { createStationaryTracker } from "./navigation/stationary";
 import type { TopbarRegistrar } from "./plugins/host";
 import { LegendHost } from "./plugins/legend";
@@ -504,6 +505,8 @@ const settingsHandle = topbarMenu
           navManager.getActiveProvider()?.isConnected() ?? false,
         isReconnecting: () =>
           navManager.getActiveProvider()?.isReconnecting?.() ?? false,
+        fixState: () =>
+          navManager.isFixStale() ? navManager.fixlessState() : "fix",
         reconnect: () => navManager.reconnectActiveProvider(),
         reset: () => navManager.resetActiveProvider(),
         changeDevice: () => {
@@ -808,7 +811,7 @@ onSettingsChange((s) => {
     prevSimulatorMode = s.simulatorMode;
     void gps.applySimulatorMode(s.simulatorMode);
   }
-  gps.signalK.setUrl(s.signalkUrl);
+  gps.signalK.setUrl(signalkStreamUrl(s.signalkServer));
   navManager.setRateMode(s.gpsRateMode, s.manualUpdateIntervalMs);
   navManager.setFilterMode(s.gpsFilterMode);
   applyGpsRateForTheme(s.displayTheme);

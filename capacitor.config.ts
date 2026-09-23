@@ -21,6 +21,11 @@ const config: CapacitorConfig = {
     // Usage: CAP_DEV_SERVER=http://192.168.0.46:5173 bun run cap:run
     ...(DEV_SERVER ? { url: DEV_SERVER, cleartext: true } : {}),
   },
+  android: {
+    // The WebView origin is https://localhost, so a ws:// socket to the boat's
+    // Signal K server is mixed content, which Android blocks by default.
+    allowMixedContent: true,
+  },
   plugins: {
     // Light status-bar icons from the first frame: the app's top bar is
     // dark in every theme but e-ink, and the default (follow the device's

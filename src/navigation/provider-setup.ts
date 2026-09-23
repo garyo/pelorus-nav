@@ -33,6 +33,7 @@ import {
   type SimulatorOptions,
   SimulatorProvider,
 } from "./SimulatorProvider";
+import { signalkStreamUrl } from "./signalk-url";
 import { WebSerialNMEAProvider } from "./WebSerialNMEAProvider";
 
 export interface GpsProviderSetupDeps {
@@ -322,7 +323,7 @@ export function setupGpsProviders(
     navManager.registerProvider(sppProvider);
   }
   const signalK = new SignalKProvider(
-    getSettings().signalkUrl,
+    signalkStreamUrl(getSettings().signalkServer),
     makeProviderNoticeHandler("signalk", "Signal K"),
   );
   navManager.registerProvider(signalK);

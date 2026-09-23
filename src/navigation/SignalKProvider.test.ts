@@ -251,6 +251,43 @@ describe("SignalKProvider (integration)", () => {
     expect(fix.longitude).toBeCloseTo(CENTER_LON, 6);
     expect(fix.sog).toBeCloseTo(2.5 / 0.514444, 3);
   });
+
+  it("emits one fix per position when each path arrives as its own delta", async () => {
+    // signalk-server sends every subscribed path in a separate message; the
+    // COG/SOG messages must not restamp the last position as extra fixes.
+    const single = (path: string, value: unknown) =>
+      JSON.stringify({ updates: [{ values: [{ path, value }] }] });
+    wss = new WebSocketServer({ port: 0, path: "/signalk/v1/stream" });
+    await new Promise<void>((r) => wss?.on("listening", () => r()));
+    wss.on("connection", (sock: MockSocket) => {
+      for (const lat of [CENTER_LAT, CENTER_LAT + 0.001]) {
+        sock.send(
+          single("navigation.position", {
+            latitude: lat,
+            longitude: CENTER_LON,
+          }),
+        );
+        sock.send(single("navigation.courseOverGroundTrue", Math.PI / 2));
+        sock.send(single("navigation.speedOverGround", 2.5));
+      }
+    });
+    const { port } = wss.address() as AddressInfo;
+    provider = new SignalKProvider(
+      `ws://localhost:${port}/signalk/v1/stream?subscribe=none`,
+    );
+
+    const fixes: NavigationData[] = [];
+    provider.subscribe((d) => fixes.push(d));
+    provider.connect();
+    await new Promise((r) => setTimeout(r, 150));
+
+    expect(fixes).toHaveLength(2);
+    expect(fixes[0].latitude).toBeCloseTo(CENTER_LAT, 6);
+    expect(fixes[0].cog).toBeNull();
+    expect(fixes[1].latitude).toBeCloseTo(CENTER_LAT + 0.001, 6);
+    expect(fixes[1].cog).toBeCloseTo(90, 6);
+    expect(fixes[1].sog).toBeCloseTo(2.5 / 0.514444, 3);
+  });
 });
 
 // Reconnect lifecycle: server restarts, URL moves, rate hints, notices —
@@ -463,5 +500,34 @@ describe("SignalKProvider reconnect lifecycle", () => {
     provider.connect();
     await waitFor(() => notices.some((n) => n.kind === "connected"));
     expect(provider.isConnected()).toBe(true);
+  }, 10000);
+
+  it("waits quietly for a server address, then connects once one is set", async () => {
+    const wss = await streamServer();
+    const notices: ProviderNotice[] = [];
+    provider = new SignalKProvider(null, (n) => notices.push(n));
+    provider.connect();
+    await new Promise((r) => setTimeout(r, 200));
+    expect(notices).toEqual([]); // no "cannot reach" for an unset server
+    expect(provider.isReconnecting()).toBe(false);
+
+    provider.setUrl(wsUrl(portOf(wss)));
+    await waitFor(() => provider?.isConnected() ?? false);
+    expect(wss.clients.size).toBe(1);
+  }, 10000);
+
+  it("clearing the address drops the link without retrying", async () => {
+    const wss = await streamServer();
+    const notices: ProviderNotice[] = [];
+    provider = new SignalKProvider(wsUrl(portOf(wss)), (n) => notices.push(n));
+    provider.connect();
+    await waitFor(() => provider?.isConnected() ?? false);
+
+    provider.setUrl(null);
+    await waitFor(() => wss.clients.size === 0);
+    await new Promise((r) => setTimeout(r, 200));
+    expect(provider.isConnected()).toBe(false);
+    expect(provider.isReconnecting()).toBe(false);
+    expect(notices.some((n) => n.kind === "connect-failed")).toBe(false);
   }, 10000);
 });

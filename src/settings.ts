@@ -42,8 +42,11 @@ export interface Settings {
   speedUnit: SpeedUnit;
   chartMode: ChartMode;
   gpsSource: string;
-  /** WebSocket URL of the Signal K server (used when gpsSource is "signalk"). */
-  signalkUrl: string;
+  /**
+   * Signal K server as the user entered it — an address, host:port, or full
+   * URL, turned into the stream URL by signalkStreamUrl(). Blank = not set up.
+   */
+  signalkServer: string;
   gpsRateMode: GpsRateMode;
   manualUpdateIntervalMs: number;
   /** Adaptive filter strength — auto-detect jittery GPS, or force. */
@@ -269,13 +272,17 @@ export function getPluginSettingsSchemas(): readonly PluginSettingsSection[] {
 
 const SETTINGS_VERSION = 2;
 
+/** The stored stream URL's former default, which was never a real server. */
+const LEGACY_SIGNALK_DEFAULT =
+  "ws://localhost:3000/signalk/v1/stream?subscribe=none";
+
 const DEFAULTS: Settings = {
   settingsVersion: SETTINGS_VERSION,
   depthUnit: "feet",
   speedUnit: "knots",
   chartMode: "north-up",
   gpsSource: Capacitor.isNativePlatform() ? "capacitor-gps" : "none",
-  signalkUrl: "ws://localhost:3000/signalk/v1/stream?subscribe=none",
+  signalkServer: "",
   gpsRateMode: "adaptive",
   manualUpdateIntervalMs: 2000,
   gpsFilterMode: "auto",
@@ -455,15 +462,33 @@ function load(): Settings {
         }
         delete legacy.updateRateHz;
       }
+      // Migrate signalkUrl → signalkServer. A full stream URL is still valid
+      // input; only the untouched localhost default becomes blank.
+      const hadSignalkUrl = "signalkUrl" in legacy;
+      if (hadSignalkUrl) {
+        const url = legacy.signalkUrl;
+        if (
+          parsed.signalkServer === undefined &&
+          typeof url === "string" &&
+          url !== LEGACY_SIGNALK_DEFAULT
+        ) {
+          parsed.signalkServer = url;
+        }
+        delete legacy.signalkUrl;
+      }
       sanitize(parsed);
       const merged: Settings = {
         ...DEFAULTS,
         ...parsed,
         layerGroups: { ...DEFAULT_LAYER_GROUPS, ...parsed.layerGroups },
       };
-      // Persist once so a v1→v2 (or updateRateHz) migration doesn't re-run
+      // Persist once so a v1→v2 (or legacy-key) migration doesn't re-run
       // — and re-derive the same result — on every startup.
-      if (originalVersion < SETTINGS_VERSION || hadUpdateRateHz) {
+      if (
+        originalVersion < SETTINGS_VERSION ||
+        hadUpdateRateHz ||
+        hadSignalkUrl
+      ) {
         localStorage.setItem(STORAGE_KEY, JSON.stringify(merged));
       }
       return merged;

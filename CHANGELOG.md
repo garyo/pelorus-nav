@@ -12,6 +12,14 @@ The format follows [Keep a Changelog](https://keepachangelog.com/).
   are now findable by name.
 
 ### Fixed
+- GPS: the Signal K source can now reach a boat's Signal K server from the
+  Android and iOS apps (plain `ws://` on the local network was blocked). The
+  server field takes just an address — `192.168.1.50` or `openplotter.local`,
+  with an optional port — and shows the full URL it connects to, plus a
+  live status line: connected, can't reach the server, or connected but no
+  position arriving. Choosing Signal K no longer tries a `localhost` server
+  and reports it unreachable, and each position from a real Signal K server
+  now counts as one GPS fix rather than several.
 - Routes: tapping a waypoint that several routes pass through offers a card
   per route, but led with whichever route happened to draw on top, so the
   Navigate and Steer actions acted on an arbitrary one. The selected route

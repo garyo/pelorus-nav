@@ -224,14 +224,48 @@ body {
   margin-top: 2px;
 }
 
-.settings-row select {
+.settings-row select,
+.settings-row input[type="text"],
+.settings-row input[type="password"] {
   padding: 2px 6px;
   font-size: 13px;
   border: 1px solid #444;
   border-radius: 4px;
   background: #2a2a3e;
   color: #e0e0e0;
+}
+
+.settings-row select {
   cursor: pointer;
+}
+
+.settings-row input[type="text"],
+.settings-row input[type="password"] {
+  min-width: 0;
+  padding: 4px 6px;
+}
+
+/* A field too long to share its row: label above, input full width, hint
+   below. */
+.settings-row-wide {
+  flex-wrap: wrap;
+  row-gap: 4px;
+}
+
+.settings-row-wide input {
+  flex: 1 1 100%;
+}
+
+/* contain: the panel sizes to its content, and a long URL must wrap to the
+   panel's width rather than widen it. */
+.settings-hint,
+.settings-signalk-status {
+  flex-basis: 100%;
+  contain: inline-size;
+  font-size: 11px;
+  color: #7d8799;
+  white-space: pre-line;
+  overflow-wrap: anywhere;
 }
 
 .settings-slider-group {
@@ -3412,11 +3446,14 @@ body {
 
 [data-theme="night"] .settings-row label,
 [data-theme="night"] .settings-row select,
-[data-theme="night"] .settings-toggle {
+[data-theme="night"] .settings-toggle,
+[data-theme="night"] .settings-hint {
   color: #cc3333;
 }
 
 [data-theme="night"] .settings-row select,
+[data-theme="night"] .settings-row input[type="text"],
+[data-theme="night"] .settings-row input[type="password"],
 [data-theme="night"] #chart-select {
   background: #1a0a0a;
   color: #cc3333;
@@ -3558,11 +3595,14 @@ body {
 
 [data-theme="dusk"] .settings-row label,
 [data-theme="dusk"] .settings-row select,
-[data-theme="dusk"] .settings-toggle {
+[data-theme="dusk"] .settings-toggle,
+[data-theme="dusk"] .settings-hint {
   color: #b0b0c0;
 }
 
 [data-theme="dusk"] .settings-row select,
+[data-theme="dusk"] .settings-row input[type="text"],
+[data-theme="dusk"] .settings-row input[type="password"],
 [data-theme="dusk"] #chart-select {
   background: #2a2a35;
   color: #b0b0c0;
@@ -3696,7 +3736,8 @@ body {
 
 [data-theme="eink"] .settings-row label,
 [data-theme="eink"] .settings-row select,
-[data-theme="eink"] .settings-toggle {
+[data-theme="eink"] .settings-toggle,
+[data-theme="eink"] .settings-hint {
   color: #000000;
 }
 
@@ -3719,6 +3760,8 @@ body {
 }
 
 [data-theme="eink"] .settings-row select,
+[data-theme="eink"] .settings-row input[type="text"],
+[data-theme="eink"] .settings-row input[type="password"],
 [data-theme="eink"] #chart-select {
   background: #ffffff;
   color: #000000;
