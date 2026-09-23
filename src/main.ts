@@ -155,6 +155,7 @@ import { SatelliteStatusPanel } from "./ui/SatelliteStatusPanel";
 import { maybeShowScreenTimeoutWarning } from "./ui/ScreenTimeoutDialog";
 import { SearchDialog } from "./ui/SearchDialog";
 import { createSettingsPanel } from "./ui/SettingsPanel";
+import { SignalKStatusPanel } from "./ui/SignalKStatusPanel";
 import { showSppDevicePicker } from "./ui/SppDevicePickerDialog";
 import { hideStatusBanner, showStatusBanner } from "./ui/StatusBanner";
 import { closeAllSurfaces, registerSurface } from "./ui/SurfaceManager";
@@ -487,6 +488,7 @@ const topbarMenu = document.getElementById("topbar-menu");
 const topbarActions = document.getElementById("topbar-actions");
 const satellitePanel = new SatelliteStatusPanel();
 const connectionLogPanel = new ConnectionLogPanel();
+const signalkPanel = new SignalKStatusPanel();
 // The callbacks below reference `gps` (the provider setup, created in the
 // Navigation section further down) — safe despite the const being declared
 // later, since they only run on user interaction, well after setup.
@@ -533,6 +535,7 @@ const settingsHandle = topbarMenu
         }
       },
       openConnectionLog: () => connectionLogPanel.show(),
+      openSignalKDiagnostics: () => signalkPanel.show(gps.signalK, navManager),
     })
   : null;
 
@@ -541,6 +544,7 @@ const settingsHandle = topbarMenu
 const idleCloseables: IdleCloseable[] = [];
 if (settingsHandle) idleCloseables.push(settingsHandle);
 idleCloseables.push(satellitePanel);
+idleCloseables.push(signalkPanel);
 // The feature-info popup (chart + merged plugin candidates) counts as a
 // dialog for auto-return.
 idleCloseables.push(featureQueryHandler);

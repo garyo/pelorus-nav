@@ -9,6 +9,7 @@
  */
 
 import { toDegrees } from "../utils/coordinates";
+import { getDeclination } from "../utils/magnetic";
 import { MS_TO_KNOTS } from "../utils/units";
 import { connectionLog } from "./ConnectionEventLog";
 import type {
@@ -18,6 +19,7 @@ import type {
 } from "./NavigationData";
 import type { ProviderNotice } from "./ProviderNotice";
 import { ReconnectingTransport } from "./ReconnectingTransport";
+import { SignalKDiagnostics } from "./signalk-diagnostics";
 
 // Subscription period bounds: the server quantizes anyway, and anything
 // faster than 1 s or slower than 10 s buys nothing for navigation.
@@ -29,6 +31,12 @@ const MAX_PERIOD_MS = 10000;
 // non-finite must read as "unknown", never coerce to 0.
 function asFiniteNumber(value: unknown): number | null {
   return typeof value === "number" && Number.isFinite(value) ? value : null;
+}
+
+/** A radians value as degrees; non-numbers (incl. null) read as unknown. */
+function asDegrees(value: unknown): number | null {
+  const rad = asFiniteNumber(value);
+  return rad === null ? null : toDegrees(rad);
 }
 
 function asPosition(
@@ -62,10 +70,22 @@ export class SignalKProvider implements NavigationDataProvider {
   private readonly core: ReconnectingTransport;
   private readonly onNotice?: (notice: ProviderNotice) => void;
 
-  // Latest values from partial updates, carried onto the next position fix
+  /** Everything this connection has seen, for the diagnostics panel. */
+  readonly diagnostics = new SignalKDiagnostics();
+  /** While true, also subscribe to every own-vessel path and other vessels. */
+  private inspecting = false;
+
+  // Latest values from partial updates, carried onto the next position fix.
+  // Headings stay in degrees as received (true, or magnetic + variation).
   private cog: number | null = null;
   private sog: number | null = null;
-  private heading: number | null = null;
+  private headingTrue: number | null = null;
+  private headingMagnetic: number | null = null;
+  private variation: number | null = null;
+  // Identity (server timestamp + coordinates) of the last position emitted:
+  // the same measurement arriving through two subscriptions must count as one
+  // fix. Coordinates too, because some GPSs stamp only whole seconds.
+  private lastPositionKey: string | null = null;
 
   constructor(url: string | null, onNotice?: (notice: ProviderNotice) => void) {
     this.url = url;
@@ -83,6 +103,11 @@ export class SignalKProvider implements NavigationDataProvider {
         attemptDetail: (cause) => `${this.url} (${cause})`,
       },
     );
+  }
+
+  /** The stream URL in use, or null while no server is entered. */
+  get streamUrl(): string | null {
+    return this.url;
   }
 
   isConnected(): boolean {
@@ -244,6 +269,7 @@ export class SignalKProvider implements NavigationDataProvider {
   }
 
   private handleEstablished(): void {
+    this.diagnostics.noteConnected(Date.now());
     connectionLog.log(this.id, "connected", this.url ?? undefined);
     this.onNotice?.({ kind: "connected" });
   }
@@ -260,7 +286,24 @@ export class SignalKProvider implements NavigationDataProvider {
     sock?.close();
     this.cog = null;
     this.sog = null;
-    this.heading = null;
+    this.headingTrue = null;
+    this.headingMagnetic = null;
+    this.variation = null;
+    this.lastPositionKey = null;
+  }
+
+  /**
+   * Widen the subscription to every own-vessel path, plus other vessels'
+   * positions, while the diagnostics panel is open; narrow it again after.
+   */
+  setInspecting(on: boolean): void {
+    if (on === this.inspecting) return;
+    this.inspecting = on;
+    const sock = this.ws;
+    if (sock && sock.readyState === WebSocket.OPEN) {
+      sock.send(JSON.stringify({ context: "*", unsubscribe: [{ path: "*" }] }));
+      this.sendSubscription(sock);
+    }
   }
 
   private sendSubscription(sock: WebSocket): void {
@@ -273,16 +316,33 @@ export class SignalKProvider implements NavigationDataProvider {
           { path: "navigation.courseOverGroundTrue", period },
           { path: "navigation.speedOverGround", period },
           { path: "navigation.headingTrue", period },
+          { path: "navigation.headingMagnetic", period },
+          { path: "navigation.magneticVariation", period },
         ],
+      }),
+    );
+    if (!this.inspecting) return;
+    sock.send(
+      JSON.stringify({
+        context: "vessels.self",
+        subscribe: [{ path: "*", period: 1000 }],
+      }),
+    );
+    sock.send(
+      JSON.stringify({
+        context: "vessels.*",
+        subscribe: [{ path: "navigation.position", period: 5000 }],
       }),
     );
   }
 
   private handleMessage(msg: Record<string, unknown>): void {
-    const updates = msg.updates as
-      | Array<{ values?: Array<{ path: string; value: unknown }> }>
-      | undefined;
-    if (!updates) return;
+    // The hello and other vessels' deltas feed diagnostics only.
+    if (!this.diagnostics.noteMessage(msg, Date.now())) return;
+    const updates = msg.updates as Array<{
+      timestamp?: unknown;
+      values?: Array<{ path: string; value: unknown }>;
+    }>;
 
     // A fix is emitted only for a message carrying a position. Real servers
     // (signalk-server) deliver each subscribed path as its own delta, so
@@ -290,49 +350,71 @@ export class SignalKProvider implements NavigationDataProvider {
     // position as a fresh fix several times a period; those values are held
     // and ride on the next position instead (at most one period late).
     let position: { latitude: number; longitude: number } | null = null;
+    let positionStamp: string | null = null;
 
     for (const update of updates) {
       for (const { path, value } of update.values ?? []) {
         switch (path) {
           case "navigation.position": {
             // A malformed position is skipped; the rest of the message stands.
-            position = asPosition(value) ?? position;
+            const pos = asPosition(value);
+            if (!pos) break;
+            position = pos;
+            positionStamp =
+              typeof update.timestamp === "string" ? update.timestamp : null;
             break;
           }
-          case "navigation.courseOverGroundTrue": {
-            const rad = asFiniteNumber(value);
-            this.cog = rad === null ? null : toDegrees(rad);
+          case "navigation.courseOverGroundTrue":
+            this.cog = asDegrees(value);
             break;
-          }
           case "navigation.speedOverGround": {
             const mps = asFiniteNumber(value);
             this.sog = mps === null ? null : mps * MS_TO_KNOTS;
             break;
           }
-          case "navigation.headingTrue": {
-            const rad = asFiniteNumber(value);
-            this.heading = rad === null ? null : toDegrees(rad);
+          case "navigation.headingTrue":
+            this.headingTrue = asDegrees(value);
             break;
-          }
+          case "navigation.headingMagnetic":
+            this.headingMagnetic = asDegrees(value);
+            break;
+          case "navigation.magneticVariation":
+            this.variation = asDegrees(value);
+            break;
         }
       }
     }
 
-    if (position) {
-      const data: NavigationData = {
-        latitude: position.latitude,
-        longitude: position.longitude,
-        cog: this.cog,
-        sog: this.sog,
-        heading: this.heading,
-        accuracy: null,
-        timestamp: Date.now(),
-        source: "signalk",
-      };
-
-      for (const fn of this.listeners) {
-        fn(data);
-      }
+    if (!position) return;
+    if (positionStamp !== null) {
+      const key = `${positionStamp} ${position.latitude} ${position.longitude}`;
+      if (key === this.lastPositionKey) return;
+      this.lastPositionKey = key;
     }
+    const data: NavigationData = {
+      latitude: position.latitude,
+      longitude: position.longitude,
+      cog: this.cog,
+      sog: this.sog,
+      heading: this.trueHeading(position.latitude, position.longitude),
+      accuracy: null,
+      timestamp: Date.now(),
+      source: "signalk",
+    };
+    for (const fn of this.listeners) {
+      fn(data);
+    }
+  }
+
+  /**
+   * True heading: the server's headingTrue when it has one; otherwise a
+   * magnetic compass heading corrected by the server's variation, or by the
+   * charted declination here when the server doesn't provide one.
+   */
+  private trueHeading(lat: number, lon: number): number | null {
+    if (this.headingTrue !== null) return this.headingTrue;
+    if (this.headingMagnetic === null) return null;
+    const variation = this.variation ?? getDeclination(lat, lon);
+    return (((this.headingMagnetic + variation) % 360) + 360) % 360;
   }
 }

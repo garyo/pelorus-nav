@@ -53,6 +53,7 @@ describe("signalkStreamUrl", () => {
 
   it("rejects input that isn't an address", () => {
     expect(signalkStreamUrl("not an address")).toBeNull();
+    expect(signalkStreamUrl("boat%20x")).toBeNull();
     expect(signalkStreamUrl("ftp://10.0.0.5")).toBeNull();
     expect(signalkStreamUrl("192.168.1.50:99999")).toBeNull();
   });

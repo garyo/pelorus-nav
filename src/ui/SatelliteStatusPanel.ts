@@ -17,6 +17,13 @@ import type {
 } from "../navigation/NavigationData";
 import type { NavigationDataManager } from "../navigation/NavigationDataManager";
 import { formatLatLon } from "../utils/coordinates";
+import {
+  addStatusRow,
+  type DotState,
+  type StatusRow,
+  setStatusRow,
+  setStatusRowVisible,
+} from "./status-grid";
 
 // Typical C/N0 ceiling for scaling the bars — strong sats sit around 45-50 dB-Hz.
 const SNR_MAX = 55;
@@ -57,10 +64,8 @@ const CONSTELLATION_SHORT: Record<string, string> = {
   GNSS: "GNSS",
 };
 
-type DotState = "green" | "amber" | "red" | "off";
-
 /** Plain-language quality from HDOP (geometry-driven horizontal accuracy). */
-function hdopQuality(hdop: number | null): string {
+export function hdopQuality(hdop: number | null): string {
   if (hdop === null) return "";
   if (hdop <= 1) return "Ideal";
   if (hdop <= 2) return "Excellent";
@@ -68,14 +73,6 @@ function hdopQuality(hdop: number | null): string {
   if (hdop <= 10) return "Moderate";
   if (hdop <= 20) return "Fair";
   return "Poor";
-}
-
-interface StatusRow {
-  dot: HTMLElement;
-  text: HTMLElement;
-  action: HTMLElement;
-  /** All grid cells of the row, for hiding it entirely. */
-  cells: HTMLElement[];
 }
 
 interface SatBar {
@@ -139,17 +136,17 @@ export class SatelliteStatusPanel {
     const grid = document.createElement("div");
     grid.className = "sat-status";
 
-    this.rowSource = this.addRow(grid, "Source");
-    this.rowLink = this.addRow(grid, "Link");
-    this.rowData = this.addRow(grid, "Data");
-    this.rowFix = this.addRow(grid, "Fix");
-    this.rowAccuracy = this.addRow(grid, "Accuracy");
-    this.rowPosition = this.addRow(grid, "Position");
-    this.rowMotion = this.addRow(grid, "Motion");
+    this.rowSource = addStatusRow(grid, "Source");
+    this.rowLink = addStatusRow(grid, "Link");
+    this.rowData = addStatusRow(grid, "Data");
+    this.rowFix = addStatusRow(grid, "Fix");
+    this.rowAccuracy = addStatusRow(grid, "Accuracy");
+    this.rowPosition = addStatusRow(grid, "Position");
+    this.rowMotion = addStatusRow(grid, "Motion");
     // Only some receivers report battery (Dual XGPS via $GPPWR) — the row
     // stays hidden until the device has said something.
-    this.rowBattery = this.addRow(grid, "Battery");
-    this.setRowVisible(this.rowBattery, false);
+    this.rowBattery = addStatusRow(grid, "Battery");
+    setStatusRowVisible(this.rowBattery, false);
 
     // Source/Accuracy/Position/Motion carry no traffic-light state.
     for (const r of [
@@ -285,14 +282,14 @@ export class SatelliteStatusPanel {
       this.sendSatOn();
     }
 
-    this.set(this.rowSource, "off", provider.name);
+    setStatusRow(this.rowSource, "off", provider.name);
 
     if (connected) {
-      this.set(this.rowLink, "green", "Connected");
+      setStatusRow(this.rowLink, "green", "Connected");
     } else if (reconnecting) {
-      this.set(this.rowLink, "amber", "Reconnecting…");
+      setStatusRow(this.rowLink, "amber", "Reconnecting…");
     } else {
-      this.set(this.rowLink, "red", "Disconnected");
+      setStatusRow(this.rowLink, "red", "Disconnected");
     }
     this.reconnectBtn.style.display = connected ? "none" : "";
 
@@ -300,17 +297,17 @@ export class SatelliteStatusPanel {
     // independent of the on-request satellite detail. So a connected, streaming
     // pod never reads "No data" just because GSV/GSA aren't armed yet.
     if (!connected) {
-      this.set(this.rowData, "off", "—");
+      setStatusRow(this.rowData, "off", "—");
     } else if (rawLive) {
-      this.set(
+      setStatusRow(
         this.rowData,
         "green",
         `Receiving · ${(rawAge / 1000).toFixed(1)}s ago`,
       );
     } else if (rawMs > 0 || pastGrace) {
-      this.set(this.rowData, "red", "No data — check pod");
+      setStatusRow(this.rowData, "red", "No data — check pod");
     } else {
-      this.set(this.rowData, "amber", "Waiting for data…");
+      setStatusRow(this.rowData, "amber", "Waiting for data…");
     }
     this.resumeBtn.style.display = offerResume ? "" : "none";
 
@@ -323,11 +320,11 @@ export class SatelliteStatusPanel {
     if (data && !fixStale) {
       const ft = status?.fixType ?? 3;
       const fixState: DotState = ft >= 3 ? "green" : "amber";
-      this.set(this.rowFix, fixState, FIX_LABELS[ft] ?? "3D fix");
+      setStatusRow(this.rowFix, fixState, FIX_LABELS[ft] ?? "3D fix");
     } else if (rawLive) {
-      this.set(this.rowFix, "red", "No fix — searching");
+      setStatusRow(this.rowFix, "red", "No fix — searching");
     } else {
-      this.set(this.rowFix, "off", "—");
+      setStatusRow(this.rowFix, "off", "—");
     }
 
     // Accuracy is satellite-detail derived (sats used + HDOP) — dashes until
@@ -335,13 +332,13 @@ export class SatelliteStatusPanel {
     if (status) {
       const hdop = status.hdop !== null ? status.hdop.toFixed(1) : "—";
       const quality = hdopQuality(status.hdop);
-      this.set(
+      setStatusRow(
         this.rowAccuracy,
         "off",
         `${status.used} used · HDOP ${hdop}${quality ? ` · ${quality}` : ""}`,
       );
     } else {
-      this.set(this.rowAccuracy, "off", "—");
+      setStatusRow(this.rowAccuracy, "off", "—");
     }
 
     // Satellite-detail (GSV/GSA) section state — separate from the raw stream;
@@ -356,7 +353,7 @@ export class SatelliteStatusPanel {
     // their stream. The stored reading survives a link drop, but it's stale
     // then — show it only while connected.
     const battery = connected ? (provider.batteryInfo?.() ?? null) : null;
-    this.setRowVisible(this.rowBattery, battery !== null);
+    setStatusRowVisible(this.rowBattery, battery !== null);
     if (battery !== null) {
       const state: DotState =
         battery.fraction < 0.1
@@ -364,7 +361,7 @@ export class SatelliteStatusPanel {
           : battery.fraction < 0.3
             ? "amber"
             : "green";
-      this.set(
+      setStatusRow(
         this.rowBattery,
         state,
         `${battery.volts.toFixed(2)} V · ${Math.round(battery.fraction * 100)}%`,
@@ -372,7 +369,7 @@ export class SatelliteStatusPanel {
     }
 
     if (data) {
-      this.set(
+      setStatusRow(
         this.rowPosition,
         "off",
         `${formatLatLon(data.latitude, "lat")}  ${formatLatLon(data.longitude, "lon")}`,
@@ -382,34 +379,11 @@ export class SatelliteStatusPanel {
         data.cog !== null
           ? `COG ${Math.round(data.cog).toString().padStart(3, "0")}°`
           : "COG —";
-      this.set(this.rowMotion, "off", `${sog} · ${cog}`);
+      setStatusRow(this.rowMotion, "off", `${sog} · ${cog}`);
     } else {
-      this.set(this.rowPosition, "off", "—");
-      this.set(this.rowMotion, "off", "—");
+      setStatusRow(this.rowPosition, "off", "—");
+      setStatusRow(this.rowMotion, "off", "—");
     }
-  }
-
-  private addRow(grid: HTMLElement, label: string): StatusRow {
-    const labelEl = document.createElement("div");
-    labelEl.className = "sat-status-label";
-    labelEl.textContent = label;
-
-    const value = document.createElement("div");
-    value.className = "sat-status-value";
-    const dot = document.createElement("span");
-    dot.className = "sat-dot";
-    const text = document.createElement("span");
-    value.append(dot, text);
-
-    const action = document.createElement("div");
-    action.className = "sat-status-action";
-
-    grid.append(labelEl, value, action);
-    return { dot, text, action, cells: [labelEl, value, action] };
-  }
-
-  private setRowVisible(row: StatusRow, visible: boolean): void {
-    for (const cell of row.cells) cell.style.display = visible ? "" : "none";
   }
 
   private makeInlineButton(
@@ -423,11 +397,6 @@ export class SatelliteStatusPanel {
     btn.style.display = "none";
     btn.addEventListener("click", onClick);
     return btn;
-  }
-
-  private set(row: StatusRow, dot: DotState, text: string): void {
-    row.dot.className = dot === "off" ? "sat-dot" : `sat-dot sat-dot-${dot}`;
-    row.text.textContent = text;
   }
 
   // --- Satellite bars ----------------------------------------------------

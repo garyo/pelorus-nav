@@ -1243,6 +1243,54 @@ body {
   font-family: monospace;
 }
 
+/* Signal K diagnostics panel (SignalKStatusPanel.ts): the satellites panel's
+   status grid, plus the server's full data list. */
+.sk-card {
+  width: 480px;
+}
+
+/* Addresses and source names are long unbroken strings: let the value column
+   shrink and wrap them rather than run off the card. */
+.sk-card .sat-status {
+  grid-template-columns: 78px minmax(0, 1fr) auto;
+}
+
+.sk-card .sat-status-value {
+  overflow-wrap: anywhere;
+}
+
+.sk-ais,
+.sk-note {
+  font-size: 12px;
+  color: #999;
+  margin-bottom: 6px;
+}
+
+.sk-note {
+  margin: 8px 0 12px;
+}
+
+.sk-data-row {
+  padding: 3px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  font-size: 12px;
+}
+
+.sk-data-path {
+  color: #9aa3b5;
+  overflow-wrap: anywhere;
+}
+
+.sk-data-value {
+  color: #e6e6e6;
+  font-variant-numeric: tabular-nums;
+  margin-right: 8px;
+}
+
+.sk-data-meta {
+  color: #888;
+}
+
 /* Screen-timeout warning dialog (reuses .about-overlay / .about-card). */
 .screen-timeout-card {
   width: 420px;
@@ -3821,7 +3869,8 @@ body {
 
 /* GPS diagnostics panel on e-ink: white card, dark text, and a shape glyph on
    each status dot so state reads without relying on color (which washes out). */
-[data-theme="eink"] .sat-card {
+[data-theme="eink"] .sat-card,
+[data-theme="eink"] .sk-card {
   background: #ffffff;
   border: 2px solid #000000;
   border-radius: 0;
@@ -3833,13 +3882,22 @@ body {
 [data-theme="eink"] .sat-status-value,
 [data-theme="eink"] .sat-sec-header,
 [data-theme="eink"] .sat-label,
-[data-theme="eink"] .sat-value {
+[data-theme="eink"] .sat-value,
+[data-theme="eink"] .sk-data-value {
   color: #000000;
 }
 
 [data-theme="eink"] .sat-status-label,
-[data-theme="eink"] .sat-constellations {
+[data-theme="eink"] .sat-constellations,
+[data-theme="eink"] .sk-ais,
+[data-theme="eink"] .sk-note,
+[data-theme="eink"] .sk-data-path,
+[data-theme="eink"] .sk-data-meta {
   color: #333333;
+}
+
+[data-theme="eink"] .sk-data-row {
+  border-bottom-color: #cccccc;
 }
 
 /* Replace the colour-only dot with a colour + shape glyph (the shape is the
@@ -3878,6 +3936,7 @@ body {
 }
 
 [data-theme="eink"] .sat-card .about-clear-cache,
+[data-theme="eink"] .sk-card .about-clear-cache,
 [data-theme="eink"] .sat-inline-btn {
   background: #ffffff;
   color: #000000;

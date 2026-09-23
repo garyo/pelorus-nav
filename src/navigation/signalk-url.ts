@@ -11,25 +11,32 @@
 
 const DEFAULT_PORT = "3000";
 const STREAM_PATH = "/signalk/v1/stream";
+// A host name or IPv4 address, or a bracketed IPv6 address.
+const VALID_HOST = /^([a-z\d_-]+(\.[a-z\d_-]+)*|\[[\da-f:.]+\])$/i;
 
 /** The ws:// or wss:// stream URL for `input`, or null if it isn't an address. */
 export function signalkStreamUrl(input: string): string | null {
   const text = input.trim();
   if (!text) return null;
-  const hasScheme = /^[a-z][a-z\d+.-]*:\/\//i.test(text);
+  const scheme = /^([a-z][a-z\d+.-]*):\/\//i.exec(text)?.[1].toLowerCase();
+  if (scheme && !["ws", "wss", "http", "https"].includes(scheme)) return null;
+  const secure = scheme === "wss" || scheme === "https";
+  const rest = scheme ? text.slice(scheme.length + 3) : text;
+  // Parsed as http(s), never ws(s): Chrome treats ws as an opaque scheme
+  // whose protocol can't be switched from http. Even for http, Chrome
+  // percent-encodes a malformed host rather than rejecting it, hence the
+  // explicit host check.
   let url: URL;
   try {
-    url = new URL(hasScheme ? text : `ws://${text}`);
+    url = new URL(`${secure ? "https" : "http"}://${rest}`);
   } catch {
     return null;
   }
-  if (url.protocol === "http:") url.protocol = "ws:";
-  else if (url.protocol === "https:") url.protocol = "wss:";
-  else if (url.protocol !== "ws:" && url.protocol !== "wss:") return null;
-  if (!url.hostname) return null;
-  if (!hasScheme && !url.port) url.port = DEFAULT_PORT;
-  if (!url.pathname.startsWith("/signalk/")) url.pathname = STREAM_PATH;
-  url.hash = "";
+  if (!VALID_HOST.test(url.hostname)) return null;
+  const port = url.port || (scheme ? "" : DEFAULT_PORT);
+  const path = url.pathname.startsWith("/signalk/")
+    ? url.pathname
+    : STREAM_PATH;
   url.searchParams.set("subscribe", "none");
-  return url.toString();
+  return `${secure ? "wss" : "ws"}://${url.hostname}${port ? `:${port}` : ""}${path}${url.search}`;
 }

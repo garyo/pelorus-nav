@@ -149,7 +149,7 @@ describe("SignalKProvider (integration)", () => {
 
   it("does not emit before a position arrives (heading-only update)", async () => {
     // A server that only ever sends heading — provider must withhold output
-    // until it has a position (hasPosition gate).
+    // until a position arrives.
     wss = new WebSocketServer({ port: 0, path: "/signalk/v1/stream" });
     await new Promise<void>((r) => wss?.on("listening", () => r()));
     wss.on("connection", (sock: MockSocket) => {
@@ -287,6 +287,86 @@ describe("SignalKProvider (integration)", () => {
     expect(fixes[1].latitude).toBeCloseTo(CENTER_LAT + 0.001, 6);
     expect(fixes[1].cog).toBeCloseTo(90, 6);
     expect(fixes[1].sog).toBeCloseTo(2.5 / 0.514444, 3);
+  });
+
+  /** Serve these messages to each client, then collect the provider's fixes. */
+  async function fixesFrom(messages: unknown[]): Promise<NavigationData[]> {
+    wss = new WebSocketServer({ port: 0, path: "/signalk/v1/stream" });
+    await new Promise<void>((r) => wss?.on("listening", () => r()));
+    wss.on("connection", (sock: MockSocket) => {
+      for (const m of messages) sock.send(JSON.stringify(m));
+    });
+    const { port } = wss.address() as AddressInfo;
+    provider = new SignalKProvider(
+      `ws://localhost:${port}/signalk/v1/stream?subscribe=none`,
+    );
+    const fixes: NavigationData[] = [];
+    provider.subscribe((d) => fixes.push(d));
+    provider.connect();
+    await new Promise((r) => setTimeout(r, 150));
+    return fixes;
+  }
+
+  const at = (timestamp: string, path: string, value: unknown) => ({
+    updates: [{ timestamp, values: [{ path, value }] }],
+  });
+  const here = { latitude: CENTER_LAT, longitude: CENTER_LON };
+  const deg = (d: number) => (d * Math.PI) / 180;
+
+  it("corrects a magnetic-only heading by the server's variation", async () => {
+    const fixes = await fixesFrom([
+      at("t0", "navigation.headingMagnetic", deg(100)),
+      at("t0", "navigation.magneticVariation", deg(-14)),
+      at("t1", "navigation.position", here),
+    ]);
+    expect(fixes[0].heading).toBeCloseTo(86, 6);
+  });
+
+  it("falls back to charted declination when the server has no variation", async () => {
+    const fixes = await fixesFrom([
+      at("t0", "navigation.headingMagnetic", deg(100)),
+      at("t1", "navigation.position", here),
+    ]);
+    const { getDeclination } = await import("../utils/magnetic");
+    expect(fixes[0].heading).toBeCloseTo(
+      100 + getDeclination(CENTER_LAT, CENTER_LON),
+      6,
+    );
+  });
+
+  it("prefers the server's true heading over a magnetic one", async () => {
+    const fixes = await fixesFrom([
+      at("t0", "navigation.headingMagnetic", deg(100)),
+      at("t0", "navigation.headingTrue", deg(90)),
+      at("t1", "navigation.position", here),
+    ]);
+    expect(fixes[0].heading).toBeCloseTo(90, 6);
+  });
+
+  it("counts the same position measurement once, even if delivered twice", async () => {
+    const moved = { latitude: CENTER_LAT + 0.0001, longitude: CENTER_LON };
+    const fixes = await fixesFrom([
+      at("t1", "navigation.position", here),
+      at("t1", "navigation.position", here), // duplicate delivery
+      at("t1", "navigation.position", moved), // same whole second, new fix
+      at("t2", "navigation.position", moved),
+    ]);
+    expect(fixes).toHaveLength(3);
+  });
+
+  it("never navigates from another vessel's position", async () => {
+    const self = "vessels.urn:mrn:signalk:uuid:self-1";
+    const fixes = await fixesFrom([
+      { name: "signalk-server", version: "2.33.0", self },
+      {
+        context: "vessels.urn:mrn:imo:mmsi:367000001",
+        ...at("t1", "navigation.position", { latitude: 1, longitude: 2 }),
+      },
+      { context: self, ...at("t2", "navigation.position", here) },
+    ]);
+    expect(fixes).toHaveLength(1);
+    expect(fixes[0].latitude).toBeCloseTo(CENTER_LAT, 6);
+    expect(provider?.diagnostics.otherVesselCount(Date.now())).toBe(1);
   });
 });
 
@@ -500,6 +580,41 @@ describe("SignalKProvider reconnect lifecycle", () => {
     provider.connect();
     await waitFor(() => notices.some((n) => n.kind === "connected"));
     expect(provider.isConnected()).toBe(true);
+  }, 10000);
+
+  it("widens the subscription while inspecting, and narrows it after", async () => {
+    interface SkMessage {
+      context?: string;
+      subscribe?: Array<{ path: string }>;
+      unsubscribe?: Array<{ path: string }>;
+    }
+    const messages: SkMessage[] = [];
+    const wss = new WebSocketServer({ port: 0, path: "/signalk/v1/stream" });
+    servers.push(wss);
+    await listening(wss);
+    wss.on("connection", (sock) => {
+      (sock as unknown as { on(e: string, cb: (d: unknown) => void): void }).on(
+        "message",
+        (d) => messages.push(JSON.parse(String(d)) as SkMessage),
+      );
+    });
+    provider = new SignalKProvider(wsUrl(portOf(wss)));
+    provider.connect();
+    await waitFor(() => messages.length >= 1);
+    const wildcard = (m: SkMessage) =>
+      m.context === "vessels.self" && m.subscribe?.[0].path === "*";
+    expect(messages.some(wildcard)).toBe(false);
+
+    provider.setInspecting(true);
+    await waitFor(() => messages.some(wildcard));
+    expect(messages.some((m) => m.context === "vessels.*")).toBe(true);
+
+    const before = messages.length;
+    provider.setInspecting(false);
+    await waitFor(() => messages.length >= before + 2);
+    const after = messages.slice(before);
+    expect(after[0].unsubscribe).toBeDefined();
+    expect(after.slice(1).some(wildcard)).toBe(false);
   }, 10000);
 
   it("waits quietly for a server address, then connects once one is set", async () => {

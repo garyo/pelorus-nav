@@ -86,12 +86,14 @@ export interface GpsLinkOpt {
 
 export interface CreateSettingsPanelOpts {
   chartProviders: ChartProvidersOpt;
-  /** Live BLE link state + reconnect/reset actions. */
+  /** Live GPS link state + reconnect/reset actions. */
   gpsLink: GpsLinkOpt;
   /** Open the live satellite diagnostics panel for the active provider. */
   openSatelliteDiagnostics: () => void;
   /** Open the persistent connection event log viewer. */
   openConnectionLog: () => void;
+  /** Open the Signal K diagnostics panel. */
+  openSignalKDiagnostics: () => void;
   /** Rewind the simulator to the start of its route/track. */
   restartSimulator: () => void;
 }
@@ -209,16 +211,7 @@ function buildTabbedPanel(
 
   tabBodies.set("appearance", buildAppearanceTab(settings));
   tabBodies.set("layers", buildLayersTab(settings, opts.chartProviders));
-  tabBodies.set(
-    "navigation",
-    buildNavigationTab(
-      settings,
-      opts.gpsLink,
-      opts.openSatelliteDiagnostics,
-      opts.openConnectionLog,
-      opts.restartSimulator,
-    ),
-  );
+  tabBodies.set("navigation", buildNavigationTab(settings, opts));
 
   for (const [id, body] of tabBodies) {
     body.className = "settings-tab-body";
@@ -654,10 +647,11 @@ function buildTextRow(
 
 /**
  * The Signal K server field: full width (addresses are long), a phone
- * keyboard suited to addresses, a hint showing the stream URL the entry
- * resolves to, and a live status line for the link. On an HTTPS web page the
- * browser blocks plain ws:// sockets, which is what nearly every boat server
- * speaks, so the hint says so.
+ * keyboard suited to addresses, a hint showing the stream URL, and a live
+ * status line for the link. While the field holds an uncommitted edit, the
+ * hint says what Enter will do and the status (which describes the saved
+ * server) steps aside. On an HTTPS web page the browser blocks plain ws://
+ * sockets, which is what nearly every boat server speaks, so the hint says so.
  */
 function buildSignalkServerRow(
   value: string,
@@ -667,7 +661,11 @@ function buildSignalkServerRow(
     "Signal K server",
     "settings-signalk-server",
     value,
-    (v) => updateSettings({ signalkServer: v }),
+    (v) => {
+      updateSettings({ signalkServer: v });
+      updateHint();
+      update();
+    },
     { placeholder: "192.168.1.50 or openplotter.local" },
   );
   row.classList.add("settings-row-wide");
@@ -682,12 +680,21 @@ function buildSignalkServerRow(
   row.appendChild(hint);
   const securePage =
     !Capacitor.isNativePlatform() && location.protocol === "https:";
+  const isDraft = () => input.value.trim() !== getSettings().signalkServer;
   const updateHint = () => {
     const text = input.value.trim();
     const url = signalkStreamUrl(text);
     const lines: string[] = [];
-    if (text) {
-      lines.push(url ? `Connects to ${url}` : "Not a valid server address");
+    if (text && !url) {
+      lines.push("Not a valid server address");
+    } else if (isDraft()) {
+      lines.push(
+        url
+          ? `Press Enter to connect to ${url}`
+          : "Press Enter to stop using Signal K",
+      );
+    } else if (url) {
+      lines.push(`Server: ${url}`);
     }
     if (securePage && !url?.startsWith("wss:")) {
       lines.push(
@@ -697,8 +704,10 @@ function buildSignalkServerRow(
     hint.textContent = lines.join("\n");
     hint.hidden = lines.length === 0;
   };
-  input.addEventListener("input", updateHint);
-  updateHint();
+  input.addEventListener("input", () => {
+    updateHint();
+    update();
+  });
 
   const status = document.createElement("div");
   row.appendChild(status);
@@ -718,7 +727,7 @@ function buildSignalkServerRow(
     const reconnecting = !connected && gpsLink.isReconnecting();
     connectedSince = connected ? connectedSince || now : 0;
     reconnectingSince = reconnecting ? reconnectingSince || now : 0;
-    const shown = getSettings().signalkServer !== "";
+    const shown = getSettings().signalkServer !== "" && !isDraft();
     const { text, tone } = signalkLinkStatus({
       connectedMs: connected ? now - connectedSince : null,
       reconnectingMs: reconnecting ? now - reconnectingSince : null,
@@ -729,17 +738,16 @@ function buildSignalkServerRow(
     if (status.textContent !== text) status.textContent = text;
     if (status.className !== className) status.className = className;
   };
+  updateHint();
   update();
   return { row, update };
 }
 
 function buildNavigationTab(
   settings: ReturnType<typeof getSettings>,
-  gpsLink: GpsLinkOpt,
-  openSatelliteDiagnostics: () => void,
-  openConnectionLog: () => void,
-  restartSimulator: () => void,
+  opts: CreateSettingsPanelOpts,
 ): HTMLElement {
+  const { gpsLink } = opts;
   const tab = document.createElement("div");
 
   tab.appendChild(buildSectionHeader("GPS"));
@@ -780,11 +788,11 @@ function buildNavigationTab(
     "Satellites",
     "settings-gps-satellites",
     "View",
-    () => openSatelliteDiagnostics(),
+    () => opts.openSatelliteDiagnostics(),
   );
   // Persistent connection event log — the field-diagnosis record for BLE.
   const logRow = buildActionRow("Event log", "settings-ble-log", "View", () =>
-    openConnectionLog(),
+    opts.openConnectionLog(),
   );
   const updateBleRows = (src: string) => {
     const display = src === "ble-nmea" || src === "bt-spp" ? "" : "none";
@@ -830,7 +838,7 @@ function buildNavigationTab(
     "Restart sim",
     "settings-sim-restart",
     "Restart",
-    () => restartSimulator(),
+    () => opts.restartSimulator(),
   );
   const simRows = [simSpeedRow, simModeRow, simRestartRow];
   const updateSimRows = (src: string) => {
@@ -843,11 +851,21 @@ function buildNavigationTab(
 
   // Signal K server (shown only when Signal K is the GPS source)
   const signalk = buildSignalkServerRow(settings.signalkServer, gpsLink);
-  signalk.row.style.display = settings.gpsSource === "signalk" ? "" : "none";
-  onSettingsChange((s) => {
-    signalk.row.style.display = s.gpsSource === "signalk" ? "" : "none";
-  });
+  const signalkDetailsRow = buildActionRow(
+    "Server details",
+    "settings-signalk-details",
+    "View",
+    () => opts.openSignalKDiagnostics(),
+  );
+  const updateSignalkRows = (src: string) => {
+    const display = src === "signalk" ? "" : "none";
+    signalk.row.style.display = display;
+    signalkDetailsRow.style.display = display;
+  };
+  updateSignalkRows(settings.gpsSource);
+  onSettingsChange((s) => updateSignalkRows(s.gpsSource));
   tab.appendChild(signalk.row);
+  tab.appendChild(signalkDetailsRow);
   setInterval(signalk.update, 1000);
 
   // GPS update rate: "Auto" (adaptive — as fast as useful, eased back to save
