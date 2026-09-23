@@ -99,7 +99,12 @@ export async function openOrShareTextFile(
   mimeType = "text/plain",
 ): Promise<void> {
   if (!Capacitor.isNativePlatform()) {
-    const url = URL.createObjectURL(new Blob([content], { type: mimeType }));
+    // The tab decodes the blob by its type's charset; without one, Chrome
+    // reads it as Latin-1 and "·" or "—" come out as mojibake.
+    const type = /charset=/i.test(mimeType)
+      ? mimeType
+      : `${mimeType};charset=utf-8`;
+    const url = URL.createObjectURL(new Blob([content], { type }));
     const opened = window.open(url, "_blank");
     setTimeout(() => URL.revokeObjectURL(url), BLOB_URL_LIFETIME_MS);
     if (opened) return;

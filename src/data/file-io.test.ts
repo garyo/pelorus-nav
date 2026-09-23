@@ -223,6 +223,10 @@ describe("openOrShareTextFile", () => {
 
     expect(open).toHaveBeenCalledWith("blob:diag", "_blank");
     expect(mocks.share).not.toHaveBeenCalled();
+    // Declared UTF-8, so the tab doesn't mis-decode "·" and "—".
+    expect((createObjectURL.mock.calls[0][0] as Blob).type).toBe(
+      "text/plain;charset=utf-8",
+    );
     // The URL must outlive the call so the new tab can still fetch it.
     expect(revokeObjectURL).not.toHaveBeenCalled();
     vi.runAllTimers();
