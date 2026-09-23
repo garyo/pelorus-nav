@@ -36,6 +36,12 @@ describe("isSelfContext", () => {
       false,
     );
   });
+
+  it("treats every context as own vessel when the server sent no hello", () => {
+    expect(isSelfContext("vessels.urn:mrn:imo:mmsi:367000001", null)).toBe(
+      true,
+    );
+  });
 });
 
 describe("updateSource", () => {

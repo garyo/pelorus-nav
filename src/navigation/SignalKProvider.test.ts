@@ -354,6 +354,48 @@ describe("SignalKProvider (integration)", () => {
     expect(fixes).toHaveLength(3);
   });
 
+  it("keeps a hello delivered in the same burst as the open event", async () => {
+    // signalk-server sends its hello at once, then real-URN contexts rather
+    // than "vessels.self". Some runtimes (Bun) deliver open and the first
+    // messages back to back, before promise continuations run; a hello lost
+    // there files our own data as another vessel's and never navigates.
+    const self = "vessels.urn:mrn:signalk:uuid:self-1";
+    const burst = [
+      { name: "signalk-server", version: "2.33.0", self },
+      { context: self, ...at("t1", "navigation.position", here) },
+    ];
+    class BurstSocket {
+      static OPEN = 1;
+      readyState = 1;
+      onopen: (() => void) | null = null;
+      onmessage: ((e: { data: string }) => void) | null = null;
+      onclose: (() => void) | null = null;
+      onerror: (() => void) | null = null;
+      constructor() {
+        setTimeout(() => {
+          this.onopen?.();
+          for (const m of burst) this.onmessage?.({ data: JSON.stringify(m) });
+        }, 0);
+      }
+      send(): void {}
+      close(): void {}
+    }
+    vi.stubGlobal("WebSocket", BurstSocket);
+    try {
+      provider = new SignalKProvider("ws://burst.test/signalk/v1/stream");
+      const fixes: NavigationData[] = [];
+      provider.subscribe((d) => fixes.push(d));
+      provider.connect();
+      await new Promise((r) => setTimeout(r, 50));
+      expect(fixes).toHaveLength(1);
+      expect(provider.diagnostics.hello.self).toBe(self);
+    } finally {
+      provider?.disconnect();
+      provider = undefined;
+      vi.unstubAllGlobals();
+    }
+  });
+
   it("never navigates from another vessel's position", async () => {
     const self = "vessels.urn:mrn:signalk:uuid:self-1";
     const fixes = await fixesFrom([

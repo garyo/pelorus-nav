@@ -33,10 +33,17 @@ const RATE_WINDOW_MS = 10000;
 // Another vessel counts as present if heard within this long.
 const VESSEL_PRESENT_MS = 60000;
 
-/** Deltas without a context, and "vessels.self", are the server's own vessel. */
+/**
+ * Deltas without a context, and "vessels.self", are the server's own vessel.
+ * A server that sent no hello (so no self context) gets every context treated
+ * as its own: losing navigation to it would be far worse than miscounting AIS.
+ */
 export function isSelfContext(context: unknown, self: string | null): boolean {
   return (
-    context === undefined || context === "vessels.self" || context === self
+    self === null ||
+    context === undefined ||
+    context === "vessels.self" ||
+    context === self
   );
 }
 

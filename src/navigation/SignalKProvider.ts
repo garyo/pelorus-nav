@@ -237,6 +237,9 @@ export class SignalKProvider implements NavigationDataProvider {
       this.ws = sock;
       sock.onopen = () => {
         opened = true;
+        // Here, not in handleEstablished: that runs a few promise hops
+        // later, and the server's hello can already have arrived by then.
+        this.diagnostics.noteConnected(Date.now());
         this.sendSubscription(sock);
         resolve();
       };
@@ -277,7 +280,6 @@ export class SignalKProvider implements NavigationDataProvider {
   }
 
   private handleEstablished(): void {
-    this.diagnostics.noteConnected(Date.now());
     connectionLog.log(this.id, "connected", this.url ?? undefined);
     this.onNotice?.({ kind: "connected" });
   }
