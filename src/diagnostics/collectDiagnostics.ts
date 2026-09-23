@@ -145,11 +145,12 @@ export function buildDefaultSections(
       collect: async () => {
         if (!deps.nav) return "(navigation manager not wired)";
         const lines = [deps.nav.diagnosticsSnapshot()];
-        // Device-side status ($PPELD from the GPS pod's DIAG command). The
-        // request self-times-out fast (~2 s) and resolves null — a pod that's
-        // off, out of range, or on old firmware must not stall the report.
-        const pod = await deps.nav.requestDeviceDiag();
-        lines.push(`device status: ${pod ?? "(no answer / not supported)"}`);
+        // The source's own status ($PPELD from the GPS pod's DIAG command, or
+        // Signal K's summary of what the server sent). The pod request
+        // self-times-out fast (~2 s) and resolves null — a pod that's off,
+        // out of range, or on old firmware must not stall the report.
+        const status = await deps.nav.requestDeviceDiag();
+        lines.push(`source status: ${status ?? "(no answer / not supported)"}`);
         return lines.join("\n");
       },
     },

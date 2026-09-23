@@ -26,7 +26,12 @@ export interface SignalkLinkState {
   /** Time spent trying to (re)connect, or null when not trying. */
   reconnectingMs: number | null;
   fixState: FixState;
+  /** Whether the device has any network at all (navigator.onLine). */
+  online: boolean;
 }
+
+/** Why a link is down when the device has no network at all. */
+export const NO_NETWORK_TEXT = "No network — join the boat's WiFi";
 
 export function signalkLinkStatus(s: SignalkLinkState): LinkStatus {
   if (s.connectedMs !== null) {
@@ -40,6 +45,7 @@ export function signalkLinkStatus(s: SignalkLinkState): LinkStatus {
       ? { text: "⚠ Connected, but the server has no position", tone: "warn" }
       : { text: "⚠ Connected, but no data is arriving", tone: "warn" };
   }
+  if (!s.online) return { text: `✕ ${NO_NETWORK_TEXT}`, tone: "bad" };
   if (s.reconnectingMs !== null) {
     return s.reconnectingMs < SIGNALK_STATUS_GRACE_MS
       ? { text: "⟳ Connecting…", tone: "warn" }

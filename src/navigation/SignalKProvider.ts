@@ -118,6 +118,14 @@ export class SignalKProvider implements NavigationDataProvider {
     return this.core.lastRawDataMs();
   }
 
+  /** What the server has sent, for bug reports (see SignalKDiagnostics). */
+  requestDeviceDiag(): Promise<string | null> {
+    if (this.url === null) return Promise.resolve(null);
+    return Promise.resolve(
+      `${this.url}\n${this.diagnostics.summary(Date.now(), this.isConnected())}`,
+    );
+  }
+
   /** False while no server is entered: nothing is being retried. */
   isReconnecting(): boolean {
     return this.url !== null && this.core.isReconnecting();

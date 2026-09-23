@@ -134,11 +134,11 @@ export interface NavigationDataProvider {
    */
   lastRawDataMs?(): number;
   /**
-   * Optional: ask the device for its own status ("DIAG" over the NUS RX
-   * characteristic; the GPS pod answers with one $PPELD sentence carrying
-   * uptime/connection/notify/UART counters). Resolves the raw sentence, or
-   * null when the link is down or the device doesn't answer in time. Used by
-   * the diagnostics collector so bug reports include the device's view.
+   * Optional: the source's own view of its status, for bug reports. The GPS
+   * pod answers a "DIAG" command over the NUS RX characteristic with one
+   * $PPELD sentence (uptime/connection/notify/UART counters); Signal K
+   * summarizes what the server has sent. Resolves null when there's nothing
+   * to report or the device doesn't answer in time.
    */
   requestDeviceDiag?(timeoutMs?: number): Promise<string | null>;
 }

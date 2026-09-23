@@ -102,6 +102,21 @@ describe("SignalKDiagnostics", () => {
     expect(d.messageRate(2000)).toBeCloseTo(10, 5);
   });
 
+  it("summarizes for bug reports without the vessel's identity", () => {
+    const d = new SignalKDiagnostics();
+    d.noteConnected(0);
+    d.noteMessage(hello, 0);
+    d.noteMessage(delta(SELF, "", { name: "Nautilus", mmsi: "367000001" }), 0);
+    d.noteMessage(delta(SELF, "navigation.speedOverGround", 2.5), 1000);
+    const text = d.summary(3000, true);
+    expect(text).toContain("server: signalk-server 2.33.0");
+    expect(text).toContain("connected 3 s");
+    expect(text).toContain(
+      "navigation.speedOverGround = 2.5 · 2.0 s · nmea0183.GP",
+    );
+    expect(text).not.toMatch(/Nautilus|367000001|self-1/);
+  });
+
   it("starts each connection fresh but keeps counting connections", () => {
     const d = new SignalKDiagnostics();
     d.noteConnected(0);

@@ -732,6 +732,7 @@ function buildSignalkServerRow(
       connectedMs: connected ? now - connectedSince : null,
       reconnectingMs: reconnecting ? now - reconnectingSince : null,
       fixState: gpsLink.fixState(),
+      online: navigator.onLine,
     });
     const className = `settings-signalk-status settings-link-${tone}`;
     if (status.hidden === shown) status.hidden = !shown;

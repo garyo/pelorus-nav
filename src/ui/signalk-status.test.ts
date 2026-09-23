@@ -11,6 +11,7 @@ describe("signalkLinkStatus", () => {
         connectedMs: 0,
         reconnectingMs: null,
         fixState: "fix",
+        online: true,
       }),
     ).toEqual({ text: "✓ Connected, receiving position", tone: "ok" });
   });
@@ -20,6 +21,7 @@ describe("signalkLinkStatus", () => {
       connectedMs: GRACE - 1,
       reconnectingMs: null,
       fixState: "no-fix",
+      online: true,
     });
     expect(fresh.tone).toBe("warn");
     expect(fresh.text).toMatch(/waiting for position/);
@@ -31,6 +33,7 @@ describe("signalkLinkStatus", () => {
         connectedMs: GRACE,
         reconnectingMs: null,
         fixState: "no-fix",
+        online: true,
       }).text,
     ).toMatch(/server has no position/);
     expect(
@@ -38,6 +41,7 @@ describe("signalkLinkStatus", () => {
         connectedMs: GRACE,
         reconnectingMs: null,
         fixState: "no-data",
+        online: true,
       }).text,
     ).toMatch(/no data is arriving/);
   });
@@ -48,6 +52,7 @@ describe("signalkLinkStatus", () => {
         connectedMs: null,
         reconnectingMs: 0,
         fixState: "no-gps",
+        online: true,
       }),
     ).toEqual({ text: "⟳ Connecting…", tone: "warn" });
     expect(
@@ -55,8 +60,20 @@ describe("signalkLinkStatus", () => {
         connectedMs: null,
         reconnectingMs: GRACE,
         fixState: "no-gps",
+        online: true,
       }),
     ).toEqual({ text: "✕ Can't reach the server, retrying", tone: "bad" });
+  });
+
+  it("says when the device has no network at all", () => {
+    expect(
+      signalkLinkStatus({
+        connectedMs: null,
+        reconnectingMs: 0,
+        fixState: "no-gps",
+        online: false,
+      }),
+    ).toEqual({ text: "✕ No network — join the boat's WiFi", tone: "bad" });
   });
 
   it("reports an idle link as not connected", () => {
@@ -65,6 +82,7 @@ describe("signalkLinkStatus", () => {
         connectedMs: null,
         reconnectingMs: null,
         fixState: "no-gps",
+        online: true,
       }).tone,
     ).toBe("bad");
   });

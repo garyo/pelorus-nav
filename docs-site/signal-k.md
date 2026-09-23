@@ -38,10 +38,11 @@ connection is going:
 
 - **✓ Connected, receiving position**: all good.
 - **⟳ Connecting…**: trying for the first few seconds.
-- **✕ Can't reach the server, retrying**: the address or port is wrong,
-  you're on a different WiFi network, the server is off, or (on iPhone and
-  iPad) Pelorus Nav hasn't been allowed onto the local network. Pelorus Nav
-  keeps retrying on its own, so it reconnects once the problem is fixed.
+- **✕ No network — join the boat's WiFi**: WiFi is off, or the phone has no
+  network connection at all.
+- **✕ Can't reach the server, retrying**: see
+  [When it won't connect](#when-it-won-t-connect). Pelorus Nav keeps
+  retrying on its own, so it reconnects once the problem is fixed.
 - **⚠ Connected, but the server has no position**: the server is running
   but nothing is sending it a GPS position. See the server details below.
 - **⚠ Connected, but no data is arriving**: the server isn't sending
@@ -50,6 +51,36 @@ connection is going:
 On iPhone and iPad, the first connection asks for permission to find devices
 on your local network. Allow it; if you declined, turn **Local Network** on
 for Pelorus Nav in the iOS Settings app.
+
+## When it won't connect
+
+The phone or tablet must be on the **same network as the server**, which on
+a boat almost always means the boat's WiFi. The server doesn't need the
+internet, but the phone can't reach it any other way. Check:
+
+- **WiFi is on.** Airplane mode turns WiFi off, but you can turn WiFi back
+  on while staying in airplane mode, and Signal K then works.
+- **You're on the boat's WiFi**, not the marina's or a phone hotspot. Mobile
+  data can't reach a server on the boat.
+- **The address and port** match what you'd use to open the server's web
+  page in a browser on the same phone. If the browser can't open it either,
+  the problem is the network or the server, not Pelorus Nav.
+- **The server is running.** Its web page shows whether it's receiving data
+  from the boat's instruments.
+- **iPhone and iPad:** Pelorus Nav is allowed on the local network (see
+  above).
+
+::: warning Android and WiFi without internet
+A boat's WiFi usually has no internet connection, and Android may quietly
+switch to mobile data because of it, dropping the connection to the server.
+When Android says the network has no internet access, choose to **stay
+connected**. On Samsung phones, also turn off **Switch to mobile data**
+(Settings → Connections → Wi-Fi → ⋮ → Intelligent Wi-Fi). iOS shows "No
+Internet Connection" under the network's name but stays connected.
+:::
+
+After a problem is fixed, Pelorus Nav reconnects within about half a
+minute; **Reconnect** in Server details tries straight away.
 
 ::: tip Servers with security turned on
 Pelorus Nav doesn't log in to the server. If the server has security turned
@@ -89,3 +120,11 @@ If the source shown for the position isn't the GPS you expected, the boat
 may have two GPS receivers, and the server is choosing between them. The
 server's own settings control which source it prefers.
 :::
+
+## Reporting a problem
+
+Signal K support is new, and every boat's setup is different. If it doesn't
+work for you, or works in a surprising way, please send a report from
+**Info → Report a Bug**. The report includes the connection history and a
+summary of what the server was sending, which is usually enough to tell
+what went wrong.

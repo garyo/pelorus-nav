@@ -19,6 +19,7 @@ import { toDegrees } from "../utils/coordinates";
 import { MS_TO_KNOTS } from "../utils/units";
 import { hdopQuality } from "./SatelliteStatusPanel";
 import { ageTone, formatAge, formatSignalkValue } from "./signalk-format";
+import { NO_NETWORK_TEXT } from "./signalk-status";
 import {
   addStatusRow,
   type DotState,
@@ -282,6 +283,8 @@ export class SignalKStatusPanel {
         "green",
         `Connected · ${formatAge(now - d.connectedAtMs)}`,
       );
+    } else if (!navigator.onLine) {
+      setStatusRow(this.rowLink, "red", NO_NETWORK_TEXT);
     } else if (provider.isReconnecting()) {
       setStatusRow(this.rowLink, "amber", "Can't reach the server — retrying");
     } else {

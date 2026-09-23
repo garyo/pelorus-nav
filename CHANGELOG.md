@@ -10,23 +10,20 @@ The format follows [Keep a Changelog](https://keepachangelog.com/).
 ### Added
 - Search: named dredged channels, creeks and rivers, ponds, wharves and rocks
   are now findable by name.
-- Signal K diagnostics (Settings → Navigation → Server details): the
-  server's name and version, the link and message rate, where the position,
-  course, speed and heading come from and how fresh each is, GPS fix quality
-  when the server reports it, a count of AIS targets, and every value the
-  server sends with its source.
+- **Signal K** (experimental): the Android and iOS apps can take position,
+  course, speed and heading from a boat's Signal K server. In Settings →
+  Navigation, choose Signal K and enter the server's address —
+  `192.168.1.50` or `openplotter.local`, with an optional port. A status
+  line shows whether it's connected and receiving a position, and **Server
+  details** shows everything the server sends: where each value comes from
+  and how fresh it is, GPS fix quality when reported, and a count of AIS
+  targets. A magnetic-only compass heading is corrected to true. This hasn't
+  been tried on many boats yet; if you use it, please let us know how it
+  goes, working or not (**Info** → **Report a Bug**).
 
 ### Fixed
-- GPS: the Signal K source can now reach a boat's Signal K server from the
-  Android and iOS apps (plain `ws://` on the local network was blocked). The
-  server field takes just an address — `192.168.1.50` or `openplotter.local`,
-  with an optional port — says what pressing Enter will connect to, and
-  once saved shows a live status line: connected, can't reach the server, or
-  connected but no position arriving. Choosing Signal K no longer tries a
-  `localhost` server and reports it unreachable, and each position from a
-  real Signal K server now counts as one GPS fix rather than several.
-- GPS: a Signal K server with only a magnetic compass now provides the boat's
-  heading, corrected to true by the server's variation or the charted one.
+- Report a Bug: in the web app, "App diagnostics" showed characters such as
+  "·" and "—" garbled.
 - Routes: tapping a waypoint that several routes pass through offers a card
   per route, but led with whichever route happened to draw on top, so the
   Navigate and Steer actions acted on an arbitrary one. The selected route

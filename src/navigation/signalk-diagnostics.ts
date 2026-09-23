@@ -120,6 +120,34 @@ export class SignalKDiagnostics {
     return spanMs > 0 ? (recent.length * 1000) / spanMs : 0;
   }
 
+  /**
+   * Plain-text summary for bug reports: server, link, and every own-vessel
+   * path with its raw value, age and source. Leaves out the vessel's
+   * identity (the root path's name/MMSI and the self context), which a
+   * report doesn't need.
+   */
+  summary(now: number, connected: boolean): string {
+    const { name, version } = this.hello;
+    const server = [name, version].filter(Boolean).join(" ") || "(no hello)";
+    const link = connected
+      ? `connected ${Math.round((now - this.connectedAtMs) / 1000)} s`
+      : "not connected (values below are from the last connection)";
+    const lines = [
+      `server: ${server}`,
+      `link: ${link} · connections this session: ${this.connections} · ${this.messageRate(now).toFixed(1)} msg/s`,
+      `other vessels heard: ${this.otherVesselCount(now)}`,
+    ];
+    const paths = [...this.paths.keys()].filter((p) => p !== "").sort();
+    lines.push(`own-vessel paths (${paths.length}):`);
+    for (const path of paths) {
+      const s = this.paths.get(path) as SignalKPathSample;
+      const age = ((now - s.receivedMs) / 1000).toFixed(1);
+      const value = JSON.stringify(s.value) ?? "undefined";
+      lines.push(`  ${path} = ${value} · ${age} s · ${s.source ?? "?"}`);
+    }
+    return lines.join("\n");
+  }
+
   /** Other vessels (AIS targets) heard recently. */
   otherVesselCount(now: number): number {
     let n = 0;
