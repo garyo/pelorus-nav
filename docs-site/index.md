@@ -23,6 +23,8 @@ tracks, tides and currents, and man-overboard.
   and downloading charts for offline use.
 - [The Chart Display](/chart-display) — chart modes, detail levels, layers,
   and the instrument display.
+- [Your Own Charts](/own-charts) — loading satellite and scanned charts you
+  bring yourself.
 - [Routes](/routes) — creating, editing, and following routes.
 - [Tracks](/tracks) — recording where you went, and reliving it in the
   Track Viewer.
@@ -30,6 +32,8 @@ tracks, tides and currents, and man-overboard.
   the chart, up to 48 hours ahead.
 - [Traditional Plotting](/plotting) — DRs, fixes, bearing lines, and
   distance arcs for chartwork the old way.
+- [Signal K](/signal-k) — using the boat's own GPS and instruments through
+  a Signal K server.
 
 The guide covers the interesting parts, not every menu item — most of the app
 is meant to be discoverable by tapping around, and nothing you do in a panel

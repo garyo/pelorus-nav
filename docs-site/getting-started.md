@@ -115,6 +115,10 @@ several regions or basemaps out of date, an **Update All** row at the top of
 the panel queues them all. The panel footer shows total storage used.
 Downloaded charts can be removed individually or all at once.
 
+Charts you bring yourself, such as satellite-imagery collections for waters
+with poor official charts, load from the same panel: see
+[Your Own Charts](/own-charts).
+
 ## Save your home port
 
 Worth doing on day one: make your slip or mooring a waypoint.
