@@ -14,8 +14,9 @@ The format follows [Keep a Changelog](https://keepachangelog.com/).
   course, speed and heading from a boat's Signal K server. In Settings →
   Navigation, choose Signal K and enter the server's address —
   `192.168.1.50` or `openplotter.local`, with an optional port. A status
-  line shows whether it's connected and receiving a position, and **Server
-  details** shows everything the server sends: where each value comes from
+  line shows whether it's connected and receiving a position, or why the
+  server can't be reached (refused, unknown name, nothing at that address),
+  and **Server details** shows everything the server sends: where each value comes from
   and how fresh it is, GPS fix quality when reported, and a count of AIS
   targets. A magnetic-only compass heading is corrected to true. This hasn't
   been tried on many boats yet; if you use it, please let us know how it

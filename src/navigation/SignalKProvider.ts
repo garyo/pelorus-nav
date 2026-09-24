@@ -20,11 +20,38 @@ import type {
 import type { ProviderNotice } from "./ProviderNotice";
 import { ReconnectingTransport } from "./ReconnectingTransport";
 import { SignalKDiagnostics } from "./signalk-diagnostics";
+import { describeProbe, discoveryUrl, type ProbeResult } from "./signalk-probe";
 
 // Subscription period bounds: the server quantizes anyway, and anything
 // faster than 1 s or slower than 10 s buys nothing for navigation.
 const MIN_PERIOD_MS = 1000;
 const MAX_PERIOD_MS = 10000;
+
+// After a failed attempt, re-run the native reachability probe no more often
+// than this; each result only reaches the log when it differs from the last.
+const PROBE_INTERVAL_MS = 60000;
+
+/** A failed connection attempt, with how long it took to fail. */
+class ConnectFailure extends Error {
+  readonly elapsedMs: number;
+  constructor(message: string, elapsedMs: number) {
+    super(message);
+    this.elapsedMs = elapsedMs;
+  }
+}
+
+function elapsedText(ms: number): string {
+  return ms < 1000 ? `${ms} ms` : `${(ms / 1000).toFixed(1)} s`;
+}
+
+/**
+ * Coarse speed of a failure, for deduplicating log lines: a refused port
+ * fails at once, a lookup failure shortly, a silent host only on timeout.
+ */
+function failureSpeed(ms: number): string {
+  if (ms < 200) return "immediate";
+  return ms < 3000 ? "short" : "slow";
+}
 
 // Signal K servers legitimately send `"value": null` when a quantity is
 // unknown (e.g. COG/SOG from an NMEA source without a fix); anything
@@ -72,6 +99,13 @@ export class SignalKProvider implements NavigationDataProvider {
 
   /** Everything this connection has seen, for the diagnostics panel. */
   readonly diagnostics = new SignalKDiagnostics();
+  /** Latest reachability probe since the link was last up, if any. */
+  lastProbe: { result: ProbeResult; atMs: number } | null = null;
+  private readonly probe?: (streamUrl: string) => Promise<ProbeResult>;
+  private probing = false;
+  // What was last written to the log, so a retry loop logs only changes.
+  private loggedFailure: string | null = null;
+  private loggedProbe: string | null = null;
   /** While true, also subscribe to every own-vessel path and other vessels. */
   private inspecting = false;
 
@@ -87,9 +121,19 @@ export class SignalKProvider implements NavigationDataProvider {
   // fix. Coordinates too, because some GPSs stamp only whole seconds.
   private lastPositionKey: string | null = null;
 
-  constructor(url: string | null, onNotice?: (notice: ProviderNotice) => void) {
+  /**
+   * @param probe Native reachability check run after a failed attempt (the
+   *   apps pass probeSignalkServer; the web has no way to see past the
+   *   WebView's opaque WebSocket errors).
+   */
+  constructor(
+    url: string | null,
+    onNotice?: (notice: ProviderNotice) => void,
+    probe?: (streamUrl: string) => Promise<ProbeResult>,
+  ) {
     this.url = url;
     this.onNotice = onNotice;
+    this.probe = probe;
     this.core = new ReconnectingTransport(
       {
         providerId: this.id,
@@ -97,7 +141,11 @@ export class SignalKProvider implements NavigationDataProvider {
         silenceLimitMs: silenceLimitFor(this.periodMs),
       },
       {
-        establish: () => this.openSocket(),
+        establish: () =>
+          this.openSocket().catch((err: unknown) => {
+            this.noteAttemptFailed(err);
+            throw err;
+          }),
         onEstablished: () => this.handleEstablished(),
         teardown: () => this.teardownSocket(),
         attemptDetail: (cause) => `${this.url} (${cause})`,
@@ -121,9 +169,52 @@ export class SignalKProvider implements NavigationDataProvider {
   /** What the server has sent, for bug reports (see SignalKDiagnostics). */
   requestDeviceDiag(): Promise<string | null> {
     if (this.url === null) return Promise.resolve(null);
+    const probe = this.lastProbe
+      ? `\nlast probe (${Math.round((Date.now() - this.lastProbe.atMs) / 1000)} s ago): ${describeProbe(this.lastProbe.result)}`
+      : "";
     return Promise.resolve(
-      `${this.url}\n${this.diagnostics.summary(Date.now(), this.isConnected())}`,
+      `${this.url}${probe}\n${this.diagnostics.summary(Date.now(), this.isConnected())}`,
     );
+  }
+
+  /**
+   * Log a failed attempt (only when it differs from the last, so a night of
+   * retries doesn't flush the log), and probe the server natively for the
+   * real reason if one hasn't been fetched recently.
+   */
+  private noteAttemptFailed(err: unknown): void {
+    const message = err instanceof Error ? err.message : String(err);
+    const key =
+      err instanceof ConnectFailure
+        ? `${err.message.replace(/ after .*/, "")} ${failureSpeed(err.elapsedMs)}`
+        : message;
+    if (key !== this.loggedFailure) {
+      this.loggedFailure = key;
+      connectionLog.log(this.id, "error", message);
+    }
+    const url = this.url;
+    const due =
+      !this.lastProbe || Date.now() - this.lastProbe.atMs >= PROBE_INTERVAL_MS;
+    if (!this.probe || url === null || this.probing || !due) return;
+    this.probing = true;
+    void this.probe(url)
+      .then((result) => {
+        if (this.url !== url || this.isConnected()) return; // moot by now
+        this.lastProbe = { result, atMs: Date.now() };
+        const summary = describeProbe(result);
+        const probeKey = result.ok ? "ok" : result.failure;
+        if (probeKey !== this.loggedProbe) {
+          this.loggedProbe = probeKey;
+          connectionLog.log(
+            this.id,
+            "probe",
+            `${discoveryUrl(url)} → ${summary}`,
+          );
+        }
+      })
+      .finally(() => {
+        this.probing = false;
+      });
   }
 
   /** False while no server is entered: nothing is being retried. */
@@ -173,6 +264,9 @@ export class SignalKProvider implements NavigationDataProvider {
   setUrl(url: string | null): void {
     if (url === this.url) return;
     this.url = url;
+    this.lastProbe = null;
+    this.loggedFailure = null;
+    this.loggedProbe = null;
     if (!this.core.wantConnected) return;
     // Move the connection to the new server: drop the old socket quietly and
     // retry immediately (the stale socket's close event is ignored by the
@@ -211,7 +305,6 @@ export class SignalKProvider implements NavigationDataProvider {
       await this.core.runEstablish("initial");
     } catch (err) {
       console.warn("Signal K connect failed, retrying:", err);
-      connectionLog.log(this.id, "error", `connect: ${String(err)}`);
       this.onNotice?.({
         kind: "connect-failed",
         detail: `cannot reach ${this.url}`,
@@ -231,12 +324,20 @@ export class SignalKProvider implements NavigationDataProvider {
     this.teardownSocket();
     const url = this.url;
     if (url === null) return Promise.reject(new Error("no server address"));
+    const t0 = Date.now();
+    const fail = (what: string) => {
+      const ms = Date.now() - t0;
+      return new ConnectFailure(`${what} after ${elapsedText(ms)}`, ms);
+    };
     return new Promise((resolve, reject) => {
       const sock = new WebSocket(url);
       let opened = false;
       this.ws = sock;
       sock.onopen = () => {
         opened = true;
+        this.lastProbe = null;
+        this.loggedFailure = null;
+        this.loggedProbe = null;
         // Here, not in handleEstablished: that runs a few promise hops
         // later, and the server's hello can already have arrived by then.
         this.diagnostics.noteConnected(Date.now());
@@ -258,15 +359,15 @@ export class SignalKProvider implements NavigationDataProvider {
         // Reject here too (no-op after open): some runtimes deliver the
         // close event late or not at all on a failed handshake, and the
         // establish must not hang on it.
-        reject(new Error("connection failed"));
+        reject(fail("connection failed"));
       };
-      sock.onclose = () => {
+      sock.onclose = (event) => {
         // Identity guard: a torn-down socket's close event must not clobber
         // the replacement link's state (the close-race bug).
         if (this.ws !== sock) return;
         this.ws = null;
         if (!opened) {
-          reject(new Error("connection closed")); // failed before open
+          reject(fail(`connection closed (code ${event.code})`)); // failed before open
           return;
         }
         if (this.core.noteLinkDropped("server")) {

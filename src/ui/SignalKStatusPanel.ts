@@ -9,17 +9,19 @@
  * other vessels' positions (to count AIS targets); it narrows back on close.
  */
 
+import { Capacitor } from "@capacitor/core";
 import type { NavigationDataManager } from "../navigation/NavigationDataManager";
 import type { SignalKProvider } from "../navigation/SignalKProvider";
 import type {
   SignalKDiagnostics,
   SignalKPathSample,
 } from "../navigation/signalk-diagnostics";
+import { describeProbe } from "../navigation/signalk-probe";
 import { toDegrees } from "../utils/coordinates";
 import { MS_TO_KNOTS } from "../utils/units";
 import { hdopQuality } from "./SatelliteStatusPanel";
 import { ageTone, formatAge, formatSignalkValue } from "./signalk-format";
-import { NO_NETWORK_TEXT } from "./signalk-status";
+import { NO_NETWORK_TEXT, unreachableText } from "./signalk-status";
 import {
   addStatusRow,
   type DotState,
@@ -46,6 +48,7 @@ export class SignalKStatusPanel {
   private readonly rowVessel: StatusRow;
   private readonly rowAddress: StatusRow;
   private readonly rowLink: StatusRow;
+  private readonly rowCheck: StatusRow;
   private readonly rowTraffic: StatusRow;
   private readonly rowPosition: StatusRow;
   private readonly rowCog: StatusRow;
@@ -85,6 +88,8 @@ export class SignalKStatusPanel {
     this.rowVessel = addStatusRow(serverGrid, "Vessel");
     this.rowAddress = addStatusRow(serverGrid, "Address");
     this.rowLink = addStatusRow(serverGrid, "Link");
+    // The native reachability probe's last finding, while the link is down.
+    this.rowCheck = addStatusRow(serverGrid, "Check");
     this.rowTraffic = addStatusRow(serverGrid, "Traffic");
 
     const usedGrid = document.createElement("div");
@@ -108,6 +113,7 @@ export class SignalKStatusPanel {
       this.rowServer,
       this.rowVessel,
       this.rowAddress,
+      this.rowCheck,
       this.rowTraffic,
       this.rowFix,
       this.rowSats,
@@ -286,11 +292,28 @@ export class SignalKStatusPanel {
     } else if (!navigator.onLine) {
       setStatusRow(this.rowLink, "red", NO_NETWORK_TEXT);
     } else if (provider.isReconnecting()) {
-      setStatusRow(this.rowLink, "amber", "Can't reach the server — retrying");
+      setStatusRow(
+        this.rowLink,
+        "amber",
+        unreachableText(
+          provider.lastProbe?.result ?? null,
+          Capacitor.getPlatform() === "ios",
+        ),
+      );
     } else {
       setStatusRow(this.rowLink, "red", "Not connected");
     }
     this.reconnectBtn.style.display = connected || !url ? "none" : "";
+
+    const check = connected ? null : provider.lastProbe;
+    setStatusRowVisible(this.rowCheck, check !== null);
+    if (check) {
+      setStatusRow(
+        this.rowCheck,
+        "off",
+        `${describeProbe(check.result)} · ${formatAge(now - check.atMs)} ago`,
+      );
+    }
 
     const drops = Math.max(0, d.connections - 1);
     setStatusRow(

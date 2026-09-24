@@ -33,6 +33,7 @@ import {
   type SimulatorOptions,
   SimulatorProvider,
 } from "./SimulatorProvider";
+import { probeSignalkServer } from "./signalk-probe";
 import { signalkStreamUrl } from "./signalk-url";
 import { WebSerialNMEAProvider } from "./WebSerialNMEAProvider";
 
@@ -325,6 +326,7 @@ export function setupGpsProviders(
   const signalK = new SignalKProvider(
     signalkStreamUrl(getSettings().signalkServer),
     makeProviderNoticeHandler("signalk", "Signal K"),
+    Capacitor.isNativePlatform() ? probeSignalkServer : undefined,
   );
   navManager.registerProvider(signalK);
 

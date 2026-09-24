@@ -40,9 +40,21 @@ connection is going:
 - **⟳ Connecting…**: trying for the first few seconds.
 - **✕ No network — join the boat's WiFi**: WiFi is off, or the phone has no
   network connection at all.
-- **✕ Can't reach the server, retrying**: see
-  [When it won't connect](#when-it-won-t-connect). Pelorus Nav keeps
-  retrying on its own, so it reconnects once the problem is fixed.
+- **✕ Can't reach the server**: the app checks why, and says so:
+  - **Connection refused — check the port**: something is at that address,
+    but no Signal K server on that port.
+  - **Server name not found — check the address**: the name (like
+    `openplotter.local`) doesn't lead anywhere on this network.
+  - **Nothing answers at that address — check it, and the WiFi**: no device
+    has that address, or it's not on your network.
+  - **Blocked — allow Local Network for Pelorus in iOS Settings** (iPhone
+    and iPad).
+  - **Server found, but its data stream won't connect**: the server
+    answers, but refuses the data connection; check its security settings
+    (below).
+
+  Pelorus Nav keeps retrying on its own, so it reconnects once the problem
+  is fixed. See also [When it won't connect](#when-it-won-t-connect).
 - **⚠ Connected, but the server has no position**: the server is running
   but nothing is sending it a GPS position. See the server details below.
 - **⚠ Connected, but no data is arriving**: the server isn't sending

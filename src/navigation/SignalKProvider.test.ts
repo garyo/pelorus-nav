@@ -1,9 +1,11 @@
 import type { AddressInfo } from "node:net";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import * as WS from "ws";
+import { connectionLog } from "./ConnectionEventLog";
 import type { NavigationData } from "./NavigationData";
 import type { ProviderNotice } from "./ProviderNotice";
 import { SignalKProvider } from "./SignalKProvider";
+import type { ProbeResult } from "./signalk-probe";
 
 // ws's CJS interop exposes the server class as `Server` under node but as the
 // named `WebSocketServer` under vite/vitest; bridge both so this runs everywhere.
@@ -657,6 +659,45 @@ describe("SignalKProvider reconnect lifecycle", () => {
     const after = messages.slice(before);
     expect(after[0].unsubscribe).toBeDefined();
     expect(after.slice(1).some(wildcard)).toBe(false);
+  }, 10000);
+
+  it("probes a server it can't reach, and logs each outcome once", async () => {
+    const probe = new WebSocketServer({ port: 0 });
+    await listening(probe);
+    const deadPort = portOf(probe);
+    await new Promise<void>((r) => probe.close(() => r()));
+
+    const refused: ProbeResult = {
+      ok: false,
+      ms: 3,
+      failure: "refused",
+      message: "Could not connect to the server.",
+    };
+    const probeFn = vi.fn().mockResolvedValue(refused);
+    connectionLog.clear();
+    provider = new SignalKProvider(wsUrl(deadPort), undefined, probeFn);
+    provider.connect();
+    // Initial attempt plus retries at 1 s and 2 s.
+    await waitFor(
+      () =>
+        connectionLog.getEntries().filter((e) => e.type === "connect-attempt")
+          .length >= 3,
+      6000,
+    );
+    await waitFor(() => provider?.lastProbe !== null);
+
+    expect(probeFn).toHaveBeenCalledTimes(1); // rate-limited across retries
+    expect(provider.lastProbe?.result).toEqual(refused);
+    const entries = connectionLog.getEntries();
+    const errors = entries.filter((e) => e.type === "error");
+    expect(errors).toHaveLength(1); // the same quick failure, logged once
+    expect(errors[0].detail).toMatch(
+      /^connection (failed|closed).* after \d+ ms/,
+    );
+    const probes = entries.filter((e) => e.type === "probe");
+    expect(probes).toHaveLength(1);
+    expect(probes[0].detail).toContain(`:${deadPort}/signalk → refused`);
+    expect(await provider.requestDeviceDiag()).toContain("last probe");
   }, 10000);
 
   it("waits quietly for a server address, then connects once one is set", async () => {

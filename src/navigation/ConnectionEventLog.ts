@@ -43,6 +43,7 @@ export type ConnectionEventType =
   | "bt-enabled"
   | "bt-disabled"
   | "error" // detail: message
+  | "probe" // detail: native reachability check of a server, and its result
   | "diag"; // detail: free-form diagnostic line (e.g. edit-tap observer)
 
 export interface ConnectionEvent {

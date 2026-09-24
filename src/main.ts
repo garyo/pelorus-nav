@@ -536,6 +536,7 @@ const settingsHandle = topbarMenu
       },
       openConnectionLog: () => connectionLogPanel.show(),
       openSignalKDiagnostics: () => signalkPanel.show(gps.signalK, navManager),
+      signalkProbe: () => gps.signalK.lastProbe?.result ?? null,
     })
   : null;
 

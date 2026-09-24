@@ -5,6 +5,7 @@
 
 import { Capacitor } from "@capacitor/core";
 import { CapacitorGPSProvider } from "../navigation/CapacitorGPSProvider";
+import type { ProbeResult } from "../navigation/signalk-probe";
 import { signalkStreamUrl } from "../navigation/signalk-url";
 import {
   type BearingMode,
@@ -94,6 +95,8 @@ export interface CreateSettingsPanelOpts {
   openConnectionLog: () => void;
   /** Open the Signal K diagnostics panel. */
   openSignalKDiagnostics: () => void;
+  /** The Signal K provider's latest reachability probe, if any. */
+  signalkProbe: () => ProbeResult | null;
   /** Rewind the simulator to the start of its route/track. */
   restartSimulator: () => void;
 }
@@ -656,6 +659,7 @@ function buildTextRow(
 function buildSignalkServerRow(
   value: string,
   gpsLink: GpsLinkOpt,
+  probe: () => ProbeResult | null,
 ): { row: HTMLElement; update: () => void } {
   const row = buildTextRow(
     "Signal K server",
@@ -709,7 +713,10 @@ function buildSignalkServerRow(
     update();
   });
 
+  // Filled by the first poll: its callbacks reach the GPS providers, which
+  // don't exist yet while the settings panel is being built.
   const status = document.createElement("div");
+  status.hidden = true;
   row.appendChild(status);
   let connectedSince = 0;
   let reconnectingSince = 0;
@@ -733,6 +740,8 @@ function buildSignalkServerRow(
       reconnectingMs: reconnecting ? now - reconnectingSince : null,
       fixState: gpsLink.fixState(),
       online: navigator.onLine,
+      probe: probe(),
+      ios: Capacitor.getPlatform() === "ios",
     });
     const className = `settings-signalk-status settings-link-${tone}`;
     if (status.hidden === shown) status.hidden = !shown;
@@ -740,7 +749,6 @@ function buildSignalkServerRow(
     if (status.className !== className) status.className = className;
   };
   updateHint();
-  update();
   return { row, update };
 }
 
@@ -851,7 +859,11 @@ function buildNavigationTab(
   for (const row of simRows) tab.appendChild(row);
 
   // Signal K server (shown only when Signal K is the GPS source)
-  const signalk = buildSignalkServerRow(settings.signalkServer, gpsLink);
+  const signalk = buildSignalkServerRow(
+    settings.signalkServer,
+    gpsLink,
+    opts.signalkProbe,
+  );
   const signalkDetailsRow = buildActionRow(
     "Server details",
     "settings-signalk-details",
