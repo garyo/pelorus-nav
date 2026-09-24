@@ -29,7 +29,7 @@ const MAX_PERIOD_MS = 10000;
 
 // After a failed attempt, re-run the native reachability probe no more often
 // than this; each result only reaches the log when it differs from the last.
-const PROBE_INTERVAL_MS = 60000;
+const PROBE_INTERVAL_MS = 15000;
 
 /** A failed connection attempt, with how long it took to fail. */
 class ConnectFailure extends Error {
@@ -103,6 +103,9 @@ export class SignalKProvider implements NavigationDataProvider {
   lastProbe: { result: ProbeResult; atMs: number } | null = null;
   private readonly probe?: (streamUrl: string) => Promise<ProbeResult>;
   private probing = false;
+  // The user asked to retry (Reconnect): check again rather than show a
+  // finding from before whatever they just fixed.
+  private probeNow = false;
   // What was last written to the log, so a retry loop logs only changes.
   private loggedFailure: string | null = null;
   private loggedProbe: string | null = null;
@@ -194,9 +197,12 @@ export class SignalKProvider implements NavigationDataProvider {
     }
     const url = this.url;
     const due =
-      !this.lastProbe || Date.now() - this.lastProbe.atMs >= PROBE_INTERVAL_MS;
+      this.probeNow ||
+      !this.lastProbe ||
+      Date.now() - this.lastProbe.atMs >= PROBE_INTERVAL_MS;
     if (!this.probe || url === null || this.probing || !due) return;
     this.probing = true;
+    this.probeNow = false;
     void this.probe(url)
       .then((result) => {
         if (this.url !== url || this.isConnected()) return; // moot by now
@@ -241,6 +247,7 @@ export class SignalKProvider implements NavigationDataProvider {
   /** Manual reconnect (UI button): drop the current socket and retry now. */
   async reconnect(): Promise<void> {
     if (this.url === null) return;
+    this.probeNow = true;
     this.teardownSocket();
     this.core.claimIntent();
     try {

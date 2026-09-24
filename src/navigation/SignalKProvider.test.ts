@@ -698,6 +698,10 @@ describe("SignalKProvider reconnect lifecycle", () => {
     expect(probes).toHaveLength(1);
     expect(probes[0].detail).toContain(`:${deadPort}/signalk → refused`);
     expect(await provider.requestDeviceDiag()).toContain("last probe");
+
+    // Reconnect (the user fixed something) checks again at once.
+    await provider.reconnect();
+    await waitFor(() => probeFn.mock.calls.length === 2);
   }, 10000);
 
   it("waits quietly for a server address, then connects once one is set", async () => {
