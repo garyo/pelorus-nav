@@ -5,22 +5,20 @@ Notable user-facing changes to Pelorus Nav. Downloads are on the
 
 The format follows [Keep a Changelog](https://keepachangelog.com/).
 
-## [Unreleased]
+## [0.27.0] - 2026-09-24
 
 ### Added
-- Search: named dredged channels, creeks and rivers, ponds, wharves and rocks
-  are now findable by name.
-- **Signal K** (experimental): the Android and iOS apps can take position,
-  course, speed and heading from a boat's Signal K server. In Settings →
-  Navigation, choose Signal K and enter the server's address —
-  `192.168.1.50` or `openplotter.local`, with an optional port. A status
-  line shows whether it's connected and receiving a position, or why the
-  server can't be reached (refused, unknown name, nothing at that address),
-  and **Server details** shows everything the server sends: where each value comes from
-  and how fresh it is, GPS fix quality when reported, and a count of AIS
-  targets. A magnetic-only compass heading is corrected to true. This hasn't
-  been tried on many boats yet; if you use it, please let us know how it
+- **Signal K** (experimental): the Android and iOS apps can take
+  position, course, speed and heading from a boat's Signal K server.
+  In Settings → Navigation, choose Signal K and enter the server's
+  address — `192.168.1.50` or `openplotter.local`, with an optional
+  port. A status line shows whether it's connected and receiving a
+  position, or why the server can't be reached, and **Server details**
+  shows everything the server sends. Signal K support hasn't been
+  tried on many boats yet; if you use it, please let us know how it
   goes, working or not (**Info** → **Report a Bug**).
+- Search: named creeks and rivers, ponds, wharves, dredged channels
+  and rocks are now findable by name.
 
 ### Fixed
 - Report a Bug: in the web app, "App diagnostics" showed characters such as
@@ -29,9 +27,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/).
   per route, but led with whichever route happened to draw on top, so the
   Navigate and Steer actions acted on an arbitrary one. The selected route
   now comes first.
-- Chart: a buoy or beacon whose name carried no short designation was
-  labelled with its whole name — "Boston Hbr Entrance" beside the symbol
-  where a chart shows "6" or "12A", or nothing. Those labels are gone.
+- Chart: a few buoys and beacons without a short designation were labelled
+  with their whole name. They're now left unlabelled, as on a paper chart.
 
 ## [0.26.0] - 2026-09-21
 
