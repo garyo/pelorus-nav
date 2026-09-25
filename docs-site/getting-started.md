@@ -14,11 +14,11 @@ For use on the water, install it:
 
 The web app updates itself: when a new build is published it loads in the
 background and the app reloads at a quiet moment (or tap **Reload now**).
-The Android and iOS apps instead check for a newer release each time they
-start and show a notice: on Android it opens the Play Store listing, on iOS
-the release notes (TestFlight installs the update itself). Untick **Check for updates
-at startup** in the About dialog (menu → About) to stop either kind of
-check.
+The Play Store and TestFlight apps update through the store. An APK
+installed from GitHub instead checks for a newer release each time it starts
+and shows a notice that opens the release page. Untick **Check for updates
+at startup** in the About dialog (menu → About) to stop the web app's or the
+APK's check.
 
 On first launch the app shows a navigation warning and user agreement, and
 asks for location permission the first time GPS is used. By default the chart

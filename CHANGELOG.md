@@ -7,6 +7,11 @@ The format follows [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Changed
+- The iOS and Play Store apps no longer show their own "new version
+  available" notice; the store delivers updates when they are ready. An APK
+  installed from GitHub still shows it, and it now opens the GitHub release.
+
 ### Fixed
 - The "new version available" notice and undo toasts were squeezed into a
   narrow column on phones, one word per line.

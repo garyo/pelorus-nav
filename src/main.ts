@@ -1880,12 +1880,12 @@ maybeShowScreenTimeoutWarning().catch(console.error);
 
 // After an app update, show this version's changelog highlights once.
 maybeShowWhatsNew();
-// Native builds have no service worker to fetch new code — ask GitHub for
-// the latest release instead (no-op on the web).
+// A sideloaded APK has no store or service worker to fetch new code — ask
+// GitHub for the latest release instead (no-op everywhere else).
 startReleaseCheck({
   currentVersion: __APP_VERSION__,
   enabled: () => getSettings().checkForUpdates,
-});
+}).catch(console.error);
 
 // Upload any bug reports queued while offline (startup + online events).
 initBugReportOutbox();

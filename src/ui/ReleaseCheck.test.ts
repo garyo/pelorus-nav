@@ -1,4 +1,17 @@
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+const mocks = vi.hoisted(() => ({
+  platform: "android",
+  getInstaller: vi.fn(),
+}));
+
+vi.mock("@capacitor/core", () => ({
+  Capacitor: { getPlatform: () => mocks.platform },
+}));
+vi.mock("../plugins/InstallSource", () => ({
+  InstallSource: { getInstaller: mocks.getInstaller },
+}));
+
 import { fetchNewerRelease } from "./ReleaseCheck";
 
 function fakeFetch(body: unknown, ok = true): typeof fetch {
@@ -35,5 +48,44 @@ describe("fetchNewerRelease", () => {
       throw new TypeError("offline");
     }) as unknown as typeof fetch;
     await expect(fetchNewerRelease("0.24.0", throwing)).resolves.toBeNull();
+  });
+});
+
+describe("isSideloadedAndroid", () => {
+  /** A fresh module, so the memoized answer doesn't leak between tests. */
+  async function check(): Promise<boolean> {
+    vi.resetModules();
+    const { isSideloadedAndroid } = await import("./ReleaseCheck");
+    return isSideloadedAndroid();
+  }
+
+  beforeEach(() => {
+    mocks.platform = "android";
+    mocks.getInstaller.mockReset();
+  });
+
+  it("is false for a Play Store install", async () => {
+    mocks.getInstaller.mockResolvedValue({ installer: "com.android.vending" });
+    await expect(check()).resolves.toBe(false);
+  });
+
+  it("is true for an APK from a browser, file manager, or adb", async () => {
+    for (const installer of ["com.android.chrome", null]) {
+      mocks.getInstaller.mockResolvedValue({ installer });
+      await expect(check()).resolves.toBe(true);
+    }
+  });
+
+  it("is false when the installer can't be read", async () => {
+    mocks.getInstaller.mockRejectedValue(new Error("not implemented"));
+    await expect(check()).resolves.toBe(false);
+  });
+
+  it("is false on iOS and the web without asking the plugin", async () => {
+    for (const platform of ["ios", "web"]) {
+      mocks.platform = platform;
+      await expect(check()).resolves.toBe(false);
+    }
+    expect(mocks.getInstaller).not.toHaveBeenCalled();
   });
 });

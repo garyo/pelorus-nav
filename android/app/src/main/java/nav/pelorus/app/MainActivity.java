@@ -12,6 +12,7 @@ import com.getcapacitor.PluginHandle;
 import nav.pelorus.plugins.backgroundgps.BackgroundGPSPlugin;
 import nav.pelorus.plugins.btserial.BluetoothSerialPlugin;
 import nav.pelorus.plugins.hardwarekeys.HardwareKeysPlugin;
+import nav.pelorus.plugins.installsource.InstallSourcePlugin;
 
 public class MainActivity extends BridgeActivity {
     @Override
@@ -19,6 +20,7 @@ public class MainActivity extends BridgeActivity {
         registerPlugin(BackgroundGPSPlugin.class);
         registerPlugin(BluetoothSerialPlugin.class);
         registerPlugin(HardwareKeysPlugin.class);
+        registerPlugin(InstallSourcePlugin.class);
         discardReplayedIntent(savedInstanceState);
         super.onCreate(savedInstanceState);
         // Render at our exact CSS sizes regardless of the device's system font

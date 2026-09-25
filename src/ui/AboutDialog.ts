@@ -2,6 +2,7 @@
  * About dialog — shows app info, author, license, and open-source credits.
  */
 
+import { Capacitor } from "@capacitor/core";
 import {
   buildDefaultSections,
   collectDiagnostics,
@@ -11,6 +12,7 @@ import { getSettings, updateSettings } from "../settings";
 import { showBugReportDialog } from "./BugReportDialog";
 import { showTermsDialog } from "./DisclaimerDialog";
 import { iconX, setIcon } from "./icons";
+import { isSideloadedAndroid } from "./ReleaseCheck";
 
 declare const __APP_VERSION__: string;
 declare const __BUILD_ID__: string;
@@ -217,9 +219,16 @@ export class AboutDialog {
     tidesDate.className = "about-build-id";
     tidesDate.textContent = `Tide & current data: ${__TIDES_DATA_DATE__}`;
 
-    // Update checks: the native apps ask GitHub for a newer release at
+    // Update checks: a sideloaded APK asks GitHub for a newer release at
     // startup, the web app polls its service worker — one switch for both.
+    // Store installs update through the store, so there it would do nothing.
     const updateCheck = document.createElement("label");
+    if (Capacitor.isNativePlatform()) {
+      updateCheck.hidden = true;
+      isSideloadedAndroid().then((sideloaded) => {
+        updateCheck.hidden = !sideloaded;
+      });
+    }
     updateCheck.className = "about-update-check";
     const updateCheckBox = document.createElement("input");
     updateCheckBox.type = "checkbox";

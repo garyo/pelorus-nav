@@ -1738,6 +1738,9 @@ body {
   color: #ccc;
   cursor: pointer;
 }
+.about-update-check[hidden] {
+  display: none;
+}
 
 .about-clear-cache:hover {
   background: #555;
