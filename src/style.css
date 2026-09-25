@@ -3357,6 +3357,9 @@ body {
   display: flex;
   align-items: center;
   gap: 10px;
+  /* Without an explicit width, left: 50% caps the shrink-to-fit width at
+     half the viewport, wrapping the message a word per line on phones. */
+  width: max-content;
   max-width: min(90vw, 480px);
   padding: 10px 14px;
   background: rgba(30, 30, 30, 0.95);
@@ -3393,6 +3396,7 @@ body {
   display: flex;
   align-items: center;
   gap: 10px;
+  width: max-content;
   max-width: min(90vw, 480px);
   padding: 10px 14px;
   background: rgba(30, 30, 30, 0.95);

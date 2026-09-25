@@ -5,6 +5,12 @@ Notable user-facing changes to Pelorus Nav. Downloads are on the
 
 The format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [Unreleased]
+
+### Fixed
+- The "new version available" notice and undo toasts were squeezed into a
+  narrow column on phones, one word per line.
+
 ## [0.27.0] - 2026-09-24
 
 ### Added
