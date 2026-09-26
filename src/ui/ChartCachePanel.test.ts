@@ -279,6 +279,36 @@ describe("ChartCachePanel download queue", () => {
     expect(downloadButton(el, first)).not.toBeNull(); // retry is a tap away
   });
 
+  it("keeps failures for the bug report after the panel closes", async () => {
+    tileStoreMocks.downloadChart
+      .mockRejectedValueOnce(networkDrop())
+      .mockRejectedValueOnce(new Error("boom"));
+    const { panel, el } = await openPanel();
+
+    downloadButton(el, first)?.click();
+    await vi.waitFor(() =>
+      expect(panel.queueState()[0]?.state).toBe("waiting"),
+    );
+    window.dispatchEvent(new Event("online"));
+    await vi.waitFor(() => expect(panel.isBusy()).toBe(false));
+    panel.hide();
+
+    expect(panel.downloadState().recentFailures).toEqual([
+      {
+        filename: first.filename,
+        message: "TypeError: network error",
+        at: expect.any(Number),
+        retrying: true,
+      },
+      {
+        filename: first.filename,
+        message: "Error: boom",
+        at: expect.any(Number),
+        retrying: false,
+      },
+    ]);
+  });
+
   it("counts bytes kept from an interrupted download as already stored", async () => {
     tileStoreMocks.downloadChart.mockResolvedValue(undefined);
     tileStoreMocks.getStorageEstimate.mockResolvedValue({

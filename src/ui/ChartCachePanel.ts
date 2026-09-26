@@ -35,11 +35,13 @@ import {
   partialDownloadBytes,
 } from "../data/tile-store";
 import {
+  type DownloadFailure,
   type DownloadPanelState,
   type DownloadQueueItem,
   formatDownloadDone,
   formatDownloadStart,
   formatProgress,
+  recordFailure,
 } from "../diagnostics/downloadReport";
 import { getSettings, onSettingsChange, updateSettings } from "../settings";
 import { diag } from "../utils/diag";
@@ -127,6 +129,8 @@ export class ChartCachePanel {
   private wakeQueue: (() => void) | null = null;
   /** Last failure per file, shown in its row until retried or the panel closes. */
   private readonly failures = new Map<string, string>();
+  /** The session's latest failures for the bug report, kept after rows clear. */
+  private readonly recentFailures: DownloadFailure[] = [];
   /** Live readouts rebound on every render: the active row's bar and the header. */
   private activeProgress: { fill: HTMLElement; stats: HTMLElement } | null =
     null;
@@ -317,10 +321,7 @@ export class ChartCachePanel {
   downloadState(): DownloadPanelState {
     return {
       queue: this.queueState(),
-      failures: [...this.failures].map(([filename, message]) => ({
-        filename,
-        message,
-      })),
+      recentFailures: [...this.recentFailures],
       pendingUpdates: this.refreshToken > 0 ? this.pendingUpdates.size : null,
     };
   }
@@ -880,7 +881,10 @@ export class ChartCachePanel {
     const names = fresh.map((job) => job.filename).join(", ");
     if (shortfall) {
       diag("download", `not queued ${names}: ${shortfall}`);
-      for (const job of fresh) this.failures.set(job.filename, shortfall);
+      for (const job of fresh) {
+        this.failures.set(job.filename, shortfall);
+        this.noteFailure(job.filename, shortfall, false);
+      }
       await this.refresh();
       return;
     }
@@ -961,7 +965,8 @@ export class ChartCachePanel {
   /**
    * Run one job to completion, cancel, or failure. True when it failed
    * transiently and has a retry left; any other failure is recorded for its
-   * row. Failures while the network is cut off in the background (see
+   * row; every failure also goes into the session's recent failures.
+   * Failures while the network is cut off in the background (see
    * backgroundNetworkCut) don't use up retries.
    */
   private async runEntry(entry: QueueEntry): Promise<boolean> {
@@ -1012,7 +1017,9 @@ export class ChartCachePanel {
       const msg = err instanceof Error ? err.message : "Unknown error";
       const failed = `failed ${at()}: ${name}: ${msg}`;
       const max = RETRY_DELAYS_MS.length;
-      if (isTransientDownloadError(name) && entry.attempts < max) {
+      const retrying = isTransientDownloadError(name) && entry.attempts < max;
+      this.noteFailure(job.filename, `${name}: ${msg}`, retrying);
+      if (retrying) {
         if (this.backgroundNetworkCut()) {
           log(
             `${failed}; waiting (hidden, not counted: ${entry.attempts}/${max} retries used)`,
@@ -1027,6 +1034,19 @@ export class ChartCachePanel {
       this.failures.set(job.filename, msg);
       return false;
     }
+  }
+
+  private noteFailure(
+    filename: string,
+    message: string,
+    retrying: boolean,
+  ): void {
+    recordFailure(this.recentFailures, {
+      filename,
+      message,
+      at: Date.now(),
+      retrying,
+    });
   }
 
   /**

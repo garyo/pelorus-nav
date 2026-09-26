@@ -19,11 +19,35 @@ export interface DownloadQueueItem {
   total: number;
 }
 
+/** A failed download run, or a download refused for lack of storage. */
+export interface DownloadFailure {
+  filename: string;
+  message: string;
+  /** When it failed (ms since epoch). */
+  at: number;
+  /** The queue kept the download to try again. */
+  retrying: boolean;
+}
+
+/** How many failures the session keeps for the bug report. */
+export const MAX_RECENT_FAILURES = 20;
+
+/** Append `failure` to `log`, dropping the oldest beyond MAX_RECENT_FAILURES. */
+export function recordFailure(
+  log: DownloadFailure[],
+  failure: DownloadFailure,
+): void {
+  log.push(failure);
+  if (log.length > MAX_RECENT_FAILURES) {
+    log.splice(0, log.length - MAX_RECENT_FAILURES);
+  }
+}
+
 /** ChartCachePanel's download state. */
 export interface DownloadPanelState {
   queue: DownloadQueueItem[];
-  /** Failures the panel's rows show. */
-  failures: { filename: string; message: string }[];
+  /** This session's latest failures, oldest first, whatever the rows show. */
+  recentFailures: DownloadFailure[];
   /** Updates found by the panel's last check; null before it has checked. */
   pendingUpdates: number | null;
 }
@@ -73,6 +97,12 @@ function formatQueueItem(item: DownloadQueueItem): string {
   return `  ${item.state.padEnd(11)} ${item.filename}  ${progress}  runs ${item.runs}, retries ${item.attempts}`;
 }
 
+function formatFailure(f: DownloadFailure, now: number): string {
+  const when = `${new Date(f.at).toISOString()} (${formatDurationShort(now - f.at)} ago)`;
+  const outcome = f.retrying ? "; queued for retry" : "";
+  return `  ${when}  ${f.filename}: ${f.message}${outcome}`;
+}
+
 function formatPartial(p: PartialDownload, now: number): string {
   const resume = p.resume
     ? `resume at ${formatProgress(p.resume.bytes, p.resume.total)}`
@@ -81,7 +111,7 @@ function formatPartial(p: PartialDownload, now: number): string {
 }
 
 /**
- * The DOWNLOADS section: the panel's queue, failures and pending updates
+ * The DOWNLOADS section: the panel's queue, recent failures and pending updates
  * (null when the panel isn't available), then the partial downloads kept
  * in storage.
  */
@@ -94,8 +124,8 @@ export function formatDownloadSection(
   if (panel) {
     lines.push(`queue: ${panel.queue.length}`);
     lines.push(...panel.queue.map(formatQueueItem));
-    lines.push(`failures shown: ${panel.failures.length}`);
-    lines.push(...panel.failures.map((f) => `  ${f.filename}: ${f.message}`));
+    lines.push(`recent failures: ${panel.recentFailures.length}`);
+    lines.push(...panel.recentFailures.map((f) => formatFailure(f, now)));
     lines.push(
       `updates available: ${panel.pendingUpdates ?? "(not checked this session)"}`,
     );

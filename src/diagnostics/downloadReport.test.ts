@@ -1,10 +1,13 @@
 import { describe, expect, it } from "vitest";
 import {
+  type DownloadFailure,
   formatDownloadDone,
   formatDownloadSection,
   formatDownloadStart,
   formatProgress,
   formatRate,
+  MAX_RECENT_FAILURES,
+  recordFailure,
 } from "./downloadReport";
 
 const MB = 1024 * 1024;
@@ -82,7 +85,20 @@ describe("formatDownloadSection", () => {
             total: 0,
           },
         ],
-        failures: [{ filename: "c.pmtiles", message: "HTTP 404 Not Found" }],
+        recentFailures: [
+          {
+            filename: "a.pmtiles",
+            message: "TypeError: network error",
+            at: now - 120_000,
+            retrying: true,
+          },
+          {
+            filename: "c.pmtiles",
+            message: "Error: HTTP 404 Not Found",
+            at: now - 30_000,
+            retrying: false,
+          },
+        ],
         pendingUpdates: 2,
       },
       [
@@ -110,8 +126,9 @@ describe("formatDownloadSection", () => {
       "queue: 2",
       "  downloading a.pmtiles  340.0 MB / 800.0 MB (42%)  runs 3, retries 1",
       "  queued      b.pmtiles  not started  runs 0, retries 0",
-      "failures shown: 1",
-      "  c.pmtiles: HTTP 404 Not Found",
+      "recent failures: 2",
+      "  2026-09-26T11:58:00.000Z (2m ago)  a.pmtiles: TypeError: network error; queued for retry",
+      "  2026-09-26T11:59:30.000Z (30s ago)  c.pmtiles: Error: HTTP 404 Not Found",
       "updates available: 2",
       "partial downloads: 2",
       "  a.pmtiles  340.0 MB, written 5s ago, no resume record",
@@ -125,10 +142,29 @@ describe("formatDownloadSection", () => {
     );
     expect(
       formatDownloadSection(
-        { queue: [], failures: [], pendingUpdates: null },
+        { queue: [], recentFailures: [], pendingUpdates: null },
         [],
         now,
       ),
     ).toContain("updates available: (not checked this session)");
+  });
+});
+
+describe("recordFailure", () => {
+  const failure = (n: number): DownloadFailure => ({
+    filename: `f${n}.pmtiles`,
+    message: "TypeError: network error",
+    at: n,
+    retrying: true,
+  });
+
+  it("keeps only the newest failures, oldest first", () => {
+    const log: DownloadFailure[] = [];
+    for (let n = 1; n <= MAX_RECENT_FAILURES + 3; n++) {
+      recordFailure(log, failure(n));
+    }
+    expect(log).toHaveLength(MAX_RECENT_FAILURES);
+    expect(log[0].at).toBe(4);
+    expect(log.at(-1)?.at).toBe(MAX_RECENT_FAILURES + 3);
   });
 });
