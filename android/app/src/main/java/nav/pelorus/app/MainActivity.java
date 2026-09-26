@@ -11,6 +11,7 @@ import com.getcapacitor.BridgeActivity;
 import com.getcapacitor.PluginHandle;
 import nav.pelorus.plugins.backgroundgps.BackgroundGPSPlugin;
 import nav.pelorus.plugins.btserial.BluetoothSerialPlugin;
+import nav.pelorus.plugins.chartdownload.ChartDownloadPlugin;
 import nav.pelorus.plugins.hardwarekeys.HardwareKeysPlugin;
 import nav.pelorus.plugins.installsource.InstallSourcePlugin;
 
@@ -19,6 +20,7 @@ public class MainActivity extends BridgeActivity {
     public void onCreate(Bundle savedInstanceState) {
         registerPlugin(BackgroundGPSPlugin.class);
         registerPlugin(BluetoothSerialPlugin.class);
+        registerPlugin(ChartDownloadPlugin.class);
         registerPlugin(HardwareKeysPlugin.class);
         registerPlugin(InstallSourcePlugin.class);
         discardReplayedIntent(savedInstanceState);

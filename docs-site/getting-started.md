@@ -104,8 +104,12 @@ row showing its progress, with a **Cancel All** row at the top that also
 shows how much is left. If the connection drops or stalls, the download
 shows *Waiting for network…* and continues from where it stopped once the
 app is back on screen with a connection; after several failed tries it
-shows the error, and tapping download again still resumes. The radio button
-selects your **active region** — the one used for place-name search.
+shows the error, and tapping download again still resumes. On Android,
+downloads (and their retries) keep going while you use other apps or the
+screen is off, with a *Downloading charts* notification showing their
+progress; on iOS they pause in the background and continue when you return to
+the app. The radio button selects your **active
+region** — the one used for place-name search.
 
 Most regions also offer an optional **street basemap** — an offline copy of
 the land map that otherwise streams from OpenStreetMap. Download it too if

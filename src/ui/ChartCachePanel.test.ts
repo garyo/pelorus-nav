@@ -26,6 +26,17 @@ vi.mock("../data/tile-store", () => tileStoreMocks);
 const diag = vi.hoisted(() => vi.fn());
 vi.mock("../utils/diag", () => ({ diag }));
 
+/** Whether the (Android-only) background download service is up. */
+const keepAlive = vi.hoisted(() => ({ running: false }));
+vi.mock("../data/download-keepalive", () => ({
+  DownloadKeepAlive: class {
+    get running() {
+      return keepAlive.running;
+    }
+    sync() {}
+  },
+}));
+
 const { ChartCachePanel } = await import("./ChartCachePanel");
 
 /** Private-method access for tests — the download queue is not public API. */
@@ -325,6 +336,7 @@ describe("ChartCachePanel automatic retry", () => {
   beforeEach(() => {
     document.body.innerHTML = "";
     setHidden(false);
+    keepAlive.running = false;
     tileStoreMocks.downloadChart.mockReset();
     tileStoreMocks.discardPartialDownload.mockClear();
     tileStoreMocks.listStoredCharts.mockResolvedValue([]);
@@ -429,6 +441,26 @@ describe("ChartCachePanel automatic retry", () => {
 
     setHidden(false);
     document.dispatchEvent(new Event("visibilitychange"));
+    await vi.waitFor(() => expect(panel.isBusy()).toBe(false));
+    expect(tileStoreMocks.downloadChart).toHaveBeenCalledTimes(2);
+  });
+
+  it("retries, counting failures, while hidden with the background service up", async () => {
+    tileStoreMocks.downloadChart
+      .mockRejectedValueOnce(networkDrop())
+      .mockResolvedValue(undefined);
+    const { panel, enqueue } = queuePanel();
+    setHidden(true);
+    keepAlive.running = true;
+
+    await enqueue(first);
+    await vi.waitFor(() =>
+      expect(panel.queueState()[0]).toMatchObject({
+        state: "waiting",
+        attempts: 1,
+      }),
+    );
+    window.dispatchEvent(new Event("online"));
     await vi.waitFor(() => expect(panel.isBusy()).toBe(false));
     expect(tileStoreMocks.downloadChart).toHaveBeenCalledTimes(2);
   });

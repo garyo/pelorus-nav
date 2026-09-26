@@ -18,6 +18,8 @@
     <!-- Foreground service permissions -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
+    <!-- Chart downloads: keeps the network up while the app is in the background -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <!-- Boot disclosure only: an armed anchor watch killed by a reboot must
          announce itself (AnchorBootReceiver). Nothing is auto-started. -->
@@ -136,6 +138,13 @@
         <service
             android:name="nav.pelorus.plugins.backgroundgps.BackgroundTrackService"
             android:foregroundServiceType="location"
+            android:exported="false" />
+
+        <!-- Holds the process in the foreground while the WebView downloads
+             charts; Android cuts a backgrounded app's network otherwise -->
+        <service
+            android:name="nav.pelorus.plugins.chartdownload.ChartDownloadService"
+            android:foregroundServiceType="dataSync"
             android:exported="false" />
 
         <!-- Reboot disclosure for an armed anchor watch: a restart kills the

@@ -7,6 +7,11 @@ The format follows [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Added
+- Android: chart and basemap downloads keep running when you switch to
+  another app or the screen turns off, with their progress shown in a
+  "Downloading charts" notification.
+
 ### Changed
 - The iOS and Play Store apps no longer show their own "new version
   available" notice; the store delivers updates when they are ready. An APK

@@ -16,6 +16,7 @@ import {
   type ChartRegion,
   type RasterChart,
 } from "../data/chart-catalog";
+import { DownloadKeepAlive } from "../data/download-keepalive";
 import { isTransientDownloadError } from "../data/download-resume";
 import { chartAssetBase } from "../data/remote-url";
 import type { StoredChartInfo } from "../data/tile-store";
@@ -99,6 +100,10 @@ interface DownloadContext {
   setStatus: (text: string) => void;
 }
 
+function entryState(entry: QueueEntry): DownloadQueueItem["state"] {
+  return entry.active ? "downloading" : entry.waiting ? "waiting" : "queued";
+}
+
 /** Fetch an aux file whose absence is tolerable; a user cancel still propagates. */
 async function downloadOptionalAux(
   filename: string,
@@ -134,6 +139,15 @@ export class ChartCachePanel {
   private refreshToken = 0;
   /** Out-of-date downloads found by the last update check, keyed by filename. */
   private readonly pendingUpdates = new Map<string, DownloadJob>();
+  /** Keeps the network up while the app is in the background (Android). */
+  private readonly keepAlive = new DownloadKeepAlive(() =>
+    this.queue.map((e) => ({
+      label: e.job.label,
+      state: entryState(e),
+      loaded: e.loaded,
+      total: e.total,
+    })),
+  );
 
   constructor() {
     this.el = document.createElement("div");
@@ -292,7 +306,7 @@ export class ChartCachePanel {
   queueState(): DownloadQueueItem[] {
     return this.queue.map((e) => ({
       filename: e.job.filename,
-      state: e.active ? "downloading" : e.waiting ? "waiting" : "queued",
+      state: entryState(e),
       attempts: e.attempts,
       runs: e.runs,
       loaded: e.loaded,
@@ -312,6 +326,7 @@ export class ChartCachePanel {
   }
 
   private async refresh(): Promise<void> {
+    this.keepAlive.sync();
     const token = ++this.refreshToken;
     const storedCharts = await listStoredCharts();
     if (token !== this.refreshToken) return; // superseded while reading
@@ -946,8 +961,8 @@ export class ChartCachePanel {
   /**
    * Run one job to completion, cancel, or failure. True when it failed
    * transiently and has a retry left; any other failure is recorded for its
-   * row. Failures while the app is hidden (where Android cuts the network)
-   * don't use up retries.
+   * row. Failures while the network is cut off in the background (see
+   * backgroundNetworkCut) don't use up retries.
    */
   private async runEntry(entry: QueueEntry): Promise<boolean> {
     const { job, controller } = entry;
@@ -998,7 +1013,7 @@ export class ChartCachePanel {
       const failed = `failed ${at()}: ${name}: ${msg}`;
       const max = RETRY_DELAYS_MS.length;
       if (isTransientDownloadError(name) && entry.attempts < max) {
-        if (document.hidden) {
+        if (this.backgroundNetworkCut()) {
           log(
             `${failed}; waiting (hidden, not counted: ${entry.attempts}/${max} retries used)`,
           );
@@ -1015,11 +1030,19 @@ export class ChartCachePanel {
   }
 
   /**
+   * True while the app is hidden without the keep-alive service, where
+   * Android cuts its network (and iOS suspends it).
+   */
+  private backgroundNetworkCut(): boolean {
+    return document.hidden && !this.keepAlive.running;
+  }
+
+  /**
    * Resolve once a retry is worth trying: the app returns to the
    * foreground, the device reports it is back online, or `delayMs` passes —
-   * the last two only while the app is visible, so retries don't fail
-   * uselessly in the background. `wakeQueue` ends the wait early (a new
-   * download queued, or the queue emptied).
+   * the last two not while the background network is cut, so retries don't
+   * fail uselessly. `wakeQueue` ends the wait early (a new download queued,
+   * or the queue emptied).
    */
   private waitForRetry(delayMs: number): Promise<void> {
     const since = Date.now();
@@ -1036,9 +1059,11 @@ export class ChartCachePanel {
         resolve();
       };
       const wakeOn = (reason: string) => (): void => {
-        if (!document.hidden) done(reason);
+        if (!this.backgroundNetworkCut()) done(reason);
       };
-      const onVisible = wakeOn("visible");
+      const onVisible = (): void => {
+        if (!document.hidden) done("visible");
+      };
       const onOnline = wakeOn("online");
       const timer = setTimeout(wakeOn("backoff"), delayMs);
       document.addEventListener("visibilitychange", onVisible);
@@ -1137,6 +1162,7 @@ export class ChartCachePanel {
   /** Push the active entry's progress into the row bar and the header. */
   private paintProgress(entry: QueueEntry): void {
     if (!entry.active) return;
+    this.keepAlive.sync();
     if (this.activeProgress) {
       const { fill, stats } = this.activeProgress;
       const pct = entry.total > 0 ? (entry.loaded / entry.total) * 100 : 0;
