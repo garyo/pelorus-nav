@@ -361,9 +361,9 @@ def scan_all_cells(
     for enc_path in enc_files:
         if db is not None:
             cell_name = enc_path.stem
-            noaa_date = db.get_noaa_date(cell_name)
+            enc_version = db.get_enc_version(cell_name)
             cached = db.get_scan_cache(cell_name)
-            if cached is not None and noaa_date and cached[0] == noaa_date:
+            if cached is not None and enc_version and cached[0] == enc_version:
                 # Cache hit — reconstruct CellMetadata from cached values
                 coverage = _wkb_to_coverage(cached[4])
                 results.append(CellMetadata(
@@ -393,10 +393,10 @@ def scan_all_cells(
                 results.append(meta)
                 # Write to cache
                 if db is not None:
-                    noaa_date = db.get_noaa_date(enc_path.stem) or ""
+                    enc_version = db.get_enc_version(enc_path.stem) or ""
                     coverage_wkb = _coverage_to_wkb(meta.coverage)
                     db.set_scan_cache(
-                        enc_path.stem, noaa_date,
+                        enc_path.stem, enc_version,
                         meta.intu, meta.cscl, meta.scale_band,
                         coverage_wkb,
                     )

@@ -22,6 +22,9 @@
 #   --force           Force rebuild / re-upload regardless of state
 #   --force-download  Re-download all cells even if already up to date
 #   --zoom-shift N    Pass zoom-shift to pipeline (default: 2)
+#   --basemap-min-age DAYS
+#                     With --update, rebuild an existing basemap only once it is
+#                     at least this old (default: 30); --force ignores the age
 
 set -euo pipefail
 
@@ -73,6 +76,9 @@ FORCE=false
 FORCE_DOWNLOAD=false
 EAST_COAST=false
 ZOOM_SHIFT=""
+# The Protomaps source differs daily, so every basemap rebuild is a new
+# multi-hundred-MB download for app users; --update refreshes them this rarely.
+BASEMAP_MIN_AGE_DAYS=30
 REGIONS=()
 
 while [[ $# -gt 0 ]]; do
@@ -88,6 +94,7 @@ while [[ $# -gt 0 ]]; do
     --force-download) FORCE_DOWNLOAD=true ;;
     --east-coast)     EAST_COAST=true ;;
     --zoom-shift) shift; ZOOM_SHIFT="$1" ;;
+    --basemap-min-age) shift; BASEMAP_MIN_AGE_DAYS="$1" ;;
     --region)     shift; REGIONS+=("$1") ;;
     --help|-h)
       awk 'NR==1{next} /^$/{exit} {sub(/^# ?/,""); print}' "$0"
@@ -130,6 +137,11 @@ _in_list() {
   local x
   for x in "$@"; do [[ "$x" == "$needle" ]] && return 0; done
   return 1
+}
+
+# True if file $1 was last modified at least $2 days ago.
+_older_than_days() {
+  (( $2 <= 0 )) || [[ -n "$(find "$1" -mmin +$(( $2 * 1440 - 1 )) 2>/dev/null)" ]]
 }
 
 # --- Operations ---
@@ -415,10 +427,11 @@ if $OP_BUILD; then
 fi
 
 # Step 3b: Basemap (if requested). --update enables this so the nightly keeps
-# basemaps in step with the charts: it (re)builds a region's basemap when that
-# region's charts were rebuilt this run, and self-heals any missing basemap,
-# while skipping regions without charts. An explicit --basemap builds the
-# selected regions outright.
+# basemaps in step with the charts: it rebuilds a region's basemap when that
+# region's charts were rebuilt this run and the basemap is at least
+# BASEMAP_MIN_AGE_DAYS old, and self-heals any missing basemap, while skipping
+# regions without charts. An explicit --basemap builds the selected regions
+# outright.
 if $OP_BASEMAP; then
   echo "=== Building basemaps ==="
   for region in "${REGIONS[@]}"; do
@@ -430,17 +443,23 @@ if $OP_BASEMAP; then
     # Build when forced, when the basemap is missing, or when this region's
     # charts were (re)built this run. So an explicit --basemap rebuilds the
     # selected regions, while the nightly --update stays light — it only
-    # touches changed regions, but still self-heals any missing basemap.
-    if ! $FORCE \
-      && [[ -f "$OUTPUT_DIR/basemap-${region}.pmtiles" ]] \
-      && ! _in_list "$region" ${BUILD_REGIONS[@]+"${BUILD_REGIONS[@]}"}; then
-      echo "--- Basemap $region up to date, skipping ---"
-      continue
+    # touches changed regions whose basemap has reached the minimum age, but
+    # still self-heals any missing basemap.
+    basemap="$OUTPUT_DIR/basemap-${region}.pmtiles"
+    if ! $FORCE && [[ -f "$basemap" ]]; then
+      if ! _in_list "$region" ${BUILD_REGIONS[@]+"${BUILD_REGIONS[@]}"}; then
+        echo "--- Basemap $region up to date, skipping ---"
+        continue
+      fi
+      if $OP_CHECK && ! _older_than_days "$basemap" "$BASEMAP_MIN_AGE_DAYS"; then
+        echo "--- Basemap $region younger than $BASEMAP_MIN_AGE_DAYS days, skipping ---"
+        continue
+      fi
     fi
     # A single region's basemap failure must never abort the nautical update.
     if do_basemap "$region"; then
       if $OP_UPLOAD; then
-        do_upload_file "$OUTPUT_DIR/basemap-${region}.pmtiles"
+        do_upload_file "$basemap"
       fi
     else
       echo "!!! Basemap $region failed — continuing"

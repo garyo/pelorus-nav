@@ -140,9 +140,16 @@ All tile workflows go through `tools/build-tiles.sh` (run `--help` for full usag
 - `bun run tiles` — build boston-test region (quick dev iteration)
 - `bun run tiles:build` — build all production regions
 - `bun run tiles:build:fresh` — download ENCs then build all regions
-- `bun run tiles:check` — check NOAA for ENC updates (report only)
+- `bun run tiles:check` — check NOAA for ENC updates (report only). A cell counts as
+  updated when NOAA's product catalog (`ENCProdCat.xml`) lists a new edition/update
+  for it; zip dates are ignored (NOAA regenerates every zip nightly). A state DB
+  from before this edition tracking needs a one-time
+  `cd tools/s57-pipeline && uv run python ../check-enc-updates.py --seed-from-catalog`
+  (only when the current tiles are up to date), or the next check flags every cell.
 - `bun run tiles:upload` — upload built tiles to CDN
-- `bun run tiles:update` — full unattended cycle (check → download → build → upload)
+- `bun run tiles:update` — full unattended cycle (check → download → build → upload).
+  It rebuilds a changed region's basemap only once that basemap is 30+ days old
+  (`--basemap-min-age DAYS`), since each rebuild means a large re-download for users.
 - `tools/build-tiles.sh --build --region <name>` — build a single region
   - Regions (see `tools/regions.json`, the shared source of truth): `boston-test`,
     `northern-new-england`, `southern-new-england`, `new-york`, `mid-atlantic`,

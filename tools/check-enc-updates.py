@@ -4,17 +4,36 @@
 Pure checker + state manager. No orchestration — build-tiles.sh handles that.
 
 Usage:
-  uv run python tools/check-enc-updates.py [--region R] [--json] [--save-state] [--quiet] [-j N]
+  uv run python tools/check-enc-updates.py [--region R] [--json] [--quiet]
+      [--save-state | --seed-from-catalog]
 
 Options:
-  (default)      Human-readable change report
-  --json         Machine-readable output for build-tiles.sh
-  --save-state   Update enc-update-state.json with current NOAA dates
-  --region R     Check only this region (repeatable)
-  --quiet        Minimal output
-  -j N           Parallel requests (default: 20)
+  (default)            Human-readable change report
+  --json               Machine-readable output for build-tiles.sh
+  --save-state         Record the versions seen by the last check as built
+  --seed-from-catalog  One-time baseline adoption (see below)
+  --region R           Check only this region (repeatable)
+  --quiet              Minimal output
 
-State is stored in tile-data/enc-update-state.json
+A cell counts as changed when NOAA's product catalog (ENCProdCat.xml, one
+download) lists an edition/update for it that differs from the version
+recorded in tile-data/pipeline-state.db. Cells the catalog lists as not
+Active (e.g. Cancelled) or omits entirely are reported but never trigger a
+rebuild, since NOAA publishes no new content for them. Cells with no
+recorded version are "new" and trigger a rebuild.
+
+The versions a check sees are saved to tile-data/enc-check-versions.json;
+--save-state (run by build-tiles.sh after a successful build) records those,
+not a later catalog, so an edition published mid-build is still reported
+as changed on the next check.
+
+--seed-from-catalog migrates a state DB that tracked cells by zip
+Last-Modified date. For every cell of the selected regions that has such a
+date but no recorded version, it records the current catalog version and
+relabels the cell's existing build/scan state with it, so the next check
+sees those cells as unchanged instead of rebuilding everything. Run it once,
+only when the current tiles were built from the current NOAA data; it never
+overwrites a recorded version, so repeating it is harmless.
 """
 
 from __future__ import annotations
@@ -22,81 +41,184 @@ from __future__ import annotations
 import argparse
 import json
 import sys
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from collections import Counter
 from pathlib import Path
-from urllib.error import URLError
-from urllib.request import Request, urlopen
 
 # Adjust path so we can import pipeline modules
 TOOLS_DIR = Path(__file__).resolve().parent
 PIPELINE_DIR = TOOLS_DIR / "s57-pipeline"
 sys.path.insert(0, str(PIPELINE_DIR))
 
+from s57_pipeline.enc_catalog import (  # noqa: E402
+    CatalogCell,
+    CatalogError,
+    CellStatus,
+    classify_cell,
+    load_product_catalog,
+)
 from s57_pipeline.regions import REGIONS, get_region_cells  # noqa: E402
 from s57_pipeline.state import StateDB  # noqa: E402
 
-NOAA_BASE = "https://charts.noaa.gov/ENCs"
-STATE_FILE = PIPELINE_DIR / "data" / "enc-update-state.json"
-# Dates captured during the check phase, applied later by --save-state.
-# Persisting the CHECK-time dates (not a post-build re-fetch) means an ENC
-# edition published mid-build is still seen as "changed" on the next check,
-# instead of being stamped current though tiles were built from the older
-# download.
-CHECK_DATES_FILE = PIPELINE_DIR / "data" / "enc-check-dates.json"
-
-
-def check_cell(
-    cell: str, stored_date: str, timeout: int = 15
-) -> tuple[str, str, str]:
-    """Check a single cell via HTTP HEAD.
-
-    Returns (cell, status, last_modified) where status is one of:
-      "unchanged", "changed", "new", "error:<reason>"
-    """
-    url = f"{NOAA_BASE}/{cell}.zip"
-    try:
-        req = Request(url, method="HEAD")
-        with urlopen(req, timeout=timeout) as resp:
-            last_modified = resp.headers.get("Last-Modified", "")
-            if not stored_date:
-                return (cell, "new", last_modified)
-            if last_modified != stored_date:
-                return (cell, "changed", last_modified)
-            return (cell, "unchanged", last_modified)
-    except URLError as e:
-        return (cell, f"error:{e.reason}", "")
-    except Exception as e:
-        return (cell, f"error:{e}", "")
+DATA_DIR = PIPELINE_DIR / "data"
+CATALOG_CACHE = DATA_DIR / "ENCProdCat.xml"
+# {cell: [edition, update]} as seen by the last check, applied by --save-state.
+CHECK_VERSIONS_FILE = DATA_DIR / "enc-check-versions.json"
 
 
 def _open_db() -> StateDB:
-    return StateDB(PIPELINE_DIR / "data" / "pipeline-state.db")
+    return StateDB(DATA_DIR / "pipeline-state.db")
 
 
-def load_state() -> dict[str, dict[str, str]]:
-    """Load NOAA state from the pipeline state DB (with JSON fallback)."""
-    # Migrate legacy JSON if DB is empty
-    db = _open_db()
-    from s57_pipeline.state import migrate_json_state  # noqa: E402
-    migrate_json_state(db, STATE_FILE)
-    all_state = db.get_all_noaa_state()
-    db.close()
-    if all_state:
-        return {name: {"last_modified": date} for name, date in all_state.items()}
-    # Legacy fallback
-    if STATE_FILE.exists():
-        return json.loads(STATE_FILE.read_text())
-    return {}
+def _load_catalog() -> dict[str, CatalogCell]:
+    try:
+        return load_product_catalog(CATALOG_CACHE)
+    except CatalogError as e:
+        print(f"Error: {e}", file=sys.stderr)
+        sys.exit(1)
 
 
-def save_state(state: dict[str, dict[str, str]]) -> None:
-    """Save NOAA state to the pipeline state DB."""
-    db = _open_db()
-    for cell_name, info in state.items():
-        last_mod = info.get("last_modified", "")
-        if last_mod:
-            db.upsert_noaa_state(cell_name, last_mod)
-    db.close()
+def _read_check_versions() -> dict[str, tuple[int, int]]:
+    try:
+        raw = json.loads(CHECK_VERSIONS_FILE.read_text())
+    except (OSError, json.JSONDecodeError):
+        return {}
+    return {cell: (int(v[0]), int(v[1])) for cell, v in raw.items()}
+
+
+def _write_check_versions(catalog: dict[str, CatalogCell], cells: list[str]) -> None:
+    """Merge this check's versions over earlier ones, so cells outside this
+    run's regions keep their entries."""
+    versions = _read_check_versions()
+    for cell in cells:
+        if entry := catalog.get(cell):
+            versions[cell] = (entry.edition, entry.update)
+    CHECK_VERSIONS_FILE.parent.mkdir(parents=True, exist_ok=True)
+    CHECK_VERSIONS_FILE.write_text(json.dumps(versions, indent=0))
+
+
+def save_state(cells: list[str], quiet: bool) -> None:
+    """Record the check-time versions of `cells` as their built versions.
+
+    Cells without a check-time version (manual run, fresh state) fall back
+    to the current catalog.
+    """
+    check_versions = _read_check_versions()
+    missing = [c for c in cells if c not in check_versions]
+    fallback: dict[str, tuple[int, int]] = {}
+    if missing:
+        catalog = _load_catalog()
+        fallback = {
+            c: (entry.edition, entry.update)
+            for c in missing
+            if (entry := catalog.get(c))
+        }
+
+    with _open_db() as db:
+        for cell in cells:
+            version = check_versions.get(cell) or fallback.get(cell)
+            if version:
+                db.set_enc_version(cell, *version)
+
+    if not quiet:
+        applied = len(cells) - len(missing)
+        print(
+            f"State updated: {applied} cells from check-time versions, "
+            f"{len(fallback)} from the current catalog"
+        )
+
+
+def seed_from_catalog(cells: list[str]) -> None:
+    catalog = _load_catalog()
+    versions = {
+        c: (entry.edition, entry.update) for c in cells if (entry := catalog.get(c))
+    }
+    with _open_db() as db:
+        result = db.seed_enc_versions(versions)
+    print(
+        f"Seeded {result.cells} of {len(cells)} cells with catalog versions; "
+        f"relabelled {result.builds} build, {result.snapshots} snapshot and "
+        f"{result.scans} scan-cache rows"
+    )
+
+
+def check(
+    region_cells: dict[str, list[str]], cells: list[str], as_json: bool, quiet: bool
+) -> None:
+    report = not quiet and not as_json
+    if report:
+        print(
+            f"Checking {len(cells)} unique cells across {len(region_cells)} "
+            "regions against the NOAA product catalog..."
+        )
+    catalog = _load_catalog()
+    with _open_db() as db:
+        recorded = db.get_all_enc_versions()
+        legacy = db.legacy_noaa_state()
+
+    status = {c: classify_cell(recorded.get(c), catalog.get(c)) for c in cells}
+    _write_check_versions(catalog, cells)
+
+    changed_cells: set[str] = set()
+    changed_regions: list[str] = []
+    for region_name, region_cell_list in region_cells.items():
+        counts = Counter(status[c] for c in region_cell_list)
+        region_changed = [
+            c
+            for c in region_cell_list
+            if status[c] in (CellStatus.CHANGED, CellStatus.NEW)
+        ]
+        changed_cells.update(region_changed)
+        if region_changed:
+            changed_regions.append(region_name)
+        if not report:
+            continue
+        for c in region_cell_list:
+            if status[c] == CellStatus.CHANGED:
+                print(f"  UPDATED: {c} ({recorded[c]} -> {catalog[c].version})")
+        parts = [
+            f"{counts[s]} {label}"
+            for s, label in (
+                (CellStatus.CHANGED, "changed"),
+                (CellStatus.NEW, "new (no recorded version)"),
+            )
+            if counts[s]
+        ]
+        total = len(region_cell_list)
+        if parts:
+            print(f"{region_name}: {', '.join(parts)} of {total} cells")
+        else:
+            print(f"{region_name}: all {total} cells up to date")
+        if counts[CellStatus.INACTIVE] or counts[CellStatus.MISSING]:
+            print(
+                f"  ({counts[CellStatus.INACTIVE]} not Active in catalog, "
+                f"{counts[CellStatus.MISSING]} not in catalog)"
+            )
+
+    unseeded = sum(1 for c in cells if status[c] == CellStatus.NEW and c in legacy)
+    if unseeded:
+        print(
+            f"Note: {unseeded} cells are tracked only by zip date and count as new. "
+            "If their tiles are current, adopt the catalog baseline once with: "
+            f"{Path(__file__).name} --seed-from-catalog",
+            file=sys.stderr,
+        )
+
+    if as_json:
+        print(
+            json.dumps(
+                {
+                    "changed_regions": changed_regions,
+                    "total_checked": len(cells),
+                    "total_changed": len(changed_cells),
+                }
+            )
+        )
+    else:
+        print(f"\nSummary: {len(changed_cells)} changed out of {len(cells)} cells")
+        if changed_cells:
+            print(f"{len(changed_cells)} cells have updates available.")
+        else:
+            print("No updates needed.")
 
 
 def main() -> None:
@@ -105,202 +227,44 @@ def main() -> None:
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument(
-        "--json", action="store_true",
-        help="Machine-readable JSON output",
+        "--json", action="store_true", help="Machine-readable JSON output"
+    )
+    mode = parser.add_mutually_exclusive_group()
+    mode.add_argument(
+        "--save-state",
+        action="store_true",
+        help="Record the versions seen by the last check (no check performed)",
+    )
+    mode.add_argument(
+        "--seed-from-catalog",
+        action="store_true",
+        help="Adopt current catalog versions for date-tracked cells (one-time)",
     )
     parser.add_argument(
-        "--save-state", action="store_true",
-        help="Update state file with current NOAA dates (no check performed)",
-    )
-    parser.add_argument(
-        "--region", action="append", dest="regions",
+        "--region",
+        action="append",
+        dest="regions",
         help="Check only this region (repeatable)",
     )
-    parser.add_argument(
-        "--quiet", action="store_true",
-        help="Minimal output",
-    )
-    parser.add_argument(
-        "-j", "--parallel", type=int, default=20,
-        help="Concurrent HTTP requests (default: 20)",
-    )
+    parser.add_argument("--quiet", action="store_true", help="Minimal output")
     args = parser.parse_args()
 
     # Default: all production regions
-    if not args.regions:
-        args.regions = [r for r in REGIONS if r != "boston-test"]
-
-    for r in args.regions:
+    regions: list[str] = args.regions or [r for r in REGIONS if r != "boston-test"]
+    for r in regions:
         if r not in REGIONS:
             print(f"Unknown region: {r}", file=sys.stderr)
             sys.exit(1)
 
-    state = load_state()
+    region_cells = {r: get_region_cells(r) for r in regions}
+    cells = list(dict.fromkeys(c for cl in region_cells.values() for c in cl))
 
-    # Handle --save-state: persist the dates captured by the last check.
-    # A build takes ~2h; re-fetching NOAA dates here would stamp an edition
-    # published mid-build as current even though the tiles were built from
-    # the older download — and that edition would then be skipped forever.
     if args.save_state:
-        region_cells_map: dict[str, list[str]] = {}
-        all_cells: dict[str, list[str]] = {}
-        for region_name in args.regions:
-            cells = get_region_cells(region_name)
-            region_cells_map[region_name] = cells
-            for c in cells:
-                all_cells.setdefault(c, []).append(region_name)
-
-        unique_cells = list(all_cells.keys())
-
-        check_dates: dict[str, str] = {}
-        if CHECK_DATES_FILE.exists():
-            try:
-                check_dates = json.loads(CHECK_DATES_FILE.read_text())
-            except json.JSONDecodeError:
-                check_dates = {}
-
-        applied = 0
-        fetch_cells: list[str] = []
-        for cell in unique_cells:
-            date = check_dates.get(cell, "")
-            if date:
-                state[cell] = {"last_modified": date}
-                applied += 1
-            else:
-                fetch_cells.append(cell)
-
-        if fetch_cells:
-            # No check-time date recorded (fresh state, manual run) —
-            # fall back to fetching for just those cells.
-            if not args.quiet:
-                print(f"Fetching current dates for {len(fetch_cells)} cells...")
-            with ThreadPoolExecutor(max_workers=args.parallel) as pool:
-                futures = {
-                    pool.submit(check_cell, cell, ""): cell
-                    for cell in fetch_cells
-                }
-                for future in as_completed(futures):
-                    cell, _status, last_modified = future.result()
-                    if last_modified:
-                        state[cell] = {"last_modified": last_modified}
-
-        save_state(state)
-        if not args.quiet:
-            print(
-                f"State file updated: {applied} from check-time dates, "
-                f"{len(fetch_cells)} re-fetched"
-            )
-        return
-
-    # Collect cells per region
-    region_cells_map = {}
-    all_cells = {}
-    for region_name in args.regions:
-        cells = get_region_cells(region_name)
-        region_cells_map[region_name] = cells
-        for c in cells:
-            all_cells.setdefault(c, []).append(region_name)
-
-    unique_cells = list(all_cells.keys())
-    total = len(unique_cells)
-    if not args.quiet and not args.json:
-        print(
-            f"Checking {total} unique cells across {len(args.regions)} regions "
-            f"({args.parallel} parallel)..."
-        )
-
-    # Parallel HTTP HEAD checks
-    results: dict[str, tuple[str, str]] = {}
-    checked = 0
-
-    with ThreadPoolExecutor(max_workers=args.parallel) as pool:
-        futures = {
-            pool.submit(
-                check_cell, cell, state.get(cell, {}).get("last_modified", "")
-            ): cell
-            for cell in unique_cells
-        }
-        for future in as_completed(futures):
-            cell, status, last_modified = future.result()
-            results[cell] = (status, last_modified)
-            checked += 1
-            if not args.quiet and not args.json and checked % 200 == 0:
-                print(f"  ... checked {checked} / {total}")
-
-    # Record the dates seen NOW so a later --save-state (after the build)
-    # persists what the build was actually based on. Merge over any prior
-    # capture so cells outside this run's region set keep their entries.
-    try:
-        prior: dict[str, str] = {}
-        if CHECK_DATES_FILE.exists():
-            prior = json.loads(CHECK_DATES_FILE.read_text())
-    except json.JSONDecodeError:
-        prior = {}
-    for cell, (status, last_modified) in results.items():
-        if last_modified:
-            prior[cell] = last_modified
-    CHECK_DATES_FILE.parent.mkdir(parents=True, exist_ok=True)
-    CHECK_DATES_FILE.write_text(json.dumps(prior, indent=0))
-
-    # Summarize per region
-    changed_cells: set[str] = set()
-    changed_regions: list[str] = []
-
-    for region_name in args.regions:
-        cells = region_cells_map[region_name]
-        region_new = 0
-        region_changed = 0
-        region_errors = 0
-
-        for cell in cells:
-            status, last_modified = results[cell]
-            if status == "new":
-                region_new += 1
-                changed_cells.add(cell)
-            elif status == "changed":
-                region_changed += 1
-                changed_cells.add(cell)
-                if not args.quiet and not args.json:
-                    old = state.get(cell, {}).get("last_modified", "")
-                    print(f"  UPDATED: {cell} (was: {old}, now: {last_modified})")
-            elif status.startswith("error"):
-                region_errors += 1
-                if not args.quiet and not args.json:
-                    print(f"  ERROR: {cell} ({status})")
-
-        region_total = region_changed + region_new
-
-        if region_total > 0:
-            changed_regions.append(region_name)
-
-        if not args.quiet and not args.json:
-            parts = []
-            if region_changed:
-                parts.append(f"{region_changed} changed")
-            if region_new:
-                parts.append(f"{region_new} new (no prior state)")
-            if parts:
-                print(f"{region_name}: {', '.join(parts)} of {len(cells)} cells")
-            else:
-                print(f"{region_name}: all {len(cells)} cells up to date")
-            if region_errors:
-                print(f"  ({region_errors} errors)")
-
-    # Output
-    total_changed = len(changed_cells)
-    if args.json:
-        output = {
-            "changed_regions": changed_regions,
-            "total_checked": total,
-            "total_changed": total_changed,
-        }
-        print(json.dumps(output))
+        save_state(cells, args.quiet)
+    elif args.seed_from_catalog:
+        seed_from_catalog(cells)
     else:
-        print(f"\nSummary: {total_changed} changed out of {total} cells checked")
-        if not total_changed:
-            print("No updates needed.")
-        else:
-            print(f"{total_changed} cells have updates available.")
+        check(region_cells, cells, args.json, args.quiet)
 
 
 if __name__ == "__main__":

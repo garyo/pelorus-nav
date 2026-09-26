@@ -17,6 +17,7 @@ from .convert import convert_enc, list_enc_layers, read_compilation_scale, read_
 from .layers import LAYER_NAMES
 from .coverage import scan_all_cells
 from .download import download_enc_cell
+from .enc_catalog import CatalogError, load_product_catalog
 from .merge import merge_tiles
 from .progress import PipelineProgress
 from .query import build_index
@@ -35,7 +36,6 @@ from .state import (
     compute_config_hash,
     is_cell_dirty,
     is_region_dirty,
-    migrate_json_state,
 )
 from .tile import tile_geojson_files
 
@@ -123,22 +123,15 @@ def cmd_query(args: argparse.Namespace) -> None:
         sys.exit(1)
 
 
-def _check_cell_head(cell: str, timeout: int = 15) -> tuple[str, str]:
-    """HTTP HEAD a NOAA ENC cell. Returns (cell, last_modified)."""
-    from urllib.error import URLError
-    from urllib.request import Request, urlopen
-
-    url = f"https://charts.noaa.gov/ENCs/{cell}.zip"
-    try:
-        req = Request(url, method="HEAD")
-        with urlopen(req, timeout=timeout) as resp:
-            return (cell, resp.headers.get("Last-Modified", ""))
-    except (URLError, Exception):
-        return (cell, "")
-
-
 def cmd_download(args: argparse.Namespace) -> None:
-    """Download ENC cells from NOAA."""
+    """Download ENC cells from NOAA.
+
+    A cell is fetched when it is missing locally, or when the product
+    catalog lists an Active edition/update that differs from the version
+    recorded for it. Each successful download records the catalog version
+    seen before fetching, so a newer edition published meanwhile is picked
+    up on the next run.
+    """
     output_dir = Path(args.output)
     db = StateDB()
 
@@ -156,49 +149,29 @@ def cmd_download(args: argparse.Namespace) -> None:
         cells = get_region_cells("boston-test")
         print(f"Downloading {len(cells)} boston-test cells (default)...")
 
-    # Load NOAA date state from DB (migrate legacy JSON on first run)
-    migrate_json_state(db, Path(args.output).parent / "enc-update-state.json")
-    noaa_state = db.get_all_noaa_state()
-    state: dict[str, dict[str, str]] = {
-        name: {"last_modified": date} for name, date in noaa_state.items()
-    }
+    try:
+        catalog = load_product_catalog()
+    except CatalogError as e:
+        print(f"Error: {e}")
+        sys.exit(1)
 
-    # Decide which cells need downloading
     force: bool = getattr(args, "force", False)
     to_download: list[str] = []
     skipped = 0
 
     if force:
-        # Unconditionally re-download everything
         to_download = list(cells)
     else:
-        # Split into missing (always download) and present (check NOAA date)
-        missing = []
-        present = []
+        recorded = db.get_all_enc_versions()
         for cell_name in cells:
-            enc_files = list(output_dir.rglob(f"{cell_name}/{cell_name}.000"))
-            if enc_files:
-                present.append(cell_name)
+            if not list(output_dir.rglob(f"{cell_name}/{cell_name}.000")):
+                to_download.append(cell_name)
+                continue
+            entry = catalog.get(cell_name)
+            if entry and entry.active and recorded.get(cell_name) != entry.version:
+                to_download.append(cell_name)
             else:
-                missing.append(cell_name)
-
-        to_download.extend(missing)
-
-        if present:
-            # HEAD-check existing cells in parallel to detect upstream changes
-            print(f"Checking {len(present)} existing cells for updates...")
-            max_check = min(20, args.jobs if args.jobs else 20)
-            with ThreadPoolExecutor(max_workers=max_check) as pool:
-                futures = {pool.submit(_check_cell_head, c): c for c in present}
-                for future in as_completed(futures):
-                    cell_name, noaa_date = future.result()
-                    if noaa_date:
-                        db.upsert_noaa_state(cell_name, noaa_date)
-                    stored_date = state.get(cell_name, {}).get("last_modified", "")
-                    if noaa_date and noaa_date != stored_date:
-                        to_download.append(cell_name)
-                    else:
-                        skipped += 1
+                skipped += 1
 
     if not to_download:
         if skipped:
@@ -224,9 +197,13 @@ def cmd_download(args: argparse.Namespace) -> None:
         for future in as_completed(futures):
             cell_name = futures[future]
             try:
-                future.result()
+                enc_path = future.result()
             except Exception as e:
                 progress.download_cell_error(cell_name, str(e))
+                continue
+            entry = catalog.get(cell_name)
+            if enc_path is not None and entry is not None:
+                db.set_enc_version(cell_name, entry.edition, entry.update)
 
     progress.download_complete()
 
@@ -492,9 +469,7 @@ def cmd_pipeline(args: argparse.Namespace) -> None:
 
     progress = PipelineProgress(verbose=verbose)
 
-    # Open state DB and migrate legacy JSON state
     db = StateDB()
-    migrate_json_state(db, Path("data/enc-update-state.json"))
     zoom_shift = getattr(args, "zoom_shift", 0)
     config_hash = compute_config_hash(zoom_shift)
     composite_hash = compute_composite_hash(config_hash)
@@ -574,16 +549,16 @@ def cmd_pipeline(args: argparse.Namespace) -> None:
                     # A cell with dropped layers is recorded as failed so the
                     # next incremental run rebuilds it (the drop may have been
                     # transient — OOM, disk-full).
-                    noaa_date = db.get_noaa_date(enc_path.stem) or ""
+                    enc_version = db.get_enc_version(enc_path.stem) or ""
                     db.set_build_state(
-                        enc_path.stem, noaa_date, config_hash,
+                        enc_path.stem, enc_version, config_hash,
                         len(tiles), success=(failed_layers == 0),
                     )
                 except Exception as e:
                     progress.cell_error(enc_path.stem, str(e))
-                    noaa_date = db.get_noaa_date(enc_path.stem) or ""
+                    enc_version = db.get_enc_version(enc_path.stem) or ""
                     db.set_build_state(
-                        enc_path.stem, noaa_date, config_hash,
+                        enc_path.stem, enc_version, config_hash,
                         0, success=False,
                     )
         pass2_elapsed = time.monotonic() - pass2_start
@@ -751,7 +726,7 @@ def cmd_pipeline(args: argparse.Namespace) -> None:
         output_checksum=None, success=True,
     )
     snapshot = {
-        p.stem: (db.get_noaa_date(p.stem) or "", config_hash)
+        p.stem: (db.get_enc_version(p.stem) or "", config_hash)
         for p in enc_files
     }
     db.set_region_cell_snapshot(region_name, snapshot)

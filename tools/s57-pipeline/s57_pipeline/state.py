@@ -1,8 +1,8 @@
 """Pipeline state database for minimal rebuild tracking.
 
-SQLite-backed state that tracks NOAA dates, scan metadata, cell build state,
-and region composite state, enabling the pipeline to skip unchanged cells
-and regions.
+SQLite-backed state that tracks each cell's ENC version (NOAA edition and
+update, see enc_catalog.py), scan metadata, cell build state, and region
+composite state, enabling the pipeline to skip unchanged cells and regions.
 """
 
 from __future__ import annotations
@@ -11,14 +11,30 @@ import hashlib
 import json
 import subprocess
 import threading
+from collections.abc import Mapping
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import NamedTuple
+
+from .enc_catalog import enc_version_key
 
 # Bump when enrichment logic (enrich.py, s52_metadata.py, labels.py, symbols.py)
 # changes in a way not captured by LAYER_CONFIGS or tippecanoe version.
 PIPELINE_VERSION = 5
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
+
+# Tables that record the ENC version a cell's derived data was produced from.
+_ENC_VERSION_TABLES = ("cell_build_state", "region_cell_snapshot", "cell_scan_cache")
+
+
+class SeedResult(NamedTuple):
+    """Rows touched by StateDB.seed_enc_versions."""
+
+    cells: int
+    builds: int
+    snapshots: int
+    scans: int
 
 
 class StateDB:
@@ -42,15 +58,16 @@ class StateDB:
                     version INTEGER NOT NULL
                 );
 
-                CREATE TABLE IF NOT EXISTS cell_noaa_state (
+                CREATE TABLE IF NOT EXISTS cell_enc_version (
                     cell_name       TEXT PRIMARY KEY,
-                    last_modified   TEXT NOT NULL,
+                    edition         INTEGER NOT NULL,
+                    update_number   INTEGER NOT NULL,
                     checked_at      TEXT NOT NULL
                 );
 
                 CREATE TABLE IF NOT EXISTS cell_scan_cache (
                     cell_name       TEXT PRIMARY KEY,
-                    noaa_date       TEXT NOT NULL,
+                    enc_version     TEXT NOT NULL,
                     intu            INTEGER,
                     cscl            INTEGER,
                     scale_band      INTEGER NOT NULL,
@@ -60,7 +77,7 @@ class StateDB:
 
                 CREATE TABLE IF NOT EXISTS cell_build_state (
                     cell_name       TEXT PRIMARY KEY,
-                    noaa_date       TEXT NOT NULL,
+                    enc_version     TEXT NOT NULL,
                     config_hash     TEXT NOT NULL,
                     built_at        TEXT NOT NULL,
                     tile_count      INTEGER,
@@ -79,7 +96,7 @@ class StateDB:
                 CREATE TABLE IF NOT EXISTS region_cell_snapshot (
                     region_name     TEXT NOT NULL,
                     cell_name       TEXT NOT NULL,
-                    noaa_date       TEXT NOT NULL,
+                    enc_version     TEXT NOT NULL,
                     config_hash     TEXT NOT NULL,
                     PRIMARY KEY (region_name, cell_name)
                 );
@@ -91,7 +108,6 @@ class StateDB:
                     r2_key          TEXT NOT NULL
                 );
             """)
-            # Set schema version if not present
             row = self._conn.execute(
                 "SELECT version FROM schema_version LIMIT 1"
             ).fetchone()
@@ -100,6 +116,22 @@ class StateDB:
                     "INSERT INTO schema_version (version) VALUES (?)",
                     (SCHEMA_VERSION,),
                 )
+            elif row[0] < SCHEMA_VERSION:
+                self._migrate(row[0])
+
+    def _migrate(self, from_version: int) -> None:
+        """Upgrade an existing database to SCHEMA_VERSION (caller holds the lock).
+
+        v2 keys cells by ENC edition/update instead of the zip Last-Modified
+        date: the ``noaa_date`` columns become ``enc_version``, and the old
+        ``cell_noaa_state`` table is kept, read only by seed_enc_versions.
+        """
+        if from_version < 2:
+            for table in _ENC_VERSION_TABLES:
+                self._conn.execute(
+                    f"ALTER TABLE {table} RENAME COLUMN noaa_date TO enc_version"
+                )
+        self._conn.execute("UPDATE schema_version SET version = ?", (SCHEMA_VERSION,))
 
     def close(self) -> None:
         self._conn.close()
@@ -110,42 +142,101 @@ class StateDB:
     def __exit__(self, *args: object) -> None:
         self.close()
 
-    # ── NOAA state ───────────────────────────────────────────────────────
+    # ── ENC versions ─────────────────────────────────────────────────────
 
-    def get_noaa_date(self, cell_name: str) -> str | None:
+    def get_enc_version(self, cell_name: str) -> str | None:
+        """Return the cell's recorded version key ("edition.update") or None."""
         row = self._conn.execute(
-            "SELECT last_modified FROM cell_noaa_state WHERE cell_name = ?",
+            "SELECT edition, update_number FROM cell_enc_version WHERE cell_name = ?",
             (cell_name,),
         ).fetchone()
-        return row[0] if row else None
+        return enc_version_key(row[0], row[1]) if row else None
 
-    def upsert_noaa_state(
-        self, cell_name: str, last_modified: str, checked_at: str | None = None,
+    def get_all_enc_versions(self) -> dict[str, str]:
+        """Return {cell_name: version key} for all cells."""
+        rows = self._conn.execute(
+            "SELECT cell_name, edition, update_number FROM cell_enc_version"
+        ).fetchall()
+        return {name: enc_version_key(ed, up) for name, ed, up in rows}
+
+    def set_enc_version(
+        self,
+        cell_name: str,
+        edition: int,
+        update: int,
+        checked_at: str | None = None,
     ) -> None:
-        if checked_at is None:
-            checked_at = _now_iso()
         with self._lock, self._conn:
             self._conn.execute(
-                """INSERT OR REPLACE INTO cell_noaa_state
-                   (cell_name, last_modified, checked_at) VALUES (?, ?, ?)""",
-                (cell_name, last_modified, checked_at),
+                """INSERT OR REPLACE INTO cell_enc_version
+                   (cell_name, edition, update_number, checked_at)
+                   VALUES (?, ?, ?, ?)""",
+                (cell_name, edition, update, checked_at or _now_iso()),
             )
 
-    def get_all_noaa_state(self) -> dict[str, str]:
-        """Return {cell_name: last_modified} for all cells."""
+    def legacy_noaa_state(self) -> dict[str, str]:
+        """Return {cell_name: Last-Modified} from a pre-v2 database, else {}."""
+        exists = self._conn.execute(
+            "SELECT 1 FROM sqlite_master WHERE type='table' AND name='cell_noaa_state'"
+        ).fetchone()
+        if not exists:
+            return {}
         rows = self._conn.execute(
             "SELECT cell_name, last_modified FROM cell_noaa_state"
         ).fetchall()
         return {name: date for name, date in rows}
+
+    def seed_enc_versions(self, versions: Mapping[str, tuple[int, int]]) -> SeedResult:
+        """Adopt catalog versions as the baseline for cells tracked by date.
+
+        For each cell that has a legacy Last-Modified entry but no recorded
+        version, records ``versions[cell]`` (edition, update) and relabels the
+        cell's build, snapshot and scan rows that were produced from that
+        Last-Modified download with the new version key, so they stay clean.
+        Rows produced from anything else keep their old label and stay dirty.
+        Cells already versioned, or never tracked, are left alone, which
+        makes seeding safe to repeat.
+        """
+        legacy = self.legacy_noaa_state()
+        recorded = self.get_all_enc_versions()
+        now = _now_iso()
+        cells = 0
+        touched = dict.fromkeys(_ENC_VERSION_TABLES, 0)
+        with self._lock, self._conn:
+            for cell_name, (edition, update) in versions.items():
+                last_modified = legacy.get(cell_name)
+                if last_modified is None or cell_name in recorded:
+                    continue
+                key = enc_version_key(edition, update)
+                self._conn.execute(
+                    """INSERT INTO cell_enc_version
+                       (cell_name, edition, update_number, checked_at)
+                       VALUES (?, ?, ?, ?)""",
+                    (cell_name, edition, update, now),
+                )
+                cells += 1
+                for table in _ENC_VERSION_TABLES:
+                    cur = self._conn.execute(
+                        f"""UPDATE {table} SET enc_version = ?
+                            WHERE cell_name = ? AND enc_version = ?""",
+                        (key, cell_name, last_modified),
+                    )
+                    touched[table] += cur.rowcount
+        return SeedResult(
+            cells=cells,
+            builds=touched["cell_build_state"],
+            snapshots=touched["region_cell_snapshot"],
+            scans=touched["cell_scan_cache"],
+        )
 
     # ── Scan cache ───────────────────────────────────────────────────────
 
     def get_scan_cache(
         self, cell_name: str,
     ) -> tuple[str, int | None, int | None, int, bytes | None] | None:
-        """Return (noaa_date, intu, cscl, scale_band, coverage_wkb) or None."""
+        """Return (enc_version, intu, cscl, scale_band, coverage_wkb) or None."""
         row = self._conn.execute(
-            """SELECT noaa_date, intu, cscl, scale_band, coverage_wkb
+            """SELECT enc_version, intu, cscl, scale_band, coverage_wkb
                FROM cell_scan_cache WHERE cell_name = ?""",
             (cell_name,),
         ).fetchone()
@@ -154,7 +245,7 @@ class StateDB:
     def set_scan_cache(
         self,
         cell_name: str,
-        noaa_date: str,
+        enc_version: str,
         intu: int | None,
         cscl: int | None,
         scale_band: int,
@@ -163,17 +254,17 @@ class StateDB:
         with self._lock, self._conn:
             self._conn.execute(
                 """INSERT OR REPLACE INTO cell_scan_cache
-                   (cell_name, noaa_date, intu, cscl, scale_band, coverage_wkb, scanned_at)
+                   (cell_name, enc_version, intu, cscl, scale_band, coverage_wkb, scanned_at)
                    VALUES (?, ?, ?, ?, ?, ?, ?)""",
-                (cell_name, noaa_date, intu, cscl, scale_band, coverage_wkb, _now_iso()),
+                (cell_name, enc_version, intu, cscl, scale_band, coverage_wkb, _now_iso()),
             )
 
     # ── Build state ──────────────────────────────────────────────────────
 
     def get_build_state(self, cell_name: str) -> tuple[str, str, bool] | None:
-        """Return (noaa_date, config_hash, success) or None."""
+        """Return (enc_version, config_hash, success) or None."""
         row = self._conn.execute(
-            "SELECT noaa_date, config_hash, success FROM cell_build_state WHERE cell_name = ?",
+            "SELECT enc_version, config_hash, success FROM cell_build_state WHERE cell_name = ?",
             (cell_name,),
         ).fetchone()
         if row is None:
@@ -183,7 +274,7 @@ class StateDB:
     def set_build_state(
         self,
         cell_name: str,
-        noaa_date: str,
+        enc_version: str,
         config_hash: str,
         tile_count: int,
         success: bool,
@@ -191,9 +282,9 @@ class StateDB:
         with self._lock, self._conn:
             self._conn.execute(
                 """INSERT OR REPLACE INTO cell_build_state
-                   (cell_name, noaa_date, config_hash, built_at, tile_count, success)
+                   (cell_name, enc_version, config_hash, built_at, tile_count, success)
                    VALUES (?, ?, ?, ?, ?, ?)""",
-                (cell_name, noaa_date, config_hash, _now_iso(), tile_count, int(success)),
+                (cell_name, enc_version, config_hash, _now_iso(), tile_count, int(success)),
             )
 
     # ── Region composite state ───────────────────────────────────────────
@@ -227,13 +318,13 @@ class StateDB:
     def get_region_cell_snapshot(
         self, region_name: str,
     ) -> dict[str, tuple[str, str]]:
-        """Return {cell_name: (noaa_date, config_hash)} for a region."""
+        """Return {cell_name: (enc_version, config_hash)} for a region."""
         rows = self._conn.execute(
-            """SELECT cell_name, noaa_date, config_hash
+            """SELECT cell_name, enc_version, config_hash
                FROM region_cell_snapshot WHERE region_name = ?""",
             (region_name,),
         ).fetchall()
-        return {name: (date, chash) for name, date, chash in rows}
+        return {name: (version, chash) for name, version, chash in rows}
 
     def set_region_cell_snapshot(
         self, region_name: str, snapshot: dict[str, tuple[str, str]],
@@ -245,11 +336,11 @@ class StateDB:
             )
             self._conn.executemany(
                 """INSERT INTO region_cell_snapshot
-                   (region_name, cell_name, noaa_date, config_hash)
+                   (region_name, cell_name, enc_version, config_hash)
                    VALUES (?, ?, ?, ?)""",
                 [
-                    (region_name, cell_name, noaa_date, config_hash)
-                    for cell_name, (noaa_date, config_hash) in snapshot.items()
+                    (region_name, cell_name, enc_version, config_hash)
+                    for cell_name, (enc_version, config_hash) in snapshot.items()
                 ],
             )
 
@@ -264,8 +355,8 @@ def is_cell_dirty(
     build = db.get_build_state(cell_name)
     if build is None or not build[2]:  # no state or last build failed
         return True
-    noaa_date = db.get_noaa_date(cell_name)
-    if noaa_date and build[0] != noaa_date:  # NOAA date changed
+    enc_version = db.get_enc_version(cell_name)
+    if enc_version and build[0] != enc_version:  # new ENC edition/update
         return True
     if build[1] != config_hash:  # config changed
         return True
@@ -290,11 +381,11 @@ def is_region_dirty(
         return True
     snapshot = db.get_region_cell_snapshot(region_name)
     for cell_name in region_cells:
-        noaa_date = db.get_noaa_date(cell_name) or ""
+        enc_version = db.get_enc_version(cell_name) or ""
         snap = snapshot.get(cell_name)
         if snap is None:  # new cell added to region
             return True
-        if snap[0] != noaa_date:  # NOAA date changed
+        if snap[0] != enc_version:  # new ENC edition/update
             return True
         if snap[1] != config_hash:  # config changed since last composite
             return True
@@ -343,30 +434,6 @@ def compute_composite_hash(config_hash: str) -> str:
     layers = sorted(COMPOSITE_PREFERRED_LAYERS or [])
     policy = json.dumps([COMPOSITE_PREFERRED_BAND, layers], sort_keys=True)
     return hashlib.sha256(f"{config_hash}\n{policy}".encode()).hexdigest()[:12]
-
-
-# ── Migration ────────────────────────────────────────────────────────────
-
-
-def migrate_json_state(db: StateDB, json_path: Path) -> None:
-    """Migrate enc-update-state.json into the SQLite database.
-
-    After migration, renames the JSON file to .json.migrated.
-    """
-    if not json_path.exists():
-        return
-    try:
-        state = json.loads(json_path.read_text())
-    except (json.JSONDecodeError, OSError):
-        return
-
-    now = _now_iso()
-    for cell_name, info in state.items():
-        last_mod = info if isinstance(info, str) else info.get("last_modified", "")
-        if last_mod:
-            db.upsert_noaa_state(cell_name, last_mod, now)
-
-    json_path.rename(json_path.with_suffix(".json.migrated"))
 
 
 # ── Helpers ──────────────────────────────────────────────────────────────
