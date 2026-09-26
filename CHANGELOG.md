@@ -15,6 +15,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/).
 ### Fixed
 - The "new version available" notice and undo toasts were squeezed into a
   narrow column on phones, one word per line.
+- Chart and basemap downloads interrupted by a lost connection (for
+  example, when the app was in the background) no longer fail
+  permanently or start over from the beginning. The download waits,
+  retries when the app is back on screen and online, and continues from
+  where it stopped. A download that stops receiving data for 60 seconds
+  now fails and is retried, instead of hanging the queue.
 
 ## [0.27.0] - 2026-09-24
 

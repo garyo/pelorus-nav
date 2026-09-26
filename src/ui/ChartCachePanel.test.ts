@@ -17,6 +17,8 @@ const tileStoreMocks = vi.hoisted(() => ({
   fetchRemoteChartMeta: vi.fn().mockResolvedValue(null),
   isUpdateAvailable: vi.fn().mockReturnValue(false),
   importChart: vi.fn().mockResolvedValue(undefined),
+  partialDownloadBytes: vi.fn().mockResolvedValue(0),
+  discardPartialDownload: vi.fn().mockResolvedValue(undefined),
 }));
 
 vi.mock("../data/tile-store", () => tileStoreMocks);
@@ -186,6 +188,7 @@ describe("ChartCachePanel download queue", () => {
     tileStoreMocks.fetchRemoteChartMeta.mockReset();
     tileStoreMocks.fetchRemoteChartMeta.mockResolvedValue(null);
     tileStoreMocks.getStorageEstimate.mockResolvedValue({ used: 0, quota: 0 });
+    tileStoreMocks.partialDownloadBytes.mockResolvedValue(0);
   });
 
   async function openPanel() {
@@ -262,6 +265,24 @@ describe("ChartCachePanel download queue", () => {
     expect(downloadButton(el, first)).not.toBeNull(); // retry is a tap away
   });
 
+  it("counts bytes kept from an interrupted download as already stored", async () => {
+    tileStoreMocks.downloadChart.mockResolvedValue(undefined);
+    tileStoreMocks.getStorageEstimate.mockResolvedValue({
+      used: 900,
+      quota: 1000,
+    });
+    tileStoreMocks.partialDownloadBytes.mockResolvedValue(
+      first.sizeEstimate - 100,
+    );
+    const { panel, el } = await openPanel();
+
+    downloadButton(el, first)?.click();
+    await vi.waitFor(() =>
+      expect(tileStoreMocks.downloadChart).toHaveBeenCalledTimes(1),
+    );
+    await vi.waitFor(() => expect(panel.isBusy()).toBe(false));
+  });
+
   it("refuses a batch that would not fit in free storage", async () => {
     tileStoreMocks.getStorageEstimate.mockResolvedValue({
       used: 900,
@@ -275,5 +296,171 @@ describe("ChartCachePanel download queue", () => {
     );
     expect(panel.isBusy()).toBe(false);
     expect(tileStoreMocks.downloadChart).not.toHaveBeenCalled();
+  });
+});
+
+/** An error as it arrives from the OPFS write worker. */
+function workerError(name: string, message: string): Error {
+  const err = new Error(message);
+  err.name = name;
+  return err;
+}
+
+const networkDrop = () => workerError("TypeError", "network error");
+
+describe("ChartCachePanel automatic retry", () => {
+  const [first, second] = CHART_REGIONS;
+  const detail = (el: HTMLElement, region: ChartRegion) =>
+    el.querySelector(`[data-region-id="${region.id}"] .manager-item-detail`)
+      ?.textContent ?? "";
+  const setHidden = (hidden: boolean) =>
+    Object.defineProperty(document, "hidden", {
+      configurable: true,
+      get: () => hidden,
+    });
+
+  beforeEach(() => {
+    document.body.innerHTML = "";
+    setHidden(false);
+    tileStoreMocks.downloadChart.mockReset();
+    tileStoreMocks.discardPartialDownload.mockClear();
+    tileStoreMocks.listStoredCharts.mockResolvedValue([]);
+    tileStoreMocks.fetchRemoteChartMeta.mockResolvedValue(null);
+    tileStoreMocks.getStorageEstimate.mockResolvedValue({ used: 0, quota: 0 });
+  });
+
+  function queuePanel() {
+    const { panel, el } = makePanel();
+    panel.show();
+    const internals = panel as unknown as ChartCachePanelInternals;
+    const enqueue = (...regions: ChartRegion[]) =>
+      internals.enqueue(regions.map((r) => internals.regionJob(r)));
+    return { panel, el, enqueue };
+  }
+
+  it("waits after a network drop and resumes when the device is back online", async () => {
+    tileStoreMocks.downloadChart
+      .mockRejectedValueOnce(networkDrop())
+      .mockResolvedValue(undefined);
+    const { panel, el, enqueue } = queuePanel();
+
+    await enqueue(first);
+    await vi.waitFor(() =>
+      expect(detail(el, first)).toContain("Waiting for network"),
+    );
+    expect(panel.isBusy()).toBe(true);
+    expect(panel.queueState()).toEqual([
+      expect.objectContaining({
+        filename: first.filename,
+        state: "waiting",
+        attempts: 1,
+      }),
+    ]);
+
+    window.dispatchEvent(new Event("online"));
+    await vi.waitFor(() => expect(panel.isBusy()).toBe(false));
+    expect(tileStoreMocks.downloadChart).toHaveBeenCalledTimes(2);
+    expect(detail(el, first)).not.toContain("failed");
+  });
+
+  it("moves a failed download behind the rest of the queue", async () => {
+    tileStoreMocks.downloadChart
+      .mockRejectedValueOnce(networkDrop())
+      .mockResolvedValue(undefined);
+    const { panel, enqueue } = queuePanel();
+
+    await enqueue(first, second);
+    await vi.waitFor(() =>
+      expect(panel.queueState().map((q) => q.filename)).toEqual([
+        second.filename,
+        first.filename,
+      ]),
+    );
+    window.dispatchEvent(new Event("online"));
+    await vi.waitFor(() => expect(panel.isBusy()).toBe(false));
+    expect(
+      tileStoreMocks.downloadChart.mock.calls.map((call) => call[1]),
+    ).toEqual([first.filename, second.filename, first.filename]);
+  });
+
+  it("gives up after its retries and shows the failure", async () => {
+    tileStoreMocks.downloadChart.mockRejectedValue(
+      workerError("StallError", "download stalled — no data for 60 s"),
+    );
+    const { panel, el, enqueue } = queuePanel();
+
+    await enqueue(first);
+    for (let i = 1; i <= 5; i++) {
+      await vi.waitFor(() =>
+        expect(panel.queueState()[0]).toMatchObject({
+          state: "waiting",
+          attempts: i,
+        }),
+      );
+      window.dispatchEvent(new Event("online"));
+    }
+    await vi.waitFor(() => expect(panel.isBusy()).toBe(false));
+    expect(tileStoreMocks.downloadChart).toHaveBeenCalledTimes(6);
+    expect(detail(el, first)).toContain(
+      "Download failed: download stalled — no data for 60 s",
+    );
+  });
+
+  it("does not retry, or count failures, while the app is hidden", async () => {
+    tileStoreMocks.downloadChart
+      .mockRejectedValueOnce(networkDrop())
+      .mockResolvedValue(undefined);
+    const { panel, enqueue } = queuePanel();
+    setHidden(true);
+
+    await enqueue(first);
+    await vi.waitFor(() =>
+      expect(panel.queueState()[0]).toMatchObject({
+        state: "waiting",
+        attempts: 0,
+      }),
+    );
+    window.dispatchEvent(new Event("online"));
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    expect(tileStoreMocks.downloadChart).toHaveBeenCalledTimes(1);
+
+    setHidden(false);
+    document.dispatchEvent(new Event("visibilitychange"));
+    await vi.waitFor(() => expect(panel.isBusy()).toBe(false));
+    expect(tileStoreMocks.downloadChart).toHaveBeenCalledTimes(2);
+  });
+
+  it("discards the kept partial when a waiting download is cancelled", async () => {
+    tileStoreMocks.downloadChart.mockRejectedValue(networkDrop());
+    const { panel, el, enqueue } = queuePanel();
+
+    await enqueue(first);
+    await vi.waitFor(() =>
+      expect(detail(el, first)).toContain("Waiting for network"),
+    );
+    el.querySelector<HTMLButtonElement>(
+      `[data-region-id="${first.id}"] button[title="Remove from queue"]`,
+    )?.click();
+    await vi.waitFor(() => expect(panel.isBusy()).toBe(false));
+    expect(tileStoreMocks.discardPartialDownload).toHaveBeenCalledWith(
+      first.filename,
+    );
+    expect(tileStoreMocks.downloadChart).toHaveBeenCalledTimes(1);
+  });
+
+  it("fetches only the missing aux files when a region download is retried", async () => {
+    tileStoreMocks.downloadChart.mockResolvedValue(undefined);
+    tileStoreMocks.downloadAuxFile
+      .mockRejectedValueOnce(networkDrop())
+      .mockResolvedValue(undefined);
+    const { panel, enqueue } = queuePanel();
+
+    await enqueue(first);
+    await vi.waitFor(() =>
+      expect(panel.queueState()[0]?.state).toBe("waiting"),
+    );
+    window.dispatchEvent(new Event("online"));
+    await vi.waitFor(() => expect(panel.isBusy()).toBe(false));
+    expect(tileStoreMocks.downloadChart).toHaveBeenCalledTimes(1);
   });
 });

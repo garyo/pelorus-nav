@@ -16,12 +16,14 @@ import {
   type ChartRegion,
   type RasterChart,
 } from "../data/chart-catalog";
+import { isTransientDownloadError } from "../data/download-resume";
 import { chartAssetBase } from "../data/remote-url";
 import type { StoredChartInfo } from "../data/tile-store";
 import {
   deleteAllCharts,
   deleteAuxFile,
   deleteChart,
+  discardPartialDownload,
   downloadAuxFile,
   downloadChart,
   fetchRemoteChartMeta,
@@ -29,6 +31,7 @@ import {
   importChart,
   isUpdateAvailable,
   listStoredCharts,
+  partialDownloadBytes,
 } from "../data/tile-store";
 import { getSettings, onSettingsChange, updateSettings } from "../settings";
 import { diag } from "../utils/diag";
@@ -64,11 +67,30 @@ interface QueueEntry {
   job: DownloadJob;
   controller: AbortController;
   active: boolean;
+  /** Failed transiently and waiting to retry (see waitForRetry). */
+  waiting: boolean;
+  /** Transient failures so far that count toward RETRY_DELAYS_MS. */
+  attempts: number;
   loaded: number;
   total: number;
   /** Caption override while a job fetches its aux files. */
   status: string | null;
 }
+
+/** One queued download, for diagnostics. */
+export interface DownloadQueueItem {
+  filename: string;
+  state: "downloading" | "queued" | "waiting";
+  attempts: number;
+  loaded: number;
+  total: number;
+}
+
+/**
+ * Backoff before each automatic retry of a transient failure (a network
+ * drop or stall); its length bounds the retries before the failure sticks.
+ */
+const RETRY_DELAYS_MS = [5_000, 15_000, 30_000, 60_000, 120_000];
 
 interface DownloadContext {
   signal: AbortSignal;
@@ -96,6 +118,8 @@ export class ChartCachePanel {
   /** Downloads in order; the head entry is the one in flight once running. */
   private readonly queue: QueueEntry[] = [];
   private queueRunning = false;
+  /** Ends the queue's wait for a retry early; set only while it waits. */
+  private wakeQueue: (() => void) | null = null;
   /** Last failure per file, shown in its row until retried or the panel closes. */
   private readonly failures = new Map<string, string>();
   /** Live readouts rebound on every render: the active row's bar and the header. */
@@ -262,6 +286,17 @@ export class ChartCachePanel {
   /** True while downloads are queued or in flight — idle auto-return must not hide the panel mid-download. */
   isBusy(): boolean {
     return this.queue.length > 0;
+  }
+
+  /** The download queue, in the order it will be served. */
+  queueState(): DownloadQueueItem[] {
+    return this.queue.map((e) => ({
+      filename: e.job.filename,
+      state: e.active ? "downloading" : e.waiting ? "waiting" : "queued",
+      attempts: e.attempts,
+      loaded: e.loaded,
+      total: e.total,
+    }));
   }
 
   private async refresh(): Promise<void> {
@@ -729,17 +764,22 @@ export class ChartCachePanel {
 
   /** Region charts plus coverage, search index and the unified coverage. */
   private regionJob(region: ChartRegion): DownloadJob {
+    // A retry after an aux file failed must not fetch the charts again.
+    let chartsDone = false;
     return {
       filename: region.filename,
       label: region.name,
       sizeEstimate: region.sizeEstimate,
       run: async ({ signal, onProgress, setStatus }) => {
-        await downloadChart(
-          `${chartAssetBase()}/${region.filename}`,
-          region.filename,
-          onProgress,
-          signal,
-        );
+        if (!chartsDone) {
+          await downloadChart(
+            `${chartAssetBase()}/${region.filename}`,
+            region.filename,
+            onProgress,
+            signal,
+          );
+          chartsDone = true;
+        }
         setStatus(`Downloading ${region.name} coverage...`);
         await downloadAuxFile(
           `${chartAssetBase()}/${region.coverageFilename}`,
@@ -796,7 +836,9 @@ export class ChartCachePanel {
   // Files download one at a time, in the order they were requested; the list
   // stays live so more can be queued, cancelled or removed meanwhile. Rows
   // render from queue state, so re-renders mid-download (region switch,
-  // reopening the panel) keep showing progress.
+  // reopening the panel) keep showing progress. A transient failure sends
+  // its job to the back of the queue, which then pauses until a retry is
+  // worth trying (see waitForRetry); the retry resumes where it stopped.
 
   private queueEntry(filename: string): QueueEntry | undefined {
     return this.queue.find((e) => e.job.filename === filename);
@@ -820,19 +862,23 @@ export class ChartCachePanel {
         job,
         controller: new AbortController(),
         active: false,
+        waiting: false,
+        attempts: 0,
         loaded: 0,
         total: 0,
         status: null,
       });
     }
     await this.refresh();
+    this.wakeQueue?.();
     void this.runQueue();
   }
 
   /**
    * A message when the queue plus these jobs would not fit in free storage,
    * else null. Catches a batch that would fail on its last item after
-   * hundreds of megabytes on cellular. Unknown quota (0) skips the check.
+   * hundreds of megabytes on cellular. Bytes already kept from an interrupted
+   * download count as present. Unknown quota (0) skips the check.
    */
   private async storageShortfall(jobs: DownloadJob[]): Promise<string | null> {
     let est: { used: number; quota: number };
@@ -842,10 +888,11 @@ export class ChartCachePanel {
       return null;
     }
     if (est.quota <= 0) return null;
-    const needed = [...this.queue.map((e) => e.job), ...jobs].reduce(
-      (sum, job) => sum + job.sizeEstimate,
-      0,
-    );
+    let needed = 0;
+    for (const job of [...this.queue.map((e) => e.job), ...jobs]) {
+      const kept = await partialDownloadBytes(job.filename);
+      needed += Math.max(0, job.sizeEstimate - kept);
+    }
     const free = Math.max(0, est.quota - est.used);
     return needed > free
       ? `Not enough storage: needs ~${formatBytes(needed)}, ${formatBytes(free)} free`
@@ -859,18 +906,34 @@ export class ChartCachePanel {
       while (this.queue.length > 0) {
         const entry = this.queue[0];
         entry.active = true;
+        entry.waiting = false;
         await this.refresh();
-        await this.runEntry(entry);
+        const retry = await this.runEntry(entry);
+        entry.active = false;
         this.removeEntry(entry);
+        if (retry) {
+          entry.waiting = true;
+          this.queue.push(entry);
+        }
         await this.refresh();
+        if (retry && this.queue.length > 0) {
+          await this.waitForRetry(
+            RETRY_DELAYS_MS[Math.max(0, entry.attempts - 1)],
+          );
+        }
       }
     } finally {
       this.queueRunning = false;
     }
   }
 
-  /** Run one job to completion, cancel, or failure (recorded for its row). */
-  private async runEntry(entry: QueueEntry): Promise<void> {
+  /**
+   * Run one job to completion, cancel, or failure. True when it failed
+   * transiently and has a retry left; any other failure is recorded for its
+   * row. Failures while the app is hidden (where Android cuts the network)
+   * don't use up retries.
+   */
+  private async runEntry(entry: QueueEntry): Promise<boolean> {
     const { job, controller } = entry;
     try {
       await job.run({
@@ -886,15 +949,50 @@ export class ChartCachePanel {
         },
       });
       await this.onChartsChanged?.();
+      return false;
     } catch (err) {
-      if (err instanceof DOMException && err.name === "AbortError") return;
+      if (err instanceof DOMException && err.name === "AbortError") {
+        return false;
+      }
+      const name = err instanceof Error ? err.name : "?";
       const msg = err instanceof Error ? err.message : "Unknown error";
-      diag(
-        "download",
-        `${job.filename} failed: ${err instanceof Error ? err.name : "?"}: ${msg}`,
-      );
+      diag("download", `${job.filename} failed: ${name}: ${msg}`);
+      if (
+        isTransientDownloadError(name) &&
+        entry.attempts < RETRY_DELAYS_MS.length
+      ) {
+        if (!document.hidden) entry.attempts++;
+        return true;
+      }
       this.failures.set(job.filename, msg);
+      return false;
     }
+  }
+
+  /**
+   * Resolve once a retry is worth trying: the app returns to the
+   * foreground, the device reports it is back online, or `delayMs` passes —
+   * the last two only while the app is visible, so retries don't fail
+   * uselessly in the background. `wakeQueue` ends the wait early (a new
+   * download queued, or the queue emptied).
+   */
+  private waitForRetry(delayMs: number): Promise<void> {
+    return new Promise((resolve) => {
+      const done = (): void => {
+        clearTimeout(timer);
+        document.removeEventListener("visibilitychange", wake);
+        window.removeEventListener("online", wake);
+        this.wakeQueue = null;
+        resolve();
+      };
+      const wake = (): void => {
+        if (!document.hidden) done();
+      };
+      const timer = setTimeout(wake, delayMs);
+      document.addEventListener("visibilitychange", wake);
+      window.addEventListener("online", wake);
+      this.wakeQueue = done;
+    });
   }
 
   private removeEntry(entry: QueueEntry): void {
@@ -902,19 +1000,30 @@ export class ChartCachePanel {
     if (i >= 0) this.queue.splice(i, 1);
   }
 
+  /**
+   * Take a not-yet-running entry out of the queue, discarding any partial
+   * download kept for it. (An active one is aborted instead; the write
+   * worker deletes its partial.)
+   */
+  private dropEntry(entry: QueueEntry): void {
+    this.removeEntry(entry);
+    void discardPartialDownload(entry.job.filename);
+    if (this.queue.length === 0) this.wakeQueue?.();
+  }
+
   /** Abort an in-flight entry (the queue moves on) or drop a waiting one. */
   private cancelEntry(entry: QueueEntry): void {
     if (entry.active) {
       entry.controller.abort();
     } else {
-      this.removeEntry(entry);
+      this.dropEntry(entry);
       void this.refresh();
     }
   }
 
   private cancelAll(): void {
     for (const entry of this.queue.filter((e) => !e.active)) {
-      this.removeEntry(entry);
+      this.dropEntry(entry);
     }
     this.queue.find((e) => e.active)?.controller.abort();
     void this.refresh();
@@ -953,6 +1062,10 @@ export class ChartCachePanel {
 
   /** A row's detail line while its file is queued or downloading. */
   private renderQueuedDetail(detail: HTMLElement, entry: QueueEntry): void {
+    if (entry.waiting) {
+      detail.textContent = "Waiting for network…";
+      return;
+    }
     if (!entry.active) {
       detail.textContent = `Queued · ~${formatBytes(entry.job.sizeEstimate)}`;
       return;
