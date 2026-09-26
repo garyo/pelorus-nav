@@ -11,6 +11,7 @@
  */
 
 import { appErrorLog, formatErrorDetail } from "../diagnostics/errorLog";
+import { RESUME_SUFFIX, TEMP_SUFFIX } from "./download-resume";
 import {
   opfsFetchWrite,
   opfsSweepTemps,
@@ -35,11 +36,12 @@ let sweptLeftoverTemps = false;
  * mid-download — the OPFS write worker cleans up after a clean failure, but a
  * hard kill skips that entirely. The sweep runs inside the worker (see
  * sweepTemps in opfs-write-worker.ts): it finishes an interrupted fallback
- * move when the temp's `.moving` marker proves it complete, and deletes
- * partial-download temps and orphaned markers. Runs at most once per session,
- * the first time the OPFS root is opened. If the worker can't run, fall back
- * to deleting the leftovers — safe (it never installs anything) and the same
- * treatment the worker gives unproven temps.
+ * move when the temp's `.moving` marker proves it complete, keeps temps with
+ * valid resume state, and deletes other partial-download temps and orphaned
+ * markers. Runs at most once per session, the first time the OPFS root is
+ * opened. If the worker can't run, fall back to deleting the leftovers — safe
+ * (it never installs anything) and the same treatment the worker gives
+ * unproven temps.
  */
 async function sweepLeftoverTemps(
   root: FileSystemDirectoryHandle,
@@ -51,7 +53,11 @@ async function sweepLeftoverTemps(
   } catch {
     try {
       for await (const name of root.keys()) {
-        if (!name.endsWith(".downloading") && !name.endsWith(".moving")) {
+        if (
+          !name.endsWith(TEMP_SUFFIX) &&
+          !name.endsWith(".moving") &&
+          !name.endsWith(RESUME_SUFFIX)
+        ) {
           continue;
         }
         try {
@@ -255,7 +261,10 @@ export function isUpdateAvailable(
  * (createSyncAccessHandle) so it works on iOS WKWebView, which has no
  * main-thread OPFS write API. The worker streams into a `${filename}.downloading`
  * temp file and only moves it over `filename` once the download completes, so a
- * failed or aborted download never disturbs an already-downloaded chart.
+ * failed or aborted download never disturbs an already-downloaded chart. A
+ * download cut short by a network drop or stall keeps its temp, and the next
+ * call for the same file continues from there when the server still has the
+ * same build (see download-resume.ts).
  */
 export async function downloadChart(
   url: string,
@@ -293,6 +302,31 @@ export async function downloadChart(
     }
     return meta;
   });
+}
+
+/** Bytes a download of `filename` has already stored in its temp (0 if none). */
+export async function partialDownloadBytes(filename: string): Promise<number> {
+  const root = await getRoot();
+  if (!root) return 0;
+  try {
+    const handle = await root.getFileHandle(`${filename}${TEMP_SUFFIX}`);
+    return (await handle.getFile()).size;
+  } catch {
+    return 0;
+  }
+}
+
+/** Delete the kept partial download of `filename`, if any, so it can't be resumed. */
+export async function discardPartialDownload(filename: string): Promise<void> {
+  const root = await getRoot();
+  if (!root) return;
+  for (const suffix of [TEMP_SUFFIX, RESUME_SUFFIX]) {
+    try {
+      await root.removeEntry(`${filename}${suffix}`);
+    } catch {
+      // nothing kept
+    }
+  }
 }
 
 /**
@@ -361,9 +395,9 @@ export async function deleteAllCharts(): Promise<void> {
   const root = await getRoot();
   if (!root) return;
   await withMeta(async () => {
-    // Removes the meta sidecar and any leftover `.downloading` temp /
-    // `.moving` marker files too — writeMeta([]) below recreates a fresh,
-    // empty sidecar.
+    // Removes the meta sidecar and any leftover `.downloading` temp,
+    // `.moving` marker and `.resume` files too — writeMeta([]) below
+    // recreates a fresh, empty sidecar.
     for await (const name of root.keys()) {
       try {
         await root.removeEntry(name);

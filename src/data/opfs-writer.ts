@@ -88,7 +88,7 @@ export function opfsWritable(): boolean {
   return typeof Worker !== "undefined" && !!navigator.storage?.getDirectory;
 }
 
-/** Stream `url` into OPFS file `filename`, reporting progress. */
+/** Stream `url` into OPFS file `filename`, reporting progress; resumes a download cut short by a network drop. */
 export function opfsFetchWrite(
   url: string,
   filename: string,
@@ -116,9 +116,9 @@ export async function opfsWriteText(
 
 /**
  * Recover leftover download temp files after a crash: finish any interrupted
- * fallback move (proven complete by its `.moving` marker) and delete
- * partial-download temps. Runs in the worker because the recovery move needs
- * `createSyncAccessHandle`, which is worker-only.
+ * fallback move (proven complete by its `.moving` marker), keep resumable
+ * temps, and delete other partial-download temps. Runs in the worker because
+ * the recovery move needs `createSyncAccessHandle`, which is worker-only.
  */
 export async function opfsSweepTemps(): Promise<void> {
   await request("sweep", {});

@@ -10,13 +10,15 @@
  * Every write streams into a `${filename}.downloading` temp file and only
  * moves it over the final filename once the whole payload has landed, so a
  * failed or aborted write never touches (let alone truncates) a chart the
- * user already has. The `sweep` op (triggered at startup from tile-store.ts)
- * recovers from a hard crash mid-write: it finishes any interrupted fallback
- * move — provably complete via its `.moving` marker, see moveIntoPlace — and
- * deletes partial-download temps.
+ * user already has. A download cut short by a network drop or stall keeps
+ * its temp plus a `.resume` sidecar so the next attempt continues from
+ * there (see download-resume.ts). The `sweep` op (triggered at startup from
+ * tile-store.ts) recovers from a hard crash mid-write: it finishes any
+ * interrupted fallback move — provably complete via its `.moving` marker,
+ * see moveIntoPlace — keeps resumable temps, and deletes the rest.
  *
  * Protocol (main → worker): { id, op, ... }
- *   - fetchWrite { url, filename }  — stream a URL to an OPFS file, posting progress
+ *   - fetchWrite { url, filename }  — stream (or resume) a URL to an OPFS file, posting progress
  *   - writeBlob  { filename, blob } — stream a Blob (e.g. an imported chart)
  *   - writeText  { filename, text } — write a string (e.g. the metadata sidecar)
  *   - sweep      {}                 — recover leftover temp files (see sweepTemps)
@@ -25,6 +27,20 @@
  */
 
 import { isCompleteDownload } from "./download-completeness";
+import {
+  continuesDownload,
+  isTransientDownloadError,
+  parseResumeState,
+  RESUME_SUFFIX,
+  type ResumeState,
+  resumeStateAfterFailure,
+  TEMP_SUFFIX,
+} from "./download-resume";
+import {
+  STALL_TIMEOUT_MS,
+  stallError,
+  stallWatchdog,
+} from "./download-watchdog";
 
 // In a module worker the global scope has Worker's postMessage/onmessage shape.
 const ctx = self as unknown as Worker;
@@ -62,9 +78,6 @@ async function removeQuietly(filename: string): Promise<void> {
   }
 }
 
-/** Suffix of the in-progress copy of a streamed download. */
-const TEMP_SUFFIX = ".downloading";
-
 /** Suffix of the fallback-move marker file — see moveIntoPlace. */
 const MOVING_SUFFIX = ".moving";
 
@@ -74,6 +87,55 @@ function tempName(filename: string): string {
 
 function markerName(filename: string): string {
   return `${filename}${MOVING_SUFFIX}`;
+}
+
+function resumeName(filename: string): string {
+  return `${filename}${RESUME_SUFFIX}`;
+}
+
+/**
+ * Drop the files that vouch for a temp — a stale `.moving` marker would
+ * make the sweep install it as complete (see moveIntoPlace), a stale
+ * `.resume` sidecar would make the next download append to it. Called
+ * before a write starts changing the temp.
+ */
+async function clearTempClaims(filename: string): Promise<void> {
+  await removeQuietly(markerName(filename));
+  await removeQuietly(resumeName(filename));
+}
+
+/** The temp's resume state, or null when it has none or it doesn't hold up. */
+async function readResume(filename: string): Promise<ResumeState | null> {
+  try {
+    const root = await getRoot();
+    const sidecar = await root.getFileHandle(resumeName(filename));
+    const temp = await root.getFileHandle(tempName(filename));
+    const text = await (await sidecar.getFile()).text();
+    const tempSize = (await temp.getFile()).size;
+    return parseResumeState(text, tempSize, Date.now());
+  } catch {
+    return null;
+  }
+}
+
+/** Write the temp's resume sidecar; false if that failed. */
+async function saveResume(
+  filename: string,
+  state: ResumeState,
+): Promise<boolean> {
+  try {
+    const access = await openAccess(resumeName(filename));
+    try {
+      access.truncate(0);
+      access.write(new TextEncoder().encode(JSON.stringify(state)), { at: 0 });
+      access.flush();
+    } finally {
+      access.close();
+    }
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 /**
@@ -145,17 +207,20 @@ async function moveIntoPlace(from: string, filename: string): Promise<void> {
 }
 
 /**
- * Startup sweep of temp files left behind by a hard crash or force-quit
- * (a clean failure removes its own temp — see the catch blocks below).
+ * Startup sweep of temp files left behind by a hard crash or force-quit,
+ * or kept for resuming (a clean failure otherwise removes its own temp —
+ * see the catch blocks below).
  *
  * The rule: a `.downloading` temp is promoted over its final filename only
  * when its `.moving` marker exists — the marker is created solely by
  * moveIntoPlace's copy fallback, after the temp was fully written and
- * closed, so it proves the temp holds a complete payload. A markerless
- * temp may be a download that died mid-stream, and promoting it could
- * install a truncated chart, so it is always deleted. A marker without a
- * temp means the move finished but the crash hit before the marker was
- * removed; the final file is already good, so only the marker is dropped.
+ * closed, so it proves the temp holds a complete payload. Without a marker,
+ * a temp with a valid, unexpired `.resume` sidecar is kept for the next
+ * download of that file to continue; any other temp may be a download
+ * that died mid-stream, and promoting it could install a truncated chart,
+ * so it is deleted. A marker without a temp means the move finished but
+ * the crash hit before the marker was removed; the final file is already
+ * good, so only the marker is dropped. A sidecar without a temp is dropped.
  */
 async function sweepTemps(): Promise<void> {
   const root = await getRoot();
@@ -169,12 +234,15 @@ async function sweepTemps(): Promise<void> {
         if (present.has(markerName(filename))) {
           await moveIntoPlace(name, filename);
           await removeQuietly(markerName(filename));
-        } else {
+        } else if (!(await readResume(filename))) {
           await removeQuietly(name);
+          await removeQuietly(resumeName(filename));
         }
       } else if (
-        name.endsWith(MOVING_SUFFIX) &&
-        !present.has(tempName(name.slice(0, -MOVING_SUFFIX.length)))
+        (name.endsWith(MOVING_SUFFIX) &&
+          !present.has(tempName(name.slice(0, -MOVING_SUFFIX.length)))) ||
+        (name.endsWith(RESUME_SUFFIX) &&
+          !present.has(tempName(name.slice(0, -RESUME_SUFFIX.length))))
       ) {
         await removeQuietly(name);
       }
@@ -184,6 +252,24 @@ async function sweepTemps(): Promise<void> {
   }
 }
 
+function requestFrom(
+  url: string,
+  offset: number,
+  signal: AbortSignal,
+): Promise<Response> {
+  return fetch(url, {
+    cache: "no-store",
+    signal,
+    headers: offset > 0 ? { Range: `bytes=${offset}-` } : undefined,
+  });
+}
+
+/**
+ * Stream `url` into `filename`, continuing a resumable temp when the server
+ * still has the same build. A network drop or a stall (no bytes for
+ * STALL_TIMEOUT_MS, headers included) keeps the temp and its resume state;
+ * any other failure, including a cancel, deletes them.
+ */
 async function fetchWrite(
   id: number,
   url: string,
@@ -191,10 +277,38 @@ async function fetchWrite(
 ): Promise<void> {
   const ac = new AbortController();
   controllers.set(id, ac);
+  let stalled = false;
+  const watchdog = stallWatchdog(STALL_TIMEOUT_MS, () => {
+    stalled = true;
+    ac.abort();
+  });
   const temp = tempName(filename);
+  let resume = await readResume(filename);
+  // What the temp holds — the sidecar's claim until this attempt writes.
+  let etag = resume?.etag;
+  let offset = resume?.bytes ?? 0;
+  let total = resume?.total ?? 0;
   let access: FileSystemSyncAccessHandle | null = null;
   try {
-    const resp = await fetch(url, { cache: "no-store", signal: ac.signal });
+    let resp = await requestFrom(url, offset, ac.signal);
+    if (
+      resume &&
+      !continuesDownload(
+        resume,
+        resp.status,
+        resp.headers.get("etag"),
+        resp.headers.get("content-range"),
+      )
+    ) {
+      // A new build, or an offset the server can't serve: start over
+      // (a 200 already is the whole file).
+      resume = null;
+      if (resp.status !== 200) {
+        await resp.body?.cancel();
+        resp = await requestFrom(url, 0, ac.signal);
+      }
+    }
+    watchdog.kick();
     if (!resp.ok || !resp.body) {
       throw new Error(`HTTP ${resp.status} ${resp.statusText}`);
     }
@@ -206,23 +320,22 @@ async function fetchWrite(
         "server returned a web page, not a chart file (offline or captive portal?)",
       );
     }
-    const total = Number(resp.headers.get("content-length") || 0);
-    const etag = resp.headers.get("etag") ?? undefined;
-    // A stale `.moving` marker from an earlier failed attempt must not pair
-    // with this fresh temp — the sweep would take it as proof the temp is
-    // complete (see moveIntoPlace).
-    await removeQuietly(markerName(filename));
+    etag = resp.headers.get("etag") ?? undefined;
+    offset = resume?.bytes ?? 0;
+    total = resume?.total ?? Number(resp.headers.get("content-length") || 0);
+    await clearTempClaims(filename);
     access = await openAccess(temp);
-    access.truncate(0);
-    let offset = 0;
+    access.truncate(offset);
     const reader = resp.body.getReader();
     for (;;) {
       const { done, value } = await reader.read();
       if (done) break;
+      watchdog.kick();
       access.write(value, { at: offset });
       offset += value.byteLength;
       ctx.postMessage({ id, type: "progress", loaded: offset, total });
     }
+    watchdog.stop();
     if (!isCompleteDownload(offset, total)) {
       throw new Error(`incomplete download: got ${offset} of ${total} bytes`);
     }
@@ -232,14 +345,28 @@ async function fetchWrite(
     await moveIntoPlace(temp, filename);
     ctx.postMessage({ id, type: "done", size: offset, etag });
   } catch (err) {
+    const failure = stalled ? stallError() : err;
+    let keep =
+      failure instanceof Error && isTransientDownloadError(failure.name)
+        ? resumeStateAfterFailure(etag, offset, total, Date.now())
+        : null;
+    try {
+      if (keep) access?.flush();
+    } catch {
+      keep = null;
+    }
     // Close the handle before removal — an open sync access handle holds an
     // exclusive lock, so removeEntry silently no-ops while it's held and a
     // truncated temp file survives.
     access?.close();
     access = null;
-    await removeQuietly(temp);
-    throw err;
+    if (!keep || !(await saveResume(filename, keep))) {
+      await removeQuietly(temp);
+      await removeQuietly(resumeName(filename));
+    }
+    throw failure;
   } finally {
+    watchdog.stop();
     access?.close();
     controllers.delete(id);
   }
@@ -262,8 +389,7 @@ async function writeBlobAtomic(
   const temp = tempName(filename);
   let access: FileSystemSyncAccessHandle | null = null;
   try {
-    // Same stale-marker guard as fetchWrite — see the comment there.
-    await removeQuietly(markerName(filename));
+    await clearTempClaims(filename);
     access = await openAccess(temp);
     access.truncate(0);
     let offset = 0;

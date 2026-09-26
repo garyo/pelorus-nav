@@ -11,6 +11,8 @@
  * `moveIntoPlace` copy fallback (very old WebViews where `move` is missing
  * or throws) is exercised the same way, along with the `sweep` op that
  * recovers crash-interrupted fallback moves via the `.moving` marker.
+ * `fetchWrite` runs against a stubbed `fetch`, covering resume (Range +
+ * etag check), the stall watchdog, and which failures keep the partial.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -101,6 +103,12 @@ class FakeFileHandle {
 
   async createSyncAccessHandle(): Promise<FakeSyncAccessHandle> {
     return new FakeSyncAccessHandle(this.root.files, this.name);
+  }
+
+  async getFile(): Promise<Blob> {
+    return new Blob([
+      (this.root.files.get(this.name) ?? new Uint8Array(0)).slice(),
+    ]);
   }
 }
 
@@ -407,5 +415,252 @@ describe("sweep", () => {
     expect(contentOf("chart.pmtiles.downloading")).toBe("full chart bytes");
     expect(root.files.has("chart.pmtiles.moving")).toBe(true);
     expect(root.files.has("chart.pmtiles")).toBe(false);
+  });
+});
+
+const ETAG = '"build-1"';
+const FULL = "0123456789abcdefghij"; // the 20-byte file on the server
+
+interface FakeReply {
+  status?: number;
+  headers?: Record<string, string>;
+  /** Chunks to deliver; the stream then ends, or fails with `fail`. */
+  chunks?: string[];
+  fail?: "network" | "hang";
+}
+
+/**
+ * Stub `fetch` with one reply per call, in order, recording each request's
+ * Range header. A "network" failure errors the body the way a dropped
+ * connection does (TypeError); "hang" never delivers another byte.
+ */
+function stubFetch(replies: FakeReply[]): { ranges: (string | null)[] } {
+  const ranges: (string | null)[] = [];
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (_url: string, init: RequestInit) => {
+      const range = new Headers(init.headers).get("range");
+      ranges.push(range);
+      const reply = replies.shift();
+      if (!reply) throw new TypeError("Failed to fetch");
+      const chunks = (reply.chunks ?? []).map((c) =>
+        new TextEncoder().encode(c),
+      );
+      // Chunks are handed out one per pull: erroring a stream discards
+      // whatever it still has queued.
+      const body = new ReadableStream<Uint8Array>({
+        pull(c) {
+          const chunk = chunks.shift();
+          if (chunk) c.enqueue(chunk);
+          else if (reply.fail === "network") {
+            c.error(new TypeError("network error"));
+          } else if (reply.fail === "hang") {
+            return new Promise<void>((_resolve, reject) =>
+              init.signal?.addEventListener("abort", () =>
+                reject(new DOMException("Aborted", "AbortError")),
+              ),
+            );
+          } else c.close();
+        },
+      });
+      return new Response(body, {
+        status: reply.status ?? 200,
+        headers: reply.headers,
+      });
+    }),
+  );
+  return { ranges };
+}
+
+/** A whole-file 200 reply for `content` from build `etag`. */
+function whole(content: string, etag = ETAG, fail?: FakeReply["fail"]) {
+  return {
+    headers: { etag, "content-length": String(content.length) },
+    chunks: fail ? [content.slice(0, 8)] : [content],
+    fail,
+  };
+}
+
+/** A 206 reply continuing the server file from `start`. */
+function rest(start: number, etag = ETAG): FakeReply {
+  return {
+    status: 206,
+    headers: {
+      etag,
+      "content-range": `bytes ${start}-${FULL.length - 1}/${FULL.length}`,
+      "content-length": String(FULL.length - start),
+    },
+    chunks: [FULL.slice(start)],
+  };
+}
+
+function resumeOf(filename: string): Record<string, unknown> | null {
+  const data = root.files.get(`${filename}.resume`);
+  return data ? JSON.parse(new TextDecoder().decode(data)) : null;
+}
+
+describe("fetchWrite", () => {
+  const fetchChart = () =>
+    send({
+      op: "fetchWrite",
+      url: "/chart.pmtiles",
+      filename: "chart.pmtiles",
+    });
+
+  it("keeps the partial after a network drop and resumes it with a Range request", async () => {
+    await loadWorker();
+    const { ranges } = stubFetch([whole(FULL, ETAG, "network"), rest(8)]);
+
+    const failed = await fetchChart();
+    expect(failed).toMatchObject({ type: "error", name: "TypeError" });
+    expect(contentOf("chart.pmtiles.downloading")).toBe(FULL.slice(0, 8));
+    expect(resumeOf("chart.pmtiles")).toMatchObject({
+      etag: ETAG,
+      bytes: 8,
+      total: 20,
+    });
+
+    const reply = await fetchChart();
+    expect(reply).toMatchObject({ type: "done", size: 20, etag: ETAG });
+    expect(ranges).toEqual([null, "bytes=8-"]);
+    expect(contentOf("chart.pmtiles")).toBe(FULL);
+    expect(root.files.has("chart.pmtiles.downloading")).toBe(false);
+    expect(root.files.has("chart.pmtiles.resume")).toBe(false);
+  });
+
+  it("starts over, never splicing builds, when the server has a new build", async () => {
+    await loadWorker();
+    const next = "ABCDEFGHIJKLMNOPQRST";
+    const { ranges } = stubFetch([
+      whole(FULL, ETAG, "network"),
+      rest(8, '"build-2"'),
+      whole(next, '"build-2"'),
+    ]);
+    await fetchChart();
+    const reply = await fetchChart();
+    expect(reply).toMatchObject({ type: "done", etag: '"build-2"' });
+    expect(ranges).toEqual([null, "bytes=8-", null]);
+    expect(contentOf("chart.pmtiles")).toBe(next);
+  });
+
+  it("takes a whole-file reply when the server ignores Range", async () => {
+    await loadWorker();
+    const { ranges } = stubFetch([whole(FULL, ETAG, "network"), whole(FULL)]);
+    await fetchChart();
+    const reply = await fetchChart();
+    expect(reply).toMatchObject({ type: "done", size: 20 });
+    expect(ranges).toEqual([null, "bytes=8-"]);
+    expect(contentOf("chart.pmtiles")).toBe(FULL);
+  });
+
+  it("keeps the resume state when the retry itself can't connect", async () => {
+    await loadWorker();
+    stubFetch([whole(FULL, ETAG, "network")]); // then "Failed to fetch"
+    await fetchChart();
+    const again = await fetchChart();
+    expect(again).toMatchObject({ type: "error", message: "Failed to fetch" });
+    expect(contentOf("chart.pmtiles.downloading")).toBe(FULL.slice(0, 8));
+    expect(resumeOf("chart.pmtiles")).toMatchObject({ bytes: 8 });
+  });
+
+  it("fails a stalled download with a clear message and keeps it resumable", async () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    try {
+      await loadWorker();
+      stubFetch([whole(FULL, ETAG, "hang")]);
+      const pending = fetchChart();
+      await vi.advanceTimersByTimeAsync(60_000);
+      expect(await pending).toMatchObject({
+        type: "error",
+        name: "StallError",
+        message: "download stalled — no data for 60 s",
+      });
+      expect(resumeOf("chart.pmtiles")).toMatchObject({ bytes: 8 });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it.each<[string, FakeReply]>([
+    [
+      "no etag",
+      {
+        headers: { "content-length": "20" },
+        chunks: ["01234567"],
+        fail: "network",
+      },
+    ],
+    ["a weak etag", { ...whole(FULL, `W/${ETAG}`, "network") }],
+  ])("deletes the partial when the reply has %s", async (_case, reply) => {
+    await loadWorker();
+    stubFetch([reply]);
+    expect((await fetchChart()).type).toBe("error");
+    expect(root.files.has("chart.pmtiles.downloading")).toBe(false);
+    expect(root.files.has("chart.pmtiles.resume")).toBe(false);
+  });
+
+  it("deletes the partial and its resume state on cancel", async () => {
+    await loadWorker();
+    stubFetch([
+      whole(FULL, ETAG, "network"),
+      { ...rest(8), chunks: ["89"], fail: "hang" },
+    ]);
+    await fetchChart();
+    const id = nextId;
+    const pending = fetchChart();
+    await vi.waitFor(() =>
+      expect(contentOf("chart.pmtiles.downloading")).toBe(FULL.slice(0, 10)),
+    );
+    fakeSelf.onmessage?.({ data: { id, op: "abort" } } as MessageEvent);
+    expect(await pending).toMatchObject({ type: "error", name: "AbortError" });
+    expect(root.files.has("chart.pmtiles.downloading")).toBe(false);
+    expect(root.files.has("chart.pmtiles.resume")).toBe(false);
+  });
+
+  it("deletes the partial on an HTTP error", async () => {
+    await loadWorker();
+    stubFetch([whole(FULL, ETAG, "network"), { status: 404 }, { status: 404 }]);
+    await fetchChart();
+    expect(await fetchChart()).toMatchObject({
+      type: "error",
+      message: "HTTP 404 ",
+    });
+    expect(root.files.has("chart.pmtiles.downloading")).toBe(false);
+    expect(root.files.has("chart.pmtiles.resume")).toBe(false);
+  });
+});
+
+describe("sweep of resumable downloads", () => {
+  const enc = new TextEncoder();
+  const sidecar = (savedAt: number) =>
+    enc.encode(JSON.stringify({ etag: ETAG, bytes: 8, total: 20, savedAt }));
+
+  it("keeps a temp with valid resume state", async () => {
+    await loadWorker();
+    root.files.set("chart.pmtiles.downloading", enc.encode(FULL.slice(0, 8)));
+    root.files.set("chart.pmtiles.resume", sidecar(Date.now()));
+    expect((await send({ op: "sweep" })).type).toBe("done");
+    expect(contentOf("chart.pmtiles.downloading")).toBe(FULL.slice(0, 8));
+    expect(root.files.has("chart.pmtiles.resume")).toBe(true);
+  });
+
+  it("deletes an expired resumable temp and an orphaned sidecar", async () => {
+    await loadWorker();
+    root.files.set("a.pmtiles.downloading", enc.encode(FULL.slice(0, 8)));
+    root.files.set("a.pmtiles.resume", sidecar(Date.now() - 8 * 86_400_000));
+    root.files.set("b.pmtiles.resume", sidecar(Date.now()));
+    expect((await send({ op: "sweep" })).type).toBe("done");
+    expect([...root.files.keys()]).toEqual([]);
+  });
+
+  it("drops a stale sidecar when a blob write replaces the temp", async () => {
+    await loadWorker();
+    root.files.set("chart.pmtiles.resume", sidecar(Date.now()));
+    await send({
+      op: "writeBlob",
+      filename: "chart.pmtiles",
+      blob: streamOnlyBlob(["imported "], 1),
+    });
+    expect(root.files.has("chart.pmtiles.resume")).toBe(false);
   });
 });
