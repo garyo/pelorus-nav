@@ -8,9 +8,12 @@ For use on the water, install it:
 
 - **Phone/tablet browser** — use your browser's "Add to Home Screen" /
   "Install app" option. The installed app runs full-screen and works offline.
-- **Android** — install from the Play Store, or download the APK from the
-  latest [GitHub release](https://github.com/garyo/pelorus-nav/releases).
-- **iOS** — available through TestFlight (beta).
+- **Android** (beta) — install through the Play Store's closed testing (the
+  maintainer adds testers; [sign up](https://pelorus-nav.com/#follow)), or
+  download the signed APK from the latest
+  [GitHub release](https://github.com/garyo/pelorus-nav/releases).
+- **iOS** (beta) — available through TestFlight
+  ([sign up](https://pelorus-nav.com/#follow) to join).
 
 The web app updates itself: when a new build is published it loads in the
 background and the app reloads at a quiet moment (or tap **Reload now**).

@@ -13,9 +13,12 @@ tracks, tides and currents, and man-overboard.
 - **Web / PWA**: [pelorus-nav.com/app](https://pelorus-nav.com/app) — works in
   any modern browser, and can be installed to your home screen for full-screen,
   offline use.
-- **Android**: available from the Play Store, or as an APK attached to each
+- **Android** (beta): through the Play Store's closed testing — the
+  maintainer adds testers, so [sign up](https://pelorus-nav.com/#follow) — or
+  as the signed APK attached to each
   [GitHub release](https://github.com/garyo/pelorus-nav/releases).
-- **iOS**: via TestFlight (beta).
+- **iOS** (beta): via TestFlight — [sign up](https://pelorus-nav.com/#follow)
+  to join.
 
 ## This guide
 
