@@ -41,18 +41,40 @@ function getAllowedOrigin(request: Request): string | null {
   return null;
 }
 
-function parseRange(
-  rangeHeader: string,
-): { offset: number; length: number } | null {
-  // Parse "bytes=START-END"
-  const match = rangeHeader.match(/^bytes=(\d+)-(\d+)?$/);
+/**
+ * Parse a single-range "bytes=START-END", "bytes=START-" or "bytes=-SUFFIX"
+ * header into an R2 range; null for anything else (multiple ranges, other
+ * units, END before START).
+ */
+export function parseRange(rangeHeader: string): R2Range | null {
+  const match = rangeHeader.match(/^bytes=(\d*)-(\d*)$/);
   if (!match) return null;
-  const start = Number(match[1]);
-  const end = match[2] !== undefined ? Number(match[2]) : undefined;
-  if (end !== undefined) {
-    return { offset: start, length: end - start + 1 };
+  const [, first, last] = match;
+  const start = Number(first);
+  const end = Number(last);
+  if (!Number.isSafeInteger(start) || !Number.isSafeInteger(end)) return null;
+  if (first === "") return last === "" ? null : { suffix: end };
+  if (last === "") return { offset: start };
+  return end < start ? null : { offset: start, length: end - start + 1 };
+}
+
+/**
+ * The first and last byte positions a range selects from an object of
+ * `size` bytes, clamped to the object as R2 does; null when the range is
+ * not satisfiable (it starts at or past the end, or is an empty suffix).
+ */
+export function resolveRange(
+  range: R2Range,
+  size: number,
+): { start: number; end: number } | null {
+  if ("suffix" in range) {
+    if (range.suffix <= 0 || size === 0) return null;
+    return { start: Math.max(0, size - range.suffix), end: size - 1 };
   }
-  return { offset: start, length: 0 }; // 0 = to end of file
+  const start = range.offset ?? 0;
+  if (start >= size) return null;
+  const end = range.length === undefined ? size - 1 : start + range.length - 1;
+  return { start, end: Math.min(end, size - 1) };
 }
 
 function contentTypeForKey(key: string): string {
@@ -98,43 +120,8 @@ async function handleTilesRequest(
     : {};
 
   const rangeHeader = request.headers.get("range");
-
   if (rangeHeader) {
-    const range = parseRange(rangeHeader);
-    if (!range) {
-      return new Response("Invalid Range", { status: 416 });
-    }
-
-    const options: R2GetOptions = {
-      range:
-        range.length > 0
-          ? { offset: range.offset, length: range.length }
-          : { offset: range.offset },
-    };
-
-    const object = await env.TILES.get(key, options);
-    if (!object) {
-      return new Response("Not found", { status: 404 });
-    }
-
-    const body = "body" in object ? object.body : null;
-    const size = object.size;
-    const end = range.length > 0 ? range.offset + range.length - 1 : size - 1;
-
-    return new Response(body, {
-      status: 206,
-      headers: {
-        "content-type": contentTypeForKey(key),
-        "content-range": `bytes ${range.offset}-${end}/${size}`,
-        "content-length": String(end - range.offset + 1),
-        "accept-ranges": "bytes",
-        etag: object.httpEtag,
-        "last-modified": object.uploaded.toUTCString(),
-        "cache-control": cacheControlForKey(key),
-        ...corsHeaders,
-        "access-control-expose-headers": EXPOSED_HEADERS,
-      },
-    });
+    return handleRangeRequest(env, key, rangeHeader, corsHeaders);
   }
 
   // Full object request (no Range header) — also covers HEAD, since the
@@ -165,6 +152,62 @@ async function handleTilesRequest(
     headers: {
       "content-type": contentTypeForKey(key),
       "content-length": String(object.size),
+      "accept-ranges": "bytes",
+      etag: object.httpEtag,
+      "last-modified": object.uploaded.toUTCString(),
+      "cache-control": cacheControlForKey(key),
+      ...corsHeaders,
+      "access-control-expose-headers": EXPOSED_HEADERS,
+    },
+  });
+}
+
+function hasBody(object: R2Object): object is R2ObjectBody {
+  return "body" in object;
+}
+
+async function handleRangeRequest(
+  env: Env,
+  key: string,
+  rangeHeader: string,
+  corsHeaders: Record<string, string>,
+): Promise<Response> {
+  const range = parseRange(rangeHeader);
+  let object: R2Object | null;
+  try {
+    // An unparseable header needs only the object's size, for the 416.
+    object = range
+      ? await env.TILES.get(key, { range })
+      : await env.TILES.head(key);
+  } catch (err) {
+    // R2 throws for a range starting at or past the end of the object.
+    object = await env.TILES.head(key);
+    if (object && range && resolveRange(range, object.size)) throw err;
+  }
+  if (!object) {
+    return new Response("Not found", { status: 404 });
+  }
+
+  const served = range && resolveRange(range, object.size);
+  if (!served || !hasBody(object)) {
+    return new Response("Range Not Satisfiable", {
+      status: 416,
+      headers: {
+        "content-range": `bytes */${object.size}`,
+        "accept-ranges": "bytes",
+        ...corsHeaders,
+        "access-control-expose-headers": EXPOSED_HEADERS,
+      },
+    });
+  }
+
+  const { start, end } = served;
+  return new Response(object.body, {
+    status: 206,
+    headers: {
+      "content-type": contentTypeForKey(key),
+      "content-range": `bytes ${start}-${end}/${object.size}`,
+      "content-length": String(end - start + 1),
       "accept-ranges": "bytes",
       etag: object.httpEtag,
       "last-modified": object.uploaded.toUTCString(),
