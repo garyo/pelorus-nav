@@ -5,12 +5,12 @@ Pure checker + state manager. No orchestration — build-tiles.sh handles that.
 
 Usage:
   uv run python tools/check-enc-updates.py [--region R] [--json] [--quiet]
-      [--save-state | --seed-from-catalog]
+      [--pending-builds | --seed-from-catalog]
 
 Options:
   (default)            Human-readable change report
   --json               Machine-readable output for build-tiles.sh
-  --save-state         Record the versions seen by the last check as built
+  --pending-builds     List regions with downloaded data not yet built
   --seed-from-catalog  One-time baseline adoption (see below)
   --region R           Check only this region (repeatable)
   --quiet              Minimal output
@@ -22,10 +22,17 @@ Active (e.g. Cancelled) or omits entirely are reported but never trigger a
 rebuild, since NOAA publishes no new content for them. Cells with no
 recorded version are "new" and trigger a rebuild.
 
-The versions a check sees are saved to tile-data/enc-check-versions.json;
---save-state (run by build-tiles.sh after a successful build) records those,
-not a later catalog, so an edition published mid-build is still reported
-as changed on the next check.
+A cell's version is recorded only when the pipeline's download step fetches
+it, so a cell that fails to download stays changed and is retried on the
+next run. A region is also reported as changed while its tiles lag its
+downloaded data or one of its cells failed to build (see
+state.region_needs_build), so a build interrupted after its download is
+finished on the next run.
+
+--pending-builds, run by build-tiles.sh after downloading, prints the
+selected regions whose downloaded data is not yet built, one per line, so a
+region is rebuilt only when a download brought new data. Cells still behind
+the catalog (their download failed) are listed on stderr.
 
 --seed-from-catalog migrates a state DB that tracked cells by zip
 Last-Modified date. For every cell of the selected regions that has such a
@@ -40,6 +47,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import sys
 from collections import Counter
 from pathlib import Path
@@ -50,6 +58,7 @@ PIPELINE_DIR = TOOLS_DIR / "s57-pipeline"
 sys.path.insert(0, str(PIPELINE_DIR))
 
 from s57_pipeline.enc_catalog import (  # noqa: E402
+    CATALOG_MAX_AGE_S,
     CatalogCell,
     CatalogError,
     CellStatus,
@@ -57,74 +66,43 @@ from s57_pipeline.enc_catalog import (  # noqa: E402
     load_product_catalog,
 )
 from s57_pipeline.regions import REGIONS, get_region_cells  # noqa: E402
-from s57_pipeline.state import StateDB  # noqa: E402
+from s57_pipeline.state import StateDB, region_needs_build  # noqa: E402
 
 DATA_DIR = PIPELINE_DIR / "data"
 CATALOG_CACHE = DATA_DIR / "ENCProdCat.xml"
-# {cell: [edition, update]} as seen by the last check, applied by --save-state.
-CHECK_VERSIONS_FILE = DATA_DIR / "enc-check-versions.json"
+# Statuses of cells whose catalog version has not been downloaded yet.
+BEHIND = (CellStatus.CHANGED, CellStatus.NEW)
 
 
 def _open_db() -> StateDB:
     return StateDB(DATA_DIR / "pipeline-state.db")
 
 
-def _load_catalog() -> dict[str, CatalogCell]:
+def _load_catalog(max_age_s: float = CATALOG_MAX_AGE_S) -> dict[str, CatalogCell]:
     try:
-        return load_product_catalog(CATALOG_CACHE)
+        return load_product_catalog(CATALOG_CACHE, max_age_s=max_age_s)
     except CatalogError as e:
         print(f"Error: {e}", file=sys.stderr)
         sys.exit(1)
 
 
-def _read_check_versions() -> dict[str, tuple[int, int]]:
-    try:
-        raw = json.loads(CHECK_VERSIONS_FILE.read_text())
-    except (OSError, json.JSONDecodeError):
-        return {}
-    return {cell: (int(v[0]), int(v[1])) for cell, v in raw.items()}
-
-
-def _write_check_versions(catalog: dict[str, CatalogCell], cells: list[str]) -> None:
-    """Merge this check's versions over earlier ones, so cells outside this
-    run's regions keep their entries."""
-    versions = _read_check_versions()
-    for cell in cells:
-        if entry := catalog.get(cell):
-            versions[cell] = (entry.edition, entry.update)
-    CHECK_VERSIONS_FILE.parent.mkdir(parents=True, exist_ok=True)
-    CHECK_VERSIONS_FILE.write_text(json.dumps(versions, indent=0))
-
-
-def save_state(cells: list[str], quiet: bool) -> None:
-    """Record the check-time versions of `cells` as their built versions.
-
-    Cells without a check-time version (manual run, fresh state) fall back
-    to the current catalog.
-    """
-    check_versions = _read_check_versions()
-    missing = [c for c in cells if c not in check_versions]
-    fallback: dict[str, tuple[int, int]] = {}
-    if missing:
-        catalog = _load_catalog()
-        fallback = {
-            c: (entry.edition, entry.update)
-            for c in missing
-            if (entry := catalog.get(c))
-        }
-
+def pending_builds(region_cells: dict[str, list[str]], cells: list[str]) -> None:
+    # The cached catalog, whatever its age, is the one the download just used.
+    catalog = _load_catalog(max_age_s=math.inf)
     with _open_db() as db:
-        for cell in cells:
-            version = check_versions.get(cell) or fallback.get(cell)
-            if version:
-                db.set_enc_version(cell, *version)
-
-    if not quiet:
-        applied = len(cells) - len(missing)
+        recorded = db.get_all_enc_versions()
+        pending = [r for r, cl in region_cells.items() if region_needs_build(r, db, cl)]
+    behind = [
+        c for c in cells if classify_cell(recorded.get(c), catalog.get(c)) in BEHIND
+    ]
+    if behind:
         print(
-            f"State updated: {applied} cells from check-time versions, "
-            f"{len(fallback)} from the current catalog"
+            f"!!! {len(behind)} ENC cells failed to download "
+            f"(retried next run): {', '.join(behind)}",
+            file=sys.stderr,
         )
+    for region in pending:
+        print(region)
 
 
 def seed_from_catalog(cells: list[str]) -> None:
@@ -154,21 +132,15 @@ def check(
     with _open_db() as db:
         recorded = db.get_all_enc_versions()
         legacy = db.legacy_noaa_state()
+        unbuilt = {r for r, cl in region_cells.items() if region_needs_build(r, db, cl)}
 
     status = {c: classify_cell(recorded.get(c), catalog.get(c)) for c in cells}
-    _write_check_versions(catalog, cells)
+    behind = {c for c in cells if status[c] in BEHIND}
 
-    changed_cells: set[str] = set()
     changed_regions: list[str] = []
     for region_name, region_cell_list in region_cells.items():
         counts = Counter(status[c] for c in region_cell_list)
-        region_changed = [
-            c
-            for c in region_cell_list
-            if status[c] in (CellStatus.CHANGED, CellStatus.NEW)
-        ]
-        changed_cells.update(region_changed)
-        if region_changed:
+        if region_name in unbuilt or any(c in behind for c in region_cell_list):
             changed_regions.append(region_name)
         if not report:
             continue
@@ -188,6 +160,8 @@ def check(
             print(f"{region_name}: {', '.join(parts)} of {total} cells")
         else:
             print(f"{region_name}: all {total} cells up to date")
+        if region_name in unbuilt:
+            print("  (tiles lag downloaded data or a cell build failed)")
         if counts[CellStatus.INACTIVE] or counts[CellStatus.MISSING]:
             print(
                 f"  ({counts[CellStatus.INACTIVE]} not Active in catalog, "
@@ -209,14 +183,14 @@ def check(
                 {
                     "changed_regions": changed_regions,
                     "total_checked": len(cells),
-                    "total_changed": len(changed_cells),
+                    "total_changed": len(behind),
                 }
             )
         )
     else:
-        print(f"\nSummary: {len(changed_cells)} changed out of {len(cells)} cells")
-        if changed_cells:
-            print(f"{len(changed_cells)} cells have updates available.")
+        print(f"\nSummary: {len(behind)} changed out of {len(cells)} cells")
+        if behind:
+            print(f"{len(behind)} cells have updates available.")
         else:
             print("No updates needed.")
 
@@ -231,9 +205,9 @@ def main() -> None:
     )
     mode = parser.add_mutually_exclusive_group()
     mode.add_argument(
-        "--save-state",
+        "--pending-builds",
         action="store_true",
-        help="Record the versions seen by the last check (no check performed)",
+        help="List regions with downloaded data not yet built (no check performed)",
     )
     mode.add_argument(
         "--seed-from-catalog",
@@ -259,8 +233,8 @@ def main() -> None:
     region_cells = {r: get_region_cells(r) for r in regions}
     cells = list(dict.fromkeys(c for cl in region_cells.values() for c in cl))
 
-    if args.save_state:
-        save_state(cells, args.quiet)
+    if args.pending_builds:
+        pending_builds(region_cells, cells)
     elif args.seed_from_catalog:
         seed_from_catalog(cells)
     else:

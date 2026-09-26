@@ -11,7 +11,7 @@ import hashlib
 import json
 import subprocess
 import threading
-from collections.abc import Mapping
+from collections.abc import Iterable, Mapping
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import NamedTuple
@@ -287,6 +287,13 @@ class StateDB:
                 (cell_name, enc_version, config_hash, _now_iso(), tile_count, int(success)),
             )
 
+    def failed_build_cells(self) -> set[str]:
+        """Return the cells whose last build failed."""
+        rows = self._conn.execute(
+            "SELECT cell_name FROM cell_build_state WHERE success = 0"
+        ).fetchall()
+        return {name for (name,) in rows}
+
     # ── Region composite state ───────────────────────────────────────────
 
     def get_composite_state(self, region_name: str) -> tuple[str, bool] | None:
@@ -388,6 +395,33 @@ def is_region_dirty(
         if snap[0] != enc_version:  # new ENC edition/update
             return True
         if snap[1] != config_hash:  # config changed since last composite
+            return True
+    return False
+
+
+def region_needs_build(
+    region_name: str, db: StateDB, region_cells: Iterable[str]
+) -> bool:
+    """Check whether a region's tiles lag its downloaded ENC data.
+
+    True when one of the region's cells last failed to build, or when a
+    cell with a recorded version (set when a download succeeds) is
+    missing from the region's last composite snapshot or was composited at
+    another version. The snapshot's cells are compared too, since a
+    composite also draws on overview cells of neighbouring regions.
+    Cells without a recorded version are ignored, so a cell that has never
+    downloaded cannot make its region look stale. Unlike is_region_dirty,
+    configuration changes are not considered.
+    """
+    cells = set(region_cells)
+    if cells & db.failed_build_cells():
+        return True
+    recorded = db.get_all_enc_versions()
+    snapshot = db.get_region_cell_snapshot(region_name)
+    for cell_name in cells | snapshot.keys():
+        version = recorded.get(cell_name)
+        snap = snapshot.get(cell_name)
+        if version is not None and (snap is None or snap[0] != version):
             return True
     return False
 

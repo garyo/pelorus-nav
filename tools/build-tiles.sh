@@ -178,45 +178,6 @@ for r in data.get('changed_regions', []):
 
   echo "Checked $total_checked cells: $total_changed changed"
 
-  # Also check for cells with failed builds — these need rebuilding
-  # even if NOAA dates haven't changed.
-  local failed_regions
-  failed_regions=$(cd "$PIPELINE_DIR" && uv run python -c "
-import sys
-sys.path.insert(0, '.')
-from s57_pipeline.state import StateDB
-from s57_pipeline.regions import REGIONS, get_region_cells
-db = StateDB()
-failed = {name for name, in db._conn.execute(
-    'SELECT cell_name FROM cell_build_state WHERE success = 0'
-).fetchall()}
-db.close()
-if not failed:
-    sys.exit(0)
-regions = set()
-for r in REGIONS:
-    if r == 'boston-test':
-        continue
-    cells = set(get_region_cells(r))
-    if cells & failed:
-        regions.add(r)
-for r in sorted(regions):
-    print(r)
-" 2>/dev/null || true)
-
-  while IFS= read -r region; do
-    if [[ -n "$region" ]]; then
-      # Add to CHANGED_REGIONS if not already present
-      local found=false
-      for existing in "${CHANGED_REGIONS[@]}"; do
-        [[ "$existing" == "$region" ]] && found=true && break
-      done
-      if ! $found; then
-        CHANGED_REGIONS+=("$region")
-      fi
-    fi
-  done <<< "$failed_regions"
-
   if [[ ${#CHANGED_REGIONS[@]} -gt 0 ]]; then
     echo "Regions to update: ${CHANGED_REGIONS[*]}"
   else
@@ -366,14 +327,23 @@ unify_coverage() {
     -o "$OUTPUT_DIR/nautical-unified.coverage.geojson"
 }
 
-update_check_state() {
-  echo "=== Saving ENC update state ==="
-  local region_args=()
-  for r in "${REGIONS[@]}"; do
-    region_args+=(--region "$r")
+# Narrow BUILD_REGIONS to the regions whose downloaded data is not yet built
+# (or that have a failed cell build). A cell that fails to download keeps its
+# region flagged by the check, so the download is retried every run, but the
+# region is rebuilt only once a download brings new data. The failed cells are
+# logged on one "!!!" line.
+narrow_to_pending_builds() {
+  local region_args=() region pending
+  for region in "${BUILD_REGIONS[@]}"; do
+    region_args+=(--region "$region")
   done
-  cd "$PIPELINE_DIR"
-  uv run python "$SCRIPT_DIR/check-enc-updates.py" "${region_args[@]}" --save-state --quiet
+  pending=$(cd "$PIPELINE_DIR" && uv run python "$SCRIPT_DIR/check-enc-updates.py" \
+    "${region_args[@]}" --pending-builds)
+  BUILD_REGIONS=()
+  while IFS= read -r region; do
+    [[ -n "$region" ]] && BUILD_REGIONS+=("$region")
+  done <<< "$pending"
+  echo "Regions with new data to build: ${BUILD_REGIONS[*]:-(none)}"
 }
 
 # --- Main ---
@@ -402,6 +372,9 @@ if $OP_DOWNLOAD && [[ ${#BUILD_REGIONS[@]} -gt 0 ]]; then
   for region in "${BUILD_REGIONS[@]}"; do
     do_download "$region"
   done
+  if $OP_CHECK && ! $FORCE; then
+    narrow_to_pending_builds
+  fi
   echo ""
 fi
 
@@ -479,11 +452,6 @@ if $OP_UPLOAD && [[ ${#BUILD_REGIONS[@]} -gt 0 ]]; then
   else
     do_upload
   fi
-fi
-
-# Update state after successful build+upload
-if $OP_CHECK && $OP_BUILD && [[ ${#BUILD_REGIONS[@]} -gt 0 ]]; then
-  update_check_state
 fi
 
 # Total timing

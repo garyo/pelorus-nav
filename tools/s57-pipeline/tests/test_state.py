@@ -15,6 +15,7 @@ from s57_pipeline.state import (
     compute_config_hash,
     is_cell_dirty,
     is_region_dirty,
+    region_needs_build,
 )
 
 
@@ -175,6 +176,45 @@ class TestDirtyChecks:
         db.set_enc_version("CELL_A", 1, 1)
         db.set_enc_version("CELL_B", 1, 2)
         assert is_region_dirty("region-a", db, "hash1", ["CELL_A", "CELL_B"]) is False
+
+
+class TestRegionNeedsBuild:
+    @pytest.fixture
+    def built(self, db: StateDB) -> StateDB:
+        """Region "r" composited from A at 1.0 and B at 2.0."""
+        db.set_enc_version("A", 1, 0)
+        db.set_enc_version("B", 2, 0)
+        db.set_region_cell_snapshot("r", {"A": ("1.0", "h"), "B": ("2.0", "h")})
+        return db
+
+    def test_clean_after_composite(self, built: StateDB) -> None:
+        assert region_needs_build("r", built, ["A", "B"]) is False
+
+    def test_newly_downloaded_version(self, built: StateDB) -> None:
+        built.set_enc_version("A", 1, 1)
+        assert region_needs_build("r", built, ["A", "B"]) is True
+
+    def test_downloaded_cell_not_yet_composited(self, built: StateDB) -> None:
+        built.set_enc_version("C", 1, 0)
+        assert region_needs_build("r", built, ["A", "B", "C"]) is True
+
+    def test_never_downloaded_cell_is_ignored(self, built: StateDB) -> None:
+        assert region_needs_build("r", built, ["A", "B", "C"]) is False
+
+    def test_overview_cell_from_snapshot(self, built: StateDB) -> None:
+        built.set_enc_version("B", 2, 1)
+        assert region_needs_build("r", built, ["A"]) is True
+
+    def test_failed_cell_build(self, built: StateDB) -> None:
+        built.set_build_state("OTHER", "1.0", "h", 0, False)
+        assert region_needs_build("r", built, ["A", "B"]) is False
+        built.set_build_state("B", "2.0", "h", 0, False)
+        assert built.failed_build_cells() == {"OTHER", "B"}
+        assert region_needs_build("r", built, ["A", "B"]) is True
+
+    def test_never_composited(self, db: StateDB) -> None:
+        db.set_enc_version("A", 1, 0)
+        assert region_needs_build("r", db, ["A"]) is True
 
 
 class TestConfigHash:
