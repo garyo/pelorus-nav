@@ -21,6 +21,8 @@ tracks, tides and currents, and man-overboard.
 
 - [Getting Started](/getting-started) — first launch, settings worth changing,
   and downloading charts for offline use.
+- [Features](/features) — what Pelorus Nav does, at a glance, with
+  links into the rest of the guide.
 - [The Chart Display](/chart-display) — chart modes, detail levels, layers,
   and the instrument display.
 - [Your Own Charts](/own-charts) — loading satellite and scanned charts you

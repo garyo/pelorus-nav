@@ -29,6 +29,7 @@ export default defineConfig({
         items: [
           { text: "Introduction", link: "/" },
           { text: "Getting Started", link: "/getting-started" },
+          { text: "Features", link: "/features" },
           { text: "The Chart Display", link: "/chart-display" },
           { text: "Your Own Charts", link: "/own-charts" },
           { text: "Routes", link: "/routes" },
