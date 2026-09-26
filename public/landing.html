@@ -66,13 +66,13 @@ a { color: var(--wave); }
 /* ---------- header ---------- */
 header {
   display: flex; align-items: center; justify-content: space-between;
-  padding: 20px 0; gap: 16px;
+  padding: 20px 0; gap: 12px 16px; flex-wrap: wrap;
 }
 .brand { display: flex; align-items: center; gap: 12px; text-decoration: none; }
 .brand svg { width: 40px; height: 40px; }
 .brand span { font-size: 21px; font-weight: 600; color: var(--cloth); letter-spacing: 0.01em; }
 .brand span b { color: var(--wave); font-weight: 600; }
-.header-links { display: flex; align-items: center; gap: 22px; }
+.header-links { display: flex; align-items: center; gap: 8px 22px; flex-wrap: wrap; }
 .header-links a { color: var(--body); text-decoration: none; font-size: 15.5px; font-weight: 400; }
 .header-links a:hover { color: var(--cloth); }
 .btn {
@@ -92,7 +92,7 @@ header {
 .btn-ghost:hover { border-color: var(--wave); }
 
 /* ---------- hero ---------- */
-.hero { text-align: center; padding: 64px 0 0; }
+.hero { text-align: center; padding-top: 64px; }
 .eyebrow {
   font-size: 13px; font-weight: 500; letter-spacing: 0.22em;
   text-transform: uppercase; color: var(--chrome);
@@ -256,7 +256,7 @@ footer {
 }
 footer a { color: var(--chrome); text-decoration: none; }
 footer a:hover { color: var(--wave); }
-footer nav { display: flex; gap: 22px; }
+footer nav { display: flex; gap: 8px 22px; flex-wrap: wrap; }
 </style>
 <!-- featherstat analytics; cookie-less, prod hostnames only. Kept in step with
      index.html. -->
