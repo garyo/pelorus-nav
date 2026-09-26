@@ -176,6 +176,9 @@ h2 {
 }
 .feature h3 { font-size: 18px; font-weight: 500; color: var(--cloth); margin-bottom: 8px; }
 .feature p { font-size: 15.5px; }
+.see-all { margin-top: 26px; font-size: 16.5px; }
+.see-all a { font-weight: 400; text-decoration: none; }
+.see-all a:hover { text-decoration: underline; }
 
 /* ---------- offline split ---------- */
 .split { display: grid; grid-template-columns: 1fr minmax(240px, 320px); gap: 56px; align-items: center; }
@@ -349,9 +352,10 @@ footer nav { display: flex; gap: 22px; }
     <div class="feature-grid">
       <div class="feature">
         <h3>Official NOAA charts</h3>
-        <p>Vector ENC coverage of all US waters — depths, buoys, hazards, and lights with their real
-        characteristics — drawn with standard S-52 marine symbology. You can 
-        import your own charts in various formats as well.</p>
+        <p>Vector ENC charts of US coastal waters, the Great Lakes, the US Caribbean,
+        and Hawaii — depths, buoys, hazards, and lights with their real
+        characteristics — in standard S-52 symbology, kept current with NOAA's
+        updates (checked nightly). You can import your own charts too.</p>
       </div>
       <div class="feature">
         <h3>Works offline</h3>
@@ -365,8 +369,8 @@ footer nav { display: flex; gap: 22px; }
       </div>
       <div class="feature">
         <h3>The essentials, on deck</h3>
-        <p>Routes, waypoints, track recording, course projection, and crew-overboard
-        button.</p>
+        <p>Routes, waypoints, track recording and playback, course projection, an
+        anchor drag alarm, and a crew-overboard button.</p>
       </div>
       <div class="feature">
         <h3>Any GPS</h3>
@@ -380,6 +384,7 @@ footer nav { display: flex; gap: 22px; }
         sunlight-readable e-ink tablets.</p>
       </div>
     </div>
+    <p class="see-all"><a href="/doc/userguide/features.html">See all features →</a></p>
   </section>
 
   <section id="offline">
