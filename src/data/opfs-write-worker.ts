@@ -326,6 +326,8 @@ async function fetchWrite(
     await clearTempClaims(filename);
     access = await openAccess(temp);
     access.truncate(offset);
+    // Where this attempt starts: 0, or the byte a resume continues from.
+    ctx.postMessage({ id, type: "progress", loaded: offset, total });
     const reader = resp.body.getReader();
     for (;;) {
       const { done, value } = await reader.read();

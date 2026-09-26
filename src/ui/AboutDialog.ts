@@ -7,6 +7,7 @@ import {
   buildDefaultSections,
   collectDiagnostics,
 } from "../diagnostics/collectDiagnostics";
+import type { DownloadPanelState } from "../diagnostics/downloadReport";
 import { logUiAction } from "../diagnostics/uiActionLog";
 import { getSettings, updateSettings } from "../settings";
 import { showBugReportDialog } from "./BugReportDialog";
@@ -74,6 +75,8 @@ export interface AboutDialogOptions {
     diagnosticsSnapshot(): string;
     requestDeviceDiag(): Promise<string | null>;
   };
+  /** The chart panel's download queue, for the diagnostics bundle. */
+  downloads?: { downloadState(): DownloadPanelState };
   /** Chart screenshot for bug reports (see BugReportOptions). */
   captureScreenshot?: () => Promise<string | null>;
 }
@@ -257,6 +260,7 @@ export class AboutDialog {
               appVersion: __APP_VERSION__,
               buildId: __BUILD_ID__,
               nav: options.nav,
+              downloads: options.downloads,
             }),
           ),
       });

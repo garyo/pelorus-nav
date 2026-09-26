@@ -528,6 +528,19 @@ describe("fetchWrite", () => {
     expect(root.files.has("chart.pmtiles.resume")).toBe(false);
   });
 
+  it("reports where each attempt starts before its first chunk", async () => {
+    await loadWorker();
+    stubFetch([whole(FULL, ETAG, "network"), rest(8)]);
+    const firstProgress = () => posted.find((m) => m.type === "progress");
+
+    await fetchChart();
+    expect(firstProgress()).toMatchObject({ loaded: 0, total: 20 });
+
+    posted.length = 0;
+    await fetchChart();
+    expect(firstProgress()).toMatchObject({ loaded: 8, total: 20 });
+  });
+
   it("starts over, never splicing builds, when the server has a new build", async () => {
     await loadWorker();
     const next = "ABCDEFGHIJKLMNOPQRST";

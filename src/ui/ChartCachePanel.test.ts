@@ -23,6 +23,9 @@ const tileStoreMocks = vi.hoisted(() => ({
 
 vi.mock("../data/tile-store", () => tileStoreMocks);
 
+const diag = vi.hoisted(() => vi.fn());
+vi.mock("../utils/diag", () => ({ diag }));
+
 const { ChartCachePanel } = await import("./ChartCachePanel");
 
 /** Private-method access for tests — the download queue is not public API. */
@@ -462,5 +465,62 @@ describe("ChartCachePanel automatic retry", () => {
     window.dispatchEvent(new Event("online"));
     await vi.waitFor(() => expect(panel.isBusy()).toBe(false));
     expect(tileStoreMocks.downloadChart).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("ChartCachePanel download log", () => {
+  const [first] = CHART_REGIONS;
+
+  beforeEach(() => {
+    document.body.innerHTML = "";
+    diag.mockClear();
+    tileStoreMocks.downloadChart.mockReset();
+    tileStoreMocks.downloadAuxFile.mockResolvedValue(undefined);
+    tileStoreMocks.listStoredCharts.mockResolvedValue([]);
+    tileStoreMocks.fetchRemoteChartMeta.mockResolvedValue(null);
+    tileStoreMocks.getStorageEstimate.mockResolvedValue({ used: 0, quota: 0 });
+  });
+
+  it("logs each run's start, failure, retry trigger and completion", async () => {
+    type Progress = (loaded: number, total: number) => void;
+    tileStoreMocks.downloadChart
+      .mockImplementationOnce(
+        async (_url: string, _file: string, onProgress: Progress) => {
+          onProgress(0, 2048);
+          onProgress(1024, 2048);
+          throw networkDrop();
+        },
+      )
+      .mockImplementationOnce(
+        async (_url: string, _file: string, onProgress: Progress) => {
+          onProgress(1024, 2048);
+          onProgress(2048, 2048);
+        },
+      );
+    const { panel } = makePanel();
+    const internals = panel as unknown as ChartCachePanelInternals;
+
+    await internals.enqueue([internals.regionJob(first)]);
+    await vi.waitFor(() =>
+      expect(panel.queueState()[0]?.state).toBe("waiting"),
+    );
+    window.dispatchEvent(new Event("online"));
+    await vi.waitFor(() => expect(panel.isBusy()).toBe(false));
+
+    const lines = diag.mock.calls.map(([tag, message]) => {
+      expect(tag).toBe("download");
+      return message as string;
+    });
+    const f = first.filename;
+    expect(lines).toEqual([
+      `queued ${f}`,
+      `${f} start run 1: fresh, 2 KB`,
+      `${f} failed at 1 KB / 2 KB (50%): TypeError: network error; waiting, retry 1/5`,
+      expect.stringMatching(/^queue resumed \(online\) after \d+s$/),
+      `${f} start run 2: resume at 1 KB / 2 KB (50%)`,
+      expect.stringMatching(
+        new RegExp(`^${f} done: 2 KB \\(1 KB fetched\\) in \\d+s @ `),
+      ),
+    ]);
   });
 });

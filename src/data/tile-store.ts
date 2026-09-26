@@ -11,7 +11,12 @@
  */
 
 import { appErrorLog, formatErrorDetail } from "../diagnostics/errorLog";
-import { RESUME_SUFFIX, TEMP_SUFFIX } from "./download-resume";
+import {
+  parseResumeState,
+  RESUME_SUFFIX,
+  type ResumeState,
+  TEMP_SUFFIX,
+} from "./download-resume";
 import {
   opfsFetchWrite,
   opfsSweepTemps,
@@ -314,6 +319,48 @@ export async function partialDownloadBytes(filename: string): Promise<number> {
   } catch {
     return 0;
   }
+}
+
+/** A `.downloading` temp in OPFS: an in-flight download or one kept to resume. */
+export interface PartialDownload {
+  filename: string;
+  /** Bytes in the temp. */
+  bytes: number;
+  /** When the temp was last written (ms since epoch). */
+  modifiedAt: number;
+  /** Its resume state, or null when it has none that holds up. */
+  resume: ResumeState | null;
+}
+
+/** Every partial download in OPFS, for diagnostics. */
+export async function listPartialDownloads(): Promise<PartialDownload[]> {
+  const root = await getRoot();
+  if (!root) return [];
+  const partials: PartialDownload[] = [];
+  for await (const name of root.keys()) {
+    if (!name.endsWith(TEMP_SUFFIX)) continue;
+    const filename = name.slice(0, -TEMP_SUFFIX.length);
+    try {
+      const temp = await (await root.getFileHandle(name)).getFile();
+      let resume: ResumeState | null = null;
+      try {
+        const sidecar = await root.getFileHandle(`${filename}${RESUME_SUFFIX}`);
+        const text = await (await sidecar.getFile()).text();
+        resume = parseResumeState(text, temp.size, Date.now());
+      } catch {
+        // no sidecar
+      }
+      partials.push({
+        filename,
+        bytes: temp.size,
+        modifiedAt: temp.lastModified,
+        resume,
+      });
+    } catch {
+      // removed while listing
+    }
+  }
+  return partials;
 }
 
 /** Delete the kept partial download of `filename`, if any, so it can't be resumed. */

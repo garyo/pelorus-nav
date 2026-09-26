@@ -1819,6 +1819,7 @@ if (topbarMenu) {
       diagnosticsSnapshot: () => navManager.diagnosticsSnapshot(),
       requestDeviceDiag: () => navManager.requestDeviceDiag(),
     },
+    downloads: cachePanel,
     captureScreenshot: () => captureMapScreenshot(chartManager.map),
   });
   idleCloseables.push(aboutDialog);

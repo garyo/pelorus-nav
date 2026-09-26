@@ -33,9 +33,16 @@ import {
   listStoredCharts,
   partialDownloadBytes,
 } from "../data/tile-store";
+import {
+  type DownloadPanelState,
+  type DownloadQueueItem,
+  formatDownloadDone,
+  formatDownloadStart,
+  formatProgress,
+} from "../diagnostics/downloadReport";
 import { getSettings, onSettingsChange, updateSettings } from "../settings";
 import { diag } from "../utils/diag";
-import { formatBytes } from "../utils/format";
+import { formatBytes, formatDurationShort } from "../utils/format";
 import {
   iconCheckCircle,
   iconCrosshair,
@@ -71,19 +78,12 @@ interface QueueEntry {
   waiting: boolean;
   /** Transient failures so far that count toward RETRY_DELAYS_MS. */
   attempts: number;
+  /** Runs started, including those that failed while the app was hidden. */
+  runs: number;
   loaded: number;
   total: number;
   /** Caption override while a job fetches its aux files. */
   status: string | null;
-}
-
-/** One queued download, for diagnostics. */
-export interface DownloadQueueItem {
-  filename: string;
-  state: "downloading" | "queued" | "waiting";
-  attempts: number;
-  loaded: number;
-  total: number;
 }
 
 /**
@@ -294,9 +294,21 @@ export class ChartCachePanel {
       filename: e.job.filename,
       state: e.active ? "downloading" : e.waiting ? "waiting" : "queued",
       attempts: e.attempts,
+      runs: e.runs,
       loaded: e.loaded,
       total: e.total,
     }));
+  }
+
+  downloadState(): DownloadPanelState {
+    return {
+      queue: this.queueState(),
+      failures: [...this.failures].map(([filename, message]) => ({
+        filename,
+        message,
+      })),
+      pendingUpdates: this.refreshToken > 0 ? this.pendingUpdates.size : null,
+    };
   }
 
   private async refresh(): Promise<void> {
@@ -850,7 +862,9 @@ export class ChartCachePanel {
     if (fresh.length === 0) return;
 
     const shortfall = await this.storageShortfall(fresh);
+    const names = fresh.map((job) => job.filename).join(", ");
     if (shortfall) {
+      diag("download", `not queued ${names}: ${shortfall}`);
       for (const job of fresh) this.failures.set(job.filename, shortfall);
       await this.refresh();
       return;
@@ -864,11 +878,13 @@ export class ChartCachePanel {
         active: false,
         waiting: false,
         attempts: 0,
+        runs: 0,
         loaded: 0,
         total: 0,
         status: null,
       });
     }
+    diag("download", `queued ${names}`);
     await this.refresh();
     this.wakeQueue?.();
     void this.runQueue();
@@ -935,10 +951,26 @@ export class ChartCachePanel {
    */
   private async runEntry(entry: QueueEntry): Promise<boolean> {
     const { job, controller } = entry;
+    const log = (message: string): void =>
+      diag("download", `${job.filename} ${message}`);
+    entry.runs++;
+    const startedAt = Date.now();
+    // The byte this run's chart download started from, once it has begun.
+    const run: { from: number | null } = { from: null };
+    const at = (): string =>
+      run.from === null
+        ? "before any chart data"
+        : `at ${formatProgress(entry.loaded, entry.total)}`;
     try {
       await job.run({
         signal: controller.signal,
         onProgress: (loaded, total) => {
+          if (run.from === null) {
+            run.from = loaded;
+            log(
+              `start run ${entry.runs}: ${formatDownloadStart(loaded, total)}`,
+            );
+          }
           entry.loaded = loaded;
           entry.total = total;
           this.paintProgress(entry);
@@ -948,22 +980,35 @@ export class ChartCachePanel {
           this.paintProgress(entry);
         },
       });
+      const elapsed = Date.now() - startedAt;
+      log(
+        run.from === null
+          ? `done in ${formatDurationShort(elapsed)}`
+          : `done: ${formatDownloadDone(entry.loaded, run.from, elapsed)}`,
+      );
       await this.onChartsChanged?.();
       return false;
     } catch (err) {
       if (err instanceof DOMException && err.name === "AbortError") {
+        log(`cancelled ${at()}`);
         return false;
       }
       const name = err instanceof Error ? err.name : "?";
       const msg = err instanceof Error ? err.message : "Unknown error";
-      diag("download", `${job.filename} failed: ${name}: ${msg}`);
-      if (
-        isTransientDownloadError(name) &&
-        entry.attempts < RETRY_DELAYS_MS.length
-      ) {
-        if (!document.hidden) entry.attempts++;
+      const failed = `failed ${at()}: ${name}: ${msg}`;
+      const max = RETRY_DELAYS_MS.length;
+      if (isTransientDownloadError(name) && entry.attempts < max) {
+        if (document.hidden) {
+          log(
+            `${failed}; waiting (hidden, not counted: ${entry.attempts}/${max} retries used)`,
+          );
+        } else {
+          entry.attempts++;
+          log(`${failed}; waiting, retry ${entry.attempts}/${max}`);
+        }
         return true;
       }
+      log(`${failed}; gave up`);
       this.failures.set(job.filename, msg);
       return false;
     }
@@ -977,21 +1022,28 @@ export class ChartCachePanel {
    * download queued, or the queue emptied).
    */
   private waitForRetry(delayMs: number): Promise<void> {
+    const since = Date.now();
     return new Promise((resolve) => {
-      const done = (): void => {
+      const done = (reason: string): void => {
         clearTimeout(timer);
-        document.removeEventListener("visibilitychange", wake);
-        window.removeEventListener("online", wake);
+        document.removeEventListener("visibilitychange", onVisible);
+        window.removeEventListener("online", onOnline);
         this.wakeQueue = null;
+        diag(
+          "download",
+          `queue resumed (${reason}) after ${formatDurationShort(Date.now() - since)}`,
+        );
         resolve();
       };
-      const wake = (): void => {
-        if (!document.hidden) done();
+      const wakeOn = (reason: string) => (): void => {
+        if (!document.hidden) done(reason);
       };
-      const timer = setTimeout(wake, delayMs);
-      document.addEventListener("visibilitychange", wake);
-      window.addEventListener("online", wake);
-      this.wakeQueue = done;
+      const onVisible = wakeOn("visible");
+      const onOnline = wakeOn("online");
+      const timer = setTimeout(wakeOn("backoff"), delayMs);
+      document.addEventListener("visibilitychange", onVisible);
+      window.addEventListener("online", onOnline);
+      this.wakeQueue = () => done("queue changed");
     });
   }
 
@@ -1006,6 +1058,7 @@ export class ChartCachePanel {
    * worker deletes its partial.)
    */
   private dropEntry(entry: QueueEntry): void {
+    diag("download", `${entry.job.filename} removed from queue`);
     this.removeEntry(entry);
     void discardPartialDownload(entry.job.filename);
     if (this.queue.length === 0) this.wakeQueue?.();

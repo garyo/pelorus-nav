@@ -11,7 +11,7 @@ import {
   canvasWouldExceedTextureLimit,
   maxCanvasSize,
 } from "../chart/gl-limits";
-import { listStoredCharts } from "../data/tile-store";
+import { listPartialDownloads, listStoredCharts } from "../data/tile-store";
 import { editTapLog } from "../map/editTapDiag";
 import { connectionLog } from "../navigation/ConnectionEventLog";
 import { gpsDiagLog } from "../navigation/GPSDiagnosticLog";
@@ -22,6 +22,10 @@ import {
   type Settings,
 } from "../settings";
 import { formatBytes } from "../utils/format";
+import {
+  type DownloadPanelState,
+  formatDownloadSection,
+} from "./downloadReport";
 import { appErrorLog } from "./errorLog";
 import { uiActionLog } from "./uiActionLog";
 
@@ -120,6 +124,8 @@ interface DiagnosticsDeps {
     diagnosticsSnapshot(): string;
     requestDeviceDiag(): Promise<string | null>;
   };
+  /** The chart panel's download queue, when available. */
+  downloads?: { downloadState(): DownloadPanelState };
 }
 
 /** The production section list. */
@@ -320,11 +326,12 @@ export function buildDefaultSections(
             `  ${c.filename}  ${formatBytes(c.sizeBytes)}  (${c.region})`,
           );
         }
+        const chartBytes = charts.reduce((sum, c) => sum + c.sizeBytes, 0);
         try {
           const est = await navigator.storage?.estimate?.();
           lines.push(
             est
-              ? `storage: ${formatBytes(est.usage ?? 0)} used of ${formatBytes(est.quota ?? 0)} quota`
+              ? `storage: ${formatBytes(est.usage ?? 0)} used of ${formatBytes(est.quota ?? 0)} quota (listed charts total ${formatBytes(chartBytes)})`
               : "storage estimate: (unavailable)",
           );
         } catch {
@@ -347,6 +354,15 @@ export function buildDefaultSections(
         }
         return lines.join("\n");
       },
+    },
+    {
+      title: "DOWNLOADS",
+      collect: async () =>
+        formatDownloadSection(
+          deps.downloads?.downloadState() ?? null,
+          await listPartialDownloads(),
+          Date.now(),
+        ),
     },
     {
       title: "NATIVE DIAG LOG",
