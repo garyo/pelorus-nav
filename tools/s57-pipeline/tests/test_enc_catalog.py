@@ -36,6 +36,32 @@ CATALOG_XML = b"""<?xml version="1.0" encoding="UTF-8" ?>
     <updn>1</updn>
     <uadt>2025-02-27</uadt>
     <isdt>2025-06-04</isdt>
+    <cov>
+      <panel>
+        <panel_no>1</panel_no>
+        <type>E</type>
+        <vertex><lat>42.3</lat><long>-71.05</long></vertex>
+        <vertex><lat>42.3</lat><long>-71.0</long></vertex>
+        <vertex><lat>42.35</lat><long>-71.0</long></vertex>
+        <vertex><lat>42.3</lat><long>-71.05</long></vertex>
+      </panel>
+      <panel>
+        <panel_no>2</panel_no>
+        <type>E</type>
+        <vertex><lat>42.4</lat><long>-70.95</long></vertex>
+        <vertex><lat>42.4</lat><long>-70.9</long></vertex>
+        <vertex><lat>42.45</lat><long>-70.9</long></vertex>
+        <vertex><lat>42.4</lat><long>-70.95</long></vertex>
+      </panel>
+      <panel>
+        <panel_no>3</panel_no>
+        <type>I</type>
+        <vertex><lat>40.0</lat><long>-75.0</long></vertex>
+        <vertex><lat>40.0</lat><long>-74.0</long></vertex>
+        <vertex><lat>41.0</lat><long>-74.0</long></vertex>
+        <vertex><lat>40.0</lat><long>-75.0</long></vertex>
+      </panel>
+    </cov>
   </cell>
   <cell>
     <name>US2EC03M</name>
@@ -53,7 +79,7 @@ CATALOG_XML = b"""<?xml version="1.0" encoding="UTF-8" ?>
 </EncProductCatalog>
 """
 
-ACTIVE = CatalogCell("US5MA1SK", "Active", 3, 1)
+ACTIVE = CatalogCell("US5MA1SK", "Active", 3, 1, (-71.05, 42.3, -70.9, 42.45))
 CANCELLED = CatalogCell("US2EC03M", "Cancelled", 10, 2)
 
 
@@ -105,6 +131,18 @@ class TestLoad:
         cells = load_product_catalog(cache, max_age_s=3600, url=source.as_uri())
         assert cells["US5MA1SK"].version == "3.2"
         assert cache.read_bytes() == source.read_bytes()
+
+    def test_stale_ok_falls_back_to_cache(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr("s57_pipeline.enc_catalog.FETCH_RETRY_DELAY_S", 0)
+        cache = tmp_path / "ENCProdCat.xml"
+        cache.write_bytes(CATALOG_XML)
+        missing = (tmp_path / "missing.xml").as_uri()
+        cells = load_product_catalog(cache, max_age_s=0, url=missing, stale_ok=True)
+        assert set(cells) == {"US5MA1SK", "US2EC03M"}
+        with pytest.raises(CatalogError):
+            load_product_catalog(tmp_path / "none.xml", url=missing, stale_ok=True)
 
     def test_unusable_download_keeps_cache(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch

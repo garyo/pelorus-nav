@@ -17,11 +17,11 @@ from .convert import convert_enc, list_enc_layers, read_compilation_scale, read_
 from .layers import LAYER_NAMES
 from .coverage import scan_all_cells
 from .download import download_enc_cell
-from .enc_catalog import CatalogError, load_product_catalog
+from .enc_catalog import CatalogCell, CatalogError, load_product_catalog
 from .merge import merge_tiles
 from .progress import PipelineProgress
 from .query import build_index
-from .regions import REGIONS, get_region_cells, query_region
+from .regions import REGIONS, get_region_build_cells, get_region_cells, query_region
 from .search_index import extract_search_index, write_search_index
 from .scamin import (
     compute_intu_zoom_ranges,
@@ -40,6 +40,15 @@ from .state import (
 from .tile import tile_geojson_files
 
 
+def _load_catalog(stale_ok: bool) -> dict[str, CatalogCell]:
+    """Load the ENC product catalog, exiting if none is available."""
+    try:
+        return load_product_catalog(stale_ok=stale_ok)
+    except CatalogError as e:
+        print(f"Error: {e}")
+        sys.exit(1)
+
+
 def cmd_list_cells(args: argparse.Namespace) -> None:
     """List ENC cells for a region or bounding box."""
     if args.region:
@@ -50,7 +59,7 @@ def cmd_list_cells(args: argparse.Namespace) -> None:
         region = REGIONS[args.region]
         print(f"Region: {region.name} — {region.description}")
         print(f"Bbox: {region.bbox}")
-        cells = get_region_cells(args.region)
+        cells = get_region_cells(args.region, _load_catalog(stale_ok=True))
     elif args.bbox:
         parts = [float(x.strip()) for x in args.bbox.split(",")]
         if len(parts) != 4:
@@ -58,7 +67,7 @@ def cmd_list_cells(args: argparse.Namespace) -> None:
             sys.exit(1)
         bbox = (parts[0], parts[1], parts[2], parts[3])
         print(f"Bbox: {bbox}")
-        cells = query_region(bbox)
+        cells = query_region(bbox, _load_catalog(stale_ok=True))
     else:
         print("Provide --region or --bbox")
         sys.exit(1)
@@ -134,6 +143,7 @@ def cmd_download(args: argparse.Namespace) -> None:
     """
     output_dir = Path(args.output)
     db = StateDB()
+    catalog = _load_catalog(stale_ok=False)
 
     if args.cell:
         cells = args.cell
@@ -142,18 +152,12 @@ def cmd_download(args: argparse.Namespace) -> None:
             print(f"Unknown region: {args.region}")
             print(f"Available regions: {', '.join(REGIONS)}")
             sys.exit(1)
-        cells = get_region_cells(args.region)
+        cells = get_region_cells(args.region, catalog)
         print(f"Downloading {len(cells)} cells for region '{args.region}'...")
     else:
         # Default: boston-test
-        cells = get_region_cells("boston-test")
+        cells = get_region_cells("boston-test", catalog)
         print(f"Downloading {len(cells)} boston-test cells (default)...")
-
-    try:
-        catalog = load_product_catalog()
-    except CatalogError as e:
-        print(f"Error: {e}")
-        sys.exit(1)
 
     force: bool = getattr(args, "force", False)
     to_download: list[str] = []
@@ -360,36 +364,15 @@ def _process_cell(
 def _find_enc_files(args: argparse.Namespace) -> list[Path]:
     """Resolve ENC files from --region or --input args.
 
-    When building a region, the cell query bbox is expanded by 3° so
-    that cells from adjacent regions are available for compositing.
-    At low zoom (z5-z7), tiles span several degrees past the region
-    boundary, and the owning region needs cells from neighbors to fill
-    the full tile.  Tile-center ownership (z8+) prevents double
-    rendering; the extra cells just ensure complete tile coverage.
+    A region's files are its build cells (regions.get_region_build_cells):
+    its own Active cells plus nearby overview cells for low-zoom tiles.
     """
     if args.region:
         if args.region not in REGIONS:
             print(f"Unknown region: {args.region}")
             print(f"Available regions: {', '.join(REGIONS)}")
             sys.exit(1)
-        # Start with exact region cells, then add low-band (2-3)
-        # overview cells from an expanded bbox.  At low zoom (z5-z7),
-        # tiles span several degrees past the region boundary — the
-        # overview cells ensure full coverage in those tiles.  High-band
-        # cells aren't needed (they don't have tiles at low zoom).
-        region = REGIONS[args.region]
-        cell_list = get_region_cells(args.region)
-        expanded_bbox = (
-            region.bbox[0] - 5, region.bbox[1] - 5,
-            region.bbox[2] + 5, region.bbox[3] + 5,
-        )
-        expanded_cells = query_region(expanded_bbox)
-        overview_extras = [
-            c for c in expanded_cells
-            if c not in set(cell_list) and int(c[2]) <= 3
-        ]
-        if overview_extras:
-            cell_list = cell_list + overview_extras
+        cell_list = get_region_build_cells(args.region, _load_catalog(stale_ok=True))
         input_dir = Path(args.input)
         enc_files = []
         for cell_name in cell_list:
@@ -486,12 +469,23 @@ def cmd_pipeline(args: argparse.Namespace) -> None:
     cell_bands: dict[Path, int] = {}
     cell_coverage: dict[Path, BaseGeometry] = {}
     for meta in cell_metas:
+        progress.scan_cell_done()
+        if meta.cancelled:
+            continue
         cell_bands[meta.enc_path] = meta.scale_band
         if meta.intu is not None:
             present_intus.add(meta.intu)
         if meta.coverage is not None:
             cell_coverage[meta.enc_path] = meta.coverage
-        progress.scan_cell_done()
+
+    # A cancelled cell is a deleted dataset and must not be shown.
+    cancelled = {meta.enc_path for meta in cell_metas if meta.cancelled}
+    if cancelled:
+        progress.warning(
+            f"Skipping {len(cancelled)} cancelled cells (DSID_EDTN 0): "
+            + ", ".join(sorted(p.stem for p in cancelled))
+        )
+        enc_files = [p for p in enc_files if p not in cancelled]
 
     zoom_shift = getattr(args, "zoom_shift", 0)
     intu_zoom_ranges = compute_intu_zoom_ranges(present_intus, zoom_shift=zoom_shift)
@@ -751,7 +745,7 @@ def cmd_search_index(args: argparse.Namespace) -> None:
             print(f"Unknown region: {args.region}")
             print(f"Available regions: {', '.join(REGIONS)}")
             sys.exit(1)
-        cell_names = get_region_cells(args.region)
+        cell_names = get_region_cells(args.region, _load_catalog(stale_ok=True))
     else:
         # Discover all cells in work dir
         cell_names = [

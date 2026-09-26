@@ -16,7 +16,7 @@ from shapely.geometry.base import BaseGeometry
 
 from .convert import read_dsid_metadata
 from .scamin import cscl_to_scale_band, intu_to_scale_band
-from .state import StateDB
+from .state import ScanRecord, StateDB
 
 
 def extract_coverage_polygon(enc_path: Path) -> BaseGeometry | None:
@@ -299,8 +299,14 @@ class CellMetadata:
     enc_path: Path
     intu: int | None
     cscl: int | None
+    edition: int | None
     scale_band: int
     coverage: BaseGeometry | None
+
+    @property
+    def cancelled(self) -> bool:
+        """A cancellation update (DSID_EDTN 0) has been applied to the cell."""
+        return self.edition == 0
 
 
 def _scan_one_cell(enc_path: Path) -> CellMetadata:
@@ -309,7 +315,7 @@ def _scan_one_cell(enc_path: Path) -> CellMetadata:
     Runs two subprocess calls (ogrinfo for DSID, ogr2ogr for M_COVR).
     Designed to be called in parallel from a thread pool.
     """
-    intu, cscl = read_dsid_metadata(enc_path)
+    intu, cscl, edition = read_dsid_metadata(enc_path)
 
     if intu is not None:
         band = intu_to_scale_band(intu)
@@ -324,6 +330,7 @@ def _scan_one_cell(enc_path: Path) -> CellMetadata:
         enc_path=enc_path,
         intu=intu,
         cscl=cscl,
+        edition=edition,
         scale_band=band,
         coverage=coverage,
     )
@@ -340,7 +347,7 @@ def scan_all_cells(
     parallel pass using threads (subprocess I/O bound, not CPU bound).
 
     When a StateDB is provided, uses cached scan results for cells whose
-    NOAA date hasn't changed, avoiding ~2 subprocess calls per cache hit.
+    ENC version hasn't changed, avoiding ~2 subprocess calls per cache hit.
 
     Args:
         enc_files: List of ENC file paths.
@@ -363,15 +370,19 @@ def scan_all_cells(
             cell_name = enc_path.stem
             enc_version = db.get_enc_version(cell_name)
             cached = db.get_scan_cache(cell_name)
-            if cached is not None and enc_version and cached[0] == enc_version:
-                # Cache hit — reconstruct CellMetadata from cached values
-                coverage = _wkb_to_coverage(cached[4])
+            if (
+                cached is not None
+                and enc_version
+                and cached.enc_version == enc_version
+                and cached.edition is not None
+            ):
                 results.append(CellMetadata(
                     enc_path=enc_path,
-                    intu=cached[1],
-                    cscl=cached[2],
-                    scale_band=cached[3],
-                    coverage=coverage,
+                    intu=cached.intu,
+                    cscl=cached.cscl,
+                    edition=cached.edition,
+                    scale_band=cached.scale_band,
+                    coverage=_wkb_to_coverage(cached.coverage_wkb),
                 ))
                 cache_hits += 1
                 continue
@@ -393,19 +404,21 @@ def scan_all_cells(
                 results.append(meta)
                 # Write to cache
                 if db is not None:
-                    enc_version = db.get_enc_version(enc_path.stem) or ""
-                    coverage_wkb = _coverage_to_wkb(meta.coverage)
-                    db.set_scan_cache(
-                        enc_path.stem, enc_version,
-                        meta.intu, meta.cscl, meta.scale_band,
-                        coverage_wkb,
-                    )
+                    db.set_scan_cache(enc_path.stem, ScanRecord(
+                        enc_version=db.get_enc_version(enc_path.stem) or "",
+                        intu=meta.intu,
+                        cscl=meta.cscl,
+                        edition=meta.edition,
+                        scale_band=meta.scale_band,
+                        coverage_wkb=_coverage_to_wkb(meta.coverage),
+                    ))
             except Exception as e:
                 print(f"  Error scanning {enc_path.stem}: {e}")
                 results.append(CellMetadata(
                     enc_path=enc_path,
                     intu=None,
                     cscl=None,
+                    edition=None,
                     scale_band=0,
                     coverage=None,
                 ))

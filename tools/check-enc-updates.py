@@ -15,17 +15,18 @@ Options:
   --region R           Check only this region (repeatable)
   --quiet              Minimal output
 
-A cell counts as changed when NOAA's product catalog (ENCProdCat.xml, one
-download) lists an edition/update for it that differs from the version
-recorded in tile-data/pipeline-state.db. Cells the catalog lists as not
-Active (e.g. Cancelled) or omits entirely are reported but never trigger a
-rebuild, since NOAA publishes no new content for them. Cells with no
-recorded version are "new" and trigger a rebuild.
+A region's cells are the Active cells of NOAA's product catalog
+(ENCProdCat.xml, one download) that intersect it (see regions.py). A cell
+counts as changed when the catalog lists an edition/update for it that
+differs from the version recorded in tile-data/pipeline-state.db. Cells with
+no recorded version, such as cells NOAA newly published, are "new" and
+trigger a rebuild. A cell NOAA cancels drops out of its regions, which are
+rebuilt without it.
 
 A cell's version is recorded only when the pipeline's download step fetches
 it, so a cell that fails to download stays changed and is retried on the
 next run. A region is also reported as changed while its tiles lag its
-downloaded data or one of its cells failed to build (see
+downloaded data or its cell list, or one of its cells failed to build (see
 state.region_needs_build), so a build interrupted after its download is
 finished on the next run.
 
@@ -65,7 +66,12 @@ from s57_pipeline.enc_catalog import (  # noqa: E402
     classify_cell,
     load_product_catalog,
 )
-from s57_pipeline.regions import REGIONS, get_region_cells  # noqa: E402
+from s57_pipeline.regions import (  # noqa: E402
+    REGIONS,
+    Catalog,
+    get_region_build_cells,
+    get_region_cells,
+)
 from s57_pipeline.state import StateDB, region_needs_build  # noqa: E402
 
 DATA_DIR = PIPELINE_DIR / "data"
@@ -78,7 +84,7 @@ def _open_db() -> StateDB:
     return StateDB(DATA_DIR / "pipeline-state.db")
 
 
-def _load_catalog(max_age_s: float = CATALOG_MAX_AGE_S) -> dict[str, CatalogCell]:
+def _load_catalog(max_age_s: float) -> dict[str, CatalogCell]:
     try:
         return load_product_catalog(CATALOG_CACHE, max_age_s=max_age_s)
     except CatalogError as e:
@@ -86,12 +92,16 @@ def _load_catalog(max_age_s: float = CATALOG_MAX_AGE_S) -> dict[str, CatalogCell
         sys.exit(1)
 
 
-def pending_builds(region_cells: dict[str, list[str]], cells: list[str]) -> None:
-    # The cached catalog, whatever its age, is the one the download just used.
-    catalog = _load_catalog(max_age_s=math.inf)
+def _unbuilt_regions(build_cells: dict[str, list[str]], db: StateDB) -> list[str]:
+    return [r for r, cl in build_cells.items() if region_needs_build(r, db, cl)]
+
+
+def pending_builds(
+    catalog: Catalog, build_cells: dict[str, list[str]], cells: list[str]
+) -> None:
     with _open_db() as db:
         recorded = db.get_all_enc_versions()
-        pending = [r for r, cl in region_cells.items() if region_needs_build(r, db, cl)]
+        pending = _unbuilt_regions(build_cells, db)
     behind = [
         c for c in cells if classify_cell(recorded.get(c), catalog.get(c)) in BEHIND
     ]
@@ -105,8 +115,7 @@ def pending_builds(region_cells: dict[str, list[str]], cells: list[str]) -> None
         print(region)
 
 
-def seed_from_catalog(cells: list[str]) -> None:
-    catalog = _load_catalog()
+def seed_from_catalog(catalog: Catalog, cells: list[str]) -> None:
     versions = {
         c: (entry.edition, entry.update) for c in cells if (entry := catalog.get(c))
     }
@@ -120,7 +129,12 @@ def seed_from_catalog(cells: list[str]) -> None:
 
 
 def check(
-    region_cells: dict[str, list[str]], cells: list[str], as_json: bool, quiet: bool
+    catalog: Catalog,
+    region_cells: dict[str, list[str]],
+    build_cells: dict[str, list[str]],
+    cells: list[str],
+    as_json: bool,
+    quiet: bool,
 ) -> None:
     report = not quiet and not as_json
     if report:
@@ -128,11 +142,14 @@ def check(
             f"Checking {len(cells)} unique cells across {len(region_cells)} "
             "regions against the NOAA product catalog..."
         )
-    catalog = _load_catalog()
     with _open_db() as db:
         recorded = db.get_all_enc_versions()
         legacy = db.legacy_noaa_state()
-        unbuilt = {r for r, cl in region_cells.items() if region_needs_build(r, db, cl)}
+        unbuilt = _unbuilt_regions(build_cells, db)
+        dropped = {
+            r: sorted(db.get_region_cell_snapshot(r).keys() - set(cl))
+            for r, cl in build_cells.items()
+        }
 
     status = {c: classify_cell(recorded.get(c), catalog.get(c)) for c in cells}
     behind = {c for c in cells if status[c] in BEHIND}
@@ -160,12 +177,14 @@ def check(
             print(f"{region_name}: {', '.join(parts)} of {total} cells")
         else:
             print(f"{region_name}: all {total} cells up to date")
-        if region_name in unbuilt:
-            print("  (tiles lag downloaded data or a cell build failed)")
-        if counts[CellStatus.INACTIVE] or counts[CellStatus.MISSING]:
+        if dropped[region_name]:
             print(
-                f"  ({counts[CellStatus.INACTIVE]} not Active in catalog, "
-                f"{counts[CellStatus.MISSING]} not in catalog)"
+                f"  {len(dropped[region_name])} cells dropped since the last build: "
+                f"{', '.join(dropped[region_name])}"
+            )
+        if region_name in unbuilt:
+            print(
+                "  (tiles lag the cell list or downloaded data, or a cell build failed)"
             )
 
     unseeded = sum(1 for c in cells if status[c] == CellStatus.NEW and c in legacy)
@@ -230,15 +249,21 @@ def main() -> None:
             print(f"Unknown region: {r}", file=sys.stderr)
             sys.exit(1)
 
-    region_cells = {r: get_region_cells(r) for r in regions}
+    # --pending-builds reuses the cached catalog, whatever its age: it is the
+    # one the download just used.
+    catalog = _load_catalog(
+        math.inf if args.pending_builds else CATALOG_MAX_AGE_S
+    )
+    region_cells = {r: get_region_cells(r, catalog) for r in regions}
+    build_cells = {r: get_region_build_cells(r, catalog) for r in regions}
     cells = list(dict.fromkeys(c for cl in region_cells.values() for c in cl))
 
     if args.pending_builds:
-        pending_builds(region_cells, cells)
+        pending_builds(catalog, build_cells, cells)
     elif args.seed_from_catalog:
-        seed_from_catalog(cells)
+        seed_from_catalog(catalog, cells)
     else:
-        check(region_cells, cells, args.json, args.quiet)
+        check(catalog, region_cells, build_cells, cells, args.json, args.quiet)
 
 
 if __name__ == "__main__":

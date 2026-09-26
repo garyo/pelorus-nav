@@ -1,15 +1,17 @@
-"""NOAA ENC product catalog (ENCProdCat.xml): per-cell edition and update.
+"""NOAA ENC product catalog (ENCProdCat.xml): cell status, version, coverage.
 
-The catalog lists every NOAA ENC cell with its status and the S-57 edition
-(``edtn``) and update (``updn``) numbers of the currently published data. The
-pair changes only when chart content changes, unlike the zip files'
-Last-Modified times, which NOAA refreshes whenever it regenerates the zips.
+The catalog lists every NOAA ENC cell with its status, its coverage, and the
+S-57 edition (``edtn``) and update (``updn``) numbers of the currently
+published data. The pair changes only when chart content changes, unlike the
+zip files' Last-Modified times, which NOAA refreshes whenever it regenerates
+the zips. Cancelled cells are listed without coverage.
 
 A cell's version is recorded as the key ``"<edition>.<update>"``.
 """
 
 from __future__ import annotations
 
+import sys
 import time
 import urllib.request
 from dataclasses import dataclass
@@ -17,7 +19,7 @@ from enum import StrEnum
 from http.client import HTTPException
 from pathlib import Path
 from typing import BinaryIO
-from xml.etree.ElementTree import ParseError, iterparse
+from xml.etree.ElementTree import Element, ParseError, iterparse
 
 PRODUCT_CATALOG_URL = "https://charts.noaa.gov/ENCs/ENCProdCat.xml"
 PRODUCT_CATALOG_CACHE = Path("data/ENCProdCat.xml")
@@ -37,12 +39,16 @@ def enc_version_key(edition: int, update: int) -> str:
     return f"{edition}.{update}"
 
 
+BBox = tuple[float, float, float, float]  # (west, south, east, north)
+
+
 @dataclass(frozen=True)
 class CatalogCell:
     name: str
     status: str
     edition: int
     update: int
+    bbox: BBox | None = None  # extent of the coverage panels, None if absent
 
     @property
     def active(self) -> bool:
@@ -80,6 +86,26 @@ def classify_cell(stored_version: str | None, entry: CatalogCell | None) -> Cell
     return CellStatus.UNCHANGED
 
 
+def _coverage_bbox(cell: Element) -> BBox | None:
+    """Bounding box of a cell's coverage (type "E") panels.
+
+    Longitudes west of the antimeridian are given below -180.
+    """
+    lons: list[float] = []
+    lats: list[float] = []
+    for panel in cell.iterfind("cov/panel"):
+        if panel.findtext("type") != "E":
+            continue
+        for vertex in panel.iterfind("vertex"):
+            lon, lat = vertex.findtext("long"), vertex.findtext("lat")
+            if lon and lat:
+                lons.append(float(lon))
+                lats.append(float(lat))
+    if not lons:
+        return None
+    return (min(lons), min(lats), max(lons), max(lats))
+
+
 def parse_product_catalog(source: Path | BinaryIO) -> dict[str, CatalogCell]:
     """Parse ENCProdCat.xml into {cell name: CatalogCell}.
 
@@ -98,6 +124,7 @@ def parse_product_catalog(source: Path | BinaryIO) -> dict[str, CatalogCell]:
                 status=(elem.findtext("status") or "").strip(),
                 edition=int(edition),
                 update=int(update),
+                bbox=_coverage_bbox(elem),
             )
         elem.clear()
     return cells
@@ -107,11 +134,13 @@ def load_product_catalog(
     cache_path: Path = PRODUCT_CATALOG_CACHE,
     max_age_s: float = CATALOG_MAX_AGE_S,
     url: str = PRODUCT_CATALOG_URL,
+    stale_ok: bool = False,
 ) -> dict[str, CatalogCell]:
     """Return the parsed catalog, downloading it unless the cache is fresh.
 
-    A download replaces the cache only once it parses. Raises CatalogError
-    when no usable catalog can be fetched.
+    A download replaces the cache only once it parses. When no usable
+    catalog can be fetched, a stale cache is used with a warning if
+    ``stale_ok``; otherwise CatalogError is raised.
     """
     if cache_path.exists() and time.time() - cache_path.stat().st_mtime < max_age_s:
         return parse_product_catalog(cache_path)
@@ -133,4 +162,10 @@ def load_product_catalog(
         except (OSError, HTTPException, ParseError) as e:
             tmp.unlink(missing_ok=True)
             error = e
+    if stale_ok and cache_path.exists():
+        print(
+            f"Warning: cannot fetch {url} ({error}); using cached {cache_path}",
+            file=sys.stderr,
+        )
+        return parse_product_catalog(cache_path)
     raise CatalogError(f"cannot fetch {url}: {error}") from error

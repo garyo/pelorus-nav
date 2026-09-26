@@ -7,11 +7,12 @@
 
 Produces public/basemap-<region>.pmtiles with a two-tier pyramid:
   - z0-13  : 10 nm buffer of the region's chart coverage (context everywhere)
-  - z14-15 : 1 nm buffer of US5/US6 (harbor/berthing) ENC cell bboxes
-             (street-level detail where you actually approach and dock)
+  - z14-15 : 1 nm buffer of the region's Active US5/US6 (harbor/berthing)
+             ENC cell bboxes, from NOAA's product catalog (street-level
+             detail where you actually approach and dock)
 
-Requires a prior chart build for the region (coverage geojson + cell cache),
-plus the `pmtiles` CLI and tippecanoe's `tile-join` on PATH.
+Requires a prior chart build for the region (coverage geojson), plus the
+`pmtiles` CLI and tippecanoe's `tile-join` on PATH.
 
 Usage:
   uv run tools/basemap/build-basemap.py --region northern-new-england
@@ -35,6 +36,11 @@ from shapely.geometry import MultiPolygon, Polygon, box, mapping, shape
 from shapely.ops import transform, unary_union
 
 PROJECT_DIR = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(PROJECT_DIR / "tools" / "s57-pipeline"))
+
+from s57_pipeline.enc_catalog import CatalogError, load_product_catalog  # noqa: E402
+from s57_pipeline.regions import get_region_cells, usage_band  # noqa: E402
+
 PUBLIC_DIR = PROJECT_DIR / "public"
 TILE_DATA_DIR = PROJECT_DIR / "tile-data"
 WORK_DIR = TILE_DATA_DIR / "work" / "basemap"
@@ -47,8 +53,7 @@ DETAIL_BUFFER_M = 1 * NM  # harbor band: 1 nm around US5/US6 cell bboxes
 BAND_MAXZOOM = 13
 DETAIL_MINZOOM = 14
 DETAIL_MAXZOOM = 15
-# Usage band is the 3rd char of the cell name (US5MA22M): 5=harbor, 6=berthing
-DETAIL_USAGE_BANDS = {"5", "6"}
+DETAIL_USAGE_BANDS = {5, 6}  # harbor, berthing
 
 
 def fail(msg: str) -> NoReturn:
@@ -97,17 +102,17 @@ def coverage_geometry(region: str) -> MultiPolygon:
 
 
 def harbor_cells_geometry(region: str) -> MultiPolygon | None:
-    """Union of US5/US6 cell bboxes for the region (None if cache missing)."""
-    cells_path = TILE_DATA_DIR / "regions" / f"{region}.json"
-    catalog_path = TILE_DATA_DIR / "regions" / "enc_catalog.json"
-    if not cells_path.exists() or not catalog_path.exists():
+    """Union of the region's US5/US6 cell bboxes (None if there are none or
+    no product catalog is available)."""
+    try:
+        catalog = load_product_catalog(TILE_DATA_DIR / "ENCProdCat.xml", stale_ok=True)
+    except CatalogError as e:
+        print(f"Warning: {e}", file=sys.stderr)
         return None
-    names = json.loads(cells_path.read_text())["cells"]
-    catalog = {c["name"]: c for c in json.loads(catalog_path.read_text())}
     boxes = [
-        box(*catalog[n]["bbox"])
-        for n in names
-        if n in catalog and n[2] in DETAIL_USAGE_BANDS
+        box(*bbox)
+        for n in get_region_cells(region, catalog)
+        if usage_band(n) in DETAIL_USAGE_BANDS and (bbox := catalog[n].bbox)
     ]
     if not boxes:
         return None
@@ -198,7 +203,7 @@ def main() -> None:
     detail_path = None
     if harbors is None:
         print(
-            f"Warning: no US5/US6 cell cache for {region} — "
+            f"Warning: no US5/US6 cells for {region} — "
             f"skipping z{DETAIL_MINZOOM}-{DETAIL_MAXZOOM} harbor detail",
             file=sys.stderr,
         )

@@ -22,10 +22,21 @@ from .enc_catalog import enc_version_key
 # changes in a way not captured by LAYER_CONFIGS or tippecanoe version.
 PIPELINE_VERSION = 5
 
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 
 # Tables that record the ENC version a cell's derived data was produced from.
 _ENC_VERSION_TABLES = ("cell_build_state", "region_cell_snapshot", "cell_scan_cache")
+
+
+class ScanRecord(NamedTuple):
+    """A cell's cached scan results (see coverage.scan_all_cells)."""
+
+    enc_version: str
+    intu: int | None
+    cscl: int | None
+    edition: int | None  # DSID_EDTN; None in rows scanned before it was cached
+    scale_band: int
+    coverage_wkb: bytes | None
 
 
 class SeedResult(NamedTuple):
@@ -70,6 +81,7 @@ class StateDB:
                     enc_version     TEXT NOT NULL,
                     intu            INTEGER,
                     cscl            INTEGER,
+                    edition         INTEGER,
                     scale_band      INTEGER NOT NULL,
                     coverage_wkb    BLOB,
                     scanned_at      TEXT NOT NULL
@@ -125,12 +137,15 @@ class StateDB:
         v2 keys cells by ENC edition/update instead of the zip Last-Modified
         date: the ``noaa_date`` columns become ``enc_version``, and the old
         ``cell_noaa_state`` table is kept, read only by seed_enc_versions.
+        v3 adds the scan cache's ``edition`` column.
         """
         if from_version < 2:
             for table in _ENC_VERSION_TABLES:
                 self._conn.execute(
                     f"ALTER TABLE {table} RENAME COLUMN noaa_date TO enc_version"
                 )
+        if from_version < 3:
+            self._conn.execute("ALTER TABLE cell_scan_cache ADD COLUMN edition INTEGER")
         self._conn.execute("UPDATE schema_version SET version = ?", (SCHEMA_VERSION,))
 
     def close(self) -> None:
@@ -231,32 +246,22 @@ class StateDB:
 
     # ── Scan cache ───────────────────────────────────────────────────────
 
-    def get_scan_cache(
-        self, cell_name: str,
-    ) -> tuple[str, int | None, int | None, int, bytes | None] | None:
-        """Return (enc_version, intu, cscl, scale_band, coverage_wkb) or None."""
+    def get_scan_cache(self, cell_name: str) -> ScanRecord | None:
         row = self._conn.execute(
-            """SELECT enc_version, intu, cscl, scale_band, coverage_wkb
+            """SELECT enc_version, intu, cscl, edition, scale_band, coverage_wkb
                FROM cell_scan_cache WHERE cell_name = ?""",
             (cell_name,),
         ).fetchone()
-        return row if row else None
+        return ScanRecord(*row) if row else None
 
-    def set_scan_cache(
-        self,
-        cell_name: str,
-        enc_version: str,
-        intu: int | None,
-        cscl: int | None,
-        scale_band: int,
-        coverage_wkb: bytes | None,
-    ) -> None:
+    def set_scan_cache(self, cell_name: str, record: ScanRecord) -> None:
         with self._lock, self._conn:
             self._conn.execute(
                 """INSERT OR REPLACE INTO cell_scan_cache
-                   (cell_name, enc_version, intu, cscl, scale_band, coverage_wkb, scanned_at)
-                   VALUES (?, ?, ?, ?, ?, ?, ?)""",
-                (cell_name, enc_version, intu, cscl, scale_band, coverage_wkb, _now_iso()),
+                   (cell_name, enc_version, intu, cscl, edition, scale_band,
+                    coverage_wkb, scanned_at)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+                (cell_name, *record, _now_iso()),
             )
 
     # ── Build state ──────────────────────────────────────────────────────
@@ -387,6 +392,8 @@ def is_region_dirty(
     if comp[0] != config_hash:  # config changed
         return True
     snapshot = db.get_region_cell_snapshot(region_name)
+    if snapshot.keys() - set(region_cells):  # cell dropped from region
+        return True
     for cell_name in region_cells:
         enc_version = db.get_enc_version(cell_name) or ""
         snap = snapshot.get(cell_name)
@@ -402,23 +409,26 @@ def is_region_dirty(
 def region_needs_build(
     region_name: str, db: StateDB, region_cells: Iterable[str]
 ) -> bool:
-    """Check whether a region's tiles lag its downloaded ENC data.
+    """Check whether a region's tiles lag its ENC cells and downloaded data.
 
-    True when one of the region's cells last failed to build, or when a
-    cell with a recorded version (set when a download succeeds) is
-    missing from the region's last composite snapshot or was composited at
-    another version. The snapshot's cells are compared too, since a
-    composite also draws on overview cells of neighbouring regions.
-    Cells without a recorded version are ignored, so a cell that has never
-    downloaded cannot make its region look stale. Unlike is_region_dirty,
-    configuration changes are not considered.
+    ``region_cells`` are the cells the region's build draws on
+    (regions.get_region_build_cells). True when one of them last failed to
+    build, when the region's last composite snapshot includes a cell no
+    longer among them (e.g. one NOAA cancelled), or when a cell with a
+    recorded version (set when a download succeeds) is missing from the
+    snapshot or was composited at another version. Cells without a recorded
+    version are ignored, so a cell that has never downloaded cannot make its
+    region look stale. Unlike is_region_dirty, configuration changes are not
+    considered.
     """
     cells = set(region_cells)
     if cells & db.failed_build_cells():
         return True
-    recorded = db.get_all_enc_versions()
     snapshot = db.get_region_cell_snapshot(region_name)
-    for cell_name in cells | snapshot.keys():
+    if snapshot.keys() - cells:
+        return True
+    recorded = db.get_all_enc_versions()
+    for cell_name in cells:
         version = recorded.get(cell_name)
         snap = snapshot.get(cell_name)
         if version is not None and (snap is None or snap[0] != version):

@@ -39,7 +39,7 @@ def _download(
     def fake_download(cell: str, output_dir: Path, _progress: object) -> Path | None:
         return None if cell in failing else output_dir / cell / f"{cell}.000"
 
-    monkeypatch.setattr(cli, "load_product_catalog", lambda: catalog)
+    monkeypatch.setattr(cli, "load_product_catalog", lambda **_kwargs: catalog)
     monkeypatch.setattr(cli, "download_enc_cell", fake_download)
     args = argparse.Namespace(
         output="data/enc", cell=CELLS, region=None, force=False, jobs=1, verbose=False

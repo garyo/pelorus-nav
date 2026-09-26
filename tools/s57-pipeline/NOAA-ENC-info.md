@@ -4,7 +4,9 @@
 - **Old scheme**: `US{band}{state}{number}` e.g. `US5MA22M` (Band 5, Massachusetts, cell 22)
 - **New Harmonized (NH) scheme**: `US{band}NH1{grid}` e.g. `US4NH1BC` — NOAA is re-scheming all ENCs
 - NH catalog: `https://charts.noaa.gov/ENCs/NH_ENCProdCat.xml`
-- Old catalog: `https://charts.noaa.gov/ENCs/ENCProdCat_19115.xml` (ISO 19115 XML)
+- Old catalog: `https://charts.noaa.gov/ENCs/ENCProdCat_19115.xml` (ISO 19115 XML, no cell status)
+- Product catalog the pipeline uses: `https://charts.noaa.gov/ENCs/ENCProdCat.xml`
+  (per-cell status, edition/update, coverage panels; Cancelled cells have no coverage)
 
 ## Scale Bands
 | Band | Scale Range | Usage | Tile zoom approx |

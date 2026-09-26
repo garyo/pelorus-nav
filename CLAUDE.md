@@ -164,6 +164,14 @@ All tile workflows go through `tools/build-tiles.sh` (run `--help` for full usag
   New regions also need a `basemapSizeEstimate` in `src/data/chart-catalog.ts`
   before the basemap download appears in the app's Chart Regions panel.
 
+A region's cells are the **Active** cells of NOAA's product catalog
+(`tile-data/ENCProdCat.xml`, refetched when over an hour old; builds fall back to
+the cached copy offline) whose coverage bbox intersects the region's bbox
+(`s57_pipeline/regions.py`). Cancelled cells are deleted datasets and never shown:
+they drop out of the region lists (and the region is recomposited without them),
+and the build also skips any cell whose data carries a cancellation update
+(DSID_EDTN 0).
+
 ### Low-level pipeline commands
 - `cd tools/s57-pipeline && uv run python -m s57_pipeline download --region <region>` — download ENC cells
 - `cd tools/s57-pipeline && uv run python -m s57_pipeline convert -i data/enc/US5MA22M/US5MA22M.000 -o data/tiles/` — convert single cell

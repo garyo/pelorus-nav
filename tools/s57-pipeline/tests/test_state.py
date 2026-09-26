@@ -9,6 +9,7 @@ import pytest
 
 from s57_pipeline.state import (
     SCHEMA_VERSION,
+    ScanRecord,
     SeedResult,
     StateDB,
     compute_composite_hash,
@@ -57,24 +58,14 @@ class TestStateDB:
 
     def test_scan_cache_round_trip(self, db: StateDB) -> None:
         assert db.get_scan_cache("US5MA1AQ") is None
-        wkb_data = b"\x01\x02\x03"
-        db.set_scan_cache("US5MA1AQ", "date1", 5, 45000, 3, wkb_data)
-        cached = db.get_scan_cache("US5MA1AQ")
-        assert cached is not None
-        enc_version, intu, cscl, band, wkb = cached
-        assert enc_version == "date1"
-        assert intu == 5
-        assert cscl == 45000
-        assert band == 3
-        assert wkb == wkb_data
+        record = ScanRecord("3.1", 5, 45000, 3, 3, b"\x01\x02\x03")
+        db.set_scan_cache("US5MA1AQ", record)
+        assert db.get_scan_cache("US5MA1AQ") == record
 
-    def test_scan_cache_null_coverage(self, db: StateDB) -> None:
-        db.set_scan_cache("NOCOV", "date1", None, None, 0, None)
-        cached = db.get_scan_cache("NOCOV")
-        assert cached is not None
-        assert cached[1] is None  # intu
-        assert cached[2] is None  # cscl
-        assert cached[4] is None  # wkb
+    def test_scan_cache_null_fields(self, db: StateDB) -> None:
+        record = ScanRecord("3.1", None, None, None, 0, None)
+        db.set_scan_cache("NOCOV", record)
+        assert db.get_scan_cache("NOCOV") == record
 
     def test_build_state_round_trip(self, db: StateDB) -> None:
         assert db.get_build_state("US5MA1AQ") is None
@@ -164,6 +155,15 @@ class TestDirtyChecks:
         # CELL_B not in snapshot
         assert is_region_dirty("region-a", db, "hash1", ["CELL_A", "CELL_B"]) is True
 
+    def test_region_dirty_cell_removed(self, db: StateDB) -> None:
+        db.set_composite_state("region-a", "hash1", 1000, None, True)
+        db.set_region_cell_snapshot(
+            "region-a", {"CELL_A": ("1.1", "hash1"), "CANCELLED": ("2.0", "hash1")}
+        )
+        db.set_enc_version("CELL_A", 1, 1)
+        db.set_enc_version("CANCELLED", 2, 0)
+        assert is_region_dirty("region-a", db, "hash1", ["CELL_A"]) is True
+
     def test_region_clean(self, db: StateDB) -> None:
         db.set_composite_state("region-a", "hash1", 1000, None, True)
         db.set_region_cell_snapshot(
@@ -201,9 +201,14 @@ class TestRegionNeedsBuild:
     def test_never_downloaded_cell_is_ignored(self, built: StateDB) -> None:
         assert region_needs_build("r", built, ["A", "B", "C"]) is False
 
-    def test_overview_cell_from_snapshot(self, built: StateDB) -> None:
-        built.set_enc_version("B", 2, 1)
+    def test_cell_dropped_from_region(self, built: StateDB) -> None:
         assert region_needs_build("r", built, ["A"]) is True
+
+    def test_dropped_cell_never_downloaded_here(self, db: StateDB) -> None:
+        """A dropped cell counts even without a recorded version."""
+        db.set_enc_version("A", 1, 0)
+        db.set_region_cell_snapshot("r", {"A": ("1.0", "h"), "GONE": ("", "h")})
+        assert region_needs_build("r", db, ["A"]) is True
 
     def test_failed_cell_build(self, built: StateDB) -> None:
         built.set_build_state("OTHER", "1.0", "h", 0, False)
@@ -297,6 +302,9 @@ class TestMigration:
         assert db.get_region_cell_snapshot("r")["CURRENT"] == (OLD, "h")
         assert db.legacy_noaa_state() == {"CURRENT": OLD, "STALE": NEWER}
         assert db.get_all_enc_versions() == {}
+        # Scan rows predate the edition column.
+        cached = db.get_scan_cache("CURRENT")
+        assert cached is not None and cached.edition is None
         db.close()
         # Reopening an upgraded database is a no-op.
         StateDB(v1_db_path).close()
@@ -318,9 +326,9 @@ class TestMigration:
         assert db.get_all_enc_versions() == {"CURRENT": "3.1", "STALE": "2.0"}
         assert is_cell_dirty("CURRENT", db, "h", tiles) is False
         assert is_cell_dirty("STALE", db, "h", tiles) is True
-        db.set_composite_state("r", "h", 1, None, True)
-        assert is_region_dirty("r", db, "h", ["CURRENT"]) is False
-        assert db.get_scan_cache("CURRENT")[0] == "3.1"
+        assert db.get_region_cell_snapshot("r")["CURRENT"] == ("3.1", "h")
+        cached = db.get_scan_cache("CURRENT")
+        assert cached is not None and cached.enc_version == "3.1"
 
     def test_seed_never_overwrites_recorded_version(self, v1_db_path: Path) -> None:
         db = StateDB(v1_db_path)

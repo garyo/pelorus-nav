@@ -7,6 +7,7 @@ import os
 import subprocess
 from collections.abc import Callable
 from pathlib import Path
+from typing import NamedTuple
 
 from .enrich import (
     annotate_enclosing_depth,
@@ -43,15 +44,17 @@ def list_enc_layers(enc_path: Path) -> list[str]:
     return layers
 
 
-def _read_dsid_field(enc_path: Path, field_name: str) -> int | None:
-    """Read an integer field from the DSID layer of an S-57 ENC file.
+class DsidMetadata(NamedTuple):
+    intu: int | None  # DSID_INTU, intended usage (1-6)
+    cscl: int | None  # DSPM_CSCL, compilation scale
+    # DSID_EDTN with updates applied; a cancellation update sets it to 0
+    edition: int | None
 
-    Args:
-        enc_path: Path to the .000 ENC file.
-        field_name: DSID field name (e.g., "DSPM_CSCL", "DSID_INTU").
 
-    Returns:
-        The field value as an integer, or None if not found.
+def _read_dsid(enc_path: Path) -> dict[str, str]:
+    """Read the DSID record's fields ({name: value}) with updates applied.
+
+    Returns {} if ogrinfo fails.
     """
     result = subprocess.run(
         ["ogrinfo", "-ro", "-al", str(enc_path), "DSID"],
@@ -59,64 +62,42 @@ def _read_dsid_field(enc_path: Path, field_name: str) -> int | None:
         text=True,
     )
     if result.returncode != 0:
-        return None
-
+        return {}
+    # Field lines read "  DSID_INTU (Integer) = 5"
+    fields: dict[str, str] = {}
     for line in result.stdout.splitlines():
-        if field_name in line and "=" in line:
-            value = line.split("=")[-1].strip()
-            try:
-                return int(value)
-            except ValueError:
-                return None
-    return None
+        head, sep, value = line.partition(" = ")
+        words = head.split()
+        if sep and words:
+            fields[words[0]] = value.strip()
+    return fields
+
+
+def _int_field(fields: dict[str, str], name: str) -> int | None:
+    try:
+        return int(fields[name])
+    except (KeyError, ValueError):
+        return None
 
 
 def read_compilation_scale(enc_path: Path) -> int | None:
     """Read the compilation scale (DSPM_CSCL) from an S-57 ENC file."""
-    return _read_dsid_field(enc_path, "DSPM_CSCL")
+    return _int_field(_read_dsid(enc_path), "DSPM_CSCL")
 
 
 def read_intended_use(enc_path: Path) -> int | None:
-    """Read the intended use (DSID_INTU) from an S-57 ENC file.
-
-    Returns:
-        The intended use as an integer (1-6), or None if not found.
-    """
-    return _read_dsid_field(enc_path, "DSID_INTU")
+    """Read the intended use (DSID_INTU, 1-6) from an S-57 ENC file."""
+    return _int_field(_read_dsid(enc_path), "DSID_INTU")
 
 
-def read_dsid_metadata(enc_path: Path) -> tuple[int | None, int | None]:
-    """Read both INTU and CSCL from an S-57 ENC file in a single ogrinfo call.
-
-    Returns:
-        (intu, cscl) tuple. Either may be None if not found.
-    """
-    result = subprocess.run(
-        ["ogrinfo", "-ro", "-al", str(enc_path), "DSID"],
-        capture_output=True,
-        text=True,
+def read_dsid_metadata(enc_path: Path) -> DsidMetadata:
+    """Read INTU, CSCL and edition from an S-57 ENC file in one ogrinfo call."""
+    fields = _read_dsid(enc_path)
+    return DsidMetadata(
+        intu=_int_field(fields, "DSID_INTU"),
+        cscl=_int_field(fields, "DSPM_CSCL"),
+        edition=_int_field(fields, "DSID_EDTN"),
     )
-    if result.returncode != 0:
-        return None, None
-
-    intu: int | None = None
-    cscl: int | None = None
-    for line in result.stdout.splitlines():
-        if "=" not in line:
-            continue
-        if "DSID_INTU" in line:
-            value = line.split("=")[-1].strip()
-            try:
-                intu = int(value)
-            except ValueError:
-                pass
-        elif "DSPM_CSCL" in line:
-            value = line.split("=")[-1].strip()
-            try:
-                cscl = int(value)
-            except ValueError:
-                pass
-    return intu, cscl
 
 
 def convert_layer(
