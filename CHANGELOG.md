@@ -5,42 +5,44 @@ Notable user-facing changes to Pelorus Nav. Downloads are on the
 
 The format follows [Keep a Changelog](https://keepachangelog.com/).
 
-## [Unreleased]
+## [0.28.0] - 2026-10-04
 
 ### Added
 - Android: chart and basemap downloads keep running when you switch to
   another app or the screen turns off, with their progress shown in a
   "Downloading charts" notification.
+- A Features page in the user guide: a quick tour of what Pelorus Nav does,
+  linking to the details.
 
 ### Changed
 - The iOS and Play Store apps no longer show their own "new version
-  available" notice; the store delivers updates when they are ready. An APK
-  installed from GitHub still shows it, and it now opens the GitHub release.
+  available" notice; the stores deliver updates when they are ready. 
 
 ### Fixed
-- The "new version available" notice and undo toasts were squeezed into a
-  narrow column on phones, one word per line.
+- Charts no longer include NOAA chart cells that have been withdrawn, which
+  could show outdated data (one placed a buoy in Liberty Bay, WA, 490 m from
+  its current position). Their current replacements are now included.
+- Chart region updates are offered only when NOAA has actually updated a
+  chart, instead of almost every day.
+- The "new version available" notice and undo toasts are no longer squeezed into a
+  narrow column on phones.
 - Chart and basemap downloads interrupted by a lost connection (for
   example, when the app was in the background) no longer fail
-  permanently or start over from the beginning. The download waits,
-  retries when the app is back on screen and online, and continues from
-  where it stopped. A download that stops receiving data for 60 seconds
-  now fails and is retried, instead of hanging the queue.
-- An island's name no longer lands on a neighboring island: a small islet
-  beside a larger one (Gooseberry Island next to Hope Island, Narragansett
-  Bay) had its name written across the larger island, sometimes hiding the
-  larger island's own name. Island names now stay on their island or move
-  into open water.
+  permanently or start over from the beginning.
+- An island's name no longer lands on a neighboring island: names of small
+  islets beside a larger one (Gooseberry Island next to Hope Island,
+  Narragansett Bay) now stay on their own island or move into open water.
 - Depth shading matches the depth thresholds set in feet or fathoms. US
   charts store their foot contours rounded down to a tenth of a meter (the
   6 ft contour as 1.8 m), so water just past a 6 ft contour was shaded as
-  shallower than 6 ft. Depth contour labels also read low (5 ft for the 6 ft
-  contour, 29 ft for 30 ft); they now match the paper chart.
+  shallower than 6 ft. Depth contour labels also now match paper charts.
 - When Android stops the app in the background and track recording pauses,
   the app now says so when you reopen it, instead of silently starting a
   new track. On Android its **Settings** button opens the setting that
   keeps the app running; on Samsung phones it also explains how to add
-  Pelorus Nav to "Never auto sleeping apps".
+  Pelorus Nav to "Never auto sleeping apps". If Android won't let the app
+  resume recording in the background, a silent "Track recording stopped"
+  notification appears, to let you know.
 
 ## [0.27.0] - 2026-09-24
 
