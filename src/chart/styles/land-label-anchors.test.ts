@@ -9,10 +9,12 @@ import { getNauticalLayers } from "./index";
 import {
   type AnchorCode,
   anchorHintValues,
+  EXCLUDABLE_CODES,
   LAND_LABEL_ANCHOR_CODES,
   LAND_LABEL_HINT_BANDS,
   landLabelAnchorOffset,
   landLabelTextField,
+  placementOffset,
   radialAnchorOffset,
   type TextAnchor,
 } from "./land-label-anchors";
@@ -94,12 +96,23 @@ describe("anchor code table", () => {
     });
   });
 
-  it("lists every single code and every ordered pair", () => {
+  it("lists centre alone and each direction with optional centre and ring neighbours", () => {
     const values = anchorHintValues().map((codes) => codes.join(","));
-    expect(values).toHaveLength(9 + 9 * 8);
+    // "C", then 8 directions × (with/without C) × 4 neighbour subsets.
+    expect(values).toHaveLength(1 + 8 * 2 * 4);
     expect(new Set(values).size).toBe(values.length);
-    expect(values).toContain("TR,R");
-    expect(values).toContain("R,TR");
+    for (const v of [
+      "C",
+      "R",
+      "R,TR",
+      "R,BR",
+      "R,TR,BR",
+      "C,B,BR,BL",
+      "T,TL,TR",
+    ]) {
+      expect(values).toContain(v);
+    }
+    expect(values).not.toContain("R,L");
   });
 });
 
@@ -134,7 +147,7 @@ describe("landLabelAnchorOffset", () => {
       for (const band of LAND_LABEL_HINT_BANDS) {
         const props = { [`_la${band}`]: codes.join(",") };
         expect(offsetsAt(band, "Polygon", props)).toEqual(
-          anchors.flatMap((a) => [a, radialAnchorOffset(a, 1.5)]),
+          anchors.flatMap((a) => [a, placementOffset(a)]),
         );
       }
     }
@@ -157,11 +170,29 @@ describe("landLabelAnchorOffset", () => {
     expect(anchorsAt(13, "Point", { _la13: "*" })).toEqual(RING);
   });
 
+  it("drops the excluded position from the polygon default order", () => {
+    for (const code of EXCLUDABLE_CODES) {
+      const excluded = LAND_LABEL_ANCHOR_CODES[code];
+      expect(anchorsAt(13, "Polygon", { _la13: `!${code}` })).toEqual(
+        ["center", ...RING].filter((a) => a !== excluded),
+      );
+    }
+  });
+
+  it("rounds offsets to within a ten-thousandth of an em of MapLibre's radial placement", () => {
+    for (const a of ["center", ...RING] as TextAnchor[]) {
+      const [x, y] = placementOffset(a);
+      const [rx, ry] = radialAnchorOffset(a, 1.5);
+      expect(Math.abs(x - rx)).toBeLessThan(1e-4);
+      expect(Math.abs(y - ry)).toBeLessThan(1e-4);
+    }
+  });
+
   it("falls back to centre-only polygons and ring points without hints", () => {
     expect(anchorsAt(13, "Polygon", {})).toEqual(["center"]);
     expect(anchorsAt(13, "Point", {})).toEqual(RING);
     expect(offsetsAt(13, "Point", {})).toEqual(
-      RING.flatMap((a) => [a, radialAnchorOffset(a, 1.5)]),
+      RING.flatMap((a) => [a, placementOffset(a)]),
     );
   });
 });

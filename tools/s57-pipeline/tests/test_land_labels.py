@@ -110,13 +110,37 @@ class TestEncodeAnchors:
     def test_none_acceptable_hides(self):
         assert encode_anchors({"C": 0.5, "T": 0.2}) == HIDDEN
 
-    def test_lowest_overlap_first_and_at_most_two(self):
-        scores = {"C": 0.5, "T": 0.08, "R": 0.0, "L": 0.02}
-        assert encode_anchors(scores) == "R,L"
+    def test_best_offset_then_acceptable_ring_neighbours(self):
+        scores = {"C": 0.5, "T": 0.08, "R": 0.0, "TR": 0.05, "BR": 0.3, "L": 0.0}
+        scores |= {"B": 0.5, "BL": 0.5}
+        # R ties L on score but has a usable neighbour (TR); BR is unacceptable.
+        assert encode_anchors(scores) == "R,TR"
 
-    def test_center_wins_near_tie(self):
-        scores = {"T": 0.001, "C": 0.004, "R": 0.5}
-        assert encode_anchors(scores) == "C,T"
+    def test_center_leads_when_it_scores_best(self):
+        scores = {"T": 0.001, "C": 0.004, "TR": 0.2, "TL": 0.0, "R": 0.5}
+        scores |= {"B": 0.5, "BL": 0.5}
+        assert encode_anchors(scores) == "C,T,TL"
+
+    def test_center_dropped_when_an_offset_scores_better(self):
+        scores = {"C": 0.08, "B": 0.0, "BR": 0.0, "BL": 0.0, "T": 0.9}
+        scores |= {"L": 0.9, "R": 0.9}
+        assert encode_anchors(scores) == "B,BR,BL"
+
+    def test_center_only(self):
+        assert encode_anchors({"C": 0.0, "T": 0.5, "B": 0.5, "R": 0.5}) == "C"
+
+    def test_one_bad_polygon_position_is_excluded_from_the_default(self):
+        assert encode_anchors({"C": 0.0, "T": 0.0, "R": 0.5}) == "!R"
+        assert encode_anchors({"C": 0.5, "T": 0.0, "R": 0.0}) == "!C"
+
+    def test_two_bad_positions_use_a_direction_list(self):
+        scores = {"C": 0.0, "T": 0.3, "R": 0.5, "B": 0.0, "BR": 0.0, "BL": 0.0}
+        assert encode_anchors(scores) == "C,B,BR,BL"
+
+    def test_point_with_one_bad_position_uses_a_direction_list(self):
+        # Points have no C candidate, so the polygon default can't apply.
+        scores = {"T": 0.0, "TR": 0.0, "TL": 0.0, "R": 0.5}
+        assert encode_anchors(scores) == "T,TL,TR"
 
 
 class TestAnnotateLandLabelAnchors:

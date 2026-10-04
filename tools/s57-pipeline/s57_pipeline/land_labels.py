@@ -10,9 +10,15 @@ land, per zoom band, and stamps the acceptable anchors on the feature as
 ``_la16`` at z16 and above).
 
 Values: ``"*"`` every candidate is fine (keep the default placement), ``"-"``
-none is (hide the label in that band), else one or two MapLibre anchor names,
-best first, e.g. ``"TR,R"``. An anchor names the label edge nearest the point,
-so ``"T"`` puts the label below the point and ``"R"`` puts it to the west.
+none is (hide the label in that band), ``"!R"`` (polygons) the default
+placement minus the one position over land, ``"C"`` only centred, else a
+short list of MapLibre anchor names: optionally ``C`` (when centring scores
+best), then the best offset direction, then whichever of its two ring
+neighbours are also acceptable, e.g. ``"C,B,BR,BL"`` or ``"R,TR"``. Keeping
+hints to these forms keeps the style's lookup table small while leaving
+MapLibre fallbacks when soundings or symbols take the first choice. An anchor
+names the label edge nearest the point, so ``"T"`` puts the label below the
+point and ``"R"`` puts it to the west.
 """
 
 from __future__ import annotations
@@ -65,10 +71,14 @@ METRES_PER_DEG_LAT = 110540.0
 
 UNCONSTRAINED = "*"
 HIDDEN = "-"
-# Most anchors encoded per band.
-MAX_CODES = 2
-
-OFFSET_ANCHORS = ("T", "B", "L", "R", "TL", "TR", "BL", "BR")
+# Offset anchors in ring order: each one's label position (below, below-left,
+# left, ...) is adjacent to its neighbours'. src/chart/styles/land-label-anchors.ts
+# enumerates hints from the same ring; keep them in sync.
+OFFSET_RING = ("T", "TR", "R", "BR", "B", "BL", "L", "TL")
+OFFSET_ANCHORS = OFFSET_RING
+# Exclusion hint ("!" + one code) for a polygon with a single position over
+# land: the style keeps the whole default order minus that position.
+EXCLUDE_PREFIX = "!"
 POLYGON_ANCHORS = ("C", *OFFSET_ANCHORS)
 
 
@@ -153,8 +163,35 @@ def encode_anchors(scores: dict[str, float]) -> str:
         return UNCONSTRAINED
     if not ok:
         return HIDDEN
-    ok.sort(key=lambda a: (round(scores[a], 2), a != "C"))
-    return ",".join(ok[:MAX_CODES])
+    bad = [a for a in scores if a not in ok]
+    if len(bad) == 1 and "C" in scores:
+        # Nearly everything is clear: keep the full default order as
+        # fallbacks and only rule out the one position over land.
+        return EXCLUDE_PREFIX + bad[0]
+    rank = {a: round(scores[a], 2) for a in ok}
+
+    def usable_neighbours(a: str) -> list[str]:
+        i = OFFSET_RING.index(a)
+        ring = (
+            OFFSET_RING[(i - 1) % len(OFFSET_RING)],
+            OFFSET_RING[(i + 1) % len(OFFSET_RING)],
+        )
+        return [n for n in ring if n in rank]
+
+    offsets = [a for a in ok if a != "C"]
+    if not offsets:
+        return "C"
+    # Least overlap first; on a tie, the direction with more usable
+    # neighbours, since those are MapLibre's fallbacks.
+    best = min(
+        offsets,
+        key=lambda a: (rank[a], -len(usable_neighbours(a)), OFFSET_RING.index(a)),
+    )
+    codes = [best, *usable_neighbours(best)]
+    # Centre leads when it scores at least as well (labels sit on their own land).
+    if "C" in rank and rank["C"] <= rank[best]:
+        codes.insert(0, "C")
+    return ",".join(codes)
 
 
 class _Land(NamedTuple):
