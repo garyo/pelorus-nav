@@ -36,6 +36,11 @@ The format follows [Keep a Changelog](https://keepachangelog.com/).
   6 ft contour as 1.8 m), so water just past a 6 ft contour was shaded as
   shallower than 6 ft. Depth contour labels also read low (5 ft for the 6 ft
   contour, 29 ft for 30 ft); they now match the paper chart.
+- When Android stops the app in the background and track recording pauses,
+  the app now says so when you reopen it, instead of silently starting a
+  new track. On Android its **Settings** button opens the setting that
+  keeps the app running; on Samsung phones it also explains how to add
+  Pelorus Nav to "Never auto sleeping apps".
 
 ## [0.27.0] - 2026-09-24
 

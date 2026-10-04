@@ -509,18 +509,63 @@ class BackgroundGPSPlugin : Plugin() {
             return
         }
         try {
-            val intent = Intent(
-                Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,
-                android.net.Uri.parse("package:" + context.packageName),
-            )
-            (activity ?: context).let {
-                if (it === context) intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                it.startActivity(intent)
-            }
+            startPackageSettings(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS)
             DiagLog.log(context, "plugin", "battery exemption requested (recording notice)")
             call.resolve(JSObject().put("exempt", false))
         } catch (e: Exception) {
             call.reject("battery exemption request failed: ${e.message}")
+        }
+    }
+
+    /**
+     * What the front-end needs to word background-reliability advice: the
+     * manufacturer (lowercased; OEMs differ in how eagerly they kill
+     * background apps and where the remedy lives) and whether battery
+     * optimization still applies to the app.
+     */
+    @PluginMethod
+    fun getBackgroundInfo(call: PluginCall) {
+        call.resolve(
+            JSObject().apply {
+                put("manufacturer", Build.MANUFACTURER.lowercase(java.util.Locale.ROOT))
+                put("batteryOptimized", isBatteryOptimized())
+            },
+        )
+    }
+
+    /**
+     * Take the user to the setting most likely to keep a recording alive in
+     * the background: the battery-exemption dialog while optimization still
+     * applies, otherwise the app's own system settings page (the way into
+     * OEM background limits such as Samsung's sleeping-apps lists).
+     */
+    @PluginMethod
+    fun openBackgroundSettings(call: PluginCall) {
+        val (action, opened) = if (isBatteryOptimized()) {
+            Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS to "battery-exemption"
+        } else {
+            Settings.ACTION_APPLICATION_DETAILS_SETTINGS to "app-settings"
+        }
+        try {
+            startPackageSettings(action)
+            DiagLog.log(context, "plugin", "background settings opened: $opened")
+            call.resolve(JSObject().put("opened", opened))
+        } catch (e: Exception) {
+            call.reject("opening background settings failed: ${e.message}")
+        }
+    }
+
+    /** Battery optimization still applies to the app (no exemption granted). */
+    private fun isBatteryOptimized(): Boolean =
+        context.getSystemService(android.os.PowerManager::class.java)
+            ?.isIgnoringBatteryOptimizations(context.packageName) == false
+
+    /** Start a settings screen whose [action] takes this app's `package:` URI. */
+    private fun startPackageSettings(action: String) {
+        val intent = Intent(action, android.net.Uri.parse("package:" + context.packageName))
+        (activity ?: context).let {
+            if (it === context) intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            it.startActivity(intent)
         }
     }
 
@@ -533,9 +578,7 @@ class BackgroundGPSPlugin : Plugin() {
      * the battery-optimization state that governs how eager the system is.
      */
     private fun logProcessExits() {
-        val pm = context.getSystemService(android.os.PowerManager::class.java)
-        val optimized = pm?.isIgnoringBatteryOptimizations(context.packageName) == false
-        DiagLog.log(context, "plugin", "load batteryOptimized=$optimized")
+        DiagLog.log(context, "plugin", "load batteryOptimized=${isBatteryOptimized()}")
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) return
         try {
             val am = context.getSystemService(android.app.ActivityManager::class.java) ?: return
@@ -714,11 +757,7 @@ class BackgroundGPSPlugin : Plugin() {
             status?.alarmKind?.let { put("alarmKind", it) }
             // Doze can defer alarms unless the user exempts the app; the
             // armed panel discloses when the exemption is missing.
-            val pm = context.getSystemService(android.os.PowerManager::class.java)
-            put(
-                "batteryOptimized",
-                pm?.isIgnoringBatteryOptimizations(context.packageName) == false,
-            )
+            put("batteryOptimized", isBatteryOptimized())
             // Overnight use should be on the charger; the armed panel
             // suggests plugging in while running on battery.
             readChargingState()?.let { put("charging", it) }

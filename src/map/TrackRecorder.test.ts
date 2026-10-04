@@ -9,7 +9,11 @@ import type { TrackMeta } from "../data/Track";
 import { appErrorLog } from "../diagnostics/errorLog";
 import type { NavigationData } from "../navigation/NavigationData";
 import type { NavigationDataManager } from "../navigation/NavigationDataManager";
-import { isGapGlitch, TrackRecorder } from "./TrackRecorder";
+import {
+  isGapGlitch,
+  type RecordingInterruption,
+  TrackRecorder,
+} from "./TrackRecorder";
 
 vi.mock("../data/db", () => ({
   appendTrackPoint: vi.fn().mockResolvedValue(undefined),
@@ -613,5 +617,117 @@ describe("TrackRecorder backlog ingest", () => {
     const recorder = new TrackRecorder(nav as unknown as NavigationDataManager);
     expect(await recorder.ingestBacklog([fix(42.0, -71.0, t0)])).toBe(0);
     expect(appendTrackPoint).not.toHaveBeenCalled();
+  });
+});
+
+describe("TrackRecorder resume-gap report", () => {
+  const fakeStorage = new Map<string, string>();
+  const settle = () => new Promise<void>((r) => setTimeout(r, 0));
+  const t0 = Date.parse("2026-09-30T14:00:00.000Z");
+  const MIN = 60_000;
+  const savedTrack: TrackMeta = {
+    id: "saved-track",
+    name: "Pelorus Track",
+    createdAt: t0 - 60 * MIN,
+    color: "#ff4444",
+    visible: true,
+    pointCount: 1,
+    durationMs: 60 * MIN,
+    totalDistanceNM: 3,
+  };
+
+  beforeEach(() => {
+    fakeStorage.clear();
+    vi.stubGlobal("localStorage", {
+      getItem: (k: string) => fakeStorage.get(k) ?? null,
+      setItem: (k: string, v: string) => {
+        fakeStorage.set(k, v);
+      },
+      removeItem: (k: string) => {
+        fakeStorage.delete(k);
+      },
+    });
+    vi.mocked(getAllTrackMetas).mockResolvedValue([]);
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  /** A started recorder with its interruption reports collected; resumed
+   *  onto `savedTrack` (last stored point at t0) unless `fresh`. */
+  async function startRecorder(fresh = false) {
+    if (!fresh) {
+      fakeStorage.set("pelorus-nav-active-track", JSON.stringify(savedTrack));
+      vi.mocked(getTrackPoints).mockResolvedValueOnce([
+        { lat: 42.0, lon: -71.0, timestamp: t0, sog: null, cog: null },
+      ]);
+    }
+    const nav = new FakeNavManager();
+    const recorder = new TrackRecorder(nav as unknown as NavigationDataManager);
+    const reports: RecordingInterruption[] = [];
+    recorder.onInterruption((gap) => reports.push(gap));
+    recorder.start();
+    await settle();
+    return { nav, recorder, reports };
+  }
+
+  it("reports a gap past the notice threshold once, on the same track", async () => {
+    const { nav, recorder, reports } = await startRecorder();
+    nav.feed(fix(42.001, -71.0, t0 + 5 * MIN));
+    await settle();
+    nav.feed(fix(42.002, -71.0, t0 + 10 * MIN));
+    await settle();
+
+    expect(reports).toEqual([{ gapMs: 5 * MIN, newTrack: false }]);
+    expect(recorder.getCurrentTrack()?.id).toBe(savedTrack.id);
+  });
+
+  it("reports nothing for a gap below the threshold", async () => {
+    const { nav, reports } = await startRecorder();
+    nav.feed(fix(42.001, -71.0, t0 + MIN));
+    await settle();
+    nav.feed(fix(42.01, -71.0, t0 + 5 * MIN));
+    await settle();
+
+    expect(reports).toEqual([]);
+  });
+
+  it("waits past a stale echo of the last stored fix", async () => {
+    const { nav, reports } = await startRecorder();
+    nav.feed(fix(42.0, -71.0, t0));
+    await settle();
+    nav.feed(fix(42.001, -71.0, t0 + 5 * MIN));
+    await settle();
+
+    expect(reports).toEqual([{ gapMs: 5 * MIN, newTrack: false }]);
+  });
+
+  it("reports a new track when the gap split it", async () => {
+    const { nav, recorder, reports } = await startRecorder();
+    nav.feed(fix(42.001, -71.0, t0 + 32 * MIN));
+    await settle();
+
+    expect(reports).toEqual([{ gapMs: 32 * MIN, newTrack: true }]);
+    expect(recorder.getCurrentTrack()?.id).not.toBe(savedTrack.id);
+  });
+
+  it("leaves the report to the backlog notice when a backlog was ingested", async () => {
+    const { nav, recorder, reports } = await startRecorder();
+    await recorder.ingestBacklog([fix(42.001, -71.0, t0 + 5 * MIN)]);
+    nav.feed(fix(42.002, -71.0, t0 + 15 * MIN));
+    await settle();
+
+    expect(reports).toEqual([]);
+  });
+
+  it("reports nothing for a fresh recording", async () => {
+    const { nav, reports } = await startRecorder(true);
+    nav.feed(fix(42.0, -71.0, t0));
+    await settle();
+    nav.feed(fix(42.001, -71.0, t0 + 10 * MIN));
+    await settle();
+
+    expect(reports).toEqual([]);
   });
 });

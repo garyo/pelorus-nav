@@ -7,7 +7,11 @@ import { type AddProtocolAction, addProtocol, setWorkerUrl } from "maplibre-gl";
 // worker pipeline (`?worker&url` emits a self-contained bundle — the raw dist
 // file imports a sibling module that wouldn't be emitted alongside it).
 import maplibreWorkerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url";
-import { describeBacklogRecovery } from "./map/backlog-notice";
+import {
+  describeBacklogRecovery,
+  describeResumeGap,
+} from "./map/backlog-notice";
+import { showInterruptionToast } from "./map/interruption-toast";
 import { playWaypointChime } from "./navigation/waypoint-chime";
 import { BackgroundGPS } from "./plugins/BackgroundGPS";
 import "maplibre-gl/dist/maplibre-gl.css";
@@ -1038,34 +1042,30 @@ onSettingsChange((s) => {
   }
 });
 
+// A track resumed at boot whose first fix comes well after its last point
+// was down while the app was dead, with nothing buffered to fill the hole
+// (the system stopped the app and refused to restart its GPS service).
+// Say so once, with the remedy; a recovered backlog reports its own hole.
+trackRecorder.onInterruption(({ gapMs, newTrack }) => {
+  const message = describeResumeGap(gapMs, newTrack);
+  if (message) void showInterruptionToast(message, true);
+});
+
 // Start recording at boot if the setting is on.
 void startRecorderAfterRepair();
 
 // Fixes the native service buffered while no page was alive to drain them
 // (an OS kill under way) come back through the recorder at reconnect, and
 // the hole between that backlog and this boot is disclosed — with the
-// battery-optimization exemption as the remedy, since that is what lets
-// the system kill a recording app in the first place.
+// phone's background settings as the remedy, since that is what lets the
+// system kill a recording app in the first place.
 gps.capacitorGPS?.setBacklogSink(async (points) => {
   await startRecorderAfterRepair();
   if (!trackRecorder.isRecording()) return;
   const recorded = await trackRecorder.ingestBacklog(points);
   trackLayer.refreshActive();
   const notice = describeBacklogRecovery(points, recorded, Date.now());
-  if (!notice) return;
-  showToast({
-    message: notice.message,
-    durationMs: 12_000,
-    // The exemption dialog is Android's; iOS has no equivalent to offer.
-    ...(notice.interrupted && Capacitor.getPlatform() === "android"
-      ? {
-          actionLabel: "Battery settings",
-          onAction: () => {
-            BackgroundGPS.requestBatteryExemption().catch(console.error);
-          },
-        }
-      : {}),
-  });
+  if (notice) void showInterruptionToast(notice.message, notice.interrupted);
 });
 
 // An armed anchor watch must keep GPS alive exactly like an active

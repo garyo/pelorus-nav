@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
   describeBacklogRecovery,
+  describeResumeGap,
   INTERRUPTION_NOTICE_MIN_MS,
+  withVendorAdvice,
 } from "./backlog-notice";
 
 const MIN = 60_000;
@@ -58,5 +60,40 @@ describe("describeBacklogRecovery", () => {
       message: "Recording was interrupted for 2m — the system stopped the app.",
       interrupted: true,
     });
+  });
+});
+
+describe("describeResumeGap", () => {
+  it("says nothing for a gap below the notice threshold", () => {
+    expect(describeResumeGap(INTERRUPTION_NOTICE_MIN_MS - 1, false)).toBeNull();
+  });
+
+  it("reports a gap that continued the same track", () => {
+    expect(describeResumeGap(INTERRUPTION_NOTICE_MIN_MS, false)).toBe(
+      "Track recording stopped for 2m while the app was closed.",
+    );
+  });
+
+  it("adds that a new track was started when the gap split the track", () => {
+    expect(describeResumeGap(32 * MIN, true)).toBe(
+      "Track recording stopped for 32m while the app was closed. " +
+        "A new track was started.",
+    );
+  });
+});
+
+describe("withVendorAdvice", () => {
+  const message = "Track recording stopped for 32m while the app was closed.";
+
+  it("adds the sleeping-apps advice on Samsung phones", () => {
+    expect(withVendorAdvice(message, "samsung")).toBe(
+      `${message} On Samsung phones, add Pelorus Nav to Never auto sleeping ` +
+        "apps (Settings › Battery › Background usage limits).",
+    );
+  });
+
+  it("leaves the message alone on other or unknown manufacturers", () => {
+    expect(withVendorAdvice(message, "google")).toBe(message);
+    expect(withVendorAdvice(message, null)).toBe(message);
   });
 });

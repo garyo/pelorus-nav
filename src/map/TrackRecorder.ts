@@ -33,6 +33,7 @@ import { haversineDistanceNM } from "../utils/coordinates";
 import { diag } from "../utils/diag";
 import { formatLocalDateTime } from "../utils/format";
 import { generateUUID } from "../utils/uuid";
+import { INTERRUPTION_NOTICE_MIN_MS } from "./backlog-notice";
 
 /** Trace each recorded point to diag.log. Off in shipping builds; pairs with
  *  GPS_TRACE in NavigationDataManager when debugging a new GPS source. */
@@ -108,6 +109,14 @@ export function isGapGlitch(
 
 type RecorderListener = () => void;
 
+/** A resumed track's first fix came `gapMs` after its last stored point;
+ *  `newTrack` when the gap split off a new track. */
+export interface RecordingInterruption {
+  gapMs: number;
+  newTrack: boolean;
+}
+type InterruptionListener = (gap: RecordingInterruption) => void;
+
 export class TrackRecorder {
   private readonly navManager: NavigationDataManager;
   private recording = false;
@@ -142,6 +151,14 @@ export class TrackRecorder {
   /** True while ingestBacklog feeds fixes; per-fix listener/resume-key
    *  updates are held until it finishes. */
   private ingesting = false;
+  /**
+   * Last stored fix time of the track resumed at start(), until the first
+   * fix after it reports the gap to onInterruption listeners. Null once
+   * reported, for a fresh recording, and after a backlog ingest — the
+   * backlog's own notice covers that hole.
+   */
+  private resumedLastTime: number | null = null;
+  private interruptionListeners: InterruptionListener[] = [];
 
   constructor(navManager: NavigationDataManager) {
     this.navManager = navManager;
@@ -270,6 +287,7 @@ export class TrackRecorder {
     this.glitchRejectedSinceAccept = false;
     this.saveFailing = false;
     this.resumePromise = null;
+    this.resumedLastTime = null;
     localStorage.removeItem(ACTIVE_TRACK_KEY);
     this.updateNativeNotification("Navigating");
     this.setNativeRecordingDemand(false);
@@ -347,6 +365,17 @@ export class TrackRecorder {
   }
 
   /**
+   * Called at most once per start(), when a track resumed from a previous
+   * session receives its first fix and no backlog was recovered: the gap
+   * between the two is how long recording was down. A gap shorter than
+   * INTERRUPTION_NOTICE_MIN_MS is a reload, not an interruption, and is not
+   * reported.
+   */
+  onInterruption(fn: InterruptionListener): void {
+    this.interruptionListeners.push(fn);
+  }
+
+  /**
    * Fixes the native service recorded while this page was dead (a process
    * kill under way, a WebView reload), handed over by the GPS provider at
    * reconnect. Each one takes the same path as a live fix — accuracy gate,
@@ -359,6 +388,9 @@ export class TrackRecorder {
   async ingestBacklog(points: NavigationData[]): Promise<number> {
     if (!this.recording) return 0;
     if (this.resumePromise) await this.resumePromise;
+    // A backlog means the app died while the service kept recording; the
+    // caller reports that hole itself, so the resume-gap report stands down.
+    if (points.length > 0) this.resumedLastTime = null;
     const sorted = [...points].sort((a, b) => a.timestamp - b.timestamp);
     let recorded = 0;
     // Listeners (the track manager re-reads every track meta on each
@@ -423,6 +455,7 @@ export class TrackRecorder {
       this.lastRecordedTime = lastPoint.timestamp;
       this.lastLat = lastPoint.lat;
       this.lastLon = lastPoint.lon;
+      this.resumedLastTime = lastPoint.timestamp;
       // Tell listeners (e.g. TrackLayer) a track is now active, so a
       // freshly-constructed map layer can seed its live-render buffer from
       // IndexedDB instead of starting empty.
@@ -431,6 +464,22 @@ export class TrackRecorder {
       // Corrupt localStorage entry — ignore
       localStorage.removeItem(ACTIVE_TRACK_KEY);
     }
+  }
+
+  /**
+   * Report the resumed track's gap on the first fix after it. A fix at or
+   * before the last stored point (the cached last-known fix FLP echoes on
+   * start) says nothing about the gap and leaves the report armed.
+   */
+  private reportResumeGap(fixTime: number, newTrack: boolean): void {
+    if (this.resumedLastTime === null || fixTime <= this.resumedLastTime) {
+      return;
+    }
+    const gapMs = fixTime - this.resumedLastTime;
+    this.resumedLastTime = null;
+    if (gapMs < INTERRUPTION_NOTICE_MIN_MS) return;
+    diag("rec", `resume gap=${Math.round(gapMs / 1000)}s newTrack=${newTrack}`);
+    for (const fn of this.interruptionListeners) fn({ gapMs, newTrack });
   }
 
   private async onNavData(data: NavigationData): Promise<void> {
@@ -451,11 +500,12 @@ export class TrackRecorder {
     // Time gap → start a new track. Checked before the glitch test, which
     // must never measure a fix against an anchor from the previous track
     // (a resumed track's last point can be days old).
-    if (
-      this.currentTrack &&
+    const split =
+      this.currentTrack !== null &&
       this.lastRecordedTime > 0 &&
-      now - this.lastRecordedTime > GAP_THRESHOLD_MS
-    ) {
+      now - this.lastRecordedTime > GAP_THRESHOLD_MS;
+    this.reportResumeGap(now, split);
+    if (split && this.currentTrack) {
       // Save final state of old track before starting new one
       if (this.trackPersisted) {
         await saveTrackMeta(await this.mergeWithStoredMeta(this.currentTrack));

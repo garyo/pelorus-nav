@@ -109,6 +109,14 @@ class BackgroundTrackService : Service() {
         const val ANCHOR_EVENT_CHANNEL_ID = "pelorus_anchor_event_channel"
         const val ANCHOR_EVENT_NOTIFICATION_ID = 3
 
+        /**
+         * Told the user a recording stopped because Android refused to
+         * restart the service in the foreground. Status-bar only: default
+         * importance with no sound or vibration, so no heads-up and no noise.
+         */
+        const val RECORDING_ALERT_CHANNEL_ID = "pelorus_recording_alert_channel"
+        const val RECORDING_STOPPED_NOTIFICATION_ID = 6
+
         const val MODE_ACTIVE = "active"
         const val MODE_PASSIVE = "passive"
 
@@ -774,10 +782,18 @@ class BackgroundTrackService : Service() {
         } catch (e: Exception) {
             Log.e(TAG, "Failed to start foreground service, stopping", e)
             DiagLog.log(this, "svc", "foreground start refused: ${e.javaClass.simpleName}: ${e.message}")
+            // The demand stays on disk, so the next launch resumes the
+            // recording — but until then nothing is recording, and the user
+            // has to be told or the gap goes unnoticed.
+            if (recordingWanted) showRecordingStoppedNotification()
             locationListener = null
             stoppedListener?.invoke("foreground-start-failed")
             stopSelf()
             return START_NOT_STICKY
+        }
+        if (recordingWanted) {
+            getSystemService(NotificationManager::class.java)
+                ?.cancel(RECORDING_STOPPED_NOTIFICATION_ID)
         }
 
         applyMode()
@@ -1729,6 +1745,56 @@ class BackgroundTrackService : Service() {
             .setContentIntent(contentPending)
             .build()
         nm.notify(ANCHOR_EVENT_NOTIFICATION_ID, notification)
+    }
+
+    /**
+     * Android restarted the service for a recording it had killed, then
+     * refused it the foreground (some OEM builds deny a background start
+     * with a location type). Leave one quiet notice explaining the gap;
+     * a fixed id means a repeat refusal replaces rather than stacks, and
+     * the next successful foreground start cancels it.
+     */
+    private fun showRecordingStoppedNotification() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+            ContextCompat.checkSelfPermission(this, android.Manifest.permission.POST_NOTIFICATIONS) !=
+            PackageManager.PERMISSION_GRANTED
+        ) {
+            DiagLog.log(this, "svc", "recording-stopped notice skipped: notifications not permitted")
+            return
+        }
+        val nm = getSystemService(NotificationManager::class.java) ?: return
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            nm.createNotificationChannel(
+                NotificationChannel(
+                    RECORDING_ALERT_CHANNEL_ID,
+                    "Recording Alerts",
+                    NotificationManager.IMPORTANCE_DEFAULT,
+                ).apply {
+                    description = "Tells you when Android has stopped a track recording"
+                    setSound(null, null)
+                    enableVibration(false)
+                },
+            )
+        }
+        val contentPending = packageManager.getLaunchIntentForPackage(packageName)?.let {
+            PendingIntent.getActivity(
+                this, 8, it,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+            )
+        }
+        val notice = recordingStoppedNotice(Build.MANUFACTURER)
+        val notification = Notification.Builder(this, RECORDING_ALERT_CHANNEL_ID)
+            .setContentTitle(notice.title)
+            .setContentText(notice.text)
+            .apply { notice.detail?.let { setStyle(Notification.BigTextStyle().bigText(it)) } }
+            .setSmallIcon(android.R.drawable.stat_sys_warning)
+            .setCategory(Notification.CATEGORY_STATUS)
+            .setOnlyAlertOnce(true)
+            .setAutoCancel(true)
+            .apply { contentPending?.let { setContentIntent(it) } }
+            .build()
+        nm.notify(RECORDING_STOPPED_NOTIFICATION_ID, notification)
+        DiagLog.log(this, "svc", "recording-stopped notice posted manufacturer=${Build.MANUFACTURER}")
     }
 
     /**

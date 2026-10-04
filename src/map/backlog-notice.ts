@@ -1,12 +1,15 @@
 /**
- * What to tell the user after a track backlog is recovered at boot.
+ * What to tell the user when the system stopped the app while it was
+ * recording a track — an OS kill, most likely battery management on a
+ * phone in a pocket.
  *
- * A backlog exists only because the app died while recording — an OS kill
- * under way, most likely battery management on a phone in a pocket. The
- * fixes the native service kept buffering are recovered silently; the hole
- * between its last fix and this boot is not, and that is the part worth
- * saying out loud, with the one remedy the user controls: exempting the
- * app from battery optimization.
+ * Two cases. Either the native service kept buffering fixes after the app
+ * died, and that backlog is recovered silently at boot, leaving only the
+ * hole between its last fix and this boot to report; or nothing was
+ * buffered at all (the system also refused to restart the service), and
+ * the resumed track's first fix simply arrives after a gap. Either way the
+ * hole is worth saying out loud, with the remedy the user controls: the
+ * phone's background settings for the app.
  */
 
 import { formatDurationShort } from "../utils/format";
@@ -48,4 +51,33 @@ export function describeBacklogRecovery(
     );
   }
   return { message: parts.join(" "), interrupted };
+}
+
+/**
+ * The notice for a resumed track whose first fix came `gapMs` after its last
+ * stored point, with no backlog to fill the hole. `newTrack`: the gap was
+ * long enough that the recorder started a new track. Pure — exported for
+ * testing.
+ */
+export function describeResumeGap(
+  gapMs: number,
+  newTrack: boolean,
+): string | null {
+  if (gapMs < INTERRUPTION_NOTICE_MIN_MS) return null;
+  const stopped = `Track recording stopped for ${formatDurationShort(gapMs)} while the app was closed.`;
+  return newTrack ? `${stopped} A new track was started.` : stopped;
+}
+
+/**
+ * Samsung's own "sleeping apps" limit stops background apps regardless of
+ * Android's battery-optimization exemption, and no API can lift it, so on
+ * Samsung phones the notice says where that setting lives. `manufacturer`
+ * is lowercased, or null when unknown. Pure — exported for testing.
+ */
+export function withVendorAdvice(
+  message: string,
+  manufacturer: string | null,
+): string {
+  if (manufacturer !== "samsung") return message;
+  return `${message} On Samsung phones, add Pelorus Nav to Never auto sleeping apps (Settings › Battery › Background usage limits).`;
 }

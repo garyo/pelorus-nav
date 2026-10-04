@@ -352,6 +352,28 @@ export interface BackgroundGPSPlugin {
    */
   requestBatteryExemption(): Promise<{ exempt: boolean }>;
 
+  /**
+   * What decides whether the system may stop the app in the background.
+   * `manufacturer` is the lowercased Build.MANUFACTURER, for vendor-specific
+   * advice (Samsung's "sleeping apps" limit is separate from Android's
+   * battery optimization and no API can change it). Android only; rejects
+   * on native shells older than this method — callers must catch.
+   */
+  getBackgroundInfo(): Promise<{
+    manufacturer: string;
+    batteryOptimized: boolean;
+  }>;
+
+  /**
+   * Open the screen where the user can stop the system from killing the
+   * app in the background: the battery-exemption dialog while the app is
+   * still optimized, otherwise the app's own system settings page. Android
+   * only; rejects on native shells older than this method.
+   */
+  openBackgroundSettings(): Promise<{
+    opened: "battery-exemption" | "app-settings";
+  }>;
+
   /** Remove all listeners for this plugin. */
   removeAllListeners(): Promise<void>;
 }
