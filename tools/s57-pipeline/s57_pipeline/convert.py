@@ -15,6 +15,7 @@ from .enrich import (
     correlate_topmarks,
     enrich_geojson,
 )
+from .land_labels import annotate_land_label_anchors
 from .layers import LAYER_NAMES
 
 
@@ -239,5 +240,9 @@ def convert_enc(
     # Annotate hazard features with enclosing DEPARE depth for isolated
     # danger detection (S-52 UDWHAZ05).
     annotate_enclosing_depth(output_dir)
+
+    # Record which label anchors keep each island name off neighbouring land,
+    # per zoom band, for the front-end's variable-anchor placement.
+    annotate_land_label_anchors(output_dir)
 
     return outputs

@@ -18,9 +18,10 @@ from typing import NamedTuple
 
 from .enc_catalog import enc_version_key
 
-# Bump when enrichment logic (enrich.py, s52_metadata.py, labels.py, symbols.py)
-# changes in a way not captured by LAYER_CONFIGS or tippecanoe version.
-PIPELINE_VERSION = 5
+# Bump when enrichment logic (enrich.py, land_labels.py, s52_metadata.py,
+# labels.py, symbols.py) changes in a way not captured by LAYER_CONFIGS or
+# tippecanoe version.
+PIPELINE_VERSION = 6
 
 SCHEMA_VERSION = 3
 

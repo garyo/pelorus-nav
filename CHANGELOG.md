@@ -26,6 +26,11 @@ The format follows [Keep a Changelog](https://keepachangelog.com/).
   retries when the app is back on screen and online, and continues from
   where it stopped. A download that stops receiving data for 60 seconds
   now fails and is retried, instead of hanging the queue.
+- An island's name no longer lands on a neighboring island: a small islet
+  beside a larger one (Gooseberry Island next to Hope Island, Narragansett
+  Bay) had its name written across the larger island, sometimes hiding the
+  larger island's own name. Island names now stay on their island or move
+  into open water.
 
 ## [0.27.0] - 2026-09-24
 

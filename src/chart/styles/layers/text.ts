@@ -10,6 +10,10 @@ import type {
   LayerSpecification,
 } from "@maplibre/maplibre-gl-style-spec";
 import { depthUnitLabel } from "../../../settings";
+import {
+  landLabelAnchorOffset,
+  landLabelTextField,
+} from "../land-label-anchors";
 import { listAttrFirstNumber } from "../list-attr";
 import type { StyleContext } from "../style-context";
 import {
@@ -125,6 +129,11 @@ export function getTextLayers(ctx: StyleContext): LayerSpecification[] {
         "text-halo-width": 2,
       },
     },
+    // Island names. Placement follows per-zoom-band anchor hints (`_la11` …
+    // `_la16`) computed by the tile pipeline
+    // (tools/s57-pipeline/s57_pipeline/land_labels.py) so an islet's name
+    // stays off its neighbours; see land-label-anchors.ts. The text-size curve
+    // in land_labels.py mirrors this layer's text-size — keep them in sync.
     {
       id: "s57-lndare-label",
       type: "symbol",
@@ -133,9 +142,10 @@ export function getTextLayers(ctx: StyleContext): LayerSpecification[] {
       minzoom: ctx.detailMinzoom(11),
       filter: ["has", "OBJNAM"],
       layout: {
-        ...VARIABLE_ANCHOR_LAYOUT,
+        "text-variable-anchor-offset": landLabelAnchorOffset(),
+        "text-justify": "auto",
         "symbol-sort-key": SORT_KEY_NAMED_LAND,
-        "text-field": ["get", "OBJNAM"],
+        "text-field": landLabelTextField(["get", "OBJNAM"]),
         "text-size": scaledTextSize(
           [
             "interpolate",
