@@ -15,6 +15,7 @@ from s57_pipeline.state import (
     compute_composite_hash,
     compute_config_hash,
     is_cell_dirty,
+    is_config_stale,
     is_region_dirty,
     region_needs_build,
 )
@@ -129,6 +130,15 @@ class TestDirtyChecks:
         db.set_build_state("CELL", "1.1", "hash1", 5, True)
         # No tiles dir at all
         assert is_cell_dirty("CELL", db, "hash1", tmp_path) is True
+
+    def test_config_stale_after_config_change(self, db: StateDB) -> None:
+        # Tiles newer than the ENC still need rebuilding under a new config.
+        db.set_build_state("CELL", "1.1", "old_hash", 5, True)
+        assert is_config_stale("CELL", db, "new_hash") is True
+        assert is_config_stale("CELL", db, "old_hash") is False
+
+    def test_config_not_stale_without_build_state(self, db: StateDB) -> None:
+        assert is_config_stale("NEWCELL", db, "hash1") is False
 
     def test_cell_clean(self, db: StateDB, tmp_path: Path) -> None:
         db.set_enc_version("CELL", 1, 1)

@@ -21,7 +21,7 @@ from .enc_catalog import enc_version_key
 # Bump when enrichment logic (enrich.py, land_labels.py, s52_metadata.py,
 # labels.py, symbols.py) changes in a way not captured by LAYER_CONFIGS or
 # tippecanoe version.
-PIPELINE_VERSION = 6
+PIPELINE_VERSION = 7
 
 SCHEMA_VERSION = 3
 
@@ -378,6 +378,19 @@ def is_cell_dirty(
     if not tiles_dir.exists() or not any(tiles_dir.glob("*.pmtiles")):
         return True
     return False
+
+
+def is_config_stale(cell_name: str, db: StateDB, config_hash: str) -> bool:
+    """True when the cell's last build used a different pipeline config.
+
+    Its tiles may be newer than its ENC and still be wrong (a
+    PIPELINE_VERSION bump, a new tippecanoe), so the cell must be rebuilt
+    from scratch rather than skipped on file times. A cell with no recorded
+    build is not stale: its tiles' provenance is unknown, and the file-time
+    check stands.
+    """
+    build = db.get_build_state(cell_name)
+    return build is not None and build[1] != config_hash
 
 
 def is_region_dirty(

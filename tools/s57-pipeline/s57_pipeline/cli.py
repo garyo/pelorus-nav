@@ -35,6 +35,7 @@ from .state import (
     compute_composite_hash,
     compute_config_hash,
     is_cell_dirty,
+    is_config_stale,
     is_region_dirty,
 )
 from .tile import tile_geojson_files
@@ -529,9 +530,12 @@ def cmd_pipeline(args: argparse.Namespace) -> None:
         progress.process_start(len(cells_to_process), max_workers)
 
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            # A cell built under another config is rebuilt from scratch:
+            # _process_cell's file-time skip can't see a config change.
             futures = {
                 executor.submit(
-                    _process_cell, enc_path, work_dir, args.force,
+                    _process_cell, enc_path, work_dir,
+                    args.force or is_config_stale(enc_path.stem, db, config_hash),
                     intu_zoom_ranges, progress,
                 ): enc_path
                 for enc_path in cells_to_process
