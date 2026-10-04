@@ -6,7 +6,8 @@ import type {
   ExpressionSpecification,
   LayerSpecification,
 } from "@maplibre/maplibre-gl-style-spec";
-import { depthConversionFactor, depthUnitLabel } from "../../../settings";
+import { depthUnitLabel } from "../../../settings";
+import { metresPerUnit } from "../../../utils/chart-depth";
 import { listAttrContains } from "../list-attr";
 import type { StyleContext } from "../style-context";
 import {
@@ -16,19 +17,51 @@ import {
 } from "../style-context";
 
 /**
+ * VALDCO (metres) as a whole number of feet or fathoms. NOAA encodes its
+ * feet/fathom contours truncated to 0.1 m (6 ft → 1.8), so a value that is
+ * exactly a whole unit truncated that way is labelled with that unit (6, not
+ * 5); anything else is floored for safety (the shoaler reading).
+ */
+export function wholeUnitContourDepth(
+  unit: "feet" | "fathoms",
+): ExpressionSpecification {
+  const perUnit = metresPerUnit(unit);
+  const v: ExpressionSpecification = ["get", "VALDCO"];
+  // Clamped at 0 so a zero contour is 0, not -0 (which formats as "-0").
+  const whole: ExpressionSpecification = [
+    "ceil",
+    ["max", ["-", ["/", v, perUnit], 1e-6], 0],
+  ];
+  // The whole unit as NOAA would store it: exact metres truncated to 0.1 m.
+  const encoded: ExpressionSpecification = [
+    "/",
+    ["floor", ["+", ["*", ["*", whole, perUnit], 10], 1e-6]],
+    10,
+  ];
+  return [
+    "case",
+    ["<", ["abs", ["-", encoded, v]], 1e-6],
+    whole,
+    ["floor", ["+", ["/", v, perUnit], 1e-6]],
+  ];
+}
+
+/**
  * Build a text-field expression that converts VALDCO (meters) to the
  * user's depth unit and appends the unit suffix.
  * VALDCO may be missing — show nothing in that case.
  */
 function depthContourLabel(ctx: StyleContext): ExpressionSpecification {
-  const factor = depthConversionFactor(ctx.depthUnit);
   const suffix = depthUnitLabel(ctx.depthUnit);
-  const converted: ExpressionSpecification = ["*", ["get", "VALDCO"], factor];
-  // Feet/fathoms: floor for safety (shoaler reading). Meters: 1 decimal.
-  const usesDecimals = ctx.depthUnit === "meters";
-  const value: ExpressionSpecification = usesDecimals
-    ? ["number-format", converted, { "max-fraction-digits": 1 }]
-    : ["number-format", ["floor", converted], { "max-fraction-digits": 0 }];
+  // Meters: 1 decimal. Feet/fathoms: whole units (see wholeUnitContourDepth).
+  const value: ExpressionSpecification =
+    ctx.depthUnit === "meters"
+      ? ["number-format", ["get", "VALDCO"], { "max-fraction-digits": 1 }]
+      : [
+          "number-format",
+          wholeUnitContourDepth(ctx.depthUnit),
+          { "max-fraction-digits": 0 },
+        ];
   return [
     "case",
     ["has", "VALDCO"],

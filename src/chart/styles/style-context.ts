@@ -4,6 +4,7 @@
 import type { ExpressionSpecification } from "@maplibre/maplibre-gl-style-spec";
 import type { DepthUnit, DisplayTheme, SymbologyScheme } from "../../settings";
 import { depthConversionFactor } from "../../settings";
+import { chartDepthThreshold } from "../../utils/chart-depth";
 import { s52Colour, themeToColourScheme } from "../s52-colours";
 import {
   buildIconExpression,
@@ -43,11 +44,13 @@ export interface StyleContext {
     iconExpr: ExpressionSpecification;
     offsetExpr: ExpressionSpecification | null;
   };
-  /** Shallow water threshold in meters. */
+  /** Shallow water threshold in meters, as ENC data encodes it
+   *  (see chartDepthThreshold). */
   shallowDepth: number;
-  /** Safety depth in meters — soundings ≤ this shown in SNDG2 (high-contrast). */
+  /** Safety depth in meters, as ENC data encodes it — soundings ≤ this
+   *  shown in SNDG2 (high-contrast). */
   safetyDepth: number;
-  /** Deep water threshold in meters. */
+  /** Deep water threshold in meters, as ENC data encodes it. */
   deepDepth: number;
   /** Text size scale factor (1 = default). */
   textSizeScale: number;
@@ -388,9 +391,10 @@ export function createStyleContext(options: StyleContextOptions): StyleContext {
     iconOffsetExpr,
     layerExprs: (layerName: string) =>
       buildLayerExpressions(layerName, scheme.icons, scheme.fallback),
-    shallowDepth,
-    safetyDepth,
-    deepDepth,
+    // Compared against ENC depths, so expressed the way the data encodes them.
+    shallowDepth: chartDepthThreshold(shallowDepth, depthUnit),
+    safetyDepth: chartDepthThreshold(safetyDepth, depthUnit),
+    deepDepth: chartDepthThreshold(deepDepth, depthUnit),
     textSizeScale: textScale,
   };
 }

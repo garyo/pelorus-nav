@@ -157,3 +157,36 @@ describe("fog signals and topmarks follow their parent buoy/beacon", () => {
     expect(passes(layers, "s57-fogsig", own - 1, "LNDMRK")).toBe(false);
   });
 });
+
+describe("depth thresholds", () => {
+  const filterOf = (unit: "feet" | "meters", id: string) => {
+    const layer = getNauticalLayers({
+      sourceId: "src",
+      depthUnit: unit,
+      detailOffset: 0,
+      layerGroups: {},
+      theme: "day",
+      shallowDepth: 1.83, // 6 ft default
+      safetyDepth: 6.1,
+      deepDepth: 15.24,
+    }).find((l) => l.id === id);
+    return layer && "filter" in layer ? layer.filter : undefined;
+  };
+
+  it("compares feet settings against NOAA's truncated metric depths", () => {
+    // The area starting at the 6 ft contour (DRVAL1 1.8) isn't very shallow.
+    expect(filterOf("feet", "s57-depare-shallow")).toEqual([
+      "<",
+      ["get", "DRVAL1"],
+      1.8,
+    ]);
+  });
+
+  it("keeps metric settings as set", () => {
+    expect(filterOf("meters", "s57-depare-shallow")).toEqual([
+      "<",
+      ["get", "DRVAL1"],
+      1.83,
+    ]);
+  });
+});

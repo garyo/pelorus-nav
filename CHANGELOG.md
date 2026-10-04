@@ -31,6 +31,11 @@ The format follows [Keep a Changelog](https://keepachangelog.com/).
   Bay) had its name written across the larger island, sometimes hiding the
   larger island's own name. Island names now stay on their island or move
   into open water.
+- Depth shading matches the depth thresholds set in feet or fathoms. US
+  charts store their foot contours rounded down to a tenth of a meter (the
+  6 ft contour as 1.8 m), so water just past a 6 ft contour was shaded as
+  shallower than 6 ft. Depth contour labels also read low (5 ft for the 6 ft
+  contour, 29 ft for 30 ft); they now match the paper chart.
 
 ## [0.27.0] - 2026-09-24
 

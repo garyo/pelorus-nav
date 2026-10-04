@@ -14,7 +14,8 @@
 import type * as maplibregl from "maplibre-gl";
 import type { FilterSpecification } from "maplibre-gl";
 import { getRegionLayerIds, getVectorSourceIds } from "../data/chart-catalog";
-import { getSettings, onSettingsChange } from "../settings";
+import { getSettings, onSettingsChange, type Settings } from "../settings";
+import { chartDepthThreshold } from "../utils/chart-depth";
 import { recordScan } from "../utils/scan-perf";
 import {
   createTrailingThrottle,
@@ -72,7 +73,7 @@ export class SafetyContour {
   constructor(map: maplibregl.Map) {
     this.map = map;
     this.gate = createViewportGate(map);
-    this.prevSafetyDepth = getSettings().safetyDepth;
+    this.prevSafetyDepth = chartSafetyDepth(getSettings());
     this.scanThrottle = createTrailingThrottle(
       () => this.scanTiles(),
       SafetyContour.SCAN_THROTTLE_MS,
@@ -117,9 +118,11 @@ export class SafetyContour {
     // Throttle MapLibre updates — apply immediately on first change,
     // then no more than once per THROTTLE_MS while dragging.
     onSettingsChange((s) => {
-      if (s.safetyDepth !== this.prevSafetyDepth) {
-        this.prevSafetyDepth = s.safetyDepth;
-        this.pendingSafetyDepth = s.safetyDepth;
+      // A depth-unit change can move the threshold too (see chartSafetyDepth).
+      const safetyDepth = chartSafetyDepth(s);
+      if (safetyDepth !== this.prevSafetyDepth) {
+        this.prevSafetyDepth = safetyDepth;
+        this.pendingSafetyDepth = safetyDepth;
         if (!this.throttleTimer) {
           // Fire immediately on first change
           this.flushPending();
@@ -186,7 +189,7 @@ export class SafetyContour {
       ]),
     );
 
-    this.resolveFromCache(getSettings().safetyDepth);
+    this.resolveFromCache(chartSafetyDepth(getSettings()));
     recordScan("safety-contour-scan", scanStart, featureCount);
   }
 
@@ -251,7 +254,7 @@ export class SafetyContour {
   private reapplyAll(): void {
     if (this.resolvedByCell.size > 0) {
       this.updating = true;
-      this.applyAll(getSettings().safetyDepth);
+      this.applyAll(chartSafetyDepth(getSettings()));
       this.updating = false;
     }
   }
@@ -297,4 +300,9 @@ function mapsEqual(a: Map<number, number>, b: Map<number, number>): boolean {
     if (b.get(k) !== v) return false;
   }
   return true;
+}
+
+/** The safety depth as ENC data encodes it (6 ft → 1.8 m; see chartDepthThreshold). */
+function chartSafetyDepth(s: Settings): number {
+  return chartDepthThreshold(s.safetyDepth, s.depthUnit);
 }
