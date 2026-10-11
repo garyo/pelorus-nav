@@ -12,6 +12,55 @@ import {
 } from "./settings";
 
 describe("settings migration", () => {
+  async function loadStored(stored: Record<string, unknown>) {
+    vi.stubGlobal("localStorage", {
+      getItem: () => JSON.stringify(stored),
+      setItem: () => {},
+    });
+    vi.resetModules();
+    const { getSettings } = await import("./settings");
+    const settings = getSettings();
+    vi.unstubAllGlobals();
+    vi.resetModules();
+    return settings;
+  }
+
+  it("moves v2's untouched depth defaults to NOAA's 5/11/17 ft (v3)", async () => {
+    const s = await loadStored({
+      settingsVersion: 2,
+      shallowDepth: 1.83,
+      safetyDepth: 6.1,
+      deepDepth: 15.24,
+    });
+    expect(s.shallowDepth).toBe(5 * 0.3048);
+    expect(s.safetyDepth).toBe(11 * 0.3048);
+    expect(s.deepDepth).toBe(17 * 0.3048);
+  });
+
+  it("keeps chosen v2 feet depths on the same contour (v3)", async () => {
+    const s = await loadStored({
+      settingsVersion: 2,
+      depthUnit: "feet",
+      shallowDepth: 6 / 3.28084,
+      safetyDepth: 12 / 3.28084,
+      deepDepth: 30 / 3.28084,
+    });
+    expect(s.shallowDepth / 0.3048).toBeCloseTo(5, 9);
+    expect(s.safetyDepth / 0.3048).toBeCloseTo(11, 9);
+    expect(s.deepDepth / 0.3048).toBeCloseTo(29, 9);
+  });
+
+  it("leaves chosen metric depths and v3 settings alone", async () => {
+    const metric = await loadStored({
+      settingsVersion: 2,
+      depthUnit: "meters",
+      safetyDepth: 5,
+    });
+    expect(metric.safetyDepth).toBe(5);
+    const v3 = await loadStored({ settingsVersion: 3, safetyDepth: 1.83 });
+    expect(v3.safetyDepth).toBe(1.83);
+  });
+
   it("forces S-52 symbology and defaults the street underlay on (v1, no prior preference)", async () => {
     const stored = {
       symbologyScheme: "pelorus-standard",
@@ -24,7 +73,7 @@ describe("settings migration", () => {
     const { getSettings } = await import("./settings");
     expect(getSettings().symbologyScheme).toBe("iho-s52");
     expect(getSettings().streetUnderlay).toBe("auto");
-    expect(getSettings().settingsVersion).toBe(2);
+    expect(getSettings().settingsVersion).toBe(3);
     vi.unstubAllGlobals();
     vi.resetModules();
   });
@@ -58,13 +107,13 @@ describe("settings migration", () => {
     await import("./settings");
     expect(setItem).toHaveBeenCalledTimes(1);
     const [, savedJson] = setItem.mock.calls[0] as [string, string];
-    expect(JSON.parse(savedJson).settingsVersion).toBe(2);
+    expect(JSON.parse(savedJson).settingsVersion).toBe(3);
     vi.unstubAllGlobals();
     vi.resetModules();
   });
 
   it("doesn't re-persist on a load that needs no migration", async () => {
-    const stored = { settingsVersion: 2, streetUnderlay: "osm" };
+    const stored = { settingsVersion: 3, streetUnderlay: "osm" };
     const setItem = vi.fn();
     vi.stubGlobal("localStorage", {
       getItem: () => JSON.stringify(stored),
@@ -210,14 +259,14 @@ describe("settings load() validation", () => {
 
   it("falls back to the default on a non-finite number", async () => {
     // 1e400 parses to Infinity — a valid JSON number token, not a valid depth.
-    const stored = '{"settingsVersion":2,"safetyDepth":1e400}';
+    const stored = '{"settingsVersion":3,"safetyDepth":1e400}';
     vi.stubGlobal("localStorage", {
       getItem: () => stored,
       setItem: () => {},
     });
     vi.resetModules();
     const { getSettings } = await import("./settings");
-    expect(getSettings().safetyDepth).toBe(6.1);
+    expect(getSettings().safetyDepth).toBe(11 * 0.3048);
     vi.unstubAllGlobals();
     vi.resetModules();
   });
@@ -236,14 +285,14 @@ describe("settings load() validation", () => {
   });
 
   it("falls back to the default on null", async () => {
-    const stored = { settingsVersion: 2, shallowDepth: null };
+    const stored = { settingsVersion: 3, shallowDepth: null };
     vi.stubGlobal("localStorage", {
       getItem: () => JSON.stringify(stored),
       setItem: () => {},
     });
     vi.resetModules();
     const { getSettings } = await import("./settings");
-    expect(getSettings().shallowDepth).toBe(1.83);
+    expect(getSettings().shallowDepth).toBe(5 * 0.3048);
     vi.unstubAllGlobals();
     vi.resetModules();
   });
@@ -289,7 +338,7 @@ describe("settings load() validation", () => {
 
   it("keeps a fully valid load unchanged", async () => {
     const stored = {
-      settingsVersion: 2,
+      settingsVersion: 3,
       textScale: 1.5,
       displayTheme: "night",
       shallowDepth: 2.5,

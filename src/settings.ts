@@ -3,6 +3,7 @@
  */
 import { Capacitor } from "@capacitor/core";
 import { appErrorLog } from "./diagnostics/errorLog";
+import { migrateV2DepthSetting } from "./utils/chart-depth";
 
 export type DepthUnit = "meters" | "feet" | "fathoms";
 export type SpeedUnit = "knots" | "mph" | "kph";
@@ -270,7 +271,7 @@ export function getPluginSettingsSchemas(): readonly PluginSettingsSection[] {
   return pluginSettingsSchemas;
 }
 
-const SETTINGS_VERSION = 2;
+const SETTINGS_VERSION = 3;
 
 /** The stored stream URL's former default, which was never a real server. */
 const LEGACY_SIGNALK_DEFAULT =
@@ -312,9 +313,11 @@ const DEFAULTS: Settings = {
   bearingMode: "magnetic",
   streetUnderlay: "auto",
   chartBlend: "auto",
-  shallowDepth: 1.83,
-  safetyDepth: 6.1,
-  deepDepth: 15.24,
+  // NOAA Custom Chart's defaults: 5, 11 and 17 ft select the 6, 12 and 18 ft
+  // contours, which NOAA stores as 1.8, 3.6 and 5.4 m (see chartDepthThreshold).
+  shallowDepth: 5 * 0.3048,
+  safetyDepth: 11 * 0.3048,
+  deepDepth: 17 * 0.3048,
   whiteDeepWater: false,
   wakeLock: "when-nav",
   autoDimWhenIdle: false,
@@ -428,6 +431,32 @@ function sanitize(parsed: Partial<Settings>): void {
   }
 }
 
+/** The depth defaults through settings v2 (6, 20 and 50 ft as rounded metres). */
+const V2_DEPTH_DEFAULTS = {
+  shallowDepth: 1.83,
+  safetyDepth: 6.1,
+  deepDepth: 15.24,
+} as const;
+
+/**
+ * v3 matches depth settings to chart contours exactly, as NOAA does. Depths
+ * still at the v2 defaults take the new defaults; chosen ones are rewritten
+ * to keep selecting the same contour (see migrateV2DepthSetting).
+ */
+function migrateDepthSettings(parsed: Partial<Settings>): void {
+  const unit = parsed.depthUnit ?? DEFAULTS.depthUnit;
+  for (const key of Object.keys(V2_DEPTH_DEFAULTS) as DepthSettingKey[]) {
+    const value = parsed[key];
+    if (typeof value !== "number") continue;
+    parsed[key] =
+      value === V2_DEPTH_DEFAULTS[key]
+        ? DEFAULTS[key]
+        : migrateV2DepthSetting(value, unit);
+  }
+}
+
+type DepthSettingKey = keyof typeof V2_DEPTH_DEFAULTS;
+
 let current: Settings = load();
 const listeners: SettingsListener[] = [];
 
@@ -477,6 +506,7 @@ function load(): Settings {
         delete legacy.signalkUrl;
       }
       sanitize(parsed);
+      if (originalVersion < 3) migrateDepthSettings(parsed);
       const merged: Settings = {
         ...DEFAULTS,
         ...parsed,

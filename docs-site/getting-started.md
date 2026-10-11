@@ -70,9 +70,11 @@ people change first, all on the **Appearance** tab:
   including the handles shown while editing a route. Waypoint names keep
   the standard text size.
 - **Depth shading** — the Shallow / Safety / Deep thresholds control the
-  blue depth tinting. Set them for *your* boat — e.g. with a 6 ft draft you
-  might use 8 ft shallow and 12 ft safety, so water you can't enter is
-  obviously colored. **White deep water** draws deep water white instead
+  blue depth tinting. Set them for *your* boat; the defaults are NOAA's
+  5 / 11 / 17 ft. The bold safety contour is the shallowest contour whose
+  label is at least your Safety setting, and soundings at or shallower than
+  it are drawn darker. Since NOAA's US contours read 5, 11, 17 and 29 ft
+  (see Speed / depth units above), pick one of those to land on a contour. **White deep water** draws deep water white instead
   of pale blue in the Day theme, for a paper-chart look or a brighter
   screen in sunlight.
 - **Keep screen on** — "When GPS active" keeps the display awake while

@@ -166,19 +166,20 @@ describe("depth thresholds", () => {
       detailOffset: 0,
       layerGroups: {},
       theme: "day",
-      shallowDepth: 1.83, // 6 ft default
+      shallowDepth: 1.83, // 6 ft
       safetyDepth: 6.1,
       deepDepth: 15.24,
     }).find((l) => l.id === id);
     return layer && "filter" in layer ? layer.filter : undefined;
   };
 
-  it("compares feet settings against NOAA's truncated metric depths", () => {
-    // The area starting at the 6 ft contour (DRVAL1 1.8) isn't very shallow.
+  it("compares feet settings exactly, as NOAA Custom Chart does", () => {
+    // 6 ft is 1.8288 m, so the area starting at NOAA's 6 ft contour
+    // (DRVAL1 1.8, labelled 5 ft) is still very shallow.
     expect(filterOf("feet", "s57-depare-shallow")).toEqual([
       "<",
       ["get", "DRVAL1"],
-      1.8,
+      6 * 0.3048,
     ]);
   });
 
