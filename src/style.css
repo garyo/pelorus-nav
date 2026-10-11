@@ -3153,6 +3153,9 @@ body {
    distance/bearing stays pinned at the end within the allotted width. */
 .route-wp-name {
   min-width: 0;
+  cursor: pointer;
+  text-decoration: underline dotted;
+  text-underline-offset: 2px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -3161,6 +3164,12 @@ body {
 .route-wp-leg {
   flex: none;
   white-space: nowrap;
+}
+
+/* The rename input that replaces the name: room to type, while the leg
+   readout keeps its place at the end. */
+.route-editor-text input {
+  min-width: 9em;
 }
 
 /* On a narrow screen the action buttons fill the row and crush the label

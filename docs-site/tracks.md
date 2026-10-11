@@ -18,8 +18,8 @@ the native apps, continues in the background with the screen off.
 Open **Tracks** (TRK). Each row shows the track's color, name, and a
 summary — date, duration, distance. From the row you can view it in the
 Track Viewer, export it as GPX, show/hide it on the chart, or delete it.
-Click the color dot to change the track's color; double-click the name to
-rename it. The header buttons import GPX files and export or delete all
+Click the color dot to change the track's color; double-click the name
+(double-tap on a touch screen) to rename it. The header buttons import GPX files and export or delete all
 tracks at once.
 
 A season of recordings gets long, so tracks can go in folders and be worked

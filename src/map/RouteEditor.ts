@@ -30,6 +30,7 @@ import type { SearchEntry } from "../data/search-index";
 import type { StandaloneWaypoint } from "../data/Waypoint";
 import { findNearestNamedFeature } from "../search/feature-search";
 import { type ChartMode as ChartModeType, getSettings } from "../settings";
+import { startInlineRename } from "../ui/inline-rename";
 import { closeAllSurfaces } from "../ui/SurfaceManager";
 import {
   bboxOfCoords,
@@ -193,6 +194,9 @@ export class RouteEditor {
    *  updateBar rebuilds them only when it changes. Null forces a rebuild
    *  (fresh session). */
   private barActionsKey: string | null = null;
+  /** True while the bar's waypoint name is an open rename input, which a
+   *  readout refresh would otherwise replace mid-typing. */
+  private renamingInBar = false;
   private readonly undoStack = new UndoStack<{
     waypoints: Waypoint[];
     selectedIndex: number | null;
@@ -1425,7 +1429,7 @@ export class RouteEditor {
   /** The bar's readout: the selected waypoint's name and incoming leg, or
    *  the route summary with running total. */
   private updateBarText(): void {
-    if (!this.route) return;
+    if (!this.route || this.renamingInBar) return;
     const wps = this.route.waypoints;
 
     // Selection mode: selected WP info with leg course/distance
@@ -1445,6 +1449,20 @@ export class RouteEditor {
       const strong = document.createElement("strong");
       strong.className = "route-wp-name";
       strong.textContent = label;
+      // Tap to rename — the only rename on a phone, where the detail
+      // panel's waypoint list stays closed during an edit.
+      strong.title = "Tap to rename";
+      strong.addEventListener("click", () =>
+        startInlineRename(strong, label, {
+          setEditing: (editing) => {
+            this.renamingInBar = editing;
+          },
+          onCommit: (name) => {
+            if (name !== label) this.renameWaypoint(idx, name);
+          },
+          refresh: () => this.updateBar(),
+        }),
+      );
       this.barText.appendChild(strong);
       if (legInfo) {
         // Its own element, kept from shrinking (see CSS) so a long name

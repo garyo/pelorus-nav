@@ -7,6 +7,11 @@ The format follows [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Added
+- While editing a route, tap the selected waypoint's name in the editing
+  toolbar to rename it. On a phone, where the waypoint list is hidden during
+  editing, this is the way to rename.
+
 ### Fixed
 - The course line keeps its time ticks when zoomed in close. With the line
   length on Auto, it used to stretch past the screen edge without ticks.

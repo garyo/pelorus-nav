@@ -18,14 +18,15 @@ lights, points) when there's one close by, so a route reads like
 preview line follows the cursor to the next tap.
 
 Tap **Done** to save, or **Cancel** to discard. Route names default to
-something sensible; double-click the name (in the Routes panel or the
-route's own panel) to rename.
+something sensible; to rename, double-click the name (double-tap on a
+touch screen) in the Routes panel or the route's own panel.
 
 ## Editing a route
 
 Open **Routes**, and tap the pencil (Edit) on the route's row. The editing
-toolbar appears at the top, and the route's waypoint list stays open
-alongside so you can work by name or by chart:
+toolbar appears at the top (at the bottom on a phone). On a wider screen the
+route's waypoint list stays open alongside, so you can work by name or by
+chart; on a phone it closes to leave the chart clear:
 
 ![Editing a route — a waypoint selected](/images/route-editing.png)
 
@@ -41,10 +42,11 @@ While editing:
   straight to where you want the waypoint** — the point is created and
   follows your finger in one motion. The end markers extend the route,
   before the first waypoint or after the last.
-- **Select** — tap a waypoint (on the chart or in the list) to select it.
-  The toolbar shows its name and leg data, plus **Delete** and
-  **Insert After** buttons.
-- **Rename** — double-click a waypoint's name in the list.
+- **Select** — tap a waypoint (on the chart, or in the list where it's
+  open) to select it. The toolbar shows its name and leg data, plus
+  **Delete** and **Insert After** buttons.
+- **Rename** — select the waypoint, then tap its name in the toolbar. Where
+  the waypoint list is open, double-clicking a name there renames it too.
 - **Undo** — the Undo button (or Ctrl/Cmd-Z) steps back through your edits.
 
 **Done** saves; **Cancel** abandons all changes from this session.
@@ -71,7 +73,8 @@ brings you home.
 
 Selecting a route in the Routes panel opens its detail panel: the full
 waypoint list with each leg's bearing, distance, and cumulative distance —
-a passage plan you can read off directly. The summary at the bottom zooms
+a passage plan you can read off directly. Double-click a waypoint's name
+(double-tap on a touch screen) to rename it. The summary at the bottom zooms
 the chart to the whole route. You can also tap a route right on the chart:
 its info card selects it and has a button to open it in this panel.
 
