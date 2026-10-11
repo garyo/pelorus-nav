@@ -3,7 +3,12 @@
  * Converts raw vector tile properties into human-readable display info.
  */
 
-import { formatChartDepth, formatChartHeight, getSettings } from "../settings";
+import {
+  formatChartClearance,
+  formatChartDepth,
+  formatChartHeight,
+  getSettings,
+} from "../settings";
 import { formatLatLon } from "../utils/coordinates";
 
 export interface FeatureInfo {
@@ -950,25 +955,25 @@ function formatBridge(
   if (props.VERCLR != null) {
     details.push({
       label: "Vertical Clearance",
-      value: formatChartHeight(Number(props.VERCLR), unit),
+      value: formatChartClearance(Number(props.VERCLR), unit),
     });
   }
   if (props.HORCLR != null) {
     details.push({
       label: "Horizontal Clearance",
-      value: formatChartHeight(Number(props.HORCLR), unit),
+      value: formatChartClearance(Number(props.HORCLR), unit),
     });
   }
   if (props.VERCCL != null) {
     details.push({
       label: "Clearance (closed)",
-      value: formatChartHeight(Number(props.VERCCL), unit),
+      value: formatChartClearance(Number(props.VERCCL), unit),
     });
   }
   if (props.VERCOP != null) {
     details.push({
       label: "Clearance (open)",
-      value: formatChartHeight(Number(props.VERCOP), unit),
+      value: formatChartClearance(Number(props.VERCOP), unit),
     });
   }
   addIfPresent(details, "Information", props.INFORM);
@@ -986,13 +991,13 @@ function formatOverheadCable(
   if (props.VERCLR != null) {
     details.push({
       label: "Vertical Clearance",
-      value: formatChartHeight(Number(props.VERCLR), unit),
+      value: formatChartClearance(Number(props.VERCLR), unit),
     });
   }
   if (props.VERCSA != null) {
     details.push({
       label: "Safe Clearance",
-      value: formatChartHeight(Number(props.VERCSA), unit),
+      value: formatChartClearance(Number(props.VERCSA), unit),
     });
   }
   addIfPresent(details, "Information", props.INFORM);

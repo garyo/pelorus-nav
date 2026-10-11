@@ -5,6 +5,7 @@ import {
   convertDepth,
   depthConversionFactor,
   depthUnitLabel,
+  formatChartClearance,
   formatChartDepth,
   formatChartHeight,
   formatDepth,
@@ -448,6 +449,18 @@ describe("depth conversion", () => {
     expect(formatChartDepth(1.2, "feet")).toBe("3ft");
     expect(formatChartDepth(10, "meters")).toBe("10.0m");
     expect(formatChartDepth(10, "fathoms")).toBe("5.4fm");
+  });
+
+  it("formats a charted depth under a foot as ½", () => {
+    expect(formatChartDepth(0.3, "feet")).toBe("½ft");
+    expect(formatChartDepth(0, "feet")).toBe("0ft");
+    expect(formatChartDepth(0.3, "meters")).toBe("0.3m");
+  });
+
+  it("formats charted clearances in tenths, truncated", () => {
+    expect(formatChartClearance(53.3, "feet")).toBe("174.8ft"); // 174.87 ft
+    expect(formatChartClearance(53.3, "fathoms")).toBe("174.8ft");
+    expect(formatChartClearance(53.3, "meters")).toBe("53.3m");
   });
 
   it("formats charted heights in feet for feet or fathoms, truncated", () => {

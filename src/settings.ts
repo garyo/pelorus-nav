@@ -616,17 +616,30 @@ export function formatDepth(meters: number, unit: DepthUnit): string {
  * reading, heights and clearances down to the shorter one. 1.2 m is 3.94 ft,
  * which reads 3, not 4.
  */
-export function chartDepthValue(meters: number, unit: DepthUnit): number {
-  const pow = 10 ** depthDecimals(unit);
+export function chartDepthValue(
+  meters: number,
+  unit: DepthUnit,
+  decimals = depthDecimals(unit),
+): number {
+  const pow = 10 ** decimals;
   return (
     Math.floor(convertDepth(meters, unit) * pow + DEPTH_TRUNCATE_EPSILON) / pow
   );
 }
 
-/** Format a charted water depth ({@link chartDepthValue}) with unit suffix. */
-export function formatChartDepth(meters: number, unit: DepthUnit): string {
+/**
+ * A charted water depth as text, without unit. Like NOAA Custom Chart, a
+ * depth under a foot but above the datum reads "½" rather than "0".
+ */
+export function chartDepthText(meters: number, unit: DepthUnit): string {
   const value = chartDepthValue(meters, unit);
-  return `${value.toFixed(depthDecimals(unit))}${depthUnitLabel(unit)}`;
+  if (unit === "feet" && value === 0 && meters > 0) return "½";
+  return value.toFixed(depthDecimals(unit));
+}
+
+/** Format a charted water depth ({@link chartDepthText}) with unit suffix. */
+export function formatChartDepth(meters: number, unit: DepthUnit): string {
+  return `${chartDepthText(meters, unit)}${depthUnitLabel(unit)}`;
 }
 
 /**
@@ -637,13 +650,36 @@ export function heightUnit(depthUnit: DepthUnit): "meters" | "feet" {
   return depthUnit === "meters" ? "meters" : "feet";
 }
 
+/** A truncated charted value ({@link chartDepthValue}) with unit suffix. */
+function formatTruncated(
+  meters: number,
+  unit: DepthUnit,
+  decimals: number,
+): string {
+  const value = chartDepthValue(meters, unit, decimals);
+  return `${value.toFixed(decimals)}${depthUnitLabel(unit)}`;
+}
+
 /**
- * Format a charted height or clearance with unit suffix, truncated like
- * {@link chartDepthValue} to the shorter reading.
+ * Format a charted height with unit suffix, truncated to the shorter reading
+ * in whole feet or tenths of a metre.
  */
 export function formatChartHeight(
   meters: number,
   depthUnit: DepthUnit,
 ): string {
-  return formatChartDepth(meters, heightUnit(depthUnit));
+  const unit = heightUnit(depthUnit);
+  return formatTruncated(meters, unit, depthDecimals(unit));
+}
+
+/**
+ * Format a charted clearance with unit suffix, truncated to tenths: a whole
+ * foot is too much to give away under a low bridge. NOAA Custom Chart also
+ * labels clearances in tenths of a foot (rounding them, against CS 60).
+ */
+export function formatChartClearance(
+  meters: number,
+  depthUnit: DepthUnit,
+): string {
+  return formatTruncated(meters, heightUnit(depthUnit), 1);
 }

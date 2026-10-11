@@ -59,7 +59,7 @@ people change first, all on the **Appearance** tab:
   charts store depths in meters; converted depths are rounded down, as on
   NOAA's own charts, so they can read one foot shallower than an older paper
   chart. Heights and clearances show in feet when depths are in feet or
-  fathoms, also rounded down.
+  fathoms, also rounded down (clearances to a tenth of a foot).
 - **Display theme** — Day, Dusk, Night, or E-ink. Night mode dims the whole
   chart to preserve night vision.
 - **Detail** — how much chart detail is drawn; see

@@ -33,13 +33,21 @@ function depthContourLabel(ctx: StyleContext): ExpressionSpecification {
   ];
 }
 
+/** A clearance in tenths, like `formatChartClearance` (settings.ts). */
+function clearanceText(
+  prop: string,
+  ctx: StyleContext,
+): ExpressionSpecification {
+  return chartHeightText(prop, ctx.depthUnit, 1);
+}
+
 /** Overhead cable/pipe clearance: safe clearance (VERCSA) when encoded. */
 function overheadClearanceText(ctx: StyleContext): ExpressionSpecification {
   return [
     "case",
     ["has", "VERCSA"],
-    ["concat", "sf clr ", chartHeightText("VERCSA", ctx.depthUnit)],
-    ["concat", "clr ", chartHeightText("VERCLR", ctx.depthUnit)],
+    ["concat", "sf clr ", clearanceText("VERCSA", ctx)],
+    ["concat", "clr ", clearanceText("VERCLR", ctx)],
   ];
 }
 
@@ -218,21 +226,20 @@ export function getLineLayers(ctx: StyleContext): LayerSpecification[] {
         ["has", "VERCCL"],
         ["has", "VERCOP"],
       ] as unknown as ExpressionSpecification;
-      const unit = ctx.depthUnit;
       const clrText: ExpressionSpecification = [
         "case",
         ["has", "VERCOP"],
         [
           "concat",
           "clr ",
-          chartValueText("VERCCL", heightUnit(unit)),
+          chartValueText("VERCCL", heightUnit(ctx.depthUnit), 1),
           "/",
-          chartHeightText("VERCOP", unit),
+          clearanceText("VERCOP", ctx),
         ],
         ["has", "VERCLR"],
-        ["concat", "clr ", chartHeightText("VERCLR", unit)],
+        ["concat", "clr ", clearanceText("VERCLR", ctx)],
         ["has", "VERCCL"],
-        ["concat", "clr ", chartHeightText("VERCCL", unit)],
+        ["concat", "clr ", clearanceText("VERCCL", ctx)],
         "",
       ];
       const paint = {

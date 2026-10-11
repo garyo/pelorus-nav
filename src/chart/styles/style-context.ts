@@ -209,7 +209,7 @@ export const BUOY_LABEL_ANCHOR_LAYOUT: {
 
 /** Build a MapLibre expression that converts DEPTH to the given unit (no suffix). */
 export function depthTextField(unit: DepthUnit): ExpressionSpecification {
-  return chartValueText("DEPTH", unit);
+  return chartDepthTextExpr("DEPTH", unit);
 }
 
 /**
@@ -250,7 +250,7 @@ export function lightLabelTextField(unit: DepthUnit): ExpressionSpecification {
 
 /** Build a MapLibre expression that converts VALSOU to the given unit. */
 export function valsouTextField(unit: DepthUnit): ExpressionSpecification {
-  return chartValueText("VALSOU", unit);
+  return chartDepthTextExpr("VALSOU", unit);
 }
 
 /**
@@ -260,25 +260,55 @@ export function valsouTextField(unit: DepthUnit): ExpressionSpecification {
 export function chartValueText(
   prop: string,
   unit: DepthUnit,
+  decimals = depthDecimals(unit),
 ): ExpressionSpecification {
-  const pow = 10 ** depthDecimals(unit);
+  return ["to-string", truncatedValue(prop, unit, decimals)];
+}
+
+function truncatedValue(
+  prop: string,
+  unit: DepthUnit,
+  decimals: number,
+): ExpressionSpecification {
+  const pow = 10 ** decimals;
   const scaled = ["*", ["get", prop], depthConversionFactor(unit) * pow];
   return [
-    "to-string",
-    ["/", ["floor", ["+", scaled, DEPTH_TRUNCATE_EPSILON]], pow],
+    "/",
+    ["floor", ["+", scaled, DEPTH_TRUNCATE_EPSILON]],
+    pow,
   ] as unknown as ExpressionSpecification;
 }
 
 /**
+ * A water depth as text, with "½" for one under a foot but above the datum:
+ * the expression form of `chartDepthText` (settings.ts).
+ */
+function chartDepthTextExpr(
+  prop: string,
+  unit: DepthUnit,
+): ExpressionSpecification {
+  if (unit !== "feet") return chartValueText(prop, unit);
+  const feet = truncatedValue(prop, unit, 0);
+  return [
+    "case",
+    ["all", [">", ["get", prop], 0], ["==", feet, 0]],
+    "½",
+    ["to-string", feet],
+  ];
+}
+
+/**
  * A height or clearance attribute with its unit suffix ("12ft", "3.6m"):
- * the expression form of `formatChartHeight` (settings.ts).
+ * the expression form of `formatChartHeight` (settings.ts), or with
+ * `decimals` 1, of `formatChartClearance`.
  */
 export function chartHeightText(
   prop: string,
   depthUnit: DepthUnit,
+  decimals?: number,
 ): ExpressionSpecification {
   const unit = heightUnit(depthUnit);
-  return ["concat", chartValueText(prop, unit), depthUnitLabel(unit)];
+  return ["concat", chartValueText(prop, unit, decimals), depthUnitLabel(unit)];
 }
 
 /**

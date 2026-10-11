@@ -5,7 +5,7 @@ import {
   type StylePropertySpecification,
 } from "@maplibre/maplibre-gl-style-spec";
 import { describe, expect, it } from "vitest";
-import { chartDepthValue, type DepthUnit } from "../../settings";
+import { chartDepthText, type DepthUnit } from "../../settings";
 import { getLineLayers } from "./layers/lines";
 import { getTextLayers } from "./layers/text";
 import {
@@ -61,12 +61,23 @@ describe("depthTextField", () => {
     expect(evaluateText(depthTextField("feet"), { DEPTH: 1.2 })).toBe("3"); // 3.94 ft
   });
 
-  it("matches chartDepthValue in every unit", () => {
+  it("reads ½ for a sounding under a foot, as NOAA Custom Chart does", () => {
+    const ft = (DEPTH: number) =>
+      evaluateText(depthTextField("feet"), { DEPTH });
+    expect(ft(0.1)).toBe("½");
+    expect(ft(0.3)).toBe("½"); // 0.98 ft
+    expect(ft(0.4)).toBe("1"); // 1.31 ft
+    expect(ft(0)).toBe("0");
+    expect(ft(-0.3)).toBe("-1"); // drying: rounded to the higher drying height
+  });
+
+  it("matches chartDepthText in every unit", () => {
     const units: DepthUnit[] = ["feet", "meters", "fathoms"];
     for (const unit of units) {
-      for (const depth of [0, 0.9, 1.8, 2.3, 4.5, 11.2, 18.2, 91.4]) {
+      for (const depth of [0, 0.2, 0.9, 1.8, 2.3, 4.5, 11.2, 18.2, 91.4]) {
+        // The expression prints whole numbers without a trailing ".0".
         expect(evaluateText(depthTextField(unit), { DEPTH: depth })).toBe(
-          String(chartDepthValue(depth, unit)),
+          chartDepthText(depth, unit).replace(/\.0$/, ""),
         );
       }
     }
@@ -88,13 +99,13 @@ describe("depth contour labels", () => {
 });
 
 describe("heights and clearances", () => {
-  it("show in feet for feet and fathom settings, truncated", () => {
+  it("show tenths of a foot for feet and fathom settings, truncated", () => {
     const clr = (unit: DepthUnit, props: Record<string, unknown>) =>
       layerText(lineLayers, "s57-bridge-label", unit, props);
-    expect(clr("feet", { VERCLR: 65.2 })).toBe("clr 213ft"); // 213.91 ft
-    expect(clr("fathoms", { VERCLR: 65.2 })).toBe("clr 213ft");
-    expect(clr("meters", { VERCLR: 65.2 })).toBe("clr 65.2m");
-    expect(clr("feet", { VERCCL: 3.1, VERCOP: 41.1 })).toBe("clr 10/134ft");
+    expect(clr("feet", { VERCLR: 53.3 })).toBe("clr 174.8ft"); // 174.87 ft
+    expect(clr("fathoms", { VERCLR: 53.3 })).toBe("clr 174.8ft");
+    expect(clr("meters", { VERCLR: 53.3 })).toBe("clr 53.3m");
+    expect(clr("feet", { VERCCL: 3.1, VERCOP: 41.1 })).toBe("clr 10.1/134.8ft");
   });
 
   it("truncate light heights", () => {

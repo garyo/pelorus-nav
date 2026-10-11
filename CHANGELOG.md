@@ -24,8 +24,9 @@ The format follows [Keep a Changelog](https://keepachangelog.com/).
   charts. Depth contour labels follow the same rule, so the 6 ft contour
   reads 5 ft as it does on NOAA charts.
 - Heights and clearances (bridges, overhead cables, lights, elevations) show
-  in feet whenever depths are in feet or fathoms, rounded down. Bridge and
-  cable clearance labels used to show meters only.
+  in feet whenever depths are in feet or fathoms, rounded down; clearances
+  to a tenth of a foot. Bridge and cable clearance labels used to show
+  meters only. Soundings under a foot read ½, as on NOAA charts.
 - Depth settings select contours the way NOAA's charts do: the safety
   contour is the shallowest contour whose label is at least your setting.
   The defaults are now NOAA's 5 / 11 / 17 ft. If you changed your depth
