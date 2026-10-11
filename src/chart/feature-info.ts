@@ -3,7 +3,7 @@
  * Converts raw vector tile properties into human-readable display info.
  */
 
-import { formatDepth, getSettings } from "../settings";
+import { formatChartDepth, formatChartHeight, getSettings } from "../settings";
 import { formatLatLon } from "../utils/coordinates";
 
 export interface FeatureInfo {
@@ -518,7 +518,7 @@ function formatLight(
     details,
     "Height",
     props.HEIGHT != null
-      ? formatDepth(Number(props.HEIGHT), getSettings().depthUnit)
+      ? formatChartHeight(Number(props.HEIGHT), getSettings().depthUnit)
       : null,
   );
   addIfPresent(
@@ -541,7 +541,7 @@ function formatWreck(
   addIfPresent(
     details,
     "Depth",
-    props.VALSOU != null ? formatDepth(Number(props.VALSOU), unit) : null,
+    props.VALSOU != null ? formatChartDepth(Number(props.VALSOU), unit) : null,
   );
   const wl = lookupCode(WATLEV, props.WATLEV);
   if (wl) details.push({ label: "Water Level", value: wl });
@@ -558,7 +558,7 @@ function formatObstruction(
   addIfPresent(
     details,
     "Depth",
-    props.VALSOU != null ? formatDepth(Number(props.VALSOU), unit) : null,
+    props.VALSOU != null ? formatChartDepth(Number(props.VALSOU), unit) : null,
   );
   const wl = lookupCode(WATLEV, props.WATLEV);
   if (wl) details.push({ label: "Water Level", value: wl });
@@ -573,7 +573,7 @@ function formatUnderwaterRock(
   addIfPresent(
     details,
     "Depth",
-    props.VALSOU != null ? formatDepth(Number(props.VALSOU), unit) : null,
+    props.VALSOU != null ? formatChartDepth(Number(props.VALSOU), unit) : null,
   );
   const wl = lookupCode(WATLEV, props.WATLEV);
   if (wl) details.push({ label: "Water Level", value: wl });
@@ -588,12 +588,12 @@ function formatDepthArea(
   if (props.DRVAL1 != null && props.DRVAL2 != null) {
     details.push({
       label: "Depth Range",
-      value: `${formatDepth(Number(props.DRVAL1), unit)} - ${formatDepth(Number(props.DRVAL2), unit)}`,
+      value: `${formatChartDepth(Number(props.DRVAL1), unit)} - ${formatChartDepth(Number(props.DRVAL2), unit)}`,
     });
   } else if (props.DRVAL1 != null) {
     details.push({
       label: "Min Depth",
-      value: formatDepth(Number(props.DRVAL1), unit),
+      value: formatChartDepth(Number(props.DRVAL1), unit),
     });
   }
   return details;
@@ -607,7 +607,7 @@ function formatSounding(
   addIfPresent(
     details,
     "Depth",
-    props.DEPTH != null ? formatDepth(Number(props.DEPTH), unit) : null,
+    props.DEPTH != null ? formatChartDepth(Number(props.DEPTH), unit) : null,
   );
   return details;
 }
@@ -726,13 +726,13 @@ function formatLandmark(
   if (props.HEIGHT != null && Number(props.HEIGHT) > 0) {
     details.push({
       label: "Height",
-      value: formatDepth(Number(props.HEIGHT), unit),
+      value: formatChartHeight(Number(props.HEIGHT), unit),
     });
   }
   if (props.ELEVAT != null && Number(props.ELEVAT) > 0) {
     details.push({
       label: "Elevation",
-      value: formatDepth(Number(props.ELEVAT), unit),
+      value: formatChartHeight(Number(props.ELEVAT), unit),
     });
   }
   const vis = lookupCode(CONVIS, props.CONVIS);
@@ -759,13 +759,13 @@ function formatBuilding(
   if (props.HEIGHT != null && Number(props.HEIGHT) > 0) {
     details.push({
       label: "Height",
-      value: formatDepth(Number(props.HEIGHT), unit),
+      value: formatChartHeight(Number(props.HEIGHT), unit),
     });
   }
   if (props.ELEVAT != null && Number(props.ELEVAT) > 0) {
     details.push({
       label: "Elevation",
-      value: formatDepth(Number(props.ELEVAT), unit),
+      value: formatChartHeight(Number(props.ELEVAT), unit),
     });
   }
   const vis = lookupCode(CONVIS, props.CONVIS);
@@ -858,7 +858,7 @@ function formatOffshorePlatform(
   if (props.HEIGHT != null && Number(props.HEIGHT) > 0) {
     details.push({
       label: "Height",
-      value: formatDepth(Number(props.HEIGHT), unit),
+      value: formatChartHeight(Number(props.HEIGHT), unit),
     });
   }
   const vis = lookupCode(CONVIS, props.CONVIS);
@@ -887,13 +887,13 @@ function formatSiloTank(
   if (props.HEIGHT != null && Number(props.HEIGHT) > 0) {
     details.push({
       label: "Height",
-      value: formatDepth(Number(props.HEIGHT), unit),
+      value: formatChartHeight(Number(props.HEIGHT), unit),
     });
   }
   if (props.ELEVAT != null && Number(props.ELEVAT) > 0) {
     details.push({
       label: "Elevation",
-      value: formatDepth(Number(props.ELEVAT), unit),
+      value: formatChartHeight(Number(props.ELEVAT), unit),
     });
   }
   const vis = lookupCode(CONVIS, props.CONVIS);
@@ -932,7 +932,7 @@ function formatLandElevation(
   if (props.ELEVAT != null) {
     details.push({
       label: "Elevation",
-      value: formatDepth(Number(props.ELEVAT), unit),
+      value: formatChartHeight(Number(props.ELEVAT), unit),
     });
   }
   addIfPresent(details, "Information", props.INFORM);
@@ -950,25 +950,25 @@ function formatBridge(
   if (props.VERCLR != null) {
     details.push({
       label: "Vertical Clearance",
-      value: formatDepth(Number(props.VERCLR), unit),
+      value: formatChartHeight(Number(props.VERCLR), unit),
     });
   }
   if (props.HORCLR != null) {
     details.push({
       label: "Horizontal Clearance",
-      value: formatDepth(Number(props.HORCLR), unit),
+      value: formatChartHeight(Number(props.HORCLR), unit),
     });
   }
   if (props.VERCCL != null) {
     details.push({
       label: "Clearance (closed)",
-      value: formatDepth(Number(props.VERCCL), unit),
+      value: formatChartHeight(Number(props.VERCCL), unit),
     });
   }
   if (props.VERCOP != null) {
     details.push({
       label: "Clearance (open)",
-      value: formatDepth(Number(props.VERCOP), unit),
+      value: formatChartHeight(Number(props.VERCOP), unit),
     });
   }
   addIfPresent(details, "Information", props.INFORM);
@@ -986,13 +986,13 @@ function formatOverheadCable(
   if (props.VERCLR != null) {
     details.push({
       label: "Vertical Clearance",
-      value: formatDepth(Number(props.VERCLR), unit),
+      value: formatChartHeight(Number(props.VERCLR), unit),
     });
   }
   if (props.VERCSA != null) {
     details.push({
       label: "Safe Clearance",
-      value: formatDepth(Number(props.VERCSA), unit),
+      value: formatChartHeight(Number(props.VERCSA), unit),
     });
   }
   addIfPresent(details, "Information", props.INFORM);
@@ -1032,7 +1032,7 @@ function formatFairway(
   if (props.DRVAL1 != null) {
     details.push({
       label: "Controlling Depth",
-      value: formatDepth(Number(props.DRVAL1), unit),
+      value: formatChartDepth(Number(props.DRVAL1), unit),
     });
   }
   if (props.ORIENT != null) {
@@ -1567,7 +1567,7 @@ function formatSweptArea(
   if (props.DRVAL1 != null) {
     details.push({
       label: "Swept Depth",
-      value: formatDepth(Number(props.DRVAL1), unit),
+      value: formatChartDepth(Number(props.DRVAL1), unit),
     });
   }
   addIfPresent(details, "Information", props.INFORM);
@@ -1842,7 +1842,7 @@ export function formatFeatureInfo(
     properties.DRVAL2 != null
   ) {
     annotations.push(
-      `${formatDepth(Number(properties.DRVAL1), unit)} - ${formatDepth(Number(properties.DRVAL2), unit)}`,
+      `${formatChartDepth(Number(properties.DRVAL1), unit)} - ${formatChartDepth(Number(properties.DRVAL2), unit)}`,
     );
   }
 
@@ -1853,7 +1853,9 @@ export function formatFeatureInfo(
       sourceLayer === "WRECKS") &&
     properties.VALSOU != null
   ) {
-    annotations.push(`Depth: ${formatDepth(Number(properties.VALSOU), unit)}`);
+    annotations.push(
+      `Depth: ${formatChartDepth(Number(properties.VALSOU), unit)}`,
+    );
   }
 
   // Isolated danger: VALSOU within enclosing depth area

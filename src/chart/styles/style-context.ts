@@ -3,7 +3,13 @@
  */
 import type { ExpressionSpecification } from "@maplibre/maplibre-gl-style-spec";
 import type { DepthUnit, DisplayTheme, SymbologyScheme } from "../../settings";
-import { depthConversionFactor } from "../../settings";
+import {
+  DEPTH_TRUNCATE_EPSILON,
+  depthConversionFactor,
+  depthDecimals,
+  depthUnitLabel,
+  heightUnit,
+} from "../../settings";
 import { chartDepthThreshold } from "../../utils/chart-depth";
 import { s52Colour, themeToColourScheme } from "../s52-colours";
 import {
@@ -203,7 +209,7 @@ export const BUOY_LABEL_ANCHOR_LAYOUT: {
 
 /** Build a MapLibre expression that converts DEPTH to the given unit (no suffix). */
 export function depthTextField(unit: DepthUnit): ExpressionSpecification {
-  return depthFieldExpr("DEPTH", unit);
+  return chartValueText("DEPTH", unit);
 }
 
 /**
@@ -211,24 +217,11 @@ export function depthTextField(unit: DepthUnit): ExpressionSpecification {
  * ``<stem> <height><h-unit><range>M``
  *
  * ``stem`` is the pre-baked LABEL ("Fl(1)G 4s") from the S-57 pipeline.
- * HEIGHT is the S-57 attribute in metres; we convert to the user's depth
- * unit at render time and append "m" or "ft". VALNMR is always nautical
- * miles ("M"). Either may be missing; the expression elides gracefully.
- *
- * Height never uses fathoms — too awkward for vertical clearances — so
- * a fathoms depth setting shows heights in feet.
+ * HEIGHT is the S-57 attribute in metres, shown as a {@link chartHeightText}.
+ * VALNMR is always nautical miles ("M"). Either may be missing; the
+ * expression elides gracefully.
  */
 export function lightLabelTextField(unit: DepthUnit): ExpressionSpecification {
-  // Height in metres: one decimal place. Otherwise whole feet.
-  const heightUnit = unit === "meters" ? "m" : "ft";
-  const heightExpr: unknown =
-    unit === "meters"
-      ? ["to-string", ["/", ["round", ["*", ["get", "HEIGHT"], 10]], 10]]
-      : [
-          "to-string",
-          ["round", ["*", ["get", "HEIGHT"], depthConversionFactor("feet")]],
-        ];
-
   const hasStem: unknown = [
     "all",
     ["has", "LABEL"],
@@ -250,30 +243,42 @@ export function lightLabelTextField(unit: DepthUnit): ExpressionSpecification {
     ["case", hasStem, ["get", "LABEL"], ""],
     // Space separator before any numeric tail.
     ["case", ["all", hasStem, ["any", hasHeight, hasRange]], " ", ""],
-    ["case", hasHeight, ["concat", heightExpr, heightUnit], ""],
+    ["case", hasHeight, chartHeightText("HEIGHT", unit), ""],
     ["case", hasRange, ["concat", ["to-string", ["get", "VALNMR"]], "M"], ""],
   ] as unknown as ExpressionSpecification;
 }
 
 /** Build a MapLibre expression that converts VALSOU to the given unit. */
 export function valsouTextField(unit: DepthUnit): ExpressionSpecification {
-  return depthFieldExpr("VALSOU", unit);
+  return chartValueText("VALSOU", unit);
 }
 
-function depthFieldExpr(
+/**
+ * A metric attribute in the given unit, truncated to display precision, as
+ * text: the expression form of `chartDepthValue` (settings.ts).
+ */
+export function chartValueText(
   prop: string,
   unit: DepthUnit,
 ): ExpressionSpecification {
-  if (unit === "meters") {
-    return ["to-string", ["get", prop]] as unknown as ExpressionSpecification;
-  }
-  const factor = depthConversionFactor(unit);
-  const decimals = unit === "fathoms" ? 1 : 0;
-  const pow = 10 ** decimals;
+  const pow = 10 ** depthDecimals(unit);
+  const scaled = ["*", ["get", prop], depthConversionFactor(unit) * pow];
   return [
     "to-string",
-    ["/", ["round", ["*", ["*", ["get", prop], factor], pow]], pow],
+    ["/", ["floor", ["+", scaled, DEPTH_TRUNCATE_EPSILON]], pow],
   ] as unknown as ExpressionSpecification;
+}
+
+/**
+ * A height or clearance attribute with its unit suffix ("12ft", "3.6m"):
+ * the expression form of `formatChartHeight` (settings.ts).
+ */
+export function chartHeightText(
+  prop: string,
+  depthUnit: DepthUnit,
+): ExpressionSpecification {
+  const unit = heightUnit(depthUnit);
+  return ["concat", chartValueText(prop, unit), depthUnitLabel(unit)];
 }
 
 /**

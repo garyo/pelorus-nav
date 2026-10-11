@@ -55,7 +55,11 @@ people change first, all on the **Appearance** tab:
 - **Bearings** — magnetic (default) or true. Affects every bearing the app
   shows, labeled `°M` or `°T` accordingly.
 - **Speed / depth units** — knots, MPH, or km/h; feet (default), meters, or
-  fathoms. Depth soundings on the chart follow this immediately.
+  fathoms. Depth soundings on the chart follow this immediately. Official
+  charts store depths in meters; converted depths are rounded down, as on
+  NOAA's own charts, so they can read one foot shallower than an older paper
+  chart. Heights and clearances show in feet when depths are in feet or
+  fathoms, also rounded down.
 - **Display theme** — Day, Dusk, Night, or E-ink. Night mode dims the whole
   chart to preserve night vision.
 - **Detail** — how much chart detail is drawn; see

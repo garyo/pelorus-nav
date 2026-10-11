@@ -565,9 +565,55 @@ export function convertDepth(meters: number, unit: DepthUnit): number {
   return meters * depthConversionFactor(unit);
 }
 
+/** Decimal places a depth shows in each unit: whole feet, tenths otherwise. */
+export function depthDecimals(unit: DepthUnit): number {
+  return unit === "feet" ? 0 : 1;
+}
+
+/** Absorbs float error before truncating (2.3 m × 10 = 22.999…96). */
+export const DEPTH_TRUNCATE_EPSILON = 1e-6;
+
 /** Format a depth value with unit suffix. */
 export function formatDepth(meters: number, unit: DepthUnit): string {
   const converted = convertDepth(meters, unit);
-  const decimals = unit === "fathoms" ? 1 : unit === "feet" ? 0 : 1;
-  return `${converted.toFixed(decimals)}${depthUnitLabel(unit)}`;
+  return `${converted.toFixed(depthDecimals(unit))}${depthUnitLabel(unit)}`;
+}
+
+/**
+ * A charted value in the given unit, truncated (never rounded up) to display
+ * precision. NOAA requires this when ENC metres are shown in feet or fathoms
+ * (Technical Memorandum NOS CS 60, §16–17): depths round down to the shoaler
+ * reading, heights and clearances down to the shorter one. 1.2 m is 3.94 ft,
+ * which reads 3, not 4.
+ */
+export function chartDepthValue(meters: number, unit: DepthUnit): number {
+  const pow = 10 ** depthDecimals(unit);
+  return (
+    Math.floor(convertDepth(meters, unit) * pow + DEPTH_TRUNCATE_EPSILON) / pow
+  );
+}
+
+/** Format a charted water depth ({@link chartDepthValue}) with unit suffix. */
+export function formatChartDepth(meters: number, unit: DepthUnit): string {
+  const value = chartDepthValue(meters, unit);
+  return `${value.toFixed(depthDecimals(unit))}${depthUnitLabel(unit)}`;
+}
+
+/**
+ * The unit heights and clearances show in for a depth setting: feet whenever
+ * depths are in feet or fathoms (NOAA CS 60 §17), metres otherwise.
+ */
+export function heightUnit(depthUnit: DepthUnit): "meters" | "feet" {
+  return depthUnit === "meters" ? "meters" : "feet";
+}
+
+/**
+ * Format a charted height or clearance with unit suffix, truncated like
+ * {@link chartDepthValue} to the shorter reading.
+ */
+export function formatChartHeight(
+  meters: number,
+  depthUnit: DepthUnit,
+): string {
+  return formatChartDepth(meters, heightUnit(depthUnit));
 }

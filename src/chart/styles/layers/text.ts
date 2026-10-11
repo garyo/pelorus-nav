@@ -9,7 +9,7 @@ import type {
   ExpressionSpecification,
   LayerSpecification,
 } from "@maplibre/maplibre-gl-style-spec";
-import { depthUnitLabel } from "../../../settings";
+import { depthUnitLabel, heightUnit } from "../../../settings";
 import {
   landLabelAnchorOffset,
   landLabelTextField,
@@ -17,6 +17,7 @@ import {
 import { listAttrFirstNumber } from "../list-attr";
 import type { StyleContext } from "../style-context";
 import {
+  chartValueText,
   SORT_KEY_AREA,
   SORT_KEY_FACILITY,
   SORT_KEY_LANDMARK,
@@ -26,32 +27,18 @@ import {
   VARIABLE_ANCHOR_LAYOUT,
 } from "../style-context";
 
-/** Build a MapLibre expression for elevation text: converts ELEVAT to depth unit with suffix. */
+/**
+ * Elevation text: the object's name (if any) over ELEVAT in the height unit,
+ * truncated like other charted heights (`formatChartHeight`).
+ */
 function elevationTextField(ctx: StyleContext): ExpressionSpecification {
-  const suffix = ` ${depthUnitLabel(ctx.depthUnit)}`;
-  const namePrefix = [
-    "case",
-    ["has", "OBJNAM"],
-    ["concat", ["get", "OBJNAM"], "\n"],
-    "",
-  ];
-
-  if (ctx.depthUnit === "meters") {
-    return [
-      "concat",
-      namePrefix,
-      ["round", ["get", "ELEVAT"]],
-      suffix,
-    ] as unknown as ExpressionSpecification;
-  }
-
-  const factor = ctx.depthUnit === "feet" ? 3.28084 : 0.546807; /* fathoms */
+  const unit = heightUnit(ctx.depthUnit);
   return [
     "concat",
-    namePrefix,
-    ["round", ["*", ["get", "ELEVAT"], factor]],
-    suffix,
-  ] as unknown as ExpressionSpecification;
+    ["case", ["has", "OBJNAM"], ["concat", ["get", "OBJNAM"], "\n"], ""],
+    chartValueText("ELEVAT", unit),
+    ` ${depthUnitLabel(unit)}`,
+  ];
 }
 
 export function getTextLayers(ctx: StyleContext): LayerSpecification[] {

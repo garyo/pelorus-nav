@@ -42,8 +42,3 @@ export function chartDepthThreshold(metres: number, unit: DepthUnit): number {
   const chosen = Math.round(metres / perUnit / step) * step;
   return truncateToEncPrecision(chosen * perUnit);
 }
-
-/** Exact metres per display unit. */
-export function metresPerUnit(unit: Exclude<DepthUnit, "meters">): number {
-  return METRES_PER_UNIT[unit];
-}

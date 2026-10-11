@@ -19,6 +19,13 @@ The format follows [Keep a Changelog](https://keepachangelog.com/).
   again every time the connection drops. After three times in ten minutes,
   the warning stays on the chart readout at the bottom; tap it to see the
   banner.
+- Depths in feet or fathoms are rounded down, as NOAA requires and as NOAA's
+  own charts show them. Many soundings used to read one foot deeper than NOAA
+  charts. Depth contour labels follow the same rule, so the 6 ft contour
+  reads 5 ft as it does on NOAA charts.
+- Heights and clearances (bridges, overhead cables, lights, elevations) show
+  in feet whenever depths are in feet or fathoms, rounded down. Bridge and
+  cable clearance labels used to show meters only.
 
 ## [0.28.0] - 2026-10-04
 

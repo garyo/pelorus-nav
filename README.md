@@ -20,6 +20,7 @@ The [user guide's Features page](https://pelorus-nav.com/doc/userguide/features.
 - **Search** for anything on the charts, worldwide
 - **Detailed info** for all chart items (buoys/lights/etc.)
 - **All NOAA S-57 entities decoded and shown using proper S-52 symbology**
+- **Depths in feet, meters or fathoms**, converted the way NOAA's charts do: always rounded down, so feet can read one shallower than an older paper chart
 - **Multi-scale quilting** — seamless display across overview, coastal, and harbor chart scales
 - **Tides, currents and wind** (wind requires network), including future predictions
 - **Crew Overboard** tracking

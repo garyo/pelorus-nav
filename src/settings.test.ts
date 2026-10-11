@@ -1,9 +1,12 @@
 import { describe, expect, it, vi } from "vitest";
 import {
   ALLOWED_VALUES,
+  chartDepthValue,
   convertDepth,
   depthConversionFactor,
   depthUnitLabel,
+  formatChartDepth,
+  formatChartHeight,
   formatDepth,
   type Settings,
 } from "./settings";
@@ -376,6 +379,32 @@ describe("depth conversion", () => {
 
   it("formats fathoms with 1 decimal", () => {
     expect(formatDepth(10, "fathoms")).toBe("5.5fm");
+  });
+
+  it("truncates charted depths to the shoaler whole foot", () => {
+    // NOAA encodes feet charts truncated to 0.1 m: 37 ft → 11.2 m = 36.75 ft.
+    expect(chartDepthValue(11.2, "feet")).toBe(36);
+    expect(chartDepthValue(1.2, "feet")).toBe(3); // 3.94 ft
+    expect(chartDepthValue(3.048, "feet")).toBe(10); // exactly 10 ft
+    expect(chartDepthValue(0, "feet")).toBe(0);
+  });
+
+  it("truncates charted depths to tenths of a metre or fathom", () => {
+    expect(chartDepthValue(2.3, "meters")).toBe(2.3); // 22.999… before epsilon
+    expect(chartDepthValue(2.37, "meters")).toBe(2.3);
+    expect(chartDepthValue(10, "fathoms")).toBe(5.4); // 5.468 fm
+  });
+
+  it("formats charted depths with unit suffix", () => {
+    expect(formatChartDepth(1.2, "feet")).toBe("3ft");
+    expect(formatChartDepth(10, "meters")).toBe("10.0m");
+    expect(formatChartDepth(10, "fathoms")).toBe("5.4fm");
+  });
+
+  it("formats charted heights in feet for feet or fathoms, truncated", () => {
+    expect(formatChartHeight(65.2, "feet")).toBe("213ft"); // 213.91 ft
+    expect(formatChartHeight(65.2, "fathoms")).toBe("213ft");
+    expect(formatChartHeight(65.27, "meters")).toBe("65.2m");
   });
 
   it("returns correct unit labels", () => {

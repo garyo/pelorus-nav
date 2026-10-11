@@ -50,6 +50,14 @@ Pelorus Nav — open-source web-based marine chartplotter (PWA). See PLAN.md for
 - Keep modules small and focused; one concept per file
 - All utility functions must have unit tests
 
+## Chart Portrayal
+- **Follow NOAA's charts, recommendations and specs** (then IHO S-4/S-52) for how
+  chart data is shown; don't invent conventions. Converted depths and heights
+  always round down (NOAA Technical Memorandum NOS CS 60 §16–17): use
+  `chartDepthValue` / `formatChartDepth` / `formatChartHeight` (settings.ts) or
+  `chartValueText` / `chartHeightText` (style-context.ts) — never `round`.
+  Heights show in feet when depths are in feet or fathoms.
+
 ## UI Conventions
 - **Floating panels/bars register with `src/ui/SurfaceManager.ts`** (slot,
   group, priority) and call the handle's `opened()` when shown — never
