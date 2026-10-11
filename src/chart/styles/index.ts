@@ -12,6 +12,7 @@ import {
 } from "./layers/areas";
 import {
   getAdditionalLineLayers,
+  getClearanceLabelLayers,
   getLineLayers,
   getOtherLineLayers,
 } from "./layers/lines";
@@ -479,6 +480,7 @@ export function getNauticalLayers(
   //   5. Nav aid base (SOUNDG, LIGHTS glow + icons)
   //   6. Labels + landmarks
   //   7. Hazards (WRECKS, OBSTRN, UWTROC)
+  //  7b. Clearance labels (BRIDGE, CBLOHD, PIPOHD)
   //   8. Other nav aids (FOGSIG, PILPNT, MORFAC, BCNSPP, SBDARE)
   //   9. OTHER category [conditional]
   //  10. Daymarks/topmarks [OTHER]
@@ -511,6 +513,10 @@ export function getNauticalLayers(
 
     // 7. Hazards (wrecks, obstructions, underwater rocks)
     ...getHazardLayers(ctx),
+
+    // 7b. Bridge and overhead cable/pipe clearances: safety text that must
+    // win over soundings and place names
+    ...getClearanceLabelLayers(ctx),
 
     // 8. Other nav aids (fog signals, pilings, mooring, special beacons, seabed)
     ...getOtherNavAidLayers(ctx),

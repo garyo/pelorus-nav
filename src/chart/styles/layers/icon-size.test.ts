@@ -13,6 +13,7 @@ import { evalExpr } from "../test-helpers";
 import { getAdditionalAreaLayers, getAreaLayers } from "./areas";
 import {
   getAdditionalLineLayers,
+  getClearanceLabelLayers,
   getLineLayers,
   getOtherLineLayers,
 } from "./lines";
@@ -43,6 +44,7 @@ const BUILDERS = [
   getAdditionalAreaLayers,
   getLineLayers,
   getAdditionalLineLayers,
+  getClearanceLabelLayers,
   getOtherLineLayers,
   getNavigationOverlayLayers,
   getNavigationRoutingLayers,

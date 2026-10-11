@@ -191,3 +191,30 @@ describe("depth thresholds", () => {
     ]);
   });
 });
+
+describe("clearance label priority", () => {
+  it("places clearances after soundings and place names, so they win collisions", () => {
+    // MapLibre places symbols in reverse style order: later layers win.
+    const ids = getNauticalLayers({ sourceId: "s", detailOffset: 1 }).map(
+      (l) => l.id,
+    );
+    for (const id of [
+      "s57-bridge-label",
+      "s57-cblohd-label",
+      "s57-soundg",
+      "s57-seaare-label",
+      "s57-lndare-label",
+    ]) {
+      expect(ids).toContain(id);
+    }
+    for (const label of ["s57-bridge-label", "s57-cblohd-label"]) {
+      for (const loser of [
+        "s57-soundg",
+        "s57-seaare-label",
+        "s57-lndare-label",
+      ]) {
+        expect(ids.indexOf(label)).toBeGreaterThan(ids.indexOf(loser));
+      }
+    }
+  });
+});

@@ -27,6 +27,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/).
   in feet whenever depths are in feet or fathoms, rounded down; clearances
   to a tenth of a foot. Bridge and cable clearance labels used to show
   meters only. Soundings under a foot read ½, as on NOAA charts.
+- Bridge and overhead-cable clearance labels show up reliably. They used to
+  lose out to nearby soundings and place names, so busy bridges like the
+  Coronado Bridge showed no clearance at all. They're now black, as the
+  S-52 chart standard specifies.
 - Depth settings select contours the way NOAA's charts do: the safety
   contour is the shallowest contour whose label is at least your setting.
   The defaults are now NOAA's 5 / 11 / 17 ft. If you changed your depth

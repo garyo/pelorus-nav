@@ -15,6 +15,7 @@ import {
   SCALE_SORT_KEY,
   scaledIconSize,
   scaledTextSize,
+  VARIABLE_ANCHOR_LAYOUT,
 } from "../style-context";
 
 /**
@@ -218,79 +219,6 @@ export function getLineLayers(ctx: StyleContext): LayerSpecification[] {
       },
       paint: {},
     },
-    // Bridge clearance labels (D23) — separate layers for line vs polygon geometry
-    ...((): LayerSpecification[] => {
-      const hasClr = [
-        "any",
-        ["has", "VERCLR"],
-        ["has", "VERCCL"],
-        ["has", "VERCOP"],
-      ] as unknown as ExpressionSpecification;
-      const clrText: ExpressionSpecification = [
-        "case",
-        ["has", "VERCOP"],
-        [
-          "concat",
-          "clr ",
-          chartValueText("VERCCL", heightUnit(ctx.depthUnit), 1),
-          "/",
-          clearanceText("VERCOP", ctx),
-        ],
-        ["has", "VERCLR"],
-        ["concat", "clr ", clearanceText("VERCLR", ctx)],
-        ["has", "VERCCL"],
-        ["concat", "clr ", clearanceText("VERCCL", ctx)],
-        "",
-      ];
-      const paint = {
-        "text-color": ctx.colour("CHBRN"),
-        "text-halo-color": ctx.colour("CHWHT"),
-        "text-halo-width": 1,
-      };
-      return [
-        {
-          id: "s57-bridge-label",
-          type: "symbol",
-          source: ctx.sourceId,
-          "source-layer": "BRIDGE",
-          minzoom: ctx.detailMinzoom(13),
-          filter: [
-            "all",
-            hasClr,
-            ["!=", ["geometry-type"], "LineString"],
-          ] as unknown as ExpressionSpecification,
-          layout: {
-            "text-field": clrText,
-            "text-size": scaledTextSize(10, ctx),
-            "text-font": ["Noto Sans Regular"],
-            "text-allow-overlap": false,
-            "text-anchor": "top",
-            "text-offset": [0, 0.5],
-          },
-          paint,
-        },
-        {
-          id: "s57-bridge-label-line",
-          type: "symbol",
-          source: ctx.sourceId,
-          "source-layer": "BRIDGE",
-          minzoom: ctx.detailMinzoom(13),
-          filter: [
-            "all",
-            hasClr,
-            ["==", ["geometry-type"], "LineString"],
-          ] as unknown as ExpressionSpecification,
-          layout: {
-            "symbol-placement": "line-center",
-            "text-field": clrText,
-            "text-size": scaledTextSize(10, ctx),
-            "text-font": ["Noto Sans Regular"],
-            "text-allow-overlap": false,
-          },
-          paint,
-        },
-      ];
-    })(),
     {
       id: "s57-cblsub",
       type: "line",
@@ -313,28 +241,6 @@ export function getLineLayers(ctx: StyleContext): LayerSpecification[] {
         "line-dasharray": [5, 3],
       },
     },
-    // Overhead cable clearance label (D26–D27)
-    // VERCLR = vertical clearance, VERCSA = safe vertical clearance
-    {
-      id: "s57-cblohd-label",
-      type: "symbol",
-      source: ctx.sourceId,
-      "source-layer": "CBLOHD",
-      minzoom: ctx.detailMinzoom(14),
-      filter: ["any", ["has", "VERCLR"], ["has", "VERCSA"]],
-      layout: {
-        "symbol-placement": "line-center",
-        "text-field": overheadClearanceText(ctx),
-        "text-size": scaledTextSize(10, ctx),
-        "text-font": ["Noto Sans Regular"],
-        "text-allow-overlap": false,
-      },
-      paint: {
-        "text-color": ctx.colour("CHBLK"),
-        "text-halo-color": ctx.colour("CHWHT"),
-        "text-halo-width": 1,
-      },
-    },
     // Overhead pipeline — PIPOHD (same style as CBLOHD)
     {
       id: "s57-pipohd",
@@ -345,27 +251,6 @@ export function getLineLayers(ctx: StyleContext): LayerSpecification[] {
         "line-color": ctx.colour("OUTLW"),
         "line-width": 1.2,
         "line-dasharray": [5, 3],
-      },
-    },
-    // Overhead pipeline clearance label
-    {
-      id: "s57-pipohd-label",
-      type: "symbol",
-      source: ctx.sourceId,
-      "source-layer": "PIPOHD",
-      minzoom: ctx.detailMinzoom(14),
-      filter: ["any", ["has", "VERCLR"], ["has", "VERCSA"]],
-      layout: {
-        "symbol-placement": "line-center",
-        "text-field": overheadClearanceText(ctx),
-        "text-size": scaledTextSize(10, ctx),
-        "text-font": ["Noto Sans Regular"],
-        "text-allow-overlap": false,
-      },
-      paint: {
-        "text-color": ctx.colour("CHBLK"),
-        "text-halo-color": ctx.colour("CHWHT"),
-        "text-halo-width": 1,
       },
     },
     // Sloping ground / cliff — SLOGRD
@@ -382,6 +267,101 @@ export function getLineLayers(ctx: StyleContext): LayerSpecification[] {
   ];
 
   return layers;
+}
+
+/**
+ * Vertical clearance labels for bridges (D23) and overhead cables and pipes
+ * (D26–D27). Built separately from their lines so the style can place them
+ * late: they are safety information, and placed with the lines they lost
+ * every collision to soundings, sea-area names and the piers' own labels.
+ */
+export function getClearanceLabelLayers(
+  ctx: StyleContext,
+): LayerSpecification[] {
+  const hasBridgeClr = [
+    "any",
+    ["has", "VERCLR"],
+    ["has", "VERCCL"],
+    ["has", "VERCOP"],
+  ] as unknown as ExpressionSpecification;
+  const bridgeText: ExpressionSpecification = [
+    "case",
+    ["has", "VERCOP"],
+    [
+      "concat",
+      "clr ",
+      chartValueText("VERCCL", heightUnit(ctx.depthUnit), 1),
+      "/",
+      clearanceText("VERCOP", ctx),
+    ],
+    ["has", "VERCLR"],
+    ["concat", "clr ", clearanceText("VERCLR", ctx)],
+    ["has", "VERCCL"],
+    ["concat", "clr ", clearanceText("VERCCL", ctx)],
+    "",
+  ];
+  const text = {
+    "text-size": scaledTextSize(10, ctx),
+    "text-font": ["Noto Sans Regular"],
+    "text-allow-overlap": false,
+  };
+  // S-52 draws every clearance in CHBLK, to a tenth (TE 'clr %4.1lf').
+  const paint = {
+    "text-color": ctx.colour("CHBLK"),
+    "text-halo-color": ctx.colour("CHWHT"),
+    "text-halo-width": 1,
+  };
+  return [
+    {
+      id: "s57-bridge-label",
+      type: "symbol",
+      source: ctx.sourceId,
+      "source-layer": "BRIDGE",
+      minzoom: ctx.detailMinzoom(13),
+      filter: [
+        "all",
+        hasBridgeClr,
+        ["!=", ["geometry-type"], "LineString"],
+      ] as unknown as ExpressionSpecification,
+      // A span sits between piers, buoys and racons; any side of it will do.
+      layout: { ...text, ...VARIABLE_ANCHOR_LAYOUT, "text-field": bridgeText },
+      paint,
+    },
+    {
+      id: "s57-bridge-label-line",
+      type: "symbol",
+      source: ctx.sourceId,
+      "source-layer": "BRIDGE",
+      minzoom: ctx.detailMinzoom(13),
+      filter: [
+        "all",
+        hasBridgeClr,
+        ["==", ["geometry-type"], "LineString"],
+      ] as unknown as ExpressionSpecification,
+      layout: {
+        ...text,
+        "symbol-placement": "line-center",
+        "text-field": bridgeText,
+      },
+      paint,
+    },
+    ...(["CBLOHD", "PIPOHD"] as const).map(
+      (sourceLayer): LayerSpecification => ({
+        id: `s57-${sourceLayer.toLowerCase()}-label`,
+        type: "symbol",
+        source: ctx.sourceId,
+        "source-layer": sourceLayer,
+        minzoom: ctx.detailMinzoom(14),
+        filter: ["any", ["has", "VERCLR"], ["has", "VERCSA"]],
+        layout: {
+          ...text,
+          "symbol-placement": "line-center",
+          "text-field": overheadClearanceText(ctx),
+        },
+        paint,
+      }),
+    ),
+  ];
 }
 
 /** STANDARD-category additional line layers: dykes, slopes, gates, dams. */

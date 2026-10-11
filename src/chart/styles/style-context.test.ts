@@ -6,7 +6,7 @@ import {
 } from "@maplibre/maplibre-gl-style-spec";
 import { describe, expect, it } from "vitest";
 import { chartDepthText, type DepthUnit } from "../../settings";
-import { getLineLayers } from "./layers/lines";
+import { getClearanceLabelLayers, getLineLayers } from "./layers/lines";
 import { getTextLayers } from "./layers/text";
 import {
   createStyleContext,
@@ -53,6 +53,8 @@ function ctxFor(unit: DepthUnit) {
 }
 
 const lineLayers = (unit: DepthUnit) => getLineLayers(ctxFor(unit));
+const clearanceLayers = (unit: DepthUnit) =>
+  getClearanceLabelLayers(ctxFor(unit));
 const textLayers = (unit: DepthUnit) => getTextLayers(ctxFor(unit));
 
 describe("depthTextField", () => {
@@ -101,7 +103,7 @@ describe("depth contour labels", () => {
 describe("heights and clearances", () => {
   it("show tenths of a foot for feet and fathom settings, truncated", () => {
     const clr = (unit: DepthUnit, props: Record<string, unknown>) =>
-      layerText(lineLayers, "s57-bridge-label", unit, props);
+      layerText(clearanceLayers, "s57-bridge-label", unit, props);
     expect(clr("feet", { VERCLR: 53.3 })).toBe("clr 174.8ft"); // 174.87 ft
     expect(clr("fathoms", { VERCLR: 53.3 })).toBe("clr 174.8ft");
     expect(clr("meters", { VERCLR: 53.3 })).toBe("clr 53.3m");
