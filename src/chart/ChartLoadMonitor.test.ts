@@ -2,6 +2,7 @@
 import { describe, expect, it } from "vitest";
 import {
   archiveFilename,
+  BannerRepeatLimiter,
   boundsForKey,
   ChartLoadHealth,
   categorizeSource,
@@ -204,6 +205,34 @@ describe("boundsForKey", () => {
   it("returns null for footprint-less sources (relevant everywhere)", () => {
     expect(boundsForKey("osm-underlay")).toBeNull();
     expect(boundsForKey("s57-coverage-unified")).toBeNull();
+  });
+});
+
+describe("BannerRepeatLimiter", () => {
+  const MIN = 60_000;
+
+  it("allows a few showings, then mutes the same failure", () => {
+    const r = new BannerRepeatLimiter(3, 10 * MIN);
+    expect(r.allow("chart|network", 0)).toBe(true);
+    expect(r.allow("chart|network", 1 * MIN)).toBe(true);
+    expect(r.allow("chart|network", 2 * MIN)).toBe(true);
+    expect(r.allow("chart|network", 3 * MIN)).toBe(false);
+  });
+
+  it("counts each failure separately", () => {
+    const r = new BannerRepeatLimiter(1, 10 * MIN);
+    expect(r.allow("chart|network", 0)).toBe(true);
+    expect(r.allow("chart|network", 1)).toBe(false);
+    expect(r.allow("chart|storage", 2)).toBe(true);
+  });
+
+  it("allows the failure again once old showings leave the window", () => {
+    const r = new BannerRepeatLimiter(2, 10 * MIN);
+    r.allow("k", 0);
+    r.allow("k", 5 * MIN);
+    expect(r.allow("k", 9 * MIN)).toBe(false);
+    expect(r.allow("k", 10 * MIN)).toBe(true); // the 0-min showing aged out
+    expect(r.allow("k", 11 * MIN)).toBe(false); // 5 and 10 still count
   });
 });
 

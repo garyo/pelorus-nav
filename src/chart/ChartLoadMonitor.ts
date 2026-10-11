@@ -26,6 +26,9 @@
  *   regions.
  * - Dismissing the banner snoozes the banner only; the failure state (and
  *   the pill's warning) stand until the tiles actually load.
+ * - A failure that keeps coming back (a flaky link that recovers and fails
+ *   every few seconds) raises the banner only a few times; after that, the
+ *   pill alone carries it, and tapping the pill still brings the banner up.
  */
 
 import type * as maplibregl from "maplibre-gl";
@@ -51,6 +54,10 @@ const CATEGORY_ERROR_THRESHOLD = 2;
 const SHOW_GRACE_MS = 2_000;
 /** How long a user dismissal keeps the banner (not the pill) away. */
 const DISMISS_SNOOZE_MS = 60_000;
+/** Automatic banner showings of the same failure allowed per window before
+ *  further ones stay on the pill only. */
+const BANNER_REPEAT_LIMIT = 3;
+const BANNER_REPEAT_WINDOW_MS = 10 * 60_000;
 /** Minimum spacing between automatic retries (reconnect events). A retry is
  *  a full style rebuild that resets every in-flight tile — browsers can fire
  *  "online" in bursts (DevTools throttling, flaky interfaces), and retrying
@@ -262,6 +269,32 @@ export class ChartLoadHealth {
   }
 }
 
+/**
+ * Rate limit for automatic banner showings, per failure key: at most `limit`
+ * within any `windowMs` (pure — the caller passes the clock).
+ */
+export class BannerRepeatLimiter {
+  private shown = new Map<string, number[]>();
+  private readonly limit: number;
+  private readonly windowMs: number;
+
+  constructor(limit = BANNER_REPEAT_LIMIT, windowMs = BANNER_REPEAT_WINDOW_MS) {
+    this.limit = limit;
+    this.windowMs = windowMs;
+  }
+
+  /** Whether `key` may show now; an allowed showing is recorded. */
+  allow(key: string, now: number): boolean {
+    const recent = (this.shown.get(key) ?? []).filter(
+      (t) => now - t < this.windowMs,
+    );
+    const ok = recent.length < this.limit;
+    if (ok) recent.push(now);
+    this.shown.set(key, recent);
+    return ok;
+  }
+}
+
 export function composeFailureMessage(
   summary: FailureSummary,
   hasOfflineCharts: boolean,
@@ -369,6 +402,7 @@ export function attachChartLoadMonitor(
   let bannerShown = false;
   let pendingShow: ReturnType<typeof setTimeout> | null = null;
   let snoozeUntil = 0;
+  const repeats = new BannerRepeatLimiter();
 
   const logFailure = (src: string, detail: string): void => {
     const key = detail.slice(0, 200);
@@ -476,7 +510,13 @@ export function attachChartLoadMonitor(
         if (bannerShown) showBanner(summary); // update the message in place
       }
       // Snooze expired and the failure still stands — bring the banner back.
-      if (!bannerShown && Date.now() >= snoozeUntil) showBanner(effective);
+      if (
+        !bannerShown &&
+        Date.now() >= snoozeUntil &&
+        repeats.allow(summaryKey(effective), Date.now())
+      ) {
+        showBanner(effective);
+      }
       return;
     }
     // First appearance waits out the grace period: if tiles are actually
@@ -488,11 +528,15 @@ export function attachChartLoadMonitor(
         const still = health.summary(viewportRelevant());
         if (!still) return;
         effective = still;
+        const snoozed = Date.now() < snoozeUntil;
+        const show = !snoozed && repeats.allow(summaryKey(still), Date.now());
+        const muted = !snoozed && !show;
         logTransition(
-          `failing: ${still.categories.join("+")} (${still.reason})`,
+          `failing: ${still.categories.join("+")} (${still.reason})` +
+            (muted ? " — banner muted, repeated too often" : ""),
         );
         notify();
-        if (Date.now() >= snoozeUntil) showBanner(still);
+        if (show) showBanner(still);
       }, SHOW_GRACE_MS);
     }
   };

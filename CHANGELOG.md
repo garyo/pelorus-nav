@@ -15,6 +15,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/).
 ### Fixed
 - The course line keeps its time ticks when zoomed in close. With the line
   length on Auto, it used to stretch past the screen edge without ticks.
+- On a flaky connection, the "Can't load charts" banner no longer pops up
+  again every time the connection drops. After three times in ten minutes,
+  the warning stays on the chart readout at the bottom; tap it to see the
+  banner.
 
 ## [0.28.0] - 2026-10-04
 
