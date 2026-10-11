@@ -3,7 +3,12 @@ import {
   circularInterpolate,
   circularMeanDeg,
 } from "../navigation/CourseSmoothing";
-import { cameraKeyOf, formatTickLabel, selectAutoBucket } from "./CourseLine";
+import {
+  cameraKeyOf,
+  courseLineLength,
+  formatTickLabel,
+  selectAutoBucket,
+} from "./CourseLine";
 
 describe("circularMeanDeg", () => {
   it("returns the single angle for a single-element array", () => {
@@ -72,7 +77,7 @@ describe("selectAutoBucket", () => {
   it("returns paired (duration, tick) so duration % tick === 0", () => {
     // Sweep across plausible target durations; every bucket must divide evenly.
     for (const target of [
-      0.3, 0.8, 1.5, 4, 7, 12, 22, 40, 100, 200, 400, 900,
+      0.2, 0.3, 0.8, 1.5, 4, 7, 12, 22, 40, 100, 200, 400, 900,
     ]) {
       const b = selectAutoBucket(target);
       const remainder = b.duration % b.tick;
@@ -82,6 +87,7 @@ describe("selectAutoBucket", () => {
   });
 
   it("picks the nearest predefined duration on log scale", () => {
+    expect(selectAutoBucket(0.3).duration).toBe(0.5);
     expect(selectAutoBucket(0.8).duration).toBe(1);
     expect(selectAutoBucket(4).duration).toBe(5);
     expect(selectAutoBucket(7).duration).toBe(5);
@@ -93,8 +99,30 @@ describe("selectAutoBucket", () => {
   });
 });
 
+describe("courseLineLength", () => {
+  it("uses speed × duration when the line is long enough", () => {
+    const r = courseLineLength(6, 10, 2, true);
+    expect(r.distanceNM).toBeCloseTo(1);
+    expect(r.tickMin).toBe(2);
+  });
+
+  it("stretches a short fixed-duration line and drops its ticks", () => {
+    // 3 kn × 1 min ≈ 93 m, under the 200 m floor.
+    const r = courseLineLength(3, 1, 0.25, true);
+    expect(r.distanceNM).toBeCloseTo(200 / 1852);
+    expect(r.tickMin).toBe(0);
+  });
+
+  it("keeps a short auto line's true length and ticks", () => {
+    const r = courseLineLength(3, 1, 0.25, false);
+    expect(r.distanceNM).toBeCloseTo(3 / 60);
+    expect(r.tickMin).toBe(0.25);
+  });
+});
+
 describe("formatTickLabel", () => {
   it("formats sub-minute durations as seconds", () => {
+    expect(formatTickLabel(1 / 6)).toBe("10s");
     expect(formatTickLabel(0.25)).toBe("15s");
     expect(formatTickLabel(0.5)).toBe("30s");
   });

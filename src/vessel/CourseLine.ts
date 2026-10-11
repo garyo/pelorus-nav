@@ -23,7 +23,10 @@ const VESSEL_ICON_LAYER = "_vessel-icon";
 /** Minimum SOG (knots) below which the line is hidden. */
 const MIN_SOG_KT = 0.4;
 
-/** Minimum line length in meters (visible even at low speed). */
+/**
+ * Minimum length in meters of a fixed-duration line, so it stays visible at
+ * low speed. Auto lines are sized to the screen and need no floor.
+ */
 const MIN_LENGTH_M = 200;
 
 /** Tick half-length in screen pixels (each side of the main line). */
@@ -51,7 +54,8 @@ const TICK_SPACING_MIN: Record<number, number> = {
  * and an auto-picked 15 min line render identically.
  */
 const AUTO_BUCKETS: { duration: number; tick: number }[] = [
-  { duration: 1, tick: 0.25 }, // 1 min line, 15 s ticks (very high zoom)
+  { duration: 0.5, tick: 1 / 6 }, // 30 s line, 10 s ticks (very high zoom)
+  { duration: 1, tick: 0.25 }, // 1 min, 15 s
   { duration: 2, tick: 0.5 }, // 2 min, 30 s
   { duration: 5, tick: 1 },
   { duration: 10, tick: 2 },
@@ -83,6 +87,24 @@ export function selectAutoBucket(targetMin: number): {
     }
   }
   return best;
+}
+
+/**
+ * Line length and tick interval for a course line of `durationMin` at
+ * `sogKt`. A fixed-duration line too short to see is stretched to
+ * MIN_LENGTH_M and loses its ticks, which would no longer mark real time;
+ * `floor: false` (auto mode) skips that.
+ */
+export function courseLineLength(
+  sogKt: number,
+  durationMin: number,
+  tickMin: number,
+  floor: boolean,
+): { distanceNM: number; tickMin: number } {
+  const distanceNM = (sogKt * durationMin) / 60;
+  const minNM = MIN_LENGTH_M / 1852;
+  if (floor && distanceNM < minNM) return { distanceNM: minNM, tickMin: 0 };
+  return { distanceNM, tickMin };
 }
 
 /** Short label for a duration: "30s", "5m", "1h". */
@@ -211,15 +233,12 @@ export class CourseLine {
       startLat,
       startLon,
     );
-    const durationHours = durationMin / 60;
-    const actualDistanceNM = smoothed.sog * durationHours;
-
-    const minNM = MIN_LENGTH_M / 1852;
-    const stretched = actualDistanceNM < minNM;
-    const distanceNM = stretched ? minNM : actualDistanceNM;
-
-    // Ticks only make sense when the line represents real time progression.
-    const tickMinutes = stretched ? 0 : tickMin;
+    const { distanceNM, tickMin: tickMinutes } = courseLineLength(
+      smoothed.sog,
+      durationMin,
+      tickMin,
+      this.duration !== "auto",
+    );
     this.setLine(
       startLat,
       startLon,
@@ -416,7 +435,10 @@ export class CourseLine {
         const perpX = -dy / lenPx;
         const perpY = dx / lenPx;
         const labelOffsetPx = TICK_HALF_PX + 8;
-        for (let t = tickMinutes; t <= totalMin; t += tickMinutes) {
+        // Step by index: fractional ticks (10 s) would drift past the end.
+        const tickCount = Math.round(totalMin / tickMinutes);
+        for (let i = 1; i <= tickCount; i++) {
+          const t = i * tickMinutes;
           const tickDist = distanceNM * (t / totalMin);
           const [cLon, cLat] = projectPoint(startLat, startLon, cog, tickDist);
           const cPx = this.map.project([cLon, cLat]);
@@ -441,9 +463,8 @@ export class CourseLine {
           });
 
           // Label the first tick (interval) and the endpoint tick (total).
-          // Close-to-tolerant comparison avoids float-drift issues.
-          const isFirst = Math.abs(t - tickMinutes) < 1e-6;
-          const isLast = Math.abs(t - totalMin) < 1e-6;
+          const isFirst = i === 1;
+          const isLast = i === tickCount;
           if (isFirst || isLast) {
             const labelPx = this.map.unproject([
               cPx.x + perpX * labelOffsetPx,

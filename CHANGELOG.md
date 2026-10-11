@@ -5,6 +5,12 @@ Notable user-facing changes to Pelorus Nav. Downloads are on the
 
 The format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [Unreleased]
+
+### Fixed
+- The course line keeps its time ticks when zoomed in close. With the line
+  length on Auto, it used to stretch past the screen edge without ticks.
+
 ## [0.28.0] - 2026-10-04
 
 ### Added
