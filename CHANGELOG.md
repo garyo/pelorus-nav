@@ -5,6 +5,13 @@ Notable user-facing changes to Pelorus Nav. Downloads are on the
 
 The format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.0.0] - 2026-10-12
+
+### Changed
+- Pelorus Nav is out of beta. The About screen no longer calls it beta
+  software, and its credits now include Open-Meteo, the source of the wind
+  forecast.
+
 ## [0.29.0] - 2026-10-11
 
 ### Added
