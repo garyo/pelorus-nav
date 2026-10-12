@@ -107,6 +107,22 @@ export function courseLineLength(
   return { distanceNM, tickMin };
 }
 
+/** Latitude step (degrees) used to measure the map's scale. */
+const SCALE_STEP_DEG = 0.001;
+
+/**
+ * Screen pixels per nautical mile at `center`. Measures the full on-screen
+ * length of a short meridian step, so it holds at any map bearing.
+ */
+export function pxPerNM(
+  project: (lngLat: [number, number]) => { x: number; y: number },
+  center: { lng: number; lat: number },
+): number {
+  const a = project([center.lng, center.lat]);
+  const b = project([center.lng, center.lat + SCALE_STEP_DEG]);
+  return Math.hypot(b.x - a.x, b.y - a.y) / SCALE_STEP_DEG / 60;
+}
+
 /** Short label for a duration: "30s", "5m", "1h". */
 export function formatTickLabel(min: number): string {
   if (min >= 60) return `${Math.round(min / 60)}h`;
@@ -268,11 +284,7 @@ export class CourseLine {
     vesselLon: number,
   ): { durationMin: number; tickMin: number } {
     if (this.duration === "auto") {
-      // Pixels per nautical mile via the map's projection (latitude-correct).
-      const c = this.map.getCenter();
-      const a = this.map.project([c.lng, c.lat]);
-      const b = this.map.project([c.lng, c.lat + 0.001]);
-      const pxPerNM = Math.abs(b.y - a.y) / 0.001 / 60;
+      const scale = pxPerNM((p) => this.map.project(p), this.map.getCenter());
       const container = this.map.getContainer();
       const viewport = {
         width: container.clientWidth,
@@ -297,7 +309,7 @@ export class CourseLine {
           toEdgePx,
         );
       }
-      const targetNM = pxPerNM > 0 ? aheadPx / pxPerNM : 1;
+      const targetNM = scale > 0 ? aheadPx / scale : 1;
       const targetMin = (targetNM / Math.max(sog, 0.5)) * 60;
       const bucket = selectAutoBucket(targetMin);
       return { durationMin: bucket.duration, tickMin: bucket.tick };

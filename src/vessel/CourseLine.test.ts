@@ -7,6 +7,7 @@ import {
   cameraKeyOf,
   courseLineLength,
   formatTickLabel,
+  pxPerNM,
   selectAutoBucket,
 } from "./CourseLine";
 
@@ -147,5 +148,32 @@ describe("cameraKeyOf", () => {
     expect(cameraKeyOf(13, 45, 5, 800, 600)).not.toBe(base);
     expect(cameraKeyOf(13, 45, 0, 900, 600)).not.toBe(base);
     expect(cameraKeyOf(13, 45, 0, 800, 700)).not.toBe(base);
+  });
+});
+
+describe("pxPerNM", () => {
+  // Equirectangular stand-in for map.project: 10000 px per degree of latitude
+  // (one minute = 1 NM), rotated by the map bearing as MapLibre does on screen.
+  const projectAt =
+    (bearingDeg: number) =>
+    ([lng, lat]: [number, number]) => {
+      const x = lng * 10000 * Math.cos((42 * Math.PI) / 180);
+      const y = -lat * 10000;
+      const r = (-bearingDeg * Math.PI) / 180;
+      return {
+        x: x * Math.cos(r) - y * Math.sin(r),
+        y: x * Math.sin(r) + y * Math.cos(r),
+      };
+    };
+  const center = { lng: -70.98, lat: 42.34 };
+
+  it("measures the scale in north-up", () => {
+    expect(pxPerNM(projectAt(0), center)).toBeCloseTo(10000 / 60, 6);
+  });
+
+  it("gives the same scale when the map is rotated (course-up)", () => {
+    for (const bearing of [45, 85, 90, 180, 270]) {
+      expect(pxPerNM(projectAt(bearing), center)).toBeCloseTo(10000 / 60, 6);
+    }
   });
 });

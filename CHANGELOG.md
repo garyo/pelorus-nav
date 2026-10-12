@@ -5,6 +5,13 @@ Notable user-facing changes to Pelorus Nav. Downloads are on the
 
 The format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [Unreleased]
+
+### Fixed
+- In Course Up, the course line's automatic length now fits the screen on
+  every heading. Heading roughly east or west, it could run hours ahead, far
+  off screen, with only its first time tick visible.
+
 ## [1.0.0] - 2026-10-12
 
 ### Changed
