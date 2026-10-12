@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
-import type { SearchEntry } from "../data/search-index";
-import { findNearestNamedFeature, searchFeatures } from "./feature-search";
+import type { Place, SearchEntry } from "../data/search-index";
+import {
+  findNearestNamedFeature,
+  parseSearchQuery,
+  searchFeatures,
+} from "./feature-search";
 
 function entry(
   name: string,
@@ -115,6 +119,153 @@ describe("searchFeatures", () => {
     const results = searchFeatures("  Boston  ", ENTRIES);
     expect(results.length).toBeGreaterThan(0);
     expect(results[0].entry.name).toBe("Boston");
+  });
+});
+
+const MA: Place = {
+  label: "MA",
+  codes: ["ma", "usa", "us"],
+  names: ["massachusetts", "united states"],
+};
+const ME: Place = {
+  label: "ME",
+  codes: ["me", "usa", "us"],
+  names: ["maine", "united states"],
+};
+
+function area(
+  name: string,
+  type: string,
+  bbox: [number, number, number, number],
+  place?: Place,
+): SearchEntry {
+  const center: [number, number] = [
+    (bbox[0] + bbox[2]) / 2,
+    (bbox[1] + bbox[3]) / 2,
+  ];
+  return { name, type, center, bbox, place };
+}
+
+describe("parseSearchQuery", () => {
+  it("splits a place suffix at the last comma", () => {
+    expect(parseSearchQuery(" Coronado, CA ")).toEqual({
+      name: "coronado",
+      where: "ca",
+    });
+    expect(parseSearchQuery("a, b, maine")).toEqual({
+      name: "a, b",
+      where: "maine",
+    });
+  });
+
+  it("ignores a trailing comma", () => {
+    expect(parseSearchQuery("coronado,")).toEqual({ name: "coronado" });
+    expect(parseSearchQuery("coronado")).toEqual({ name: "coronado" });
+  });
+});
+
+describe("searchFeatures duplicates", () => {
+  const ref = { referencePoint: [-71.0, 42.3] as [number, number] };
+
+  it("keeps the nearest of overlapping same-named pieces", () => {
+    const near = area("Long Island", "LNDARE", [-70.97, 42.31, -70.95, 42.33]);
+    const results = searchFeatures(
+      "long island",
+      [
+        area("Long Island", "LNDARE", [-70.975, 42.305, -70.945, 42.335]),
+        near,
+        area("Long Island", "LNDARE", [-70.98, 42.3, -70.94, 42.34]),
+      ],
+      ref,
+    );
+    expect(results.map((r) => r.entry)).toEqual([near]);
+  });
+
+  it("joins pieces of one feature that meet only through a farther piece", () => {
+    // The two ends rank first and don't touch; the middle piece reaches
+    // farther north, so it ranks last and joins them.
+    const west = area("Long Island", "LNDARE", [-71.0, 42.3, -70.9, 42.32]);
+    const results = searchFeatures(
+      "long island",
+      [
+        west,
+        area("Long Island", "LNDARE", [-70.6, 42.3, -70.5, 42.32]),
+        area("Long Island", "LNDARE", [-70.9, 42.3, -70.6, 42.6]),
+      ],
+      { referencePoint: [-70.75, 42.0] },
+    );
+    expect(results.map((r) => r.entry)).toEqual([west]);
+  });
+
+  it("keeps separate features that share a name", () => {
+    const results = searchFeatures(
+      "long island",
+      [
+        area("Long Island", "LNDARE", [-70.97, 42.31, -70.95, 42.33], MA),
+        area("Long Island", "LNDARE", [-70.13, 43.67, -70.1, 43.7], ME),
+      ],
+      ref,
+    );
+    expect(results.map((r) => r.location)).toEqual(["MA", "ME"]);
+  });
+
+  it("keeps same-named features of different types", () => {
+    const results = searchFeatures("coronado", [
+      entry("Coronado", "BUAARE"),
+      entry("Coronado", "LNDARE"),
+    ]);
+    expect(results).toHaveLength(2);
+  });
+});
+
+describe("searchFeatures place suffix", () => {
+  const ENTRIES_WITH_PLACES: SearchEntry[] = [
+    area("Boston", "BUAARE", [-71.19, 42.23, -70.92, 42.4], MA),
+    area("Long Island", "LNDARE", [-70.97, 42.31, -70.95, 42.33], MA),
+    area("Long Island", "LNDARE", [-70.13, 43.67, -70.1, 43.7], ME),
+    area("Portland", "BUAARE", [-70.33, 43.62, -70.22, 43.7], ME),
+    area("Bay, Beach, and Point", "LNDRGN", [-70.2, 43.0, -70.1, 43.1], ME),
+  ];
+
+  const names = (query: string) =>
+    searchFeatures(query, ENTRIES_WITH_PLACES).map(
+      (r) => `${r.entry.name} | ${r.location}`,
+    );
+
+  it("narrows by state code or name", () => {
+    expect(names("long island, me")).toEqual([
+      "Long Island | near Portland, ME",
+    ]);
+    expect(names("long island, Massachusetts")).toEqual([
+      "Long Island | near Boston, MA",
+    ]);
+    expect(names("long island, mass")).toEqual([
+      "Long Island | near Boston, MA",
+    ]);
+  });
+
+  it("matches two letters only as a code", () => {
+    expect(names("long island, ma")).toEqual(["Long Island | near Boston, MA"]);
+    expect(names("long island, po")).toEqual([]);
+  });
+
+  it("narrows by a nearby town", () => {
+    expect(names("long island, portland")).toEqual([
+      "Long Island | near Portland, ME",
+    ]);
+  });
+
+  it("narrows by country", () => {
+    expect(names("long island, united states")).toHaveLength(2);
+    expect(names("long island, usa")).toHaveLength(2);
+  });
+
+  it("still finds names that contain a comma", () => {
+    expect(names("bay, beach")).toEqual(["Bay, Beach, and Point | ME"]);
+  });
+
+  it("shows towns by their state alone", () => {
+    expect(names("portland")).toEqual(["Portland | ME"]);
   });
 });
 

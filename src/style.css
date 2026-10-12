@@ -1821,13 +1821,28 @@ body {
   background: rgba(100, 130, 200, 0.25);
 }
 
-.search-result-name {
+.search-result-main {
   flex: 1;
   min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.search-result-name,
+.search-result-location {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.search-result-name {
   font-size: 13px;
+}
+
+.search-result-location {
+  font-size: 11px;
+  color: #999;
 }
 
 .search-result-name b {
@@ -3771,13 +3786,16 @@ body {
 
 [data-theme="eink"] .search-result-item:hover .search-result-type,
 [data-theme="eink"] .search-result-item:hover .search-result-dist,
+[data-theme="eink"] .search-result-item:hover .search-result-location,
 [data-theme="eink"] .search-result-item.active .search-result-type,
-[data-theme="eink"] .search-result-item.active .search-result-dist {
+[data-theme="eink"] .search-result-item.active .search-result-dist,
+[data-theme="eink"] .search-result-item.active .search-result-location {
   color: #fff;
 }
 
 [data-theme="eink"] .search-result-type,
 [data-theme="eink"] .search-result-dist,
+[data-theme="eink"] .search-result-location,
 [data-theme="eink"] .search-status {
   color: #333;
 }

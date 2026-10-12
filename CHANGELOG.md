@@ -11,6 +11,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/).
 - While editing a route, tap the selected waypoint's name in the editing
   toolbar to rename it. On a phone, where the waypoint list is hidden during
   editing, this is the way to rename.
+- Search results show where each place is, such as "near Coronado, CA", and
+  a common name can be narrowed with a comma and a state, country or nearby
+  town: "long island, maine". A feature drawn on several charts now appears
+  once instead of several times.
 
 ### Fixed
 - The course line keeps its time ticks when zoomed in close. With the line

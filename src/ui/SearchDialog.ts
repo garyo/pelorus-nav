@@ -6,7 +6,11 @@
 import type * as maplibregl from "maplibre-gl";
 import type { SearchEntry } from "../data/search-index";
 import { fitMapToBounds, releaseFollowForReveal } from "../map/fit-bounds";
-import { type SearchResult, searchFeatures } from "../search/feature-search";
+import {
+  parseSearchQuery,
+  type SearchResult,
+  searchFeatures,
+} from "../search/feature-search";
 import { getSettings } from "../settings";
 import { formatLatLon, parseLatLon } from "../utils/coordinates";
 
@@ -207,7 +211,7 @@ export class SearchDialog {
 
   private renderResults(query: string): void {
     this.resultsList.innerHTML = "";
-    const queryLower = query.trim().toLowerCase();
+    const nameQuery = parseSearchQuery(query).name;
 
     // Coordinate result at the top
     if (this.coordResult) {
@@ -250,9 +254,18 @@ export class SearchDialog {
       item.className = "search-result-item";
       if (itemIndex === this.activeIndex) item.classList.add("active");
 
+      const main = document.createElement("span");
+      main.className = "search-result-main";
       const nameSpan = document.createElement("span");
       nameSpan.className = "search-result-name";
-      nameSpan.innerHTML = this.highlightMatch(result.entry.name, queryLower);
+      nameSpan.innerHTML = this.highlightMatch(result.entry.name, nameQuery);
+      main.appendChild(nameSpan);
+      if (result.location) {
+        const locationSpan = document.createElement("span");
+        locationSpan.className = "search-result-location";
+        locationSpan.textContent = result.location;
+        main.appendChild(locationSpan);
+      }
 
       const metaSpan = document.createElement("span");
       metaSpan.className = "search-result-meta";
@@ -269,7 +282,7 @@ export class SearchDialog {
         metaSpan.appendChild(distSpan);
       }
 
-      item.append(nameSpan, metaSpan);
+      item.append(main, metaSpan);
 
       item.addEventListener("mousedown", (e) => {
         e.preventDefault();

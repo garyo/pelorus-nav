@@ -3,10 +3,13 @@
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import shutil
+import subprocess
 import sys
 import time
+from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
@@ -19,6 +22,7 @@ from .coverage import scan_all_cells
 from .download import download_enc_cell
 from .enc_catalog import CatalogCell, CatalogError, load_product_catalog
 from .merge import merge_tiles
+from .places import PlaceLocator, assign_places
 from .progress import PipelineProgress
 from .query import build_index
 from .regions import REGIONS, get_region_build_cells, get_region_cells, query_region
@@ -48,6 +52,23 @@ def _load_catalog(stale_ok: bool) -> dict[str, CatalogCell]:
     except CatalogError as e:
         print(f"Error: {e}")
         sys.exit(1)
+
+
+def _place_locator(warn: Callable[[str], None] = print) -> PlaceLocator | None:
+    """Locator for search-index places, or None when the boundaries can't be
+    loaded: search works without places, so this never fails a build."""
+    try:
+        return PlaceLocator.natural_earth()
+    except (OSError, subprocess.CalledProcessError) as e:
+        warn(f"Search index has no places (boundaries unavailable: {e})")
+        return None
+
+
+def _assign_places(
+    features: list[dict], locator: PlaceLocator | None,
+) -> list[dict] | None:
+    """Tag search-index features with their places; the place table, if any."""
+    return assign_places(features, locator) if locator else None
 
 
 def cmd_list_cells(args: argparse.Namespace) -> None:
@@ -712,7 +733,8 @@ def cmd_pipeline(args: argparse.Namespace) -> None:
     cell_names = [p.stem for p in enc_files]
     progress.info(f"Pass 4: Extracting search index for {len(cell_names)} cells")
     search_features = extract_search_index(Path("data/work"), cell_names)
-    write_search_index(search_features, search_index_path)
+    places = _assign_places(search_features, _place_locator(progress.warning))
+    write_search_index(search_features, search_index_path, places)
     progress.info(
         f"Search index: {len(search_features)} named features → {search_index_path}"
     )
@@ -741,6 +763,15 @@ def cmd_pipeline(args: argparse.Namespace) -> None:
 
 def cmd_search_index(args: argparse.Namespace) -> None:
     """Generate a search index from already-processed GeoJSON files."""
+    if args.annotate:
+        locator = _place_locator()
+        for path in map(Path, args.annotate):
+            with open(path) as f:
+                features = json.load(f)["features"]
+            write_search_index(features, path, _assign_places(features, locator))
+            print(f"Search index: places assigned → {path}")
+        return
+
     work_dir = Path("data/work")
     output_path = Path(args.output)
 
@@ -759,7 +790,7 @@ def cmd_search_index(args: argparse.Namespace) -> None:
 
     print(f"Scanning {len(cell_names)} cells for named features...")
     features = extract_search_index(work_dir, cell_names)
-    write_search_index(features, output_path)
+    write_search_index(features, output_path, _assign_places(features, _place_locator()))
     print(f"Search index: {len(features)} named features → {output_path}")
 
 
@@ -849,6 +880,10 @@ def main() -> None:
     si.add_argument(
         "--output", "-o", default="data/search-index.json",
         help="Output JSON path (default: data/search-index.json)",
+    )
+    si.add_argument(
+        "--annotate", nargs="+", metavar="INDEX",
+        help="Reassign places in existing .search.json files (no work dirs needed)",
     )
     si.set_defaults(func=cmd_search_index)
 

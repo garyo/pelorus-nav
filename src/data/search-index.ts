@@ -8,6 +8,16 @@
 import { CHART_REGIONS, type ChartRegion } from "./chart-catalog";
 import { chartAssetBase } from "./remote-url";
 
+/**
+ * The US state, Canadian province, or other country or territory a feature
+ * lies in (assigned by the tile pipeline from Natural Earth boundaries).
+ */
+export interface Place {
+  label: string; // shown with results: "CA", "PR", "Mexico"
+  codes: string[]; // lower case, matched whole: "ca", "usa"
+  names: string[]; // lower case, matched by prefix: "california"
+}
+
 /** A single named feature from the search index. */
 export interface SearchEntry {
   name: string;
@@ -15,6 +25,7 @@ export interface SearchEntry {
   center: [number, number]; // [lon, lat]
   bbox?: [number, number, number, number]; // [west, south, east, north]
   label?: string; // short label (e.g. buoy number)
+  place?: Place;
 }
 
 /** Raw compact format from the JSON file. */
@@ -24,11 +35,19 @@ interface RawEntry {
   c: [number, number];
   b?: [number, number, number, number];
   l?: string;
+  p?: number; // index into RawIndex.places
+}
+
+interface RawPlace {
+  l: string;
+  c: string[];
+  n: string[];
 }
 
 interface RawIndex {
   version: number;
   features: RawEntry[];
+  places?: RawPlace[];
 }
 
 /** In-memory cache keyed by region ID. */
@@ -39,13 +58,22 @@ function searchIndexFilename(region: ChartRegion): string {
   return region.filename.replace(".pmtiles", ".search.json");
 }
 
-function parseRawEntry(raw: RawEntry): SearchEntry {
+function parsePlace(raw: RawPlace): Place {
+  return {
+    label: raw.l,
+    codes: raw.c.map((c) => c.toLowerCase()),
+    names: raw.n.map((n) => n.toLowerCase()),
+  };
+}
+
+function parseRawEntry(raw: RawEntry, places: Place[]): SearchEntry {
   return {
     name: raw.n,
     type: raw.t,
     center: raw.c,
     bbox: raw.b,
     label: raw.l,
+    place: raw.p === undefined ? undefined : places[raw.p],
   };
 }
 
@@ -70,7 +98,8 @@ export async function loadSearchIndex(
     if (!resp.ok) return [];
     const data: RawIndex = await resp.json();
     if (data.version !== 1 || !Array.isArray(data.features)) return [];
-    const entries = data.features.map(parseRawEntry);
+    const places = (data.places ?? []).map(parsePlace);
+    const entries = data.features.map((raw) => parseRawEntry(raw, places));
     cache.set(regionId, entries);
     return entries;
   } catch {

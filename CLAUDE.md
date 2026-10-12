@@ -184,6 +184,9 @@ and the build also skips any cell whose data carries a cancellation update
 - `cd tools/s57-pipeline && uv run python -m s57_pipeline download --region <region>` — download ENC cells
 - `cd tools/s57-pipeline && uv run python -m s57_pipeline convert -i data/enc/US5MA22M/US5MA22M.000 -o data/tiles/` — convert single cell
 - `cd tools/s57-pipeline && uv run python -m s57_pipeline pipeline --region <region> -o <output.pmtiles>` — run full pipeline
+- `cd tools/s57-pipeline && uv run python -m s57_pipeline search-index --annotate <file.search.json ...>` —
+  reassign each search entry's state/country (`places.py`) in existing indices, without rebuilding.
+  Places come from Natural Earth boundaries, fetched once into `data/naturalearth/`.
 - `cd tools/s57-pipeline && uv run pytest` — run pipeline tests
 
 ## Android / Capacitor

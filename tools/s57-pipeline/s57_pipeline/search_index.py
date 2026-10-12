@@ -191,17 +191,25 @@ def _type_priority() -> dict[str, int]:
     }
 
 
-def write_search_index(features: list[dict], output_path: Path) -> None:
+def write_search_index(
+    features: list[dict],
+    output_path: Path,
+    places: list[dict] | None = None,
+) -> None:
     """Write the search index JSON file.
 
     Args:
         features: List of compact feature dicts from extract_search_index().
         output_path: Path to write the JSON file.
+        places: Place table from places.assign_places(), which the features'
+            ``p`` values index; omitted when None.
     """
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    index = {
+    index: dict = {
         "version": 1,
         "features": features,
     }
+    if places is not None:
+        index["places"] = places
     with open(output_path, "w") as f:
         json.dump(index, f, separators=(",", ":"))  # compact JSON

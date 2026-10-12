@@ -108,9 +108,12 @@ button jumps straight to it in the Routes or Waypoints panel.
 ## Finding places
 
 **FIND** searches the charts by name — harbors, islands, buoys, lights —
-ranked with nearby results first. It works offline (the search index
-downloads with each chart region), and typing coordinates offers a "go to
-coordinates" result instead. Pick a result and the chart flies there.
+ranked with nearby results first. Each result shows where it is, such as
+"near Coronado, CA". To narrow a common name, add a comma and a state,
+country or nearby town: `long island, maine`, `long island, boston`,
+`coronado, ca`. It works offline (the search index downloads with each chart
+region), and typing coordinates offers a "go to coordinates" result
+instead. Pick a result and the chart flies there.
 
 ## The map context menu
 

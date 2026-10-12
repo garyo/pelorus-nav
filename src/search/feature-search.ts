@@ -2,11 +2,14 @@
  * Pure search algorithm for chart feature names.
  *
  * Scores features by text match quality and optional proximity to a
- * reference point, returning ranked results with human-readable type labels.
+ * reference point, returning ranked results with human-readable type labels
+ * and where each one is. A query may end in ", place" to narrow it.
  */
 
 import { LAYER_NAMES } from "../chart/feature-info";
 import type { SearchEntry } from "../data/search-index";
+import { describeLocation, nearestTown, placeMatcher } from "./places";
+import { approxDistanceNM, entriesNear, latSorted } from "./spatial";
 
 export interface SearchResult {
   entry: SearchEntry;
@@ -15,6 +18,8 @@ export interface SearchResult {
   typeLabel: string;
   /** Distance from reference point in nautical miles, if available. */
   distanceNM?: number;
+  /** Where the feature is: "near Coronado, CA". */
+  location?: string;
 }
 
 export interface SearchOptions {
@@ -56,16 +61,10 @@ const TYPE_PRIORITY: Record<string, number> = {
   OBSTRN: 36,
 };
 
-/**
- * Approximate distance in nautical miles between two [lon, lat] points.
- * Uses equirectangular approximation — good enough for ranking.
- */
-function approxDistanceNM(a: [number, number], b: [number, number]): number {
-  const dLat = (b[1] - a[1]) * 60;
-  const dLon =
-    (b[0] - a[0]) * 60 * Math.cos(((a[1] + b[1]) / 2) * (Math.PI / 180));
-  return Math.sqrt(dLat * dLat + dLon * dLon);
-}
+/** Least padding around each piece when matching up duplicates (see `reach`). */
+const DUPLICATE_GAP_NM = 0.1;
+
+type BBox = [number, number, number, number];
 
 function isInBounds(
   point: [number, number],
@@ -80,6 +79,9 @@ function isInBounds(
   );
 }
 
+/** Characters that separate words in feature names. */
+const WORD_BREAKS = " \t-/,";
+
 /**
  * Score a feature name against a query string.
  * Returns [score, matchType] or null if no match.
@@ -88,18 +90,125 @@ function scoreText(
   nameLower: string,
   queryLower: string,
 ): [number, SearchResult["matchType"]] | null {
-  if (nameLower === queryLower) return [100, "exact"];
-  if (nameLower.startsWith(queryLower)) return [80, "prefix"];
-
-  // Word-boundary prefix: any word in the name starts with the query
-  const words = nameLower.split(/[\s\-/,]+/);
-  for (const word of words) {
-    if (word.startsWith(queryLower)) return [60, "word-prefix"];
+  const at = nameLower.indexOf(queryLower);
+  if (at < 0) return null;
+  if (at === 0) {
+    return nameLower === queryLower ? [100, "exact"] : [80, "prefix"];
   }
+  // Word-boundary prefix: the query starts a word somewhere in the name
+  for (let i = at; i >= 0; i = nameLower.indexOf(queryLower, i + 1)) {
+    if (WORD_BREAKS.includes(nameLower[i - 1])) return [60, "word-prefix"];
+  }
+  return [40, "substring"];
+}
 
-  if (nameLower.includes(queryLower)) return [40, "substring"];
+/** A query split at its last comma: "coronado, ca" → "coronado" + "ca". */
+export interface ParsedQuery {
+  /** Lower-case name part. */
+  name: string;
+  /** Lower-case place part, if any. */
+  where?: string;
+}
 
-  return null;
+export function parseSearchQuery(query: string): ParsedQuery {
+  const lower = query.trim().toLowerCase();
+  const comma = lower.lastIndexOf(",");
+  if (comma < 0) return { name: lower };
+  const name = lower.slice(0, comma).trim();
+  const where = lower.slice(comma + 1).trim();
+  return where ? { name, where } : { name };
+}
+
+/**
+ * An entry's extent grown by a quarter of its size, and at least
+ * DUPLICATE_GAP_NM. Same-named pieces whose reaches overlap are one feature
+ * split across chart cells, or drawn again at another scale.
+ */
+function reach(entry: SearchEntry): BBox {
+  const [lon, lat] = entry.center;
+  const [w, s, e, n] = entry.bbox ?? [lon, lat, lon, lat];
+  const cosLat = Math.max(0.05, Math.cos((lat * Math.PI) / 180));
+  const sizeNM = Math.max((n - s) * 60, (e - w) * 60 * cosLat);
+  const padLat = Math.max(DUPLICATE_GAP_NM, sizeNM / 4) / 60;
+  const padLon = padLat / cosLat;
+  return [w - padLon, s - padLat, e + padLon, n + padLat];
+}
+
+function overlaps(a: BBox, b: BBox): boolean {
+  return a[0] <= b[2] && b[0] <= a[2] && a[1] <= b[3] && b[1] <= a[3];
+}
+
+/** A search result with its duplicate key: type plus lower-case name. */
+interface Candidate {
+  result: SearchResult;
+  key: string;
+}
+
+/**
+ * Keep the best-ranked piece of each feature: drop results with the same
+ * name and type as a better-ranked one whose reach overlaps theirs, directly
+ * or through other such pieces.
+ */
+function collapseDuplicates(ranked: Candidate[]): SearchResult[] {
+  interface Group {
+    lead: SearchResult;
+    reaches: BBox[];
+  }
+  // Most names occur once, and need no geometry.
+  const counts = new Map<string, number>();
+  for (const { key } of ranked) counts.set(key, (counts.get(key) ?? 0) + 1);
+
+  const groupsByKey = new Map<string, Group[]>();
+  const dropped = new Set<SearchResult>();
+  for (const { result, key } of ranked) {
+    if (counts.get(key) === 1) continue;
+    const r = reach(result.entry);
+    let groups = groupsByKey.get(key);
+    if (!groups) {
+      groups = [];
+      groupsByKey.set(key, groups);
+    }
+    const touching = groups.filter((g) =>
+      g.reaches.some((b) => overlaps(b, r)),
+    );
+    if (touching.length === 0) {
+      groups.push({ lead: result, reaches: [r] });
+      continue;
+    }
+    // Groups are in rank order, so the first touching one has the best lead.
+    const [first, ...rest] = touching;
+    first.reaches.push(r);
+    dropped.add(result);
+    for (const g of rest) {
+      first.reaches.push(...g.reaches);
+      dropped.add(g.lead);
+      groups.splice(groups.indexOf(g), 1);
+    }
+  }
+  return ranked.filter((c) => !dropped.has(c.result)).map((c) => c.result);
+}
+
+const lowerNamesCache = new WeakMap<SearchEntry[], string[]>();
+
+/** Lower-case names of `entries`, by index, computed once per array. */
+function lowerNames(entries: SearchEntry[]): string[] {
+  let names = lowerNamesCache.get(entries);
+  if (!names) {
+    names = entries.map((e) => e.name.toLowerCase());
+    lowerNamesCache.set(entries, names);
+  }
+  return names;
+}
+
+function compareResults(a: SearchResult, b: SearchResult): number {
+  // Score desc, then type priority asc, then nearest, then name asc
+  if (b.score !== a.score) return b.score - a.score;
+  const aPri = TYPE_PRIORITY[a.entry.type] ?? 50;
+  const bPri = TYPE_PRIORITY[b.entry.type] ?? 50;
+  if (aPri !== bPri) return aPri - bPri;
+  const dist = (a.distanceNM ?? 0) - (b.distanceNM ?? 0);
+  if (dist !== 0) return dist;
+  return a.entry.name.localeCompare(b.entry.name);
 }
 
 /**
@@ -119,15 +228,24 @@ export function searchFeatures(
   if (trimmed.length < 2) return [];
 
   const queryLower = trimmed.toLowerCase();
+  const { name, where } = parseSearchQuery(trimmed);
   const limit = options?.limit ?? 15;
   const refPoint = options?.referencePoint;
   const viewport = options?.viewportBounds;
 
-  const results: SearchResult[] = [];
+  const names = lowerNames(entries);
+  const inPlace = where ? placeMatcher(where, entries) : undefined;
+  const candidates: Candidate[] = [];
 
-  for (const entry of entries) {
-    const nameLower = entry.name.toLowerCase();
-    const textResult = scoreText(nameLower, queryLower);
+  for (let i = 0; i < entries.length; i++) {
+    const entry = entries[i];
+    const nameLower = names[i];
+    // The whole query first, for the few names that contain a comma.
+    let textResult = scoreText(nameLower, queryLower);
+    if (!textResult && inPlace && name.length >= 2) {
+      textResult = scoreText(nameLower, name);
+      if (textResult && !inPlace(entry)) textResult = null;
+    }
     if (!textResult) continue;
 
     let [score, matchType] = textResult;
@@ -143,25 +261,27 @@ export function searchFeatures(
       score += 10;
     }
 
-    results.push({
-      entry,
-      score,
-      matchType,
-      typeLabel: LAYER_NAMES[entry.type] ?? entry.type,
-      distanceNM,
+    candidates.push({
+      result: {
+        entry,
+        score,
+        matchType,
+        typeLabel: LAYER_NAMES[entry.type] ?? entry.type,
+        distanceNM,
+      },
+      key: `${entry.type}|${nameLower}`,
     });
   }
 
-  // Sort: score desc, then type priority asc, then name asc
-  results.sort((a, b) => {
-    if (b.score !== a.score) return b.score - a.score;
-    const aPri = TYPE_PRIORITY[a.entry.type] ?? 50;
-    const bPri = TYPE_PRIORITY[b.entry.type] ?? 50;
-    if (aPri !== bPri) return aPri - bPri;
-    return a.entry.name.localeCompare(b.entry.name);
-  });
-
-  return results.slice(0, limit);
+  candidates.sort((a, b) => compareResults(a.result, b.result));
+  const top = collapseDuplicates(candidates).slice(0, limit);
+  for (const result of top) {
+    result.location = describeLocation(
+      result.entry,
+      nearestTown(result.entry, entries),
+    );
+  }
+  return top;
 }
 
 /**
@@ -196,35 +316,6 @@ function effectiveDistanceNM(e: SearchEntry, ref: [number, number]): number {
  *   enclosing area, which is what you want for a waypoint name.
  * - Ties within 30 m fall back to TYPE_PRIORITY.
  */
-/**
- * Lat-sorted copies of entry arrays, built once per array identity so
- * nearest-feature lookups can binary-search a narrow latitude band instead
- * of scanning the whole merged all-region index (hundreds of thousands of
- * entries) on every waypoint placement.
- */
-const latSortedCache = new WeakMap<SearchEntry[], SearchEntry[]>();
-
-function latSorted(entries: SearchEntry[]): SearchEntry[] {
-  let sorted = latSortedCache.get(entries);
-  if (!sorted) {
-    sorted = [...entries].sort((a, b) => a.center[1] - b.center[1]);
-    latSortedCache.set(entries, sorted);
-  }
-  return sorted;
-}
-
-/** First index in lat-sorted `entries` with center lat >= `lat`. */
-function lowerBoundByLat(entries: SearchEntry[], lat: number): number {
-  let lo = 0;
-  let hi = entries.length;
-  while (lo < hi) {
-    const mid = (lo + hi) >> 1;
-    if (entries[mid].center[1] < lat) lo = mid + 1;
-    else hi = mid;
-  }
-  return lo;
-}
-
 export function findNearestNamedFeature(
   lon: number,
   lat: number,
@@ -233,22 +324,14 @@ export function findNearestNamedFeature(
 ): SearchEntry | null {
   const ref: [number, number] = [lon, lat];
   const maxNM = maxMeters / METERS_PER_NM;
-  // Candidate window: any entry that can score within maxNM must have its
-  // center within maxNM of the point (an area only wins when the point is
-  // inside a bbox whose half-diagonal — and hence center — is within
-  // maxNM), so restricting to a lat band + lon check is exact up to the
-  // slack factor.
-  const maxDegLat = (maxNM / 60) * 1.05;
-  const maxDegLon = maxDegLat / Math.max(0.05, Math.cos((lat * Math.PI) / 180));
-  const sorted = latSorted(entries);
-  const end = lowerBoundByLat(sorted, lat + maxDegLat);
   let best: SearchEntry | null = null;
   let bestDist = Number.POSITIVE_INFINITY;
   let bestPri = Number.POSITIVE_INFINITY;
-  for (let i = lowerBoundByLat(sorted, lat - maxDegLat); i < end; i++) {
-    const e = sorted[i];
+  // Any entry that can score within maxNM has its center within maxNM of the
+  // point (an area only wins when the point is inside a bbox whose
+  // half-diagonal — and hence center — is within maxNM).
+  for (const e of entriesNear(latSorted(entries), ref, maxNM)) {
     if (!e.name || e.name.length === 0) continue;
-    if (Math.abs(e.center[0] - lon) > maxDegLon) continue;
     const d = effectiveDistanceNM(e, ref);
     if (d > maxNM) continue;
     const pri = TYPE_PRIORITY[e.type] ?? 50;
