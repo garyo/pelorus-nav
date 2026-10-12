@@ -1,6 +1,7 @@
 /**
  * Navigation HUD: displays cursor position, zoom, COG/SOG, and GPS source.
- * Compact overlay at bottom-left of the map.
+ * Compact overlay at bottom-right of the map; collapsed, a single "▲ z12.0"
+ * line level with the chart-in-use readout.
  */
 
 import type * as maplibregl from "maplibre-gl";
@@ -119,6 +120,7 @@ export class NavigationHUD {
       /* ignore */
     }
     const applyCollapsed = () => {
+      this.container.classList.toggle("collapsed", hudCollapsed);
       toggleBtn.textContent = hudCollapsed ? "\u25B2" : "\u25BC";
       cursorSpan.style.display = hudCollapsed ? "none" : "";
       this.cogSogLine.style.display = hudCollapsed ? "none" : "";
@@ -144,7 +146,7 @@ export class NavigationHUD {
     this.thermalBadge.className = "nav-hud-thermal";
     this.thermalBadge.textContent = "\u{1F321}️"; // thermometer
     this.thermalBadge.style.display = "none";
-    this.cursorLine.append(cursorSpan, zoomSpan, this.thermalBadge);
+    this.cursorLine.append(toggleBtn, cursorSpan, zoomSpan, this.thermalBadge);
 
     this.cogSogLine = document.createElement("div");
     this.cogSogLine.textContent = "COG --  SOG --";
@@ -159,12 +161,7 @@ export class NavigationHUD {
     this.gpsAgeSpan = document.createElement("span");
     this.gpsLine.append(this.gpsPosSpan, this.gpsSourceSpan, this.gpsAgeSpan);
 
-    this.container.append(
-      toggleBtn,
-      this.cursorLine,
-      this.cogSogLine,
-      this.gpsLine,
-    );
+    this.container.append(this.cursorLine, this.cogSogLine, this.gpsLine);
     document.body.appendChild(this.container);
 
     // Apply the initial collapsed state now that all elements exist.

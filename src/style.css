@@ -803,18 +803,24 @@ body {
   background: #000;
 }
 
+/* Bottom-right, level with the chart-in-use readout (ChartInUseReadout.ts),
+   and collapsed to the same one-line height. */
 .nav-hud {
   position: fixed;
-  bottom: calc(40px + var(--safe-bottom));
+  bottom: calc(8px + var(--safe-bottom));
   right: calc(10px + var(--safe-right));
   background: rgba(0, 0, 0, 0.7);
   color: #fff;
-  padding: 4px 8px;
-  font: 12px monospace;
+  padding: 3px 8px;
+  font: 11px monospace;
   z-index: 9999;
   border-radius: 4px;
-  line-height: 1.6;
+  line-height: 1.5;
   cursor: pointer;
+}
+
+.nav-hud.collapsed {
+  line-height: 1.2;
 }
 
 .nav-hud-thermal {
@@ -4284,19 +4290,23 @@ body {
   background-size: 28px 28px;
 }
 
-/* Nav HUD collapse toggle */
+/* Nav HUD collapse toggle: a small triangle leading the first line */
 .nav-hud-toggle {
-  display: inline-block;
+  position: relative;
   background: none;
   border: none;
   color: inherit;
-  font-size: 12px;
+  font: inherit;
   cursor: pointer;
-  padding: 4px 8px;
-  min-width: 30px;
-  min-height: 30px;
-  line-height: 1;
-  float: right;
+  padding: 0;
+  margin-right: 6px;
+}
+
+/* A finger-sized hit area around the triangle. */
+.nav-hud-toggle::after {
+  content: "";
+  position: absolute;
+  inset: -10px -8px;
 }
 
 /* ── Collapsed top bar ───────────────────────────────────────────────
@@ -4392,13 +4402,6 @@ body {
     border-radius: 0;
     max-height: calc(100vh - var(--topbar-bottom) - var(--safe-bottom));
     overflow-y: auto;
-  }
-
-  /* Nav HUD: smaller, show toggle */
-  .nav-hud {
-    font-size: 11px;
-    bottom: calc(10px + var(--safe-bottom));
-    right: calc(6px + var(--safe-right));
   }
 }
 

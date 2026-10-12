@@ -16,6 +16,11 @@ The format follows [Keep a Changelog](https://keepachangelog.com/).
   town: "long island, maine". A feature drawn on several charts now appears
   once instead of several times.
 
+### Changed
+- The zoom and GPS status box in the bottom-right corner closes to a single
+  small line, level with the chart readout at the bottom, so it no longer
+  covers info popups on small phones. Tap ▲ to open it as before.
+
 ### Fixed
 - The course line keeps its time ticks when zoomed in close. With the line
   length on Auto, it used to stretch past the screen edge without ticks.
