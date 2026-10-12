@@ -17,6 +17,7 @@ from s57_pipeline.state import (
     is_cell_dirty,
     is_config_stale,
     is_region_dirty,
+    region_build_lag,
     region_needs_build,
 )
 
@@ -230,6 +231,45 @@ class TestRegionNeedsBuild:
     def test_never_composited(self, db: StateDB) -> None:
         db.set_enc_version("A", 1, 0)
         assert region_needs_build("r", db, ["A"]) is True
+
+
+class TestRegionBuildLag:
+    @pytest.fixture
+    def built(self, db: StateDB) -> StateDB:
+        """Region "r" composited from A at 1.0 and B at 2.0."""
+        db.set_enc_version("A", 1, 0)
+        db.set_enc_version("B", 2, 0)
+        db.set_region_cell_snapshot("r", {"A": ("1.0", "h"), "B": ("2.0", "h")})
+        return db
+
+    def test_up_to_date(self, built: StateDB) -> None:
+        assert region_build_lag("r", built, ["A", "B"]) is None
+
+    def test_reports_cells_downloaded_but_not_built(self, built: StateDB) -> None:
+        built.set_enc_version("B", 2, 1)
+        assert region_build_lag("r", built, ["A", "B"]) == (
+            "catching up with B, downloaded in an earlier run"
+        )
+
+    def test_lists_at_most_three_cells(self, built: StateDB) -> None:
+        for cell in "CDEFG":
+            built.set_enc_version(cell, 1, 0)
+        assert region_build_lag("r", built, ["A", "B", *"GFEDC"]) == (
+            "catching up with C, D, E and 2 more, downloaded in an earlier run"
+        )
+
+    def test_reports_dropped_cells(self, built: StateDB) -> None:
+        assert region_build_lag("r", built, ["A"]) == "dropping B"
+
+    def test_reports_failed_builds(self, built: StateDB) -> None:
+        built.set_build_state("B", "2.0", "h", 0, False)
+        assert region_build_lag("r", built, ["A", "B"]) == (
+            "retrying failed build of B"
+        )
+
+    def test_reports_never_built(self, db: StateDB) -> None:
+        db.set_enc_version("A", 1, 0)
+        assert region_build_lag("r", db, ["A"]) == "never built"
 
 
 class TestConfigHash:

@@ -25,6 +25,8 @@
 #   --basemap-min-age DAYS
 #                     With --update, rebuild an existing basemap only once it is
 #                     at least this old (default: 30); --force ignores the age
+#   --summary FILE    Write a few lines on what the run did to FILE: cells
+#                     changed, regions rebuilt and why, timings, failures
 
 set -euo pipefail
 
@@ -79,6 +81,7 @@ ZOOM_SHIFT=""
 # The Protomaps source differs daily, so every basemap rebuild is a new
 # multi-hundred-MB download for app users; --update refreshes them this rarely.
 BASEMAP_MIN_AGE_DAYS=30
+SUMMARY_FILE=""
 REGIONS=()
 
 while [[ $# -gt 0 ]]; do
@@ -95,6 +98,7 @@ while [[ $# -gt 0 ]]; do
     --east-coast)     EAST_COAST=true ;;
     --zoom-shift) shift; ZOOM_SHIFT="$1" ;;
     --basemap-min-age) shift; BASEMAP_MIN_AGE_DAYS="$1" ;;
+    --summary)    shift; SUMMARY_FILE="$(cd "$(dirname "$1")" && pwd)/$(basename "$1")" ;;
     --region)     shift; REGIONS+=("$1") ;;
     --help|-h)
       awk 'NR==1{next} /^$/{exit} {sub(/^# ?/,""); print}' "$0"
@@ -130,6 +134,13 @@ format_elapsed() {
   printf "%dm%02ds" $((secs / 60)) $((secs % 60))
 }
 
+# Append a line to the --summary file, if any.
+summarize() {
+  if [[ -n "$SUMMARY_FILE" ]]; then
+    echo "$*" >> "$SUMMARY_FILE"
+  fi
+}
+
 # True if $1 is present in the remaining args. Used to decide whether a region
 # was (re)built this run. Safe with an empty list.
 _in_list() {
@@ -161,25 +172,38 @@ do_check() {
   json_output=$(cd "$PIPELINE_DIR" && uv run python "$SCRIPT_DIR/check-enc-updates.py" \
     "${region_args[@]}" --json)
 
-  # Parse JSON output for changed regions
-  CHANGED_REGIONS=()
-  while IFS= read -r region; do
-    [[ -n "$region" ]] && CHANGED_REGIONS+=("$region")
-  done < <(echo "$json_output" | python3 -c "
+  # The totals, then each changed region with why it changed
+  local parsed
+  parsed=$(echo "$json_output" | python3 -c '
 import sys, json
 data = json.load(sys.stdin)
-for r in data.get('changed_regions', []):
-    print(r)
-")
+print(data.get("total_checked", 0), data.get("total_changed", 0))
+reasons = data.get("reasons", {})
+for r in data.get("changed_regions", []):
+    print(r + "\t" + reasons.get(r, ""))
+')
 
-  local total_checked total_changed
-  total_checked=$(echo "$json_output" | python3 -c "import sys,json; print(json.load(sys.stdin).get('total_checked',0))")
-  total_changed=$(echo "$json_output" | python3 -c "import sys,json; print(json.load(sys.stdin).get('total_changed',0))")
+  CHANGED_REGIONS=()
+  local total_checked total_changed region reason reasons=()
+  {
+    read -r total_checked total_changed
+    while IFS=$'\t' read -r region reason; do
+      if [[ -n "$region" ]]; then
+        CHANGED_REGIONS+=("$region")
+        reasons+=("$region: $reason")
+      fi
+    done
+  } <<< "$parsed"
 
   echo "Checked $total_checked cells: $total_changed changed"
+  summarize "NOAA: $total_changed of $total_checked cells changed"
 
   if [[ ${#CHANGED_REGIONS[@]} -gt 0 ]]; then
     echo "Regions to update: ${CHANGED_REGIONS[*]}"
+    for reason in "${reasons[@]}"; do
+      echo "  $reason"
+      summarize "$reason"
+    done
   else
     echo "All regions up to date."
   fi
@@ -237,9 +261,10 @@ do_build() {
   local elapsed=$((SECONDS - start))
   local size="(not found)"
   if [[ -f "$output" ]]; then
-    size=$(du -h "$output" | cut -f1)
+    size=$(du -h "$output" | awk '{print $1}')
   fi
   echo "Build $region: $(format_elapsed $elapsed), output: $size"
+  summarize "Built $region in $(format_elapsed $elapsed) ($size)"
 }
 
 do_basemap() {
@@ -251,6 +276,7 @@ do_basemap() {
   uv run "$SCRIPT_DIR/basemap/build-basemap.py" --region "$region" || return 1
   local elapsed=$((SECONDS - start))
   echo "Basemap $region: $(format_elapsed $elapsed)"
+  summarize "Built basemap $region in $(format_elapsed $elapsed)"
 }
 
 # Upload a single file to R2, honouring the stamp-based skip (unless --force).
@@ -333,22 +359,40 @@ unify_coverage() {
 # region is rebuilt only once a download brings new data. The failed cells are
 # logged on one "!!!" line.
 narrow_to_pending_builds() {
-  local region_args=() region pending
+  local region_args=() region pending failed line skipped=()
   for region in "${BUILD_REGIONS[@]}"; do
     region_args+=(--region "$region")
   done
+  failed=$(mktemp)
   pending=$(cd "$PIPELINE_DIR" && uv run python "$SCRIPT_DIR/check-enc-updates.py" \
-    "${region_args[@]}" --pending-builds)
+    "${region_args[@]}" --pending-builds 2> "$failed")
+  cat "$failed" >&2
+  while IFS= read -r line; do
+    if [[ "$line" == '!!!'* ]]; then
+      summarize "$line"
+    fi
+  done < "$failed"
+  rm -f "$failed"
+  local flagged=("${BUILD_REGIONS[@]}")
   BUILD_REGIONS=()
   while IFS= read -r region; do
     [[ -n "$region" ]] && BUILD_REGIONS+=("$region")
   done <<< "$pending"
+  for region in "${flagged[@]}"; do
+    _in_list "$region" ${BUILD_REGIONS[@]+"${BUILD_REGIONS[@]}"} || skipped+=("$region")
+  done
   echo "Regions with new data to build: ${BUILD_REGIONS[*]:-(none)}"
+  if [[ ${#skipped[@]} -gt 0 ]]; then
+    summarize "Not rebuilt, nothing new downloaded: ${skipped[*]}"
+  fi
 }
 
 # --- Main ---
 
 TOTAL_START=$SECONDS
+if [[ -n "$SUMMARY_FILE" ]]; then
+  : > "$SUMMARY_FILE"
+fi
 
 # Step 1: Check (if requested)
 if $OP_CHECK; then
@@ -382,6 +426,7 @@ fi
 if $OP_BUILD; then
   if [[ ${#BUILD_REGIONS[@]} -eq 0 ]]; then
     echo "No regions to build (all up to date)."
+    summarize "Nothing to rebuild"
   else
     echo "=== Building tiles ==="
     for region in "${BUILD_REGIONS[@]}"; do
@@ -436,6 +481,7 @@ if $OP_BASEMAP; then
       fi
     else
       echo "!!! Basemap $region failed — continuing"
+      summarize "!!! Basemap $region failed"
     fi
     echo ""
   done
@@ -457,3 +503,4 @@ fi
 # Total timing
 TOTAL_ELAPSED=$((SECONDS - TOTAL_START))
 echo "=== Total time: $(format_elapsed $TOTAL_ELAPSED) ==="
+summarize "Total $(format_elapsed $TOTAL_ELAPSED)"

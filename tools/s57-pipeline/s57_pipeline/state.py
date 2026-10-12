@@ -420,14 +420,21 @@ def is_region_dirty(
     return False
 
 
-def region_needs_build(
+def _cell_list(cells: Iterable[str], limit: int = 3) -> str:
+    """Sorted cell names, at most ``limit`` of them: "A, B, C and 4 more"."""
+    names = sorted(cells)
+    shown = ", ".join(names[:limit])
+    return f"{shown} and {len(names) - limit} more" if len(names) > limit else shown
+
+
+def region_build_lag(
     region_name: str, db: StateDB, region_cells: Iterable[str]
-) -> bool:
-    """Check whether a region's tiles lag its ENC cells and downloaded data.
+) -> str | None:
+    """Why a region's tiles lag its ENC cells and downloaded data, or None.
 
     ``region_cells`` are the cells the region's build draws on
-    (regions.get_region_build_cells). True when one of them last failed to
-    build, when the region's last composite snapshot includes a cell no
+    (regions.get_region_build_cells). Tiles lag when one of them last failed
+    to build, when the region's last composite snapshot includes a cell no
     longer among them (e.g. one NOAA cancelled), or when a cell with a
     recorded version (set when a download succeeds) is missing from the
     snapshot or was composited at another version. Cells without a recorded
@@ -436,18 +443,32 @@ def region_needs_build(
     considered.
     """
     cells = set(region_cells)
-    if cells & db.failed_build_cells():
-        return True
+    failed = cells & db.failed_build_cells()
+    if failed:
+        return f"retrying failed build of {_cell_list(failed)}"
     snapshot = db.get_region_cell_snapshot(region_name)
-    if snapshot.keys() - cells:
-        return True
+    dropped = snapshot.keys() - cells
+    if dropped:
+        return f"dropping {_cell_list(dropped)}"
     recorded = db.get_all_enc_versions()
-    for cell_name in cells:
-        version = recorded.get(cell_name)
-        snap = snapshot.get(cell_name)
-        if version is not None and (snap is None or snap[0] != version):
-            return True
-    return False
+    unbuilt = {
+        c
+        for c in cells
+        if (v := recorded.get(c)) is not None
+        and ((snap := snapshot.get(c)) is None or snap[0] != v)
+    }
+    if not unbuilt:
+        return None
+    if not snapshot:
+        return "never built"
+    return f"catching up with {_cell_list(unbuilt)}, downloaded in an earlier run"
+
+
+def region_needs_build(
+    region_name: str, db: StateDB, region_cells: Iterable[str]
+) -> bool:
+    """Whether a region's tiles lag its ENC cells (see region_build_lag)."""
+    return region_build_lag(region_name, db, region_cells) is not None
 
 
 # ── Config hash ──────────────────────────────────────────────────────────

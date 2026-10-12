@@ -27,7 +27,7 @@ A cell's version is recorded only when the pipeline's download step fetches
 it, so a cell that fails to download stays changed and is retried on the
 next run. A region is also reported as changed while its tiles lag its
 downloaded data or its cell list, or one of its cells failed to build (see
-state.region_needs_build), so a build interrupted after its download is
+state.region_build_lag), so a build interrupted after its download is
 finished on the next run.
 
 --pending-builds, run by build-tiles.sh after downloading, prints the
@@ -72,7 +72,7 @@ from s57_pipeline.regions import (  # noqa: E402
     get_region_build_cells,
     get_region_cells,
 )
-from s57_pipeline.state import StateDB, region_needs_build  # noqa: E402
+from s57_pipeline.state import StateDB, region_build_lag  # noqa: E402
 
 DATA_DIR = PIPELINE_DIR / "data"
 CATALOG_CACHE = DATA_DIR / "ENCProdCat.xml"
@@ -92,8 +92,11 @@ def _load_catalog(max_age_s: float) -> dict[str, CatalogCell]:
         sys.exit(1)
 
 
-def _unbuilt_regions(build_cells: dict[str, list[str]], db: StateDB) -> list[str]:
-    return [r for r, cl in build_cells.items() if region_needs_build(r, db, cl)]
+def _build_lags(build_cells: dict[str, list[str]], db: StateDB) -> dict[str, str]:
+    """Why each lagging region's tiles lag its data (see region_build_lag)."""
+    return {
+        r: lag for r, cl in build_cells.items() if (lag := region_build_lag(r, db, cl))
+    }
 
 
 def pending_builds(
@@ -101,7 +104,7 @@ def pending_builds(
 ) -> None:
     with _open_db() as db:
         recorded = db.get_all_enc_versions()
-        pending = _unbuilt_regions(build_cells, db)
+        pending = _build_lags(build_cells, db)
     behind = [
         c for c in cells if classify_cell(recorded.get(c), catalog.get(c)) in BEHIND
     ]
@@ -145,7 +148,7 @@ def check(
     with _open_db() as db:
         recorded = db.get_all_enc_versions()
         legacy = db.legacy_noaa_state()
-        unbuilt = _unbuilt_regions(build_cells, db)
+        lags = _build_lags(build_cells, db)
         dropped = {
             r: sorted(db.get_region_cell_snapshot(r).keys() - set(cl))
             for r, cl in build_cells.items()
@@ -155,10 +158,16 @@ def check(
     behind = {c for c in cells if status[c] in BEHIND}
 
     changed_regions: list[str] = []
+    reasons: dict[str, str] = {}
     for region_name, region_cell_list in region_cells.items():
         counts = Counter(status[c] for c in region_cell_list)
-        if region_name in unbuilt or any(c in behind for c in region_cell_list):
+        updated = sum(1 for c in region_cell_list if c in behind)
+        why = [f"{updated} cell{'s' * (updated != 1)} updated"] if updated else []
+        if region_name in lags:
+            why.append(lags[region_name])
+        if why:
             changed_regions.append(region_name)
+            reasons[region_name] = "; ".join(why)
         if not report:
             continue
         for c in region_cell_list:
@@ -182,10 +191,8 @@ def check(
                 f"  {len(dropped[region_name])} cells dropped since the last build: "
                 f"{', '.join(dropped[region_name])}"
             )
-        if region_name in unbuilt:
-            print(
-                "  (tiles lag the cell list or downloaded data, or a cell build failed)"
-            )
+        if region_name in lags:
+            print(f"  (tiles lag: {lags[region_name]})")
 
     unseeded = sum(1 for c in cells if status[c] == CellStatus.NEW and c in legacy)
     if unseeded:
@@ -201,6 +208,7 @@ def check(
             json.dumps(
                 {
                     "changed_regions": changed_regions,
+                    "reasons": reasons,
                     "total_checked": len(cells),
                     "total_changed": len(behind),
                 }

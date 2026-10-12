@@ -158,6 +158,8 @@ All tile workflows go through `tools/build-tiles.sh` (run `--help` for full usag
 - `bun run tiles:update` — full unattended cycle (check → download → build → upload).
   It rebuilds a changed region's basemap only once that basemap is 30+ days old
   (`--basemap-min-age DAYS`), since each rebuild means a large re-download for users.
+  The nightly runs it via `tools/tiles-update-cron.sh`, which pushes the run's
+  `--summary` (cells changed, regions rebuilt and why, timings, failures) to ntfy.
 - `tools/build-tiles.sh --build --region <name>` — build a single region
   - Regions (see `tools/regions.json`, the shared source of truth): `boston-test`,
     `northern-new-england`, `southern-new-england`, `new-york`, `mid-atlantic`,
