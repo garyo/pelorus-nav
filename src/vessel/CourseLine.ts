@@ -12,7 +12,7 @@ import {
   onSettingsChange,
 } from "../settings";
 import { projectPoint } from "../utils/coordinates";
-import { autoAheadPx } from "./course-line-auto";
+import { autoAheadPx, rayToEdgePx } from "./course-line-auto";
 
 const SOURCE_ID = "_course-line";
 const LAYER_ID = "_course-line-layer";
@@ -71,15 +71,21 @@ const AUTO_BUCKETS: { duration: number; tick: number }[] = [
 /**
  * Pick the auto bucket whose duration is closest to the target on a
  * log scale — feels right because [2, 5] is a bigger relative jump
- * than [10, 25].
+ * than [10, 25]. Rounding up can lengthen the line by as much as the
+ * bucket ratio's square root, so buckets longer than `maxMin` (the
+ * room left before the screen edge) are skipped.
  */
-export function selectAutoBucket(targetMin: number): {
+export function selectAutoBucket(
+  targetMin: number,
+  maxMin = Number.POSITIVE_INFINITY,
+): {
   duration: number;
   tick: number;
 } {
   const t = Math.log(Math.max(targetMin, AUTO_BUCKETS[0].duration / 2));
   let best = AUTO_BUCKETS[0];
   for (const b of AUTO_BUCKETS) {
+    if (b.duration > maxMin) break;
     if (
       Math.abs(Math.log(b.duration) - t) < Math.abs(Math.log(best.duration) - t)
     ) {
@@ -291,11 +297,8 @@ export class CourseLine {
         height: container.clientHeight,
       };
       const vesselPx = this.map.project([vesselLon, vesselLat]);
-      const toEdgePx = autoAheadPx(
-        vesselPx,
-        cog - this.map.getBearing(),
-        viewport,
-      );
+      const screenHeading = cog - this.map.getBearing();
+      const toEdgePx = autoAheadPx(vesselPx, screenHeading, viewport);
       let aheadPx = toEdgePx;
       if (getSettings().chartMode !== "free") {
         // Midpoint at the canvas centre: 2 × distance(vessel → centre),
@@ -309,9 +312,15 @@ export class CourseLine {
           toEdgePx,
         );
       }
-      const targetNM = scale > 0 ? aheadPx / scale : 1;
-      const targetMin = (targetNM / Math.max(sog, 0.5)) * 60;
-      const bucket = selectAutoBucket(targetMin);
+      // The bucket may round the line up, but not past the screen edge (or
+      // the minimum length autoAheadPx allows when the edge is close).
+      const limitPx = Math.max(
+        rayToEdgePx(vesselPx, screenHeading, viewport),
+        aheadPx,
+      );
+      const pxToMin = (px: number) =>
+        ((scale > 0 ? px / scale : 1) / Math.max(sog, 0.5)) * 60;
+      const bucket = selectAutoBucket(pxToMin(aheadPx), pxToMin(limitPx));
       return { durationMin: bucket.duration, tickMin: bucket.tick };
     }
     return {

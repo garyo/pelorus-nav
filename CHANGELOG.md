@@ -8,9 +8,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/).
 ## [Unreleased]
 
 ### Fixed
-- In Course Up, the course line's automatic length now fits the screen on
-  every heading. Heading roughly east or west, it could run hours ahead, far
-  off screen, with only its first time tick visible.
+- The course line's automatic length now always ends on screen. In Course
+  Up heading roughly east or west, it could run hours ahead with only its
+  first time tick visible, and after zooming it could overshoot the edge of
+  the screen.
 
 ## [1.0.0] - 2026-10-12
 

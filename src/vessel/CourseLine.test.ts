@@ -98,6 +98,17 @@ describe("selectAutoBucket", () => {
     expect(selectAutoBucket(300).duration).toBe(240);
     expect(selectAutoBucket(1000).duration).toBe(480); // capped at 8 h
   });
+
+  it("never rounds up past the room to the screen edge", () => {
+    // 7.7 min is log-nearest to 10, but only 9.6 min fit before the edge.
+    expect(selectAutoBucket(7.7).duration).toBe(10);
+    expect(selectAutoBucket(7.7, 9.6).duration).toBe(5);
+    expect(selectAutoBucket(7.7, 10).duration).toBe(10);
+  });
+
+  it("falls back to the shortest bucket when none fits", () => {
+    expect(selectAutoBucket(0.3, 0.1).duration).toBe(0.5);
+  });
 });
 
 describe("courseLineLength", () => {
