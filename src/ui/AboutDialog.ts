@@ -30,7 +30,12 @@ const CREDITS: { name: string; url: string; desc: string }[] = [
   {
     name: "OpenStreetMap",
     url: "https://www.openstreetmap.org",
-    desc: "Land & road map data",
+    desc: "Land & road map data © OpenStreetMap contributors (ODbL)",
+  },
+  {
+    name: "Open-Meteo",
+    url: "https://open-meteo.com",
+    desc: "Wind forecast data (CC BY 4.0)",
   },
   {
     name: "MapLibre GL JS",
@@ -122,7 +127,7 @@ export class AboutDialog {
     const disclaimer = document.createElement("div");
     disclaimer.className = "about-disclaimer";
     disclaimer.textContent =
-      "Beta software — not for navigation. Use as a planning and " +
+      "Not for navigation. Use as a planning and " +
       "situational-awareness aid alongside official charts and proper " +
       "seamanship.";
 

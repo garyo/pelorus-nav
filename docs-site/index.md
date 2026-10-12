@@ -49,3 +49,14 @@ Pelorus Nav is a planning and situational-awareness aid. Always maintain a
 proper lookout and consult official publications. Charts can be out of date
 and GPS can fail — never rely on a single source of navigation information.
 :::
+
+## Help & support
+
+- **Report a bug** from inside the app: **INFO → Report a Bug…** sends your
+  description along with the diagnostics needed to track the problem down.
+- **Email** [pelorus-support@oberbrunner.com](mailto:pelorus-support@oberbrunner.com)
+  with questions, suggestions, or anything else.
+- **Issues and feature requests** are welcome on
+  [GitHub](https://github.com/garyo/pelorus-nav/issues).
+- The [privacy policy](https://pelorus-nav.com/privacy.html) explains what
+  little leaves your device, and when.

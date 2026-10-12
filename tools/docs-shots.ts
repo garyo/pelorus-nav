@@ -205,7 +205,7 @@ const IMPORT_FIXTURE =
   "  </rte>\n" +
   "</gpx>\n";
 
-interface Scene {
+export interface Scene {
   name: string;
   theme?: "day" | "dusk" | "night" | "eink";
   zoom?: number;
@@ -237,12 +237,8 @@ interface Scene {
 /** Click a topbar action by title, falling back to the hamburger menu. */
 async function clickTopbar(page: Page, title: string) {
   const btn = page.locator(`button[title="${title}"]`).first();
-  if (await btn.isVisible()) {
-    await btn.click();
-  } else {
-    await page.click("#hamburger-btn");
-    await page.locator(`#topbar-menu button[title="${title}"]`).click();
-  }
+  if (!(await btn.isVisible())) await page.click("#hamburger-btn");
+  await page.locator(`button[title="${title}"]:visible`).first().click();
 }
 
 async function openRoutePanel(page: Page) {
@@ -308,7 +304,7 @@ async function useAppIcons(page: Page) {
   }, iconShareIOS);
 }
 
-const SCENES: Scene[] = [
+export const SCENES: Scene[] = [
   { name: "overview", zoom: 12.6, center: [-70.98, 42.34] },
   { name: "night-mode", theme: "night", zoom: 12.6, center: [-70.98, 42.34] },
   {
@@ -616,10 +612,30 @@ const SCENES: Scene[] = [
   },
 ];
 
-async function shoot(scene: Scene, browser: Browser) {
+/** A screen size to shoot at, in CSS pixels plus the device pixel ratio. */
+export interface ShotFormat {
+  width: number;
+  height: number;
+  deviceScaleFactor: number;
+}
+
+/**
+ * Shoot one scene to `path`. Guide shots use the scene's own width at a fixed
+ * 700 px height; `format` overrides the screen size (store listings).
+ */
+export async function shoot(
+  scene: Scene,
+  browser: Browser,
+  path = `${OUT}/${scene.name}.png`,
+  format?: ShotFormat,
+) {
   const ctx = await browser.newContext({
-    viewport: { width: scene.width ?? 1000, height: 700 },
-    deviceScaleFactor: 2,
+    viewport: format
+      ? { width: format.width, height: format.height }
+      : { width: scene.width ?? 1000, height: 700 },
+    deviceScaleFactor: format?.deviceScaleFactor ?? 2,
+    // The scenes are in Boston Harbor; tide and sun times should read local.
+    timezoneId: "America/New_York",
   });
   const page = await ctx.newPage();
 
@@ -647,6 +663,9 @@ async function shoot(scene: Scene, browser: Browser) {
           simulatorMode: "route",
           chartMode: "free",
           showInstrumentHUD: true,
+          // Slow renders can outlast the idle timer, which would close the
+          // scene's panels and snap the chart back to the vessel.
+          autoReturnWhenIdle: false,
           displayTheme: cfg.scene.theme ?? "day",
           ...cfg.scene.settings,
         }),
@@ -812,9 +831,30 @@ async function shoot(scene: Scene, browser: Browser) {
 
   await scene.actions?.(page);
   if (scene.appIcons) await useAppIcons(page);
+  // Large viewports through software WebGL can outlast the fixed settle
+  // above, so wait for every chart source (not the `_` app overlays, which
+  // re-tile on each update) to finish loading. Best effort.
+  await page
+    .waitForFunction(
+      () => {
+        const map = (
+          window as unknown as {
+            __map: {
+              getStyle(): { sources: Record<string, unknown> };
+              isSourceLoaded(id: string): boolean;
+            };
+          }
+        ).__map;
+        return Object.keys(map.getStyle().sources)
+          .filter((id) => !id.startsWith("_"))
+          .every((id) => map.isSourceLoaded(id));
+      },
+      undefined,
+      { timeout: 90_000, polling: 1_000 },
+    )
+    .catch(() => console.warn(`  ${scene.name}: charts still loading`));
   await page.waitForTimeout(500);
 
-  const path = `${OUT}/${scene.name}.png`;
   if (scene.element) {
     await page.locator(scene.element).screenshot({ path });
   } else {
@@ -824,27 +864,33 @@ async function shoot(scene: Scene, browser: Browser) {
   await ctx.close();
 }
 
-const only = process.argv.slice(2);
-const scenes = only.length
-  ? SCENES.filter((s) => only.includes(s.name))
-  : SCENES;
-if (only.length && scenes.length !== only.length) {
-  const known = new Set(SCENES.map((s) => s.name));
-  throw new Error(`unknown scene(s): ${only.filter((n) => !known.has(n))}`);
+export function launchBrowser(): Promise<Browser> {
+  return chromium.launch({
+    // --mute-audio: the anchor scenes arm a real watch and let it alarm.
+    args: [
+      "--enable-webgl",
+      "--use-gl=angle",
+      "--use-angle=swiftshader",
+      "--mute-audio",
+    ],
+  });
 }
 
-mkdirSync(OUT, { recursive: true });
-const browser = await chromium.launch({
-  // --mute-audio: the anchor scenes arm a real watch and let it alarm.
-  args: [
-    "--enable-webgl",
-    "--use-gl=angle",
-    "--use-angle=swiftshader",
-    "--mute-audio",
-  ],
-});
-for (const scene of scenes) {
-  await shoot(scene, browser);
+if (import.meta.main) {
+  const only = process.argv.slice(2);
+  const scenes = only.length
+    ? SCENES.filter((s) => only.includes(s.name))
+    : SCENES;
+  if (only.length && scenes.length !== only.length) {
+    const known = new Set(SCENES.map((s) => s.name));
+    throw new Error(`unknown scene(s): ${only.filter((n) => !known.has(n))}`);
+  }
+
+  mkdirSync(OUT, { recursive: true });
+  const browser = await launchBrowser();
+  for (const scene of scenes) {
+    await shoot(scene, browser);
+  }
+  await browser.close();
+  console.log("done");
 }
-await browser.close();
-console.log("done");

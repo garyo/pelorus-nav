@@ -1,300 +1,152 @@
 /**
- * Play Store listing screenshots: 6 scenes x 3 form factors
- * (phone 1080x1920, 7" tablet 1200x1920, 10" tablet 1920x1200).
- * Dev server must be running on :5173. Run: bun tools/store-screenshots.ts
- * Output: branding/store-listing/
+ * App-store listing screenshots, built from the user-guide scenes in
+ * docs-shots.ts so both stay deterministic and in step with the UI.
+ *
+ * Run (dev server on :5173):
+ *   bun tools/store-screenshots.ts <android|ios> [--out DIR] [scene ...]
+ * Output: DIR/NN-<scene>-<format>.png (default DIR: branding/store-listing),
+ * numbered in listing order.
  */
 import { mkdirSync } from "node:fs";
-import { type Browser, chromium, type Page } from "playwright";
-import { REPLAY_TRACK } from "../src/navigation/replay-track";
+import { resolve } from "node:path";
+import { parseArgs } from "node:util";
+import {
+  launchBrowser,
+  SCENES,
+  type Scene,
+  type ShotFormat,
+  shoot,
+} from "./docs-shots";
 
-const BASE = "http://localhost:5173";
-const OUT = new URL("../branding/store-listing", import.meta.url).pathname;
-const APP_VERSION = "0.14.0";
-
-// Outer-harbor leg of the simulator's Boston loop, saved as a visible route
-// so the chart shows route legs + waypoints alongside the vessel.
-const ROUTE_WPTS: Array<[number, number, string]> = [
-  [42.352039, -71.032698, "Castle Is."],
-  [42.342674, -71.014302, "President Roads"],
-  [42.332517, -70.995676, "Deer Is."],
-  [42.337764, -70.949034, "The Narrows"],
-  [42.342743, -70.940904, "Channel Split"],
-  [42.37055, -70.916631, "Outer Harbor"],
-];
-
-// ?simStart= always heads for the default route's first (inner-harbor)
-// waypoint, i.e. inbound. To get an outbound vessel we instead use
-// simulatorMode "custom", which follows a user route named SIMULATOR —
-// seeded invisible below, starting at The Narrows heading northeast into
-// the North/South Channel split.
-const SIM_WPTS: Array<[number, number, string]> = [
-  [42.337764, -70.949034, "start"],
-  [42.342743, -70.940904, "split"],
-  [42.37055, -70.916631, "outer"],
-];
-
-interface Scene {
+interface StoreFormat extends ShotFormat {
   name: string;
-  theme: "day" | "night";
-  zoom: number;
-  /** "free" pans to `center` instead of following the vessel. */
-  chartMode?: "free";
-  center?: [number, number]; // [lng, lat]
-  /** Open a UI surface after the map settles. */
-  ui?:
-    | "settings-appearance"
-    | "settings-layers"
-    | "settings-navigation"
-    | "track-viewer";
-  /** Override the GPS source ("browser-gps" shows as "Device GPS" and uses
-   *  Playwright's mocked geolocation — no simulator rows in Settings). */
-  gpsSource?: "browser-gps";
 }
-const SCENES: Scene[] = [
-  { name: "harbor-day", theme: "day", zoom: 13.2 },
-  { name: "night-mode", theme: "night", zoom: 13.2 },
-  {
-    name: "settings-appearance",
-    theme: "day",
-    zoom: 13.2,
-    ui: "settings-appearance",
+
+interface StoreScene {
+  /** A docs-shots scene name. */
+  scene: string;
+  /** Field overrides for the store framing (e.g. a wider zoom on phones). */
+  phone?: Partial<Scene>;
+  tablet?: Partial<Scene>;
+}
+
+interface Platform {
+  formats: Array<StoreFormat & { kind: "phone" | "tablet" }>;
+  scenes: StoreScene[];
+  /** Controls the platform's app doesn't offer, hidden from the web build. */
+  hide?: string[];
+}
+
+/** The whole demo route in a phone-width frame. */
+const PHONE_HARBOR: Partial<Scene> = { center: [-70.97, 42.34], zoom: 12.2 };
+
+const PLATFORMS: Record<string, Platform> = {
+  android: {
+    formats: [
+      {
+        name: "phone",
+        kind: "phone",
+        width: 360,
+        height: 640,
+        deviceScaleFactor: 3,
+      }, // 1080x1920
+      {
+        name: "tab7",
+        kind: "tablet",
+        width: 600,
+        height: 960,
+        deviceScaleFactor: 2,
+      }, // 1200x1920
+      {
+        name: "tab10",
+        kind: "tablet",
+        width: 960,
+        height: 600,
+        deviceScaleFactor: 2,
+      }, // 1920x1200
+    ],
+    scenes: [
+      { scene: "overview" },
+      { scene: "night-mode" },
+      { scene: "settings-appearance" },
+      { scene: "settings-layers" },
+      { scene: "track-viewer" },
+    ],
   },
-  { name: "settings-layers", theme: "day", zoom: 13.2, ui: "settings-layers" },
-  {
-    name: "settings-navigation",
-    theme: "day",
-    zoom: 13.2,
-    ui: "settings-navigation",
-    gpsSource: "browser-gps",
+  ios: {
+    hide: ['button[title="Anchor Watch"]'], // see anchorWatchSupported()
+    // App Store Connect's required sizes: 6.9" iPhone and 13" iPad.
+    formats: [
+      {
+        name: "iphone69",
+        kind: "phone",
+        width: 440,
+        height: 956,
+        deviceScaleFactor: 3,
+      }, // 1320x2868
+      {
+        name: "ipad13",
+        kind: "tablet",
+        width: 1376,
+        height: 1032,
+        deviceScaleFactor: 2,
+      }, // 2752x2064
+    ],
+    // Phones are narrow: zoom out or re-centre so each scene's subject fits.
+    scenes: [
+      { scene: "overview", phone: PHONE_HARBOR },
+      { scene: "route-navigation" },
+      { scene: "tides-time" },
+      { scene: "track-viewer" },
+      { scene: "night-mode", phone: PHONE_HARBOR },
+      { scene: "plotting", phone: { zoom: 12.7 } },
+      {
+        scene: "tide-station",
+        phone: { center: [-70.955, 42.287], zoom: 12.6 },
+      },
+      { scene: "chart-regions" },
+    ],
   },
-  { name: "track-playback", theme: "day", zoom: 12.6, ui: "track-viewer" },
-];
+};
 
-interface Format {
-  name: string;
-  width: number;
-  height: number;
-  dsf: number;
-}
-const FORMATS: Format[] = [
-  { name: "phone", width: 360, height: 640, dsf: 3 }, // 1080x1920
-  { name: "tab7", width: 600, height: 960, dsf: 2 }, // 1200x1920
-  { name: "tab10", width: 960, height: 600, dsf: 2 }, // 1920x1200
-];
-
-// A real recorded sail (the simulator replay track), seeded into IndexedDB
-// so the track viewer has something beautiful to play back. SOG/COG are
-// derived from consecutive positions.
-function buildSeedTrack() {
-  const R_NM = 3440.065;
-  const rad = (d: number) => (d * Math.PI) / 180;
-  const points: Array<{
-    lat: number;
-    lon: number;
-    timestamp: number;
-    sog: number | null;
-    cog: number | null;
-  }> = [];
-  const lastT = REPLAY_TRACK[REPLAY_TRACK.length - 1][0];
-  const endMs = Date.now();
-  const startMs = endMs - lastT * 1000;
-  let totalNm = 0;
-  for (let i = 0; i < REPLAY_TRACK.length; i++) {
-    const [t, lat, lon] = REPLAY_TRACK[i];
-    let sog: number | null = null;
-    let cog: number | null = null;
-    if (i > 0) {
-      const [pt, plat, plon] = REPLAY_TRACK[i - 1];
-      const dLat = rad(lat - plat);
-      const dLon = rad(lon - plon);
-      const a =
-        Math.sin(dLat / 2) ** 2 +
-        Math.cos(rad(plat)) * Math.cos(rad(lat)) * Math.sin(dLon / 2) ** 2;
-      const nm = 2 * R_NM * Math.asin(Math.sqrt(a));
-      totalNm += nm;
-      const dt = t - pt;
-      sog = dt > 0 ? (nm / dt) * 3600 : null;
-      const y = Math.sin(dLon) * Math.cos(rad(lat));
-      const x =
-        Math.cos(rad(plat)) * Math.sin(rad(lat)) -
-        Math.sin(rad(plat)) * Math.cos(rad(lat)) * Math.cos(dLon);
-      cog = ((Math.atan2(y, x) * 180) / Math.PI + 360) % 360;
-    }
-    points.push({ lat, lon, timestamp: startMs + t * 1000, sog, cog });
-  }
-  const meta = {
-    id: "store-shot-track",
-    name: "Afternoon Sail",
-    createdAt: startMs,
-    color: "#2980b9",
-    visible: true,
-    pointCount: points.length,
-    durationMs: lastT * 1000,
-    totalDistanceNM: totalNm,
-  };
-  return { meta, points };
-}
-const SEED_TRACK = buildSeedTrack();
-
-/** Click a topbar action by title, falling back to the hamburger menu. */
-async function clickTopbar(page: Page, title: string) {
-  const btn = page.locator(`button[title="${title}"]`).first();
-  if (await btn.isVisible()) {
-    await btn.click();
-  } else {
-    await page.click("#hamburger-btn");
-    await page.locator(`#topbar-menu button[title="${title}"]`).click();
-  }
-}
-
-async function shoot(scene: Scene, fmt: Format, browser: Browser) {
-  const ctx = await browser.newContext({
-    viewport: { width: fmt.width, height: fmt.height },
-    deviceScaleFactor: fmt.dsf,
-    ...(scene.gpsSource === "browser-gps"
-      ? {
-          geolocation: { latitude: 42.3378, longitude: -70.949, accuracy: 5 },
-          permissions: ["geolocation"],
-        }
-      : {}),
-  });
-  const page = await ctx.newPage();
-
-  await page.addInitScript(
-    (cfg: {
-      scene: Scene;
-      version: string;
-      wpts: typeof ROUTE_WPTS;
-      simWpts: typeof ROUTE_WPTS;
-      track: typeof SEED_TRACK;
-    }) => {
-      const settings = {
-        gpsSource: cfg.scene.gpsSource ?? "simulator",
-        simulatorMode: "custom",
-        chartMode: cfg.scene.chartMode ?? "follow",
-        showInstrumentHUD: true,
-        displayTheme: cfg.scene.theme,
-      };
-      localStorage.setItem("pelorus-nav-settings", JSON.stringify(settings));
-      localStorage.setItem("pelorus-nav-last-seen-version", cfg.version);
-      localStorage.setItem(
-        "pelorus-nav-disclaimer-acceptance",
-        JSON.stringify({
-          disclaimerVersion: 2,
-          acceptedAt: Date.now(),
-          appVersion: cfg.version,
-        }),
-      );
-      localStorage.setItem(
-        "pelorus-nav-map-position",
-        JSON.stringify({
-          center: cfg.scene.center ?? [-70.949, 42.3378],
-          zoom: cfg.scene.zoom,
-        }),
-      );
-
-      // Seed routes + the recorded track into IndexedDB before the app
-      // opens it. Schema must mirror src/data/db.ts (DB_VERSION 7).
-      const req = indexedDB.open("pelorus-nav", 7);
-      req.onupgradeneeded = () => {
-        const db = req.result;
-        db.createObjectStore("tracks", { keyPath: "id" });
-        const pt = db.createObjectStore("trackPoints", { autoIncrement: true });
-        pt.createIndex("byTrack", "trackId");
-        pt.createIndex("byTrackTime", ["trackId", "timestamp"]);
-        db.createObjectStore("routes", { keyPath: "id" });
-        db.createObjectStore("waypoints", { keyPath: "id" });
-        db.createObjectStore("plottingSheets", { keyPath: "id" });
-      };
-      req.onsuccess = () => {
-        const db = req.result;
-        const tx = db.transaction(
-          ["routes", "tracks", "trackPoints"],
-          "readwrite",
-        );
-        tx.objectStore("routes").put({
-          id: "store-shot-route",
-          name: "Outer Harbor",
-          createdAt: Date.now(),
-          color: "#ffcc00",
-          visible: true,
-          waypoints: cfg.wpts.map(([lat, lon, name]) => ({ lat, lon, name })),
-        });
-        tx.objectStore("routes").put({
-          id: "store-shot-sim",
-          name: "SIMULATOR",
-          createdAt: Date.now(),
-          color: "#4488cc",
-          visible: false,
-          waypoints: cfg.simWpts.map(([lat, lon, name]) => ({
-            lat,
-            lon,
-            name,
-          })),
-        });
-        tx.objectStore("tracks").put(cfg.track.meta);
-        const ptStore = tx.objectStore("trackPoints");
-        for (const p of cfg.track.points) {
-          ptStore.add({ trackId: cfg.track.meta.id, ...p });
-        }
-        tx.oncomplete = () => db.close();
-      };
-    },
-    {
-      scene,
-      version: APP_VERSION,
-      wpts: ROUTE_WPTS,
-      simWpts: SIM_WPTS,
-      track: SEED_TRACK,
-    },
-  );
-
-  await page.goto(`${BASE}/`);
-  await page.waitForFunction(
-    () => {
-      const text = document.querySelector(".instrument-value")?.textContent;
-      return !!text && !text.includes("--");
-    },
-    { timeout: 30_000 },
-  );
-  await page.waitForTimeout(6_000); // tiles + sprite settle
-
-  if (scene.ui?.startsWith("settings-")) {
-    await clickTopbar(page, "Settings");
-    const tab = scene.ui.slice("settings-".length);
-    await page.click(`.settings-tab[data-tab="${tab}"]`);
-    await page.waitForTimeout(1_000);
-  } else if (scene.ui === "track-viewer") {
-    await clickTopbar(page, "Tracks");
-    await page.click('button[title="View track"]');
-    await page.waitForSelector(".track-viewer-panel");
-    // Scrub to ~55% so the cursor sits mid-track with the speed chart lit.
-    await page.evaluate(() => {
-      const slider = document.querySelector<HTMLInputElement>(
-        ".track-viewer-slider",
-      );
-      if (slider) {
-        slider.value = String(Math.round(Number(slider.max) * 0.55));
-        slider.dispatchEvent(new Event("input", { bubbles: true }));
-      }
-    });
-    await page.waitForTimeout(3_000);
-  }
-
-  const path = `${OUT}/${scene.name}-${fmt.name}.png`;
-  await page.screenshot({ path });
-  console.log(`✓ ${path}`);
-  await ctx.close();
-}
-
-mkdirSync(OUT, { recursive: true });
-const browser = await chromium.launch({
-  args: ["--enable-webgl", "--use-gl=angle", "--use-angle=swiftshader"],
+const { values, positionals } = parseArgs({
+  allowPositionals: true,
+  options: { out: { type: "string", default: "branding/store-listing" } },
 });
-for (const scene of SCENES) {
-  for (const fmt of FORMATS) {
-    await shoot(scene, fmt, browser);
+const [platformName, ...only] = positionals;
+const platform = PLATFORMS[platformName ?? ""];
+if (!platform) {
+  throw new Error(
+    `usage: store-screenshots.ts <${Object.keys(PLATFORMS).join("|")}> [--out DIR] [scene ...]`,
+  );
+}
+
+const byName = new Map(SCENES.map((s) => [s.name, s]));
+const hideCss = platform.hide?.length
+  ? `${platform.hide.join(", ")} { display: none !important; }`
+  : null;
+const out = resolve(values.out);
+mkdirSync(out, { recursive: true });
+const browser = await launchBrowser();
+for (const [i, entry] of platform.scenes.entries()) {
+  if (only.length && !only.includes(entry.scene)) continue;
+  const base = byName.get(entry.scene);
+  if (!base) throw new Error(`unknown docs scene: ${entry.scene}`);
+  const num = String(i + 1).padStart(2, "0");
+  for (const fmt of platform.formats) {
+    const scene: Scene = { ...base, ...entry[fmt.kind] };
+    if (hideCss) {
+      scene.actions = async (page) => {
+        await page.addStyleTag({ content: hideCss });
+        await base.actions?.(page);
+      };
+    }
+    await shoot(
+      scene,
+      browser,
+      `${out}/${num}-${entry.scene}-${fmt.name}.png`,
+      fmt,
+    );
   }
 }
 await browser.close();

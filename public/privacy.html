@@ -51,7 +51,7 @@ footer a:hover { color: var(--wave); }
 <div class="wrap">
   <p class="top"><a href="/">← pelorus-nav.com</a></p>
   <h1>Privacy Policy</h1>
-  <p class="updated">Pelorus Nav · last updated July 19, 2026</p>
+  <p class="updated">Pelorus Nav · last updated October 5, 2026</p>
 
   <p>Pelorus Nav is an open-source marine chartplotter made by Dark Star
   Systems. It is designed to be local-first: your navigation data stays on
@@ -75,20 +75,45 @@ footer a:hover { color: var(--wave); }
   the app will simply have no position to display.</p>
 
   <h2>Chart downloads</h2>
-  <p>When you view or download charts, the app fetches chart tiles from our
-  content delivery network (Cloudflare). Like any web server, this involves
+  <p>The app's default charts, NOAA Vector Charts, are NOAA's official
+  electronic charts prepared for the app. When you view or download them, or
+  an offline street basemap, the app fetches them from our content delivery
+  network (Cloudflare). Like any web server, this involves
   standard transient request logs (IP address, requested file, user agent)
   used solely to operate and secure the service. Chart requests are not
   linked to you or used to build any profile, and once charts are
   downloaded for offline use, viewing them involves no network traffic at
   all.</p>
 
+  <h2>Maps and forecasts from other providers</h2>
+  <p>Some maps are fetched live from other providers rather than from us.
+  To draw them, the app asks the provider for the part of the map you are
+  looking at, so — like any online map — the provider sees which area is on
+  screen (which, when the chart is following your boat, is roughly where you
+  are) along with your device's IP address. These are:</p>
+  <ul>
+    <li><strong>Street map</strong> from OpenStreetMap, shown under the chart
+    on land when you haven't downloaded a region's offline street basemap,
+    or chosen as the chart source. You can turn it off, or download the
+    basemap, in the app's settings.</li>
+    <li><strong>NOAA's online chart services</strong> ("NOAA Nautical
+    Charts" and "NOAA ECDIS Charts"), if you choose one as the chart source
+    instead of the default NOAA Vector Charts. NOAA's servers draw these
+    charts on request, so they work only online.</li>
+    <li><strong>Wind forecast</strong> from Open-Meteo, when you turn on the
+    Wind layer.</li>
+  </ul>
+  <p>These requests serve only to fetch the map or forecast you asked for;
+  they carry no account, identifier, or position history, and we receive
+  none of it. Each provider handles its request logs under its own privacy
+  policy.</p>
+
   <h2>Website analytics</h2>
-  <p>The pelorus-nav.com website uses a self-hosted, privacy-respecting
-  analytics tool (Matomo) to count visits. It uses no cookies, collects no
-  personal information, does not track you across sites, and the data never
-  leaves our own infrastructure. The Android and iOS apps send no analytics
-  at all.</p>
+  <p>The pelorus-nav.com website, including the web version of the app, uses
+  a self-hosted, privacy-respecting analytics tool to count visits. It uses
+  no cookies, collects no personal information, does not track you across
+  sites, and the data never leaves our own infrastructure. The Android and
+  iOS apps send no analytics at all.</p>
 
   <h2>Newsletter signup (optional)</h2>
   <p>If you sign up for project updates, we store the email address,
@@ -100,10 +125,12 @@ footer a:hover { color: var(--wave); }
   <p>If you choose to send a bug report from within the app, it includes
   your description, an optional contact email, and a technical diagnostics
   snapshot of the app's state to help us reproduce the problem. The
-  snapshot includes device information, app settings, recent logs, and
-  recent GPS positions — this is the only case in which location data
-  leaves your device, it happens only when you tap Send, and the report
-  tells you what it contains before you send it. Bug reports are stored
+  snapshot includes device information, app settings, recent logs and app
+  actions, and recent GPS positions; unless you untick it, the report also
+  includes a picture of the chart as it was when you opened the dialog. This
+  is the only case in which your position history leaves your device, it
+  happens only when you tap Send, and the report lets you see what it
+  contains before you send it. Bug reports are stored
   privately, used only to investigate and fix issues, and deleted when no
   longer needed.</p>
 
@@ -152,7 +179,7 @@ footer a:hover { color: var(--wave); }
   changelog.</p>
 
   <h2>Contact</h2>
-  <p>Questions or data requests: <a href="mailto:pelorus-nav@oberbrunner.com">pelorus-nav@oberbrunner.com</a></p>
+  <p>Questions or data requests: <a href="mailto:pelorus-support@oberbrunner.com">pelorus-support@oberbrunner.com</a></p>
 
   <footer>
     © 2026 Dark Star Systems ·
