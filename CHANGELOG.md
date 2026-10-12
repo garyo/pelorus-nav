@@ -5,7 +5,7 @@ Notable user-facing changes to Pelorus Nav. Downloads are on the
 
 The format follows [Keep a Changelog](https://keepachangelog.com/).
 
-## [Unreleased]
+## [0.29.0] - 2026-10-11
 
 ### Added
 - While editing a route, tap the selected waypoint's name in the editing
