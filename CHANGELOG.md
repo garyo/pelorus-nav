@@ -12,6 +12,9 @@ The format follows [Keep a Changelog](https://keepachangelog.com/).
   Up heading roughly east or west, it could run hours ahead with only its
   first time tick visible, and after zooming it could overshoot the edge of
   the screen.
+- On phones, the zoom box in the bottom-right corner no longer covers the
+  last line of a chart object's details; the details panel now covers it
+  while open.
 
 ## [1.0.0] - 2026-10-12
 

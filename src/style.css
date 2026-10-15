@@ -804,7 +804,9 @@ body {
 }
 
 /* Bottom-right, level with the chart-in-use readout (ChartInUseReadout.ts),
-   and collapsed to the same one-line height. */
+   and collapsed to the same one-line height. Like that readout it is chart
+   chrome: it stacks under the feature-info sheet (z 10), which covers it on
+   phones. */
 .nav-hud {
   position: fixed;
   bottom: calc(8px + var(--safe-bottom));
@@ -813,7 +815,7 @@ body {
   color: #fff;
   padding: 3px 8px;
   font: 11px monospace;
-  z-index: 9999;
+  z-index: 6;
   border-radius: 4px;
   line-height: 1.5;
   cursor: pointer;
