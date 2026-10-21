@@ -132,6 +132,17 @@
                 <data android:pathPattern=".*\\..*\\..*\\..*\\.GPX" />
             </intent-filter>
 
+            <!-- The BOOX file manager knows no MIME type for .gpx, so it asks
+                 which apps view an untyped, host-less file:///dummy.gpx and
+                 offers only those. Without a host a pathPattern is ignored, so
+                 this accepts any untyped file:// view — which since Android 7
+                 only system apps send — and gpx-open declines non-GPX files. -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:scheme="file" />
+            </intent-filter>
+
         </activity>
 
         <!-- Background GPS track recording service -->

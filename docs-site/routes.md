@@ -163,9 +163,9 @@ route again after editing it and the other device updates its copy rather than
 adding a second one. Waypoints and tracks send the same way from their own
 panels.
 
-On a BOOX e-reader no "file received" notice appears, and the BOOX file
-manager won't hand the file to Pelorus Nav. Use **Import** in Pelorus Nav
-instead and pick the file from Downloads → Quick Share.
+On a BOOX e-reader no notice appears when the file arrives. Open it from the
+BOOX file manager instead, under Downloads → Quick Share, and choose Pelorus
+Nav.
 
 #### What happens when you import
 

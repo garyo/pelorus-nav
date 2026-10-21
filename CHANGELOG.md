@@ -16,6 +16,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/).
 - On Android, a route, track or waypoint file sent with Quick Share now opens
   in Pelorus Nav on the receiving device. Before, the receiving device didn't
   recognize the file and could offer it to Google Wallet instead.
+- On BOOX e-readers, GPX files now open in Pelorus Nav from the BOOX file
+  manager. Before, it offered only BOOX's Notes app, which couldn't open them.
 - The course line's automatic length now always ends on screen. In Course
   Up heading roughly east or west, it could run hours ahead with only its
   first time tick visible, and after zooming it could overshoot the edge of
