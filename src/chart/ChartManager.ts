@@ -26,6 +26,7 @@ import {
   type ChartLoadStatus,
 } from "./ChartLoadMonitor";
 import type { ChartProvider } from "./ChartProvider";
+import { ChartScaleControl } from "./ChartScaleControl";
 import { canvasWouldExceedTextureLimit, maxCanvasSize } from "./gl-limits";
 import {
   applyOSMUnderlay,
@@ -141,10 +142,7 @@ export class ChartManager {
         hasStoredBasemap(getSettings().activeRegion),
     });
 
-    this.map.addControl(
-      new maplibregl.ScaleControl({ unit: "nautical" }),
-      "bottom-left",
-    );
+    this.map.addControl(new ChartScaleControl(), "bottom-left");
 
     // Detect sprite loading failures and warn the user
     this.setupSpriteWarning();

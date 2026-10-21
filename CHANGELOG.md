@@ -7,6 +7,11 @@ The format follows [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Changed
+- The chart's scale bar follows your speed unit: kilometers and meters with
+  km/h, miles and feet with mph. With knots it switches from nautical miles
+  to feet (or meters, if depths are in meters) when zoomed in below 0.1 NM.
+
 ### Fixed
 - The course line's automatic length now always ends on screen. In Course
   Up heading roughly east or west, it could run hours ahead with only its
