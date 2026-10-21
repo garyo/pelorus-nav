@@ -161,7 +161,7 @@
         </receiver>
 
         <provider
-            android:name="androidx.core.content.FileProvider"
+            android:name="nav.pelorus.app.SharedFileProvider"
             android:authorities="${applicationId}.fileprovider"
             android:exported="false"
             android:grantUriPermissions="true">

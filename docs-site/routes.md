@@ -154,6 +154,19 @@ Two reasons to use them:
 Importing needn't start in the app: open a `.gpx` file from Files, Mail, or a
 cloud drive and choose Pelorus Nav, and it loads straight in.
 
+#### Sending to a nearby phone or tablet
+
+To hand routes to another device on board, tap export and choose **AirDrop**
+(iPhone and iPad) or **Quick Share** (Android) in the share sheet. On the
+other device, open the file when it arrives and choose Pelorus Nav. Send a
+route again after editing it and the other device updates its copy rather than
+adding a second one. Waypoints and tracks send the same way from their own
+panels.
+
+On a BOOX e-reader no "file received" notice appears, and the BOOX file
+manager won't hand the file to Pelorus Nav. Use **Import** in Pelorus Nav
+instead and pick the file from Downloads → Quick Share.
+
 #### What happens when you import
 
 Importing shows you what the file holds and what it means for what you already
