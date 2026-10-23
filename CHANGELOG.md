@@ -7,6 +7,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [1.0.1] - 2026-10-23
+
 ### Changed
 - The chart's scale bar follows your speed unit: kilometers and meters with
   km/h, miles and feet with mph. With knots it switches from nautical miles
