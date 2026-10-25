@@ -72,6 +72,13 @@ routing measures, restricted and caution areas, anchorages, cables and
 pipelines, seabed characteristics, depth-contour labels, light sectors, and
 more, plus the Tides & Currents overlay.
 
+**Chart Scale Boundaries** (off by default) draws a grey dash-dot line,
+labelled with both scales (e.g. "1:12,000 | 1:22,000"), where the chart
+shown changes from one NOAA chart to another of a different scale. Depth
+shading can change along such a line: each chart has its own set of depth
+contours, so the same water can fall in a shallower band on the coarser
+chart. Turn the layer on when shading stops along a straight edge.
+
 **Charted Currents** shows the static current arrows printed on the chart
 itself — notably the Gulf Stream along the US East Coast, with set and
 drift (e.g. "3.5 kn"). These are long-term averages from the chart, not

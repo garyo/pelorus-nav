@@ -392,8 +392,21 @@ def test_composite_hash_tracks_band_policy(monkeypatch):
     from s57_pipeline import scamin
 
     base = compute_config_hash(2)
-    assert compute_composite_hash(base) == base  # no policy → unchanged
+    without_policy = compute_composite_hash(base)
     monkeypatch.setattr(scamin, "COMPOSITE_PREFERRED_BAND", {11: 3})
     with_policy = compute_composite_hash(base)
-    assert with_policy != base
+    assert with_policy != without_policy
     assert with_policy != compute_composite_hash(compute_config_hash(0))
+
+
+def test_composite_hash_tracks_compositor_output(monkeypatch):
+    from s57_pipeline import composite
+
+    base = compute_config_hash(2)
+    current = compute_composite_hash(base)
+    assert current != base  # cells unchanged, composite still versioned
+    monkeypatch.setattr(composite, "COMPOSITE_FORMAT", composite.COMPOSITE_FORMAT + 1)
+    assert compute_composite_hash(base) != current
+    monkeypatch.undo()
+    monkeypatch.setattr(composite, "EDGE_CLASSES", frozenset({"RESARE"}))
+    assert compute_composite_hash(base) != current

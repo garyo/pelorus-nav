@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 import gzip
+from itertools import pairwise
 from pathlib import Path
 
 import mapbox_vector_tile
-from shapely.geometry import box, mapping
+import pytest
+from shapely.geometry import box, mapping, shape
 
 from s57_pipeline import composite
 from s57_pipeline.composite import (
@@ -552,3 +554,161 @@ def test_fill_passes_default_is_highest_band_first():
         assert sorted(CELLS, key=key, reverse=True) == [
             (4, "harbour"), (3, "approach"), (2, "coastal"), (0, "overview"),
         ]
+
+
+# ── Area edges and scale boundaries ───────────────────────────────────
+
+BOUNDS = (0.0, 0.0, 10.0, 10.0)
+TILE = box(*BOUNDS)
+UNIT = 10.0 / 4096  # one MVT unit in these test coordinates
+EDGES = "RESARE" + composite.EDGE_LAYER_SUFFIX
+
+
+def _group(coverage, cscl: int | None, layers: dict[str, list[dict]]):
+    return composite._CellGroup(coverage, cscl, [_make_mvt_tile(layers, BOUNDS)])
+
+
+def _area(geom, **props) -> dict:
+    return {"geometry": mapping(geom), "properties": props}
+
+
+def _segments(features: list[dict]) -> list[tuple[tuple[float, float], tuple[float, float]]]:
+    segs = []
+    for f in features:
+        coords = shape(f["geometry"]).coords
+        segs.extend(pairwise(coords))
+    return segs
+
+
+def _along(segs, *, x: float | None = None, y: float | None = None) -> list:
+    """Segments running along the line x=… or y=… (within two MVT units)."""
+    def on(p):
+        return abs(p[0] - x) <= 2 * UNIT if x is not None else abs(p[1] - y) <= 2 * UNIT
+    return [s for s in segs if on(s[0]) and on(s[1])]
+
+
+class TestAreaEdges:
+    def test_seam_and_tile_edges_are_not_edges(self) -> None:
+        """Two same-band cells split at x=5; each holds half of one area that
+        also runs off the tile's south edge. Only the area's true sides are
+        edges, and the polygons are flagged as having them split out."""
+        west = _group(box(0, 0, 5, 10), 12000, {"RESARE": [_area(box(2, 0, 5, 8), RESTRN="16")]})
+        east = _group(box(5, 0, 10, 10), 12000, {"RESARE": [_area(box(5, 0, 8, 8), RESTRN="16")]})
+        layers, _used, _drops = composite._merge_same_band(
+            TILE, {(4, "WEST"): west, (4, "EAST"): east}
+        )
+        segs = _segments(layers[EDGES])
+        assert _along(segs, x=5) == []  # the cell seam
+        assert _along(segs, y=0) == []  # the tile edge
+        assert _along(segs, x=2) and _along(segs, x=8) and _along(segs, y=8)
+        assert all(f["properties"]["RESTRN"] == "16" for f in layers[EDGES])
+        assert all(f["properties"][composite.SPLIT_EDGES_FLAG] == 1 for f in layers["RESARE"])
+        assert "SCLBDY" not in layers  # same scale on both sides
+
+    def test_owned_region_with_stray_line_parts(self) -> None:
+        """make_valid can hand back a region with stray line parts; only its
+        area counts as owned."""
+        from shapely.geometry import GeometryCollection, LineString
+
+        region = GeometryCollection([box(0, 0, 5, 10), LineString([(5, 0), (9, 0)])])
+        tile = _make_mvt_tile({"RESARE": [_area(box(2, 2, 8, 8))]}, BOUNDS)
+        result, _dropped = _clip_mvt_features(
+            tile, TILE, TILE, owned_region=composite._owned_region(region, TILE)
+        )
+        assert result is not None
+        segs = _segments(result[EDGES])
+        assert _along(segs, x=2) and not _along(segs, x=8)
+
+    def test_rings_outside_the_owned_region_are_not_edges(self) -> None:
+        """A multi-part area with one part in the cell's region and one
+        beyond it, neither near a cut: only the part inside has edges."""
+        from shapely.geometry import MultiPolygon
+
+        area = MultiPolygon([box(1, 1, 3, 3), box(6, 6, 9, 9)])
+        tile = _make_mvt_tile({"RESARE": [_area(area)]}, BOUNDS)
+        owned = composite._owned_region(box(0, 0, 5, 5), TILE)
+        result, _dropped = _clip_mvt_features(tile, TILE, TILE, owned_region=owned)
+        assert result is not None
+        segs = _segments(result[EDGES])
+        assert _along(segs, x=1) and _along(segs, x=3)
+        assert not _along(segs, x=6) and not _along(segs, x=9)
+
+    def test_cell_that_only_touches_the_unfilled_area_owns_nothing(self) -> None:
+        """A lower-band cell whose coverage meets the unfilled part of the
+        tile only along a border owns no area there, so its areas have no
+        edges in this tile — not even along that border."""
+        harbour = _group(box(0, 0, 5, 10), 12000, {"RESARE": [_area(box(1, 1, 4, 9))]})
+        other = _group(box(6, 0, 10, 10), 12000, {"RESARE": [_area(box(7, 1, 9, 9))]})
+        approach = _group(box(0, 0, 5, 10), 45000, {"RESARE": [_area(box(2, 2, 5, 8))]})
+        layers, _used, _filled, _drops = composite._fill_multi_band(
+            14, TILE,
+            {(5, "HARBOUR"): harbour, (5, "OTHER"): other, (3, "APPROACH"): approach},
+        )
+        segs = _segments(layers[EDGES])
+        assert not _along(segs, x=2) and not _along(segs, x=5)
+        assert all(line["properties"]["CSCL_COARSE"] != 45000 for line in layers.get("SCLBDY", []))
+
+    def test_other_classes_are_untouched(self) -> None:
+        cell = _group(box(0, 0, 5, 10), 12000, {"DEPARE": [_area(box(2, 2, 5, 8))]})
+        other = _group(box(5, 0, 10, 10), 12000, {"DEPARE": [_area(box(5, 2, 8, 8))]})
+        layers, _used, _drops = composite._merge_same_band(
+            TILE, {(4, "A"): cell, (4, "B"): other}
+        )
+        assert "DEPARE" + composite.EDGE_LAYER_SUFFIX not in layers
+        assert all(composite.SPLIT_EDGES_FLAG not in f["properties"] for f in layers["DEPARE"])
+
+    def test_area_clipped_along_a_cut_leaves_no_line_sliver(self) -> None:
+        """An area that only touches the clip region shares just a line with
+        it; that line is a cut, not part of the area."""
+        tile = _make_mvt_tile({"RESARE": [_area(box(5, 2, 8, 8))]}, BOUNDS)
+        result, _dropped = _clip_mvt_features(tile, box(0, 0, 5, 10), TILE)
+        assert result is None
+
+    def test_lower_band_edges_stop_at_the_detailed_cell(self) -> None:
+        """A harbour cell covers the west half; the overview cell's area spans
+        the tile. The overview's polygon still reaches into the harbour cell
+        (the anti-sliver overlap), but its edges stay in the area it shows."""
+        harbour = _group(box(0, 0, 5, 10), 12000, {"RESARE": [_area(box(1, 1, 5, 9))]})
+        overview = _group(TILE, 80000, {"RESARE": [_area(box(1, 1, 9, 9))]})
+        layers, _used, _filled, _drops = composite._fill_multi_band(
+            14, TILE, {(5, "HARBOUR"): harbour, (3, "OVERVIEW"): overview}
+        )
+        segs = _segments(layers[EDGES])
+        assert _along(segs, x=5) == []
+        assert len(_along(segs, x=1)) >= 1  # harbour's own west side
+        assert len(_along(segs, x=9)) >= 1  # overview's east side
+        top = _along(segs, y=9)
+        assert any(a[0] + b[0] < 10 for a, b in top)  # harbour's top side
+        assert any(a[0] + b[0] > 10 for a, b in top)  # overview's top side
+        # Drawn once: no overlap where the two cells' sides meet.
+        assert sum(abs(b[0] - a[0]) for a, b in top) == pytest.approx(8, abs=10 * UNIT)
+
+
+class TestScaleBoundaries:
+    def test_boundary_where_scale_changes(self) -> None:
+        fine = _group(box(0, 0, 5, 10), 12000, {"DEPARE": [_area(box(0, 0, 5, 10))]})
+        coarse = _group(box(5, 0, 10, 10), 22000, {"DEPARE": [_area(box(5, 0, 10, 10))]})
+        layers, _used, _drops = composite._merge_same_band(
+            TILE, {(4, "FINE"): fine, (4, "COARSE"): coarse}
+        )
+        (line,) = layers["SCLBDY"]
+        assert line["properties"] == {"CSCL_DETAILED": 12000, "CSCL_COARSE": 22000}
+        geom = shape(line["geometry"])
+        assert geom.bounds[0] == pytest.approx(5) and geom.bounds[2] == pytest.approx(5)
+        assert geom.length == pytest.approx(10, abs=10 * UNIT)  # less the tile-edge margins
+
+    def test_boundary_at_detailed_cell_in_multi_band_tile(self) -> None:
+        harbour = _group(box(0, 0, 5, 10), 12000, {"DEPARE": [_area(box(0, 0, 5, 10))]})
+        overview = _group(TILE, 80000, {"DEPARE": [_area(TILE)]})
+        layers, _used, _filled, _drops = composite._fill_multi_band(
+            14, TILE, {(5, "HARBOUR"): harbour, (3, "OVERVIEW"): overview}
+        )
+        (line,) = layers["SCLBDY"]
+        assert line["properties"]["CSCL_COARSE"] == 80000
+        assert shape(line["geometry"]).bounds[0] == pytest.approx(5)
+
+    def test_unknown_scale_draws_no_boundary(self) -> None:
+        a = _group(box(0, 0, 5, 10), None, {"DEPARE": [_area(box(0, 0, 5, 10))]})
+        b = _group(box(5, 0, 10, 10), 22000, {"DEPARE": [_area(box(5, 0, 10, 10))]})
+        layers, _used, _drops = composite._merge_same_band(TILE, {(4, "A"): a, (4, "B"): b})
+        assert "SCLBDY" not in layers

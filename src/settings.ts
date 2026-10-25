@@ -154,6 +154,7 @@ export const LAYER_GROUP_LABELS: Record<string, string> = {
   daymarksTopmarks: "Daymarks & Topmarks",
   lightSectors: "Light Sectors",
   dredgedOutlines: "Dredged Area Outlines",
+  scaleBoundaries: "Chart Scale Boundaries",
 };
 
 const DEFAULT_LAYER_GROUPS: Record<string, boolean> = {
@@ -162,6 +163,9 @@ const DEFAULT_LAYER_GROUPS: Record<string, boolean> = {
   // Purely informational, and harbors tiled with dredge basins (Boston)
   // become a lattice of dashes — opt-in.
   dredgedOutlines: false,
+  // Where the chart cell on show changes scale; explains depth shading that
+  // jumps along a straight line. Off by default, as on most ECDIS.
+  scaleBoundaries: false,
 };
 
 /** A toggleable layer group contributed by a plugin (see `registerLayerGroup`). */

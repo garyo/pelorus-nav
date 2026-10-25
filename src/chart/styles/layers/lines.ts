@@ -117,6 +117,54 @@ export function getLineLayers(ctx: StyleContext): LayerSpecification[] {
         "text-halo-width": 1.5,
       },
     },
+    // Scale boundaries (S-52 SCLBDY51): where the chart cell on show changes
+    // compilation scale. Depth shading can jump there, as the cells on each
+    // side carry different depth contours. Built by the tile compositor
+    // (layer SCLBDY), not an S-57 class.
+    {
+      id: "s57-sclbdy",
+      type: "line",
+      source: ctx.sourceId,
+      "source-layer": "SCLBDY",
+      paint: {
+        "line-color": ctx.colour("CHGRD"),
+        "line-width": 1.2,
+        "line-dasharray": [8, 2, 2, 2],
+      },
+    },
+    {
+      id: "s57-sclbdy-label",
+      type: "symbol",
+      source: ctx.sourceId,
+      "source-layer": "SCLBDY",
+      layout: {
+        "symbol-placement": "line",
+        // An opt-in reference label early in the style: competing for space
+        // it would lose to nearly every label (and lines are cut per tile,
+        // so wider spacing finds no anchor). It overlaps instead, never
+        // displaces anything, and draws beneath the later labels.
+        "symbol-spacing": 200,
+        "text-allow-overlap": true,
+        "text-ignore-placement": true,
+        "text-field": [
+          "concat",
+          "1:",
+          ["number-format", ["get", "CSCL_DETAILED"], { locale: "en-US" }],
+          " | 1:",
+          ["number-format", ["get", "CSCL_COARSE"], { locale: "en-US" }],
+        ],
+        "text-size": scaledTextSize(10, ctx),
+        "text-font": ["Noto Sans Regular"],
+        "text-keep-upright": true,
+        "text-max-angle": 30,
+        "text-offset": [0, -0.8],
+      },
+      paint: {
+        "text-color": ctx.colour("CHGRD"),
+        "text-halo-color": ctx.colour("DEPMD"),
+        "text-halo-width": 1.5,
+      },
+    },
     {
       id: "s57-slcons",
       type: "line",

@@ -21,8 +21,8 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import mapbox_vector_tile
-from shapely import make_valid, union_all
-from shapely.geometry import box, mapping, shape
+from shapely import line_merge, make_valid, prepare, union_all
+from shapely.geometry import LineString, MultiLineString, Polygon, box, mapping, shape
 from shapely.geometry.base import BaseGeometry
 from shapely.geometry.collection import GeometryCollection
 from shapely.io import from_wkb, to_wkb
@@ -46,6 +46,34 @@ _MVT_EXTENTS = 4096
 # CATOBS) that safety symbology keys on.
 _HAZARD_LAYER_NAMES = {"OBSTRN", "WRECKS", "UWTROC"}
 
+# Area classes whose outlines the app draws (shared with it through
+# tools/area-edges.json). A clipped polygon's ring runs along every cut it
+# went through — the tile edge, the cell's coverage limit (S-57's masked
+# edges, which OGR drops), a higher band's coverage edge — and an outline
+# drawn from the ring paints those cuts as boundaries. Composited tiles
+# therefore carry each such polygon's real edges as lines in a separate
+# "<CLASS>_EDGES" layer and flag the polygon, so the app draws the lines
+# instead of the ring. Single-source tiles keep tippecanoe's buffered
+# geometry, whose cuts lie outside the tile, and pass through unchanged.
+_AREA_EDGES = json.loads(
+    (Path(__file__).resolve().parents[2] / "area-edges.json").read_text()
+)
+EDGE_CLASSES: frozenset[str] = frozenset(_AREA_EDGES["classes"])
+EDGE_LAYER_SUFFIX: str = _AREA_EDGES["suffix"]
+SPLIT_EDGES_FLAG: str = _AREA_EDGES["flag"]
+
+# A cut edge comes out of MVT quantization up to about a unit off the line it
+# was cut along; boundary within this many units of a cut counts as the cut.
+_CUT_TOLERANCE_UNITS = 2
+
+# Version of what composited tiles contain; bump it when a compositor change
+# alters the output, so every region re-composites (see compute_composite_hash).
+COMPOSITE_FORMAT = 2
+
+# Lines where the compilation scale of the cell on show changes (the S-52
+# scale boundary), carrying the scales on both sides.
+SCALE_BOUNDARY_LAYER = "SCLBDY"
+
 
 @dataclass
 class CellTileSource:
@@ -55,6 +83,7 @@ class CellTileSource:
     band: int
     coverage: BaseGeometry  # M_COVR polygon for this cell
     cell_name: str = ""  # ENC cell name for grouping layers from same cell
+    cscl: int | None = None  # compilation scale denominator (DSPM CSCL)
 
 
 # One multi-band fill pass: cell order key (used with reverse=True) over
@@ -90,40 +119,52 @@ def _fill_passes(z: int) -> list[_FillPass]:
     ]
 
 
-def _group_cells(
-    entries: list[_SerEntry],
-) -> dict[tuple[int, str], list[tuple[bytes, BaseGeometry]]]:
+@dataclass
+class _CellGroup:
+    """One cell's share of a tile: its per-layer tiles and its coverage."""
+
+    coverage: BaseGeometry
+    cscl: int | None
+    tiles: list[bytes]
+
+
+def _group_cells(entries: list[_SerEntry]) -> dict[tuple[int, str], _CellGroup]:
     """Group a tile's entries by cell (band + cell_name share one coverage)."""
-    cell_groups: dict[tuple[int, str], list[tuple[bytes, BaseGeometry]]] = {}
-    for band_val, cell_name, data, cov_wkb in entries:
-        cell_groups.setdefault((band_val, cell_name), []).append(
-            (data, from_wkb(cov_wkb))
-        )
-    return cell_groups
+    groups: dict[tuple[int, str], _CellGroup] = {}
+    for band_val, cell_name, data, cov_wkb, cscl in entries:
+        group = groups.get((band_val, cell_name))
+        if group is None:
+            group = groups[(band_val, cell_name)] = _CellGroup(
+                from_wkb(cov_wkb), cscl, []
+            )
+        group.tiles.append(data)
+    return groups
 
 
 def _fill_multi_band(
     z: int,
     tile_bbox: BaseGeometry,
-    cell_groups: dict[tuple[int, str], list[tuple[bytes, BaseGeometry]]],
+    cell_groups: dict[tuple[int, str], _CellGroup],
 ) -> tuple[dict[str, list[dict]], set[str], bool, _DropCounts]:
     """Composite one multi-band tile: each pass walks the cells in its
     order, clipping every cell's features to its M_COVR ∩ the area earlier
     cells left unfilled, until the tile is covered.
 
     Returns (features by layer, used cells, fully_filled, dropped counts);
-    fully_filled reflects the first pass, which covers the base layers.
+    fully_filled reflects the first pass, which covers the base layers and
+    decides where the scale boundaries run.
     """
     output_features: dict[str, list[dict]] = {}
     used: set[str] = set()
     drops: _DropCounts = {}
     fully_filled = False
+    owned_regions: list[tuple[int | None, BaseGeometry]] = []
 
     for pass_index, (order_key, keep_layer) in enumerate(_fill_passes(z)):
         filled = shape({"type": "Polygon", "coordinates": []})  # empty
         for cell_key in sorted(cell_groups, key=order_key, reverse=True):
-            cell_entries = cell_groups[cell_key]
-            coverage = cell_entries[0][1]
+            group = cell_groups[cell_key]
+            coverage = group.coverage
             _band_val, cell_name = cell_key
 
             cell_coverage = coverage.intersection(tile_bbox)
@@ -154,17 +195,21 @@ def _fill_multi_band(
             # into detailed-cell coverage shows the overview copy — often
             # missing CATOBS — inside an area the detailed cell owns.
             clip_region = make_valid(usable.buffer(0.01)).intersection(tile_bbox)
+            owned = _owned_region(usable, tile_bbox)
 
-            for data, _cov in cell_entries:
+            for data in group.tiles:
                 features, dropped = _clip_mvt_features(
                     data, clip_region, tile_bbox,
                     hazard_region=usable, keep_layer=keep_layer,
+                    owned_region=owned,
                 )
                 _merge_drops(drops, cell_name, dropped)
                 if features:
                     used.add(cell_name)
                     for ln, feats in features.items():
                         output_features.setdefault(ln, []).extend(feats)
+            if pass_index == 0 and not owned.area.is_empty:
+                owned_regions.append((group.cscl, owned.area))
 
             # Track filled area with the *original* (unbuffered) coverage so
             # adjacent cells can still fill the gap from their side.
@@ -175,7 +220,106 @@ def _fill_multi_band(
         if pass_index == 0:
             fully_filled = filled.contains(tile_bbox)
 
+    boundaries = _scale_boundaries(tile_bbox, owned_regions)
+    if boundaries:
+        output_features[SCALE_BOUNDARY_LAYER] = boundaries
     return output_features, used, fully_filled, drops
+
+
+def _polygonal(geom: BaseGeometry) -> BaseGeometry:
+    """The area of a region. Intersecting regions that only touch, then
+    make_valid, yields their shared border as lines or points (alone, or in
+    a collection beside real area); those own no area."""
+    if geom.geom_type in ("Polygon", "MultiPolygon"):
+        return geom
+    if isinstance(geom, GeometryCollection):
+        areas = [g for g in geom.geoms if g.geom_type in ("Polygon", "MultiPolygon")]
+        if areas:
+            return union_all(areas)
+    return Polygon()
+
+
+def _cut_tolerance(tile_bbox: BaseGeometry) -> float:
+    """_CUT_TOLERANCE_UNITS in degrees: MVT units are tile width / extent,
+    and a tile is never taller than it is wide, so this is the larger axis."""
+    west, _south, east, _north = tile_bbox.bounds
+    return (east - west) / _MVT_EXTENTS * _CUT_TOLERANCE_UNITS
+
+
+def _line_parts(geom: BaseGeometry) -> list[LineString]:
+    """The non-empty LineStrings in a geometry, at any nesting depth."""
+    if geom.is_empty:
+        return []
+    if isinstance(geom, LineString):
+        return [geom]
+    if isinstance(geom, (MultiLineString, GeometryCollection)):
+        return [line for part in geom.geoms for line in _line_parts(part)]
+    return []
+
+
+def _merged_lines(geom: BaseGeometry, min_length: float = 0.0) -> list[LineString]:
+    """A geometry's line parts joined end to end, dropping any shorter than
+    min_length (slivers where two lines cross rather than run together)."""
+    lines = _line_parts(geom)
+    if len(lines) > 1:
+        lines = _line_parts(line_merge(MultiLineString(lines)))
+    return [line for line in lines if line.length > min_length]
+
+
+@dataclass(frozen=True)
+class _OwnedRegion:
+    """The part of a tile one cell's data is shown in, and its cuts: the
+    region's boundary grown by the cut tolerance. Both are prepared, as every
+    area of every layer of the cell is tested against them."""
+
+    area: BaseGeometry
+    cuts: BaseGeometry
+
+
+def _owned_region(area: BaseGeometry, tile_bbox: BaseGeometry) -> _OwnedRegion:
+    area = _polygonal(area)
+    cuts = area.boundary.buffer(_cut_tolerance(tile_bbox))
+    prepare(area)
+    prepare(cuts)
+    return _OwnedRegion(area, cuts)
+
+
+def _real_edges(area: BaseGeometry, owned: _OwnedRegion) -> list[LineString]:
+    """The parts of an area's boundary that are real edges: inside the region
+    its cell owns in this tile and away from every cut."""
+    boundary = area.boundary
+    if not owned.cuts.intersects(boundary):
+        # Clear of every cut, each ring lies wholly inside or outside.
+        return [
+            ring for ring in _line_parts(boundary) if owned.area.intersects(ring)
+        ]
+    return _merged_lines(boundary.intersection(owned.area).difference(owned.cuts))
+
+
+def _scale_boundaries(
+    tile_bbox: BaseGeometry,
+    owned_regions: list[tuple[int | None, BaseGeometry]],
+) -> list[dict]:
+    """Scale-boundary lines between the cells sharing a tile: wherever two
+    cells' owned regions meet and their compilation scales differ. Each line
+    carries the more detailed side's scale (CSCL_DETAILED) and the other's
+    (CSCL_COARSE). Tile edges are not boundaries; the neighbouring tile draws
+    its own side."""
+    tol = _cut_tolerance(tile_bbox)
+    tile_edge = tile_bbox.boundary.buffer(tol)
+    features: list[dict] = []
+    for i, (cscl_a, region_a) in enumerate(owned_regions):
+        for cscl_b, region_b in owned_regions[i + 1:]:
+            if cscl_a is None or cscl_b is None or cscl_a == cscl_b:
+                continue
+            shared = region_a.boundary.intersection(region_b.boundary.buffer(tol))
+            props = {
+                "CSCL_DETAILED": min(cscl_a, cscl_b),
+                "CSCL_COARSE": max(cscl_a, cscl_b),
+            }
+            for line in _merged_lines(shared.difference(tile_edge), 4 * tol):
+                features.append({"geometry": mapping(line), "properties": props})
+    return features
 
 
 def _tile_bbox_polygon(z: int, x: int, y: int) -> BaseGeometry:
@@ -229,6 +373,7 @@ def _clip_mvt_features(
     tile_bbox: BaseGeometry,
     hazard_region: BaseGeometry | None = None,
     keep_layer: Callable[[str], bool] | None = None,
+    owned_region: _OwnedRegion | None = None,
 ) -> tuple[dict[str, list[dict]] | None, dict[str, int]]:
     """Decode an MVT tile and clip features to a usable region.
 
@@ -240,6 +385,9 @@ def _clip_mvt_features(
         hazard_region: When set, layers in _HAZARD_LAYER_NAMES are clipped
             to this (exact, unbuffered) region instead of usable_region.
         keep_layer: When set, layers it rejects are skipped entirely.
+        owned_region: When set, the part of the tile this cell's data is
+            shown in. Polygons of EDGE_CLASSES layers then get their real
+            edges split out into "<layer>_EDGES" and carry SPLIT_EDGES_FLAG.
 
     Returns:
         (layers, dropped): layers is a dict of layer_name → list of
@@ -270,7 +418,9 @@ def _clip_mvt_features(
             clip_to = hazard_region
             if clip_to.is_empty:
                 continue
+        split_edges = owned_region is not None and layer_name in EDGE_CLASSES
         clipped_features: list[dict] = []
+        edge_features: list[dict] = []
         for feature in layer_data.get("features", []):
             geom_dict = feature.get("geometry")
             if geom_dict is None:
@@ -292,28 +442,34 @@ def _clip_mvt_features(
                 if clipped.is_empty:
                     continue
 
-                # Decompose GeometryCollections into individual geometries
-                # (clipping can split a polygon into disjoint pieces)
                 props = feature.get("properties", {})
                 feat_id = feature.get("id")
-                if isinstance(clipped, GeometryCollection):
-                    for part in clipped.geoms:
-                        if not part.is_empty:
-                            clipped_features.append(
-                                {
-                                    "geometry": mapping(part),
-                                    "properties": props,
-                                    "id": feat_id,
-                                }
-                            )
-                else:
-                    clipped_features.append(
-                        {
-                            "geometry": mapping(clipped),
-                            "properties": props,
-                            "id": feat_id,
-                        }
+                parts = (
+                    list(clipped.geoms)
+                    if isinstance(clipped, GeometryCollection)
+                    else [clipped]
+                )
+                is_area = geom.geom_type in ("Polygon", "MultiPolygon")
+                if is_area:
+                    # Clipping an area along a cut can leave slivers of
+                    # line or point lying on the cut; they are not part
+                    # of the area and would draw as a line along it.
+                    parts = [
+                        p for p in parts
+                        if p.geom_type in ("Polygon", "MultiPolygon")
+                    ]
+                if is_area and split_edges:
+                    assert owned_region is not None
+                    edge_features.extend(
+                        {"geometry": mapping(line), "properties": props, "id": feat_id}
+                        for line in _real_edges(geom, owned_region)
                     )
+                    props = {**props, SPLIT_EDGES_FLAG: 1}
+                clipped_features.extend(
+                    {"geometry": mapping(part), "properties": props, "id": feat_id}
+                    for part in parts
+                    if not part.is_empty
+                )
             except Exception:
                 # Topology error — count it; silence here means a feature
                 # (possibly a hazard) vanishes from the published tiles.
@@ -322,6 +478,9 @@ def _clip_mvt_features(
 
         if clipped_features:
             result[layer_name] = clipped_features
+            has_features = True
+        if edge_features:
+            result[layer_name + EDGE_LAYER_SUFFIX] = edge_features
             has_features = True
 
     return (result if has_features else None), dropped
@@ -365,8 +524,8 @@ def _encode_mvt(
 
 # ── Worker functions for multiprocessing ──────────────────────────────
 
-# Serializable entry: (band, cell_name, tile_data, coverage_wkb)
-_SerEntry = tuple[int, str, bytes, bytes]
+# Serializable entry: (band, cell_name, tile_data, coverage_wkb, cscl)
+_SerEntry = tuple[int, str, bytes, bytes, int | None]
 
 
 # Dropped-feature accounting: (cell_name, layer_name) → count.
@@ -389,21 +548,54 @@ def _composite_one_same_band(
     z, x, y, entries = args
     tile_id = zxy_to_tileid(z, x, y)
     tile_bbox = _tile_bbox_polygon(z, x, y)
-    merged_layers: dict[str, list[dict]] = {}
-    used: set[str] = set()
-    drops: _DropCounts = {}
-
-    for _band, cell_name, data, _cov_wkb in entries:
-        features, dropped = _clip_mvt_features(data, tile_bbox, tile_bbox)
-        _merge_drops(drops, cell_name, dropped)
-        if features:
-            used.add(cell_name)
-            for ln, feats in features.items():
-                merged_layers.setdefault(ln, []).extend(feats)
-
+    merged_layers, used, drops = _merge_same_band(tile_bbox, _group_cells(entries))
     if merged_layers:
         return tile_id, _encode_mvt(merged_layers, tile_bbox), used, drops
     return tile_id, None, used, drops
+
+
+def _merge_same_band(
+    tile_bbox: BaseGeometry,
+    cell_groups: dict[tuple[int, str], _CellGroup],
+) -> tuple[dict[str, list[dict]], set[str], _DropCounts]:
+    """Merge one same-band tile: every cell's features are kept whole (one
+    band has no detail order to fill by), each cell owning its coverage for
+    edge splitting. Scale boundaries follow the multi-band fill order over
+    the cells, so overlapping same-band cells meet along one line.
+
+    Returns (features by layer, used cells, dropped counts).
+    """
+    merged_layers: dict[str, list[dict]] = {}
+    used: set[str] = set()
+    drops: _DropCounts = {}
+    owned_regions: list[tuple[int | None, BaseGeometry]] = []
+    filled = shape({"type": "Polygon", "coordinates": []})  # empty
+
+    for cell_key in sorted(cell_groups, reverse=True):
+        group = cell_groups[cell_key]
+        _band, cell_name = cell_key
+        owned = _owned_region(
+            make_valid(group.coverage.intersection(tile_bbox)), tile_bbox
+        )
+        cell_coverage = owned.area
+        for data in group.tiles:
+            features, dropped = _clip_mvt_features(
+                data, tile_bbox, tile_bbox, owned_region=owned
+            )
+            _merge_drops(drops, cell_name, dropped)
+            if features:
+                used.add(cell_name)
+                for ln, feats in features.items():
+                    merged_layers.setdefault(ln, []).extend(feats)
+        unfilled = _polygonal(make_valid(cell_coverage.difference(filled)))
+        if not unfilled.is_empty:
+            owned_regions.append((group.cscl, unfilled))
+        filled = make_valid(filled.union(cell_coverage))
+
+    boundaries = _scale_boundaries(tile_bbox, owned_regions)
+    if boundaries:
+        merged_layers[SCALE_BOUNDARY_LAYER] = boundaries
+    return merged_layers, used, drops
 
 
 def _composite_one_multi_band(
@@ -496,8 +688,8 @@ def composite_tiles(
     # Phase 1: Read tile sources
     t0 = time.monotonic()
     tile_entries: dict[
-        tuple[int, int, int], list[tuple[int, str, bytes, bytes]]
-    ] = {}  # values: (band, cell_name, data, coverage_wkb)
+        tuple[int, int, int], list[_SerEntry]
+    ] = {}
 
     metadata = None
     bounds_header = None
@@ -563,7 +755,7 @@ def composite_tiles(
                         if te < rw or tw > re or tn < rs or ts > rn:
                             continue
                 tile_entries.setdefault((z, x, y), []).append(
-                    (src.band, src.cell_name, data, cov_wkb)
+                    (src.band, src.cell_name, data, cov_wkb, src.cscl)
                 )
         _report("reading", i + 1, len(sources))
 
@@ -595,7 +787,7 @@ def composite_tiles(
     output_tiles: dict[int, bytes] = {}
 
     # Partition tiles into three groups
-    single_entries: list[tuple[tuple[int, int, int], list[tuple[int, str, bytes, bytes]]]] = []
+    single_entries: list[tuple[tuple[int, int, int], list[_SerEntry]]] = []
     same_band_entries: list[tuple[int, int, int, list[_SerEntry]]] = []
     multi_band_entries: list[tuple[int, int, int, list[_SerEntry]]] = []
 
@@ -615,7 +807,7 @@ def composite_tiles(
         output_tiles[tile_id] = entries[0][2]
         used_cells.add(entries[0][1])
         if (z, x, y) in debug_tiles:
-            band, cell, _data, _cov = entries[0]
+            band, cell = entries[0][:2]
             print(f"\n  DEBUG z{z}/{x}/{y}: single-source pass-through"
                   f" (cell={cell}, band={band})")
     single_source = len(single_entries)
@@ -676,7 +868,6 @@ def composite_tiles(
         for z, x, y, entries in same_band_entries:
             tile_id = zxy_to_tileid(z, x, y)
             tile_bbox = _tile_bbox_polygon(z, x, y)
-            merged_layers: dict[str, list[dict]] = {}
             is_debug = (z, x, y) in debug_tiles
 
             if is_debug:
@@ -684,13 +875,12 @@ def composite_tiles(
                 print(f"\n  DEBUG z{z}/{x}/{y}: same-band merge"
                       f" (band={entries[0][0]}, cells={cells})")
 
-            for _band, cell_name_entry, data, _cov_wkb in entries:
-                features, dropped = _clip_mvt_features(data, tile_bbox, tile_bbox)
-                _merge_drops(dropped_features, cell_name_entry, dropped)
-                if features:
-                    used_cells.add(cell_name_entry)
-                    for ln, feats in features.items():
-                        merged_layers.setdefault(ln, []).extend(feats)
+            merged_layers, used, drops = _merge_same_band(
+                tile_bbox, _group_cells(entries)
+            )
+            used_cells.update(used)
+            for key, n in drops.items():
+                dropped_features[key] = dropped_features.get(key, 0) + n
             if merged_layers:
                 output_tiles[tile_id] = _encode_mvt(merged_layers, tile_bbox)
             same_band_count += 1
@@ -704,7 +894,7 @@ def composite_tiles(
 
             if is_debug:
                 cells_by_band: dict[int, list[str]] = {}
-                for b, c, _d, _cv in entries:
+                for b, c, *_rest in entries:
                     cells_by_band.setdefault(b, []).append(c)
                 print(f"\n  DEBUG z{z}/{x}/{y}: multi-band composite")
                 for b in sorted(cells_by_band, reverse=True):

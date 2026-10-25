@@ -6,6 +6,18 @@ import type { ChartManager } from "./ChartManager";
 import { FeatureInfoPanel } from "./FeatureInfoPanel";
 import type { FeatureInfo } from "./feature-info";
 import { formatFeatureInfo } from "./feature-info";
+import {
+  AREA_EDGE_CLASSES,
+  edgeLayerClass,
+  edgeSourceLayer,
+  SPLIT_EDGES_FLAG,
+} from "./styles/area-edges";
+
+const HIGHLIGHT_LINE_PAINT: maplibregl.LineLayerSpecification["paint"] = {
+  "line-color": "#ff6600",
+  "line-width": 3,
+  "line-opacity": 0.9,
+};
 
 /** Polygon source layers that commonly span tile boundaries.
  *  Highlight outlines are suppressed for these to avoid tile-edge artifacts. */
@@ -284,6 +296,8 @@ interface QueriedFeature {
   sourceLayer: string;
   properties: Record<string, unknown>;
   geometry: GeoJSON.Geometry;
+  /** Picked on its area's edges layer: `geometry` is one edge, not the area. */
+  areaEdge?: boolean;
   lngLat?: { lng: number; lat: number };
   /** Child features grouped under this parent by LNAM relationships. */
   children?: QueriedFeature[];
@@ -610,7 +624,11 @@ export class FeatureQueryHandler {
     const layerId = `_hl-${source}-${sourceLayer}`;
 
     // Only create the highlight layer type matching the feature's geometry
-    if (geomType === "Polygon" || geomType === "MultiPolygon") {
+    if (
+      geomType === "Polygon" ||
+      geomType === "MultiPolygon" ||
+      feature.areaEdge
+    ) {
       this.addHighlightLayer(`${layerId}-fill`, fidnFilter, {
         id: `${layerId}-fill`,
         type: "fill",
@@ -622,21 +640,34 @@ export class FeatureQueryHandler {
           "fill-opacity": 0.25,
         },
       });
-      // Large-area layers span tile boundaries, so a line outline would
-      // trace tile-clipped edges as visible straight lines. Only add the
-      // outline for smaller polygon features (forts, buildings, etc.).
+      // Areas with split-out edges are outlined from those (see
+      // area-edges.ts).
+      if (AREA_EDGE_CLASSES.has(sourceLayer)) {
+        this.addHighlightLayer(`${layerId}-edges`, fidnFilter, {
+          id: `${layerId}-edges`,
+          type: "line",
+          source,
+          "source-layer": edgeSourceLayer(sourceLayer),
+          filter: fidnFilter,
+          paint: HIGHLIGHT_LINE_PAINT,
+        });
+      }
+      // A ring outline traces where the area was cut at tile and cell
+      // edges, so it is only drawn where no edges were split out, and
+      // never for the large areas that commonly span tiles.
       if (!TILE_SPANNING_LAYERS.has(sourceLayer)) {
-        this.addHighlightLayer(`${layerId}-line`, fidnFilter, {
+        const ringFilter = [
+          "all",
+          ["==", ["get", "FIDN"], fidn],
+          ["!", ["has", SPLIT_EDGES_FLAG]],
+        ] as unknown as maplibregl.FilterSpecification;
+        this.addHighlightLayer(`${layerId}-line`, ringFilter, {
           id: `${layerId}-line`,
           type: "line",
           source,
           "source-layer": sourceLayer,
-          filter: fidnFilter,
-          paint: {
-            "line-color": "#ff6600",
-            "line-width": 3,
-            "line-opacity": 0.9,
-          },
+          filter: ringFilter,
+          paint: HIGHLIGHT_LINE_PAINT,
         });
       }
     } else if (geomType === "LineString" || geomType === "MultiLineString") {
@@ -646,11 +677,7 @@ export class FeatureQueryHandler {
         source,
         "source-layer": sourceLayer,
         filter: fidnFilter,
-        paint: {
-          "line-color": "#ff6600",
-          "line-width": 3,
-          "line-opacity": 0.9,
-        },
+        paint: HIGHLIGHT_LINE_PAINT,
       });
     } else {
       // Point / MultiPoint
@@ -977,6 +1004,7 @@ function correlateLandmarkNames(features: QueriedFeature[]): void {
 
 /** Fields to ignore when computing dedup key (internal/tile metadata). */
 const DEDUP_IGNORE = new Set([
+  SPLIT_EDGES_FLAG,
   "RCID",
   "PRIM",
   "GRUP",
@@ -1102,6 +1130,12 @@ function bboxArea(f: maplibregl.MapGeoJSONFeature): number {
  * features (buoys, bridges) appear before large area features,
  * and co-located same-type features retain their intended order.
  */
+/** A picked feature's source layer, with an edges layer read as its area's. */
+function areaLayerOf(f: maplibregl.MapGeoJSONFeature): string {
+  const layer = f.sourceLayer ?? f.layer.id;
+  return edgeLayerClass(layer) ?? layer;
+}
+
 function deduplicateFeatures(
   raw: maplibregl.MapGeoJSONFeature[],
 ): QueriedFeature[] {
@@ -1110,8 +1144,8 @@ function deduplicateFeatures(
 
   const sorted = [...raw].sort((a, b) => {
     // Display category: DISPLAYBASE (0) before STANDARD (1) before OTHER (2)
-    const da = displayCategoryRank(a.sourceLayer ?? a.layer.id);
-    const db = displayCategoryRank(b.sourceLayer ?? b.layer.id);
+    const da = displayCategoryRank(areaLayerOf(a));
+    const db = displayCategoryRank(areaLayerOf(b));
     if (da !== db) return da - db;
     // Geometry type: points before lines before areas
     const ra = pickRank(a);
@@ -1131,7 +1165,9 @@ function deduplicateFeatures(
   });
 
   for (const f of sorted) {
-    const sourceLayer = f.sourceLayer ?? f.layer.id;
+    const rawLayer = f.sourceLayer ?? f.layer.id;
+    const edgesOf = edgeLayerClass(rawLayer);
+    const sourceLayer = edgesOf ?? rawLayer;
     const props = f.properties as Record<string, unknown>;
     const keys = dedupKeys(sourceLayer, props);
     if (keys.some((k) => seen.has(k))) continue;
@@ -1142,6 +1178,7 @@ function deduplicateFeatures(
       sourceLayer,
       properties: props,
       geometry: f.geometry,
+      ...(edgesOf !== null && { areaEdge: true }),
     });
   }
 

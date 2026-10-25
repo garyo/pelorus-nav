@@ -5,6 +5,7 @@
  * category-specific layer modules.
  */
 import type { FilterSpecification, LayerSpecification } from "maplibre-gl";
+import { withAreaEdgeLayers } from "./area-edges";
 import {
   getAdditionalAreaLayers,
   getAreaLayers,
@@ -58,6 +59,8 @@ export const LAYER_GROUPS: Record<string, string> = {
   "s57-twrtpt": "routing",
   "s57-twrtpt-outline": "routing",
   "s57-drgare-outline": "dredgedOutlines",
+  "s57-sclbdy": "scaleBoundaries",
+  "s57-sclbdy-label": "scaleBoundaries",
   "s57-resare": "restrictedAreas",
   "s57-resare-anchor-prohib": "restrictedAreas",
   "s57-resare-fish-prohib": "restrictedAreas",
@@ -181,6 +184,9 @@ export const LAYER_CATEGORIES: Record<
   "s57-uwtroc": "DISPLAYBASE",
   "s57-uwtroc-sounding": "DISPLAYBASE",
   "s57-background": "DISPLAYBASE",
+  // Opt-in through their layer group, at every detail level.
+  "s57-sclbdy": "DISPLAYBASE",
+  "s57-sclbdy-label": "DISPLAYBASE",
   "s57-depcnt-label": "STANDARD",
   // STANDARD
   "s57-lakare": "STANDARD",
@@ -608,5 +614,7 @@ export function getNauticalLayers(
       visibility: layerGroups[group] === false ? "none" : "visible",
     };
   }
-  return filtered;
+  // Last, so each edges twin copies its outline layer's final minzoom,
+  // visibility and group.
+  return withAreaEdgeLayers(filtered);
 }

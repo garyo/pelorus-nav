@@ -7,6 +7,18 @@ The format follows [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Added
+- Chart Scale Boundaries layer (Settings → Charts & Layers, off by default):
+  a labelled line where the chart shown changes to one of a different
+  scale. Depth shading can change along it, since each chart has its own
+  depth contours.
+
+### Fixed
+- Chart: large regulated areas (restricted, caution and anchorage areas,
+  cable areas, fairways) no longer show straight dashed lines across open
+  water. Those lines were where the chart data is divided into pieces, not
+  real boundaries. The change applies to each chart region as it is updated.
+
 ## [1.0.1] - 2026-10-23
 
 ### Changed

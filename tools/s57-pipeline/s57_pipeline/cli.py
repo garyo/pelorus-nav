@@ -427,11 +427,13 @@ def _build_composite_sources(
     enc_files: list[Path],
     cell_coverage: dict[Path, "BaseGeometry"],
     cell_bands: dict[Path, int],
+    cell_cscl: dict[Path, int | None],
     work_dir: Path,
 ) -> list[CellTileSource]:
     """Build CellTileSource list from existing per-cell tiles in work_dir.
 
-    Uses pre-scanned cell_bands from Pass 1 to avoid re-reading ENC metadata.
+    Uses pre-scanned bands and scales from Pass 1 to avoid re-reading ENC
+    metadata.
     """
     from shapely.geometry import box as shapely_box
 
@@ -458,6 +460,7 @@ def _build_composite_sources(
                 band=band,
                 coverage=coverage,
                 cell_name=cell_name,
+                cscl=cell_cscl.get(enc_path),
             ))
 
     return sources
@@ -489,12 +492,14 @@ def cmd_pipeline(args: argparse.Namespace) -> None:
     # Build lookup dicts from scan results
     present_intus: set[int] = set()
     cell_bands: dict[Path, int] = {}
+    cell_cscl: dict[Path, int | None] = {}
     cell_coverage: dict[Path, BaseGeometry] = {}
     for meta in cell_metas:
         progress.scan_cell_done()
         if meta.cancelled:
             continue
         cell_bands[meta.enc_path] = meta.scale_band
+        cell_cscl[meta.enc_path] = meta.cscl
         if meta.intu is not None:
             present_intus.add(meta.intu)
         if meta.coverage is not None:
@@ -604,7 +609,9 @@ def cmd_pipeline(args: argparse.Namespace) -> None:
         return
 
     pass3_start = time.monotonic()
-    sources = _build_composite_sources(enc_files, cell_coverage, cell_bands, work_dir)
+    sources = _build_composite_sources(
+        enc_files, cell_coverage, cell_bands, cell_cscl, work_dir
+    )
     if not sources:
         progress.error("No tiles found to composite")
         sys.exit(1)
