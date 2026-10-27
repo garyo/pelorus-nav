@@ -10,7 +10,6 @@ import type { StandaloneWaypoint } from "../data/Waypoint";
 import { logUiAction } from "../diagnostics/uiActionLog";
 import { getSettings } from "../settings";
 import {
-  alongTrackDistanceNM,
   bearingDelta,
   haversineDistanceNM,
   initialBearingDeg,
@@ -25,52 +24,30 @@ import {
   pickJoinLeg,
   suggestReverse,
 } from "./route-join";
-import { closingSpeedKn } from "./speed-average";
+import { closingSpeedKn, type SpeedAverage } from "./speed-average";
+import { waypointPassNM } from "./waypoint-passing";
 
 const STORAGE_KEY = "pelorus-nav-active-nav";
 
-/** Below this average closing speed no time to go is offered: the vessel
- *  is drifting, stopped, or sailing away, and the ETA would be nonsense. */
+/** Below this average closing speed on a waypoint no time to it is offered:
+ *  the vessel is drifting, stopped, or sailing away, and the ETA would be
+ *  nonsense. */
 const MIN_CLOSING_KN = 0.5;
 const MS_PER_HOUR = 3_600_000;
+/** Below this speed over ground the vessel has no course worth steering by. */
+const MIN_COURSE_SOG_KN = 0.5;
+
+/** Course over ground, or null when unknown or the vessel is all but still. */
+function courseOf(data: NavigationData): number | null {
+  if (data.sog == null || data.sog < MIN_COURSE_SOG_KN) return null;
+  return data.cog ?? data.heading ?? null;
+}
 
 /** Serializable form of active navigation state for localStorage. */
 type PersistedNavState =
   | { type: "idle" }
   | { type: "goto"; waypointId: string }
   | { type: "route"; routeId: string; legIndex: number };
-
-/**
- * Determine whether the vessel should advance past the current leg target.
- * Returns true if:
- * - distance to target < arrivalRadiusNM (normal arrival), OR
- * - vessel has passed the perpendicular at the target (along-track > leg distance)
- */
-export function shouldAdvanceLeg(
-  vesselLat: number,
-  vesselLon: number,
-  fromLat: number,
-  fromLon: number,
-  toLat: number,
-  toLon: number,
-  arrivalRadiusNM: number,
-): boolean {
-  // Check simple radius first
-  const distToTarget = haversineDistanceNM(vesselLat, vesselLon, toLat, toLon);
-  if (distToTarget < arrivalRadiusNM) return true;
-
-  // Perpendicular crossing: along-track distance from "from" exceeds leg distance
-  const legDist = haversineDistanceNM(fromLat, fromLon, toLat, toLon);
-  const atd = alongTrackDistanceNM(
-    fromLat,
-    fromLon,
-    toLat,
-    toLon,
-    vesselLat,
-    vesselLon,
-  );
-  return atd >= legDist;
-}
 
 /**
  * Pick the leg to resume after a restart, trusting persisted passage progress.
@@ -279,7 +256,7 @@ export class ActiveNavigationManager {
       targetLon: target.lon,
       ...this.deriveCourseInfo(result.bearingDeg, data),
       nextWaypointName: this.getNextWaypointName(),
-      ...this.deriveRemaining(result.bearingDeg, result.distanceNM),
+      ...this.deriveRemaining(result.bearingDeg, result.distanceNM, data),
     };
 
     // A temporary goto target is done with on arrival: report it and stop,
@@ -304,47 +281,25 @@ export class ActiveNavigationManager {
       return;
     }
 
-    // Route mode: auto-advance on arrival or perpendicular crossing
+    // Route mode: advance on arrival at the target or on passing it (see
+    // waypoint-passing.ts); the final waypoint ends the route only on arrival.
     if (this.state.type === "route") {
-      const arrivalRadius = getSettings().arrivalRadiusNM;
+      const route = this.state.route;
       const nextIndex = this.state.legIndex + 1;
-      const isLastWaypoint = nextIndex >= this.state.route.waypoints.length;
-
-      // Get previous waypoint (leg start) for perpendicular test
-      const fromWp = this.state.route.waypoints[this.state.legIndex - 1];
-      let advance: boolean;
-      if (isLastWaypoint) {
-        advance = result.distanceNM < arrivalRadius; // final wp: radius only
-      } else if (fromWp) {
-        advance = shouldAdvanceLeg(
-          data.latitude,
-          data.longitude,
-          fromWp.lat,
-          fromWp.lon,
-          target.lat,
-          target.lon,
-          arrivalRadius,
-        );
-      } else {
-        // Leg 0 (waypoint[0] is the target, with no prior leg): advance on
-        // arrival, or once the vessel passes wp0's perpendicular heading
-        // toward the next waypoint.
-        const nextWp = this.state.route.waypoints[this.state.legIndex + 1];
-        advance =
-          result.distanceNM < arrivalRadius ||
-          (nextWp != null &&
-            alongTrackDistanceNM(
-              target.lat,
-              target.lon,
-              nextWp.lat,
-              nextWp.lon,
-              data.latitude,
-              data.longitude,
-            ) > 0);
-      }
+      const isLastWaypoint = nextIndex >= route.waypoints.length;
+      const advance =
+        result.distanceNM < getSettings().arrivalRadiusNM ||
+        (!isLastWaypoint &&
+          waypointPassNM(
+            data.latitude,
+            data.longitude,
+            courseOf(data),
+            route.waypoints[this.state.legIndex - 1] ?? null,
+            target,
+            route.waypoints[nextIndex],
+          ) >= 0);
 
       if (advance) {
-        const route = this.state.route;
         const reached = route.waypoints[this.state.legIndex];
         if (!isLastWaypoint) {
           this.state = {
@@ -379,6 +334,7 @@ export class ActiveNavigationManager {
               ...this.deriveRemaining(
                 newResult.bearingDeg,
                 newResult.distanceNM,
+                data,
               ),
             };
           }
@@ -417,11 +373,14 @@ export class ActiveNavigationManager {
    * Times use the passage-average speed (see speed-average.ts): the current
    * leg at the average speed made good toward the target, the legs beyond
    * it at the plain average speed, since their bearings differ from the
-   * present course. Times are null with no average yet or when not closing.
+   * present course. Times are null with no average yet; not closing on the
+   * target leaves no time to it, and the route's end is then timed past it
+   * (ttgDestPastTargetMs).
    */
   private deriveRemaining(
     bearingDeg: number,
     distanceNM: number,
+    data: NavigationData,
   ): {
     destDistanceNM: number | null;
     ttgWaypointMs: number | null;
@@ -435,7 +394,7 @@ export class ActiveNavigationManager {
       return {
         destDistanceNM,
         ttgWaypointMs: null,
-        ttgDestMs: null,
+        ttgDestMs: avg ? this.ttgDestPastTargetMs(avg, data) : null,
         speedSettling: avg?.settling ?? false,
       };
     }
@@ -451,6 +410,32 @@ export class ActiveNavigationManager {
       ttgDestMs,
       speedSettling: avg.settling,
     };
+  }
+
+  /**
+   * Time to the route's end for a vessel not closing on its target: one
+   * that has left the target astern, short of passing it, and is making for
+   * the waypoint after. The route is then timed from that waypoint as it
+   * otherwise is from the target. Null when not closing on it either.
+   */
+  private ttgDestPastTargetMs(
+    avg: SpeedAverage,
+    data: NavigationData,
+  ): number | null {
+    if (this.state.type !== "route") return null;
+    const beyond = this.state.route.waypoints.slice(this.state.legIndex + 1);
+    const next = beyond[0];
+    if (!next) return null;
+    const { latitude: lat, longitude: lon } = data;
+    const closing = closingSpeedKn(
+      avg,
+      initialBearingDeg(lat, lon, next.lat, next.lon),
+    );
+    if (closing < MIN_CLOSING_KN) return null;
+    const toNextNM = haversineDistanceNM(lat, lon, next.lat, next.lon);
+    return (
+      (toNextNM / closing + pathDistanceNM(beyond) / avg.speedKn) * MS_PER_HOUR
+    );
   }
 
   /**
@@ -529,7 +514,7 @@ export class ActiveNavigationManager {
       ? {
           lat: data.latitude,
           lon: data.longitude,
-          cog: data.cog ?? data.heading ?? null,
+          cog: courseOf(data),
         }
       : null;
   }

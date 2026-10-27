@@ -20,6 +20,7 @@ import {
   haversineDistanceNM,
   initialBearingDeg,
 } from "../utils/coordinates";
+import { waypointPassNM } from "./waypoint-passing";
 
 export interface JoinFix {
   lat: number;
@@ -108,12 +109,15 @@ export interface LegMetrics {
   legBrg: number;
   /**
    * The destination is within the arrival radius, or — for a leg the
-   * vessel is on (inside the corridor) — behind its perpendicular. Far from
-   * a leg the perpendicular means nothing: a waypoint 15 NM off the bow is
-   * still ahead however the route leaves it.
+   * vessel is on (inside the corridor) — beyond the leg's end. Far from a
+   * leg its end means nothing: a waypoint 15 NM off the bow is still ahead
+   * however the route leaves it.
    */
   passed: boolean;
-  /** The vessel is beyond the leg's end (for leg 0, beyond its waypoint). */
+  /**
+   * The vessel is across (or within the arrival radius of) the passing
+   * lines at the leg's destination — see waypoint-passing.ts.
+   */
   beyondEnd: boolean;
   /**
    * Still worth steering for: not passed, and — unless this is the final
@@ -135,7 +139,7 @@ function legMetrics(
     initialBearingDeg(fix.lat, fix.lon, wp.lat, wp.lon);
   const [wp0, wp1] = waypoints;
   const d0 = dist(wp0);
-  const beyond0 = alongTrack(wp0, wp1, fix.lat, fix.lon) > 0;
+  const beyond0 = waypointPassNM(fix.lat, fix.lon, fix.cog, null, wp0, wp1) > 0;
   const passed0 = d0 < arrivalRadiusNM || (d0 <= corridorNM && beyond0);
   const metrics: LegMetrics[] = [
     {
@@ -153,11 +157,17 @@ function legMetrics(
   for (let leg = 1; leg <= last; leg++) {
     const from = waypoints[leg - 1];
     const to = waypoints[leg];
-    const legDist = haversineDistanceNM(from.lat, from.lon, to.lat, to.lon);
     const dTo = dist(to);
     const xtd = distanceToLegNM(fix.lat, fix.lon, from, to);
     const beyondEnd =
-      alongTrack(from, to, fix.lat, fix.lon) >= legDist - arrivalRadiusNM;
+      waypointPassNM(
+        fix.lat,
+        fix.lon,
+        fix.cog,
+        from,
+        to,
+        waypoints[leg + 1] ?? null,
+      ) >= -arrivalRadiusNM;
     const passed = dTo < arrivalRadiusNM || (xtd <= corridorNM && beyondEnd);
     metrics.push({
       leg,

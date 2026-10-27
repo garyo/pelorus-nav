@@ -14,6 +14,11 @@ The format follows [Keep a Changelog](https://keepachangelog.com/).
   depth contours.
 
 ### Fixed
+- Route navigation moves on to the next waypoint when you turn for the next
+  leg before reaching it, once the waypoint is abeam or behind you, instead
+  of steering you back to it.
+- The arrival time at a route's destination no longer disappears while you
+  pass a waypoint wide.
 - Chart: large regulated areas (restricted, caution and anchorage areas,
   cable areas, fairways) no longer show straight dashed lines across open
   water. Those lines were where the chart data is divided into pieces, not

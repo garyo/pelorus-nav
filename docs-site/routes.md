@@ -214,7 +214,9 @@ active leg:
   follows the last 30 seconds); `--` means there is no average yet (the
   first 30 seconds under way) or you are not closing on the waypoint.
 - **Dest** — distance to the route's last waypoint and, after the `/`, the
-  clock time you'll arrive there at the same average speed.
+  clock time you'll arrive there at the same average speed. If you are not
+  closing on the next waypoint but are on the one after (say, swinging wide
+  past it), the arrival time is worked out from that one instead.
 - **DTW** — distance to the next waypoint.
 - **BRG** — bearing to it, magnetic or true per your settings.
 - **VMG** — your speed *toward the waypoint*; if it goes negative you're
@@ -232,9 +234,13 @@ reads long for a minute or two while the average catches up.
 The orange dashed line runs from your vessel to the waypoint you're
 steering for; the solid blue line with time ticks is your projected course.
 
-When you arrive at a waypoint (within the arrival radius of 0.1 NM),
-navigation advances to the next leg automatically, with a short two-tone
-beep and a notice (three notes at the last waypoint). Turn the beep off
+When you arrive at a waypoint (within the arrival radius of 0.1 NM) or pass
+it, navigation advances to the next leg automatically, with a short two-tone
+beep and a notice (three notes at the last waypoint). You've passed a
+waypoint once you draw level with it, or, if you turn for the next leg
+early, once it is abeam or behind you and you're nearer the next leg than
+the one you're on. The last waypoint is reached only by arriving within the
+radius. Turn the beep off
 with **Beep when passing a waypoint** in Settings → Navigation.
 
 You can start navigating from anywhere along a route: Pelorus steers for

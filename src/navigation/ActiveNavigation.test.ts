@@ -1,10 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Route } from "../data/Route";
+import { haversineDistanceNM, initialBearingDeg } from "../utils/coordinates";
 import {
   ActiveNavigationManager,
   computeNavigation,
   resolveRestoredLeg,
-  shouldAdvanceLeg,
 } from "./ActiveNavigation";
 import type { NavigationData } from "./NavigationData";
 import type { SpeedAverage } from "./speed-average";
@@ -40,66 +40,6 @@ describe("computeNavigation", () => {
     const result = computeNavigation(42.0, -71.0, 42.0, -70.0);
     expect(result.bearingDeg).toBeGreaterThan(85);
     expect(result.bearingDeg).toBeLessThan(95);
-  });
-});
-
-describe("shouldAdvanceLeg", () => {
-  // Leg: A(0,0) → B(0,1) — due east along equator, ~60 NM
-  const fromLat = 0,
-    fromLon = 0;
-  const toLat = 0,
-    toLon = 1;
-  const arrivalRadius = 0.1; // 0.1 NM
-
-  it("returns true when inside arrival radius", () => {
-    // Vessel very close to target
-    expect(
-      shouldAdvanceLeg(
-        0,
-        0.9999,
-        fromLat,
-        fromLon,
-        toLat,
-        toLon,
-        arrivalRadius,
-      ),
-    ).toBe(true);
-  });
-
-  it("returns true when past perpendicular (sailed past waypoint off-track)", () => {
-    // Vessel at 0.05°N, 1.1°E — past B, offset north (missed radius)
-    expect(
-      shouldAdvanceLeg(
-        0.05,
-        1.1,
-        fromLat,
-        fromLon,
-        toLat,
-        toLon,
-        arrivalRadius,
-      ),
-    ).toBe(true);
-  });
-
-  it("returns false when before perpendicular and outside radius", () => {
-    // Vessel at 0°, 0.5° — halfway along, not near target
-    expect(
-      shouldAdvanceLeg(0, 0.5, fromLat, fromLon, toLat, toLon, arrivalRadius),
-    ).toBe(false);
-  });
-
-  it("returns false when off-track but before the target perpendicular", () => {
-    // Vessel at 0.5°N, 0.5°E — way off track but only halfway along
-    expect(
-      shouldAdvanceLeg(0.5, 0.5, fromLat, fromLon, toLat, toLon, arrivalRadius),
-    ).toBe(false);
-  });
-
-  it("returns true when on-track and just past the waypoint", () => {
-    // Vessel at 0°, 1.01° — just past B on the line
-    expect(
-      shouldAdvanceLeg(0, 1.01, fromLat, fromLon, toLat, toLon, arrivalRadius),
-    ).toBe(true);
   });
 });
 
@@ -505,6 +445,70 @@ describe("arrival events", () => {
     expect(nav.getState().type).toBe("idle");
   });
 
+  it("advances on cutting inside a turn, once the waypoint is abaft the beam", () => {
+    // East along the equator to B, then north to C.
+    const turning: Route = {
+      ...straight,
+      id: "r-turning",
+      waypoints: [
+        { name: "A", lat: 0, lon: 0 },
+        { name: "B", lat: 0, lon: 0.1 },
+        { name: "C", lat: 0.1, lon: 0.1 },
+      ],
+    };
+    const nav = makeNav();
+    const events: string[] = [];
+    nav.onArrival((e) => events.push(e.waypoint.name));
+    last = fix(0, 0.05);
+    nav.startRoute(turning);
+    expect(nav.getState()).toMatchObject({ legIndex: 1 });
+
+    const heading = (lat: number, lon: number, cog: number) =>
+      ({ latitude: lat, longitude: lon, cog, sog: 5 }) as NavigationData;
+
+    // 0.12 NM short of B, 0.21 NM outside the turn, heading north: B is
+    // forward of the beam.
+    feed(heading(-0.0035, 0.098, 0));
+    expect(nav.getState()).toMatchObject({ legIndex: 1 });
+
+    // As far short, inside the turn (nearer leg B→C than leg A→B), but still
+    // heading east: B is 60° off the bow, so still the target.
+    feed(heading(0.0035, 0.098, 90));
+    expect(nav.getState()).toMatchObject({ legIndex: 1 });
+
+    // Turned north for C: B is astern.
+    feed(heading(0.0035, 0.098, 0));
+    expect(nav.getState()).toMatchObject({ legIndex: 2 });
+    expect(events).toEqual(["B"]);
+  });
+
+  it("passes the turn of an out-and-back route on turning back short of it", () => {
+    // Out to B and straight back to A's position.
+    const outAndBack: Route = {
+      ...straight,
+      id: "r-out-back",
+      waypoints: [
+        { name: "A", lat: 0, lon: 0 },
+        { name: "B", lat: 0, lon: 0.1 },
+        { name: "A2", lat: 0, lon: 0 },
+      ],
+    };
+    const nav = makeNav();
+    last = fix(0, 0.05);
+    nav.startRoute(outAndBack);
+    expect(nav.getState()).toMatchObject({ legIndex: 1 });
+
+    // 0.3 NM short of B, drifting with B astern: a drift has no course.
+    const at = (cog: number, sog: number) =>
+      ({ latitude: 0, longitude: 0.095, cog, sog }) as NavigationData;
+    feed(at(270, 0.2));
+    expect(nav.getState()).toMatchObject({ legIndex: 1 });
+
+    // Turned back under way, short of B: neither abeam nor arrived.
+    feed(at(270, 5));
+    expect(nav.getState()).toMatchObject({ legIndex: 2 });
+  });
+
   it("does not fire for a leg the user jumps to by hand", () => {
     const nav = makeNav();
     const events: unknown[] = [];
@@ -723,13 +727,13 @@ describe("time to go", () => {
     };
   }
 
-  function makeNav(avg: SpeedAverage | null) {
+  function makeNav(avg: SpeedAverage | null, at = { lat: 42.05, lon: -71.0 }) {
     const navManager = {
       subscribe: () => {},
       getSpeedAverage: () => avg,
       getLastData: () => ({
-        latitude: 42.05,
-        longitude: -71.0,
+        latitude: at.lat,
+        longitude: at.lon,
         sog: 6,
         cog: 0,
         heading: null,
@@ -773,6 +777,35 @@ describe("time to go", () => {
     away.startRoute(route, 1);
     expect(away.getInfo()?.ttgWaypointMs).toBeNull();
     expect(away.getInfo()?.ttgDestMs).toBeNull();
+  });
+
+  it("times the route from the next waypoint while leaving the target astern", () => {
+    // North to B, then northeast to C. Swinging wide of B to the west,
+    // just short of abeam it, the vessel no longer closes on B but does on C.
+    const bend = {
+      ...route,
+      waypoints: [
+        route.waypoints[0],
+        route.waypoints[1],
+        { id: "w3", name: "C", lat: 42.2, lon: -70.9 },
+      ],
+    } as Route;
+    const at = { lat: 42.099, lon: -71.05 };
+    const nav = makeNav(avgOn(0), at);
+    nav.startRoute(bend, 1);
+    expect(nav.getState()).toMatchObject({ legIndex: 1 });
+    const info = nav.getInfo();
+    expect(info?.ttgWaypointMs).toBeNull();
+    const c = bend.waypoints[2];
+    const closing =
+      6 *
+      Math.cos(
+        (initialBearingDeg(at.lat, at.lon, c.lat, c.lon) * Math.PI) / 180,
+      );
+    expect(info?.ttgDestMs).toBeCloseTo(
+      (haversineDistanceNM(at.lat, at.lon, c.lat, c.lon) / closing) * HOUR,
+      -3,
+    );
   });
 
   it("has no destination time in goto mode and passes settling through", () => {
