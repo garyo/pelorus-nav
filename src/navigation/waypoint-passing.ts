@@ -24,7 +24,7 @@
  *
  * The rules were tuned against simulated helmsmen (corner cutting, offset
  * lanes, overshoots, circling, departures headed the wrong way, sparse noisy
- * fixes). Known failings, both at turns sharper than about 135°: circling
+ * fixes) with tools/waypoint-passing-fuzz.ts. Known failings, both at turns sharper than about 135°: circling
  * short of the waypoint can pass it early, and cutting it so short that the
  * vessel runs back into the arriving leg's first quarter never passes it.
  */
