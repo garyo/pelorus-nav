@@ -213,13 +213,22 @@ and the build also skips any cell whose data carries a cancellation update
 - `tools/upload-apk.sh [--build]` — upload APK to Dropbox (`garyo-dropbox:software/pelorus-nav/`)
 
 ### CI release builds
-Pushing a `v*` tag triggers **two** workflows, so one tag ships all platforms:
-- `.github/workflows/release.yml` — produces a **signed** Android release APK and
-  publishes it as a GitHub Release (attached asset `app-release.apk`).
+Pushing a `v*` tag triggers **two** workflows, so one tag ships all platforms
+straight to production, with no tester stage:
+- `.github/workflows/release.yml` — builds the **signed** Android APK and AAB,
+  attaches them to a GitHub Release, and uploads the AAB to the **Google Play
+  production** track with "What's new" from the changelog. It goes live once
+  Google's review passes (managed publishing is off).
 - `.github/workflows/release-ios.yml` ("iOS TestFlight") — builds a signed iOS app
-  on a macOS runner and **uploads it to TestFlight** via altool. After it succeeds
-  the build sits in Apple's processing/review queue (this is the "review can take
-  days" step) — no separate manual iOS build is needed for a tagged release.
+  on a macOS runner, **uploads it to TestFlight** via altool, then
+  (`tools/ios/appstore-submit.ts`) creates the App Store version, sets its
+  "What's New" from the changelog, attaches the build and **submits it for App
+  Store review**, released automatically on approval. Apple's review can take
+  days; ask for an expedited review in App Store Connect if it stalls.
+
+Store notes come from `tools/release-notes.ts`, which cuts the changelog entry to
+each store's limit (Play: 500 characters; App Store: 4000) and links the full
+changelog when it has to leave items out.
 
 (Pushing to `main` separately auto-deploys the production **web** app via Cloudflare.
 So one tag on an up-to-date main covers web + Android + iOS.)
@@ -234,20 +243,14 @@ package.json version, create a versioned changelog section, or push a `v*` tag
 without being asked to cut a release — the version bump alone makes deployed
 web builds announce a new version to users. Note that pushing to main deploys
 the production web app; get the maintainer's go-ahead before pushing. To cut a
-new release:
-
-1. Add a `## [X.Y.Z] - YYYY-MM-DD` section to `CHANGELOG.md` — compact and user-focused
-   (omit changes users won't notice). This is the single source of truth for the in-app
-   "What's New" dialog (`src/ui/WhatsNewDialog.ts`), which shows this version's entry once
-   after an update and links to the changelog on GitHub.
-2. Bump `version` in `package.json` to `X.Y.Z` — it's the app's `__APP_VERSION__` and what
-   "What's New" keys on. Commit both.
-3. Tag and push:
-
-```
-git tag -a vX.Y.Z -m "Pelorus Nav vX.Y.Z"
-git push origin vX.Y.Z
-```
+new release, run `bun run release X.Y.Z --push`. It turns the Unreleased entries
+into a dated `## [X.Y.Z]` section, bumps `version` in `package.json`, prints the
+store notes, runs `bun run check`, commits, tags `vX.Y.Z`, and pushes main and the
+tag. Without `--push` it stops after tagging. Keep the Unreleased entries compact
+and user-focused (omit changes users won't notice): the section is the single
+source of truth for the in-app "What's New" dialog (`src/ui/WhatsNewDialog.ts`)
+and both stores' release notes. `package.json`'s version is the app's
+`__APP_VERSION__`, and what "What's New" keys on.
 
 The workflow requirements, worth knowing if it ever breaks:
 - **Java 21** (not 17) — `capacitor.build.gradle` uses `sourceCompatibility VERSION_21`.

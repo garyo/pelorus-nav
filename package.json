@@ -25,6 +25,7 @@
     "docs:preview": "vitepress preview docs-site",
     "docs:shots": "bun tools/docs-shots.ts",
     "admin": "cd tools/admin && uv run pelorus-admin",
+    "release": "bun tools/release.ts",
     "sprites": "bun tools/sprites/build-s52-sprites.ts",
     "sprites:catalog": "uv run --with reportlab --with svglib python tools/sprites/render-sprite-catalog.py",
     "tides:build": "bun tools/tides/build-bundle.ts",

@@ -1,9 +1,10 @@
 name: iOS TestFlight
 
-# Build a signed iOS app and upload it to TestFlight.
+# Build a signed iOS app and upload it to TestFlight; on a v* release tag, also
+# submit it for App Store review, to release as soon as Apple approves it.
 #
-# Triggers: manually (workflow_dispatch) for ad-hoc betas, or on a v* release
-# tag (ships iOS alongside the Android release.yml).
+# Triggers: manually (workflow_dispatch) for ad-hoc TestFlight builds, or on a
+# v* release tag (ships iOS alongside the Android release.yml).
 #
 # Signing is handcrafted (no fastlane/match) and fully MANUAL: the Apple
 # Distribution cert + private key are imported from a base64 secret into a temp
@@ -192,4 +193,15 @@ jobs:
           ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
           # ASC_KEY_PATH, BUNDLE_ID, BUILD_NUMBER come from $GITHUB_ENV / env.
           BETA_GROUP: "Beta Testers"
-        run: node tools/ios/testflight-submit.mjs
+        run: bun tools/ios/testflight-submit.ts
+
+      # Creates the App Store version, sets its "What's New" from CHANGELOG.md,
+      # attaches this build, and submits it for review. Unlike the TestFlight
+      # step this fails the run, since the release is unfinished without it;
+      # the build is uploaded either way, so it can be finished by hand.
+      - name: Submit for App Store review
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+        run: bun tools/ios/appstore-submit.ts
