@@ -175,10 +175,9 @@ signal at all.
 
 - **Web app** at [pelorus-nav.com/app](https://pelorus-nav.com/app) — any
   modern browser, installable to the home screen for full-screen offline use.
-- **Android app** in beta, through the Play Store's closed testing or as
-  the signed APK from
+- **iPhone and iPad** app on the [App Store](https://apps.apple.com/app/pelorus-nav/id6781294138).
+- **Android app** coming soon to Google Play; meanwhile the signed APK from
   [GitHub releases](https://github.com/garyo/pelorus-nav/releases).
-- **iPhone and iPad** app in beta through TestFlight.
 - **Free and open source** —
   [MIT-licensed on GitHub](https://github.com/garyo/pelorus-nav).
 - **No account and no tracking** — your routes, tracks, and position stay

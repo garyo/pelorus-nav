@@ -5,8 +5,8 @@ An open-source web-based marine chartplotter. Runs in any browser as a progressi
 I aim for the highest quality software in all projects, including this one. All code is thoroughly tested at all levels, including back end tile pipelines and end-to-end app tests. All code is linted and type-checked, and frequently reviewed and refactored when needed to reduce technical debt.
 
 **Live web app**: [pelorus-nav.com](https://pelorus-nav.com/)
-**Android** (beta): Play Store closed testing — [sign up](https://pelorus-nav.com/#follow) — or the signed APK on the [Releases](https://github.com/garyo/pelorus-nav/releases) page
-**iOS** (beta): TestFlight — [sign up](https://pelorus-nav.com/#follow) for an invitation
+**iPhone and iPad**: [App Store](https://apps.apple.com/app/pelorus-nav/id6781294138)
+**Android**: coming soon to Google Play; meanwhile the signed APK on the [Releases](https://github.com/garyo/pelorus-nav/releases) page, or [sign up](https://pelorus-nav.com/#follow) for early access through Play testing
 
 ## Features
 

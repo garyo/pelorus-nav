@@ -9,13 +9,13 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Pelorus Nav — open-source marine chartplotter (beta)</title>
-<meta name="description" content="A friendly, free, open-source marine chartplotter in beta: official NOAA vector charts, offline use, tides and currents, standard S-52 symbology. No account needed. Not for navigation." />
+<title>Pelorus Nav — open-source marine chartplotter</title>
+<meta name="description" content="A friendly, free, open-source marine chartplotter: official NOAA vector charts, offline use, tides and currents, standard S-52 symbology. No account needed. Not for navigation." />
 <link rel="icon" type="image/svg+xml" href="/icon.svg" />
 <link rel="canonical" href="https://pelorus-nav.com/" />
 <meta property="og:type" content="website" />
-<meta property="og:title" content="Pelorus Nav — open-source marine chartplotter (beta)" />
-<meta property="og:description" content="Official NOAA charts, offline use, tides and currents — free and open source, on the device you already own. In beta; not for navigation." />
+<meta property="og:title" content="Pelorus Nav — open-source marine chartplotter" />
+<meta property="og:description" content="Official NOAA charts, offline use, tides and currents — free and open source, on the device you already own. Not for navigation." />
 <meta property="og:url" content="https://pelorus-nav.com/" />
 <meta property="og:image" content="https://pelorus-nav.com/landing/og-card.png" />
 <meta name="twitter:card" content="summary_large_image" />
@@ -28,7 +28,7 @@
   "operatingSystem": "Web, Android, iOS",
   "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
   "url": "https://pelorus-nav.com/",
-  "description": "Open-source marine chartplotter (beta) with official NOAA vector charts, offline use, and tide/current predictions. Not intended for primary navigation."
+  "description": "Open-source marine chartplotter with official NOAA vector charts, offline use, and tide/current predictions. Not intended for primary navigation."
 }
 </script>
 <style>
@@ -111,11 +111,6 @@ h1 .accent { color: var(--wave); }
 .cta-note { font-size: 14px; color: var(--chrome); }
 .cta-note a { color: var(--chrome); }
 .cta-note strong { color: var(--body); font-weight: 500; }
-.beta-pill {
-  font-size: 11px; font-weight: 500; letter-spacing: 0.14em; text-transform: uppercase;
-  color: var(--wave); border: 1px solid var(--chrome); border-radius: 999px;
-  padding: 3px 9px; margin-left: 2px; position: relative; top: -2px;
-}
 .notice {
   border: 1px solid var(--hairline); border-left: 3px solid var(--chrome);
   border-radius: 8px; padding: 18px 22px; margin-top: 28px;
@@ -290,7 +285,6 @@ footer nav { display: flex; gap: 8px 22px; flex-wrap: wrap; }
         <path d="M 17 77 Q 25 73 33 75" fill="none" stroke="#85c1e9" stroke-width="3" stroke-linecap="round" opacity="0.55"/>
       </svg>
       <span>Pelorus <b>Nav</b></span>
-      <span class="beta-pill">beta</span>
     </a>
     <nav class="header-links">
       <a href="/doc/userguide/">User Guide</a>
@@ -301,18 +295,20 @@ footer nav { display: flex; gap: 8px 22px; flex-wrap: wrap; }
 </div>
 
 <div class="wrap hero">
-  <p class="eyebrow">Open-source marine chartplotter · beta</p>
+  <p class="eyebrow">Open-source marine chartplotter</p>
   <h1>A friendly, easy-to-use, <span class="accent">open-source</span> chartplotter.</h1>
   <p class="lede">Pelorus Nav is a free chartplotter for the browser and Android and iOS,
   and beyond: <strong>official NOAA vector charts</strong> with standard modern
   symbology, offline tide and current predictions, and no account needed. It's
-  young — in beta, improving steadily, and built in the open by a sailor.</p>
+  improving steadily and built in the open by a sailor.</p>
   <div class="cta-row">
     <a class="btn btn-primary btn-big" href="/app">Try the web app</a>
-    <a class="btn btn-ghost" href="#follow">Sign up for Android or iOS</a>
+    <a class="btn btn-ghost" href="https://apps.apple.com/app/pelorus-nav/id6781294138">Get it on the App Store</a>
+    <a class="btn btn-ghost" href="#follow">Android early access</a>
   </div>
   <p class="cta-note">Runs in any modern browser — nothing to install, no account needed.
-  The Android and iOS apps are in beta; sign up to join the testing program.</p>
+  The iPhone and iPad app is on the App Store; the Android app is coming soon
+  to Google Play.</p>
   <p class="cta-note"><strong>Not for navigation:</strong> please treat it as a
   planning and situational-awareness aid, and carry official charts.</p>
 </div>
@@ -323,7 +319,7 @@ footer nav { display: flex; gap: 8px 22px; flex-wrap: wrap; }
 </div>
 <hr class="divider" aria-hidden="true" />
 <div class="wrap"><p class="shot-caption">Under way in Boston Harbor — NOAA ENC data with IHO S-52 symbology, live instruments, street basemap blended in near shore.</p>
-  <div class="notice"><b>Beta software — not for navigation.</b> Pelorus Nav is
+  <div class="notice"><b>Not for navigation.</b> Pelorus Nav is
   young and under active development. Please use it as a planning and
   situational-awareness aid alongside official charts and proper seamanship —
   never as your only source of navigation information.</div>
@@ -495,16 +491,15 @@ footer nav { display: flex; gap: 8px 22px; flex-wrap: wrap; }
   </section>
 
   <section id="follow" class="follow">
-    <h2>Help steer it</h2> <p class="section-lede">Pelorus Nav iOS and
-    Android apps are in beta (iOS through TestFlight; Android through the
-    Play Store's closed testing, or as the signed APK from
-    <a href="https://github.com/garyo/pelorus-nav/releases/latest">GitHub releases</a>),
-    and feedback from sailors
+    <h2>Help steer it</h2> <p class="section-lede">The iPhone and iPad app
+    is on the <a href="https://apps.apple.com/app/pelorus-nav/id6781294138">App Store</a>. The Android app is coming soon to
+    Google Play; until then, install the signed APK from
+    <a href="https://github.com/garyo/pelorus-nav/releases/latest">GitHub releases</a>,
+    or tick Android below and we'll add you to early access through Play
+    testing (please use the email you use to log in to your phone).
+    Feedback from sailors
     actually using it is what shapes it: what works, what's missing,
-    where it should go next. Leave us your email below if you're
-    interested in testing and we'll get back to you to add you to the
-    beta for iOS or Android. (On Android, please use the email you use
-    to log in to your phone).
+    where it should go next.
 <br>
     Try it on your boat, then tell us what you think — <a
     href="https://github.com/garyo/pelorus-nav/issues">open a GitHub issue</a> or just send a bug report from within the app (INFO → Report a Bug…).
@@ -515,9 +510,8 @@ footer nav { display: flex; gap: 8px 22px; flex-wrap: wrap; }
       <label class="hp" aria-hidden="true">Leave this empty
         <input type="text" name="website" tabindex="-1" autocomplete="off" />
       </label>
-      <div class="signup-platforms" role="group" aria-label="Beta testing programs">
-        <label><input type="checkbox" name="android" /> Android beta</label>
-        <label><input type="checkbox" name="ios" /> iOS TestFlight</label>
+      <div class="signup-platforms" role="group" aria-label="Early access">
+        <label><input type="checkbox" name="android" /> Android early access</label>
       </div>
       <input type="email" name="email" required placeholder="you@example.com"
         aria-label="Email address" />
@@ -531,7 +525,7 @@ footer nav { display: flex; gap: 8px 22px; flex-wrap: wrap; }
   </section>
 
   <footer>
-    <span>© 2026 Dark Star Systems · MIT license · beta — not for navigation</span>
+    <span>© 2026 Dark Star Systems · MIT license · not for navigation</span>
     <nav>
       <a href="/app">Open the app</a>
       <a href="/doc/userguide/">User Guide</a>
@@ -561,7 +555,6 @@ form.addEventListener("submit", async (e) => {
         email,
         website: form.elements.website.value,
         android: form.elements.android.checked,
-        ios: form.elements.ios.checked,
         note: form.elements.note.value.trim(),
       }),
     });
