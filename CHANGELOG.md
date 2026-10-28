@@ -7,6 +7,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-10-28
+
 ### Added
 - Chart Scale Boundaries layer (Settings → Charts & Layers, off by default):
   a labelled line where the chart shown changes to one of a different
