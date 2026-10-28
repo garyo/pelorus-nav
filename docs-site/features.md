@@ -176,7 +176,7 @@ signal at all.
 - **Web app** at [pelorus-nav.com/app](https://pelorus-nav.com/app) — any
   modern browser, installable to the home screen for full-screen offline use.
 - **iPhone and iPad** app on the [App Store](https://apps.apple.com/app/pelorus-nav/id6781294138).
-- **Android app** coming soon to Google Play; meanwhile the signed APK from
+- **Android app** on [Google Play](https://play.google.com/store/apps/details?id=nav.pelorus.app), or the signed APK from
   [GitHub releases](https://github.com/garyo/pelorus-nav/releases).
 - **Free and open source** —
   [MIT-licensed on GitHub](https://github.com/garyo/pelorus-nav).

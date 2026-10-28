@@ -9,10 +9,8 @@ For use on the water, install it:
 - **Phone/tablet browser** — use your browser's "Add to Home Screen" /
   "Install app" option. The installed app runs full-screen and works offline.
 - **iPhone and iPad** — install from the [App Store](https://apps.apple.com/app/pelorus-nav/id6781294138).
-- **Android** — coming soon to Google Play. Meanwhile, download the signed
-  APK from the latest [GitHub release](https://github.com/garyo/pelorus-nav/releases), or
-  [sign up](https://pelorus-nav.com/#follow) for early access through Play
-  testing.
+- **Android** — install from [Google Play](https://play.google.com/store/apps/details?id=nav.pelorus.app), or download the
+  signed APK from the latest [GitHub release](https://github.com/garyo/pelorus-nav/releases).
 
 The web app updates itself: when a new build is published it loads in the
 background and the app reloads at a quiet moment (or tap **Reload now**).

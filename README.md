@@ -6,7 +6,7 @@ I aim for the highest quality software in all projects, including this one. All 
 
 **Live web app**: [pelorus-nav.com](https://pelorus-nav.com/)
 **iPhone and iPad**: [App Store](https://apps.apple.com/app/pelorus-nav/id6781294138)
-**Android**: coming soon to Google Play; meanwhile the signed APK on the [Releases](https://github.com/garyo/pelorus-nav/releases) page, or [sign up](https://pelorus-nav.com/#follow) for early access through Play testing
+**Android**: [Google Play](https://play.google.com/store/apps/details?id=nav.pelorus.app), or the signed APK on the [Releases](https://github.com/garyo/pelorus-nav/releases) page
 
 ## Features
 

@@ -14,10 +14,8 @@ tracks, tides and currents, and man-overboard.
   any modern browser, and can be installed to your home screen for full-screen,
   offline use.
 - **iPhone and iPad**: on the [App Store](https://apps.apple.com/app/pelorus-nav/id6781294138).
-- **Android**: coming soon to Google Play; meanwhile as the signed APK
-  attached to each [GitHub release](https://github.com/garyo/pelorus-nav/releases), or
-  [sign up](https://pelorus-nav.com/#follow) for early access through Play
-  testing.
+- **Android**: on [Google Play](https://play.google.com/store/apps/details?id=nav.pelorus.app), or as the signed APK attached to
+  each [GitHub release](https://github.com/garyo/pelorus-nav/releases).
 
 ## This guide
 
