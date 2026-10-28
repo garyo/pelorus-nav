@@ -157,6 +157,13 @@ function simulate(s: Scenario, rand: () => number): Fix[] {
   let loiterLeftDeg = 0;
   let loitered = false;
   const fixes: Fix[] = [];
+  const fixAt = (t: number) => ({
+    t,
+    p: { x: pos.x + gauss() * s.noise, y: pos.y + gauss() * s.noise },
+    truePos: pos,
+    cog: (hdg + gauss() * 6 + 360) % 360,
+    helmLeg: leg,
+  });
   for (let t = 1, nextFix = 0; t <= 6 * 3600; t++) {
     const a = R[leg - 1];
     const b = R[leg];
@@ -169,7 +176,11 @@ function simulate(s: Scenario, rand: () => number): Fix[] {
       t--;
       continue;
     }
-    if (isLast && len(sub(b, pos)) < 0.03) break;
+    if (isLast && len(sub(b, pos)) < 0.03) {
+      // Stopped at the end: the next fix finds the vessel here.
+      fixes.push({ ...fixAt(t), loitering: false, departing: false });
+      break;
+    }
     if (
       !loitered &&
       s.loiterTurns > 0 &&
@@ -203,11 +214,7 @@ function simulate(s: Scenario, rand: () => number): Fix[] {
     pos = { x: pos.x + stepNM * Math.sin(h), y: pos.y + stepNM * Math.cos(h) };
     if (t >= nextFix) {
       fixes.push({
-        t,
-        p: { x: pos.x + gauss() * s.noise, y: pos.y + gauss() * s.noise },
-        truePos: pos,
-        cog: (hdg + gauss() * 6 + 360) % 360,
-        helmLeg: leg,
+        ...fixAt(t),
         loitering: loiterLeftDeg > 0 || departTarget !== null,
         departing: departTarget !== null,
       });
