@@ -210,17 +210,6 @@ h2 {
 form.signup {
   display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; margin-top: 8px;
 }
-.signup-platforms {
-  flex-basis: 100%; display: flex; gap: 28px; justify-content: center;
-  font-size: 15.5px; margin-bottom: 4px;
-}
-.signup-platforms label {
-  display: flex; align-items: center; gap: 8px; cursor: pointer;
-  color: var(--body);
-}
-.signup-platforms input[type="checkbox"] {
-  width: 17px; height: 17px; accent-color: var(--blue); cursor: pointer;
-}
 .signup input[name="email"],
 .signup input[name="note"] {
   font: inherit; font-size: 16.5px; color: var(--cloth);
@@ -494,9 +483,6 @@ footer nav { display: flex; gap: 8px 22px; flex-wrap: wrap; }
     is on the <a href="https://apps.apple.com/app/pelorus-nav/id6781294138">App Store</a>, and the Android app on
     <a href="https://play.google.com/store/apps/details?id=nav.pelorus.app">Google Play</a> (or as the signed APK from
     <a href="https://github.com/garyo/pelorus-nav/releases/latest">GitHub releases</a>).
-    To try new Android builds before they reach everyone, tick Android below
-    and we'll add you to early access through Play testing (please use the
-    email you use to log in to your phone).
     Feedback from sailors
     actually using it is what shapes it: what works, what's missing,
     where it should go next.
@@ -510,9 +496,6 @@ footer nav { display: flex; gap: 8px 22px; flex-wrap: wrap; }
       <label class="hp" aria-hidden="true">Leave this empty
         <input type="text" name="website" tabindex="-1" autocomplete="off" />
       </label>
-      <div class="signup-platforms" role="group" aria-label="Early access">
-        <label><input type="checkbox" name="android" /> Android early access</label>
-      </div>
       <input type="email" name="email" required placeholder="you@example.com"
         aria-label="Email address" />
       <input type="text" name="note" maxlength="200"
@@ -554,7 +537,6 @@ form.addEventListener("submit", async (e) => {
       body: JSON.stringify({
         email,
         website: form.elements.website.value,
-        android: form.elements.android.checked,
         note: form.elements.note.value.trim(),
       }),
     });
