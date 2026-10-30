@@ -7,6 +7,11 @@ The format follows [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Changed
+- In a web browser, the app asks to keep its data (Firefox shows a prompt
+  for this) when you first download or import charts, or once you have saved
+  routes or tracks, rather than on your first visit.
+
 ## [1.1.0] - 2026-10-28
 
 ### Added
