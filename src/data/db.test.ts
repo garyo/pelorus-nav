@@ -103,3 +103,22 @@ describe("bug report outbox", () => {
     ]);
   });
 });
+
+describe("hasSavedNavData", () => {
+  it("is false for a new database and true once a waypoint is saved", async () => {
+    const db = await loadDb();
+    expect(await db.hasSavedNavData()).toBe(false);
+    await db.saveWaypoint({
+      id: "wp1",
+      lat: 42.36,
+      lon: -71.05,
+      name: "Mark",
+      notes: "",
+      icon: "default",
+      createdAt: 0,
+      updatedAt: 0,
+      visible: true,
+    });
+    expect(await db.hasSavedNavData()).toBe(true);
+  });
+});

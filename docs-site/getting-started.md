@@ -128,6 +128,12 @@ several regions or basemaps out of date, an **Update All** row at the top of
 the panel queues them all. The panel footer shows total storage used.
 Downloaded charts can be removed individually or all at once.
 
+In a web browser, your first chart download (or the first launch after you've
+saved routes or tracks) asks the browser to keep the app's data. Most browsers
+decide on their own; Firefox asks you to allow Pelorus Nav to "store data in
+persistent storage". Allow it: otherwise the browser may clear your charts,
+routes and tracks when the disk runs low.
+
 Charts you bring yourself, such as satellite-imagery collections for waters
 with poor official charts, load from the same panel: see
 [Your Own Charts](/own-charts).

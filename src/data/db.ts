@@ -414,6 +414,18 @@ export async function deleteWaypoint(id: string): Promise<void> {
   });
 }
 
+/** Whether any track, route or waypoint has been saved. */
+export async function hasSavedNavData(): Promise<boolean> {
+  const db = await openDB();
+  const stores = ["tracks", "routes", "waypoints"];
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(stores, "readonly");
+    const counts = stores.map((name) => tx.objectStore(name).count());
+    tx.oncomplete = () => resolve(counts.some((req) => req.result > 0));
+    tx.onerror = () => reject(tx.error);
+  });
+}
+
 // --- Bug report outbox ---
 
 /** Add a record to the bug-report outbox; returns its auto-assigned key. */

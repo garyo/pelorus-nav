@@ -152,6 +152,7 @@ import {
 import { NavigationHUD } from "./ui/NavigationHUD";
 import { registerNavInstruments } from "./ui/nav-instruments";
 import { trackInstrumentHUD } from "./ui/PanelStack";
+import { requestPersistentStorageOnLaunch } from "./ui/persistent-storage";
 import { RecenterButton } from "./ui/RecenterButton";
 import { startReleaseCheck } from "./ui/ReleaseCheck";
 import { RouteManagerPanel } from "./ui/RouteManagerPanel";
@@ -210,16 +211,7 @@ if (Capacitor.isNativePlatform() && "serviceWorker" in navigator) {
   });
 }
 
-// Ask the browser to protect this origin's storage from eviction — routes,
-// tracks, and multi-hundred-MB charts (IndexedDB + OPFS) otherwise live in a
-// best-effort bucket the browser may silently wipe under storage pressure.
-// Granted without a prompt for installed PWAs on Chromium; a denial is fine
-// (Capacitor bundles its own storage and never evicts).
-if (!Capacitor.isNativePlatform() && navigator.storage?.persist) {
-  navigator.storage.persist().then((granted) => {
-    if (!granted) console.log("Persistent storage not granted (best-effort)");
-  });
-}
+void requestPersistentStorageOnLaunch();
 
 // On the web PWA, register the service worker and offer a reload when a
 // new build is available (no-op stub in Capacitor builds). The reload is

@@ -60,6 +60,7 @@ import {
   setIcon,
 } from "./icons";
 import { getPanelStack } from "./PanelStack";
+import { requestPersistentStorage } from "./persistent-storage";
 import { registerSurface } from "./SurfaceManager";
 
 /** A downloadable chart file plus its aux files. */
@@ -889,6 +890,7 @@ export class ChartCachePanel {
       return;
     }
 
+    void requestPersistentStorage();
     for (const job of fresh) {
       this.failures.delete(job.filename);
       this.queue.push({
@@ -1267,6 +1269,7 @@ export class ChartCachePanel {
       const file = input.files?.[0];
       if (!file) return;
       input.value = ""; // allow re-importing the same filename later
+      void requestPersistentStorage();
       try {
         await importChart(file);
         await this.onChartsChanged?.();
