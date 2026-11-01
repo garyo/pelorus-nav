@@ -213,8 +213,9 @@ and the build also skips any cell whose data carries a cancellation update
 - `tools/upload-apk.sh [--build]` — upload APK to Dropbox (`garyo-dropbox:software/pelorus-nav/`)
 
 ### CI release builds
-Pushing a `v*` tag triggers **two** workflows, so one tag ships all platforms
-straight to production, with no tester stage:
+Push a `v*` tag only when asked for that release. It triggers **two**
+workflows, so one tag ships all platforms straight to production, with no
+tester stage:
 - `.github/workflows/release.yml` — builds the **signed** Android APK and AAB,
   attaches them to a GitHub Release, and uploads the AAB to the **Google Play
   production** track with "What's new" from the changelog. It goes live once
