@@ -6,6 +6,7 @@
 
 import type { PluginListenerHandle } from "@capacitor/core";
 import { registerPlugin } from "@capacitor/core";
+import type { SandboxRoute } from "../navigation/route-sandbox";
 
 export interface TrackPointNative {
   timestamp: number;
@@ -221,6 +222,13 @@ export interface BackgroundGPSPlugin {
    * records. Rejects on native shells older than this method.
    */
   anchorKeepalive(options: { sinceLastMs: number }): Promise<void>;
+
+  /**
+   * The route the service follows while the app is in the background, to
+   * chime as each waypoint is passed (see route-sandbox.ts), or null for
+   * none. Rejects on native shells older than this method.
+   */
+  setRouteWatch(options: { route: SandboxRoute | null }): Promise<void>;
 
   /** Check whether the foreground service is currently running. */
   isTracking(): Promise<{ tracking: boolean }>;

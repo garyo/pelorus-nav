@@ -1,9 +1,13 @@
 /**
- * Render the anchor-watch alarm tones to WAV files for the Android foreground
- * service.
+ * Render the anchor-watch alarm tones and the waypoint chimes to WAV files for
+ * the Android foreground service.
  *
  * Usage: bun tools/gen-alarm-sounds.ts
  * Output: android/app/src/main/res/raw/anchor_alarm_{drag,gps_loss,watch_failure}.wav
+ *         android/app/src/main/res/raw/waypoint_chime_{pass,arrival}.wav
+ *
+ * The chimes are rendered the same way from src/navigation/waypoint-chime-cues.ts's
+ * notes, played once rather than looped.
  *
  * WHY THESE EXIST
  * The service used to sound the device's *default* alarm ringtone, which on a
@@ -49,6 +53,11 @@ import {
   ANCHOR_WATCH_FAILURE_ALARM_TONE,
 } from "../src/anchor/anchor-alarm-tones";
 import type { CobAlarmOptions } from "../src/cob/CobAlarm";
+import {
+  ARRIVAL_NOTES,
+  CHIME_GAIN,
+  PASS_NOTES,
+} from "../src/navigation/waypoint-chime-cues";
 
 const SAMPLE_RATE = 44100;
 /** Matches CobAlarm.tone's gain ramps, in seconds. */
@@ -104,6 +113,25 @@ function renderBeat(tone: Required<CobAlarmOptions>): Float64Array {
       out[start + i] += sampler(t) * envelope(t, toneSec) * tone.gain;
     }
   });
+  return out;
+}
+
+/** Notes ([Hz, s] each) played back to back, as scheduleChime plays them. */
+function renderNotes(notes: [number, number][], gain: number): Float64Array {
+  const total = Math.round(
+    notes.reduce((sum, [, sec]) => sum + sec, 0) * SAMPLE_RATE,
+  );
+  const out = new Float64Array(total);
+  let start = 0;
+  for (const [freqHz, sec] of notes) {
+    const sampler = squareSampler(freqHz);
+    const length = Math.round(sec * SAMPLE_RATE);
+    for (let i = 0; i < length && start + i < total; i++) {
+      const t = i / SAMPLE_RATE;
+      out[start + i] += sampler(t) * envelope(t, sec) * gain;
+    }
+    start += length;
+  }
   return out;
 }
 
@@ -205,4 +233,13 @@ for (const [name, tone] of [
   const path = `${OUT_DIR}/${name}.wav`;
   writeFileSync(path, encodeWav(renderBeat(tone)));
   selfCheck(path, tone);
+}
+
+for (const [name, notes] of [
+  ["waypoint_chime_pass", PASS_NOTES],
+  ["waypoint_chime_arrival", ARRIVAL_NOTES],
+] as const) {
+  const path = `${OUT_DIR}/${name}.wav`;
+  writeFileSync(path, encodeWav(renderNotes(notes, CHIME_GAIN)));
+  console.log(`${path}: ${readFileSync(path).length} bytes`);
 }

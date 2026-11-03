@@ -932,6 +932,23 @@ class BackgroundGPSPlugin : Plugin() {
      * the native detector announces its alarms itself. Deliberately silent
      * per-beat: the diag log carries transitions only.
      */
+    /** The route to chime along while the app is in the background, or none. */
+    @PluginMethod
+    fun setRouteWatch(call: PluginCall) {
+        BackgroundTrackService.setRoute(call.getObject("route")?.toString())
+        call.resolve()
+    }
+
+    override fun handleOnStart() {
+        super.handleOnStart()
+        BackgroundTrackService.appVisible = true
+    }
+
+    override fun handleOnStop() {
+        super.handleOnStop()
+        BackgroundTrackService.appVisible = false
+    }
+
     @PluginMethod
     fun anchorKeepalive(call: PluginCall) {
         BackgroundTrackService.noteJsKeepalive(context, call.data.optLong("sinceLastMs", 0L))

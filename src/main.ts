@@ -12,6 +12,7 @@ import {
   describeResumeGap,
 } from "./map/backlog-notice";
 import { showInterruptionToast } from "./map/interruption-toast";
+import { startNativeRouteWatch } from "./navigation/native-route-watch";
 import { playWaypointChime } from "./navigation/waypoint-chime";
 import { BackgroundGPS } from "./plugins/BackgroundGPS";
 import "maplibre-gl/dist/maplibre-gl.css";
@@ -1202,6 +1203,9 @@ routePanel.setOnPreviewRoute((route) => {
 
 // --- Waypoints + Active Navigation ---
 const activeNav = new ActiveNavigationManager(navManager);
+startNativeRouteWatch(activeNav);
+// PROTOTYPE: test hook for driving route navigation over CDP.
+(window as unknown as { __activeNav: unknown }).__activeNav = activeNav;
 const waypointLayer = new WaypointLayer(chartManager.map);
 routeEditor.setSnapWaypointsProvider(() => waypointLayer.getWaypoints());
 const navHud = new NavigationHUD(
@@ -1214,10 +1218,13 @@ new CenterCrosshair(chartManager.map, navHud.getCursorCoordsEl());
 new BearingLine(chartManager.map, activeNav, navManager);
 
 // Passing a route waypoint: a short chime (vibration on a phone) and a
-// notice; three notes on arriving at the last one.
-activeNav.onArrival(({ waypoint, next }) => {
+// notice; three notes on arriving at the last one. Only live fixes chime:
+// those buffered while the app was frozen arrive late, all at once, and on
+// Android the background service has already chimed for them.
+const LIVE_FIX_MS = 10_000;
+activeNav.onArrival(({ waypoint, next, fixTime }) => {
   if (!getSettings().waypointArrivalAlert) return;
-  playWaypointChime(next === null);
+  if (Date.now() - fixTime < LIVE_FIX_MS) playWaypointChime(next === null);
   const name = waypoint.name || "waypoint";
   showToast({
     message:

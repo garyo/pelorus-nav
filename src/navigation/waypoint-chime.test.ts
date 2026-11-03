@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { fakeAudioContext } from "../utils/fake-audio-context";
-import { ARRIVAL_NOTES, PASS_NOTES, scheduleChime } from "./waypoint-chime";
+import { scheduleChime } from "./waypoint-chime";
+import { ARRIVAL_NOTES, PASS_NOTES } from "./waypoint-chime-cues";
 
 describe("scheduleChime", () => {
   it("plays the pass notes back to back from the context's current time", () => {

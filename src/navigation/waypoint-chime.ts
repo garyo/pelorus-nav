@@ -1,32 +1,25 @@
 /**
- * The short chime that marks passing a route waypoint: two rising notes,
- * three on arriving at the last one. Web Audio only plays while the page
- * is in the foreground (a backgrounded WebView's context is suspended), so
- * on a phone a vibration burst carries the cue when the screen is off.
+ * The short chime that marks passing a route waypoint, played with Web Audio
+ * (cues in waypoint-chime-cues.ts). Web Audio only plays while the page is in
+ * the foreground; with the Android app in the background, its service chimes
+ * instead (see route-sandbox.ts).
  */
 
 import { Capacitor } from "@capacitor/core";
 import { playTone } from "../utils/tone";
-
-/** [frequency Hz, duration s] per note, played back to back. */
-export const PASS_NOTES: [number, number][] = [
-  [660, 0.12],
-  [880, 0.18],
-];
-export const ARRIVAL_NOTES: [number, number][] = [
-  [660, 0.12],
-  [880, 0.12],
-  [1100, 0.28],
-];
-const GAIN = 0.3;
-const VIBRATE_PASS = [150, 80, 250];
-const VIBRATE_ARRIVAL = [150, 80, 150, 80, 400];
+import {
+  ARRIVAL_NOTES,
+  CHIME_GAIN,
+  PASS_NOTES,
+  VIBRATE_ARRIVAL,
+  VIBRATE_PASS,
+} from "./waypoint-chime-cues";
 
 /** Schedule the chime's notes from `ctx.currentTime`. Pure over the context. */
 export function scheduleChime(ctx: AudioContext, final: boolean): void {
   let at = ctx.currentTime;
   for (const [freqHz, durationSec] of final ? ARRIVAL_NOTES : PASS_NOTES) {
-    playTone(ctx, freqHz, at, durationSec, GAIN);
+    playTone(ctx, freqHz, at, durationSec, CHIME_GAIN);
     at += durationSec;
   }
 }
@@ -35,6 +28,8 @@ let sharedContext: AudioContext | null = null;
 
 /** Play the chime (and vibrate on a phone). Silently a no-op where it can't. */
 export function playWaypointChime(final: boolean): void {
+  // The Android service chimes whenever the app is off screen.
+  if (Capacitor.getPlatform() === "android" && document.hidden) return;
   if (Capacitor.isNativePlatform()) {
     navigator.vibrate?.(final ? VIBRATE_ARRIVAL : VIBRATE_PASS);
   }

@@ -243,6 +243,23 @@ class BackgroundTrackService : Service() {
         var instance: BackgroundTrackService? = null
 
         /**
+         * The route being navigated, as route-sandbox.ts's SandboxRoute JSON,
+         * or null. On the companion so a service started later picks it up.
+         */
+        @Volatile var routeJson: String? = null
+            private set
+
+        /** The app is on screen, and chimes for itself. */
+        @Volatile var appVisible: Boolean = true
+
+        private const val MS_TO_KNOTS = 1.943844
+
+        fun setRoute(json: String?) {
+            routeJson = json
+            instance?.routeSandbox?.setRoute(json)
+        }
+
+        /**
          * The armed anchor watch, or null. Lives in the companion so it
          * survives a service stop/start within the process, exactly like
          * [currentMode]; JS re-pushes it after a process restart.
@@ -389,6 +406,8 @@ class BackgroundTrackService : Service() {
 
     private lateinit var fusedClient: FusedLocationProviderClient
     private lateinit var trackDb: TrackDatabase
+    private var routeSandbox: RouteSandbox? = null
+    private var chimePlayer: MediaPlayer? = null
     private lateinit var locationCallback: LocationCallback
     private var partialWakeLock: PowerManager.WakeLock? = null
     /** True when the wake lock is held continuously (ACTIVE). False when toggled per-fix (PASSIVE). */
@@ -569,6 +588,7 @@ class BackgroundTrackService : Service() {
         }
         fusedClient = LocationServices.getFusedLocationProviderClient(this)
         trackDb = TrackDatabase(this)
+        routeSandbox = RouteSandbox(this, ::onRouteArrival).also { it.setRoute(routeJson) }
         alarmManager = getSystemService(Context.ALARM_SERVICE) as AlarmManager
         locationManager = getSystemService(Context.LOCATION_SERVICE) as? LocationManager
 
@@ -661,6 +681,12 @@ class BackgroundTrackService : Service() {
                         // so JS stops getting per-fix wakeups — unless a watch
                         // is armed, when JS is the detector that matters.
                         locationListener?.invoke(point)
+                        routeSandbox?.onFix(
+                            location.latitude,
+                            location.longitude,
+                            if (location.hasSpeed()) location.speed * MS_TO_KNOTS else null,
+                            if (location.hasBearing()) location.bearing.toDouble() else null,
+                        )
 
                         // Adaptive passive sampling: feed the steadiness tracker
                         // and re-issue the LocationRequest if its recommendation
@@ -807,6 +833,10 @@ class BackgroundTrackService : Service() {
     override fun onDestroy() {
         super.onDestroy()
         DiagLog.log(this, "svc", "onDestroy")
+        routeSandbox?.close()
+        routeSandbox = null
+        chimePlayer?.release()
+        chimePlayer = null
         cancelPendingPassive()
         cancelWatchdog()
         cancelAnchorWatchdog()
@@ -1974,6 +2004,48 @@ class BackgroundTrackService : Service() {
             am.setStreamVolume(AudioManager.STREAM_ALARM, prior, 0)
         } catch (e: SecurityException) {
             DiagLog.log(applicationContext, "anchor", "alarm volume restore blocked: ${e.message}")
+        }
+    }
+
+    /**
+     * The route sandbox passed a waypoint. With the app on screen the app
+     * chimes itself (it sees the same fixes); otherwise chime here, on the
+     * navigation-guidance stream, which ducks music rather than stopping it.
+     */
+    private fun onRouteArrival(reached: String, next: String?, vibrate: LongArray) {
+        val visible = appVisible
+        DiagLog.log(applicationContext, "route", "passed '$reached' next='${next ?: ""}' appVisible=$visible")
+        if (visible) return
+        mainHandler.post {
+            chimePlayer?.release()
+            chimePlayer = try {
+                MediaPlayer().apply {
+                    setAudioAttributes(
+                        AudioAttributes.Builder()
+                            .setUsage(AudioAttributes.USAGE_ASSISTANCE_NAVIGATION_GUIDANCE)
+                            .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                            .build(),
+                    )
+                    val res = if (next == null) R.raw.waypoint_chime_arrival else R.raw.waypoint_chime_pass
+                    applicationContext.resources.openRawResourceFd(res).use { fd ->
+                        setDataSource(fd.fileDescriptor, fd.startOffset, fd.length)
+                    }
+                    setOnCompletionListener { it.release(); if (chimePlayer === it) chimePlayer = null }
+                    prepare()
+                    start()
+                }
+            } catch (e: Exception) {
+                DiagLog.log(applicationContext, "route", "chime failed: ${e.message}")
+                null
+            }
+            vibrator()?.let { vib ->
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    vib.vibrate(VibrationEffect.createWaveform(vibrate, -1))
+                } else {
+                    @Suppress("DEPRECATION")
+                    vib.vibrate(vibrate, -1)
+                }
+            }
         }
     }
 

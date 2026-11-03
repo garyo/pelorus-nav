@@ -17,6 +17,7 @@ import {
 } from "../utils/coordinates";
 import type { NavigationData } from "./NavigationData";
 import type { NavigationDataManager } from "./NavigationDataManager";
+import { courseFrom, routeAdvance } from "./route-advance";
 import {
   CORRIDOR_FLOOR_NM,
   distanceToLegNM,
@@ -25,7 +26,7 @@ import {
   suggestReverse,
 } from "./route-join";
 import { closingSpeedKn, type SpeedAverage } from "./speed-average";
-import { waypointPassNM, waypointReached } from "./waypoint-passing";
+import { waypointReached } from "./waypoint-passing";
 
 const STORAGE_KEY = "pelorus-nav-active-nav";
 
@@ -34,13 +35,9 @@ const STORAGE_KEY = "pelorus-nav-active-nav";
  *  nonsense. */
 const MIN_CLOSING_KN = 0.5;
 const MS_PER_HOUR = 3_600_000;
-/** Below this speed over ground the vessel has no course worth steering by. */
-const MIN_COURSE_SOG_KN = 0.5;
-
 /** Course over ground, or null when unknown or the vessel is all but still. */
 function courseOf(data: NavigationData): number | null {
-  if (data.sog == null || data.sog < MIN_COURSE_SOG_KN) return null;
-  return data.cog ?? data.heading ?? null;
+  return courseFrom(data.sog, data.cog ?? data.heading);
 }
 
 /** Serializable form of active navigation state for localStorage. */
@@ -165,6 +162,9 @@ export interface ArrivalEvent {
   index: number;
   /** The new target, or null when `waypoint` was the last one. */
   next: Waypoint | null;
+  /** When the fix that reached it was taken (ms epoch): fixes buffered while
+   *  the app was frozen arrive late, all at once. */
+  fixTime: number;
 }
 
 export type ArrivalListener = (event: ArrivalEvent) => void;
@@ -283,6 +283,7 @@ export class ActiveNavigationManager {
         waypoint: this.state.waypoint,
         index: 0,
         next: null,
+        fixTime: data.timestamp,
       });
       this.stop();
       return;
@@ -295,23 +296,14 @@ export class ActiveNavigationManager {
       const nextIndex = this.state.legIndex + 1;
       const isLastWaypoint = nextIndex >= route.waypoints.length;
       const advance =
-        waypointReached(
+        routeAdvance(
           data.latitude,
           data.longitude,
           courseOf(data),
-          target,
+          route.waypoints,
+          this.state.legIndex,
           getSettings().arrivalRadiusNM,
-          isLastWaypoint,
-        ) ||
-        (!isLastWaypoint &&
-          waypointPassNM(
-            data.latitude,
-            data.longitude,
-            courseOf(data),
-            route.waypoints[this.state.legIndex - 1] ?? null,
-            target,
-            route.waypoints[nextIndex],
-          ) >= 0);
+        ) !== "stay";
 
       if (advance) {
         const reached = route.waypoints[this.state.legIndex];
@@ -327,6 +319,7 @@ export class ActiveNavigationManager {
             waypoint: reached,
             index: nextIndex - 1,
             next: route.waypoints[nextIndex],
+            fixTime: data.timestamp,
           });
           // Recompute for new target
           const newTarget = this.getTarget();
@@ -359,6 +352,7 @@ export class ActiveNavigationManager {
             waypoint: reached,
             index: this.state.legIndex,
             next: null,
+            fixTime: data.timestamp,
           });
           this.stop();
           return;
