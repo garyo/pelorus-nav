@@ -249,15 +249,30 @@ class BackgroundTrackService : Service() {
         @Volatile var routeJson: String? = null
             private set
 
+        /**
+         * The route is followed from the Bluetooth serial GPS rather than
+         * this device's own, so only that stream feeds the route sandbox.
+         */
+        @Volatile var routeFromSerial: Boolean = false
+            private set
+
         /** The app is on screen, and chimes for itself. */
         @Volatile var appVisible: Boolean = true
 
         private const val MS_TO_KNOTS = 1.943844
 
-        fun setRoute(json: String?) {
+        fun setRoute(json: String?, fromSerial: Boolean) {
             routeJson = json
-            instance?.routeSandbox?.setRoute(json)
+            routeFromSerial = fromSerial
+            instance?.routeSandbox?.setRoute(json, keepAhead = !appVisible)
         }
+
+        /**
+         * Native code reads the Bluetooth serial GPS: for an armed anchor
+         * watch, or for a route followed from it.
+         */
+        fun wantsSerialFixes(): Boolean =
+            anchorParams != null || (routeJson != null && routeFromSerial)
 
         /**
          * The armed anchor watch, or null. Lives in the companion so it
@@ -588,7 +603,7 @@ class BackgroundTrackService : Service() {
         }
         fusedClient = LocationServices.getFusedLocationProviderClient(this)
         trackDb = TrackDatabase(this)
-        routeSandbox = RouteSandbox(this, ::onRouteArrival).also { it.setRoute(routeJson) }
+        routeSandbox = RouteSandbox(this, ::onRouteArrival).also { it.setRoute(routeJson, keepAhead = false) }
         alarmManager = getSystemService(Context.ALARM_SERVICE) as AlarmManager
         locationManager = getSystemService(Context.LOCATION_SERVICE) as? LocationManager
 
@@ -681,7 +696,7 @@ class BackgroundTrackService : Service() {
                         // so JS stops getting per-fix wakeups — unless a watch
                         // is armed, when JS is the detector that matters.
                         locationListener?.invoke(point)
-                        routeSandbox?.onFix(
+                        if (!routeFromSerial) routeSandbox?.onFix(
                             location.latitude,
                             location.longitude,
                             if (location.hasSpeed()) location.speed * MS_TO_KNOTS else null,
@@ -1449,9 +1464,13 @@ class BackgroundTrackService : Service() {
         // Runs on the transport's read thread. Assembly, parsing, and the
         // rate limit stay here (single caller); the detector itself is only
         // ever touched on the main looper, so the accepted fix hops there.
-        if (anchorDetector == null) return
+        val anchor = anchorDetector != null
+        val route = routeFromSerial && routeJson != null
+        if (!anchor && !route) return
         for (line in serialNmeaAssembler.feed(chunk)) {
             val fix = parseNmeaRmc(line) ?: continue
+            if (route) routeSandbox?.onFix(fix.lat, fix.lon, fix.sogKn, fix.cogDeg)
+            if (!anchor) continue
             val now = SystemClock.elapsedRealtime()
             if (now - lastSerialFixElapsedMs < ANCHOR_SERIAL_FIX_MIN_MS) continue
             lastSerialFixElapsedMs = now

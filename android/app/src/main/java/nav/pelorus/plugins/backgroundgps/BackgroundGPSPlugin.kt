@@ -98,7 +98,8 @@ class BackgroundGPSPlugin : Plugin() {
      */
     private fun syncServiceDemand() {
         val armed = BackgroundTrackService.anchorParams != null
-        val wanted = BackgroundTrackService.trackingRequested || armed
+        val wanted = BackgroundTrackService.trackingRequested || armed ||
+            BackgroundTrackService.routeJson != null
         val running = BackgroundTrackService.instance != null
         val sticky = armed || BackgroundTrackService.recordingWanted
         val stickinessStale = running && BackgroundTrackService.startedSticky != sticky
@@ -932,10 +933,18 @@ class BackgroundGPSPlugin : Plugin() {
      * the native detector announces its alarms itself. Deliberately silent
      * per-beat: the diag log carries transitions only.
      */
-    /** The route to chime along while the app is in the background, or none. */
+    /**
+     * The route to chime along while the app is in the background, or none,
+     * and whether it is followed from the Bluetooth serial GPS. Following a
+     * route keeps the service running on its own.
+     */
     @PluginMethod
     fun setRouteWatch(call: PluginCall) {
-        BackgroundTrackService.setRoute(call.getObject("route")?.toString())
+        BackgroundTrackService.setRoute(
+            call.getObject("route")?.toString(),
+            call.getString("source") == "serial",
+        )
+        syncServiceDemand()
         call.resolve()
     }
 

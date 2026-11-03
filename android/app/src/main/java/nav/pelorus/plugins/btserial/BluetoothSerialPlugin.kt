@@ -32,10 +32,11 @@ import nav.pelorus.plugins.backgroundgps.DiagLog
  * connects by MAC address. The reader thread emits "data" events with decoded
  * text chunks; a broken link emits one "disconnected" event. Reconnect policy
  * lives in the web layer (ReconnectingTransport) — with one exception: while
- * an anchor watch is armed, a dropped link is also retried natively (see
- * [maybeStartAnchorReconnect]), because the WebView that would otherwise
- * reconnect freezes minutes after the screen goes off, and on a GNSS-less
- * tablet this stream is the anchor watch's only position source. Without the
+ * an anchor watch is armed or a route is followed from this receiver, a
+ * dropped link is also retried natively (see [maybeStartNativeReconnect]),
+ * because the WebView that would otherwise reconnect freezes minutes after
+ * the screen goes off, and on a GNSS-less tablet this stream is the only
+ * position source the native anchor watch and route follower have. Without the
  * native retry, every transient Bluetooth dropout matured into a full
  * GPS-loss alarm two minutes later — one guaranteed crew wake per dropout.
  */
@@ -196,11 +197,11 @@ class BluetoothSerialPlugin : Plugin() {
                         data.put("data", text)
                         notifyListeners("data", data)
                     } catch (_: Exception) {}
-                    // The anchor watch reads the stream natively too: the
-                    // WebView this event feeds freezes minutes after the
-                    // screen goes off, and on a GNSS-less tablet this stream
-                    // is the only thing that can see the boat. No-op unless
-                    // a watch is armed.
+                    // The anchor watch and route follower read the stream
+                    // natively too: the WebView this event feeds freezes
+                    // minutes after the screen goes off, and on a GNSS-less
+                    // tablet this stream is the only thing that can see the
+                    // boat. No-op unless one of them wants it.
                     try {
                         BackgroundTrackService.instance?.onSerialData(text)
                     } catch (_: Exception) {}
@@ -212,23 +213,24 @@ class BluetoothSerialPlugin : Plugin() {
         if (gen == generation) {
             closeSocket()
             notifyListeners("disconnected", JSObject())
-            maybeStartAnchorReconnect()
+            maybeStartNativeReconnect()
         }
     }
 
     /**
-     * Keep the serial GPS feed alive for an armed anchor watch with no JS to
-     * do it: retry the last device with backoff until the link is back, the
-     * watch is disarmed, or a JS connect/disconnect supersedes us (any
+     * Keep the serial GPS feed alive for an armed anchor watch or a followed
+     * route with no JS to do it: retry the last device with backoff until the
+     * link is back, neither wants it any longer, or a JS connect/disconnect
+     * supersedes us (any
      * generation change). Sleeps first, so an awake WebView's own reconnect
      * wins the race and this thread simply exits.
      */
     @SuppressLint("MissingPermission")
-    private fun maybeStartAnchorReconnect() {
+    private fun maybeStartNativeReconnect() {
         val deviceId = lastDeviceId ?: return
-        if (BackgroundTrackService.anchorParams == null) return
+        if (!BackgroundTrackService.wantsSerialFixes()) return
         val fromGen = generation
-        DiagLog.log(context, "conn", "bt-spp native reconnect loop started (anchor armed)")
+        DiagLog.log(context, "conn", "bt-spp native reconnect loop started (anchor armed or route followed)")
         Thread({
             var delayMs = 2_000L
             while (true) {
@@ -238,7 +240,7 @@ class BluetoothSerialPlugin : Plugin() {
                     return@Thread
                 }
                 if (generation != fromGen) return@Thread
-                if (BackgroundTrackService.anchorParams == null) return@Thread
+                if (!BackgroundTrackService.wantsSerialFixes()) return@Thread
                 val adapter = this.adapter
                 if (adapter == null || !adapter.isEnabled) {
                     delayMs = minOf(delayMs * 2, 20_000L)

@@ -1,37 +1,35 @@
 /**
- * Bundle src/navigation/route-sandbox.ts into one script for the Android
- * background service's JavaScriptSandbox, exposing its exports as
- * `globalThis.pelorusRoute`.
+ * Bundle src/navigation/route-sandbox.ts into one plain script for the
+ * Android background service's JavaScriptSandbox, exposing its exports as
+ * the global `pelorusRoute`.
  *
  * Usage: bun tools/build-route-sandbox.ts
- * Output: android/app/src/main/assets/route-sandbox.js
+ * Output: android/app/src/main/assets/route-sandbox.js (committed; a unit
+ * test fails when it is stale)
  */
 
-const OUT = "android/app/src/main/assets/route-sandbox.js";
+import { writeFileSync } from "node:fs";
+import { build } from "esbuild";
 
-const result = await Bun.build({
-  entrypoints: ["src/navigation/route-sandbox.ts"],
-  format: "esm",
-  target: "browser",
-  minify: true,
-});
-if (!result.success) {
-  for (const log of result.logs) console.error(log);
-  process.exit(1);
+export const ROUTE_SANDBOX_ASSET =
+  "android/app/src/main/assets/route-sandbox.js";
+
+export async function buildRouteSandbox(): Promise<string> {
+  const result = await build({
+    entryPoints: ["src/navigation/route-sandbox.ts"],
+    bundle: true,
+    write: false,
+    format: "iife",
+    globalName: "pelorusRoute",
+    target: "es2020",
+    minify: true,
+    legalComments: "none",
+  });
+  return result.outputFiles[0].text;
 }
-const esm = await result.outputs[0].text();
-// The sandbox evaluates plain scripts, not modules: turn the bundle's one
-// export statement into a global.
-const exportAt = esm.lastIndexOf("export{");
-if (exportAt < 0) throw new Error("bundle has no export statement");
-const exported = esm
-  .slice(exportAt + "export{".length, esm.indexOf("}", exportAt))
-  .split(",")
-  .map((spec) => {
-    const [local, name = local] = spec.split(" as ");
-    return `${name}:${local}`;
-  })
-  .join(",");
-const script = `(()=>{${esm.slice(0, exportAt)}globalThis.pelorusRoute={${exported}};})();\n`;
-await Bun.write(OUT, script);
-console.log(`${OUT}: ${script.length} bytes`);
+
+if (import.meta.main) {
+  const script = await buildRouteSandbox();
+  writeFileSync(ROUTE_SANDBOX_ASSET, script);
+  console.log(`${ROUTE_SANDBOX_ASSET}: ${script.length} bytes`);
+}

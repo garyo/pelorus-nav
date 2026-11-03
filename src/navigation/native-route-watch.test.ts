@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Route } from "../data/Route";
-import { sandboxRouteFor } from "./native-route-watch";
+import { routeWatchSource, sandboxRouteFor } from "./native-route-watch";
 
 const route: Route = {
   id: "r",
@@ -33,5 +33,15 @@ describe("sandboxRouteFor", () => {
       sandboxRouteFor({ type: "route", route, legIndex: 1 }, false, 0.05),
     ).toBeNull();
     expect(sandboxRouteFor({ type: "idle" }, true, 0.05)).toBeNull();
+  });
+});
+
+describe("routeWatchSource", () => {
+  it("follows the sources the service can read itself", () => {
+    expect(routeWatchSource("capacitor-gps")).toBe("device");
+    expect(routeWatchSource("bt-spp")).toBe("serial");
+    expect(routeWatchSource("signalk")).toBeNull();
+    expect(routeWatchSource("ble-nmea")).toBeNull();
+    expect(routeWatchSource("simulator")).toBeNull();
   });
 });

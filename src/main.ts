@@ -1061,24 +1061,34 @@ gps.capacitorGPS?.setBacklogSink(async (points) => {
   if (notice) void showInterruptionToast(notice.message, notice.interrupted);
 });
 
+/** A reason other than recording to keep GPS running while hidden. */
+function gpsKeepAlive() {
+  return {
+    active: false,
+    listeners: [] as Array<() => void>,
+    set(active: boolean): void {
+      if (this.active === active) return;
+      this.active = active;
+      for (const fn of this.listeners) fn();
+    },
+  };
+}
 // An armed anchor watch must keep GPS alive exactly like an active
 // recording — screen-off drag detection depends on fixes — without forcing
-// track recording. This source ORs the two; the anchor wiring further down
-// drives `armed` and fires the listeners on arm/disarm.
-const anchorGpsKeepAlive = {
-  armed: false,
-  listeners: [] as Array<() => void>,
-  set(armed: boolean): void {
-    if (this.armed === armed) return;
-    this.armed = armed;
-    for (const fn of this.listeners) fn();
-  },
-};
+// track recording. The anchor wiring further down drives it on arm/disarm.
+const anchorGpsKeepAlive = gpsKeepAlive();
+// So must a route being followed on Android, whose background service
+// chimes as each waypoint is passed (see native-route-watch.ts).
+const routeGpsKeepAlive = gpsKeepAlive();
 const gpsDemandSource: RecordingSource = {
-  isRecording: () => trackRecorder.isRecording() || anchorGpsKeepAlive.armed,
+  isRecording: () =>
+    trackRecorder.isRecording() ||
+    anchorGpsKeepAlive.active ||
+    routeGpsKeepAlive.active,
   onRecordingChange: (fn) => {
     trackRecorder.onRecordingChange(fn);
     anchorGpsKeepAlive.listeners.push(fn);
+    routeGpsKeepAlive.listeners.push(fn);
   },
 };
 
@@ -1203,9 +1213,9 @@ routePanel.setOnPreviewRoute((route) => {
 
 // --- Waypoints + Active Navigation ---
 const activeNav = new ActiveNavigationManager(navManager);
-startNativeRouteWatch(activeNav);
-// PROTOTYPE: test hook for driving route navigation over CDP.
-(window as unknown as { __activeNav: unknown }).__activeNav = activeNav;
+startNativeRouteWatch(activeNav, (following) =>
+  routeGpsKeepAlive.set(following),
+);
 const waypointLayer = new WaypointLayer(chartManager.map);
 routeEditor.setSnapWaypointsProvider(() => waypointLayer.getWaypoints());
 const navHud = new NavigationHUD(

@@ -8,6 +8,9 @@ import type { PluginListenerHandle } from "@capacitor/core";
 import { registerPlugin } from "@capacitor/core";
 import type { SandboxRoute } from "../navigation/route-sandbox";
 
+/** This device's own GPS, or the Bluetooth serial receiver's NMEA stream. */
+export type RouteWatchSource = "device" | "serial";
+
 export interface TrackPointNative {
   timestamp: number;
   lat: number;
@@ -226,9 +229,13 @@ export interface BackgroundGPSPlugin {
   /**
    * The route the service follows while the app is in the background, to
    * chime as each waypoint is passed (see route-sandbox.ts), or null for
-   * none. Rejects on native shells older than this method.
+   * none, and the position stream it follows it by. Following a route keeps
+   * the service running. Rejects on native shells older than this method.
    */
-  setRouteWatch(options: { route: SandboxRoute | null }): Promise<void>;
+  setRouteWatch(options: {
+    route: SandboxRoute | null;
+    source: RouteWatchSource;
+  }): Promise<void>;
 
   /** Check whether the foreground service is currently running. */
   isTracking(): Promise<{ tracking: boolean }>;

@@ -1,7 +1,8 @@
 package nav.pelorus.plugins.backgroundgps
 
 /**
- * Minimal NMEA position extraction for the native anchor watch.
+ * Minimal NMEA position extraction for the native anchor watch and route
+ * follower (RouteSandbox).
  *
  * A GNSS-less tablet's only position source is an external receiver the app
  * reads over a native serial transport (see BluetoothSerialPlugin). The
@@ -11,13 +12,21 @@ package nav.pelorus.plugins.backgroundgps
  * it. Feeding positions parsed *natively* into the anchor detector gives such
  * devices the same screen-off cover a phone gets from its own GNSS chip.
  *
- * Only RMC is read: every GNSS receiver emits it, and its validity flag and
- * position are all the detector needs. Anything else — proprietary sentences,
+ * Only RMC is read: every GNSS receiver emits it, and its validity flag,
+ * position, speed and course are all the two need. Anything else — proprietary sentences,
  * satellite detail, DOP — stays the JS parser's business.
  */
 
-/** A valid position from one RMC sentence, decimal degrees, +N/+E. */
-data class NmeaFix(val lat: Double, val lon: Double)
+/**
+ * A valid position from one RMC sentence, decimal degrees, +N/+E, with speed
+ * over ground (knots) and true course over ground when the receiver sent them.
+ */
+data class NmeaFix(
+    val lat: Double,
+    val lon: Double,
+    val sogKn: Double? = null,
+    val cogDeg: Double? = null,
+)
 
 /**
  * Parse one NMEA sentence; a position only for a valid, checksummed RMC.
@@ -44,7 +53,9 @@ fun parseNmeaRmc(line: String): NmeaFix? {
     if (f.size < 7 || f[2] != "A") return null
     val lat = parseNmeaCoord(f[3], f[4], degreeDigits = 2) ?: return null
     val lon = parseNmeaCoord(f[5], f[6], degreeDigits = 3) ?: return null
-    return NmeaFix(lat, lon)
+    val sogKn = f.getOrNull(7)?.toDoubleOrNull()?.takeIf { it.isFinite() && it >= 0.0 }
+    val cogDeg = f.getOrNull(8)?.toDoubleOrNull()?.takeIf { it.isFinite() && it in 0.0..360.0 }
+    return NmeaFix(lat, lon, sogKn, cogDeg)
 }
 
 /** "4216.8342","N" → 42.28057; "07105.2168","W" → −71.08695. */

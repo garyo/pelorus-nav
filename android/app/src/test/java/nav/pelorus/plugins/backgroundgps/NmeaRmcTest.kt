@@ -22,6 +22,16 @@ class NmeaRmcTest {
         assertNotNull(fix)
         assertEquals(48.1173, fix!!.lat, 1e-4)
         assertEquals(11.5166, fix.lon, 1e-4)
+        assertEquals(22.4, fix.sogKn!!, 1e-9)
+        assertEquals(84.4, fix.cogDeg!!, 1e-9)
+    }
+
+    @Test
+    fun `speed and course are absent when the receiver leaves them empty`() {
+        val fix = parseNmeaRmc(withChecksum("GPRMC,123519,A,4807.038,N,01131.000,E,,,230394,,"))
+        assertNotNull(fix)
+        assertNull(fix!!.sogKn)
+        assertNull(fix.cogDeg)
     }
 
     @Test

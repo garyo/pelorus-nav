@@ -37,9 +37,24 @@ class RouteSandbox(
     /** The route as the sandbox should hold it, legIndex kept current. */
     private var route: JSONObject? = null
 
-    /** Follow `json` (a SandboxRoute), or stop following on null. */
-    fun setRoute(json: String?) = executor.execute {
-        route = json?.let { JSONObject(it) }
+    /**
+     * Follow `json` (a SandboxRoute), or stop following on null. With
+     * `keepAhead`, a leg behind the one this side has already reached on the
+     * same route is ignored: an app still running hidden can catch up on a
+     * waypoint after the sandbox has passed it, and following its leg would
+     * chime for that waypoint again.
+     */
+    fun setRoute(json: String?, keepAhead: Boolean) = executor.execute {
+        val incoming = json?.let { JSONObject(it) }
+        val current = route
+        if (keepAhead && incoming != null && current != null &&
+            incoming.optJSONArray("waypoints")?.toString() ==
+            current.optJSONArray("waypoints")?.toString() &&
+            incoming.optInt("legIndex") < current.optInt("legIndex")
+        ) {
+            return@execute
+        }
+        route = incoming
         val iso = isolate ?: return@execute
         try {
             load(iso)
