@@ -38,10 +38,14 @@ public class BackgroundGPSPlugin: CAPPlugin, CAPBridgedPlugin, CLLocationManager
     CAPPluginMethod(name: "openDisplaySettings", returnType: CAPPluginReturnPromise),
     CAPPluginMethod(name: "appendDiag", returnType: CAPPluginReturnPromise),
     CAPPluginMethod(name: "readDiag", returnType: CAPPluginReturnPromise),
+    CAPPluginMethod(name: "setRouteWatch", returnType: CAPPluginReturnPromise),
   ]
 
   private let manager = CLLocationManager()
   private let db = TrackDatabase()
+  private lazy var routeSandbox = RouteSandbox { [weak self] reached, next in
+    self?.onRouteArrival(reached: reached, next: next)
+  }
 
   private var tracking = false
   private var passive = false
@@ -229,6 +233,14 @@ public class BackgroundGPSPlugin: CAPPlugin, CAPBridgedPlugin, CLLocationManager
         continue
       }
 
+      // Every fix, before the passive gate thins them: the route follower
+      // wants the vessel's position at each waypoint, not every 15 s.
+      routeSandbox.onFix(
+        lat: loc.coordinate.latitude,
+        lon: loc.coordinate.longitude,
+        sogKn: loc.speed >= 0 ? loc.speed * msToKnots : nil,
+        cogDeg: loc.course >= 0 ? loc.course : nil)
+
       // Passive cadence: gate inserts to the passive interval. The manager
       // stays at best accuracy (keeps the chip warm); we just thin what we
       // record. Always record the first fix after entering passive.
@@ -268,6 +280,35 @@ public class BackgroundGPSPlugin: CAPPlugin, CAPBridgedPlugin, CLLocationManager
             "accuracy": point.accuracy,
           ])
       }
+    }
+  }
+
+  // MARK: - Background route following
+
+  private let msToKnots = 1.943844
+
+  /// The route to chime along while the app is in the background, or none
+  /// (see RouteSandbox). `source` is always the device's GPS here.
+  @objc func setRouteWatch(_ call: CAPPluginCall) {
+    let route = call.options["route"].flatMap { $0 is NSNull ? nil : $0 }
+    let json =
+      route.flatMap { try? JSONSerialization.data(withJSONObject: $0) }
+      .flatMap { String(data: $0, encoding: .utf8) }
+    DispatchQueue.main.async {
+      let hidden = UIApplication.shared.applicationState != .active
+      self.routeSandbox.setRoute(json: json, keepAhead: hidden)
+      call.resolve()
+    }
+  }
+
+  /// The route sandbox passed a waypoint. With the app in the foreground it
+  /// chimes itself (it sees the same fixes); otherwise chime here.
+  private func onRouteArrival(reached: String, next: String?) {
+    DispatchQueue.main.async {
+      let visible = UIApplication.shared.applicationState == .active
+      DiagLog.append(
+        tag: "route", message: "passed '\(reached)' next='\(next ?? "")' appVisible=\(visible)")
+      if !visible { WaypointChime.play(final: next == nil) }
     }
   }
 

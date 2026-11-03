@@ -1,14 +1,14 @@
 /**
- * The route follower the Android background service runs while the app is
- * frozen. The WebView stops running JavaScript about 90 s after the screen
- * goes off, so the service evaluates this module in a JavaScriptSandbox (the
- * system WebView's engine in a process of its own, with no page) to chime as
- * each waypoint is passed. It decides with the app's own routeAdvance, so the
- * two cannot disagree; the app replays the buffered fixes when it wakes and
- * reaches the same leg.
+ * The route follower the native apps run while the app's WebView is frozen
+ * in the background, to chime as each waypoint is passed: Android's service
+ * evaluates it in a JavaScriptSandbox (the system WebView's engine in a
+ * process of its own, with no page; RouteSandbox.kt), iOS in a
+ * JavaScriptCore context (RouteSandbox.swift). It decides with the app's own
+ * routeAdvance, so the two cannot disagree; the app replays the buffered
+ * fixes when it wakes and reaches the same leg.
  *
- * Built into android/app/src/main/assets/route-sandbox.js by
- * `bun tools/build-route-sandbox.ts`, which exposes `globalThis.pelorusRoute`.
+ * Bundled for both by `bun tools/build-route-sandbox.ts`, which exposes the
+ * global `pelorusRoute`.
  */
 
 import { courseFrom, routeAdvance } from "./route-advance";

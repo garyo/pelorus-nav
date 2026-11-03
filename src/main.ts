@@ -1077,8 +1077,9 @@ function gpsKeepAlive() {
 // recording — screen-off drag detection depends on fixes — without forcing
 // track recording. The anchor wiring further down drives it on arm/disarm.
 const anchorGpsKeepAlive = gpsKeepAlive();
-// So must a route being followed on Android, whose background service
-// chimes as each waypoint is passed (see native-route-watch.ts).
+// So must a route being followed in the native apps, which chime as each
+// waypoint is passed while the app is in the background (see
+// native-route-watch.ts).
 const routeGpsKeepAlive = gpsKeepAlive();
 const gpsDemandSource: RecordingSource = {
   isRecording: () =>
@@ -1229,8 +1230,8 @@ new BearingLine(chartManager.map, activeNav, navManager);
 
 // Passing a route waypoint: a short chime (vibration on a phone) and a
 // notice; three notes on arriving at the last one. Only live fixes chime:
-// those buffered while the app was frozen arrive late, all at once, and on
-// Android the background service has already chimed for them.
+// those buffered while the app was frozen arrive late, all at once, and the
+// native side has already chimed for them.
 const LIVE_FIX_MS = 10_000;
 activeNav.onArrival(({ waypoint, next, fixTime }) => {
   if (!getSettings().waypointArrivalAlert) return;

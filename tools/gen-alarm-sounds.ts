@@ -4,7 +4,7 @@
  *
  * Usage: bun tools/gen-alarm-sounds.ts
  * Output: android/app/src/main/res/raw/anchor_alarm_{drag,gps_loss,watch_failure}.wav
- *         android/app/src/main/res/raw/waypoint_chime_{pass,arrival}.wav
+ *         {android/app/src/main/res/raw,ios/App/App/NativeAssets}/waypoint_chime_{pass,arrival}.wav
  *
  * The chimes are rendered the same way from src/navigation/waypoint-chime-cues.ts's
  * notes, played once rather than looped.
@@ -239,7 +239,10 @@ for (const [name, notes] of [
   ["waypoint_chime_pass", PASS_NOTES],
   ["waypoint_chime_arrival", ARRIVAL_NOTES],
 ] as const) {
-  const path = `${OUT_DIR}/${name}.wav`;
-  writeFileSync(path, encodeWav(renderNotes(notes, CHIME_GAIN)));
-  console.log(`${path}: ${readFileSync(path).length} bytes`);
+  const wav = encodeWav(renderNotes(notes, CHIME_GAIN));
+  for (const dir of [OUT_DIR, "ios/App/App/NativeAssets"]) {
+    const path = `${dir}/${name}.wav`;
+    writeFileSync(path, wav);
+    console.log(`${path}: ${wav.length} bytes`);
+  }
 }

@@ -1,18 +1,21 @@
 /**
- * Bundle src/navigation/route-sandbox.ts into one plain script for the
- * Android background service's JavaScriptSandbox, exposing its exports as
- * the global `pelorusRoute`.
+ * Bundle src/navigation/route-sandbox.ts into one plain script for the native
+ * route followers — Android's JavaScriptSandbox (RouteSandbox.kt) and iOS's
+ * JavaScriptCore (RouteSandbox.swift) — exposing its exports as the global
+ * `pelorusRoute`.
  *
  * Usage: bun tools/build-route-sandbox.ts
- * Output: android/app/src/main/assets/route-sandbox.js (committed; a unit
- * test fails when it is stale)
+ * Output: ROUTE_SANDBOX_ASSETS (committed; a unit test fails when either is
+ * stale)
  */
 
 import { writeFileSync } from "node:fs";
 import { build } from "esbuild";
 
-export const ROUTE_SANDBOX_ASSET =
-  "android/app/src/main/assets/route-sandbox.js";
+export const ROUTE_SANDBOX_ASSETS = [
+  "android/app/src/main/assets/route-sandbox.js",
+  "ios/App/App/NativeAssets/route-sandbox.js",
+];
 
 export async function buildRouteSandbox(): Promise<string> {
   const result = await build({
@@ -30,6 +33,8 @@ export async function buildRouteSandbox(): Promise<string> {
 
 if (import.meta.main) {
   const script = await buildRouteSandbox();
-  writeFileSync(ROUTE_SANDBOX_ASSET, script);
-  console.log(`${ROUTE_SANDBOX_ASSET}: ${script.length} bytes`);
+  for (const path of ROUTE_SANDBOX_ASSETS) {
+    writeFileSync(path, script);
+    console.log(`${path}: ${script.length} bytes`);
+  }
 }

@@ -1,8 +1,8 @@
 /**
  * The short chime that marks passing a route waypoint, played with Web Audio
  * (cues in waypoint-chime-cues.ts). Web Audio only plays while the page is in
- * the foreground; with the Android app in the background, its service chimes
- * instead (see route-sandbox.ts).
+ * the foreground; with the native app in the background, its native side
+ * chimes instead (see route-sandbox.ts).
  */
 
 import { Capacitor } from "@capacitor/core";
@@ -28,8 +28,8 @@ let sharedContext: AudioContext | null = null;
 
 /** Play the chime (and vibrate on a phone). Silently a no-op where it can't. */
 export function playWaypointChime(final: boolean): void {
-  // The Android service chimes whenever the app is off screen.
-  if (Capacitor.getPlatform() === "android" && document.hidden) return;
+  // The native side chimes whenever the app is off screen.
+  if (Capacitor.isNativePlatform() && document.hidden) return;
   if (Capacitor.isNativePlatform()) {
     navigator.vibrate?.(final ? VIBRATE_ARRIVAL : VIBRATE_PASS);
   }

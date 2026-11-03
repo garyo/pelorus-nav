@@ -1,11 +1,12 @@
 /**
- * Keeps the Android background service's copy of the active route current,
- * so it can chime as waypoints are passed while the app is frozen (see
- * route-sandbox.ts). Sends the route and leg whenever either changes, and
- * nothing — clearing the service's copy — when not following a route, when
- * the waypoint chime is turned off, or when the position comes from a source
- * only the frozen app can read. `onFollowing` hears whether the service has a
- * route, which is a reason to keep GPS running in the background.
+ * Keeps the native side's copy of the active route current (the Android
+ * background service, or the iOS location plugin), so it can chime as
+ * waypoints are passed while the app is frozen (see route-sandbox.ts). Sends
+ * the route and leg whenever either changes, and nothing — clearing the
+ * native copy — when not following a route, when the waypoint chime is
+ * turned off, or when the position comes from a source only the frozen app
+ * can read. `onFollowing` hears whether the native side has a route, which
+ * is a reason to keep GPS running in the background.
  */
 
 import { Capacitor } from "@capacitor/core";
@@ -50,7 +51,7 @@ export function startNativeRouteWatch(
   activeNav: ActiveNavigationManager,
   onFollowing: (following: boolean) => void,
 ): void {
-  if (Capacitor.getPlatform() !== "android") return;
+  if (!Capacitor.isNativePlatform()) return;
   // What was last sent, compared by identity: the nav subscription fires on
   // every fix, and the route rarely changes.
   let sent: unknown[] | null = null;

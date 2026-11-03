@@ -18,6 +18,8 @@
 		50B271D11FEDC1A000F3C39B /* public in Resources */ = {isa = PBXBuildFile; fileRef = 50B271D01FEDC1A000F3C39B /* public */; };
 		69FA9101B3AFAAC3A720109B /* BackgroundGPSPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = 90F9B257E4C899CDDA8E6EFF /* BackgroundGPSPlugin.swift */; };
 		E9E69D6E8C982576B4E51B3D /* MainViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7B598B6E3007BCE8A96CB5DF /* MainViewController.swift */; };
+		A7C3E1B25D4F6A8B9C0D1E22 /* RouteSandbox.swift in Sources */ = {isa = PBXBuildFile; fileRef = A7C3E1B25D4F6A8B9C0D1E21 /* RouteSandbox.swift */; };
+		A7C3E1B25D4F6A8B9C0D1E24 /* NativeAssets in Resources */ = {isa = PBXBuildFile; fileRef = A7C3E1B25D4F6A8B9C0D1E23 /* NativeAssets */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -35,6 +37,8 @@
 		958DCC722DB07C7200EA8C5F /* debug.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; name = debug.xcconfig; path = ../debug.xcconfig; sourceTree = SOURCE_ROOT; };
 		958DCC732DB07C7200EA8C5F /* version.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; name = version.xcconfig; path = ../version.xcconfig; sourceTree = SOURCE_ROOT; };
 		D66D31B59B4E8527BF2895AF /* TrackDatabase.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TrackDatabase.swift; sourceTree = "<group>"; };
+		A7C3E1B25D4F6A8B9C0D1E21 /* RouteSandbox.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = RouteSandbox.swift; sourceTree = "<group>"; };
+		A7C3E1B25D4F6A8B9C0D1E23 /* NativeAssets */ = {isa = PBXFileReference; lastKnownFileType = folder; path = NativeAssets; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -78,6 +82,7 @@
 				504EC3131FED79650016851F /* Info.plist */,
 				2FAD9762203C412B000D30F8 /* config.xml */,
 				50B271D01FEDC1A000F3C39B /* public */,
+				A7C3E1B25D4F6A8B9C0D1E23 /* NativeAssets */,
 				7788D7C068757B48649CAB1E /* BackgroundGPS */,
 				7B598B6E3007BCE8A96CB5DF /* MainViewController.swift */,
 			);
@@ -89,6 +94,7 @@
 			children = (
 				D66D31B59B4E8527BF2895AF /* TrackDatabase.swift */,
 				90F9B257E4C899CDDA8E6EFF /* BackgroundGPSPlugin.swift */,
+				A7C3E1B25D4F6A8B9C0D1E21 /* RouteSandbox.swift */,
 			);
 			path = BackgroundGPS;
 			sourceTree = "<group>";
@@ -159,6 +165,7 @@
 			files = (
 				504EC3121FED79650016851F /* LaunchScreen.storyboard in Resources */,
 				50B271D11FEDC1A000F3C39B /* public in Resources */,
+				A7C3E1B25D4F6A8B9C0D1E24 /* NativeAssets in Resources */,
 				504EC30F1FED79650016851F /* Assets.xcassets in Resources */,
 				50379B232058CBB4000EE86E /* capacitor.config.json in Resources */,
 				504EC30D1FED79650016851F /* Main.storyboard in Resources */,
@@ -176,6 +183,7 @@
 				504EC3081FED79650016851F /* AppDelegate.swift in Sources */,
 				01D76D13047297CF4325DA72 /* TrackDatabase.swift in Sources */,
 				69FA9101B3AFAAC3A720109B /* BackgroundGPSPlugin.swift in Sources */,
+				A7C3E1B25D4F6A8B9C0D1E22 /* RouteSandbox.swift in Sources */,
 				E9E69D6E8C982576B4E51B3D /* MainViewController.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
