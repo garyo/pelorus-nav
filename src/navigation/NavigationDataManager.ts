@@ -10,6 +10,7 @@ import {
   type AdaptiveRateState,
   DEFAULT_ADAPTIVE_CONFIG,
 } from "./AdaptiveRate";
+import { connectionLog } from "./ConnectionEventLog";
 import { gpsDiagLog } from "./GPSDiagnosticLog";
 import { GPSFilter } from "./GPSFilter";
 import { GPSQualityDetector } from "./GPSQualityDetector";
@@ -19,6 +20,7 @@ import type {
   NavigationDataCallback,
   NavigationDataProvider,
 } from "./NavigationData";
+import type { StretchVerdict } from "./receiver-velocity";
 import { createSpeedAverager, type SpeedAverage } from "./speed-average";
 
 export type RateMode = "adaptive" | "manual";
@@ -87,6 +89,8 @@ export class NavigationDataManager {
   // Passage-average speed for ETAs (fed every fix, not just broadcasts)
   private speedAverager = createSpeedAverager();
   private filterMode: FilterMode = "auto";
+  /** Last-logged verdict on the receiver's own speed and course. */
+  private receiverVelocityTrusted = true;
   private qualityListeners: QualityListener[] = [];
   // Adaptive rate control
   private adaptiveCtrl = new AdaptiveRateController();
@@ -129,6 +133,7 @@ export class NavigationDataManager {
           : sigs.q;
 
     const data = this.gpsFilter.filter(raw, q);
+    this.noteReceiverVelocity();
     this.lastData = data;
     this.speedAverager.addSample(data.sog, data.cog, data.timestamp);
     const avg = this.speedAverager.get();
@@ -138,7 +143,8 @@ export class NavigationDataManager {
       const nowMs = Date.now();
       const dt = this.lastRawWallMs ? nowMs - this.lastRawWallMs : 0;
       this.lastRawWallMs = nowMs;
-      // raw_sog = module Doppler; filt_sog = Kalman-derived (what the UI shows).
+      // raw_sog = module Doppler; filt_sog = what the UI shows: the Doppler,
+      // or the Kalman velocity while the Doppler is untrusted.
       diag(
         "gps",
         `fix dt=${dt} raw_sog=${tr(raw.sog)} raw_cog=${tr(raw.cog)} ` +
@@ -380,6 +386,21 @@ export class NavigationDataManager {
     return "no-fix";
   }
 
+  /** Log when the receiver's own speed and course are distrusted, or
+   *  trusted again (see receiver-velocity.ts). */
+  private noteReceiverVelocity(): void {
+    const check = this.gpsFilter.receiverVelocityCheck;
+    if (check.trusted === this.receiverVelocityTrusted) return;
+    this.receiverVelocityTrusted = check.trusted;
+    connectionLog.log(
+      this.activeProvider?.id ?? "gps",
+      "diag",
+      check.trusted
+        ? `receiver speed/course agree with its positions again (${describeVerdict(check)})`
+        : `receiver speed/course disagree with its positions (${describeVerdict(check)}): showing speed and course from positions`,
+    );
+  }
+
   /** One-shot navigation-state summary for the diagnostics bundle — the
    *  "what is the GPS doing RIGHT NOW" a bug report needs. */
   diagnosticsSnapshot(): string {
@@ -399,6 +420,7 @@ export class NavigationDataManager {
     lines.push(
       `fix age: ${Number.isFinite(fixAge) ? `${Math.round(fixAge)} ms` : "(no fix this session)"}`,
       `state: ${this.isFixStale() ? this.fixlessState().toUpperCase() : "live fix"}`,
+      `speed/course: ${this.gpsFilter.receiverVelocityCheck.trusted ? "receiver's" : "from positions"} (last check: ${describeVerdict(this.gpsFilter.receiverVelocityCheck)})`,
     );
     return lines.join("\n");
   }
@@ -432,6 +454,7 @@ export class NavigationDataManager {
     this.broadcastIntervalMs = 0;
     this.clearDeferredTimer();
     this.gpsFilter.reset();
+    this.receiverVelocityTrusted = true;
     this.qualityDetector.reset();
     this.speedAverager.reset();
     this.adaptiveCtrl.reset();
@@ -586,4 +609,14 @@ export class NavigationDataManager {
     this.lastBroadcastTsMs = null;
     this.broadcastIntervalMs = 0;
   }
+}
+
+/** The receiver-velocity check's latest stretch, for logs. */
+function describeVerdict(check: {
+  lastVerdict: StretchVerdict | null;
+}): string {
+  const v = check.lastVerdict;
+  return v
+    ? `speed ×${v.ratio.toFixed(2)}, course ${v.angleDeg.toFixed(0)}° off`
+    : "none yet";
 }

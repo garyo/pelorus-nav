@@ -20,6 +20,15 @@ The format follows [Keep a Changelog](https://keepachangelog.com/).
   for this) when you first download or import charts, or once you have saved
   routes or tracks, rather than on your first visit.
 
+### Fixed
+- Route navigation moves on to the next waypoint at your closest approach to
+  it, instead of as soon as you are inside the arrival radius while still
+  heading for it.
+- Speed and course from an external GPS are checked against its positions.
+  When they disagree for a few minutes, as a Garmin GLO 2 did on foot
+  (reading under half the true speed), speed and course are worked out from
+  its positions instead.
+
 ## [1.1.0] - 2026-10-28
 
 ### Added

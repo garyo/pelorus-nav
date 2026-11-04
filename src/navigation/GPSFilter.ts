@@ -14,6 +14,7 @@
  */
 
 import type { NavigationData } from "./NavigationData";
+import { ReceiverVelocityCheck } from "./receiver-velocity";
 
 /** Metres per degree of latitude (approximate). */
 const M_PER_DEG = 111_111;
@@ -99,6 +100,9 @@ export class GPSFilter {
   private readonly cfg: GPSFilterConfig;
   private state: FilterState | null = null;
 
+  /** Whether the receiver's own speed and course match its positions. */
+  private readonly receiverVelocity = new ReceiverVelocityCheck();
+
   /** Rolling window of recent fix intervals (ms) for GPS quality detection. */
   private fixIntervals: number[] = [];
   private weakGps = false;
@@ -112,6 +116,12 @@ export class GPSFilter {
     this.state = null;
     this.fixIntervals = [];
     this.weakGps = false;
+    this.receiverVelocity.reset();
+  }
+
+  /** The receiver's speed/course check (see receiver-velocity.ts). */
+  get receiverVelocityCheck(): Readonly<ReceiverVelocityCheck> {
+    return this.receiverVelocity;
   }
 
   /** Returns true when the filter has been initialized with at least one fix. */
@@ -142,8 +152,14 @@ export class GPSFilter {
    * COG output threshold when the GPS stream is jittery. Default 0 = trust
    * the measurement as before.
    */
-  filter(raw: NavigationData, quality = 0): NavigationData {
+  filter(fix: NavigationData, quality = 0): NavigationData {
     const q = Math.max(0, Math.min(1, quality));
+    this.receiverVelocity.add(fix);
+    // An untrusted receiver's speed and course are dropped here, so neither
+    // the output nor the velocity seeding after gaps uses them.
+    const raw = this.receiverVelocity.trusted
+      ? fix
+      : { ...fix, sog: null, cog: null };
     // First fix — initialize state (seed velocity from hardware if available)
     if (!this.state) {
       this.initState(raw);
@@ -230,10 +246,11 @@ export class GPSFilter {
   /**
    * Build the filtered output for a fix. Position is the smoothed Kalman
    * estimate; SOG/COG prefer the GPS chip's Doppler velocity (raw.sog/raw.cog),
-   * which is far more accurate than differentiating the smoothed position —
-   * that sinks into GPS noise and reads ~0 at walking pace, and lags real
-   * course changes by several seconds. Falls back to the position-derived
-   * velocity for sources that report no speed (e.g. position-only providers).
+   * which on a good receiver beats differentiating noisy positions and lags
+   * course changes less. Falls back to the position-derived velocity for
+   * sources that report no speed (e.g. position-only providers), and for a
+   * receiver whose own velocity disagrees with its positions (filter() has
+   * then dropped it from `raw`).
    */
   private buildOutput(raw: NavigationData, q: number): NavigationData {
     // biome-ignore lint/style/noNonNullAssertion: only called once state exists
