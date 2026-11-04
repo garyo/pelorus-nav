@@ -39,6 +39,14 @@ class Region:
     # where the rivers meet.
     rivers: frozenset[str] | None = None
 
+    @property
+    def tile_bbox(self) -> BBox | None:
+        """The area whose tiles (and coverage) this region alone serves, or
+        None when it serves all its cells' tiles. A region that takes its cells
+        by river owns no area: where its bbox overlaps another river region's,
+        the two hold different rivers' cells, so each must keep every tile."""
+        return self.bbox if self.rivers is None else None
+
 
 # Shared source of truth for region id/name/bbox. See tools/regions.json.
 # Descriptions are Python-only (doc/CLI), so they live here keyed by id.

@@ -636,10 +636,10 @@ def cmd_pipeline(args: argparse.Namespace) -> None:
             sys.exit(1)
         debug_latlon = (parts[0], parts[1])
 
-    # Get region bbox for clipping coverage mask
+    # The region's tile ownership and coverage-mask clip
     region_bbox = None
     if args.region and args.region in REGIONS:
-        region_bbox = REGIONS[args.region].bbox
+        region_bbox = REGIONS[args.region].tile_bbox
 
     composite_jobs = args.jobs if args.jobs else 0
 

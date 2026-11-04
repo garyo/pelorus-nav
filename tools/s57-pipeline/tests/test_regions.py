@@ -47,6 +47,11 @@ class TestRegionDefinitions:
             assert west < east, f"{name}: west must be < east"
             assert south < north, f"{name}: south must be < north"
 
+    def test_river_regions_own_every_tile_of_their_cells(self) -> None:
+        assert REGIONS["boston-test"].tile_bbox == BOSTON
+        assert REGIONS["inland-rivers-north"].tile_bbox is None
+        assert REGIONS["inland-rivers-south"].tile_bbox is None
+
     def test_known_regions_exist(self) -> None:
         assert "boston-test" in REGIONS
         assert "southern-new-england" in REGIONS
