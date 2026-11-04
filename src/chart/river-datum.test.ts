@@ -41,6 +41,25 @@ describe("riverDatumDetails", () => {
     ]);
   });
 
+  it("defers to a bridge note that names its own reference", () => {
+    const rows = riverDatumDetails({
+      _vdat: 31,
+      INFORM:
+        "Primary Navigation Span. Vertical clearance 62.2 feet above 2% flowline elevation 444.7 feet.",
+    });
+    expect(rows).toEqual([
+      { label: "Chart default", value: "Local low water reference level" },
+    ]);
+  });
+
+  it("keeps the caution when the note names no reference", () => {
+    const rows = riverDatumDetails({
+      _vdat: 31,
+      INFORM: "Primary Navigation Span",
+    });
+    expect(rows.map((r) => r.label)).toEqual(["Clearances from", "Caution"]);
+  });
+
   it("adds nothing for NOAA features", () => {
     expect(riverDatumDetails({ VERCLR: 20 })).toEqual([]);
   });

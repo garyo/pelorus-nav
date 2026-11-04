@@ -53,6 +53,14 @@ export function riverDatumExplanation(datum: RiverDatum): string {
     : `${measured} Depths and clearances change with the river level.`;
 }
 
+/**
+ * A clearance note that names its own reference level ("above 2% flowline",
+ * "referenced to the Lowest Controlled Pool", "pool gage reading of 15.8'").
+ * Many bridges' notes do, and theirs governs over the chart-wide datum.
+ */
+const OWN_REFERENCE =
+  /flowline|pool|ga(?:u)?ge|datum|stage|elevation|referenced/i;
+
 /** Pop-up rows naming the datums a river chart feature is measured from. */
 export function riverDatumDetails(
   props: Record<string, unknown>,
@@ -62,12 +70,17 @@ export function riverDatumDetails(
   if (depths) rows.push({ label: "Depths from", value: depths.name });
   const clearances = riverDatum(props._vdat);
   if (clearances) {
-    rows.push({ label: "Clearances from", value: clearances.name });
-    if (clearances.lowWater) {
-      rows.push({
-        label: "Caution",
-        value: "Less clearance when the river is above this level",
-      });
+    if (OWN_REFERENCE.test(String(props.INFORM ?? ""))) {
+      // The note above says what this clearance is measured from.
+      rows.push({ label: "Chart default", value: clearances.name });
+    } else {
+      rows.push({ label: "Clearances from", value: clearances.name });
+      if (clearances.lowWater) {
+        rows.push({
+          label: "Caution",
+          value: "Less clearance when the river is above this level",
+        });
+      }
     }
   }
   return rows;
