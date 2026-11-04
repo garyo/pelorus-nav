@@ -102,6 +102,14 @@ const DISPLAY: Record<string, DisplayMeta> = {
     center: [-76.5, 43.0],
     defaultZoom: 8,
   },
+  // USACE Inland ENCs. No street basemap yet: its band along every river
+  // would be the largest of all.
+  "us-inland-rivers": {
+    sizeEstimate: 184 * 1024 * 1024,
+    // St. Louis, where the Missouri and Illinois meet the Mississippi.
+    center: [-90.18, 38.7],
+    defaultZoom: 10,
+  },
   washington: {
     sizeEstimate: 90 * 1024 * 1024,
     basemapSizeEstimate: 168 * 1024 * 1024,

@@ -1,6 +1,7 @@
 """Region definitions and ENC cell selection.
 
-A region's cells are the Active cells in NOAA's ENC product catalog
+A region's cells are the Active cells of its producer — NOAA, or the US Army
+Corps of Engineers for the inland rivers — in the merged ENC catalog
 (enc_catalog.py) whose coverage bounding box intersects the region's bbox.
 Cancelled cells are listed in the catalog without coverage, so they drop out
 of every region.
@@ -31,6 +32,8 @@ class Region:
     name: str
     bbox: BBox
     description: str
+    # "NOAA", or "USACE" for the Corps' Inland ENCs (tools/regions.json)
+    producer: str = "NOAA"
 
 
 # Shared source of truth for region id/name/bbox. See tools/regions.json.
@@ -48,6 +51,7 @@ _DESCRIPTIONS: dict[str, str] = {
     "gulf-coast": "TX/LA/MS/AL/west-FL coast, Gulf ICW, and Dry Tortugas",
     "great-lakes": "Lakes Superior, Michigan, Huron, Erie, Ontario, St. Clair, Detroit/Niagara rivers",
     "ny-inland": "Erie Canal, Oswego Canal, Mohawk River, Finger Lakes (Seneca, Cayuga), Oneida Lake",
+    "us-inland-rivers": "USACE Inland ENCs: Upper/Lower Mississippi, Ohio, Illinois, Missouri, Tennessee, Cumberland, Arkansas, Tenn-Tom and tributaries",
     "washington": "WA outer coast, Strait of Juan de Fuca, San Juan Islands, Puget Sound (Seattle/Tacoma)",
     "oregon": "Oregon coast (Brookings to Astoria) and lower Columbia River",
     "northern-california": "CA coast from Bodega/Point Reyes north — Mendocino, Eureka, Crescent City",
@@ -66,6 +70,7 @@ def _load_regions() -> dict[str, Region]:
             name=entry["name"],
             bbox=tuple(entry["bbox"]),  # type: ignore[arg-type]
             description=_DESCRIPTIONS.get(rid, ""),
+            producer=entry.get("producer", "NOAA"),
         )
     return out
 
@@ -95,14 +100,20 @@ def query_region(bbox: BBox, catalog: Catalog) -> list[str]:
 
 
 def get_region_cells(region_name: str, catalog: Catalog) -> list[str]:
-    """The Active cells of a named region."""
-    return query_region(REGIONS[region_name].bbox, catalog)
+    """The Active cells of a named region, from its producer's charts."""
+    region = REGIONS[region_name]
+    inland = region.producer == "USACE"
+    return [
+        c for c in query_region(region.bbox, catalog) if is_inland_cell(c) == inland
+    ]
 
 
 def get_region_build_cells(region_name: str, catalog: Catalog) -> list[str]:
     """The cells a region's build draws on: its own cells, followed by the
     overview cells within OVERVIEW_MARGIN_DEG of it."""
     cells = get_region_cells(region_name, catalog)
+    if REGIONS[region_name].producer != "NOAA":
+        return cells  # NOAA's overview charts belong to NOAA regions
     own = set(cells)
     west, south, east, north = REGIONS[region_name].bbox
     m = OVERVIEW_MARGIN_DEG

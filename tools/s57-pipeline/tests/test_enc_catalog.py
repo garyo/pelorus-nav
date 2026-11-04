@@ -156,3 +156,30 @@ class TestLoad:
             load_product_catalog(cache, max_age_s=0, url=source.as_uri())
         assert cache.read_bytes() == CATALOG_XML
         assert not (tmp_path / "ENCProdCat.xml.tmp").exists()
+
+
+IENC_XML = b"""<?xml version="1.0" encoding="UTF-8"?>
+<IENCU37ProductCatalog>
+<Cell><name>U37UM723</name>
+<area><north>44.66</north><south>44.03</south><east>-91.33</east><west>-92.42</west></area>
+<edition>41.2</edition></Cell>
+<Cell><name>U37AR308</name>
+<area><north>35.4</north><south>35.1</south><east>-93.9</east><west>-94.4</west></area>
+<edition>35</edition></Cell>
+<Cell><name>U37BAD01</name><edition>7.1</edition></Cell>
+</IENCU37ProductCatalog>
+"""
+
+
+def test_parse_ienc_catalog() -> None:
+    import io
+
+    from s57_pipeline.enc_catalog import parse_ienc_catalog
+
+    cells = parse_ienc_catalog(io.BytesIO(IENC_XML))
+    assert set(cells) == {"U37UM723", "U37AR308"}  # no extent, no cell
+    um = cells["U37UM723"]
+    assert (um.edition, um.update, um.version) == (41, 2, "41.2")
+    assert um.active
+    assert um.bbox == (-92.42, 44.03, -91.33, 44.66)
+    assert cells["U37AR308"].version == "35.0"

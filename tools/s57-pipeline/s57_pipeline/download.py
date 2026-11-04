@@ -1,4 +1,4 @@
-"""Download ENC cells from NOAA."""
+"""Download ENC cells from NOAA, or Inland ENCs from the US Army Corps."""
 
 from __future__ import annotations
 
@@ -7,11 +7,20 @@ import zipfile
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from .inland import is_inland_cell
+
 if TYPE_CHECKING:
     from .progress import PipelineProgress
 
-# NOAA ENC download base URL
+# Download base URLs: NOAA's ENCs, and the Corps' Inland ENCs (U37…)
 NOAA_ENC_BASE = "https://charts.noaa.gov/ENCs"
+IENC_BASE = "https://ienccloud.us/ienc/products/files/u37/ienc_s57"
+
+
+def cell_download_url(cell_name: str) -> str:
+    """Where a cell's zip is published: NOAA, or the Corps for an Inland ENC."""
+    base = IENC_BASE if is_inland_cell(cell_name) else NOAA_ENC_BASE
+    return f"{base}/{cell_name}.zip"
 
 
 def download_enc_cell(
@@ -19,10 +28,7 @@ def download_enc_cell(
     output_dir: Path,
     progress: PipelineProgress | None = None,
 ) -> Path | None:
-    """Download a single ENC cell zip from NOAA and extract it.
-
-    The NOAA ENC download URL pattern is:
-    https://charts.noaa.gov/ENCs/{cell_name}.zip
+    """Download a single ENC cell zip (from cell_download_url) and extract it.
 
     Downloads to a temp file first to avoid partial zips on failure.
     Only searches the cell's own subdirectory to avoid race conditions
@@ -40,7 +46,7 @@ def download_enc_cell(
     zip_path = output_dir / f"{cell_name}.zip"
     tmp_path = output_dir / f"{cell_name}.zip.tmp"
 
-    url = f"{NOAA_ENC_BASE}/{cell_name}.zip"
+    url = cell_download_url(cell_name)
 
     if progress:
         progress.download_cell_started(cell_name)

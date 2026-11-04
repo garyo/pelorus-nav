@@ -19,8 +19,8 @@ from .composite import CellTileSource, composite_tiles
 from .convert import convert_enc, list_enc_layers, read_compilation_scale, read_intended_use
 from .layers import LAYER_NAMES
 from .coverage import scan_all_cells
-from .download import download_enc_cell
-from .enc_catalog import CatalogCell, CatalogError, load_product_catalog
+from .download import cell_download_url, download_enc_cell
+from .enc_catalog import CatalogCell, CatalogError, load_catalogs
 from .merge import merge_tiles
 from .places import PlaceLocator, assign_places
 from .progress import PipelineProgress
@@ -48,7 +48,7 @@ from .tile import tile_geojson_files
 def _load_catalog(stale_ok: bool) -> dict[str, CatalogCell]:
     """Load the ENC product catalog, exiting if none is available."""
     try:
-        return load_product_catalog(stale_ok=stale_ok)
+        return load_catalogs(stale_ok=stale_ok)
     except CatalogError as e:
         print(f"Error: {e}")
         sys.exit(1)
@@ -96,7 +96,7 @@ def cmd_list_cells(args: argparse.Namespace) -> None:
 
     print(f"\n{len(cells)} cells:")
     for cell in cells:
-        print(f"  {cell}  https://charts.noaa.gov/ENCs/{cell}.zip")
+        print(f"  {cell}  {cell_download_url(cell)}")
 
 
 

@@ -64,7 +64,7 @@ from s57_pipeline.enc_catalog import (  # noqa: E402
     CatalogError,
     CellStatus,
     classify_cell,
-    load_product_catalog,
+    load_catalogs,
 )
 from s57_pipeline.regions import (  # noqa: E402
     REGIONS,
@@ -75,7 +75,6 @@ from s57_pipeline.regions import (  # noqa: E402
 from s57_pipeline.state import StateDB, region_build_lag  # noqa: E402
 
 DATA_DIR = PIPELINE_DIR / "data"
-CATALOG_CACHE = DATA_DIR / "ENCProdCat.xml"
 # Statuses of cells whose catalog version has not been downloaded yet.
 BEHIND = (CellStatus.CHANGED, CellStatus.NEW)
 
@@ -86,7 +85,7 @@ def _open_db() -> StateDB:
 
 def _load_catalog(max_age_s: float) -> dict[str, CatalogCell]:
     try:
-        return load_product_catalog(CATALOG_CACHE, max_age_s=max_age_s)
+        return load_catalogs(DATA_DIR, max_age_s=max_age_s)
     except CatalogError as e:
         print(f"Error: {e}", file=sys.stderr)
         sys.exit(1)

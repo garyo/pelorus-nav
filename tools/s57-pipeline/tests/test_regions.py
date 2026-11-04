@@ -112,3 +112,26 @@ class TestRegionCells:
         assert usage_band("US5MA22M") == 5
         assert usage_band("US1GLBCF") == 1
         assert usage_band("U37UM723") == 5  # Inland ENC, not band 3
+
+
+class TestProducerRegions:
+    def test_inland_region_takes_only_corps_cells_and_no_overviews(self) -> None:
+        catalog = {
+            c.name: c
+            for c in (
+                _cell("U37UM723", (-92.4, 44.0, -91.3, 44.7)),
+                _cell("US5WI2UL", (-88.5, 43.9, -88.3, 44.1)),
+                _cell("US2GRLBA", (-96.0, 43.2, -91.2, 48.0)),
+            )
+        }
+        assert get_region_build_cells("us-inland-rivers", catalog) == ["U37UM723"]
+
+    def test_noaa_regions_take_no_corps_cells(self) -> None:
+        catalog = {
+            c.name: c
+            for c in (
+                _cell("U37UM723", (-92.4, 44.0, -91.3, 44.7)),
+                _cell("US5WI2UL", (-88.5, 43.9, -88.3, 44.1)),
+            )
+        }
+        assert get_region_cells("great-lakes", catalog) == ["US5WI2UL"]

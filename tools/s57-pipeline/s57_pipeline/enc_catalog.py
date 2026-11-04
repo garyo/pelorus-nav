@@ -1,4 +1,7 @@
-"""NOAA ENC product catalog (ENCProdCat.xml): cell status, version, coverage.
+"""ENC product catalogs: cell status, version and coverage, from NOAA's
+(ENCProdCat.xml) and the US Army Corps of Engineers' Inland ENC catalog
+(IENCU37ProductsCatalog.xml), merged by `load_catalogs`. Cell names never
+collide: NOAA's are US…, the Corps' U37….
 
 The catalog lists every NOAA ENC cell with its status, its coverage, and the
 S-57 edition (``edtn``) and update (``updn``) numbers of the currently
@@ -6,7 +9,8 @@ published data. The pair changes only when chart content changes, unlike the
 zip files' Last-Modified times, which NOAA refreshes whenever it regenerates
 the zips. Cancelled cells are listed without coverage.
 
-A cell's version is recorded as the key ``"<edition>.<update>"``.
+A cell's version is recorded as the key ``"<edition>.<update>"``; the Corps
+writes its editions that way already.
 """
 
 from __future__ import annotations
@@ -14,6 +18,7 @@ from __future__ import annotations
 import sys
 import time
 import urllib.request
+from collections.abc import Callable
 from dataclasses import dataclass
 from enum import StrEnum
 from http.client import HTTPException
@@ -29,6 +34,11 @@ CATALOG_MAX_AGE_S = 3600
 FETCH_ATTEMPTS = 3
 FETCH_TIMEOUT_S = 120
 FETCH_RETRY_DELAY_S = 5
+
+IENC_CATALOG_URL = (
+    "https://ienccloud.us/ienc/products/catalog/IENCU37ProductsCatalog.xml"
+)
+IENC_CATALOG_CACHE = Path("data/IENCU37ProductsCatalog.xml")
 
 
 class CatalogError(Exception):
@@ -130,11 +140,65 @@ def parse_product_catalog(source: Path | BinaryIO) -> dict[str, CatalogCell]:
     return cells
 
 
+def parse_ienc_catalog(source: Path | BinaryIO) -> dict[str, CatalogCell]:
+    """Parse the Corps' Inland ENC catalog into {cell name: CatalogCell}.
+
+    Every listed cell is current; editions read "<edition>.<update>". Cells
+    lacking a name, a numeric edition or an extent are skipped.
+    """
+    cells: dict[str, CatalogCell] = {}
+    for _event, elem in iterparse(source, events=("end",)):
+        if elem.tag != "Cell":
+            continue
+        name = (elem.findtext("name") or "").strip()
+        edition, _, update = (elem.findtext("edition") or "").strip().partition(".")
+        extent = [
+            elem.findtext(f"area/{k}") for k in ("west", "south", "east", "north")
+        ]
+        if name and edition.isdigit() and (update or "0").isdigit() and all(extent):
+            west, south, east, north = (float(v) for v in extent if v)
+            cells[name] = CatalogCell(
+                name=name,
+                status="Active",
+                edition=int(edition),
+                update=int(update or 0),
+                bbox=(west, south, east, north),
+            )
+        elem.clear()
+    return cells
+
+
+def load_catalogs(
+    data_dir: Path = Path("data"),
+    max_age_s: float = CATALOG_MAX_AGE_S,
+    stale_ok: bool = False,
+) -> dict[str, CatalogCell]:
+    """NOAA's catalog and the Corps' Inland ENC catalog, merged.
+
+    NOAA's follows ``stale_ok``. The Corps' always falls back to its cached
+    copy, so an outage on its server can't stop NOAA updates.
+    """
+    cells = load_product_catalog(
+        data_dir / PRODUCT_CATALOG_CACHE.name, max_age_s, stale_ok=stale_ok
+    )
+    cells.update(
+        load_product_catalog(
+            data_dir / IENC_CATALOG_CACHE.name,
+            max_age_s,
+            IENC_CATALOG_URL,
+            stale_ok=True,
+            parse=parse_ienc_catalog,
+        )
+    )
+    return cells
+
+
 def load_product_catalog(
     cache_path: Path = PRODUCT_CATALOG_CACHE,
     max_age_s: float = CATALOG_MAX_AGE_S,
     url: str = PRODUCT_CATALOG_URL,
     stale_ok: bool = False,
+    parse: Callable[[Path], dict[str, CatalogCell]] = parse_product_catalog,
 ) -> dict[str, CatalogCell]:
     """Return the parsed catalog, downloading it unless the cache is fresh.
 
@@ -143,7 +207,7 @@ def load_product_catalog(
     ``stale_ok``; otherwise CatalogError is raised.
     """
     if cache_path.exists() and time.time() - cache_path.stat().st_mtime < max_age_s:
-        return parse_product_catalog(cache_path)
+        return parse(cache_path)
 
     cache_path.parent.mkdir(parents=True, exist_ok=True)
     tmp = cache_path.with_name(cache_path.name + ".tmp")
@@ -154,7 +218,7 @@ def load_product_catalog(
         try:
             with urllib.request.urlopen(url, timeout=FETCH_TIMEOUT_S) as resp:
                 tmp.write_bytes(resp.read())
-            cells = parse_product_catalog(tmp)
+            cells = parse(tmp)
             if not cells:
                 raise ParseError("no cells in catalog")
             tmp.replace(cache_path)
@@ -167,5 +231,5 @@ def load_product_catalog(
             f"Warning: cannot fetch {url} ({error}); using cached {cache_path}",
             file=sys.stderr,
         )
-        return parse_product_catalog(cache_path)
+        return parse(cache_path)
     raise CatalogError(f"cannot fetch {url}: {error}") from error
