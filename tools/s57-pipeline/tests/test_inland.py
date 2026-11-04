@@ -5,7 +5,10 @@ from __future__ import annotations
 
 import csv
 import json
+import shutil
 from pathlib import Path
+
+import pytest
 
 from s57_pipeline.convert import fold_inland, intended_use
 from s57_pipeline.inland import (
@@ -23,6 +26,7 @@ def _codes(path: Path) -> dict[str, list[str]]:
         return {row[0]: row for row in csv.reader(f) if row}
 
 
+@pytest.mark.skipif(shutil.which("gdal-config") is None, reason="needs GDAL")
 def test_tables_add_the_inland_definitions_to_gdals() -> None:
     tables = s57_tables_dir()
     classes = _codes(tables / "s57objectclasses.csv")
