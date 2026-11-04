@@ -237,6 +237,15 @@ export interface BackgroundGPSPlugin {
     source: RouteWatchSource;
   }): Promise<void>;
 
+  /**
+   * The app is back on screen and takes over chiming: the native side stops
+   * chiming and hands back the route as it follows it, its leg current
+   * (null when following none), so the app can catch up on waypoints passed
+   * while it was away. Until this call, or a few seconds at worst, the
+   * native side keeps chiming. Rejects on native shells older than this.
+   */
+  claimRouteWatch(): Promise<{ route: SandboxRoute | null }>;
+
   /** Check whether the foreground service is currently running. */
   isTracking(): Promise<{ tracking: boolean }>;
 

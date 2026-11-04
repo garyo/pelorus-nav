@@ -182,6 +182,8 @@ export class ActiveNavigationManager {
    * leg change in the meantime clears it (the user's choice supersedes).
    */
   private pendingRestoreLegCheck = false;
+  /** Fixes don't advance the route until this settles (holdAdvance). */
+  private advanceHold: Promise<void> | null = null;
   /**
    * Set when startRoute() ran with no fix on hand and fell back to leg 1.
    * The first fix picks the leg properly (pickJoinLeg); any explicit leg
@@ -296,6 +298,7 @@ export class ActiveNavigationManager {
       const nextIndex = this.state.legIndex + 1;
       const isLastWaypoint = nextIndex >= route.waypoints.length;
       const advance =
+        this.advanceHold === null &&
         routeAdvance(
           data.latitude,
           data.longitude,
@@ -587,6 +590,41 @@ export class ActiveNavigationManager {
     ) {
       this.stop();
     }
+  }
+
+  /**
+   * Don't advance the route on fixes until `until` settles: the native side
+   * may have followed it further while the app was away (native-route-watch),
+   * and a fix seen here first would announce a waypoint already announced.
+   */
+  holdAdvance(until: Promise<unknown>): void {
+    const hold: Promise<void> = until
+      .then(
+        () => {},
+        () => {},
+      )
+      .finally(() => {
+        if (this.advanceHold === hold) this.advanceHold = null;
+      });
+    this.advanceHold = hold;
+  }
+
+  /**
+   * Catch up to `legIndex`, reached on the route while the app was away,
+   * without announcing the waypoints passed: they were announced then. Past
+   * the last waypoint, the route is finished.
+   */
+  catchUpToLeg(legIndex: number): void {
+    if (this.state.type !== "route" || legIndex <= this.state.legIndex) return;
+    logUiAction(`nav route caught up to leg ${legIndex} from the background`);
+    if (legIndex >= this.state.route.waypoints.length) {
+      this.stop();
+      return;
+    }
+    this.clearPendingChecks();
+    this.state = { ...this.state, legIndex };
+    this.persist();
+    this.recompute();
   }
 
   /** Jump to a specific leg by waypoint index (legIndex=N targets waypoint[N]). */

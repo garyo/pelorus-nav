@@ -34,8 +34,13 @@ class RouteSandbox(
     private var sandbox: JavaScriptSandbox? = null
     private var isolate: JavaScriptIsolate? = null
     private var unsupported = false
-    /** The route as the sandbox should hold it, legIndex kept current. */
+    /** The route as the sandbox should hold it, legIndex kept current; past
+     *  the last waypoint once finished, so a stale leg can't restart it. */
     private var route: JSONObject? = null
+
+    /** [route] as JSON, readable from any thread: what the app reads back. */
+    @Volatile var snapshot: String? = null
+        private set
 
     /**
      * Follow `json` (a SandboxRoute), or stop following on null. With
@@ -55,6 +60,7 @@ class RouteSandbox(
             return@execute
         }
         route = incoming
+        snapshot = incoming?.toString()
         val iso = isolate ?: return@execute
         try {
             load(iso)
@@ -73,7 +79,9 @@ class RouteSandbox(
             if (result.isEmpty()) return@execute
             val arrival = JSONObject(result)
             val legIndex = arrival.getInt("legIndex")
-            if (legIndex < 0) route = null else route?.put("legIndex", legIndex)
+            val finished = route?.optJSONArray("waypoints")?.length() ?: 0
+            route?.put("legIndex", if (legIndex < 0) finished else legIndex)
+            snapshot = route?.toString()
             val pattern = arrival.getJSONArray("vibrate")
             onArrival(
                 arrival.getString("reached"),

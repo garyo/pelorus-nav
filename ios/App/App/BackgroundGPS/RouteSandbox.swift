@@ -20,7 +20,8 @@ final class RouteSandbox {
   private let onArrival: ArrivalHandler
   private var context: JSContext?
   private var unavailable = false
-  /// The route as the sandbox should hold it, legIndex kept current.
+  /// The route as the sandbox should hold it, legIndex kept current; past
+  /// the last waypoint once finished, so a stale leg can't restart it.
   private var route: [String: Any]?
 
   init(onArrival: @escaping ArrivalHandler) {
@@ -60,9 +61,16 @@ final class RouteSandbox {
         let arrival = Self.parse(json)
       else { return }
       let legIndex = arrival["legIndex"] as? Int ?? -1
-      if legIndex < 0 { self.route = nil } else { self.route?["legIndex"] = legIndex }
+      let finished = (self.route?["waypoints"] as? [Any])?.count ?? 0
+      self.route?["legIndex"] = legIndex < 0 ? finished : legIndex
       self.onArrival(arrival["reached"] as? String ?? "", arrival["next"] as? String)
     }
+  }
+
+  /// The route as followed, leg current: what the app reads back. Call off
+  /// the sandbox's queue.
+  func current() -> [String: Any]? {
+    queue.sync { route }
   }
 
   private func connect() -> JSContext? {

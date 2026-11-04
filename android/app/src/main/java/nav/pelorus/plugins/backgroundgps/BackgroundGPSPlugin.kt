@@ -4,6 +4,8 @@ import android.Manifest
 import android.content.Intent
 import android.media.AudioManager
 import android.os.Build
+import android.os.Handler
+import android.os.Looper
 import android.provider.Settings
 import android.util.Log
 import android.view.WindowManager
@@ -16,6 +18,7 @@ import com.getcapacitor.annotation.CapacitorPlugin
 import com.getcapacitor.annotation.Permission
 import com.getcapacitor.PermissionState
 import com.getcapacitor.annotation.PermissionCallback
+import org.json.JSONObject
 
 @CapacitorPlugin(
     name = "BackgroundGPS",
@@ -948,13 +951,33 @@ class BackgroundGPSPlugin : Plugin() {
         call.resolve()
     }
 
+    /**
+     * The app is back and takes over chiming, catching up from the route as
+     * the service followed it. Until then the service keeps chiming: the app
+     * still holds the leg it had when it left, and would chime again for a
+     * waypoint the service already announced.
+     */
+    @PluginMethod
+    fun claimRouteWatch(call: PluginCall) {
+        mainHandler.removeCallbacks(claimFallback)
+        BackgroundTrackService.appVisible = true
+        val route = BackgroundTrackService.routeSnapshot()?.let { JSONObject(it) }
+        call.resolve(JSObject().put("route", route ?: JSONObject.NULL))
+    }
+
+    private val mainHandler = Handler(Looper.getMainLooper())
+
+    /** An app that never claims the route stops the service chiming anyway. */
+    private val claimFallback = Runnable { BackgroundTrackService.appVisible = true }
+
     override fun handleOnStart() {
         super.handleOnStart()
-        BackgroundTrackService.appVisible = true
+        mainHandler.postDelayed(claimFallback, CLAIM_FALLBACK_MS)
     }
 
     override fun handleOnStop() {
         super.handleOnStop()
+        mainHandler.removeCallbacks(claimFallback)
         BackgroundTrackService.appVisible = false
     }
 
@@ -1043,5 +1066,10 @@ class BackgroundGPSPlugin : Plugin() {
                 call.reject("Could not open settings: ${e2.message}")
             }
         }
+    }
+
+    private companion object {
+        /** How long after returning to the screen the service chimes at most. */
+        const val CLAIM_FALLBACK_MS = 5_000L
     }
 }

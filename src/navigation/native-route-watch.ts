@@ -47,6 +47,32 @@ export function sandboxRouteFor(
   };
 }
 
+/**
+ * The leg the native side reached on the app's route, when it is further
+ * along than the app; null otherwise (another route, or none).
+ */
+export function nativeLegAhead(
+  state: ActiveNavigationState,
+  native: SandboxRoute | null,
+): number | null {
+  if (!native || state.type !== "route") return null;
+  const mine = state.route.waypoints;
+  const same =
+    mine.length === native.waypoints.length &&
+    mine.every((wp, i) => {
+      const other = native.waypoints[i];
+      return (
+        wp.lat === other.lat &&
+        wp.lon === other.lon &&
+        (wp.name ?? "") === (other.name ?? "")
+      );
+    });
+  return same && native.legIndex > state.legIndex ? native.legIndex : null;
+}
+
+/** How long a fix waits for the native side's route before advancing anyway. */
+const CLAIM_TIMEOUT_MS = 2000;
+
 export function startNativeRouteWatch(
   activeNav: ActiveNavigationManager,
   onFollowing: (following: boolean) => void,
@@ -55,7 +81,11 @@ export function startNativeRouteWatch(
   // What was last sent, compared by identity: the nav subscription fires on
   // every fix, and the route rarely changes.
   let sent: unknown[] | null = null;
+  // While the native side's route is being claimed, the app's may be behind
+  // it: sending it then would set the native side back.
+  let claiming = false;
   const sync = () => {
+    if (claiming) return;
     const state = activeNav.getState();
     const { waypointArrivalAlert, arrivalRadiusNM, gpsSource } = getSettings();
     const source = routeWatchSource(gpsSource);
@@ -80,5 +110,27 @@ export function startNativeRouteWatch(
   };
   activeNav.subscribe(sync);
   onSettingsChange(sync);
-  sync();
+
+  // Back on screen: take chiming back from the native side, first catching
+  // up on waypoints it passed meanwhile, before a fix can advance the route
+  // here and announce one of them again.
+  const claim = () => {
+    claiming = true;
+    const claimed = BackgroundGPS.claimRouteWatch().then(({ route }) => {
+      const leg = nativeLegAhead(activeNav.getState(), route);
+      if (leg !== null) activeNav.catchUpToLeg(leg);
+    });
+    const settled = Promise.race([
+      claimed,
+      new Promise((resolve) => setTimeout(resolve, CLAIM_TIMEOUT_MS)),
+    ]).finally(() => {
+      claiming = false;
+      sync();
+    });
+    activeNav.holdAdvance(settled);
+  };
+  document.addEventListener("visibilitychange", () => {
+    if (!document.hidden) claim();
+  });
+  claim();
 }

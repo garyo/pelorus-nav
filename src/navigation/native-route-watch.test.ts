@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 import type { Route } from "../data/Route";
-import { routeWatchSource, sandboxRouteFor } from "./native-route-watch";
+import {
+  nativeLegAhead,
+  routeWatchSource,
+  sandboxRouteFor,
+} from "./native-route-watch";
 
 const route: Route = {
   id: "r",
@@ -43,5 +47,33 @@ describe("routeWatchSource", () => {
     expect(routeWatchSource("signalk")).toBeNull();
     expect(routeWatchSource("ble-nmea")).toBeNull();
     expect(routeWatchSource("simulator")).toBeNull();
+  });
+});
+
+describe("nativeLegAhead", () => {
+  const state = { type: "route" as const, route, legIndex: 0 };
+  const native = (legIndex: number, name = "B") => ({
+    waypoints: [
+      { lat: 1, lon: 2, name: "A" },
+      { lat: 3, lon: 4, name },
+    ],
+    legIndex,
+    arrivalRadiusNM: 0.1,
+  });
+
+  it("gives the leg the native side reached ahead on the same route", () => {
+    expect(nativeLegAhead(state, native(1))).toBe(1);
+    expect(nativeLegAhead(state, native(2))).toBe(2); // finished
+  });
+
+  it("gives nothing when the native side is not ahead", () => {
+    expect(nativeLegAhead(state, native(0))).toBeNull();
+    expect(nativeLegAhead({ ...state, legIndex: 1 }, native(1))).toBeNull();
+  });
+
+  it("gives nothing for another route, or none", () => {
+    expect(nativeLegAhead(state, native(1, "Other"))).toBeNull();
+    expect(nativeLegAhead(state, null)).toBeNull();
+    expect(nativeLegAhead({ type: "idle" }, native(1))).toBeNull();
   });
 });

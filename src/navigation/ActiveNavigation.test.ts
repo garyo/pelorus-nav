@@ -509,6 +509,43 @@ describe("arrival events", () => {
     expect(nav.getState()).toMatchObject({ legIndex: 2 });
   });
 
+  it("holds auto-advance while held, and catches up without announcing", async () => {
+    const nav = makeNav();
+    const events: string[] = [];
+    nav.onArrival((e) => events.push(e.waypoint.name));
+    last = fix(0, 0.05);
+    nav.startRoute(straight);
+    let release = () => {};
+    nav.holdAdvance(
+      new Promise<void>((resolve) => {
+        release = resolve;
+      }),
+    );
+
+    feed(fix(0, 0.1005)); // just past B, but held
+    expect(nav.getState()).toMatchObject({ legIndex: 1 });
+
+    nav.catchUpToLeg(2); // the native side passed B while the app was away
+    expect(nav.getState()).toMatchObject({ legIndex: 2 });
+    release();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    feed(fix(0, 0.2005)); // past C: advancing again
+    expect(events).toEqual(["C"]);
+    expect(nav.getState().type).toBe("idle");
+  });
+
+  it("finishes, silently, a route the native side finished", () => {
+    const nav = makeNav();
+    const events: unknown[] = [];
+    nav.onArrival((e) => events.push(e));
+    last = fix(0, 0.05);
+    nav.startRoute(straight);
+    nav.catchUpToLeg(3);
+    expect(nav.getState().type).toBe("idle");
+    expect(events).toEqual([]);
+  });
+
   it("does not fire for a leg the user jumps to by hand", () => {
     const nav = makeNav();
     const events: unknown[] = [];

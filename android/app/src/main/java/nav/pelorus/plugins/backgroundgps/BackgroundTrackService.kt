@@ -256,10 +256,13 @@ class BackgroundTrackService : Service() {
         @Volatile var routeFromSerial: Boolean = false
             private set
 
-        /** The app is on screen, and chimes for itself. */
+        /** The app is on screen and has taken over chiming (claimRouteWatch). */
         @Volatile var appVisible: Boolean = true
 
         private const val MS_TO_KNOTS = 1.943844
+
+        /** The followed route as the sandbox holds it, leg current, as JSON. */
+        fun routeSnapshot(): String? = instance?.routeSandbox?.snapshot
 
         fun setRoute(json: String?, fromSerial: Boolean) {
             routeJson = json

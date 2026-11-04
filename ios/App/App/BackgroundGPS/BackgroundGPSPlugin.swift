@@ -39,6 +39,7 @@ public class BackgroundGPSPlugin: CAPPlugin, CAPBridgedPlugin, CLLocationManager
     CAPPluginMethod(name: "appendDiag", returnType: CAPPluginReturnPromise),
     CAPPluginMethod(name: "readDiag", returnType: CAPPluginReturnPromise),
     CAPPluginMethod(name: "setRouteWatch", returnType: CAPPluginReturnPromise),
+    CAPPluginMethod(name: "claimRouteWatch", returnType: CAPPluginReturnPromise),
   ]
 
   private let manager = CLLocationManager()
@@ -79,6 +80,7 @@ public class BackgroundGPSPlugin: CAPPlugin, CAPBridgedPlugin, CLLocationManager
     manager.pausesLocationUpdatesAutomatically = false
     manager.allowsBackgroundLocationUpdates = true
     manager.showsBackgroundLocationIndicator = true
+    observeRouteClaims()
   }
 
   // MARK: - Tracking lifecycle
@@ -287,6 +289,44 @@ public class BackgroundGPSPlugin: CAPPlugin, CAPBridgedPlugin, CLLocationManager
 
   private let msToKnots = 1.943844
 
+  /// The app is in the foreground and has taken over chiming (claimRouteWatch).
+  /// Until it has, the route sandbox chimes: the app still holds the leg it
+  /// had when it left, and would chime again for a waypoint already announced.
+  private var claimed = true
+  private var claimFallback: DispatchWorkItem?
+  /// How long after returning to the foreground the sandbox chimes at most.
+  private let claimFallbackSeconds = 5.0
+
+  /// Track whether the app has claimed the route back since returning to
+  /// the foreground (see `claimed`).
+  private func observeRouteClaims() {
+    let center = NotificationCenter.default
+    center.addObserver(
+      forName: UIApplication.didEnterBackgroundNotification, object: nil, queue: .main
+    ) { [weak self] _ in
+      self?.claimFallback?.cancel()
+      self?.claimed = false
+    }
+    center.addObserver(
+      forName: UIApplication.didBecomeActiveNotification, object: nil, queue: .main
+    ) { [weak self] _ in
+      guard let self, !self.claimed else { return }
+      let fallback = DispatchWorkItem { [weak self] in self?.claimed = true }
+      self.claimFallback = fallback
+      DispatchQueue.main.asyncAfter(deadline: .now() + self.claimFallbackSeconds, execute: fallback)
+    }
+  }
+
+  /// The app is back and takes over chiming, catching up from the route as
+  /// the sandbox followed it.
+  @objc func claimRouteWatch(_ call: CAPPluginCall) {
+    DispatchQueue.main.async {
+      self.claimFallback?.cancel()
+      self.claimed = true
+      call.resolve(["route": self.routeSandbox.current() ?? NSNull()])
+    }
+  }
+
   /// The route to chime along while the app is in the background, or none
   /// (see RouteSandbox). `source` is always the device's GPS here.
   @objc func setRouteWatch(_ call: CAPPluginCall) {
@@ -295,7 +335,7 @@ public class BackgroundGPSPlugin: CAPPlugin, CAPBridgedPlugin, CLLocationManager
       route.flatMap { try? JSONSerialization.data(withJSONObject: $0) }
       .flatMap { String(data: $0, encoding: .utf8) }
     DispatchQueue.main.async {
-      let hidden = UIApplication.shared.applicationState != .active
+      let hidden = UIApplication.shared.applicationState != .active || !self.claimed
       self.routeSandbox.setRoute(json: json, keepAhead: hidden)
       call.resolve()
     }
@@ -305,7 +345,7 @@ public class BackgroundGPSPlugin: CAPPlugin, CAPBridgedPlugin, CLLocationManager
   /// chimes itself (it sees the same fixes); otherwise chime here.
   private func onRouteArrival(reached: String, next: String?) {
     DispatchQueue.main.async {
-      let visible = UIApplication.shared.applicationState == .active
+      let visible = UIApplication.shared.applicationState == .active && self.claimed
       DiagLog.append(
         tag: "route", message: "passed '\(reached)' next='\(next ?? "")' appVisible=\(visible)")
       if !visible { WaypointChime.play(final: next == nil) }
