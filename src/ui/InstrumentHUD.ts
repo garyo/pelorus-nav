@@ -83,6 +83,8 @@ export interface InstrumentHUDHandle {
   setActiveNav(activeNav: ActiveNavigationManager): void;
   /** Register a callback invoked when user clicks a nav instrument cell (DTW/BRG). */
   onNavCellClick(callback: () => void): void;
+  /** Register a callback invoked when the user taps the GPS status badge. */
+  onGpsBadgeClick(callback: () => void): void;
 }
 
 export function createInstrumentHUD(
@@ -106,6 +108,13 @@ export function createInstrumentHUD(
   const gpsText = document.createElement("span");
   gpsText.className = "instrument-gps-text";
   gpsBadge.append(gpsDot, gpsBatt, gpsText);
+  gpsBadge.title = "GPS settings";
+  gpsBadge.setAttribute("role", "button");
+  let gpsBadgeClickCallback: (() => void) | null = null;
+  gpsBadge.addEventListener("click", (e) => {
+    e.stopPropagation();
+    gpsBadgeClickCallback?.();
+  });
 
   let lastData: NavigationData | null = null;
   let navActive = false;
@@ -313,6 +322,9 @@ export function createInstrumentHUD(
     element: container,
     onNavCellClick(callback: () => void) {
       navCellClickCallback = callback;
+    },
+    onGpsBadgeClick(callback: () => void) {
+      gpsBadgeClickCallback = callback;
     },
     setActiveNav(activeNav: ActiveNavigationManager) {
       activeNavRef = activeNav;

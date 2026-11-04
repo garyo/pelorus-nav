@@ -14,6 +14,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/).
   and other inland waterways, with river miles, locks, water level gauges and
   terminals. The chart readout shows the river datum that depths and
   clearances are measured from (tap it for what that means).
+- Tapping the GPS status indicator (GPS / NO FIX / NO GPS) opens the GPS
+  settings.
 
 ### Changed
 - In a web browser, the app asks to keep its data (Firefox shows a prompt

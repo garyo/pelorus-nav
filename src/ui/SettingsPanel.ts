@@ -56,7 +56,8 @@ const DETAIL_LABELS: Record<DetailLevel, string> = {
 };
 
 const TAB_IDS = ["appearance", "layers", "navigation"] as const;
-type TabId = (typeof TAB_IDS)[number];
+export type SettingsTab = (typeof TAB_IDS)[number];
+type TabId = SettingsTab;
 
 const TAB_LABELS: Record<TabId, string> = {
   appearance: "Appearance",
@@ -102,6 +103,8 @@ export interface CreateSettingsPanelOpts {
 }
 
 export interface SettingsPanelHandle {
+  /** Open the settings panel (on `tab`, when given). */
+  open(tab?: SettingsTab): void;
   /** Close the settings panel. */
   hide(): void;
   /** Whether the settings panel is currently open. */
@@ -130,7 +133,7 @@ export function createSettingsPanel(
 
   const panel = document.createElement("div");
   panel.className = "settings-panel";
-  buildTabbedPanel(panel, opts);
+  const setActiveTab = buildTabbedPanel(panel, opts);
   document.body.appendChild(panel);
 
   container.appendChild(wrapper);
@@ -155,18 +158,25 @@ export function createSettingsPanel(
     close: () => panel.classList.remove("open"),
   });
 
+  const open = () => {
+    if (panel.classList.contains("open")) return;
+    panel.classList.add("open");
+    surface.opened();
+    for (const fn of openListeners) fn();
+  };
+
   // Toggle panel
   btn.addEventListener("click", (e) => {
     e.stopPropagation();
-    const opening = !panel.classList.contains("open");
-    panel.classList.toggle("open");
-    if (opening) {
-      surface.opened();
-      for (const fn of openListeners) fn();
-    }
+    if (panel.classList.contains("open")) panel.classList.remove("open");
+    else open();
   });
 
   return {
+    open(tab?: SettingsTab) {
+      if (tab) setActiveTab(tab);
+      open();
+    },
     hide() {
       panel.classList.remove("open");
     },
@@ -182,10 +192,11 @@ export function createSettingsPanel(
   };
 }
 
+/** Build the tab bar and bodies; returns the tab switcher. */
 function buildTabbedPanel(
   panel: HTMLElement,
   opts: CreateSettingsPanelOpts,
-): void {
+): (id: TabId) => void {
   const settings = getSettings();
 
   // --- Tab bar ---
@@ -235,6 +246,7 @@ function buildTabbedPanel(
     }
   }
   setActiveTab(activeTab);
+  return setActiveTab;
 }
 
 // --- Tab builders ---

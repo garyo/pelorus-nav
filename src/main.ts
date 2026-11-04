@@ -1533,6 +1533,7 @@ registerNavInstruments(activeNav);
 // Wire HUD to show BRG/DTW cells during active navigation
 instrumentHUD.setActiveNav(activeNav);
 instrumentHUD.onNavCellClick(() => routePanel.showActiveRoute());
+instrumentHUD.onGpsBadgeClick(() => settingsHandle?.open("navigation"));
 
 // --- Topbar ---
 // Built before the nav/COB restores below: those await IndexedDB, and a
