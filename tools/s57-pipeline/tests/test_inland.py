@@ -27,7 +27,9 @@ def test_tables_add_the_inland_definitions_to_gdals() -> None:
     classes = _codes(tables / "s57objectclasses.csv")
     attributes = _codes(tables / "s57attributes.csv")
     assert classes["17032"][2] == "slcons"
+    assert "CATSLC;" in classes["17032"][3]  # USACE uses the standard code
     assert attributes["17012"][2] == "catslc"
+    assert "17103" not in attributes  # inland hunits numbers units differently
     # GDAL's own definitions are kept, and nothing is defined twice.
     assert classes["122"][2] == "SLCONS"
     assert len(classes) > len(INLAND_OBJECT_CLASSES) + 100

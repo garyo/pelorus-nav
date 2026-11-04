@@ -151,8 +151,14 @@ LAYER_CONFIGS: list[LayerConfig] = [
     LayerConfig("OVFALL", "hazards", HAZARD_ARGS),
     LayerConfig("RSCSTA", "navaids", NAVAID_ARGS),
     LayerConfig("SISTAT", "navaids", NAVAID_ARGS),
+    LayerConfig("SISTAW", "navaids", NAVAID_ARGS),
     LayerConfig("SNDWAV", "hazards", HAZARD_ARGS),
     LayerConfig("SPRING", "hazards", HAZARD_ARGS),
+    # Rivers (Inland ENC): distance marks along the waterway, lock basins,
+    # and notice marks (signboards)
+    LayerConfig("DISMAR", "navaids", NAVAID_ARGS),
+    LayerConfig("LOKBSN", "terrain", TERRAIN_ARGS),
+    LayerConfig("NOTMRK", "navaids", NAVAID_ARGS),
     # Phase 5: additional layers
     LayerConfig("VEGATN", "terrain", TERRAIN_ARGS),
     LayerConfig("PIPOHD", "infrastructure", DEFAULT_ARGS),

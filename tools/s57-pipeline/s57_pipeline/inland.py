@@ -1,16 +1,22 @@
 """Inland ENC support: the US Army Corps of Engineers' river charts (IENCs).
 
-Inland ENCs are S-57 cells written to the Inland ENC standard, which adds
-river-specific object classes and attributes, each with a lowercase acronym.
-GDAL's S-57 tables know the older Inland ENC classes but not those added in
-Inland ENC 2.x; features of an unknown class arrive as a "Generic" layer
-with every attribute dropped. `s57_tables_dir` supplies the missing
-definitions (from the Inland ENC 2.x feature catalogue) alongside GDAL's own.
+Inland ENCs are S-57 cells written to the Inland ENC standard (Encoding Guide
+for Inland ENCs, Edition 2.4.1), which adds river object classes and
+attributes with lowercase acronyms. GDAL's S-57 tables know the older inland
+classes but not those added in Inland ENC 2.x: their features arrive as a
+"Generic" layer with every attribute dropped. `s57_tables_dir` supplies the
+missing definitions alongside GDAL's own.
+
+USACE encodes these classes' attributes with the standard S-57 codes where
+one exists (CATLAM, CATSLC, HUNITS…), so the class definitions list those.
+GDAL matches field names case-insensitively, so a chart that uses the
+inland code instead (catlam) lands in the same field.
 
 Most inland classes are river versions of standard S-57 ones — a lateral
 beacon, a shoreline construction, a bridge — so `STANDARD_LAYER` folds them
-into the standard layer, where the chart styles already draw them, and
-`STANDARD_ATTRIBUTE` copies inland attributes onto their standard names.
+into the standard layer the chart styles draw, and `STANDARD_ATTRIBUTE`
+copies attributes that GDAL's own inland classes read under inland names
+onto their standard ones.
 """
 
 from __future__ import annotations
@@ -21,57 +27,64 @@ import tempfile
 from functools import cache
 from pathlib import Path
 
-# Object classes GDAL lacks: code, name, acronym, attribute sets A/B/C,
-# class, primitives (the columns of GDAL's s57objectclasses.csv).
+# Attributes every inland class carries (Encoding Guide 2.4.1).
+_COMMON = (
+    "OBJNAM;NOBJNM;INFORM;NINFOM;PICREP;TXTDSC;DATSTA;DATEND;PERSTA;PEREND;"
+    "SCAMIN;SORDAT;SORIND;"
+)
+
+
+def _object_class(
+    code: str, name: str, acronym: str, attributes: str, primitives: str
+) -> list[str]:
+    """A row of GDAL's s57objectclasses.csv: code, name, acronym, attribute
+    sets A/B/C, class, primitives."""
+    return [code, name, acronym, attributes + _COMMON, "", "", "G", primitives]
+
+
+# Inland ENC 2.x object classes GDAL lacks. The acronyms and attributes are
+# the Encoding Guide's; the codes are confirmed against USACE cells, whose
+# features under each code carry that class's attributes.
 INLAND_OBJECT_CLASSES: list[list[str]] = [
-    [
-        "17021",
-        "Pontoon",
-        "ponton",
-        "SCAMIN;",
-        "OBJNAM;NOBJNM;INFORM;NINFOM;PICREP;TXTDSC;DATSTA;DATEND;PERSTA;PEREND;",
-        "unlocd;SORDAT;SORIND;",
-        "G",
-        "Area;",
-    ],
-    [
+    _object_class("17020", "Hulk", "hulkes", "CATHLK;CONDTN;", "Point;Area;"),
+    _object_class("17021", "Pontoon", "ponton", "CONDTN;unlocd;", "Area;"),
+    _object_class(
+        "17024",
+        "Pipeline, overhead",
+        "pipohd",
+        "CATPIP;PRODCT;VERCLR;HUNITS;verdat;wtwdis;CONDTN;",
+        "Line;",
+    ),
+    _object_class(
         "17028",
         "Beacon, lateral",
         "bcnlat",
-        "BCNSHP;catlam;COLOUR;SCAMIN;",
-        "OBJNAM;NOBJNM;INFORM;NINFOM;PICREP;TXTDSC;DATSTA;DATEND;PERSTA;PEREND;",
-        "COLPAT;dirimp;SORDAT;SORIND;",
-        "G",
+        "BCNSHP;CATLAM;COLOUR;COLPAT;CONDTN;dirimp;",
         "Point;",
-    ],
-    [
+    ),
+    _object_class(
+        "17030", "Crane", "cranes", "CATCRN;VERCLR;HUNITS;verdat;CONDTN;", "Point;Area;"
+    ),
+    _object_class(
         "17032",
         "Shoreline Construction",
         "slcons",
-        "catslc;SCAMIN;",
-        "NATCON;OBJNAM;NOBJNM;INFORM;NINFOM;PICREP;TXTDSC;DATSTA;DATEND;PERSTA;PEREND;",
-        "watlev;SORDAT;SORIND;",
-        "G",
+        "CATSLC;CONDTN;NATCON;WATLEV;",
         "Line;Area;",
-    ],
-    [
+    ),
+    _object_class(
         "17067",
         "Waterway gauge",
         "wtwgag",
-        "SCAMIN;",
-        (
-            "catgag;disipd;disipu;ELEVAT;higwat;hignam;lowwat;lownam;meawat;meanam;"
-            "othwat;othnam;reflev;sdrlev;vcrlev;verdat;wtwdis;NOBJNM;INFORM;NINFOM;"
-            "PICREP;TXTDSC;DATSTA;DATEND;PERSTA;PEREND;"
-        ),
-        "unlocd;hunits;OBJNAM;SORDAT;SORIND;",
-        "G",
+        "catgag;disipd;disipu;ELEVAT;HUNITS;higwat;hignam;lowwat;lownam;meawat;"
+        "meanam;othwat;othnam;reflev;sdrlev;vcrlev;verdat;wtwdis;unlocd;",
         "Point;Area;",
-    ],
+    ),
 ]
 
-# Attributes GDAL lacks: code, name, acronym, type, class (the columns of
-# GDAL's s57attributes.csv).
+# Inland ENC 2.x attributes GDAL lacks: code, name, acronym, type, class.
+# Inland hunits (17103) is left out: its values number the units
+# differently from standard HUNITS, whose field it would land in.
 INLAND_ATTRIBUTES: list[list[str]] = [
     ["17011", "Category of lateral mark", "catlam", "E", "F"],
     ["17012", "Category of shoreline construction", "catslc", "E", "F"],
@@ -87,30 +100,36 @@ INLAND_ATTRIBUTES: list[list[str]] = [
     ["17088", "Reference gravitational level", "reflev", "E", "F"],
     ["17089", "Name of Sounding datum reference level", "sdrlev", "S", "F"],
     ["17090", "Name of vertical river datum reference level", "vcrlev", "S", "F"],
-    ["17103", "Height/length units", "hunits", "E", "F"],
     ["17104", "Water level effect", "watlev", "E", "F"],
 ]
 
 # Inland layers drawn as the standard layer they are the river version of.
 STANDARD_LAYER: dict[str, str] = {
+    "achare": "ACHARE",
     "bcnlat": "BCNLAT",
+    "berths": "BERTHS",
     "bridge": "BRIDGE",
     "cblohd": "CBLOHD",
+    "cranes": "CRANES",
     "dismar": "DISMAR",
+    "hulkes": "HULKES",
     "lokbsn": "LOKBSN",
-    "m_nsys": "M_NSYS",
+    "notmrk": "NOTMRK",
+    "pipohd": "PIPOHD",
     "ponton": "PONTON",
     "resare": "RESARE",
     "sistat": "SISTAT",
+    "sistaw": "SISTAW",
     "slcons": "SLCONS",
 }
 
-# Inland attributes whose values mean what the standard attribute's do.
+# Attributes GDAL's own inland classes read under inland names, whose values
+# mean what the standard attribute's do.
 STANDARD_ATTRIBUTE: dict[str, str] = {
     "catbrg": "CATBRG",
+    "catdis": "CATDIS",
     "catlam": "CATLAM",
     "catslc": "CATSLC",
-    "hunits": "HUNITS",
     "watlev": "WATLEV",
 }
 
