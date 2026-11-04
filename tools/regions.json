@@ -50,10 +50,31 @@
     "bbox": [-79.2, 42.3, -73.5, 44.0]
   },
   {
-    "id": "us-inland-rivers",
-    "name": "US Inland Rivers",
-    "bbox": [-96.8, 29.6, -79.4, 45.2],
-    "producer": "USACE"
+    "id": "inland-rivers-north",
+    "name": "Upper Mississippi & Ohio Rivers",
+    "bbox": [-96.8, 36.9, -79.4, 45.2],
+    "producer": "USACE",
+    "rivers": ["UM", "IL", "MO", "KK", "OH", "AG", "MN", "KA", "GR"]
+  },
+  {
+    "id": "inland-rivers-south",
+    "name": "Lower Mississippi & Tennessee Rivers",
+    "bbox": [-95.8, 29.6, -83.8, 37.3],
+    "producer": "USACE",
+    "rivers": [
+      "LM",
+      "AR",
+      "WH",
+      "RR",
+      "OU",
+      "AT",
+      "TN",
+      "CR",
+      "CL",
+      "TT",
+      "TB",
+      "BW"
+    ]
   },
   {
     "id": "washington",

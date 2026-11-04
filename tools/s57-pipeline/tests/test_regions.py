@@ -124,7 +124,7 @@ class TestProducerRegions:
                 _cell("US2GRLBA", (-96.0, 43.2, -91.2, 48.0)),
             )
         }
-        assert get_region_build_cells("us-inland-rivers", catalog) == ["U37UM723"]
+        assert get_region_build_cells("inland-rivers-north", catalog) == ["U37UM723"]
 
     def test_noaa_regions_take_no_corps_cells(self) -> None:
         catalog = {
@@ -135,3 +135,21 @@ class TestProducerRegions:
             )
         }
         assert get_region_cells("great-lakes", catalog) == ["US5WI2UL"]
+
+    def test_inland_regions_split_the_rivers_where_they_meet(self) -> None:
+        # At Cairo, IL the Ohio, Upper and Lower Mississippi cells overlap
+        # both regions' bboxes; each goes to its river's region only.
+        cairo = (-89.3, 36.9, -89.0, 37.2)
+        catalog = {
+            c.name: c
+            for c in (
+                _cell("U37OH901", cairo),
+                _cell("U37UM000", cairo),
+                _cell("U37LM000", cairo),
+            )
+        }
+        assert get_region_cells("inland-rivers-north", catalog) == [
+            "U37OH901",
+            "U37UM000",
+        ]
+        assert get_region_cells("inland-rivers-south", catalog) == ["U37LM000"]

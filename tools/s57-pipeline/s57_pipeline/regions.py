@@ -34,6 +34,10 @@ class Region:
     description: str
     # "NOAA", or "USACE" for the Corps' Inland ENCs (tools/regions.json)
     producer: str = "NOAA"
+    # Inland regions split the rivers between them by the river code in the
+    # cell name (U37UM723: UM, the Upper Mississippi): their bboxes overlap
+    # where the rivers meet.
+    rivers: frozenset[str] | None = None
 
 
 # Shared source of truth for region id/name/bbox. See tools/regions.json.
@@ -51,7 +55,8 @@ _DESCRIPTIONS: dict[str, str] = {
     "gulf-coast": "TX/LA/MS/AL/west-FL coast, Gulf ICW, and Dry Tortugas",
     "great-lakes": "Lakes Superior, Michigan, Huron, Erie, Ontario, St. Clair, Detroit/Niagara rivers",
     "ny-inland": "Erie Canal, Oswego Canal, Mohawk River, Finger Lakes (Seneca, Cayuga), Oneida Lake",
-    "us-inland-rivers": "USACE Inland ENCs: Upper/Lower Mississippi, Ohio, Illinois, Missouri, Tennessee, Cumberland, Arkansas, Tenn-Tom and tributaries",
+    "inland-rivers-north": "USACE Inland ENCs: Upper Mississippi, Illinois, Missouri, Kaskaskia, Ohio, Allegheny, Monongahela, Kanawha, Green",
+    "inland-rivers-south": "USACE Inland ENCs: Lower Mississippi, Arkansas, White, Red, Ouachita, Atchafalaya, Tennessee, Cumberland, Clinch, Tenn-Tom, Tombigbee, Black Warrior",
     "washington": "WA outer coast, Strait of Juan de Fuca, San Juan Islands, Puget Sound (Seattle/Tacoma)",
     "oregon": "Oregon coast (Brookings to Astoria) and lower Columbia River",
     "northern-california": "CA coast from Bodega/Point Reyes north — Mendocino, Eureka, Crescent City",
@@ -71,6 +76,7 @@ def _load_regions() -> dict[str, Region]:
             bbox=tuple(entry["bbox"]),  # type: ignore[arg-type]
             description=_DESCRIPTIONS.get(rid, ""),
             producer=entry.get("producer", "NOAA"),
+            rivers=frozenset(entry["rivers"]) if "rivers" in entry else None,
         )
     return out
 
@@ -104,7 +110,10 @@ def get_region_cells(region_name: str, catalog: Catalog) -> list[str]:
     region = REGIONS[region_name]
     inland = region.producer == "USACE"
     return [
-        c for c in query_region(region.bbox, catalog) if is_inland_cell(c) == inland
+        c
+        for c in query_region(region.bbox, catalog)
+        if is_inland_cell(c) == inland
+        and (region.rivers is None or c[3:5] in region.rivers)
     ]
 
 
