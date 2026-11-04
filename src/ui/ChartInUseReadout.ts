@@ -27,6 +27,7 @@
 
 import type * as maplibregl from "maplibre-gl";
 import type { ChartLoadStatus } from "../chart/ChartLoadMonitor";
+import { encChartAt } from "../chart/enc-chart-at";
 import { encProducer } from "../chart/enc-producer";
 import { rasterChartAt } from "../chart/raster-charts";
 import {
@@ -38,10 +39,6 @@ import { depthUnitLabel, getSettings, onSettingsChange } from "../settings";
 import { bearingModeLabel } from "../utils/magnetic";
 import { recordScan } from "../utils/scan-perf";
 import { showStatusBanner } from "./StatusBanner";
-
-function isEncFeature(f: maplibregl.MapGeoJSONFeature): boolean {
-  return typeof f.source === "string" && f.source.startsWith("s57-vector");
-}
 
 export class ChartInUseReadout {
   private readonly map: maplibregl.Map;
@@ -178,24 +175,27 @@ export class ChartInUseReadout {
     const zoom = this.map.getZoom();
     const cx = Math.round(this.map.getCanvas().clientWidth / 2);
     const cy = Math.round(this.map.getCanvas().clientHeight / 2);
-    // A small box (not a single pixel) so we reliably hit the ENC area fill
-    // rather than landing between soundings/symbols.
+    // The chart is the one filled at the centre pixel; a small box around
+    // it finds that chart's datum, or some chart where nothing is filled.
     const box: [maplibregl.PointLike, maplibregl.PointLike] = [
       [cx - 5, cy - 5],
       [cx + 5, cy + 5],
     ];
     const rc = blend !== "vector" ? rasterChartAt(c.lng, c.lat) : null;
     const qrfStart = performance.now();
+    const centreFeatures =
+      blend !== "raster" ? this.map.queryRenderedFeatures([cx, cy]) : [];
     const boxFeatures =
       blend !== "raster" ? this.map.queryRenderedFeatures(box) : [];
-    recordScan("chart-in-use-qrf", qrfStart, boxFeatures.length);
-    const encFeature =
-      blend !== "raster" ? boxFeatures.find(isEncFeature) : undefined;
+    recordScan(
+      "chart-in-use-qrf",
+      qrfStart,
+      centreFeatures.length + boxFeatures.length,
+    );
+    const chart = encChartAt(centreFeatures, boxFeatures);
+    const encFeature = chart?.feature;
     // River charts name the datum their depths are measured from.
-    const datumFeature = encFeature
-      ? boxFeatures.find((f) => isEncFeature(f) && f.properties._sdat != null)
-      : undefined;
-    this.datum = riverDatum(datumFeature?.properties._sdat);
+    this.datum = riverDatum(chart?.sdat);
 
     let label: string | null = null;
     let overscale = false;
