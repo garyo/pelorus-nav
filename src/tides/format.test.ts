@@ -54,6 +54,8 @@ describe("formatTideEvent / formatTideHeight", () => {
       formatTideEvent({ ...high, type: "low", heightMeters: 0.245 }, "meters"),
     ).toBe("Low 0.2m");
     expect(formatTideHeight(2.957, "feet")).toBe("9.7ft");
+    expect(formatTideHeight(2.957, "fathoms")).toBe("9.7ft");
+    expect(formatTideHeight(2.957, "meters")).toBe("3.0m");
   });
 });
 

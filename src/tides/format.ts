@@ -7,6 +7,7 @@ import {
   convertDepth,
   type DepthUnit,
   depthUnitLabel,
+  heightUnit,
   type SpeedUnit,
 } from "../settings";
 import { formatSpeed } from "../utils/units";
@@ -16,8 +17,11 @@ import type { TideEvent } from "./predictor";
 export { formatEventTime, formatTimeUntil } from "../utils/format";
 export { formatSpeed };
 
-/** Tide height with one decimal in the user's depth unit ("9.7ft"). */
-export function formatTideHeight(meters: number, unit: DepthUnit): string {
+/** Tide height with one decimal in the height unit for the user's depth
+ *  unit ("9.7ft"): feet when depths are in feet or fathoms, as charted
+ *  heights are. */
+export function formatTideHeight(meters: number, depthUnit: DepthUnit): string {
+  const unit = heightUnit(depthUnit);
   return `${convertDepth(meters, unit).toFixed(1)}${depthUnitLabel(unit)}`;
 }
 

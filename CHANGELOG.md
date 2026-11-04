@@ -36,6 +36,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/).
   route legs, track distances, man overboard, anchor watch and tide stations
   showed nautical miles whatever the setting. The route preview's planning
   speed and set & drift use the speed unit too.
+- Tide heights show in feet when depths are in fathoms, like charted heights.
 
 ## [1.1.0] - 2026-10-28
 
