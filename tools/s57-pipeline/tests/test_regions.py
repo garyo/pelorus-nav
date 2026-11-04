@@ -111,3 +111,4 @@ class TestRegionCells:
     def test_usage_band(self) -> None:
         assert usage_band("US5MA22M") == 5
         assert usage_band("US1GLBCF") == 1
+        assert usage_band("U37UM723") == 5  # Inland ENC, not band 3

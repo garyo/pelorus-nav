@@ -15,8 +15,17 @@ from .enrich import (
     correlate_topmarks,
     enrich_geojson,
 )
+from .inland import STANDARD_LAYER, s57_tables_dir, standardize_attributes
 from .land_labels import annotate_land_label_anchors
 from .layers import LAYER_NAMES
+
+
+def _ogr_env() -> dict[str, str]:
+    """Environment for GDAL's S-57 driver, with the Inland ENC tables."""
+    env = os.environ.copy()
+    env["OGR_S57_OPTIONS"] = "SPLIT_MULTIPOINT=ON,ADD_SOUNDG_DEPTH=ON"
+    env["S57_CSV"] = str(s57_tables_dir())
+    return env
 
 
 def list_enc_layers(enc_path: Path) -> list[str]:
@@ -33,6 +42,7 @@ def list_enc_layers(enc_path: Path) -> list[str]:
         capture_output=True,
         text=True,
         check=True,
+        env=_ogr_env(),
     )
     layers: list[str] = []
     for line in result.stdout.splitlines():
@@ -86,16 +96,34 @@ def read_compilation_scale(enc_path: Path) -> int | None:
     return _int_field(_read_dsid(enc_path), "DSPM_CSCL")
 
 
+# Largest compilation scale (denominator) of each S-57 intended use, berthing
+# to general; anything coarser is overview (1).
+_INTU_MAX_SCALE = ((4_000, 6), (22_000, 5), (90_000, 4), (350_000, 3), (1_500_000, 2))
+
+
+def intended_use(intu: int | None, cscl: int | None) -> int | None:
+    """DSID_INTU as S-57's 1-6. Inland ENCs record other values (7), so
+    those are placed by compilation scale instead."""
+    if intu is None or 1 <= intu <= 6 or cscl is None:
+        return intu
+    return next((band for max_scale, band in _INTU_MAX_SCALE if cscl <= max_scale), 1)
+
+
 def read_intended_use(enc_path: Path) -> int | None:
     """Read the intended use (DSID_INTU, 1-6) from an S-57 ENC file."""
-    return _int_field(_read_dsid(enc_path), "DSID_INTU")
+    fields = _read_dsid(enc_path)
+    return intended_use(
+        _int_field(fields, "DSID_INTU"), _int_field(fields, "DSPM_CSCL")
+    )
 
 
 def read_dsid_metadata(enc_path: Path) -> DsidMetadata:
     """Read INTU, CSCL and edition from an S-57 ENC file in one ogrinfo call."""
     fields = _read_dsid(enc_path)
     return DsidMetadata(
-        intu=_int_field(fields, "DSID_INTU"),
+        intu=intended_use(
+            _int_field(fields, "DSID_INTU"), _int_field(fields, "DSPM_CSCL")
+        ),
         cscl=_int_field(fields, "DSPM_CSCL"),
         edition=_int_field(fields, "DSID_EDTN"),
     )
@@ -105,6 +133,7 @@ def convert_layer(
     enc_path: Path,
     layer_name: str,
     output_dir: Path,
+    output_name: str | None = None,
 ) -> tuple[Path | None, str | None]:
     """Convert a single S-57 layer to GeoJSON using ogr2ogr.
 
@@ -112,6 +141,7 @@ def convert_layer(
         enc_path: Path to the .000 ENC file.
         layer_name: S-57 layer name (e.g., "DEPARE", "SOUNDG").
         output_dir: Directory to write GeoJSON output.
+        output_name: File stem to write, when not the layer name lowercased.
 
     Returns:
         (path, failure_reason): the output GeoJSON path (None when the layer
@@ -120,10 +150,9 @@ def convert_layer(
         A dropped layer on a nautical chart can be a missing hazard, so
         callers must surface non-None reasons.
     """
-    output_path = output_dir / f"{layer_name.lower()}.geojson"
+    output_path = output_dir / f"{output_name or layer_name.lower()}.geojson"
 
-    env = os.environ.copy()
-    env["OGR_S57_OPTIONS"] = "SPLIT_MULTIPOINT=ON,ADD_SOUNDG_DEPTH=ON"
+    env = _ogr_env()
 
     cmd = [
         "ogr2ogr",
@@ -169,6 +198,26 @@ def convert_layer(
     return output_path, None
 
 
+def fold_inland(inland_path: Path, standard_path: Path) -> Path:
+    """Append an Inland ENC layer's features, with their attributes copied
+    onto standard names, to the standard layer's GeoJSON (created if the
+    cell had none). Removes the inland file; returns the standard one."""
+    with open(inland_path) as f:
+        inland = json.load(f)
+    for feature in inland["features"]:
+        standardize_attributes(feature.setdefault("properties", {}))
+    if standard_path.exists():
+        with open(standard_path) as f:
+            merged = json.load(f)
+        merged["features"].extend(inland["features"])
+    else:
+        merged = inland
+    with open(standard_path, "w") as f:
+        json.dump(merged, f)
+    inland_path.unlink()
+    return standard_path
+
+
 def convert_enc(
     enc_path: Path,
     output_dir: Path,
@@ -201,17 +250,40 @@ def convert_enc(
     # Deterministic cell identifier from filename (e.g. "US5MA22M" → int).
     # Uses zlib.crc32 instead of hash() which is randomized per process.
     import zlib
+
     cell_id = zlib.crc32(enc_path.stem.encode()) & 0xFFFFFFFF
 
-    # Find which of our target layers exist in this ENC
+    # Find which of our target layers exist in this ENC, and the Inland ENC
+    # layers that fold into one of them (see inland.py).
     available = set(list_enc_layers(enc_path))
     target_layers = [name for name in LAYER_NAMES if name in available]
+    inland_layers = [
+        name
+        for name, standard in STANDARD_LAYER.items()
+        if name in available and standard in LAYER_NAMES
+    ]
 
-    outputs: list[Path] = []
+    converted: dict[str, Path] = {}
     for layer_name in target_layers:
         path, failure = convert_layer(enc_path, layer_name, output_dir)
         if failure is not None and on_layer_failed is not None:
             on_layer_failed(layer_name, failure)
+        if path is not None:
+            converted[layer_name] = path
+    for layer_name in inland_layers:
+        path, failure = convert_layer(
+            enc_path, layer_name, output_dir, output_name=f"{layer_name}.inland"
+        )
+        if failure is not None and on_layer_failed is not None:
+            on_layer_failed(layer_name, failure)
+        if path is not None:
+            standard = STANDARD_LAYER[layer_name]
+            converted[standard] = fold_inland(
+                path, output_dir / f"{standard.lower()}.geojson"
+            )
+
+    outputs: list[Path] = []
+    for layer_name, path in converted.items():
         if path is not None:
             ok = enrich_geojson(
                 path,

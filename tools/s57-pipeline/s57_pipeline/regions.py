@@ -14,6 +14,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from .enc_catalog import BBox, CatalogCell
+from .inland import is_inland_cell
 
 Catalog = Mapping[str, CatalogCell]
 
@@ -73,7 +74,10 @@ REGIONS: dict[str, Region] = _load_regions()
 
 
 def usage_band(cell_name: str) -> int:
-    """NOAA usage band, the digit after "US" in the cell name (US5MA22M → 5)."""
+    """NOAA usage band, the digit after "US" in the cell name (US5MA22M → 5).
+    Inland ENCs (U37…) are river charts at harbour scale: band 5."""
+    if is_inland_cell(cell_name):
+        return 5
     return int(cell_name[2])
 
 
