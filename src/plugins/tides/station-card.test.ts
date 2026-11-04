@@ -29,14 +29,14 @@ describe("buildTideStationInfo", () => {
   });
 
   it("puts the distance row first and carries the actions", () => {
-    const actions = [{ label: "Hull · 6.4 nm", run: () => {} }];
+    const actions = [{ label: "Hull · 6.40 NM", run: () => {} }];
     const info = buildTideStationInfo(boston, index, now, "meters", {
-      distance: "0.02 nm from vessel",
+      distance: "0.02 NM from vessel",
       actions,
     });
     expect(info?.details[0]).toEqual({
       label: "Distance",
-      value: "0.02 nm from vessel",
+      value: "0.02 NM from vessel",
     });
     expect(info?.actions).toBe(actions);
   });
@@ -52,9 +52,9 @@ describe("formatStationChoice", () => {
     const result = chooseNearestTide(index, 42.31, -70.93, now);
     const primary = result?.primary;
     if (!primary) throw new Error("no station");
-    const text = formatStationChoice(primary, now, "feet");
+    const text = formatStationChoice(primary, now, "feet", "mph");
     expect(text).toMatch(
-      /^Hull · \d+\.\d+ nm · (High|Low) -?\d+\.\dft \d+:\d\d/,
+      /^Hull · \d+\.\d+ mi · (High|Low) -?\d+\.\dft \d+:\d\d/,
     );
   });
 });

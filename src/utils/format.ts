@@ -31,14 +31,6 @@ export function formatEventTime(time: Date, now: Date): string {
   return `${day} ${clock}`;
 }
 
-/** "0.30 nm", "12.4 nm", "127 nm". */
-export function formatDistanceShort(nm: number): string {
-  if (nm < 0) nm = 0;
-  if (nm < 10) return `${nm.toFixed(2)} nm`;
-  if (nm < 100) return `${nm.toFixed(1)} nm`;
-  return `${Math.round(nm)} nm`;
-}
-
 /** Format a Date as "YYYY-MM-DD HH:MM" in local time — used to name
  *  auto-created routes and tracks. */
 export function formatLocalDateTime(d: Date): string {

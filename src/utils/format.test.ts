@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
   formatBytes,
-  formatDistanceShort,
   formatDurationShort,
   formatLocalDateTime,
 } from "./format";
@@ -13,15 +12,6 @@ describe("formatDurationShort", () => {
     expect(formatDurationShort((60 + 47) * 60_000)).toBe("1h 47m");
     expect(formatDurationShort(2 * 3_600_000)).toBe("2h");
     expect(formatDurationShort(-5)).toBe("0s");
-  });
-});
-
-describe("formatDistanceShort", () => {
-  it("formats across magnitudes", () => {
-    expect(formatDistanceShort(0.3)).toBe("0.30 nm");
-    expect(formatDistanceShort(12.44)).toBe("12.4 nm");
-    expect(formatDistanceShort(127.4)).toBe("127 nm");
-    expect(formatDistanceShort(-1)).toBe("0.00 nm");
   });
 });
 

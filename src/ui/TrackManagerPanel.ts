@@ -20,7 +20,8 @@ import {
 import type { TrackLayer } from "../map/TrackLayer";
 import type { TrackRecorder } from "../map/TrackRecorder";
 import { getSettings, updateSettings } from "../settings";
-import { formatDistanceShort, formatDurationShort } from "../utils/format";
+import { formatDurationShort } from "../utils/format";
+import { formatDistanceShort } from "../utils/units";
 import { openColorPicker } from "./color-picker";
 import { importGpxFromPicker } from "./gpx-import";
 import {
@@ -649,7 +650,7 @@ export class TrackManagerPanel {
   }
 }
 
-/** "May 23 · 1h 47m · 12.4 nm" — date, duration, distance separated by
+/** "May 23 · 1h 47m · 12.4 NM" — date, duration, distance separated by
  *  middle dots. Falls back to "…" while aggregates are still being
  *  computed for legacy tracks. */
 function formatTrackDetail(meta: TrackMeta): string {
@@ -664,7 +665,9 @@ function formatTrackDetail(meta: TrackMeta): string {
     parts.push("…");
   }
   if (meta.totalDistanceNM !== undefined) {
-    parts.push(formatDistanceShort(meta.totalDistanceNM));
+    parts.push(
+      formatDistanceShort(meta.totalDistanceNM, getSettings().speedUnit),
+    );
   } else {
     parts.push("…");
   }

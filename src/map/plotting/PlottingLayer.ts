@@ -5,7 +5,7 @@
 
 import type * as maplibregl from "maplibre-gl";
 import { getPlottingSheet, savePlottingSheet } from "../../data/db";
-import { getSettings, onSettingsChange } from "../../settings";
+import { getSettings, onSettingsChange, type Settings } from "../../settings";
 import {
   bearingDelta,
   haversineDistanceNM,
@@ -13,13 +13,19 @@ import {
   projectPoint,
 } from "../../utils/coordinates";
 import { formatBearing } from "../../utils/magnetic";
-import { formatDistanceNM } from "../../utils/units";
+import {
+  formatDistance,
+  formatSpeed,
+  speedToKnots,
+  speedUnitLabel,
+} from "../../utils/units";
 import { generateUUID } from "../../utils/uuid";
 import { DraggablePoints } from "../DraggablePoints";
 import { getMode, onModeChange, setMode } from "../InteractionMode";
 import {
   createBearingInput,
   createDistanceInput,
+  distancePlaceholder,
   parseBearingInput,
   parseDistanceInput,
 } from "./bearingInput";
@@ -190,11 +196,13 @@ export class PlottingLayer {
     };
     document.addEventListener("keydown", this.keyHandler);
 
-    // Re-render labels when bearing mode changes (true ↔ magnetic)
-    let prevBearingMode = getSettings().bearingMode;
+    // Re-render labels when bearing mode (true ↔ magnetic) or units change
+    const labelKey = (s: Settings) =>
+      `${s.bearingMode}/${s.speedUnit}/${s.depthUnit}`;
+    let prevLabelKey = labelKey(getSettings());
     onSettingsChange((s) => {
-      if (s.bearingMode !== prevBearingMode) {
-        prevBearingMode = s.bearingMode;
+      if (labelKey(s) !== prevLabelKey) {
+        prevLabelKey = labelKey(s);
         this.updateSources();
       }
     });
@@ -573,9 +581,9 @@ export class PlottingLayer {
         // Label with distance/bearing
         const dist = haversineDistanceNM(el.lat1, el.lon1, el.lat2, el.lon2);
         const brg = initialBearingDeg(el.lat1, el.lon1, el.lat2, el.lon2);
-        const { bearingMode, depthUnit } = getSettings();
+        const { bearingMode, depthUnit, speedUnit } = getSettings();
         const fmtBrg = formatBearing(brg, bearingMode, el.lat1, el.lon1);
-        const distStr = formatDistanceNM(dist, depthUnit);
+        const distStr = formatDistance(dist, speedUnit, depthUnit);
         const segLabel = el.label
           ? `${el.label} — ${fmtBrg} ${distStr}`
           : `${fmtBrg} ${distStr}`;
@@ -655,9 +663,9 @@ export class PlottingLayer {
         });
 
         // Bearing & distance label on the radial line
-        const { bearingMode, depthUnit } = getSettings();
+        const { bearingMode, depthUnit, speedUnit } = getSettings();
         const fmtBrg = formatBearing(el.lineAngle, bearingMode, el.lat, el.lon);
-        const distStr = formatDistanceNM(el.radiusNM, depthUnit);
+        const distStr = formatDistance(el.radiusNM, speedUnit, depthUnit);
         lineLabels.push({
           type: "Feature",
           properties: { id: el.id, label: `${fmtBrg} ${distStr}` },
@@ -713,13 +721,13 @@ export class PlottingLayer {
         });
 
         // Label: set & drift
-        const { bearingMode } = getSettings();
+        const { bearingMode, speedUnit } = getSettings();
         const fmtSet = formatBearing(el.setTrue, bearingMode, el.lat, el.lon);
         lineLabels.push({
           type: "Feature",
           properties: {
             id: el.id,
-            label: `${fmtSet} @ ${el.driftKnots.toFixed(1)}kt`,
+            label: `${fmtSet} @ ${formatSpeed(el.driftKnots, speedUnit)}`,
           },
           geometry: {
             type: "LineString",
@@ -752,14 +760,14 @@ export class PlottingLayer {
         });
 
         // Label: bearing + distance
-        const { bearingMode, depthUnit } = getSettings();
+        const { bearingMode, depthUnit, speedUnit } = getSettings();
         const fmtBrg = formatBearing(
           el.bearingTrue,
           bearingMode,
           el.lat,
           el.lon,
         );
-        const distStr = formatDistanceNM(el.distanceNM, depthUnit);
+        const distStr = formatDistance(el.distanceNM, speedUnit, depthUnit);
         lineLabels.push({
           type: "Feature",
           properties: { id: el.id, label: `${fmtBrg} ${distStr}` },
@@ -1263,6 +1271,7 @@ export class PlottingLayer {
     this.updateSources();
 
     this.popupInputEl = createDistanceInput(
+      getSettings().speedUnit,
       (distanceNM) => {
         this.removePopupInput();
         this.arcRadiusNM = distanceNM;
@@ -1583,7 +1592,7 @@ export class PlottingLayer {
 
     const driftInput = document.createElement("input");
     driftInput.type = "text";
-    driftInput.placeholder = "Drift (kn)";
+    driftInput.placeholder = `Drift (${speedUnitLabel(getSettings().speedUnit)})`;
     driftInput.className = "plot-bearing-field";
     driftInput.style.width = "80px";
 
@@ -1594,7 +1603,7 @@ export class PlottingLayer {
     container.append(setInput, driftInput, okBtn);
 
     const submit = () => {
-      const { bearingMode } = getSettings();
+      const { bearingMode, speedUnit } = getSettings();
       const parsed = parseBearingInput(setInput.value, bearingMode, lat, lon);
       const drift = parseFloat(driftInput.value);
       if (!parsed || Number.isNaN(drift) || drift <= 0) return;
@@ -1605,7 +1614,7 @@ export class PlottingLayer {
         lat,
         lon,
         setTrue: parsed.trueBearing,
-        driftKnots: drift,
+        driftKnots: speedToKnots(drift, speedUnit),
         createdAt: Date.now(),
       };
       this.sheet.elements.push(el);
@@ -1651,7 +1660,10 @@ export class PlottingLayer {
 
     const distInput = document.createElement("input");
     distInput.type = "text";
-    distInput.placeholder = "Distance (e.g. 1.5nm)";
+    distInput.placeholder = distancePlaceholder(
+      "Distance",
+      getSettings().speedUnit,
+    );
     distInput.className = "plot-bearing-field";
     distInput.style.width = "140px";
 
@@ -1662,9 +1674,9 @@ export class PlottingLayer {
     container.append(brgInput, distInput, okBtn);
 
     const submit = () => {
-      const { bearingMode } = getSettings();
+      const { bearingMode, speedUnit } = getSettings();
       const parsed = parseBearingInput(brgInput.value, bearingMode, lat, lon);
-      const dist = parseDistanceInput(distInput.value);
+      const dist = parseDistanceInput(distInput.value, speedUnit);
       if (!parsed || dist === null) return;
 
       const el: PlotBrgDistLine = {
@@ -1831,7 +1843,9 @@ export class PlottingLayer {
       }
       if (changes.drift !== undefined) {
         const drift = parseFloat(changes.drift);
-        if (!Number.isNaN(drift) && drift > 0) el.driftKnots = drift;
+        if (!Number.isNaN(drift) && drift > 0) {
+          el.driftKnots = speedToKnots(drift, getSettings().speedUnit);
+        }
       }
     } else if (el.type === "brg-dist-line") {
       if (changes.bearing !== undefined) {
@@ -1848,11 +1862,14 @@ export class PlottingLayer {
         }
       }
       if (changes.distance !== undefined) {
-        const nm = parseDistanceInput(changes.distance);
+        const nm = parseDistanceInput(
+          changes.distance,
+          getSettings().speedUnit,
+        );
         if (nm !== null) el.distanceNM = nm;
       }
     } else if (el.type === "distance-arc" && changes.radius !== undefined) {
-      const nm = parseDistanceInput(changes.radius);
+      const nm = parseDistanceInput(changes.radius, getSettings().speedUnit);
       if (nm !== null) {
         el.radiusNM = nm;
       }

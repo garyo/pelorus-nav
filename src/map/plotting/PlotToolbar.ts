@@ -6,6 +6,8 @@
  *   Row 2 (actions):  status/edit area  |  [Delete] [Clear] [Done]
  */
 
+import { getSettings } from "../../settings";
+import { convertSpeed, formatDistance } from "../../utils/units";
 import type { PlotElement } from "./PlottingTypes";
 import { PLOT_SHAPES, type PlotSymbolShape, SHAPE_LABELS } from "./plot-icons";
 
@@ -220,9 +222,13 @@ export class PlotToolbar {
         }),
       );
       this.editArea.appendChild(
-        this.makeEditInput("Drift", element.driftKnots.toFixed(1), (val) => {
-          this.callbacks.onEditElement(element.id, { drift: val });
-        }),
+        this.makeEditInput(
+          "Drift",
+          this.formatDrift(element.driftKnots),
+          (val) => {
+            this.callbacks.onEditElement(element.id, { drift: val });
+          },
+        ),
       );
     } else if (element.type === "brg-dist-line") {
       this.editArea.appendChild(
@@ -233,7 +239,7 @@ export class PlotToolbar {
       this.editArea.appendChild(
         this.makeEditInput(
           "Distance",
-          this.formatRadius(element.distanceNM),
+          this.formatDistance(element.distanceNM),
           (val) => {
             this.callbacks.onEditElement(element.id, { distance: val });
           },
@@ -243,7 +249,7 @@ export class PlotToolbar {
       this.editArea.appendChild(
         this.makeEditInput(
           "Radius",
-          this.formatRadius(element.radiusNM),
+          this.formatDistance(element.radiusNM),
           (val) => {
             this.callbacks.onEditElement(element.id, { radius: val });
           },
@@ -316,12 +322,15 @@ export class PlotToolbar {
     return btn;
   }
 
-  /** Format radius for display in edit field (e.g. "1.5nm", "500ft"). */
-  private formatRadius(nm: number): string {
-    if (nm < 0.1) {
-      return `${Math.round(nm * 6076.12)}ft`;
-    }
-    return `${nm.toFixed(2)}nm`;
+  /** A distance for an edit field, in the user's units ("1.50 NM", "500 ft"). */
+  private formatDistance(nm: number): string {
+    const { speedUnit, depthUnit } = getSettings();
+    return formatDistance(nm, speedUnit, depthUnit);
+  }
+
+  /** A drift for an edit field: the number alone, in the user's speed unit. */
+  private formatDrift(knots: number): string {
+    return convertSpeed(knots, getSettings().speedUnit).toFixed(1);
   }
 
   private makeEditInput(

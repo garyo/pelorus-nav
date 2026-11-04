@@ -17,7 +17,7 @@ import { formatDurationShort, formatEventTime } from "../utils/format";
 import { applyDeclination, bearingModeLabel } from "../utils/magnetic";
 import {
   convertSpeed,
-  formatNavDistanceNM,
+  formatDistanceShort,
   speedUnitLabel,
 } from "../utils/units";
 
@@ -269,7 +269,7 @@ export function createInstrumentHUD(
       nextWpTtgEl.textContent = ttg ?? "";
       nextWpTtgEl.hidden = ttg === null;
       nextWpDestText.data =
-        dest != null ? `Dest: ${formatNavDistanceNM(dest)} NM` : "";
+        dest != null ? `Dest: ${formatDistanceShort(dest, s.speedUnit)}` : "";
       nextWpEtaEl.textContent = dest != null ? destEta(info) : "";
       nextWpEtaEl.hidden = dest == null;
       nextWpEl.style.display =

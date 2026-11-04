@@ -7,7 +7,8 @@ import type { ActiveNavigationManager } from "../navigation/ActiveNavigation";
 import { applyDeclination, bearingModeLabel } from "../utils/magnetic";
 import {
   convertSpeed,
-  formatNavDistanceNM,
+  distanceUnitLabel,
+  formatNavDistance,
   speedUnitLabel,
 } from "../utils/units";
 import { INSTRUMENTS } from "./InstrumentHUD";
@@ -40,11 +41,15 @@ export function registerNavInstruments(
     id: "dtw",
     label: "Dist to wpt",
     shortLabel: "DTW",
-    format(data) {
+    format(data, settings) {
       const info = activeNav.getInfo();
+      const unit = distanceUnitLabel(settings.speedUnit);
       // Blank on a stale fix (data null) — see the BRG formatter.
-      if (!info || !data) return { value: "--", unit: "NM" };
-      return { value: formatNavDistanceNM(info.distanceNM), unit: "NM" };
+      if (!info || !data) return { value: "--", unit };
+      return {
+        value: formatNavDistance(info.distanceNM, settings.speedUnit),
+        unit,
+      };
     },
   });
 

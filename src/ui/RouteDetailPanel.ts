@@ -16,6 +16,7 @@ import type {
 import { getSettings } from "../settings";
 import { haversineDistanceNM, initialBearingDeg } from "../utils/coordinates";
 import { formatBearing } from "../utils/magnetic";
+import { formatDistanceShort, formatNavDistance } from "../utils/units";
 import {
   iconEdit,
   iconNavigation,
@@ -62,10 +63,6 @@ function buildLegs(route: Route): Leg[] {
     });
   }
   return legs;
-}
-
-function fmtDist(nm: number): string {
-  return nm < 10 ? nm.toFixed(2) : nm.toFixed(1);
 }
 
 function fmtCourse(deg: number, lat: number, lon: number): string {
@@ -351,7 +348,7 @@ export class RouteDetailPanel {
       route,
       legs.length === 0
         ? ""
-        : `${legs.length} leg${legs.length !== 1 ? "s" : ""}, ${fmtDist(legs[legs.length - 1].cumDist)} NM`,
+        : `${legs.length} leg${legs.length !== 1 ? "s" : ""}, ${formatDistanceShort(legs[legs.length - 1].cumDist, getSettings().speedUnit)}`,
     );
 
     // Keep the selected waypoint's row visible, but only when the
@@ -468,6 +465,7 @@ export class RouteDetailPanel {
     const navigating = activeLegIdx >= 0;
     const editing = this.isEditingThisRoute();
     const selIdx = editing ? this.editor.getSelectedIndex() : null;
+    const { speedUnit } = getSettings();
 
     for (let i = 0; i < route.waypoints.length; i++) {
       // ── waypoint row ────────────────────────────────────────────
@@ -539,10 +537,10 @@ export class RouteDetailPanel {
       course.textContent = fmtCourse(leg.course, leg.fromLat, leg.fromLon);
       const dist = document.createElement("span");
       dist.className = "route-list-leg-dist";
-      dist.textContent = `${fmtDist(leg.dist)} NM`;
+      dist.textContent = formatDistanceShort(leg.dist, speedUnit);
       const cum = document.createElement("span");
       cum.className = "route-list-leg-cum";
-      cum.textContent = `Σ ${fmtDist(leg.cumDist)}`;
+      cum.textContent = `Σ ${formatNavDistance(leg.cumDist, speedUnit)}`;
       legRow.append(course, dist, cum);
 
       // While editing, the route's normal display is hidden so the leg

@@ -3,7 +3,7 @@
  * track distances (formatDistanceInSpeedUnits): km/m for km/h, mi/ft for mph,
  * and NM for knots. In NM it drops to feet or meters (per the depth-unit
  * setting) once its span falls below 0.1 NM — where an NM label would read
- * "0.05 nm" — matching formatDistanceNM's on-chart labels.
+ * "0.05 nm" — matching formatDistance's on-chart labels.
  */
 
 import * as maplibregl from "maplibre-gl";

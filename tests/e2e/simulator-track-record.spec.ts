@@ -85,7 +85,7 @@ test("recording a track while the simulator moves produces a saved track with di
 
   const row = page.locator(".manager-item").first();
   await expect(row).toBeVisible({ timeout: 5000 });
-  await expect(row.locator(".manager-item-detail")).toContainText("nm");
+  await expect(row.locator(".manager-item-detail")).toContainText("NM");
 
   const metas = await readIndexedDb<TrackMetaProbe>(page, "tracks");
 

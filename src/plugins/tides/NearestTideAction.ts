@@ -5,13 +5,20 @@
  */
 
 import type { FeatureInfo } from "../../chart/feature-info";
-import { loadTidesIndex, type TidesIndex } from "../../tides/bundle";
+import {
+  DEFAULT_NEAREST_STATION_NM,
+  loadTidesIndex,
+  type TidesIndex,
+} from "../../tides/bundle";
 import {
   chooseNearestTide,
   type NearestTideResult,
   type StationChoice,
 } from "../../tides/nearest-tide";
-import { formatDistanceShort } from "../../utils/format";
+import {
+  formatDistanceInSpeedUnits,
+  formatDistanceShort,
+} from "../../utils/units";
 import type { PluginHost } from "../types";
 import { buildTideStationInfo, formatStationChoice } from "./station-card";
 
@@ -62,7 +69,11 @@ export function createNearestTideAction(
     const now = deps.now();
     const result = chooseNearestTide(index, position.lat, position.lon, now);
     if (!result) {
-      flash("No tide station within 25 nm");
+      const radius = formatDistanceInSpeedUnits(
+        DEFAULT_NEAREST_STATION_NM,
+        host.settings.get().speedUnit,
+      );
+      flash(`No tide station within ${radius}`);
       return;
     }
     show(cardFor(result.primary, result));
@@ -73,12 +84,12 @@ export function createNearestTideAction(
     }
 
     function cardFor(choice: StationChoice, all: NearestTideResult) {
-      const { depthUnit } = host.settings.get();
+      const { depthUnit, speedUnit } = host.settings.get();
       const others = [all.primary, ...all.alternatives].filter(
         (c) => c !== choice,
       );
       const info = buildTideStationInfo(choice.station, index, now, depthUnit, {
-        distance: `${formatDistanceShort(choice.distanceNM)} ${origin}`,
+        distance: `${formatDistanceShort(choice.distanceNM, speedUnit)} ${origin}`,
         actions: [
           {
             label: "Show on chart",
@@ -97,7 +108,7 @@ export function createNearestTideAction(
             },
           },
           ...others.map((other) => ({
-            label: formatStationChoice(other, now, depthUnit),
+            label: formatStationChoice(other, now, depthUnit, speedUnit),
             run: () => show(cardFor(other, all)),
           })),
         ],

@@ -79,30 +79,40 @@ describe("parseBearingInput", () => {
 
 describe("parseDistanceInput", () => {
   it("parses plain number as NM", () => {
-    expect(parseDistanceInput("1.5")).toBe(1.5);
+    expect(parseDistanceInput("1.5", "knots")).toBe(1.5);
+  });
+
+  it("parses a plain number in the speed unit's distance family", () => {
+    expect(parseDistanceInput("1.15078", "mph")).toBeCloseTo(1.0, 6);
+    expect(parseDistanceInput("1.852", "kph")).toBeCloseTo(1.0, 6);
   });
 
   it("parses nm suffix", () => {
-    expect(parseDistanceInput("2.0nm")).toBe(2.0);
-    expect(parseDistanceInput("2.0NM")).toBe(2.0);
+    expect(parseDistanceInput("2.0nm", "knots")).toBe(2.0);
+    expect(parseDistanceInput("2.0NM", "mph")).toBe(2.0);
+  });
+
+  it("parses mi and km suffixes whatever the speed unit", () => {
+    expect(parseDistanceInput("1.15078 mi", "knots")).toBeCloseTo(1.0, 6);
+    expect(parseDistanceInput("1.852km", "mph")).toBeCloseTo(1.0, 6);
   });
 
   it("parses feet", () => {
-    expect(parseDistanceInput("6076ft")).toBeCloseTo(1.0, 1); // ~1 NM
+    expect(parseDistanceInput("6076ft", "knots")).toBeCloseTo(1.0, 1); // ~1 NM
   });
 
   it("parses feet with apostrophe", () => {
-    expect(parseDistanceInput("6076'")).toBeCloseTo(1.0, 1);
+    expect(parseDistanceInput("6076'", "knots")).toBeCloseTo(1.0, 1);
   });
 
   it("parses metres", () => {
-    expect(parseDistanceInput("1852m")).toBeCloseTo(1.0, 2); // 1 NM
+    expect(parseDistanceInput("1852m", "knots")).toBeCloseTo(1.0, 2); // 1 NM
   });
 
   it("returns null for invalid input", () => {
-    expect(parseDistanceInput("")).toBeNull();
-    expect(parseDistanceInput("abc")).toBeNull();
-    expect(parseDistanceInput("0")).toBeNull();
-    expect(parseDistanceInput("-5")).toBeNull();
+    expect(parseDistanceInput("", "knots")).toBeNull();
+    expect(parseDistanceInput("abc", "knots")).toBeNull();
+    expect(parseDistanceInput("0", "knots")).toBeNull();
+    expect(parseDistanceInput("-5", "knots")).toBeNull();
   });
 });

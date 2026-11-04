@@ -1,5 +1,5 @@
 import { expect, type Page, test } from "@playwright/test";
-import { formatNavDistanceNM } from "../../src/utils/units";
+import { formatDistanceShort } from "../../src/utils/units";
 import {
   acceptDisclaimer,
   seedRoute,
@@ -47,7 +47,7 @@ interface CaptionTexts {
 const WIDEST: CaptionTexts = {
   name: "Next: Inner Harbor Red 4 Approach Buoy",
   ttg: "~23h 59m",
-  dest: `Dest: ${formatNavDistanceNM(125.3)} NM`,
+  dest: `Dest: ${formatDistanceShort(125.3, "knots")}`,
   eta: "~Tue 11:58 AM",
 };
 const SHORTEST: CaptionTexts = {

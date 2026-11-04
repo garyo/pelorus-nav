@@ -32,7 +32,10 @@ function fakeHost(
   const host = {
     nav: { lastFix: () => fix },
     map: { raw: { getCenter: () => centre, getZoom: () => 9, flyTo, fire } },
-    settings: { get: () => ({ depthUnit: "feet" }), setLayerGroupEnabled },
+    settings: {
+      get: () => ({ depthUnit: "feet", speedUnit: "knots" }),
+      setLayerGroupEnabled,
+    },
     ui: {
       showInfo: (infos: FeatureInfo[]) => {
         if (!panelAvailable) return false;
@@ -73,7 +76,7 @@ describe("createNearestTideAction", () => {
     expect(card.name).toBe("BOSTON");
     expect(card.details[0]).toEqual({
       label: "Distance",
-      value: expect.stringMatching(/nm from vessel$/),
+      value: expect.stringMatching(/NM from vessel$/),
     });
     expect(card.actions?.map((a) => a.label)).toEqual(["Show on chart"]);
   });
@@ -117,7 +120,7 @@ describe("createNearestTideAction", () => {
     const card = shown[0][0];
     expect(card.actions?.map((a) => a.label)).toEqual([
       "Show on chart",
-      expect.stringMatching(/^Far Cove · \d+\.\d+ nm · /),
+      expect.stringMatching(/^Far Cove · \d+\.\d+ NM · /),
     ]);
     card.actions?.[1].run();
     expect(shown[1][0].name).toBe("Far Cove");
@@ -137,7 +140,7 @@ describe("createNearestTideAction", () => {
     const far = fakeHost({ lat: 30, lon: -80, stale: false });
     await createNearestTideAction(far.host, deps())();
     expect(far.shown).toEqual([]);
-    expect(far.setStatus).toHaveBeenCalledWith("No tide station within 25 nm");
+    expect(far.setStatus).toHaveBeenCalledWith("No tide station within 25 NM");
 
     const broken = fakeHost(null);
     await createNearestTideAction(broken.host, {

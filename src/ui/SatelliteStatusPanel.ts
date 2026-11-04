@@ -16,7 +16,9 @@ import type {
   SatelliteStatus,
 } from "../navigation/NavigationData";
 import type { NavigationDataManager } from "../navigation/NavigationDataManager";
+import { getSettings } from "../settings";
 import { formatLatLon } from "../utils/coordinates";
+import { formatSpeed, speedUnitLabel } from "../utils/units";
 import {
   addStatusRow,
   type DotState,
@@ -374,7 +376,11 @@ export class SatelliteStatusPanel {
         "off",
         `${formatLatLon(data.latitude, "lat")}  ${formatLatLon(data.longitude, "lon")}`,
       );
-      const sog = data.sog !== null ? `${data.sog.toFixed(1)} kn` : "— kn";
+      const { speedUnit } = getSettings();
+      const sog =
+        data.sog !== null
+          ? formatSpeed(data.sog, speedUnit)
+          : `— ${speedUnitLabel(speedUnit)}`;
       const cog =
         data.cog !== null
           ? `COG ${Math.round(data.cog).toString().padStart(3, "0")}°`

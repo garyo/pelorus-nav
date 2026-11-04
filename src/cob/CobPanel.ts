@@ -15,7 +15,7 @@ import { getSettings } from "../settings";
 import { registerSurface } from "../ui/SurfaceManager";
 import { formatLatLon } from "../utils/coordinates";
 import { formatBearing } from "../utils/magnetic";
-import { convertSpeed, formatDistanceNM, speedUnitLabel } from "../utils/units";
+import { formatDistance, formatSpeed } from "../utils/units";
 import type { CobAlarm } from "./CobAlarm";
 import type { CobManager, CobRuntimeState } from "./CobManager";
 import { formatCobElapsed } from "./cob-state";
@@ -272,14 +272,13 @@ export class CobPanel {
       fix.latitude,
       fix.longitude,
     );
-    this.dstEl.textContent = formatDistanceNM(
+    this.dstEl.textContent = formatDistance(
       nav.distanceNM,
+      settings.speedUnit,
       settings.depthUnit,
     );
     this.sogEl.textContent =
-      fix.sog != null
-        ? `${convertSpeed(fix.sog, settings.speedUnit).toFixed(1)} ${speedUnitLabel(settings.speedUnit)}`
-        : "--";
+      fix.sog != null ? formatSpeed(fix.sog, settings.speedUnit) : "--";
     this.cogEl.textContent =
       fix.cog != null
         ? `${(Math.round(fix.cog) % 360).toString().padStart(3, "0")}°`

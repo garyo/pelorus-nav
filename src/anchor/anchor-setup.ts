@@ -9,7 +9,7 @@
  *
  * Lengths in the anchor UI (radius, rode, boat length, bow height, depth)
  * display in the depth-unit family: meters, or feet when the depth unit is
- * feet or fathoms — the same family formatDistanceNM uses for sub-0.1 NM
+ * feet or fathoms — the same family formatDistance uses for short
  * distances. Values are stored in meters everywhere.
  */
 

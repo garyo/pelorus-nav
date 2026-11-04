@@ -7,8 +7,14 @@
  * - "121" → uses current bearingMode setting
  */
 
-import type { BearingMode } from "../../settings";
+import type { BearingMode, SpeedUnit } from "../../settings";
 import { getDeclination } from "../../utils/magnetic";
+import {
+  distanceToNM,
+  distanceUnitLabel,
+  NM_TO_FEET,
+  NM_TO_METERS,
+} from "../../utils/units";
 
 export interface ParsedBearing {
   /** Bearing in degrees TRUE, ready for storage. */
@@ -108,27 +114,46 @@ export function createBearingInput(
   return container;
 }
 
+/** The speed unit whose distance family each distance suffix belongs to. */
+const DISTANCE_SUFFIX_FAMILY: Record<string, SpeedUnit> = {
+  nm: "knots",
+  mi: "mph",
+  km: "kph",
+};
+
 /**
  * Parse a distance input string into nautical miles.
  * Accepted formats:
- * - "1.5" or "1.5nm" or "1.5NM" → nautical miles
- * - "500ft" or "500'" → feet → converted to NM
- * - "200m" → metres → converted to NM
+ * - "1.5" → the speed unit's distance family (NM, mi or km)
+ * - "1.5nm", "1.5mi", "1.5km" (any case) → that unit
+ * - "500ft" or "500'" → feet
+ * - "200m" → metres
  */
-export function parseDistanceInput(input: string): number | null {
+export function parseDistanceInput(
+  input: string,
+  speedUnit: SpeedUnit,
+): number | null {
   const trimmed = input.trim().toLowerCase();
   if (!trimmed) return null;
 
-  const match = trimmed.match(/^(\d+(?:\.\d+)?)\s*(nm|ft|m|')?$/);
+  const match = trimmed.match(/^(\d+(?:\.\d+)?)\s*(nm|mi|km|ft|m|')?$/);
   if (!match) return null;
 
   const value = parseFloat(match[1]);
   if (Number.isNaN(value) || value <= 0) return null;
 
   const unit = match[2];
-  if (unit === "ft" || unit === "'") return value / 6076.12;
-  if (unit === "m") return value / 1852;
-  return value; // NM (default)
+  if (unit === "ft" || unit === "'") return value / NM_TO_FEET;
+  if (unit === "m") return value / NM_TO_METERS;
+  return distanceToNM(value, unit ? DISTANCE_SUFFIX_FAMILY[unit] : speedUnit);
+}
+
+/** Input hint for a distance: "Radius (e.g. 1.5 mi, 500 ft)". */
+export function distancePlaceholder(
+  label: string,
+  speedUnit: SpeedUnit,
+): string {
+  return `${label} (e.g. 1.5 ${distanceUnitLabel(speedUnit)}, 500 ft)`;
 }
 
 /**
@@ -137,6 +162,7 @@ export function parseDistanceInput(input: string): number | null {
  * Calls `onCancel` on Escape.
  */
 export function createDistanceInput(
+  speedUnit: SpeedUnit,
   onSubmit: (distanceNM: number) => void,
   onCancel: () => void,
 ): HTMLDivElement {
@@ -145,7 +171,7 @@ export function createDistanceInput(
 
   const input = document.createElement("input");
   input.type = "text";
-  input.placeholder = "Radius (e.g. 1.5nm, 500ft)";
+  input.placeholder = distancePlaceholder("Radius", speedUnit);
   input.className = "plot-bearing-field";
   input.style.width = "160px";
 
@@ -156,7 +182,7 @@ export function createDistanceInput(
   container.append(input, okBtn);
 
   const submit = () => {
-    const nm = parseDistanceInput(input.value);
+    const nm = parseDistanceInput(input.value, speedUnit);
     if (nm !== null) onSubmit(nm);
   };
 

@@ -56,7 +56,11 @@ people change first, all on the **Appearance** tab:
   charts store depths in meters; converted depths are rounded down, as on
   NOAA's own charts, so they can read one foot shallower than an older paper
   chart. Heights and clearances show in feet when depths are in feet or
-  fathoms, also rounded down (clearances to a tenth of a foot).
+  fathoms, also rounded down (clearances to a tenth of a foot). Distances
+  follow the speed unit: nautical miles with knots, statute miles with MPH,
+  kilometers with km/h. Short distances, like a measurement across a
+  harbor or the distance from your anchor, show in feet or meters to match
+  the depth unit.
 - **Display theme** — Day, Dusk, Night, or E-ink. Night mode dims the whole
   chart to preserve night vision.
 - **Detail** — how much chart detail is drawn; see

@@ -5,7 +5,7 @@
  */
 
 import type { FeatureInfo } from "../../chart/feature-info";
-import type { DepthUnit } from "../../settings";
+import type { DepthUnit, SpeedUnit } from "../../settings";
 import {
   isTideRef,
   type TideStation,
@@ -19,14 +19,14 @@ import {
 } from "../../tides/format";
 import type { StationChoice } from "../../tides/nearest-tide";
 import { tideState } from "../../tides/predictor";
-import { formatDistanceShort } from "../../utils/format";
 import { shortTimeZone } from "../../utils/timezone";
+import { formatDistanceShort } from "../../utils/units";
 
 /** How far ahead the card lists events. */
 export const CARD_WINDOW_HRS = 72;
 
 export interface StationCardExtras {
-  /** A leading row, e.g. "6.4 nm from vessel". */
+  /** A leading row, e.g. "6.40 NM from vessel". */
   distance?: string;
   actions?: FeatureInfo["actions"];
 }
@@ -75,14 +75,15 @@ export function buildTideStationInfo(
   };
 }
 
-/** Button text for an alternative station: "Hull · 6.4 nm · High 9.7ft 3:42 PM". */
+/** Button text for an alternative station: "Hull · 6.40 NM · High 9.7ft 3:42 PM". */
 export function formatStationChoice(
   choice: StationChoice,
   now: Date,
   depthUnit: DepthUnit,
+  speedUnit: SpeedUnit,
 ): string {
   return (
-    `${choice.station.name} · ${formatDistanceShort(choice.distanceNM)} · ` +
+    `${choice.station.name} · ${formatDistanceShort(choice.distanceNM, speedUnit)} · ` +
     `${formatTideEvent(choice.next, depthUnit)} ${formatEventTime(choice.next.time, now)}`
   );
 }

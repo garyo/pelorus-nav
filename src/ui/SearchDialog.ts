@@ -13,6 +13,11 @@ import {
 } from "../search/feature-search";
 import { getSettings } from "../settings";
 import { formatLatLon, parseLatLon } from "../utils/coordinates";
+import {
+  convertDistance,
+  distanceUnitLabel,
+  formatDistanceAsLength,
+} from "../utils/units";
 
 /**
  * Heuristic: does the input look like it might be coordinates?
@@ -315,26 +320,10 @@ export class SearchDialog {
   }
 
   private formatDistance(nm: number): string {
-    const unit = getSettings().speedUnit;
-    if (unit === "kph") {
-      const km = nm * 1.852;
-      if (km < 1) return `${Math.round(km * 1000)} m`;
-      if (km < 100) return `${km.toFixed(1)} km`;
-      return `${km.toFixed(0)} km`;
-    }
-    if (unit === "mph") {
-      const mi = nm * 1.15078;
-      if (mi < 0.5) return `${Math.round(mi * 5280)} ft`;
-      if (mi < 100) return `${mi.toFixed(1)} mi`;
-      return `${mi.toFixed(0)} mi`;
-    }
-    // knots → nautical miles
-    if (nm < 0.5) {
-      const meters = nm * 1852;
-      return `${Math.round(meters)} m`;
-    }
-    if (nm < 100) return `${nm.toFixed(1)} nm`;
-    return `${nm.toFixed(0)} nm`;
+    const { speedUnit, depthUnit } = getSettings();
+    const d = convertDistance(nm, speedUnit);
+    if (d < 0.5) return formatDistanceAsLength(nm, depthUnit);
+    return `${d.toFixed(d < 100 ? 1 : 0)} ${distanceUnitLabel(speedUnit)}`;
   }
 
   private moveSelection(delta: number): void {

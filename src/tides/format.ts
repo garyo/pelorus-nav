@@ -9,11 +9,12 @@ import {
   depthUnitLabel,
   type SpeedUnit,
 } from "../settings";
-import { convertSpeed, speedUnitLabel } from "../utils/units";
+import { formatSpeed } from "../utils/units";
 import type { CurrentEvent } from "./currents";
 import type { TideEvent } from "./predictor";
 
 export { formatEventTime, formatTimeUntil } from "../utils/format";
+export { formatSpeed };
 
 /** Tide height with one decimal in the user's depth unit ("9.7ft"). */
 export function formatTideHeight(meters: number, unit: DepthUnit): string {
@@ -24,11 +25,6 @@ export function formatTideHeight(meters: number, unit: DepthUnit): string {
 export function formatTideEvent(e: TideEvent, unit: DepthUnit): string {
   const label = e.type === "high" ? "High" : "Low";
   return `${label} ${formatTideHeight(e.heightMeters, unit)}`;
-}
-
-/** "1.8 Kt" */
-export function formatSpeed(knots: number, unit: SpeedUnit): string {
-  return `${convertSpeed(knots, unit).toFixed(1)} ${speedUnitLabel(unit)}`;
 }
 
 const CURRENT_EVENT_LABELS: Record<CurrentEvent["type"], string> = {

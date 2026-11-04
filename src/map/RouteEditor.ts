@@ -44,6 +44,7 @@ import {
 import { formatLocalDateTime } from "../utils/format";
 import { formatBearing } from "../utils/magnetic";
 import { UndoStack } from "../utils/undo-stack";
+import { formatDistanceShort } from "../utils/units";
 import { generateUUID } from "../utils/uuid";
 import { DraggablePoints } from "./DraggablePoints";
 import { startEditTapDiag } from "./editTapDiag";
@@ -1437,13 +1438,13 @@ export class RouteEditor {
     if (idx !== null && wps[idx]) {
       const wp = wps[idx];
       const label = wp.name || `WP${idx + 1}`;
-      const { bearingMode } = getSettings();
+      const { bearingMode, speedUnit } = getSettings();
       let legInfo = "";
       if (idx > 0) {
         const prev = wps[idx - 1];
         const d = haversineDistanceNM(prev.lat, prev.lon, wp.lat, wp.lon);
         const b = initialBearingDeg(prev.lat, prev.lon, wp.lat, wp.lon);
-        legInfo = ` \u2014 ${formatBearing(b, bearingMode, prev.lat, prev.lon)} / ${d.toFixed(1)} NM`;
+        legInfo = ` \u2014 ${formatBearing(b, bearingMode, prev.lat, prev.lon)} / ${formatDistanceShort(d, speedUnit)}`;
       }
       this.barText.innerHTML = "";
       const strong = document.createElement("strong");
@@ -1482,7 +1483,7 @@ export class RouteEditor {
 
     let totalDist = 0;
     const legs: string[] = [];
-    const { bearingMode } = getSettings();
+    const { bearingMode, speedUnit } = getSettings();
     for (let i = 1; i < wps.length; i++) {
       const d = haversineDistanceNM(
         wps[i - 1].lat,
@@ -1498,13 +1499,13 @@ export class RouteEditor {
       );
       totalDist += d;
       legs.push(
-        `${formatBearing(b, bearingMode, wps[i - 1].lat, wps[i - 1].lon)} / ${d.toFixed(1)} NM`,
+        `${formatBearing(b, bearingMode, wps[i - 1].lat, wps[i - 1].lon)} / ${formatDistanceShort(d, speedUnit)}`,
       );
     }
 
     const lastLeg = legs.length > 0 ? legs[legs.length - 1] : "";
     this.barText.innerHTML =
-      `<strong>${wps.length} WPs \u00b7 ${totalDist.toFixed(1)} NM</strong>` +
+      `<strong>${wps.length} WPs \u00b7 ${formatDistanceShort(totalDist, speedUnit)}</strong>` +
       (lastLeg ? ` \u00a0 Last: ${lastLeg}` : "");
   }
 }

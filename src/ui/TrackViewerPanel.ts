@@ -33,9 +33,14 @@ import {
 import { setMode } from "../map/InteractionMode";
 import type { TrackViewerLayer } from "../map/TrackViewerLayer";
 import { getSettings, updateSettings } from "../settings";
-import { formatDistanceShort, formatDurationShort } from "../utils/format";
+import { formatDurationShort } from "../utils/format";
 import { formatBearing } from "../utils/magnetic";
-import { convertSpeed, speedUnitLabel } from "../utils/units";
+import {
+  convertSpeed,
+  formatDistanceShort,
+  speedToKnots,
+  speedUnitLabel,
+} from "../utils/units";
 import {
   iconCrosshair,
   iconManeuvers,
@@ -76,6 +81,7 @@ export class TrackViewerPanel {
   private readonly maneuversBtn: HTMLButtonElement;
   private readonly planWrap: HTMLLabelElement;
   private readonly planInput: HTMLInputElement;
+  private readonly planUnitEl: HTMLSpanElement;
   private readonly readouts: Record<string, HTMLSpanElement>;
   private analysis: TrackAnalysis | null = null;
   /** Set while pre-visualizing a route rather than viewing a track. */
@@ -112,7 +118,7 @@ export class TrackViewerPanel {
       '<option value="time">Time</option>' +
       "</select>" +
       '<label class="track-viewer-plan">@&nbsp;' +
-      '<input type="number" min="0.5" max="50" step="0.5"> kn</label>' +
+      '<input type="number" min="0.5" max="50" step="0.5">&nbsp;<span></span></label>' +
       '<span class="track-viewer-legend-min"></span>' +
       '<div class="track-viewer-ramp"></div>' +
       '<span class="track-viewer-legend-max"></span>' +
@@ -134,6 +140,7 @@ export class TrackViewerPanel {
     this.statsEl = this.q(".track-viewer-stats");
     this.planWrap = this.q<HTMLLabelElement>(".track-viewer-plan");
     this.planInput = this.planWrap.querySelector("input") as HTMLInputElement;
+    this.planUnitEl = this.planWrap.querySelector("span") as HTMLSpanElement;
     this.colorSelect = this.q<HTMLSelectElement>(".track-viewer-colorby");
     this.legendMinEl = this.q(".track-viewer-legend-min");
     this.legendMaxEl = this.q(".track-viewer-legend-max");
@@ -211,7 +218,9 @@ export class TrackViewerPanel {
       const route = this.previewRoute;
       const speed = Number(this.planInput.value);
       if (!route || !(speed > 0)) return;
-      updateSettings({ routePlanSpeedKn: speed });
+      updateSettings({
+        routePlanSpeedKn: speedToKnots(speed, getSettings().speedUnit),
+      });
       const frac = this.cursorFrac;
       this.openRoute(route);
       this.setFraction(frac);
@@ -272,10 +281,13 @@ export class TrackViewerPanel {
     if (!analysis) return; // < 2 waypoints
 
     this.previewRoute = route;
-    this.planInput.value = String(speed);
     const { speedUnit } = getSettings();
+    this.planInput.value = String(
+      Number(convertSpeed(speed, speedUnit).toFixed(1)),
+    );
+    this.planUnitEl.textContent = speedUnitLabel(speedUnit);
     this.fullStatsText =
-      `${formatDistanceShort(analysis.totalNM)} · ` +
+      `${formatDistanceShort(analysis.totalNM, speedUnit)} · ` +
       `${formatDurationShort(analysis.durationMs)} @ ` +
       `${convertSpeed(speed, speedUnit).toFixed(1)} ${speedUnitLabel(speedUnit)} · ` +
       `${route.waypoints.length} waypoints`;
@@ -354,7 +366,7 @@ export class TrackViewerPanel {
     const r = rangeStats(a, fracA, fracB);
     const { speedUnit } = getSettings();
     const unit = speedUnitLabel(speedUnit);
-    const parts = [formatDistanceShort(r.distanceNM)];
+    const parts = [formatDistanceShort(r.distanceNM, speedUnit)];
     if (a.hasTime) {
       parts.push(formatDurationShort(r.durationMs));
       parts.push(`avg ${convertSpeed(r.avgKn, speedUnit).toFixed(1)} ${unit}`);
@@ -448,7 +460,10 @@ export class TrackViewerPanel {
       c.lat,
       c.lon,
     );
-    this.readouts.dist.textContent = formatDistanceShort(c.distanceNM);
+    this.readouts.dist.textContent = formatDistanceShort(
+      c.distanceNM,
+      speedUnit,
+    );
   }
 
   private formatStats(
@@ -458,7 +473,7 @@ export class TrackViewerPanel {
   ): string {
     const { speedUnit } = getSettings();
     const unit = speedUnitLabel(speedUnit);
-    const parts = [formatDistanceShort(a.totalNM)];
+    const parts = [formatDistanceShort(a.totalNM, speedUnit)];
     if (a.hasTime) {
       const { movingMs, avgMovingKn } = movingStats(a, stops);
       parts.push(

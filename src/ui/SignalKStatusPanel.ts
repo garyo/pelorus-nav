@@ -17,8 +17,9 @@ import type {
   SignalKPathSample,
 } from "../navigation/signalk-diagnostics";
 import { describeProbe } from "../navigation/signalk-probe";
+import { getSettings } from "../settings";
 import { toDegrees } from "../utils/coordinates";
-import { MS_TO_KNOTS } from "../utils/units";
+import { formatSpeed, MS_TO_KNOTS } from "../utils/units";
 import { hdopQuality } from "./SatelliteStatusPanel";
 import { ageTone, formatAge, formatSignalkValue } from "./signalk-format";
 import { NO_NETWORK_TEXT, unreachableText } from "./signalk-status";
@@ -222,7 +223,9 @@ export class SignalKStatusPanel {
       now,
       "amber",
       (v) =>
-        typeof v === "number" ? `${(v * MS_TO_KNOTS).toFixed(1)} kn` : "—",
+        typeof v === "number"
+          ? formatSpeed(v * MS_TO_KNOTS, getSettings().speedUnit)
+          : "—",
     );
     const magnetic = sample("navigation.headingMagnetic");
     if (sample("navigation.headingTrue") || !magnetic) {

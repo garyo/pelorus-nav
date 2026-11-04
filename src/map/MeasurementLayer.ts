@@ -11,7 +11,7 @@ import {
   initialBearingDeg,
 } from "../utils/coordinates";
 import { formatBearing } from "../utils/magnetic";
-import { formatDistanceNM } from "../utils/units";
+import { formatDistance } from "../utils/units";
 import { DraggablePoints } from "./DraggablePoints";
 import { getMode, setMode } from "./InteractionMode";
 import { ensureMeasureIcons, MEASURE_ICON_EXPR } from "./point-icons";
@@ -271,7 +271,7 @@ export class MeasurementLayer {
       this.pointA.lng,
     );
 
-    const { bearingMode, depthUnit } = getSettings();
+    const { bearingMode, depthUnit, speedUnit } = getSettings();
     const fmtBrg = formatBearing(
       bearing,
       bearingMode,
@@ -288,7 +288,7 @@ export class MeasurementLayer {
     // Only the text node changes per update — the panel and its close button
     // are built once in the constructor.
     this.panelText.innerHTML =
-      `<strong>${formatDistanceNM(dist, depthUnit)}</strong> &nbsp; ` +
+      `<strong>${formatDistance(dist, speedUnit, depthUnit)}</strong> &nbsp; ` +
       `${fmtBrg} &nbsp; ` +
       `(rev ${fmtRev})`;
   }

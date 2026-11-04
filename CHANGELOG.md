@@ -30,6 +30,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/).
   When they disagree for a few minutes, as a Garmin GLO 2 did on foot
   (reading under half the true speed), speed and course are worked out from
   its positions instead.
+- Distances follow the speed unit everywhere: nautical miles with knots,
+  statute miles with mph, kilometers with km/h, and short distances in feet
+  or meters to match the depth unit. Measure, plotting, distance to waypoint,
+  route legs, track distances, man overboard, anchor watch and tide stations
+  showed nautical miles whatever the setting. The route preview's planning
+  speed and set & drift use the speed unit too.
 
 ## [1.1.0] - 2026-10-28
 

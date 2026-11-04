@@ -15,7 +15,7 @@
 import type * as maplibregl from "maplibre-gl";
 import { getSettings } from "../settings";
 import { iconAnchor, setIcon } from "../ui/icons";
-import { formatDistanceNM, NM_TO_METERS } from "../utils/units";
+import { formatDistance, NM_TO_METERS } from "../utils/units";
 import type { AnchorWatchSnapshot, AnchorZone } from "./AnchorWatchManager";
 
 /** Glyph per zone so the state never relies on colour alone. */
@@ -96,12 +96,10 @@ export class AnchorBadge implements maplibregl.IControl {
     if (!snap || !visible) return;
     btn.dataset.zone = snap.zone;
     this.glyphEl.textContent = ZONE_GLYPHS[snap.zone];
+    const { speedUnit, depthUnit } = getSettings();
     this.distEl.textContent =
       snap.distanceM !== null
-        ? formatDistanceNM(
-            snap.distanceM / NM_TO_METERS,
-            getSettings().depthUnit,
-          )
+        ? formatDistance(snap.distanceM / NM_TO_METERS, speedUnit, depthUnit)
         : "--";
   }
 }

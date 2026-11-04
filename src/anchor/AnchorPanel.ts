@@ -46,7 +46,11 @@ import { registerSurface } from "../ui/SurfaceManager";
 import { projectPoint } from "../utils/coordinates";
 import { defaultBrowserStorage } from "../utils/json-storage-slot";
 import { formatBearing } from "../utils/magnetic";
-import { formatDistanceNM, NM_TO_METERS } from "../utils/units";
+import {
+  formatDistance,
+  formatDistanceInSpeedUnits,
+  NM_TO_METERS,
+} from "../utils/units";
 import {
   type AnchorWatchManager,
   type AnchorWatchSnapshot,
@@ -151,16 +155,24 @@ type TideOutlook =
 
 /** Short suffix stating why the tide half of the readout is missing. */
 const TIDE_OUTLOOK_NOTE: Record<
-  Exclude<TideOutlook["kind"], "high">,
+  Exclude<TideOutlook["kind"], "high" | "no-station">,
   string
 > = {
   loading: "loading tide…",
   unavailable: "tide data unavailable",
   "no-position": "no position for tide",
-  "no-station": `no tide station within ${DEFAULT_NEAREST_STATION_NM} NM`,
   "no-prediction": "tide prediction unavailable",
   "no-high": `no high water in ${TIDE_LOOKAHEAD_HRS} h`,
 };
+
+function tideOutlookNote(kind: Exclude<TideOutlook["kind"], "high">): string {
+  if (kind !== "no-station") return TIDE_OUTLOOK_NOTE[kind];
+  const radius = formatDistanceInSpeedUnits(
+    DEFAULT_NEAREST_STATION_NM,
+    getSettings().speedUnit,
+  );
+  return `no tide station within ${radius}`;
+}
 
 const POOR_SCOPE_ADVISORY = `Advisory: scope below ${SCOPE_MARGINAL}:1 — more rode recommended.`;
 const GROUNDING_ADVISORY =
@@ -1170,7 +1182,11 @@ export class AnchorPanel {
     const unit = this.unit();
     this.distEl.textContent =
       snap.distanceM !== null
-        ? formatDistanceNM(snap.distanceM / NM_TO_METERS, settings.depthUnit)
+        ? formatDistance(
+            snap.distanceM / NM_TO_METERS,
+            settings.speedUnit,
+            settings.depthUnit,
+          )
         : "--";
     this.brgEl.textContent =
       snap.bearingDeg !== null
@@ -1261,8 +1277,9 @@ export class AnchorPanel {
       this.alarmTitle.textContent = "ANCHOR DRAGGING";
       this.alarmDetail.textContent = `${
         snap.distanceM !== null
-          ? formatDistanceNM(
+          ? formatDistance(
               snap.distanceM / NM_TO_METERS,
+              getSettings().speedUnit,
               getSettings().depthUnit,
             )
           : "--"
@@ -1458,7 +1475,7 @@ export class AnchorPanel {
     const outlook = this.tideOutlook(at);
     if (outlook.kind !== "high") {
       return {
-        text: `${nowText} · ${TIDE_OUTLOOK_NOTE[outlook.kind]}`,
+        text: `${nowText} · ${tideOutlookNote(outlook.kind)}`,
         advice: nowAdvice ?? "none",
         detail: notes.join(" "),
         advisory: nowAdvice === "poor" ? POOR_SCOPE_ADVISORY : null,

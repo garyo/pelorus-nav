@@ -63,5 +63,5 @@ More tricks:
 
 The viewer does double duty: the **Preview route** button in the
 [Routes panel](/routes#the-routes-panel) opens a route here as if it were a
-track, with a planning-speed box (e.g. `@ 5 kn`) that estimates elapsed
-time along the way.
+track, with a planning-speed box (e.g. `@ 5 Kt`, in your speed unit) that
+estimates elapsed time along the way.
