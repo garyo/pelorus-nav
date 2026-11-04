@@ -104,13 +104,15 @@ const DISPLAY: Record<string, DisplayMeta> = {
   },
   // USACE Inland ENCs, split between the two regions by river.
   "inland-rivers-north": {
-    sizeEstimate: 102 * 1024 * 1024,
+    sizeEstimate: 98 * 1024 * 1024,
+    basemapSizeEstimate: 193 * 1024 * 1024,
     // St. Louis, where the Missouri and Illinois meet the Mississippi.
     center: [-90.18, 38.7],
     defaultZoom: 10,
   },
   "inland-rivers-south": {
-    sizeEstimate: 82 * 1024 * 1024,
+    sizeEstimate: 80 * 1024 * 1024,
+    basemapSizeEstimate: 97 * 1024 * 1024,
     center: [-90.06, 35.15], // Memphis
     defaultZoom: 10,
   },
