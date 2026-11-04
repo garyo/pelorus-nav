@@ -8,12 +8,13 @@ The links lead to the parts of this guide that cover each feature in detail.
 Pelorus Nav draws official NOAA electronic charts (ENC) as vector charts,
 with the standard IHO S-52 symbology used by commercial chartplotters. The
 charts cover US coastal waters, the Great Lakes, Puerto Rico and the US
-Virgin Islands, and Hawaii (Alaska isn't covered).
+Virgin Islands, and Hawaii (Alaska isn't covered), plus the US Army Corps of
+Engineers' charts of the Mississippi and other major inland rivers.
 
-- **Official NOAA vector charts** in 15 downloadable regions — see
+- **Official NOAA and Army Corps vector charts** in 17 downloadable regions — see
   [The Chart Display](/chart-display) and
   [downloading charts](/getting-started#downloading-charts-for-offline-use).
-- **Kept current** — NOAA's chart updates are checked nightly, and
+- **Kept current** — chart updates are checked nightly, and
   downloaded regions show
   [Update available](/getting-started#downloading-charts-for-offline-use)
   when a newer version is published.

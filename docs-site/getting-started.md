@@ -102,7 +102,7 @@ under ☰ on small screens).
 
 ![The Chart Regions panel](/images/chart-regions.png)
 
-Each region covers a stretch of coast (Northern New England, Southern New
+Each region covers a stretch of coast or river (Northern New England, Southern New
 England, New York & NJ, …) and shows its approximate download size. Tap the
 download button to store it; downloaded regions show a ✓ with their size and
 date. Downloads queue: tap several and they arrive one after another, each

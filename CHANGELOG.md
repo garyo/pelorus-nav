@@ -7,6 +7,14 @@ The format follows [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Added
+- River charts from the US Army Corps of Engineers in two new chart regions,
+  Upper Mississippi & Ohio Rivers and Lower Mississippi & Tennessee Rivers:
+  the Mississippi, Ohio, Illinois, Missouri, Tennessee, Cumberland, Arkansas
+  and other inland waterways, with river miles, locks, water level gauges and
+  terminals. The chart readout shows the river datum that depths and
+  clearances are measured from (tap it for what that means).
+
 ### Changed
 - In a web browser, the app asks to keep its data (Firefox shows a prompt
   for this) when you first download or import charts, or once you have saved
