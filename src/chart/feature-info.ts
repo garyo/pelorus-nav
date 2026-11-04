@@ -10,6 +10,7 @@ import {
   getSettings,
 } from "../settings";
 import { formatLatLon } from "../utils/coordinates";
+import { riverDatumDetails } from "./river-datum";
 
 export interface FeatureInfo {
   type: string;
@@ -1945,6 +1946,9 @@ export function formatFeatureInfo(
       return false;
     return true;
   });
+
+  // River charts measure depths and clearances from a river datum.
+  details.push(...riverDatumDetails(properties));
 
   if (lngLat) {
     details.push({

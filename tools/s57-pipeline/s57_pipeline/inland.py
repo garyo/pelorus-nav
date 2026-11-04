@@ -22,6 +22,7 @@ onto their standard ones.
 from __future__ import annotations
 
 import csv
+import json
 import subprocess
 import tempfile
 from functools import cache
@@ -132,6 +133,35 @@ STANDARD_ATTRIBUTE: dict[str, str] = {
     "catslc": "CATSLC",
     "watlev": "WATLEV",
 }
+
+
+# Layers whose values are measured from the sounding datum (depths) or the
+# vertical datum (clearances). A river cell's datums are its own — a local
+# low-water reference level, the Ohio River Datum — so they are stamped on
+# these features for the app to name (_sdat, _vdat: S-57 VERDAT codes).
+SOUNDING_DATUM_LAYERS = frozenset({"DEPARE", "DEPCNT", "DRGARE", "SOUNDG"})
+VERTICAL_DATUM_LAYERS = frozenset({"BRIDGE", "CBLOHD", "PIPOHD"})
+
+
+def stamp_datums(
+    path: Path, layer_name: str, sdat: int | None, vdat: int | None
+) -> None:
+    """Stamp a river cell's datum codes on a depth or clearance layer."""
+    key, code = (
+        ("_sdat", sdat)
+        if layer_name in SOUNDING_DATUM_LAYERS
+        else ("_vdat", vdat)
+        if layer_name in VERTICAL_DATUM_LAYERS
+        else (None, None)
+    )
+    if key is None or code is None:
+        return
+    with open(path) as f:
+        data = json.load(f)
+    for feature in data["features"]:
+        feature.setdefault("properties", {})[key] = code
+    with open(path, "w") as f:
+        json.dump(data, f)
 
 
 def is_inland_cell(cell_name: str) -> bool:

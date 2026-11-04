@@ -13,6 +13,7 @@ from s57_pipeline.inland import (
     INLAND_OBJECT_CLASSES,
     is_inland_cell,
     s57_tables_dir,
+    stamp_datums,
     standardize_attributes,
 )
 
@@ -86,3 +87,21 @@ def test_intended_use_places_inland_cells_by_scale() -> None:
 def test_is_inland_cell() -> None:
     assert is_inland_cell("U37UM723")
     assert not is_inland_cell("US5MA22M")
+
+
+def _first_props(path: Path) -> dict:
+    return json.loads(path.read_text())["features"][0]["properties"]
+
+
+def test_stamp_datums_marks_depths_and_clearances(tmp_path: Path) -> None:
+    depths = tmp_path / "depare.geojson"
+    bridges = tmp_path / "bridge.geojson"
+    lights = tmp_path / "lights.geojson"
+    for path in (depths, bridges, lights):
+        _write(path, [_feature()])
+    stamp_datums(depths, "DEPARE", 31, 41)
+    stamp_datums(bridges, "BRIDGE", 31, 41)
+    stamp_datums(lights, "LIGHTS", 31, 41)
+    assert _first_props(depths) == {"_sdat": 31}
+    assert _first_props(bridges) == {"_vdat": 41}
+    assert _first_props(lights) == {}

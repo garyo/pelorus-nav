@@ -29,9 +29,15 @@ import type * as maplibregl from "maplibre-gl";
 import type { ChartLoadStatus } from "../chart/ChartLoadMonitor";
 import { encProducer } from "../chart/enc-producer";
 import { rasterChartAt } from "../chart/raster-charts";
+import {
+  type RiverDatum,
+  riverDatum,
+  riverDatumExplanation,
+} from "../chart/river-datum";
 import { depthUnitLabel, getSettings, onSettingsChange } from "../settings";
 import { bearingModeLabel } from "../utils/magnetic";
 import { recordScan } from "../utils/scan-perf";
+import { showStatusBanner } from "./StatusBanner";
 
 function isEncFeature(f: maplibregl.MapGeoJSONFeature): boolean {
   return typeof f.source === "string" && f.source.startsWith("s57-vector");
@@ -44,6 +50,8 @@ export class ChartInUseReadout {
    *  re-render without re-querying the map. */
   private chartLabel: string | null = null;
   private overscale = false;
+  /** The river datum of the chart at the centre, or null off river charts. */
+  private datum: RiverDatum | null = null;
   private offline = !navigator.onLine;
   private chartsLoading = false;
   private loadingDebounce: ReturnType<typeof setTimeout> | null = null;
@@ -183,6 +191,11 @@ export class ChartInUseReadout {
     recordScan("chart-in-use-qrf", qrfStart, boxFeatures.length);
     const encFeature =
       blend !== "raster" ? boxFeatures.find(isEncFeature) : undefined;
+    // River charts name the datum their depths are measured from.
+    const datumFeature = encFeature
+      ? boxFeatures.find((f) => isEncFeature(f) && f.properties._sdat != null)
+      : undefined;
+    this.datum = riverDatum(datumFeature?.properties._sdat);
 
     let label: string | null = null;
     let overscale = false;
@@ -247,6 +260,26 @@ export class ChartInUseReadout {
       this.el.append(off, `  ·  ${text}`);
     } else {
       this.el.textContent = text;
+    }
+    if (this.datum && this.chartLabel) {
+      // River charts measure from a river datum, not a tide: name it, and
+      // explain what that means on a tap.
+      const datum = this.datum;
+      const seg = document.createElement("span");
+      seg.textContent = datum.short;
+      Object.assign(seg.style, {
+        textDecoration: "underline dotted",
+        pointerEvents: "auto",
+        cursor: "pointer",
+      });
+      seg.title = "River datum — tap for details";
+      seg.addEventListener("click", () =>
+        showStatusBanner({
+          id: "river-datum",
+          message: riverDatumExplanation(datum),
+        }),
+      );
+      this.el.append("  ·  ", seg);
     }
     this.el.style.background = this.overscale
       ? "rgba(200,120,0,0.85)"

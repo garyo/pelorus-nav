@@ -15,7 +15,13 @@ from .enrich import (
     correlate_topmarks,
     enrich_geojson,
 )
-from .inland import STANDARD_LAYER, s57_tables_dir, standardize_attributes
+from .inland import (
+    STANDARD_LAYER,
+    is_inland_cell,
+    s57_tables_dir,
+    stamp_datums,
+    standardize_attributes,
+)
 from .land_labels import annotate_land_label_anchors
 from .layers import LAYER_NAMES
 
@@ -115,6 +121,13 @@ def read_intended_use(enc_path: Path) -> int | None:
     return intended_use(
         _int_field(fields, "DSID_INTU"), _int_field(fields, "DSPM_CSCL")
     )
+
+
+def read_datums(enc_path: Path) -> tuple[int | None, int | None]:
+    """The dataset's default sounding and vertical datums (DSPM_SDAT,
+    DSPM_VDAT), as S-57 VERDAT codes."""
+    fields = _read_dsid(enc_path)
+    return _int_field(fields, "DSPM_SDAT"), _int_field(fields, "DSPM_VDAT")
 
 
 def read_dsid_metadata(enc_path: Path) -> DsidMetadata:
@@ -281,6 +294,12 @@ def convert_enc(
             converted[standard] = fold_inland(
                 path, output_dir / f"{standard.lower()}.geojson"
             )
+
+    # River cells name their own datums; NOAA's are uniform and known.
+    if is_inland_cell(enc_path.stem):
+        sdat, vdat = read_datums(enc_path)
+        for layer_name, path in converted.items():
+            stamp_datums(path, layer_name, sdat, vdat)
 
     outputs: list[Path] = []
     for layer_name, path in converted.items():
