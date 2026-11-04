@@ -10,6 +10,7 @@
  */
 
 import regionsJson from "../../tools/regions.json";
+import type { EncProducer } from "../chart/enc-producer";
 
 export interface ChartRegion {
   /** Unique slug, e.g. "new-england" */
@@ -32,6 +33,8 @@ export interface ChartRegion {
   defaultZoom: number;
   /** Bounding box [west, south, east, north] for fast GPS hit-testing */
   bbox: [number, number, number, number];
+  /** Hydrographic office whose ENCs the region is built from. */
+  producer: EncProducer;
 }
 
 interface DisplayMeta {
@@ -144,6 +147,8 @@ interface RegionJsonEntry {
   id: string;
   name: string;
   bbox: [number, number, number, number];
+  /** Absent for NOAA regions. */
+  producer?: EncProducer;
 }
 
 /**
@@ -172,6 +177,7 @@ export const CHART_REGIONS: ChartRegion[] = (regionsJson as RegionJsonEntry[])
       center: meta.center,
       defaultZoom: meta.defaultZoom,
       bbox: r.bbox,
+      producer: r.producer ?? "NOAA",
     };
   });
 
@@ -189,6 +195,7 @@ if (import.meta.env.DEV) {
     // Only covers the GB test cells (south Indian Ocean). AA cells at -105°W/40°N
     // are outside this bbox but still accessible via manual navigation.
     bbox: [60.5, -33.0, 61.5, -32.0],
+    producer: "NOAA",
   });
 }
 

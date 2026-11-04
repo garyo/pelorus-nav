@@ -27,6 +27,7 @@
 
 import type * as maplibregl from "maplibre-gl";
 import type { ChartLoadStatus } from "../chart/ChartLoadMonitor";
+import { encProducer } from "../chart/enc-producer";
 import { rasterChartAt } from "../chart/raster-charts";
 import { depthUnitLabel, getSettings, onSettingsChange } from "../settings";
 import { bearingModeLabel } from "../utils/magnetic";
@@ -180,15 +181,16 @@ export class ChartInUseReadout {
     const boxFeatures =
       blend !== "raster" ? this.map.queryRenderedFeatures(box) : [];
     recordScan("chart-in-use-qrf", qrfStart, boxFeatures.length);
-    const encHere = blend !== "raster" && boxFeatures.some(isEncFeature);
+    const encFeature =
+      blend !== "raster" ? boxFeatures.find(isEncFeature) : undefined;
 
     let label: string | null = null;
     let overscale = false;
     if (blend === "raster" && rc) {
       label = rncLabel(rc.id, rc.scale);
       overscale = zoom > rc.nativeZoom + 0.5;
-    } else if (encHere) {
-      label = "ENC · NOAA";
+    } else if (encFeature) {
+      label = `ENC · ${encProducer(encFeature.properties.AGEN)}`;
     } else if (rc) {
       label = rncLabel(rc.id, rc.scale);
       overscale = zoom > rc.nativeZoom + 0.5;

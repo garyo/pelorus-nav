@@ -84,6 +84,7 @@ function makeRegion(): ChartRegion {
     center: [0, 0],
     defaultZoom: 8,
     bbox: [-1, -1, 1, 1],
+    producer: "NOAA",
   };
 }
 

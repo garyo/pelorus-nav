@@ -4,6 +4,7 @@ import { chartAssetBase } from "../data/remote-url";
 import { getAuxFileURL } from "../data/tile-store";
 import { getSettings } from "../settings";
 import type { ChartProvider } from "./ChartProvider";
+import { encAttribution } from "./enc-producer";
 import { s52Colour } from "./s52-colours";
 import { getNauticalLayers } from "./styles";
 
@@ -241,7 +242,7 @@ export class VectorChartProvider implements ChartProvider {
   }
 
   getAttribution(): string {
-    return '&copy; <a href="https://nauticalcharts.noaa.gov">NOAA</a> ENC';
+    return encAttribution("NOAA");
   }
 
   private sourceIdFor(regionId: string): string {
@@ -261,7 +262,7 @@ export class VectorChartProvider implements ChartProvider {
       // whole viewport — wasted fetches (and phantom failures when the
       // network is down) for every other in-style region.
       bounds: region.bbox,
-      attribution: this.getAttribution(),
+      attribution: encAttribution(region.producer),
     };
   }
 }
