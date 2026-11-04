@@ -8,6 +8,7 @@ from s57_pipeline.enc_catalog import BBox, CatalogCell
 from s57_pipeline.regions import (
     OVERVIEW_MARGIN_DEG,
     REGIONS,
+    ceded_cells,
     get_region_build_cells,
     get_region_cells,
     query_region,
@@ -141,6 +142,22 @@ class TestProducerRegions:
             )
         }
         assert get_region_cells("great-lakes", catalog) == ["US5WI2UL"]
+
+    def test_river_regions_cede_to_noaa_harbour_cells(self) -> None:
+        river = (-91.8, 29.6, -91.2, 30.2)
+        catalog = {
+            c.name: c
+            for c in (
+                _cell("U37AT046", river),
+                _cell("US5LMOIF", (-91.3, 29.7, -91.2, 29.8)),  # harbour, overlaps
+                _cell("US6LMOAA", (-91.3, 29.7, -91.25, 29.75)),  # berthing
+                _cell("US4LA1GI", (-91.5, 29.7, -91.2, 29.9)),  # approach
+                _cell("US5LMOXX", (-91.3, 29.7, -91.2, 29.8), "Cancelled"),
+                _cell("US5FARAA", (-80.0, 25.0, -79.9, 25.1)),  # elsewhere
+            )
+        }
+        assert ceded_cells("inland-rivers-south", catalog) == ["US5LMOIF", "US6LMOAA"]
+        assert ceded_cells("gulf-coast", catalog) == []
 
     def test_inland_regions_split_the_rivers_where_they_meet(self) -> None:
         # At Cairo, IL the Ohio, Upper and Lower Mississippi cells overlap

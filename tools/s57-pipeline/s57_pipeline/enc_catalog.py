@@ -18,13 +18,17 @@ from __future__ import annotations
 import sys
 import time
 import urllib.request
-from collections.abc import Callable
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 from enum import StrEnum
 from http.client import HTTPException
 from pathlib import Path
 from typing import BinaryIO
 from xml.etree.ElementTree import Element, ParseError, iterparse
+
+from shapely import make_valid, union_all
+from shapely.geometry import Polygon
+from shapely.geometry.base import BaseGeometry
 
 PRODUCT_CATALOG_URL = "https://charts.noaa.gov/ENCs/ENCProdCat.xml"
 PRODUCT_CATALOG_CACHE = Path("data/ENCProdCat.xml")
@@ -96,24 +100,50 @@ def classify_cell(stored_version: str | None, entry: CatalogCell | None) -> Cell
     return CellStatus.UNCHANGED
 
 
-def _coverage_bbox(cell: Element) -> BBox | None:
-    """Bounding box of a cell's coverage (type "E") panels.
+def _coverage_panels(cell: Element) -> list[list[tuple[float, float]]]:
+    """A cell's coverage (type "E") panels, each a ring of (lon, lat).
 
     Longitudes west of the antimeridian are given below -180.
     """
-    lons: list[float] = []
-    lats: list[float] = []
+    panels: list[list[tuple[float, float]]] = []
     for panel in cell.iterfind("cov/panel"):
         if panel.findtext("type") != "E":
             continue
-        for vertex in panel.iterfind("vertex"):
-            lon, lat = vertex.findtext("long"), vertex.findtext("lat")
-            if lon and lat:
-                lons.append(float(lon))
-                lats.append(float(lat))
-    if not lons:
+        ring = [
+            (float(lon), float(lat))
+            for vertex in panel.iterfind("vertex")
+            if (lon := vertex.findtext("long")) and (lat := vertex.findtext("lat"))
+        ]
+        if ring:
+            panels.append(ring)
+    return panels
+
+
+def _coverage_bbox(cell: Element) -> BBox | None:
+    """Bounding box of a cell's coverage panels."""
+    points = [p for ring in _coverage_panels(cell) for p in ring]
+    if not points:
         return None
+    lons, lats = zip(*points, strict=True)
     return (min(lons), min(lats), max(lons), max(lats))
+
+
+def catalog_coverages(
+    source: Path | BinaryIO, names: Iterable[str]
+) -> dict[str, BaseGeometry]:
+    """The coverage of the named cells, from NOAA's catalog: its panels are
+    the cells' M_COVR coverage, vertex for vertex. Cells without coverage
+    (cancelled ones) are left out."""
+    wanted = set(names)
+    coverages: dict[str, BaseGeometry] = {}
+    for _event, elem in iterparse(source, events=("end",)):
+        if elem.tag != "cell":
+            continue
+        name = (elem.findtext("name") or "").strip()
+        if name in wanted and (panels := _coverage_panels(elem)):
+            coverages[name] = make_valid(union_all([Polygon(ring) for ring in panels]))
+        elem.clear()
+    return coverages
 
 
 def parse_product_catalog(source: Path | BinaryIO) -> dict[str, CatalogCell]:

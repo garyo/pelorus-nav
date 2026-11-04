@@ -145,10 +145,13 @@ def _fill_multi_band(
     z: int,
     tile_bbox: BaseGeometry,
     cell_groups: dict[tuple[int, str], _CellGroup],
+    ceded: BaseGeometry | None = None,
 ) -> tuple[dict[str, list[dict]], set[str], bool, _DropCounts]:
     """Composite one multi-band tile: each pass walks the cells in its
     order, clipping every cell's features to its M_COVR ∩ the area earlier
-    cells left unfilled, until the tile is covered.
+    cells left unfilled, until the tile is covered. The ``ceded`` part of
+    the tile (composite_tiles) counts as filled from the start, and no
+    feature reaches into it.
 
     Returns (features by layer, used cells, fully_filled, dropped counts);
     fully_filled reflects the first pass, which covers the base layers and
@@ -161,7 +164,7 @@ def _fill_multi_band(
     owned_regions: list[tuple[int | None, BaseGeometry]] = []
 
     for pass_index, (order_key, keep_layer) in enumerate(_fill_passes(z)):
-        filled = shape({"type": "Polygon", "coordinates": []})  # empty
+        filled = ceded if ceded is not None else Polygon()
         for cell_key in sorted(cell_groups, key=order_key, reverse=True):
             group = cell_groups[cell_key]
             coverage = group.coverage
@@ -195,6 +198,8 @@ def _fill_multi_band(
             # into detailed-cell coverage shows the overview copy — often
             # missing CATOBS — inside an area the detailed cell owns.
             clip_region = make_valid(usable.buffer(0.01)).intersection(tile_bbox)
+            if ceded is not None:
+                clip_region = make_valid(clip_region.difference(ceded))
             owned = _owned_region(usable, tile_bbox)
 
             for data in group.tiles:
@@ -237,6 +242,15 @@ def _polygonal(geom: BaseGeometry) -> BaseGeometry:
         if areas:
             return union_all(areas)
     return Polygon()
+
+
+def _ceded_part(ceded: BaseGeometry, tile_bbox: BaseGeometry) -> BaseGeometry | None:
+    """The area of a tile inside a ceded area, or None where they share
+    none (touching along an edge shares no area)."""
+    if not ceded.intersects(tile_bbox):
+        return None
+    cut = _polygonal(make_valid(ceded.intersection(tile_bbox)))
+    return None if cut.is_empty else cut
 
 
 def _cut_tolerance(tile_bbox: BaseGeometry) -> float:
@@ -598,18 +612,23 @@ def _merge_same_band(
     return merged_layers, used, drops
 
 
+# A tile to fill-composite: (z, x, y, entries, WKB of the ceded part or None)
+_MultiBandArgs = tuple[int, int, int, list[_SerEntry], bytes | None]
+
+
 def _composite_one_multi_band(
-    args: tuple[int, int, int, list[_SerEntry]],
+    args: _MultiBandArgs,
 ) -> tuple[int, bytes | None, set[str], bool, _DropCounts]:
     """Composite a multi-band tile in a worker process.
 
     Returns (tile_id, tile_bytes_or_None, used_cells, fully_filled, dropped).
     """
-    z, x, y, entries = args
+    z, x, y, entries, ceded_wkb = args
     tile_id = zxy_to_tileid(z, x, y)
     tile_bbox = _tile_bbox_polygon(z, x, y)
     output_features, used, fully_filled, drops = _fill_multi_band(
-        z, tile_bbox, _group_cells(entries)
+        z, tile_bbox, _group_cells(entries),
+        ceded=from_wkb(ceded_wkb) if ceded_wkb else None,
     )
     if output_features:
         return (
@@ -630,6 +649,7 @@ def composite_tiles(
     output_path: Path,
     debug_latlon: tuple[float, float] | None = None,
     region_bbox: tuple[float, float, float, float] | None = None,
+    ceded: BaseGeometry | None = None,
     jobs: int = 0,
     on_progress: Callable[[str, int, int], None] | None = None,
     on_warning: Callable[[str], None] | None = None,
@@ -655,6 +675,10 @@ def composite_tiles(
             debug info for all tiles containing this point.
         region_bbox: If set, (west, south, east, north) to clip the
             coverage mask output to this bounding box.
+        ceded: If set, an area other charts (another producer's, in
+            another region) are drawn in instead. This region's features
+            are cut exactly along its edge: tiles inside it are dropped and
+            tiles across its edge composite as if it were already filled.
         jobs: Number of parallel workers for compositing (0=auto).
 
     Returns:
@@ -789,17 +813,28 @@ def composite_tiles(
     # Partition tiles into three groups
     single_entries: list[tuple[tuple[int, int, int], list[_SerEntry]]] = []
     same_band_entries: list[tuple[int, int, int, list[_SerEntry]]] = []
-    multi_band_entries: list[tuple[int, int, int, list[_SerEntry]]] = []
+    multi_band_entries: list[_MultiBandArgs] = []
+    if ceded is not None:
+        prepare(ceded)
 
     for (z, x, y), entries in tile_entries.items():
-        if len(entries) == 1:
+        cut = None
+        if ceded is not None:
+            tile = _tile_bbox_polygon(z, x, y)
+            if ceded.contains(tile):
+                continue  # drawn wholly by the charts it is ceded to
+            cut = _ceded_part(ceded, tile)
+        if cut is not None:
+            # Fill-composited, so features stop exactly at the ceded edge
+            multi_band_entries.append((z, x, y, entries, to_wkb(cut)))
+        elif len(entries) == 1:
             single_entries.append(((z, x, y), entries))
         else:
             bands_present = {e[0] for e in entries}
             if len(bands_present) == 1:
                 same_band_entries.append((z, x, y, entries))
             else:
-                multi_band_entries.append((z, x, y, entries))
+                multi_band_entries.append((z, x, y, entries, None))
 
     # Fast path: single-source tiles — no decode needed
     for (z, x, y), entries in single_entries:
@@ -887,7 +922,7 @@ def composite_tiles(
             tiles_composited_so_far += 1
             _report("compositing", tiles_composited_so_far, total_tiles)
 
-        for z, x, y, entries in multi_band_entries:
+        for z, x, y, entries, ceded_wkb in multi_band_entries:
             tile_id = zxy_to_tileid(z, x, y)
             tile_bbox = _tile_bbox_polygon(z, x, y)
             is_debug = (z, x, y) in debug_tiles
@@ -901,7 +936,8 @@ def composite_tiles(
                     print(f"    band {b}: cells={sorted(set(cells_by_band[b]))}")
 
             output_features, used, fully_filled, drops = _fill_multi_band(
-                z, tile_bbox, _group_cells(entries)
+                z, tile_bbox, _group_cells(entries),
+                ceded=from_wkb(ceded_wkb) if ceded_wkb else None,
             )
             used_cells.update(used)
             for key, n in drops.items():

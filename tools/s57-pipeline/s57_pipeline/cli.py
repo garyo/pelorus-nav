@@ -13,6 +13,7 @@ from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
+from shapely import union_all
 from shapely.geometry.base import BaseGeometry
 
 from .composite import CellTileSource, composite_tiles
@@ -20,12 +21,24 @@ from .convert import convert_enc, list_enc_layers, read_compilation_scale, read_
 from .layers import LAYER_NAMES
 from .coverage import scan_all_cells
 from .download import cell_download_url, download_enc_cell
-from .enc_catalog import CatalogCell, CatalogError, load_catalogs
+from .enc_catalog import (
+    PRODUCT_CATALOG_CACHE,
+    CatalogCell,
+    CatalogError,
+    catalog_coverages,
+    load_catalogs,
+)
 from .merge import merge_tiles
 from .places import PlaceLocator, assign_places
 from .progress import PipelineProgress
 from .query import build_index
-from .regions import REGIONS, get_region_build_cells, get_region_cells, query_region
+from .regions import (
+    REGIONS,
+    ceded_cells,
+    get_region_build_cells,
+    get_region_cells,
+    query_region,
+)
 from .search_index import extract_search_index, write_search_index
 from .scamin import (
     compute_intu_zoom_ranges,
@@ -641,6 +654,17 @@ def cmd_pipeline(args: argparse.Namespace) -> None:
     if args.region and args.region in REGIONS:
         region_bbox = REGIONS[args.region].tile_bbox
 
+    # Where NOAA's harbour charts take over from a river region's own
+    ceded = None
+    if args.region and args.region in REGIONS:
+        names = ceded_cells(args.region, _load_catalog(stale_ok=True))
+        if coverages := catalog_coverages(PRODUCT_CATALOG_CACHE, names):
+            ceded = union_all(list(coverages.values()))
+            progress.info(
+                f"Ceding to {len(coverages)} NOAA harbour cells: "
+                + ", ".join(sorted(coverages))
+            )
+
     composite_jobs = args.jobs if args.jobs else 0
 
     # Build composite progress callback
@@ -693,7 +717,7 @@ def cmd_pipeline(args: argparse.Namespace) -> None:
     progress.info(f"Pass 3: Compositing {len(sources)} tile sets")
     result = composite_tiles(
         sources, output_path, debug_latlon=debug_latlon,
-        region_bbox=region_bbox, jobs=composite_jobs,
+        region_bbox=region_bbox, ceded=ceded, jobs=composite_jobs,
         on_progress=_on_composite_progress,
         on_warning=progress.warning,
     )

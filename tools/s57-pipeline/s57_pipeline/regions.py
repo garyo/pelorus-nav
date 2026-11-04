@@ -140,6 +140,34 @@ def get_region_build_cells(region_name: str, catalog: Catalog) -> list[str]:
     ]
 
 
+# NOAA's harbour and berthing charts take precedence over the river charts:
+# richer than the Corps' where the two meet, and NOAA comes first.
+NOAA_PRECEDENCE_BAND = 5
+
+
+def ceded_cells(region_name: str, catalog: Catalog) -> list[str]:
+    """NOAA's harbour and berthing cells a river region gives way to: where
+    one covers the water, the river chart is cut away along its coverage so
+    NOAA's chart alone is drawn there. Other regions cede nothing."""
+    region = REGIONS[region_name]
+    if region.rivers is None:
+        return []
+    boxes = [
+        bbox
+        for c in get_region_cells(region_name, catalog)
+        if (bbox := catalog[c].bbox) is not None
+    ]
+    return sorted(
+        cell.name
+        for cell in catalog.values()
+        if cell.active
+        and cell.bbox is not None
+        and not is_inland_cell(cell.name)
+        and usage_band(cell.name) >= NOAA_PRECEDENCE_BAND
+        and any(_bbox_intersects(cell.bbox, b) for b in boxes)
+    )
+
+
 def unclaimed_inland_cells(catalog: Catalog) -> list[str]:
     """Active Inland ENC cells no region takes: a river the Corps has added
     whose code no inland region lists yet (tools/regions.json "rivers")."""

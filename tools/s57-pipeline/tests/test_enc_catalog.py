@@ -13,6 +13,7 @@ from s57_pipeline.enc_catalog import (
     CatalogCell,
     CatalogError,
     CellStatus,
+    catalog_coverages,
     classify_cell,
     load_product_catalog,
     parse_product_catalog,
@@ -169,6 +170,14 @@ IENC_XML = b"""<?xml version="1.0" encoding="UTF-8"?>
 <Cell><name>U37BAD01</name><edition>7.1</edition></Cell>
 </IENCU37ProductCatalog>
 """
+
+
+def test_catalog_coverages_are_the_exterior_panels() -> None:
+    coverages = catalog_coverages(io.BytesIO(CATALOG_XML), ["US5MA1SK", "US2EC03M"])
+    assert list(coverages) == ["US5MA1SK"]  # cancelled: no coverage
+    coverage = coverages["US5MA1SK"]
+    assert coverage.geom_type == "MultiPolygon"  # both "E" panels, not the "I"
+    assert coverage.bounds == pytest.approx((-71.05, 42.3, -70.9, 42.45))
 
 
 def test_parse_ienc_catalog() -> None:

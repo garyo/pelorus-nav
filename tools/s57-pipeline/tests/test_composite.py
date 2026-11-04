@@ -684,6 +684,35 @@ class TestAreaEdges:
         assert sum(abs(b[0] - a[0]) for a, b in top) == pytest.approx(8, abs=10 * UNIT)
 
 
+class TestCeded:
+    def test_features_stop_exactly_at_the_ceded_edge(self) -> None:
+        """A river cell spans the tile; another producer's chart takes the
+        east part. The river's areas are cut right at its edge, with none of
+        the usual anti-sliver overlap, and no outline is drawn along the cut."""
+        river = _group(TILE, 5000, {"RESARE": [_area(box(1, 1, 9, 9))]})
+        ceded = box(6, 0, 10, 10)
+        layers, _used, filled, _drops = composite._fill_multi_band(
+            14, TILE, {(5, "RIVER"): river}, ceded=ceded
+        )
+        (area,) = layers["RESARE"]
+        west, south, east, north = shape(area["geometry"]).bounds
+        assert east == pytest.approx(6)  # exactly at the edge, not past it
+        assert (west, south, north) == pytest.approx((1, 1, 9), abs=UNIT)
+        segs = _segments(layers[EDGES])
+        assert _along(segs, x=6) == [] and _along(segs, x=9) == []
+        assert _along(segs, x=1)
+        assert "SCLBDY" not in layers
+        assert filled
+
+    def test_tiles_are_cut_dropped_or_left_alone(self) -> None:
+        tile = composite._tile_bbox_polygon(10, 300, 400)
+        w, s, e, n = tile.bounds
+        assert composite._ceded_part(box(w - 1, s, w, n), tile) is None  # touches
+        assert composite._ceded_part(box(e + 1, s, e + 2, n), tile) is None
+        half = composite._ceded_part(box(w, s, (w + e) / 2, n), tile)
+        assert half is not None and half.area == pytest.approx(tile.area / 2)
+
+
 class TestScaleBoundaries:
     def test_boundary_where_scale_changes(self) -> None:
         fine = _group(box(0, 0, 5, 10), 12000, {"DEPARE": [_area(box(0, 0, 5, 10))]})
