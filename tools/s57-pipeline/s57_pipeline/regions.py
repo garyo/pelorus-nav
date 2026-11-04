@@ -130,3 +130,19 @@ def get_region_build_cells(region_name: str, catalog: Catalog) -> list[str]:
     return cells + [
         c for c in nearby if c not in own and usage_band(c) <= OVERVIEW_MAX_USAGE_BAND
     ]
+
+
+def unclaimed_inland_cells(catalog: Catalog) -> list[str]:
+    """Active Inland ENC cells no region takes: a river the Corps has added
+    whose code no inland region lists yet (tools/regions.json "rivers")."""
+    claimed = {
+        cell
+        for name, region in REGIONS.items()
+        if region.producer == "USACE"
+        for cell in get_region_cells(name, catalog)
+    }
+    return sorted(
+        c.name
+        for c in catalog.values()
+        if c.active and is_inland_cell(c.name) and c.name not in claimed
+    )

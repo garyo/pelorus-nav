@@ -11,6 +11,7 @@ from s57_pipeline.regions import (
     get_region_build_cells,
     get_region_cells,
     query_region,
+    unclaimed_inland_cells,
     usage_band,
 )
 
@@ -153,3 +154,15 @@ class TestProducerRegions:
             "U37UM000",
         ]
         assert get_region_cells("inland-rivers-south", catalog) == ["U37LM000"]
+
+    def test_unclaimed_inland_cells_names_a_river_no_region_lists(self) -> None:
+        catalog = {
+            c.name: c
+            for c in (
+                _cell("U37UM723", (-92.4, 44.0, -91.3, 44.7)),
+                _cell("U37AL001", (-87.9, 31.0, -87.7, 31.3)),  # Alabama River
+                _cell("U37XX000", (-90.0, 35.0, -89.9, 35.1), status="Cancelled"),
+                _cell("US5WI2UL", (-88.5, 43.9, -88.3, 44.1)),
+            )
+        }
+        assert unclaimed_inland_cells(catalog) == ["U37AL001"]

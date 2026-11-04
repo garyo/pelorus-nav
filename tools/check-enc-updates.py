@@ -71,6 +71,7 @@ from s57_pipeline.regions import (  # noqa: E402
     Catalog,
     get_region_build_cells,
     get_region_cells,
+    unclaimed_inland_cells,
 )
 from s57_pipeline.state import StateDB, region_build_lag  # noqa: E402
 
@@ -111,6 +112,12 @@ def pending_builds(
         print(
             f"!!! {len(behind)} ENC cells failed to download "
             f"(retried next run): {', '.join(behind)}",
+            file=sys.stderr,
+        )
+    if unclaimed := unclaimed_inland_cells(catalog):
+        print(
+            f"!!! {len(unclaimed)} Inland ENC cells are in no region (add their "
+            f"river codes to tools/regions.json): {', '.join(unclaimed)}",
             file=sys.stderr,
         )
     for region in pending:
