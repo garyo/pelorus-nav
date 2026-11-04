@@ -25,7 +25,7 @@ import {
   suggestReverse,
 } from "./route-join";
 import { closingSpeedKn, type SpeedAverage } from "./speed-average";
-import { waypointPassNM } from "./waypoint-passing";
+import { waypointPassNM, waypointReached } from "./waypoint-passing";
 
 const STORAGE_KEY = "pelorus-nav-active-nav";
 
@@ -266,7 +266,14 @@ export class ActiveNavigationManager {
       this.state.type === "goto" &&
       "temporary" in this.state.waypoint &&
       this.state.waypoint.temporary &&
-      result.distanceNM < getSettings().arrivalRadiusNM
+      waypointReached(
+        data.latitude,
+        data.longitude,
+        courseOf(data),
+        target,
+        getSettings().arrivalRadiusNM,
+        true,
+      )
     ) {
       // Subscribers must see the goto state before it ends: the target's
       // cleanup keys on having been told about it.
@@ -281,14 +288,21 @@ export class ActiveNavigationManager {
       return;
     }
 
-    // Route mode: advance on arrival at the target or on passing it (see
-    // waypoint-passing.ts); the final waypoint ends the route only on arrival.
+    // Route mode: advance on reaching the target or on passing it (see
+    // waypoint-passing.ts); the final waypoint ends the route only when reached.
     if (this.state.type === "route") {
       const route = this.state.route;
       const nextIndex = this.state.legIndex + 1;
       const isLastWaypoint = nextIndex >= route.waypoints.length;
       const advance =
-        result.distanceNM < getSettings().arrivalRadiusNM ||
+        waypointReached(
+          data.latitude,
+          data.longitude,
+          courseOf(data),
+          target,
+          getSettings().arrivalRadiusNM,
+          isLastWaypoint,
+        ) ||
         (!isLastWaypoint &&
           waypointPassNM(
             data.latitude,

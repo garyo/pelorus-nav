@@ -592,8 +592,23 @@ describe("temporary goto targets", () => {
     expect(nav.getState().type).toBe("goto");
     expect(events).toEqual([]);
 
-    onGPS?.(fix(0.0995)); // inside the 0.1 NM arrival radius
+    onGPS?.(fix(0.0995)); // inside the arrival radius, still heading for it
+    expect(nav.getState().type).toBe("goto");
+    expect(events).toEqual([]);
+
+    onGPS?.(fix(0.1001)); // just past it
     expect(events).toEqual(["Here:null:null"]);
+    expect(nav.getState().type).toBe("idle");
+  });
+
+  it("reaches a temporary target on stopping inside the arrival radius", () => {
+    const nav = makeNav();
+    const events: unknown[] = [];
+    nav.onArrival((e) => events.push(e));
+    last = fix(0.05);
+    nav.startGoto(target(true));
+    onGPS?.({ ...fix(0.0995), sog: 0 });
+    expect(events).toHaveLength(1);
     expect(nav.getState().type).toBe("idle");
   });
 

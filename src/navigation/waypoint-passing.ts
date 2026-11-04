@@ -92,3 +92,36 @@ export function waypointPassNM(
     Math.abs(turn) >= REVERSAL_DEG ? 0 : beyond(arriving + turn / 2);
   return Math.max(abeam, turnSide);
 }
+
+/** Nearer than this the vessel is on the waypoint, with no bearing to it. */
+const ON_WAYPOINT_NM = 0.001;
+
+/**
+ * Whether a vessel has reached a waypoint: inside its arrival circle and no
+ * longer closing on it, the waypoint abeam or abaft the beam of the course
+ * over ground (the closest approach). Entering the circle alone is not
+ * arrival: a vessel still heading for the waypoint has yet to reach it, and
+ * on a large circle that is minutes early, and at a racing mark many lengths.
+ *
+ * With no course to close along (stopped or drifting), only a `destination`
+ * is reached: stopping there is arriving, but stopping short of a waypoint
+ * on the way is not getting past it.
+ */
+export function waypointReached(
+  lat: number,
+  lon: number,
+  cogDeg: number | null,
+  wp: LatLon,
+  arrivalRadiusNM: number,
+  destination: boolean,
+): boolean {
+  const dist = haversineDistanceNM(lat, lon, wp.lat, wp.lon);
+  if (dist >= arrivalRadiusNM) return false;
+  if (dist < ON_WAYPOINT_NM) return true;
+  if (cogDeg === null) return destination;
+  const offBow = bearingDelta(
+    initialBearingDeg(lat, lon, wp.lat, wp.lon),
+    cogDeg,
+  );
+  return Math.abs(offBow) >= 90;
+}

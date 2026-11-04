@@ -24,6 +24,7 @@ import { mulberry32 } from "../src/navigation/route-join-scenarios";
 import {
   type LatLon,
   waypointPassNM,
+  waypointReached,
 } from "../src/navigation/waypoint-passing";
 import {
   haversineDistanceNM,
@@ -138,6 +139,8 @@ interface Fix {
   helmLeg: number;
   loitering: boolean;
   departing: boolean;
+  /** Stopped at the end of the route: no course over ground. */
+  stopped?: boolean;
 }
 
 /** The helmsman steers the route by pure pursuit at a limited turn rate. */
@@ -178,7 +181,12 @@ function simulate(s: Scenario, rand: () => number): Fix[] {
     }
     if (isLast && len(sub(b, pos)) < 0.03) {
       // Stopped at the end: the next fix finds the vessel here.
-      fixes.push({ ...fixAt(t), loitering: false, departing: false });
+      fixes.push({
+        ...fixAt(t),
+        loitering: false,
+        departing: false,
+        stopped: true,
+      });
       break;
     }
     if (
@@ -263,11 +271,14 @@ function run(s: Scenario, fixes: Fix[], courseOf: CourseOf): RunResult {
     if (offBow > 100) astern[leg] += f.t - lastT;
     lastT = f.t;
     const isLast = leg === R.length - 1;
+    const course = f.stopped ? null : courseOf(f);
     const passed =
       !isLast &&
-      waypointPassNM(v.lat, v.lon, courseOf(f), R[leg - 1], wp, R[leg + 1]) >=
-        0;
-    if (dist < ARRIVAL_NM || passed) {
+      waypointPassNM(v.lat, v.lon, course, R[leg - 1], wp, R[leg + 1]) >= 0;
+    if (
+      waypointReached(v.lat, v.lon, course, wp, ARRIVAL_NM, isLast) ||
+      passed
+    ) {
       const { t, p, helmLeg, loitering, departing } = f;
       advances.push({
         wp: leg,

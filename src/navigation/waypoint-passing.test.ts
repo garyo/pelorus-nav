@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { initialBearingDeg, projectPoint } from "../utils/coordinates";
-import { type LatLon, waypointPassNM } from "./waypoint-passing";
+import {
+  type LatLon,
+  waypointPassNM,
+  waypointReached,
+} from "./waypoint-passing";
 
 const WP: LatLon = { lat: 42.36, lon: -71.05 };
 
@@ -154,5 +158,43 @@ describe("waypointPassNM", () => {
     expect(waypointPassNM(v.lat, v.lon, 0, null, WP, null)).toBe(
       Number.NEGATIVE_INFINITY,
     );
+  });
+});
+
+describe("waypointReached", () => {
+  const RADIUS = 0.1;
+  const reached = (vessel: LatLon, cog: number | null, destination = false) =>
+    waypointReached(vessel.lat, vessel.lon, cog, WP, RADIUS, destination);
+
+  it("is not reached outside the arrival circle", () => {
+    expect(reached(toward(180, 0.15), 0)).toBe(false);
+    expect(reached(toward(180, 0.15), null)).toBe(false);
+  });
+
+  it("is not reached inside the circle while still closing on it", () => {
+    const vessel = toward(180, 0.09);
+    expect(reached(vessel, course(vessel, WP))).toBe(false);
+    // Closing at an angle, as a winding course does
+    expect(reached(vessel, course(vessel, WP) + 40)).toBe(false);
+  });
+
+  it("is reached at the closest approach, abeam", () => {
+    // Passing 20 m east of the waypoint, northbound: reached once level
+    expect(reached(at(0.0005, 0.011), 0)).toBe(true);
+    expect(reached(at(-0.002, 0.011), 0)).toBe(false);
+  });
+
+  it("is reached just past a waypoint sailed straight through", () => {
+    expect(reached(toward(0, 0.002), 0)).toBe(true);
+    expect(reached(toward(180, 0.002), 0)).toBe(false);
+  });
+
+  it("is reached by stopping inside the circle only at a destination", () => {
+    expect(reached(toward(180, 0.09), null, true)).toBe(true);
+    expect(reached(toward(180, 0.09), null, false)).toBe(false);
+  });
+
+  it("is reached on the waypoint itself", () => {
+    expect(reached(WP, 123)).toBe(true);
   });
 });
