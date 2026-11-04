@@ -816,6 +816,46 @@ export function getHazardLayers(ctx: StyleContext): LayerSpecification[] {
       },
       paint: {},
     },
+    // Water level gauge (Inland ENC) — the Inland ECDIS gauge board on a
+    // post, or the striped staff of a recording gauge (catgag 2), its foot
+    // on the position; the gauge's name beside it at close range.
+    {
+      id: "s57-wtwgag",
+      type: "symbol",
+      source: ctx.sourceId,
+      "source-layer": "WTWGAG",
+      minzoom: 12,
+      layout: {
+        "icon-image": [
+          "case",
+          listAttrContains("catgag", 2),
+          "WTLVGG02",
+          "WTLVGG01",
+        ] as unknown as string,
+        "icon-offset": [0, -8.3],
+        // Full size: the recording gauge's staff is a sliver at 0.7.
+        "icon-size": scaledIconSize(1.0, ctx),
+        "icon-allow-overlap": true,
+        "text-field": [
+          "step",
+          ["zoom"],
+          "",
+          14,
+          ["coalesce", ["get", "OBJNAM"], ""],
+        ],
+        "text-font": ["Noto Sans Regular"],
+        "text-size": scaledTextSize(9, ctx),
+        "text-anchor": "left",
+        "text-offset": [0.8, -0.8],
+        "text-optional": true,
+        "text-max-width": 10,
+      },
+      paint: {
+        "text-color": ctx.colour("CHBLK"),
+        "text-halo-color": ctx.colour("NAIDH"),
+        "text-halo-width": 1,
+      },
+    },
     // Distance mark (river mile) — DISMAR, after S-101's DistanceMark: a
     // magenta ring and number where no mark stands (CATDIS 1, every USACE
     // river mile), black where a pole or board marks the distance.

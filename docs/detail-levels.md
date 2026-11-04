@@ -213,6 +213,9 @@ Cross-cutting behavior not visible in the table:
 | SWPARE_EDGES | `s57-edges-swpare` | all | all | all | all |
 | SWPARE | `s57-swpare` | all \* | all \* | all \* | all \* |
 | SWPARE | `s57-swpare-label` | all \* | all \* | all \* | all \* |
+| TERMNL_EDGES | `s57-edges-termnl-outline` | all \* | all \* | all \* | all \* |
+| TERMNL | `s57-termnl-outline` | all \* | all \* | all \* | all \* |
+| TERMNL | `s57-termnl-symbol` | z12+ | z12+ | z12+ | z12+ |
 | TESARE_EDGES | `s57-edges-tesare` | z12+ | z12+ | z12+ | z12+ |
 | TESARE | `s57-tesare` | z12+ \* | z12+ \* | z12+ \* | z12+ \* |
 | TOPMAR | `s57-topmar` | z8+ \* | z8+ \* | z8+ \* | z8+ \* |
@@ -246,3 +249,4 @@ Cross-cutting behavior not visible in the table:
 | WEDKLP | `s57-wedklp-outline` | z11+ \* | z11+ \* | z11+ \* | z11+ \* |
 | WRECKS | `s57-wrecks` | z10+ | z10+ | z10+ | z10+ |
 | WRECKS | `s57-wrecks-isodgr` | z10+ \* | z10+ \* | z10+ \* | z10+ \* |
+| WTWGAG | `s57-wtwgag` | z12+ | z12+ | z12+ | z12+ |

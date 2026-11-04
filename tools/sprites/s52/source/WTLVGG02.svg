@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<?xml-stylesheet href="daySvgStyle.css" type="text/css"?>
+<svg xmlns="http://www.w3.org/2000/svg" version="1.2" baseProfile="tiny" xml:space="preserve" shape-rendering="geometricPrecision" fill-rule="evenodd" width="1.4mm" height="5.0mm" viewBox="-0.7 -4.7 1.4 5.0">
+  <title>WTLVGG02</title>
+  <desc>recording gauge, height of water (Inland ECDIS); redrawn as SVG</desc>
+  <rect class="symbolBox layout" fill="none" x="-0.4" y="-4.4" height="4.4" width="0.8"/>
+  <rect class="svgBox layout" fill="none" x="-0.4" y="-4.4" height="4.4" width="0.8"/>
+  <rect class="fCHWHT" x="-0.4" y="-4.4" width="0.8" height="3.8"/>
+  <rect class="fCHBLK" x="-0.4" y="-4.4" width="0.8" height="0.63"/>
+  <rect class="fCHBLK" x="-0.4" y="-3.13" width="0.8" height="0.63"/>
+  <rect class="fCHBLK" x="-0.4" y="-1.87" width="0.8" height="0.63"/>
+  <rect class="f0 sCHBLK" stroke-width="0.24" x="-0.4" y="-4.4" width="0.8" height="3.8"/>
+  <circle class="fCHBLK" cx="0" cy="-0.3" r="0.3"/>
+  <circle class="pivotPoint layout" fill="none" cx="0" cy="0" r="0.4"/>
+</svg>

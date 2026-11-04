@@ -242,6 +242,33 @@ export function getTextLayers(ctx: StyleContext): LayerSpecification[] {
         "text-halo-width": 1,
       },
     },
+    // Cargo terminals (Inland ENC): the Inland ECDIS terminal symbol, at the
+    // point or inside the area, with the terminal's name below it. Symbol
+    // and name place as one, without overlap: an area cut by a tile edge is
+    // a piece in each tile, and the second piece's name collides with the
+    // first's, dropping its symbol too.
+    {
+      id: "s57-termnl-symbol",
+      type: "symbol",
+      source: ctx.sourceId,
+      "source-layer": "TERMNL",
+      minzoom: ctx.detailMinzoom(12),
+      layout: {
+        "icon-image": "TERMNL12",
+        "icon-size": scaledIconSize(1.0, ctx),
+        "text-field": ["coalesce", ["get", "OBJNAM"], ""],
+        "text-font": ["Noto Sans Regular"],
+        "text-size": scaledTextSize(9, ctx),
+        "text-anchor": "top",
+        "text-offset": [0, 1.3],
+        "text-max-width": 10,
+      },
+      paint: {
+        "text-color": ctx.colour("CHBLK"),
+        "text-halo-color": ctx.colour("NAIDH"),
+        "text-halo-width": 1,
+      },
+    },
     // Lock basin names (Inland ENC), as S-101 labels them: in black.
     {
       id: "s57-lokbsn-label",

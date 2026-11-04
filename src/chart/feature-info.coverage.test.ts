@@ -120,6 +120,8 @@ const CLICKABLE = new Set([
   "NOTMRK",
   "DISMAR",
   "LOKBSN",
+  "WTWGAG",
+  "TERMNL",
   "RETRFL",
   "DAYMAR",
   "RTPBCN",

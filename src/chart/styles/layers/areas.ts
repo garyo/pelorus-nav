@@ -226,6 +226,19 @@ export function getAreaLayers(ctx: StyleContext): LayerSpecification[] {
         "line-width": 1,
       },
     },
+    // Cargo terminals (Inland ENC): a grey outline; the symbol and name are
+    // in text.ts.
+    {
+      id: "s57-termnl-outline",
+      type: "line",
+      source: ctx.sourceId,
+      "source-layer": "TERMNL",
+      filter: ["==", ["geometry-type"], "Polygon"],
+      paint: {
+        "line-color": ctx.colour("CHGRF"),
+        "line-width": 1,
+      },
+    },
     {
       id: "s57-ponton",
       type: "fill",

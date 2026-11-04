@@ -122,6 +122,8 @@ STANDARD_LAYER: dict[str, str] = {
     "sistat": "SISTAT",
     "sistaw": "SISTAW",
     "slcons": "SLCONS",
+    "termnl": "TERMNL",
+    "wtwgag": "WTWGAG",
 }
 
 # Attributes GDAL's own inland classes read under inland names, whose values

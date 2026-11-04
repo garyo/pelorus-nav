@@ -321,6 +321,8 @@ export const LAYER_NAMES: Record<string, string> = {
   NOTMRK: "Notice Mark",
   DISMAR: "Distance Mark",
   LOKBSN: "Lock Basin",
+  WTWGAG: "Water Level Gauge",
+  TERMNL: "Terminal",
   SNDWAV: "Sand Waves",
   SPRING: "Spring",
   VEGATN: "Vegetation",
@@ -1741,6 +1743,17 @@ function formatLockBasin(
   return details;
 }
 
+/** A water level gauge (Inland ENC): its notes carry the pool levels. */
+function formatGauge(
+  props: Record<string, unknown>,
+): { label: string; value: string }[] {
+  const details: { label: string; value: string }[] = [];
+  addIfPresent(details, "Name", props.OBJNAM);
+  addIfPresent(details, "Information", props.INFORM);
+  addIfPresent(details, "Waterway distance", props.wtwdis);
+  return details;
+}
+
 /** A river distance mark (Inland ENC): the distance along the waterway,
  *  in the waterway's own units (statute miles on USACE charts). */
 function formatDistanceMark(
@@ -1841,6 +1854,8 @@ const FORMATTERS: Record<
   NOTMRK: formatSimple,
   DISMAR: formatDistanceMark,
   LOKBSN: formatLockBasin,
+  WTWGAG: formatGauge,
+  TERMNL: formatSimple,
   ISTZNE: formatSimple,
   TSSRON: formatSimple,
   FERYRT: formatSimple,
