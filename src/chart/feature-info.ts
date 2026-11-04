@@ -316,6 +316,10 @@ export const LAYER_NAMES: Record<string, string> = {
   OVFALL: "Overfalls",
   RSCSTA: "Rescue Station",
   SISTAT: "Signal Station",
+  SISTAW: "Warning Signal Station",
+  NOTMRK: "Notice Mark",
+  DISMAR: "Distance Mark",
+  LOKBSN: "Lock Basin",
   SNDWAV: "Sand Waves",
   SPRING: "Spring",
   VEGATN: "Vegetation",
@@ -1712,6 +1716,41 @@ function formatSignalStation(
   return details;
 }
 
+/** A lock chamber (Inland ENC): its usable length and width, rounded down
+ *  like any clearance. */
+function formatLockBasin(
+  props: Record<string, unknown>,
+): { label: string; value: string }[] {
+  const details: { label: string; value: string }[] = [];
+  addIfPresent(details, "Name", props.OBJNAM);
+  const unit = getSettings().depthUnit;
+  if (props.horcll != null) {
+    details.push({
+      label: "Chamber length",
+      value: formatChartClearance(Number(props.horcll), unit),
+    });
+  }
+  if (props.horclw != null) {
+    details.push({
+      label: "Chamber width",
+      value: formatChartClearance(Number(props.horclw), unit),
+    });
+  }
+  addIfPresent(details, "Information", props.INFORM);
+  return details;
+}
+
+/** A river distance mark (Inland ENC): the distance along the waterway,
+ *  in the waterway's own units (statute miles on USACE charts). */
+function formatDistanceMark(
+  props: Record<string, unknown>,
+): { label: string; value: string }[] {
+  const details: { label: string; value: string }[] = [];
+  addIfPresent(details, "Waterway distance", props.wtwdis);
+  addIfPresent(details, "Waterway", props.INFORM);
+  return details;
+}
+
 const FORMATTERS: Record<
   string,
   (props: Record<string, unknown>) => { label: string; value: string }[]
@@ -1797,6 +1836,10 @@ const FORMATTERS: Record<
   RDOCAL: formatRadioCalling,
   RSCSTA: formatRescueStation,
   SISTAT: formatSignalStation,
+  SISTAW: formatSimple,
+  NOTMRK: formatSimple,
+  DISMAR: formatDistanceMark,
+  LOKBSN: formatLockBasin,
   ISTZNE: formatSimple,
   TSSRON: formatSimple,
   FERYRT: formatSimple,

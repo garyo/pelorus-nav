@@ -71,6 +71,7 @@ Cross-cutting behavior not visible in the table:
 | DEPCNT | `s57-depcnt` | all | all | all | all |
 | DEPCNT | `s57-depcnt-label` | all | all | all | all |
 | DEPCNT | `s57-depcnt-safety` | all \* | all \* | all \* | all \* |
+| DISMAR | `s57-dismar` | z11+ | z11+ | z11+ | z11+ |
 | DMPGRD_EDGES | `s57-edges-dmpgrd-outline` | z12+ | z12+ | z12+ | z12+ |
 | DMPGRD | `s57-dmpgrd` | z12+ | z12+ | z12+ | z12+ |
 | DMPGRD | `s57-dmpgrd-outline` | z12+ \* | z12+ \* | z12+ \* | z12+ \* |
@@ -124,6 +125,10 @@ Cross-cutting behavior not visible in the table:
 | LNDMRK | `s57-lndmrk` | z12+ | z12+ | z12+ | z12+ |
 | LNDRGN | `s57-lndrgn-label` | z11+ \* | z11+ \* | z11+ \* | z11+ \* |
 | LNDRGN | `s57-lndrgn-marsh` | all \* | all \* | all \* | all \* |
+| LOKBSN_EDGES | `s57-edges-lokbsn-outline` | all | all | all | all |
+| LOKBSN | `s57-lokbsn` | all | all | all | all |
+| LOKBSN | `s57-lokbsn-label` | z12+ \* | z12+ \* | z12+ \* | z12+ \* |
+| LOKBSN | `s57-lokbsn-outline` | all \* | all \* | all \* | all \* |
 | MARCUL_EDGES | `s57-edges-marcul` | z10+ \* | z10+ \* | z10+ \* | z10+ \* |
 | MARCUL | `s57-marcul` | z10+ \* | z10+ \* | z10+ \* | z10+ \* |
 | MARCUL | `s57-marcul-symbol` | z11+ | z11+ | z11+ | z11+ |
@@ -132,6 +137,7 @@ Cross-cutting behavior not visible in the table:
 | MIPARE | `s57-mipare-symbol` | z10+ | z10+ | z10+ | z10+ |
 | MORFAC | `s57-morfac` | z12+ | z12+ | z12+ | z12+ |
 | NAVLNE | `s57-navlne` | all | all | all | all |
+| NOTMRK | `s57-notmrk` | z12+ | z12+ | z12+ | z12+ |
 | OBSTRN_EDGES | `s57-edges-obstrn-area-outline` | z12+ \* | z12+ \* | z12+ \* | z12+ \* |
 | OBSTRN | `s57-obstrn` | z10+ \* | z10+ \* | z10+ \* | z10+ \* |
 | OBSTRN | `s57-obstrn-area` | z11+ \* | z11+ \* | z11+ \* | z11+ \* |
@@ -188,6 +194,7 @@ Cross-cutting behavior not visible in the table:
 | SILTNK | `s57-siltnk-icon` | z14+ | z14+ | z14+ | z14+ |
 | SILTNK | `s57-siltnk-outline` | z14+ \* | z14+ \* | z14+ \* | z14+ \* |
 | SISTAT | `s57-sistat` | z10+ | z10+ | z10+ | z10+ |
+| SISTAW | `s57-sistaw` | z10+ | z10+ | z10+ | z10+ |
 | SLCONS_EDGES | `s57-edges-slcons` | all \* | all \* | all \* | all \* |
 | SLCONS_EDGES | `s57-edges-slcons-submerged` | all \* | all \* | all \* | all \* |
 | SLCONS | `s57-slcons` | all \* | all \* | all \* | all \* |

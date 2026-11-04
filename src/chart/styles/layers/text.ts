@@ -242,6 +242,29 @@ export function getTextLayers(ctx: StyleContext): LayerSpecification[] {
         "text-halo-width": 1,
       },
     },
+    // Lock basin names (Inland ENC), as S-101 labels them: in black.
+    {
+      id: "s57-lokbsn-label",
+      type: "symbol",
+      source: ctx.sourceId,
+      "source-layer": "LOKBSN",
+      minzoom: ctx.detailMinzoom(12),
+      filter: ["has", "OBJNAM"],
+      layout: {
+        "text-font": ["Noto Sans Regular"],
+        "text-anchor": "center",
+        "symbol-sort-key": SORT_KEY_FACILITY,
+        "text-field": ["get", "OBJNAM"],
+        "text-size": scaledTextSize(10, ctx),
+        "text-allow-overlap": false,
+        "text-padding": 5,
+      },
+      paint: {
+        "text-color": ctx.colour("CHBLK"),
+        "text-halo-color": ctx.colour("NAIDH"),
+        "text-halo-width": 1,
+      },
+    },
     // Shoreline construction labels (wharves, piers)
     {
       id: "s57-slcons-label",

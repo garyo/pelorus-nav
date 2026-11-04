@@ -421,3 +421,38 @@ describe("detail row ordering and dedup", () => {
     });
   });
 });
+
+describe("Inland ENC features", () => {
+  const savedUnit = getSettings().depthUnit;
+  beforeAll(() => updateSettings({ depthUnit: "meters" }));
+  afterAll(() => updateSettings({ depthUnit: savedUnit }));
+
+  it("shows a lock chamber's dimensions, rounded down", () => {
+    const info = formatFeatureInfo("LOKBSN", {
+      OBJNAM: "Lock and Dam No. 4",
+      horcll: 182.88,
+      horclw: 33.53,
+    });
+    expect(info.type).toBe("Lock Basin");
+    expect(info.details).toContainEqual({
+      label: "Chamber length",
+      value: "182.8m",
+    });
+    expect(info.details).toContainEqual({
+      label: "Chamber width",
+      value: "33.5m",
+    });
+  });
+
+  it("shows a river distance mark's mile and waterway", () => {
+    const info = formatFeatureInfo("DISMAR", {
+      wtwdis: 753,
+      INFORM: "Upper Mississippi River (UM)",
+    });
+    expect(info.type).toBe("Distance Mark");
+    expect(info.details).toEqual([
+      { label: "Waterway distance", value: "753" },
+      { label: "Waterway", value: "Upper Mississippi River (UM)" },
+    ]);
+  });
+});

@@ -204,6 +204,28 @@ export function getAreaLayers(ctx: StyleContext): LayerSpecification[] {
         "line-dasharray": [4, 3],
       },
     },
+    // Lock basins (Inland ENC): the lock chamber, as S-101 draws it — a
+    // very-shallow fill inside a thin black outline.
+    {
+      id: "s57-lokbsn",
+      type: "fill",
+      source: ctx.sourceId,
+      "source-layer": "LOKBSN",
+      paint: {
+        "fill-color": ctx.colour("DEPVS"),
+        "fill-opacity": 1,
+      },
+    },
+    {
+      id: "s57-lokbsn-outline",
+      type: "line",
+      source: ctx.sourceId,
+      "source-layer": "LOKBSN",
+      paint: {
+        "line-color": ctx.colour("CHBLK"),
+        "line-width": 1,
+      },
+    },
     {
       id: "s57-ponton",
       type: "fill",

@@ -786,6 +786,72 @@ export function getHazardLayers(ctx: StyleContext): LayerSpecification[] {
       },
       paint: {},
     },
+    // Signal station, warning — SISTAW
+    {
+      id: "s57-sistaw",
+      type: "symbol",
+      source: ctx.sourceId,
+      "source-layer": "SISTAW",
+      minzoom: 10,
+      layout: {
+        "icon-image": "SISTAW03",
+        "icon-size": scaledIconSize(0.7, ctx),
+        "icon-allow-overlap": true,
+      },
+      paint: {},
+    },
+    // Notice mark (Inland ENC river signboard) — S-101's notice board, its
+    // post's foot on the position.
+    {
+      id: "s57-notmrk",
+      type: "symbol",
+      source: ctx.sourceId,
+      "source-layer": "NOTMRK",
+      minzoom: 12,
+      layout: {
+        "icon-image": "NOTBRD11",
+        "icon-offset": [0, -7.5],
+        "icon-size": scaledIconSize(0.7, ctx),
+        "icon-allow-overlap": true,
+      },
+      paint: {},
+    },
+    // Distance mark (river mile) — DISMAR, after S-101's DistanceMark: a
+    // magenta ring and number where no mark stands (CATDIS 1, every USACE
+    // river mile), black where a pole or board marks the distance.
+    {
+      id: "s57-dismar",
+      type: "symbol",
+      source: ctx.sourceId,
+      "source-layer": "DISMAR",
+      minzoom: 11,
+      layout: {
+        "icon-image": [
+          "case",
+          [">", ["coalesce", ["get", "CATDIS"], 1], 1],
+          "DISMAR07",
+          "DISMAR06",
+        ],
+        "icon-size": scaledIconSize(0.7, ctx),
+        "icon-allow-overlap": true,
+        "text-field": ["to-string", ["coalesce", ["get", "wtwdis"], ""]],
+        "text-font": ["Noto Sans Regular"],
+        "text-size": scaledTextSize(10, ctx),
+        "text-anchor": "left",
+        "text-offset": [0.8, 0],
+        "text-optional": true,
+      },
+      paint: {
+        "text-color": [
+          "case",
+          [">", ["coalesce", ["get", "CATDIS"], 1], 1],
+          ctx.colour("CHBLK"),
+          ctx.colour("CHMGD"),
+        ] as unknown as string,
+        "text-halo-color": ctx.colour("NAIDH"),
+        "text-halo-width": 1,
+      },
+    },
 
     // Radar reflector — RETRFL
     {
