@@ -1116,6 +1116,7 @@ const applyReconnectPacing = () => {
 document.addEventListener("visibilitychange", () => {
   const visible = document.visibilityState === "visible";
   navManager.setVisible(visible);
+  gps.sppProvider?.setOnScreen(visible);
   applyReconnectPacing();
   if (visible && lastNavData) {
     // Redraw the state that accumulated while the map work was gated off,
@@ -1126,6 +1127,8 @@ document.addEventListener("visibilitychange", () => {
     chartManager.map.triggerRepaint();
   }
 });
+// The page can load hidden (an update reload while in the background).
+gps.sppProvider?.setOnScreen(document.visibilityState === "visible");
 // Recording toggles flip pacing eligibility (setPacing dedups no-ops).
 onSettingsChange(() => applyReconnectPacing());
 
@@ -1355,7 +1358,12 @@ const cobManager = new CobManager({
     if (!trackRecorder.isRecording())
       updateSettings({ trackRecordingEnabled: true });
   },
-  onEmergencyChange: (active) => wakeLockCtrl.setEmergencyActive(active),
+  onEmergencyChange: (active) => {
+    wakeLockCtrl.setEmergencyActive(active);
+    if (Capacitor.getPlatform() === "android") {
+      BackgroundGPS.setCobActive({ active }).catch(console.error);
+    }
+  },
 });
 appUpdateBusy = () =>
   activeNav.getState().type !== "idle" ||

@@ -237,6 +237,9 @@ export interface BackgroundGPSPlugin {
   setRouteWatch(options: {
     route: SandboxRoute | null;
     source: RouteWatchSource;
+    /** Any navigation is active (a route or a go-to), followed or not;
+     *  it keeps the Bluetooth GPS link open. Android only. */
+    navigating?: boolean;
   }): Promise<void>;
 
   /**
@@ -247,6 +250,12 @@ export interface BackgroundGPSPlugin {
    * native side keeps chiming. Rejects on native shells older than this.
    */
   claimRouteWatch(): Promise<{ route: SandboxRoute | null }>;
+
+  /**
+   * A crew-overboard emergency began or ended. While one is under way the
+   * Bluetooth GPS link stays open with the app off screen. Android only.
+   */
+  setCobActive(options: { active: boolean }): Promise<void>;
 
   /** Check whether the foreground service is currently running. */
   isTracking(): Promise<{ tracking: boolean }>;

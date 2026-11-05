@@ -37,7 +37,7 @@ export type ConnectionEventType =
   | "device-selected" // detail: "<name> <deviceId>"
   | "connect-attempt" // detail: deviceId + cause (initial|retry|manual|restored)
   | "connected"
-  | "disconnected" // detail: "peripheral" | "user" | "provider-switch"
+  | "disconnected" // detail: "peripheral" | "user" | "provider-switch" | "idle"
   | "reconnect-scheduled" // detail: "<delayMs>ms"
   | "watchdog-silent"
   | "bt-enabled"

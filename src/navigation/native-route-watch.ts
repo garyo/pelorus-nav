@@ -90,7 +90,9 @@ export function startNativeRouteWatch(
     const state = activeNav.getState();
     const { waypointArrivalAlert, arrivalRadiusNM, gpsSource } = getSettings();
     const source = routeWatchSource(gpsSource);
+    const navigating = state.type !== "idle";
     const key = [
+      navigating,
       state.type === "route" ? state.route : null,
       state.type === "route" ? state.legIndex : null,
       waypointArrivalAlert,
@@ -102,7 +104,11 @@ export function startNativeRouteWatch(
     const route = source
       ? sandboxRouteFor(state, waypointArrivalAlert, arrivalRadiusNM)
       : null;
-    BackgroundGPS.setRouteWatch({ route, source: source ?? "device" }).then(
+    BackgroundGPS.setRouteWatch({
+      route,
+      source: source ?? "device",
+      navigating,
+    }).then(
       () => onFollowing(route !== null && source === "device"),
       () => {
         // An older native shell without the method: no background chime.

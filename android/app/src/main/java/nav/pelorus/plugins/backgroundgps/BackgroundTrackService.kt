@@ -312,6 +312,26 @@ class BackgroundTrackService : Service() {
         fun wantsSerialFixes(): Boolean =
             anchorParams != null || (followsRoute() && routeFromSerial)
 
+        /** A crew-overboard emergency is under way in the app. */
+        @Volatile var cobActive: Boolean = false
+
+        /** The app navigates a route or to a waypoint (setRouteWatch). */
+        @Volatile var navigating: Boolean = false
+
+        /**
+         * Something needs the Bluetooth GPS link open: the app on screen, a
+         * recording, an armed anchor watch, navigation, or a crew-overboard
+         * emergency. A route followed here holds it only until finished;
+         * other navigation — a go-to, or a route not followed here, as with
+         * the waypoint chime off — until the app ends it, since only the app
+         * can tell it arrived. With none of these for a while, the link is
+         * let go (BluetoothSerialPlugin): its stream would keep this device
+         * awake, and the receiver on, for fixes nobody reads.
+         */
+        fun wantsSerialLink(): Boolean =
+            appOnScreen || recordingWanted || anchorParams != null || cobActive ||
+                followsRoute() || (navigating && routeJson == null)
+
         /**
          * Something uses the device's own location: a recording, an armed
          * anchor watch, a route followed from the device's GPS, or the app

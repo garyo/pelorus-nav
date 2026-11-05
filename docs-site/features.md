@@ -152,7 +152,11 @@ signal at all.
 
 - **Device GPS** — the phone's or tablet's own receiver.
 - **Bluetooth GPS** — Classic NMEA receivers such as the Garmin GLO 2 (in
-  the Android app), and Bluetooth LE receivers.
+  the Android app), and Bluetooth LE receivers. A Classic receiver is
+  disconnected once the app has been in the background for 10 minutes with
+  nothing using it (no track recording, anchor watch, navigation or crew
+  overboard), so the tablet can sleep and the receiver can turn itself off;
+  the app reconnects when you return to it.
 - **USB serial GPS** in browsers that support Web Serial, such as Chrome
   and Edge on a computer.
 - **Signal K** (experimental) — the boat's own GPS and heading from a

@@ -237,8 +237,11 @@ class BackgroundGPSPlugin : Plugin() {
         BackgroundTrackService.stoppedListener = null // JS-initiated — no event
         BackgroundTrackService.instance?.cancelPendingPassive()
         BackgroundTrackService.trackingRequested = false
-        BackgroundTrackService.recordingWanted = false
-        RecordingDemandStore.save(context, false)
+        // A recording from another GPS (setRecordingDemand) outlives this one.
+        if (BackgroundTrackService.recordingFromDevice) {
+            BackgroundTrackService.recordingWanted = false
+            RecordingDemandStore.save(context, false)
+        }
         // Keeps running if an anchor watch is armed — the watch is a client of
         // its own, and the device GPS provider disconnecting (or the app going
         // hidden without recording) must not stand a watch down.
@@ -950,6 +953,7 @@ class BackgroundGPSPlugin : Plugin() {
      */
     @PluginMethod
     fun setRouteWatch(call: PluginCall) {
+        BackgroundTrackService.navigating = call.getBoolean("navigating", false) == true
         BackgroundTrackService.setRoute(
             call.getObject("route")?.toString(),
             call.getString("source") == "serial",
@@ -984,6 +988,13 @@ class BackgroundGPSPlugin : Plugin() {
         }
         val route = BackgroundTrackService.routeSnapshot()?.let { JSONObject(it) }
         call.resolve(JSObject().put("route", route ?: JSONObject.NULL))
+    }
+
+    /** A crew-overboard emergency began or ended; it keeps the Bluetooth GPS link open. */
+    @PluginMethod
+    fun setCobActive(call: PluginCall) {
+        BackgroundTrackService.cobActive = call.getBoolean("active", false) == true
+        call.resolve()
     }
 
     private val mainHandler = Handler(Looper.getMainLooper())

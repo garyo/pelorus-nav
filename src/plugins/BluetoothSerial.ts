@@ -27,9 +27,13 @@ export interface BluetoothSerialPlugin {
     eventName: "data",
     listener: (event: { data: string }) => void,
   ): Promise<PluginListenerHandle>;
+  /**
+   * The link closed. `idle` when it was let go because nothing needed it
+   * with the app off screen; the app reconnects once back on screen.
+   */
   addListener(
     eventName: "disconnected",
-    listener: () => void,
+    listener: (event: { idle?: boolean }) => void,
   ): Promise<PluginListenerHandle>;
   removeAllListeners(): Promise<void>;
 }

@@ -13,6 +13,9 @@
  *   requestSatelliteData is a no-op and satellite data is always parsed.
  * - The plugin has no adapter-state events; Bluetooth-off is detected on
  *   failure and polled until the radio returns.
+ * - The native side lets the link go when the app has been off screen a
+ *   while with nothing needing it (BluetoothSerialPlugin); the provider then
+ *   stays down until the app is back on screen.
  */
 
 import { BluetoothSerial } from "../plugins/BluetoothSerial";
@@ -50,6 +53,9 @@ export class CapacitorSPPNMEAProvider
   private battery: GpsBatteryInfo | null = null;
   private pluginListenersReady = false;
   private btPollTimer: ReturnType<typeof setTimeout> | null = null;
+  private onScreen = true;
+  /** The native side let the link go; reconnect once back on screen. */
+  private idleReleased = false;
   private readonly core: ReconnectingTransport;
   private readonly stream: NMEAStream;
   private readonly chooser: SppDeviceChooser;
@@ -105,6 +111,12 @@ export class CapacitorSPPNMEAProvider
     this.core.setPacing(relaxed);
   }
 
+  /** The app came on screen or left it. */
+  setOnScreen(onScreen: boolean): void {
+    this.onScreen = onScreen;
+    this.resumeIfOnScreen();
+  }
+
   connect(): void {
     if (!this.core.noteConnectRequested()) return;
     void this.startConnect();
@@ -115,6 +127,10 @@ export class CapacitorSPPNMEAProvider
   }
 
   disconnect(): void {
+    if (this.idleReleased) {
+      this.idleReleased = false;
+      this.core.resume();
+    }
     this.core.noteDisconnectRequested();
     this.device = null;
     this.battery = null;
@@ -277,10 +293,29 @@ export class CapacitorSPPNMEAProvider
       this.core.noteData();
       this.stream.push(event.data);
     });
-    await BluetoothSerial.addListener("disconnected", () => {
-      this.core.noteLinkDropped();
+    await BluetoothSerial.addListener("disconnected", (event) => {
+      if (event.idle) this.noteIdleRelease();
+      else this.core.noteLinkDropped();
     });
     this.pluginListenersReady = true;
+  }
+
+  /**
+   * The native side let the link go, unneeded with the app off screen. Keep
+   * the intent but stay down: retrying would only reopen it.
+   */
+  private noteIdleRelease(): void {
+    connectionLog.log(this.id, "disconnected", "idle");
+    this.core.suspend();
+    this.idleReleased = true;
+    this.resumeIfOnScreen();
+  }
+
+  private resumeIfOnScreen(): void {
+    if (!this.idleReleased || !this.onScreen) return;
+    this.idleReleased = false;
+    this.core.resume();
+    this.core.requestRetry();
   }
 
   private handleEstablished(): void {

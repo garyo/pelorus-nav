@@ -8,7 +8,7 @@ const fake = vi.hoisted(() => ({
   bondedDevices: [] as Array<{ deviceId: string; name: string }>,
   bondedFail: false,
   dataCallback: null as ((event: { data: string }) => void) | null,
-  disconnectedCallback: null as (() => void) | null,
+  disconnectedCallback: null as ((event: { idle?: boolean }) => void) | null,
   calls: {
     connect: [] as string[],
     getBondedDevices: 0,
@@ -52,7 +52,7 @@ vi.mock("../plugins/BluetoothSerial", () => ({
       if (event === "data") {
         fake.dataCallback = cb as (event: { data: string }) => void;
       } else if (event === "disconnected") {
-        fake.disconnectedCallback = cb as () => void;
+        fake.disconnectedCallback = cb as (event: { idle?: boolean }) => void;
       }
       return Promise.resolve({ remove: () => Promise.resolve() });
     }),
@@ -197,7 +197,7 @@ describe("CapacitorSPPNMEAProvider", () => {
     expect(provider.isConnected()).toBe(true);
     const connectsSoFar = fake.calls.connect.length;
 
-    fake.disconnectedCallback?.();
+    fake.disconnectedCallback?.({});
     expect(provider.isConnected()).toBe(false);
     await vi.advanceTimersByTimeAsync(2000);
 
@@ -279,6 +279,37 @@ describe("CapacitorSPPNMEAProvider", () => {
     expect(provider.isConnected()).toBe(false);
 
     await vi.advanceTimersByTimeAsync(10000);
+    expect(provider.isConnected()).toBe(true);
+  });
+
+  it("stays down after an idle release until back on screen", async () => {
+    const provider = makeProvider();
+    provider.connect();
+    await flush();
+    provider.setOnScreen(false);
+    const connectsSoFar = fake.calls.connect.length;
+
+    fake.disconnectedCallback?.({ idle: true });
+    await vi.advanceTimersByTimeAsync(600_000);
+    expect(provider.isConnected()).toBe(false);
+    expect(fake.calls.connect.length).toBe(connectsSoFar);
+
+    provider.setOnScreen(true);
+    await flush();
+    expect(provider.isConnected()).toBe(true);
+    expect(chooserCalls).toBe(1);
+  });
+
+  it("reconnects at once from an idle release heard back on screen", async () => {
+    const provider = makeProvider();
+    provider.connect();
+    await flush();
+    // The frozen page hears the release only after it is back on screen.
+    provider.setOnScreen(false);
+    provider.setOnScreen(true);
+
+    fake.disconnectedCallback?.({ idle: true });
+    await flush();
     expect(provider.isConnected()).toBe(true);
   });
 });

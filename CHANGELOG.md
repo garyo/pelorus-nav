@@ -21,6 +21,11 @@ The format follows [Keep a Changelog](https://keepachangelog.com/).
   comes from the device's GPS or, on Android, a Bluetooth GPS receiver.
 
 ### Changed
+- In the Android app, a Bluetooth GPS receiver such as the Garmin GLO 2 is
+  disconnected once the app has been in the background for 10 minutes with
+  nothing using it (no track recording, anchor watch, navigation or crew
+  overboard), so the tablet can sleep and the receiver can turn itself off.
+  The app reconnects when you return to it.
 - The Android app needs Android 8 or newer. On Android 7, track recording,
   anchor watch and background GPS crashed the app.
 - In a web browser, the app asks to keep its data (Firefox shows a prompt

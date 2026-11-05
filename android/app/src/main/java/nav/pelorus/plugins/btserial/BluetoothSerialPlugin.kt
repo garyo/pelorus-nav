@@ -8,6 +8,9 @@ import android.bluetooth.BluetoothManager
 import android.bluetooth.BluetoothSocket
 import android.content.Context
 import android.os.Build
+import android.os.Handler
+import android.os.Looper
+import android.os.SystemClock
 import com.getcapacitor.JSArray
 import com.getcapacitor.JSObject
 import com.getcapacitor.Plugin
@@ -40,6 +43,13 @@ import nav.pelorus.plugins.backgroundgps.DiagLog
  * position source the native anchor watch and route follower have. Without the
  * native retry, every transient Bluetooth dropout matured into a full
  * GPS-loss alarm two minutes later — one guaranteed crew wake per dropout.
+ *
+ * The opposite also holds: with the app off screen, an open link nobody
+ * reads still streams fixes (the GLO 2 sends ten a second), which keeps this
+ * device awake and the receiver from powering itself off. Once nothing has
+ * needed the link for [IDLE_RELEASE_MS] (BackgroundTrackService.wantsSerialLink),
+ * it is let go, with an "idle" disconnect that tells the app to reconnect
+ * only when it is back on screen.
  */
 @CapacitorPlugin(
     name = "BluetoothSerial",
@@ -51,6 +61,10 @@ class BluetoothSerialPlugin : Plugin() {
 
     companion object {
         private val SPP_UUID: UUID = UUID.fromString("00001101-0000-1000-8000-00805F9B34FB")
+        /** With the app off screen, the link is let go after nothing has needed it this long. */
+        private const val IDLE_RELEASE_MS = 10 * 60_000L
+        /** How often the off-screen app checks whether anything needs the link. */
+        private const val IDLE_CHECK_MS = 30_000L
     }
 
     @Volatile private var socket: BluetoothSocket? = null
@@ -63,6 +77,28 @@ class BluetoothSerialPlugin : Plugin() {
     @Volatile private var disconnectRequested = false
     /** A native reconnect loop is running (at most one at a time). */
     private val nativeReconnecting = AtomicBoolean(false)
+
+    private val mainHandler = Handler(Looper.getMainLooper())
+    /** When something last needed the link (elapsedRealtime). */
+    private var linkNeededAt = 0L
+    /**
+     * Runs every [IDLE_CHECK_MS] while the app is off screen. A main-thread
+     * timer never wakes a sleeping device, which costs nothing: one asleep
+     * is not reading the stream, and elapsedRealtime counts the sleep. Nor
+     * does it run while Android's cached-app freezer has the process frozen,
+     * when the link stays open until the app is thawed.
+     */
+    private val idleCheck = object : Runnable {
+        override fun run() {
+            val now = SystemClock.elapsedRealtime()
+            if (BackgroundTrackService.wantsSerialLink()) {
+                linkNeededAt = now
+            } else if (now - linkNeededAt >= IDLE_RELEASE_MS) {
+                releaseIdleLink()
+            }
+            mainHandler.postDelayed(this, IDLE_CHECK_MS)
+        }
+    }
 
     private val adapter: BluetoothAdapter?
         get() = (context.getSystemService(Context.BLUETOOTH_SERVICE) as? BluetoothManager)?.adapter
@@ -120,8 +156,33 @@ class BluetoothSerialPlugin : Plugin() {
         call.resolve()
     }
 
+    override fun handleOnStart() {
+        super.handleOnStart()
+        mainHandler.removeCallbacks(idleCheck)
+    }
+
+    override fun handleOnStop() {
+        super.handleOnStop()
+        linkNeededAt = SystemClock.elapsedRealtime()
+        mainHandler.removeCallbacks(idleCheck)
+        mainHandler.postDelayed(idleCheck, IDLE_CHECK_MS)
+    }
+
     override fun handleOnDestroy() {
+        mainHandler.removeCallbacks(idleCheck)
         closeSocket()
+    }
+
+    /**
+     * Let the link go: nothing has needed it for [IDLE_RELEASE_MS]. Closing
+     * the socket supersedes its reader, so the reader stays quiet: no second
+     * "disconnected", and no native reconnect.
+     */
+    private fun releaseIdleLink() {
+        if (socket == null) return
+        DiagLog.log(context, "conn", "bt-spp released: not needed with the app off screen")
+        closeSocket()
+        notifyListeners("disconnected", JSObject().put("idle", true))
     }
 
     @SuppressLint("MissingPermission")
