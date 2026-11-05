@@ -246,9 +246,9 @@ there.
 
 In the Android and iPhone apps the beep also sounds with the app in the
 background or the screen off, when your position comes from the device's own
-GPS or, on Android, a Bluetooth GPS receiver. With other sources (Signal K,
-the Pelorus GPS pod) it sounds only while the app is on screen. Turn the beep
-off with **Beep when passing a waypoint** in Settings → Navigation.
+GPS or, on Android, a Bluetooth GPS receiver. With other sources, such as
+Signal K, it sounds only while the app is on screen. Turn the beep off with
+**Beep when passing a waypoint** in Settings → Navigation.
 
 You can start navigating from anywhere along a route: Pelorus steers for
 the leg ahead of you — the nearest leg whose next waypoint lies within

@@ -792,9 +792,7 @@ Theme of this release: route editing improvements! People coming from OpenCPN sh
   connected), "NO DATA" (device connected but silent — check the device),
   or "NO FIX" (device healthy, still waiting for satellites).
 - Bug reports include a live navigation snapshot (source, connection,
-  data/fix ages) and, for the Pelorus GPS pod, the pod's own status
-  counters — fetched over Bluetooth in a couple of seconds, skipped
-  instantly if the pod doesn't answer.
+  data/fix ages).
 
 ### Fixed
 - Streamed (not-downloaded) charts failed to load from the production
