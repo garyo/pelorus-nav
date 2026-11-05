@@ -12,6 +12,7 @@ import {
   describeResumeGap,
 } from "./map/backlog-notice";
 import { showInterruptionToast } from "./map/interruption-toast";
+import { createFixLateness } from "./navigation/fix-lateness";
 import { startNativeRouteWatch } from "./navigation/native-route-watch";
 import { playWaypointChime } from "./navigation/waypoint-chime";
 import { BackgroundGPS } from "./plugins/BackgroundGPS";
@@ -1231,11 +1232,30 @@ new BearingLine(chartManager.map, activeNav, navManager);
 // Passing a route waypoint: a short chime (vibration on a phone) and a
 // notice; three notes on arriving at the last one. Only live fixes chime:
 // those buffered while the app was frozen arrive late, all at once, and the
-// native side has already chimed for them.
+// native side has already chimed for them. Lateness allows for a device
+// clock that disagrees with the GPS's (fix-lateness.ts).
 const LIVE_FIX_MS = 10_000;
+/** On screen this long, any backlog has drained and fixes are live. */
+const STEADY_ON_SCREEN_MS = 15_000;
+const fixLateness = createFixLateness();
+// A monotonic stopwatch: a device clock that jumps can't fake steadiness.
+let onScreenSince = document.hidden
+  ? Number.POSITIVE_INFINITY
+  : performance.now();
+document.addEventListener("visibilitychange", () => {
+  onScreenSince = document.hidden
+    ? Number.POSITIVE_INFINITY
+    : performance.now();
+});
+navManager.subscribe((data) => {
+  const steady = performance.now() - onScreenSince > STEADY_ON_SCREEN_MS;
+  fixLateness.note(data.timestamp, Date.now(), steady);
+});
 activeNav.onArrival(({ waypoint, next, fixTime }) => {
   if (!getSettings().waypointArrivalAlert) return;
-  if (Date.now() - fixTime < LIVE_FIX_MS) playWaypointChime(next === null);
+  if (fixLateness.of(fixTime, Date.now()) < LIVE_FIX_MS) {
+    playWaypointChime(next === null);
+  }
   const name = waypoint.name || "waypoint";
   showToast({
     message:

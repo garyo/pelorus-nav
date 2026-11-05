@@ -29,6 +29,7 @@ import type { NavigationData } from "../navigation/NavigationData";
 import type { NavigationDataManager } from "../navigation/NavigationDataManager";
 import { smoothTrack } from "../navigation/RTSmoother";
 import { BackgroundGPS } from "../plugins/BackgroundGPS";
+import { getSettings, onSettingsChange } from "../settings";
 import { haversineDistanceNM } from "../utils/coordinates";
 import { diag } from "../utils/diag";
 import { formatLocalDateTime } from "../utils/format";
@@ -162,6 +163,14 @@ export class TrackRecorder {
 
   constructor(navManager: NavigationDataManager) {
     this.navManager = navManager;
+    // The native side keeps the device's location running only for a
+    // recording from it: tell it when the source changes mid-recording.
+    let source = getSettings().gpsSource;
+    onSettingsChange((s) => {
+      if (s.gpsSource === source) return;
+      source = s.gpsSource;
+      if (this.recording) this.setNativeRecordingDemand(true);
+    });
   }
 
   /** See closingTrackId — non-null while a stop()'s final write is in flight. */
@@ -350,10 +359,14 @@ export class TrackRecorder {
     BackgroundGPS.setNotificationText({ text }).catch(console.error);
   }
 
-  /** Keeps the native GPS service alive across an OS kill while recording. */
+  /** Keeps the native GPS service alive across an OS kill while recording,
+   *  and the device's location running when recording from it. */
   private setNativeRecordingDemand(recording: boolean): void {
     if (Capacitor.getPlatform() !== "android") return;
-    BackgroundGPS.setRecordingDemand({ recording }).catch(console.error);
+    BackgroundGPS.setRecordingDemand({
+      recording,
+      fromDevice: getSettings().gpsSource === "capacitor-gps",
+    }).catch(console.error);
   }
 
   onRecordingChange(fn: RecorderListener): void {

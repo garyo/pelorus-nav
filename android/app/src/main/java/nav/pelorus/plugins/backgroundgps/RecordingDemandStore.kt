@@ -21,13 +21,26 @@ object RecordingDemandStore {
 
     private const val PREFS = "pelorus_tracking_demand"
     private const val KEY_WANTED = "wanted"
+    private const val KEY_FROM_DEVICE = "fromDevice"
 
     private fun prefs(context: Context) =
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
 
-    fun save(context: Context, wanted: Boolean) {
-        prefs(context).edit().putBoolean(KEY_WANTED, wanted).apply()
+    /** `fromDevice`: the recording uses the device's own GPS (not, say, a
+     *  Bluetooth GPS), so the device's location must keep running for it. */
+    fun save(context: Context, wanted: Boolean, fromDevice: Boolean = true) {
+        prefs(context).edit()
+            .putBoolean(KEY_WANTED, wanted)
+            .putBoolean(KEY_FROM_DEVICE, fromDevice)
+            .apply()
     }
+
+    fun loadFromDevice(context: Context): Boolean =
+        try {
+            prefs(context).getBoolean(KEY_FROM_DEVICE, true)
+        } catch (_: Exception) {
+            true
+        }
 
     fun load(context: Context): Boolean =
         try {

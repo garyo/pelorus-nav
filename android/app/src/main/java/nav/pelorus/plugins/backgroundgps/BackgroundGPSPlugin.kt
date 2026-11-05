@@ -86,11 +86,13 @@ class BackgroundGPSPlugin : Plugin() {
     }
 
     /**
-     * Start or stop the foreground service to match demand. Two independent
-     * clients need it: the device-GPS provider (startTracking/stopTracking)
-     * and an armed anchor watch, which must keep detecting whatever GPS
-     * source the app itself is displaying. Neither may end the other's
-     * service.
+     * Start or stop the foreground service to match demand. Three independent
+     * clients need it: the device-GPS provider (startTracking/stopTracking),
+     * an armed anchor watch, which must keep detecting whatever GPS source
+     * the app itself is displaying, and a route followed in the background
+     * (setRouteWatch) until it is finished. None may end another's service.
+     * Each change also re-decides whether the device's own location is
+     * needed (BackgroundTrackService.wantsDeviceFixes).
      *
      * A running service is also re-started when arming or disarming a watch:
      * the restart policy is the return value of onStartCommand, so the service
@@ -100,9 +102,10 @@ class BackgroundGPSPlugin : Plugin() {
      * in the foreground, where starting a foreground service is allowed.
      */
     private fun syncServiceDemand() {
+        BackgroundTrackService.instance?.applyMode()
         val armed = BackgroundTrackService.anchorParams != null
         val wanted = BackgroundTrackService.trackingRequested || armed ||
-            BackgroundTrackService.routeJson != null
+            BackgroundTrackService.followsRoute()
         val running = BackgroundTrackService.instance != null
         val sticky = armed || BackgroundTrackService.recordingWanted
         val stickinessStale = running && BackgroundTrackService.startedSticky != sticky
@@ -494,8 +497,12 @@ class BackgroundGPSPlugin : Plugin() {
     @PluginMethod
     fun setRecordingDemand(call: PluginCall) {
         val recording = call.getBoolean("recording", false) == true
+        // Unsaid (an older app): assume the device's GPS, which errs toward
+        // keeping the device's location running.
+        val fromDevice = call.getBoolean("fromDevice", true) != false
         BackgroundTrackService.recordingWanted = recording
-        RecordingDemandStore.save(context, recording)
+        BackgroundTrackService.recordingFromDevice = fromDevice
+        RecordingDemandStore.save(context, recording, fromDevice)
         syncServiceDemand()
         call.resolve()
     }
@@ -947,7 +954,15 @@ class BackgroundGPSPlugin : Plugin() {
             call.getObject("route")?.toString(),
             call.getString("source") == "serial",
         )
-        syncServiceDemand()
+        try {
+            syncServiceDemand()
+        } catch (e: Exception) {
+            // Android 12+ refuses a foreground-service start from an app in
+            // the background (ForegroundServiceStartNotAllowedException). The
+            // route stands; the app claims it when back on screen, and the
+            // claim starts the service.
+            DiagLog.log(context, "plugin", "route watch: service start refused: ${e.javaClass.simpleName}")
+        }
         call.resolve()
     }
 
@@ -961,6 +976,12 @@ class BackgroundGPSPlugin : Plugin() {
     fun claimRouteWatch(call: PluginCall) {
         mainHandler.removeCallbacks(claimFallback)
         BackgroundTrackService.appVisible = true
+        BackgroundTrackService.instance?.applyMode()
+        try {
+            syncServiceDemand()
+        } catch (e: Exception) {
+            DiagLog.log(context, "plugin", "claim: service start refused: ${e.javaClass.simpleName}")
+        }
         val route = BackgroundTrackService.routeSnapshot()?.let { JSONObject(it) }
         call.resolve(JSObject().put("route", route ?: JSONObject.NULL))
     }
@@ -972,6 +993,8 @@ class BackgroundGPSPlugin : Plugin() {
 
     override fun handleOnStart() {
         super.handleOnStart()
+        BackgroundTrackService.appOnScreen = true
+        BackgroundTrackService.instance?.applyMode()
         mainHandler.postDelayed(claimFallback, CLAIM_FALLBACK_MS)
     }
 
@@ -979,6 +1002,8 @@ class BackgroundGPSPlugin : Plugin() {
         super.handleOnStop()
         mainHandler.removeCallbacks(claimFallback)
         BackgroundTrackService.appVisible = false
+        BackgroundTrackService.appOnScreen = false
+        BackgroundTrackService.instance?.applyMode()
     }
 
     @PluginMethod

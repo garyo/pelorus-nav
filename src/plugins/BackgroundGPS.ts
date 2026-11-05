@@ -230,7 +230,9 @@ export interface BackgroundGPSPlugin {
    * The route the service follows while the app is in the background, to
    * chime as each waypoint is passed (see route-sandbox.ts), or null for
    * none, and the position stream it follows it by. Following a route keeps
-   * the service running. Rejects on native shells older than this method.
+   * the service running until it reaches the last waypoint; the device's own
+   * location runs for it only when that is the stream. Rejects on native
+   * shells older than this method.
    */
   setRouteWatch(options: {
     route: SandboxRoute | null;
@@ -364,11 +366,16 @@ export interface BackgroundGPSPlugin {
   ): Promise<PluginListenerHandle>;
 
   /**
-   * Whether a track is being recorded from the device GPS. While it is, the
-   * native service survives an OS kill and keeps buffering fixes for the
-   * next launch. Android only.
+   * Whether a track is being recorded, and whether from the device's own GPS
+   * (`fromDevice`; unsaid, assumed so). While it is, the native service
+   * survives an OS kill and keeps buffering fixes for the next launch, and —
+   * from the device's GPS — keeps the device's location running. Android
+   * only.
    */
-  setRecordingDemand(options: { recording: boolean }): Promise<void>;
+  setRecordingDemand(options: {
+    recording: boolean;
+    fromDevice?: boolean;
+  }): Promise<void>;
 
   /**
    * Open the system dialog that exempts the app from battery optimization,

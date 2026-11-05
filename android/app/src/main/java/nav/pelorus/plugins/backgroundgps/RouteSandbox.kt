@@ -28,6 +28,9 @@ import java.util.concurrent.TimeUnit
 class RouteSandbox(
     context: Context,
     private val onArrival: (reached: String, next: String?, vibrate: LongArray) -> Unit,
+    /** The route as followed (leg current) and whether it is finished,
+     *  whenever either changes. */
+    private val onFollowed: (route: String?, finished: Boolean) -> Unit,
 ) {
     private val appContext = context.applicationContext
     private val executor = Executors.newSingleThreadExecutor()
@@ -38,9 +41,8 @@ class RouteSandbox(
      *  the last waypoint once finished, so a stale leg can't restart it. */
     private var route: JSONObject? = null
 
-    /** [route] as JSON, readable from any thread: what the app reads back. */
-    @Volatile var snapshot: String? = null
-        private set
+    /** The route is followed to its end: no fix needs evaluating. */
+    private var finished = false
 
     /**
      * Follow `json` (a SandboxRoute), or stop following on null. With
@@ -51,16 +53,9 @@ class RouteSandbox(
      */
     fun setRoute(json: String?, keepAhead: Boolean) = executor.execute {
         val incoming = json?.let { JSONObject(it) }
-        val current = route
-        if (keepAhead && incoming != null && current != null &&
-            incoming.optJSONArray("waypoints")?.toString() ==
-            current.optJSONArray("waypoints")?.toString() &&
-            incoming.optInt("legIndex") < current.optInt("legIndex")
-        ) {
-            return@execute
-        }
+        if (keepAhead && isBehind(incoming, route)) return@execute
         route = incoming
-        snapshot = incoming?.toString()
+        publish()
         val iso = isolate ?: return@execute
         try {
             load(iso)
@@ -70,7 +65,7 @@ class RouteSandbox(
     }
 
     fun onFix(lat: Double, lon: Double, sogKn: Double?, cogDeg: Double?) = executor.execute {
-        if (route == null) return@execute
+        if (route == null || finished) return@execute
         val iso = isolate ?: connect() ?: return@execute
         try {
             val result = iso.evaluateJavaScriptAsync(
@@ -79,9 +74,9 @@ class RouteSandbox(
             if (result.isEmpty()) return@execute
             val arrival = JSONObject(result)
             val legIndex = arrival.getInt("legIndex")
-            val finished = route?.optJSONArray("waypoints")?.length() ?: 0
-            route?.put("legIndex", if (legIndex < 0) finished else legIndex)
-            snapshot = route?.toString()
+            val count = route?.optJSONArray("waypoints")?.length() ?: 0
+            route?.put("legIndex", if (legIndex < 0) count else legIndex)
+            publish()
             val pattern = arrival.getJSONArray("vibrate")
             onArrival(
                 arrival.getString("reached"),
@@ -132,6 +127,12 @@ class RouteSandbox(
         }
     }
 
+    private fun publish() {
+        val r = route
+        finished = isFinished(r)
+        onFollowed(r?.toString(), finished)
+    }
+
     private fun load(iso: JavaScriptIsolate) {
         // JSONObject.quote makes the route JSON a JS string literal.
         val arg = route?.let { JSONObject.quote(it.toString()) } ?: "\"\""
@@ -148,9 +149,21 @@ class RouteSandbox(
         }
     }
 
-    private companion object {
-        const val SCRIPT_ASSET = "route-sandbox.js"
-        const val CONNECT_TIMEOUT_S = 10L
-        const val EVAL_TIMEOUT_S = 5L
+    companion object {
+        /** `incoming` is the same route as `current` on an earlier leg. */
+        fun isBehind(incoming: JSONObject?, current: JSONObject?): Boolean =
+            incoming != null && current != null &&
+                incoming.optJSONArray("waypoints")?.toString() ==
+                current.optJSONArray("waypoints")?.toString() &&
+                incoming.optInt("legIndex") < current.optInt("legIndex")
+
+        /** The route is followed past its last waypoint. */
+        fun isFinished(route: JSONObject?): Boolean =
+            route != null &&
+                route.optInt("legIndex") >= (route.optJSONArray("waypoints")?.length() ?: 0)
+
+        private const val SCRIPT_ASSET = "route-sandbox.js"
+        private const val CONNECT_TIMEOUT_S = 10L
+        private const val EVAL_TIMEOUT_S = 5L
     }
 }

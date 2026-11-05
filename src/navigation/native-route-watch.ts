@@ -5,8 +5,9 @@
  * the route and leg whenever either changes, and nothing — clearing the
  * native copy — when not following a route, when the waypoint chime is
  * turned off, or when the position comes from a source only the frozen app
- * can read. `onFollowing` hears whether the native side has a route, which
- * is a reason to keep GPS running in the background.
+ * can read. `onFollowing` hears whether the native side follows a route by
+ * the device's own GPS, which must then keep running in the background (a
+ * Bluetooth GPS the native side reads itself, and needs no device GPS).
  */
 
 import { Capacitor } from "@capacitor/core";
@@ -102,7 +103,7 @@ export function startNativeRouteWatch(
       ? sandboxRouteFor(state, waypointArrivalAlert, arrivalRadiusNM)
       : null;
     BackgroundGPS.setRouteWatch({ route, source: source ?? "device" }).then(
-      () => onFollowing(route !== null),
+      () => onFollowing(route !== null && source === "device"),
       () => {
         // An older native shell without the method: no background chime.
       },

@@ -25,6 +25,7 @@ import android.os.IBinder
 import android.os.Looper
 import android.os.PowerManager
 import android.os.SystemClock
+import org.json.JSONObject
 import android.os.VibrationEffect
 import android.os.Vibrator
 import android.os.VibratorManager
@@ -261,13 +262,47 @@ class BackgroundTrackService : Service() {
 
         private const val MS_TO_KNOTS = 1.943844
 
+        /**
+         * The route as the sandbox follows it, leg current, as JSON: what the
+         * app reads back when it claims the route. Kept here, with
+         * [routeFinished], so they outlast the service.
+         */
+        @Volatile var followedRoute: String? = null
+
+        /** The sandbox has followed the route to its last waypoint. */
+        @Volatile var routeFinished = false
+
         /** The followed route as the sandbox holds it, leg current, as JSON. */
-        fun routeSnapshot(): String? = instance?.routeSandbox?.snapshot
+        fun routeSnapshot(): String? = followedRoute ?: routeJson
+
+        /**
+         * The app's activity is on screen (onStart..onStop). Unlike
+         * [appVisible], this needs no claim: it decides whether the app's
+         * own tracking needs the device's location.
+         */
+        @Volatile var appOnScreen: Boolean = true
+
+        /** The recording ([recordingWanted]) uses the device's own GPS. */
+        @Volatile var recordingFromDevice: Boolean = true
+
+        /** A route is being followed: set, and not yet finished. */
+        fun followsRoute(): Boolean = routeJson != null && !routeFinished
 
         fun setRoute(json: String?, fromSerial: Boolean) {
             routeJson = json
             routeFromSerial = fromSerial
-            instance?.routeSandbox?.setRoute(json, keepAhead = !appVisible)
+            val keepAhead = !appVisible
+            // Decide here, as the sandbox will on its own thread, so whoever
+            // asks followsRoute() next — this applyMode, the plugin's service
+            // demand — already has the answer.
+            val incoming = json?.let { JSONObject(it) }
+            val current = followedRoute?.let { JSONObject(it) }
+            if (!(keepAhead && RouteSandbox.isBehind(incoming, current))) {
+                followedRoute = json
+                routeFinished = RouteSandbox.isFinished(incoming)
+            }
+            instance?.routeSandbox?.setRoute(json, keepAhead)
+            instance?.applyMode()
         }
 
         /**
@@ -275,7 +310,19 @@ class BackgroundTrackService : Service() {
          * watch, or for a route followed from it.
          */
         fun wantsSerialFixes(): Boolean =
-            anchorParams != null || (routeJson != null && routeFromSerial)
+            anchorParams != null || (followsRoute() && routeFromSerial)
+
+        /**
+         * Something uses the device's own location: a recording, an armed
+         * anchor watch, a route followed from the device's GPS, or the app
+         * itself while it is on screen. Off screen, the app's tracking
+         * request with none of these only kept the GPS alive for a route —
+         * one followed from a Bluetooth GPS, or finished.
+         */
+        fun wantsDeviceFixes(): Boolean =
+            (recordingWanted && recordingFromDevice) || anchorParams != null ||
+                (followsRoute() && !routeFromSerial) ||
+                (trackingRequested && appOnScreen)
 
         /**
          * The armed anchor watch, or null. Lives in the companion so it
@@ -424,7 +471,7 @@ class BackgroundTrackService : Service() {
 
     private lateinit var fusedClient: FusedLocationProviderClient
     private lateinit var trackDb: TrackDatabase
-    private var routeSandbox: RouteSandbox? = null
+    @Volatile private var routeSandbox: RouteSandbox? = null
     private var chimePlayer: MediaPlayer? = null
     private lateinit var locationCallback: LocationCallback
     private var partialWakeLock: PowerManager.WakeLock? = null
@@ -589,6 +636,7 @@ class BackgroundTrackService : Service() {
         if (!trackingRequested && RecordingDemandStore.load(this)) {
             trackingRequested = true
             recordingWanted = true
+            recordingFromDevice = RecordingDemandStore.loadFromDevice(this)
             trackingRestoredFromStore = true
             currentMode = MODE_PASSIVE
             Log.i(TAG, "Restored recording demand after process restart")
@@ -606,7 +654,14 @@ class BackgroundTrackService : Service() {
         }
         fusedClient = LocationServices.getFusedLocationProviderClient(this)
         trackDb = TrackDatabase(this)
-        routeSandbox = RouteSandbox(this, ::onRouteArrival).also { it.setRoute(routeJson, keepAhead = false) }
+        routeSandbox = RouteSandbox(this, ::onRouteArrival) { route, finished ->
+            followedRoute = route
+            routeFinished = finished
+        }.also {
+            // Resume as the last sandbox left it — its leg, or finished — not
+            // from the leg the app last sent.
+            it.setRoute(followedRoute ?: routeJson, keepAhead = false)
+        }
         alarmManager = getSystemService(Context.ALARM_SERVICE) as AlarmManager
         locationManager = getSystemService(Context.LOCATION_SERVICE) as? LocationManager
 
@@ -783,6 +838,7 @@ class BackgroundTrackService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        lastStartId = startId
         DiagLog.log(this, "svc", "onStartCommand action=${intent?.action} startId=$startId mode=$currentMode")
         if (intent?.action == ACTION_STOP) {
             // Notification Stop: the user ended tracking outside JS. Tell the
@@ -847,6 +903,16 @@ class BackgroundTrackService : Service() {
     }
 
     override fun onBind(intent: Intent?): IBinder? = null
+
+    /** The latest start command, so a stop can't discard a newer start. */
+    private var lastStartId = 0
+
+    /** Stop the service when nothing keeps it running any longer. */
+    private fun stopIfUnwanted() {
+        if (trackingRequested || anchorParams != null || followsRoute()) return
+        DiagLog.log(this, "svc", "nothing left to do: stopping")
+        stopSelfResult(lastStartId)
+    }
 
     override fun onDestroy() {
         super.onDestroy()
@@ -997,6 +1063,26 @@ class BackgroundTrackService : Service() {
         // chip-power cost; FLP still duty-cycles internally between fixes.
         val priority = Priority.PRIORITY_HIGH_ACCURACY
 
+        // Nothing uses the device's own location (see wantsDeviceFixes): don't
+        // ask for it, and hold no wake lock or watchdog for it — on a device
+        // without GPS, asking means Wi-Fi scans every few seconds.
+        if (!wantsDeviceFixes()) {
+            if (holdLockContinuously) {
+                partialWakeLock?.takeIf { it.isHeld }?.release()
+                holdLockContinuously = false
+            }
+            inKick = false
+            watchdogBackoff.reset()
+            cancelWatchdog()
+            if (appliedIntervalMs != -1L) {
+                fusedClient.removeLocationUpdates(locationCallback)
+                appliedIntervalMs = -1L
+                appliedPriority = -1
+                DiagLog.log(applicationContext, "svc", "device location off: nothing uses it")
+            }
+            return
+        }
+
         // Wake-lock policy first: if entering PASSIVE, drop the continuous hold;
         // if entering ACTIVE, re-acquire it before we start delivering 1 Hz fixes.
         if (passive && holdLockContinuously) {
@@ -1066,6 +1152,12 @@ class BackgroundTrackService : Service() {
      * a kick without an accepted fix (give up).
      */
     private fun onWatchdogFired() {
+        // An alarm already on its way when the device's location stopped
+        // being needed: kicking the chip now would only hold a wake lock.
+        if (!wantsDeviceFixes()) {
+            inKick = false
+            return
+        }
         // If we've left PASSIVE while the alarm was in flight (e.g. user
         // brought the app to foreground), there's nothing to do.
         if (currentMode != MODE_PASSIVE) {
@@ -1468,7 +1560,7 @@ class BackgroundTrackService : Service() {
         // rate limit stay here (single caller); the detector itself is only
         // ever touched on the main looper, so the accepted fix hops there.
         val anchor = anchorDetector != null
-        val route = routeFromSerial && routeJson != null
+        val route = routeFromSerial && followsRoute()
         if (!anchor && !route) return
         for (line in serialNmeaAssembler.feed(chunk)) {
             val fix = parseNmeaRmc(line) ?: continue
@@ -2037,6 +2129,9 @@ class BackgroundTrackService : Service() {
     private fun onRouteArrival(reached: String, next: String?, vibrate: LongArray) {
         val visible = appVisible
         DiagLog.log(applicationContext, "route", "passed '$reached' next='${next ?: ""}' appVisible=$visible")
+        // Finished: what kept the device's location or the service running
+        // for the route may no longer be needed.
+        if (next == null) mainHandler.post { applyMode(); stopIfUnwanted() }
         if (visible) return
         mainHandler.post {
             chimePlayer?.release()
