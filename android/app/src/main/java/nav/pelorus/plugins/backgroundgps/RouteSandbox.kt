@@ -1,7 +1,6 @@
 package nav.pelorus.plugins.backgroundgps
 
 import android.content.Context
-import android.os.Build
 import androidx.javascriptengine.JavaScriptIsolate
 import androidx.javascriptengine.JavaScriptSandbox
 import org.json.JSONObject
@@ -22,8 +21,7 @@ import java.util.concurrent.TimeUnit
  * dies resumes from it rather than from the leg the app last sent.
  *
  * All sandbox calls run on one background thread. Devices whose WebView
- * lacks the sandbox (or Android before 8) simply never chime in the
- * background.
+ * lacks the sandbox simply never chime in the background.
  */
 class RouteSandbox(
     context: Context,
@@ -105,7 +103,7 @@ class RouteSandbox(
 
     private fun connect(): JavaScriptIsolate? {
         if (unsupported) return null
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O || !JavaScriptSandbox.isSupported()) {
+        if (!JavaScriptSandbox.isSupported()) {
             unsupported = true
             DiagLog.log(appContext, "route", "JavaScriptSandbox unsupported; no background chimes")
             return null
