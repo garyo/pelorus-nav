@@ -234,14 +234,21 @@ reads long for a minute or two while the average catches up.
 The orange dashed line runs from your vessel to the waypoint you're
 steering for; the solid blue line with time ticks is your projected course.
 
-When you arrive at a waypoint (within the arrival radius of 0.1 NM) or pass
-it, navigation advances to the next leg automatically, with a short two-tone
-beep and a notice (three notes at the last waypoint). You've passed a
-waypoint once you draw level with it, or, if you turn for the next leg
-early, once it is abeam or behind you and you're nearer the next leg than
-the one you're on. The last waypoint is reached only by arriving within the
-radius. Turn the beep off
-with **Beep when passing a waypoint** in Settings → Navigation.
+When you reach a waypoint or pass it, navigation advances to the next leg
+automatically, with a short two-tone beep and a notice (three notes at the
+last waypoint). You reach a waypoint at your closest approach to it within
+the arrival radius (0.1 NM): once it is abeam or behind you, not as soon as
+you are inside the radius. You've passed a waypoint once you draw level with
+it, or, if you turn for the next leg early, once it is abeam or behind you
+and you're nearer the next leg than the one you're on. The last waypoint is
+reached only within the radius: at your closest approach, or when you stop
+there.
+
+In the Android and iPhone apps the beep also sounds with the app in the
+background or the screen off, when your position comes from the device's own
+GPS or, on Android, a Bluetooth GPS receiver. With other sources (Signal K,
+the Pelorus GPS pod) it sounds only while the app is on screen. Turn the beep
+off with **Beep when passing a waypoint** in Settings → Navigation.
 
 You can start navigating from anywhere along a route: Pelorus steers for
 the leg ahead of you — the nearest leg whose next waypoint lies within

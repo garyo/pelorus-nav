@@ -16,6 +16,9 @@ The format follows [Keep a Changelog](https://keepachangelog.com/).
   clearances are measured from (tap it for what that means).
 - Tapping the GPS status indicator (GPS / NO FIX / NO GPS) opens the GPS
   settings.
+- In the Android and iPhone apps, the beep for passing a route waypoint
+  sounds with the app in the background or the screen off, when the position
+  comes from the device's GPS or, on Android, a Bluetooth GPS receiver.
 
 ### Changed
 - The Android app needs Android 8 or newer. On Android 7, track recording,
