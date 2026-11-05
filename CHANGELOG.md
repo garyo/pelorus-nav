@@ -7,6 +7,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-11-05
+
 ### Added
 - River charts from the US Army Corps of Engineers in two new chart regions,
   Upper Mississippi & Ohio Rivers and Lower Mississippi & Tennessee Rivers:
