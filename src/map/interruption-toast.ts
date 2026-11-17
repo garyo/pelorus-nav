@@ -1,16 +1,19 @@
 /**
  * The one toast for a recording the system interrupted — shared by the
  * backlog-recovery notice and the resumed-track gap notice (backlog-notice.ts
- * words both). On Android it offers the remedy: the "Settings" action opens
- * the battery-exemption dialog or, once the app is exempt, its system
- * settings page; on Samsung phones the message also names the separate
- * sleeping-apps limit. iOS and web get the message alone — there is no
- * equivalent setting to open.
+ * words both). On Android it offers the remedy: the "Settings" action first
+ * offers "Allow all the time" location, without which the recording can't
+ * restart in the background (background-location.ts); once that is granted,
+ * it opens the battery-exemption dialog or, once the app is exempt, its
+ * system settings page. On Samsung phones the message also names the
+ * separate sleeping-apps limit. iOS and web get the message alone — there
+ * is no equivalent setting to open.
  */
 
 import { Capacitor } from "@capacitor/core";
 import { BackgroundGPS } from "../plugins/BackgroundGPS";
 import { showToast } from "../ui/Toast";
+import { offerBackgroundLocation } from "./background-location";
 import { withVendorAdvice } from "./backlog-notice";
 
 /** Long enough to read two sentences and reach for the action. */
@@ -48,7 +51,11 @@ export async function showInterruptionToast(
     durationMs: NOTICE_MS,
     actionLabel: "Settings",
     onAction: () => {
-      BackgroundGPS.openBackgroundSettings().catch(console.error);
+      void offerBackgroundLocation({ again: true }).then((offered) => {
+        if (!offered) {
+          BackgroundGPS.openBackgroundSettings().catch(console.error);
+        }
+      });
     },
   });
 }

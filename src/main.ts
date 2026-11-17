@@ -7,6 +7,7 @@ import { type AddProtocolAction, addProtocol, setWorkerUrl } from "maplibre-gl";
 // worker pipeline (`?worker&url` emits a self-contained bundle — the raw dist
 // file imports a sibling module that wouldn't be emitted alongside it).
 import maplibreWorkerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url";
+import { offerBackgroundLocation } from "./map/background-location";
 import {
   describeBacklogRecovery,
   describeResumeGap,
@@ -1910,6 +1911,30 @@ anchorManager.restore();
 // native watch this side has no record of is stood down. JS owns the
 // geometry, the storage slot and the user's disarm, so it is the authority.
 nativeAnchorWatch.reconcile();
+
+// "Allow all the time" location (background-location.ts): offered when the
+// user starts a recording from the device's GPS or arms an anchor watch —
+// wired after the restores above, so resuming either at startup doesn't
+// count — and never over a crew-overboard emergency, which starts a
+// recording itself.
+{
+  let recording = getSettings().trackRecordingEnabled;
+  onSettingsChange((s) => {
+    const started = s.trackRecordingEnabled && !recording;
+    recording = s.trackRecordingEnabled;
+    if (started && s.gpsSource === "capacitor-gps" && !cobManager.isActive()) {
+      void offerBackgroundLocation();
+    }
+  });
+  let armed = anchorManager.isArmed();
+  anchorManager.subscribe(() => {
+    const nowArmed = anchorManager.isArmed();
+    if (nowArmed && !armed && !cobManager.isActive()) {
+      void offerBackgroundLocation();
+    }
+    armed = nowArmed;
+  });
+}
 
 // Boot readiness signal for the E2E suite (waitForAppReady in
 // tests/e2e/helpers.ts): both restores are done and the app database is

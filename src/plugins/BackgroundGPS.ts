@@ -402,7 +402,17 @@ export interface BackgroundGPSPlugin {
   getBackgroundInfo(): Promise<{
     manufacturer: string;
     batteryOptimized: boolean;
+    /** "Allow all the time" location: the service can restart in the
+     *  background after the system kills the app. */
+    backgroundLocation: boolean;
   }>;
+
+  /**
+   * Ask for "Allow all the time" location, after the app's own disclosure
+   * (background-location.ts). On Android 11 and later this opens the app's
+   * location settings page. Resolves whether it is granted. Android only.
+   */
+  requestBackgroundLocation(): Promise<{ granted: boolean }>;
 
   /**
    * Open the screen where the user can stop the system from killing the

@@ -33,6 +33,10 @@ import org.json.JSONObject
         Permission(
             strings = [Manifest.permission.POST_NOTIFICATIONS],
             alias = "notifications"
+        ),
+        Permission(
+            strings = [Manifest.permission.ACCESS_BACKGROUND_LOCATION],
+            alias = "backgroundLocation"
         )
     ]
 )
@@ -133,6 +137,41 @@ class BackgroundGPSPlugin : Plugin() {
         androidx.core.content.ContextCompat.checkSelfPermission(
             context, Manifest.permission.ACCESS_FINE_LOCATION
         ) == android.content.pm.PackageManager.PERMISSION_GRANTED
+
+    /**
+     * "Allow all the time" location. Without it, the service's location
+     * type may only start while the app is in the foreground, so a restart
+     * after the system kills the app in the background is refused. Before
+     * Android 10 the plain location permission covers the background.
+     */
+    private fun hasBackgroundLocation(): Boolean =
+        Build.VERSION.SDK_INT < Build.VERSION_CODES.Q ||
+            androidx.core.content.ContextCompat.checkSelfPermission(
+                context, Manifest.permission.ACCESS_BACKGROUND_LOCATION
+            ) == android.content.pm.PackageManager.PERMISSION_GRANTED
+
+    /**
+     * Ask for "Allow all the time" location, after the app's own disclosure.
+     * Android 11 and later answer with the app's location settings page
+     * rather than a dialog. Resolves whether it is granted; never asks
+     * without precise location, which it extends.
+     */
+    @PluginMethod
+    fun requestBackgroundLocation(call: PluginCall) {
+        if (hasBackgroundLocation() || !hasFineLocation()) {
+            call.resolve(JSObject().put("granted", hasBackgroundLocation()))
+            return
+        }
+        DiagLog.log(context, "plugin", "background location requested")
+        requestPermissionForAlias("backgroundLocation", call, "backgroundLocationCallback")
+    }
+
+    @PermissionCallback
+    private fun backgroundLocationCallback(call: PluginCall) {
+        val granted = hasBackgroundLocation()
+        DiagLog.log(context, "plugin", "background location granted=$granted")
+        call.resolve(JSObject().put("granted", granted))
+    }
 
     @PluginMethod
     fun startTracking(call: PluginCall) {
@@ -543,6 +582,7 @@ class BackgroundGPSPlugin : Plugin() {
             JSObject().apply {
                 put("manufacturer", Build.MANUFACTURER.lowercase(java.util.Locale.ROOT))
                 put("batteryOptimized", isBatteryOptimized())
+                put("backgroundLocation", hasBackgroundLocation())
             },
         )
     }
@@ -592,7 +632,11 @@ class BackgroundGPSPlugin : Plugin() {
      * the battery-optimization state that governs how eager the system is.
      */
     private fun logProcessExits() {
-        DiagLog.log(context, "plugin", "load batteryOptimized=${isBatteryOptimized()}")
+        DiagLog.log(
+            context,
+            "plugin",
+            "load batteryOptimized=${isBatteryOptimized()} backgroundLocation=${hasBackgroundLocation()}",
+        )
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) return
         try {
             val am = context.getSystemService(android.app.ActivityManager::class.java) ?: return

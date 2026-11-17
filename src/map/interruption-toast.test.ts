@@ -5,6 +5,7 @@ const native = vi.hoisted(() => ({
   platform: "android",
   getBackgroundInfo: vi.fn(),
   openBackgroundSettings: vi.fn(),
+  offerBackgroundLocation: vi.fn(),
   showToast: vi.fn(),
 }));
 
@@ -18,6 +19,9 @@ vi.mock("../plugins/BackgroundGPS", () => ({
   },
 }));
 vi.mock("../ui/Toast", () => ({ showToast: native.showToast }));
+vi.mock("./background-location", () => ({
+  offerBackgroundLocation: native.offerBackgroundLocation,
+}));
 
 const MESSAGE = "Track recording stopped for 32m while the app was closed.";
 
@@ -42,6 +46,7 @@ describe("showInterruptionToast", () => {
     native.openBackgroundSettings
       .mockReset()
       .mockResolvedValue({ opened: "app-settings" });
+    native.offerBackgroundLocation.mockReset().mockResolvedValue(false);
   });
 
   it("offers the background settings on Android", async () => {
@@ -52,7 +57,24 @@ describe("showInterruptionToast", () => {
     expect(toast.actionLabel).toBe("Settings");
     expect(toast.durationMs).toBe(12_000);
     toast.onAction?.();
-    expect(native.openBackgroundSettings).toHaveBeenCalledTimes(1);
+    await vi.waitFor(() =>
+      expect(native.openBackgroundSettings).toHaveBeenCalledTimes(1),
+    );
+    expect(native.offerBackgroundLocation).toHaveBeenCalledWith({
+      again: true,
+    });
+  });
+
+  it("offers background location first when it isn't allowed", async () => {
+    native.offerBackgroundLocation.mockResolvedValue(true);
+    const { showInterruptionToast } = await load();
+    await showInterruptionToast(MESSAGE, true);
+    shownToast().onAction?.();
+    await vi.waitFor(() =>
+      expect(native.offerBackgroundLocation).toHaveBeenCalledTimes(1),
+    );
+    await Promise.resolve();
+    expect(native.openBackgroundSettings).not.toHaveBeenCalled();
   });
 
   it("adds the sleeping-apps advice on Samsung, asking the manufacturer once", async () => {

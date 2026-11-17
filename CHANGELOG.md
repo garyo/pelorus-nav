@@ -12,6 +12,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/).
   (Dest), as navigating a route does.
 - In a web browser with no GPS, the app suggests connecting an external GPS
   or trying the simulator.
+- In the Android app, you can allow location "all the time", so that a
+  track recording or anchor watch that Android stopped in the background
+  restarts without you opening the app. The app explains this and asks once,
+  when you start a recording or set an anchor watch.
 
 ### Changed
 - The Sun panel shows its time zone beside the position.
