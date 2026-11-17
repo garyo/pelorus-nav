@@ -7,6 +7,16 @@ The format follows [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Added
+- Navigating to a single waypoint shows its distance and your arrival time
+  (Dest), as navigating a route does.
+- In a web browser with no GPS, the app suggests connecting an external GPS
+  or trying the simulator.
+
+### Changed
+- The Sun panel shows its time zone beside the position.
+- An empty Waypoints panel explains how to add a waypoint.
+
 ## [1.2.0] - 2026-11-05
 
 ### Added

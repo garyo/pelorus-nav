@@ -253,7 +253,8 @@ export class WaypointManagerPanel {
     const waypoints = this.waypointLayer.getWaypoints();
 
     if (waypoints.length === 0) {
-      this.body.innerHTML = '<div class="manager-empty">No waypoints</div>';
+      this.body.innerHTML =
+        '<div class="manager-empty">No waypoints yet. To add one, press and hold the chart (right-click on a computer) and choose <b>Mark waypoint here</b>.</div>';
       return;
     }
 

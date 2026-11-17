@@ -353,10 +353,11 @@ describe("destDistanceNM", () => {
     expect(info?.destDistanceNM).toBeCloseTo(info?.distanceNM ?? -1, 6);
   });
 
-  it("is null in goto mode", () => {
+  it("equals distanceNM in goto mode", () => {
     const nav = makeNavWithFix(42.05, -71.0);
     nav.startGoto({ id: "w9", name: "WP", lat: 42.0, lon: -71.0 });
-    expect(nav.getInfo()?.destDistanceNM).toBeNull();
+    const info = nav.getInfo();
+    expect(info?.destDistanceNM).toBeCloseTo(info?.distanceNM ?? -1, 6);
   });
 });
 
@@ -860,12 +861,13 @@ describe("time to go", () => {
     );
   });
 
-  it("has no destination time in goto mode and passes settling through", () => {
+  it("times a goto's destination as its target and passes settling through", () => {
     const nav = makeNav(avgOn(0, true));
     nav.startGoto({ id: "w9", name: "WP", lat: 42.1, lon: -71.0 });
     const info = nav.getInfo();
-    expect(info?.ttgWaypointMs).toBeGreaterThan(0);
-    expect(info?.ttgDestMs).toBeNull();
-    expect(info?.speedSettling).toBe(true);
+    if (!info || info.ttgWaypointMs == null) throw new Error("no info");
+    expect(info.ttgWaypointMs).toBeGreaterThan(0);
+    expect(info.ttgDestMs).toBeCloseTo(info.ttgWaypointMs, -3);
+    expect(info.speedSettling).toBe(true);
   });
 });

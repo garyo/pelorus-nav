@@ -450,10 +450,11 @@ export class ActiveNavigationManager {
   }
 
   /**
-   * Distance to the route's final waypoint: vessel→target plus the legs
-   * beyond it. null in goto mode.
+   * Distance to the destination: for a route, vessel→target plus the legs
+   * beyond it; for a goto, the target itself. null when not navigating.
    */
   private destDistanceNM(targetDistNM: number): number | null {
+    if (this.state.type === "goto") return targetDistNM;
     if (this.state.type !== "route") return null;
     const remaining = this.state.route.waypoints.slice(this.state.legIndex);
     return targetDistNM + pathDistanceNM(remaining);

@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import type { Page } from "@playwright/test";
 import { ANCHOR_DISCLAIMER_VERSION } from "../../src/anchor/AnchorDisclaimer";
 import { DISCLAIMER_VERSION } from "../../src/ui/DisclaimerDialog";
+import { NO_GPS_HINT_DISMISSED_KEY } from "../../src/ui/NoGpsHint";
 
 /** Current app version from package.json. */
 export const APP_VERSION: string = JSON.parse(
@@ -69,11 +70,13 @@ export async function suppressWhatsNew(page: Page): Promise<void> {
  * Pre-accept the blocking navigation disclaimer (DisclaimerDialog.ts) —
  * without this, app startup halts at the "I Agree" dialog and the map never
  * initializes. Call before page.goto(). The version comes straight from the
- * app source, so a DISCLAIMER_VERSION bump can't strand the suite.
+ * app source, so a DISCLAIMER_VERSION bump can't strand the suite. Also
+ * dismisses the first-run no-GPS hint (NoGpsHint.ts), which would otherwise
+ * cover the chart 15 s into any test without a GPS source.
  */
 export async function acceptDisclaimer(page: Page): Promise<void> {
   await page.addInitScript(
-    ({ version, appVersion }) => {
+    ({ version, appVersion, hintKey }) => {
       localStorage.setItem(
         "pelorus-nav-disclaimer-acceptance",
         JSON.stringify({
@@ -82,8 +85,13 @@ export async function acceptDisclaimer(page: Page): Promise<void> {
           appVersion,
         }),
       );
+      localStorage.setItem(hintKey, "1");
     },
-    { version: DISCLAIMER_VERSION, appVersion: APP_VERSION },
+    {
+      version: DISCLAIMER_VERSION,
+      appVersion: APP_VERSION,
+      hintKey: NO_GPS_HINT_DISMISSED_KEY,
+    },
   );
 }
 

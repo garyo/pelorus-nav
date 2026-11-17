@@ -100,7 +100,8 @@ export class SunPanel {
 
     const title = document.createElement("div");
     title.className = "sun-popup-title";
-    title.textContent = `Sun · ${formatLatLon(lat, "lat")} ${formatLatLon(lon, "lon")}`;
+    const tz = shortTimeZone();
+    title.textContent = `Sun · ${formatLatLon(lat, "lat")} ${formatLatLon(lon, "lon")}${tz ? ` · ${tz}` : ""}`;
     root.appendChild(title);
 
     const table = document.createElement("table");
@@ -153,8 +154,7 @@ export class SunPanel {
 
     const note = document.createElement("div");
     note.className = "sun-popup-note";
-    const tz = shortTimeZone();
-    note.textContent = `Local time${tz ? ` (${tz})` : ""} · dawn/dusk = civil twilight`;
+    note.textContent = "Dawn/dusk = civil twilight";
     root.appendChild(note);
     return root;
   }

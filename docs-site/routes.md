@@ -265,4 +265,5 @@ bottom-left of the chart, the route's stop button, or the Escape key.
 
 You can also navigate directly to a single waypoint without a route: open
 **Waypoints** and tap **Navigate to** on any waypoint, or drop one from the
-chart's context menu first. The same navigation instruments apply.
+chart's context menu first. The same navigation instruments apply, with
+**Dest** giving the distance to that waypoint and your arrival time.

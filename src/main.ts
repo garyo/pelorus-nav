@@ -152,6 +152,7 @@ import {
   setIcon,
 } from "./ui/icons";
 import { NavigationHUD } from "./ui/NavigationHUD";
+import { startNoGpsHint } from "./ui/NoGpsHint";
 import { registerNavInstruments } from "./ui/nav-instruments";
 import { trackInstrumentHUD } from "./ui/PanelStack";
 import { requestPersistentStorageOnLaunch } from "./ui/persistent-storage";
@@ -1580,6 +1581,10 @@ registerNavInstruments(activeNav);
 instrumentHUD.setActiveNav(activeNav);
 instrumentHUD.onNavCellClick(() => routePanel.showActiveRoute());
 instrumentHUD.onGpsBadgeClick(() => settingsHandle?.open("navigation"));
+startNoGpsHint({
+  hasFix: () => navManager.getLastData() !== null,
+  openGpsSettings: () => settingsHandle?.open("navigation"),
+});
 
 // --- Topbar ---
 // Built before the nav/COB restores below: those await IndexedDB, and a

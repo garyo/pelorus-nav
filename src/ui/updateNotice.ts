@@ -11,7 +11,9 @@ export interface UpdateNoticeOptions {
   message: string;
   actionLabel: string;
   onAction: () => void;
-  /** Called when the user dismisses with "Later". */
+  /** The dismiss button's label; "Later" by default. */
+  dismissLabel?: string;
+  /** Called when the user dismisses the notice. */
   onDismiss?: () => void;
 }
 
@@ -33,7 +35,7 @@ export function showUpdateNotice(options: UpdateNoticeOptions): void {
   });
 
   const laterBtn = document.createElement("button");
-  laterBtn.textContent = "Later";
+  laterBtn.textContent = options.dismissLabel ?? "Later";
   laterBtn.addEventListener("click", () => {
     notice.remove();
     options.onDismiss?.();
