@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { instrumentLog } from "../diagnostics/instrumentLog";
 import type { ActiveNavigationManager } from "../navigation/ActiveNavigation";
 import type { NavigationData } from "../navigation/NavigationData";
 import type { NavigationDataManager } from "../navigation/NavigationDataManager";
@@ -150,6 +151,10 @@ describe("nav caption strip", () => {
     expect(eta?.textContent).toBe("~4:32 PM");
     expect(ttg.classList.contains("instrument-time--provisional")).toBe(true);
     expect(eta?.classList.contains("instrument-time--provisional")).toBe(true);
+    // ...and the bug-report log has the panel as shown.
+    expect(instrumentLog.toText(1)).toContain(
+      "Next: Nut Island · ~25m | Dest: 12.4 NM / ~4:32 PM",
+    );
 
     // ...and firm again once it fills.
     info.timesProvisional = false;

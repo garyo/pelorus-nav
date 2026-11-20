@@ -137,7 +137,11 @@ export class NavigationDataManager {
     this.lastData = data;
     this.speedAverager.addSample(data.sog, data.cog, data.timestamp);
     const avg = this.speedAverager.get();
-    gpsDiagLog.logAverage(avg?.speedKn ?? null, avg?.settling ?? false);
+    gpsDiagLog.logAverage(
+      avg?.speedKn ?? null,
+      avg?.settling ?? false,
+      avg?.provisional ?? false,
+    );
 
     if (GPS_TRACE) {
       const nowMs = Date.now();

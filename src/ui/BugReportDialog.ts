@@ -95,7 +95,7 @@ export function showBugReportDialog(options: BugReportOptions): void {
     diagLink,
     document.createTextNode(
       " are included automatically: device info, settings, recent logs, and" +
-        " GPS data.",
+        " the last few minutes of GPS positions and instrument readings.",
     ),
   );
 

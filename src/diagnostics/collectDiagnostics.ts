@@ -14,7 +14,7 @@ import {
 import { listPartialDownloads, listStoredCharts } from "../data/tile-store";
 import { editTapLog } from "../map/editTapDiag";
 import { connectionLog } from "../navigation/ConnectionEventLog";
-import { gpsDiagLog } from "../navigation/GPSDiagnosticLog";
+import { gpsDiagLog, RECENT_WINDOW_MS } from "../navigation/GPSDiagnosticLog";
 import { BackgroundGPS } from "../plugins/BackgroundGPS";
 import {
   getPluginSettingsSchemas,
@@ -27,6 +27,7 @@ import {
   formatDownloadSection,
 } from "./downloadReport";
 import { appErrorLog } from "./errorLog";
+import { instrumentLog } from "./instrumentLog";
 import { uiActionLog } from "./uiActionLog";
 
 export interface DiagnosticSection {
@@ -36,7 +37,9 @@ export interface DiagnosticSection {
 }
 
 const SECTION_TIMEOUT_MS = 10_000;
-const GPS_DIAG_MAX_ROWS = 500;
+/** Rows of each in the report: about 15 min of 1 Hz fixes, ~200 KB. */
+const GPS_DIAG_MAX_ROWS = 1000;
+const INSTRUMENT_MAX_ROWS = 1000;
 const NATIVE_DIAG_MAX_BYTES = 65_536;
 
 /** Run all sections into one report; failures/timeouts become inline notes. */
@@ -305,14 +308,34 @@ export function buildDefaultSections(
     {
       title: "GPS DIAGNOSTIC LOG",
       collect: () => {
-        const n = gpsDiagLog.entryCount;
-        const status = `recording: ${gpsDiagLog.enabled}, entries: ${n}`;
-        if (n === 0) {
-          return `${status}\n(not recording — enable via window.gpsDiag.start())`;
-        }
+        // A console recording (window.gpsDiag.start()) if there is one,
+        // else the fixes always kept from the last few minutes.
+        const recorded = gpsDiagLog.entryCount;
+        const n = recorded > 0 ? recorded : gpsDiagLog.recentCount;
+        if (n === 0) return "(no fixes)";
+        const source =
+          recorded > 0
+            ? `recording (${gpsDiagLog.enabled ? "running" : "stopped"})`
+            : `last ${RECENT_WINDOW_MS / 60_000} min`;
         const note =
-          n > GPS_DIAG_MAX_ROWS ? ` (last ${GPS_DIAG_MAX_ROWS} of ${n})` : "";
-        return `${status}${note}\n${gpsDiagLog.toCSV(GPS_DIAG_MAX_ROWS)}`;
+          n > GPS_DIAG_MAX_ROWS ? `, last ${GPS_DIAG_MAX_ROWS} of ${n}` : "";
+        const csv =
+          recorded > 0
+            ? gpsDiagLog.toCSV(GPS_DIAG_MAX_ROWS)
+            : gpsDiagLog.recentCSV(GPS_DIAG_MAX_ROWS);
+        return `${source}: ${n} fixes${note}\n${csv}`;
+      },
+    },
+    {
+      title: "INSTRUMENT PANEL",
+      collect: () => {
+        const n = instrumentLog.entryCount;
+        if (n === 0) return "(nothing shown)";
+        const note =
+          n > INSTRUMENT_MAX_ROWS
+            ? ` (last ${INSTRUMENT_MAX_ROWS} of ${n})`
+            : "";
+        return `as shown, one line per change; "~" = provisional${note}\n${instrumentLog.toText(INSTRUMENT_MAX_ROWS)}`;
       },
     },
     {

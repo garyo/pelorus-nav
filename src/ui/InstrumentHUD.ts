@@ -4,6 +4,7 @@
  * When active navigation is running, DTW and BRG cells are appended.
  */
 
+import { instrumentLog } from "../diagnostics/instrumentLog";
 import type {
   ActiveNavigationInfo,
   ActiveNavigationManager,
@@ -247,10 +248,12 @@ export function createInstrumentHUD(
     // linger forever (e.g. frozen at 40 kn in a tunnel). Treat a stale fix as
     // no data so every motion/nav cell reads "--".
     const data = navManager.isFixStale() ? null : lastData;
+    const shown: string[] = data ? [] : ["NO GPS"];
     for (const c of [...baseCells, ...navCells]) {
       const f = c.def.format(data, s);
       c.valuEl.textContent = f.value;
       c.unitEl.textContent = f.unit;
+      shown.push(`${c.def.shortLabel ?? c.def.label} ${f.value} ${f.unit}`);
     }
     if (
       nextWpEl &&
@@ -272,7 +275,17 @@ export function createInstrumentHUD(
       showTime(nextWpEtaEl, dest != null ? destEta(info) : null);
       nextWpEl.style.display =
         name || ttg !== null || dest != null ? "" : "none";
+      // The caption as read, with the separators CSS draws between its parts.
+      const toNext = [nextWpNameEl.textContent, nextWpTtgEl.textContent];
+      const toDest = [nextWpDestText.data, nextWpEtaEl.textContent];
+      shown.push(
+        ...[
+          toNext.filter(Boolean).join(" · "),
+          toDest.filter(Boolean).join(" / "),
+        ].filter(Boolean),
+      );
     }
+    instrumentLog.record(shown.join(" | "));
   };
 
   navManager.subscribe((data) => {

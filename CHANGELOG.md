@@ -23,6 +23,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/).
 - Times to the next waypoint and arrival times are shown faded and in
   italics (with `~`) until the average speed behind them covers a few
   minutes: when you set off, and after a GPS dropout.
+- Bug reports include the last few minutes of GPS positions and instrument
+  readings.
 
 ### Fixed
 - After a GPS dropout while moving fast, speed and arrival times could start
