@@ -139,10 +139,11 @@ export interface ActiveNavigationInfo {
   /** Time to the route's final waypoint, ms. null in goto mode, or as above. */
   ttgDestMs: number | null;
   /**
-   * True while the average speed is still settling after a change; the
-   * times come from a short window then and the HUD marks them provisional.
+   * True while the average speed behind the times is provisional (see
+   * speed-average.ts): settling after a speed change, or its window not yet
+   * full after a start or a GPS gap. The HUD marks the times as such.
    */
-  speedSettling: boolean;
+  timesProvisional: boolean;
 }
 
 export type ActiveNavCallback = (
@@ -396,7 +397,7 @@ export class ActiveNavigationManager {
     destDistanceNM: number | null;
     ttgWaypointMs: number | null;
     ttgDestMs: number | null;
-    speedSettling: boolean;
+    timesProvisional: boolean;
   } {
     const destDistanceNM = this.destDistanceNM(distanceNM);
     const avg = this.navManager.getSpeedAverage();
@@ -406,7 +407,7 @@ export class ActiveNavigationManager {
         destDistanceNM,
         ttgWaypointMs: null,
         ttgDestMs: avg ? this.ttgDestPastTargetMs(avg, data) : null,
-        speedSettling: avg?.settling ?? false,
+        timesProvisional: avg?.provisional ?? false,
       };
     }
     const ttgWaypointMs = (distanceNM / closing) * MS_PER_HOUR;
@@ -419,7 +420,7 @@ export class ActiveNavigationManager {
       destDistanceNM,
       ttgWaypointMs,
       ttgDestMs,
-      speedSettling: avg.settling,
+      timesProvisional: avg.provisional,
     };
   }
 
@@ -723,7 +724,7 @@ export class ActiveNavigationManager {
           destDistanceNM: this.destDistanceNM(0),
           ttgWaypointMs: null,
           ttgDestMs: null,
-          speedSettling: false,
+          timesProvisional: false,
         };
       }
       this.notify();

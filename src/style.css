@@ -2139,6 +2139,13 @@ body {
   font-variant-numeric: tabular-nums;
 }
 
+/* A time from a still-provisional average speed (after a start, a GPS gap
+   or a speed change): "~" plus a muted italic, firm once the average is. */
+.instrument-time--provisional {
+  font-style: italic;
+  opacity: 0.6;
+}
+
 /* Arrival time after the destination distance, "/"-separated. */
 .instrument-next-wp-eta::before {
   content: " / ";

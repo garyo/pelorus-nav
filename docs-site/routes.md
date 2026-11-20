@@ -209,10 +209,12 @@ active leg:
 ![Navigating a route](/images/route-navigation.png)
 
 - **Next** — the waypoint you're steering for, and after the `·` the time
-  to reach it at your average speed over the last few minutes. A `~` means
-  that average is still settling after a speed change (the time then
-  follows the last 30 seconds); `--` means there is no average yet (the
-  first 30 seconds under way) or you are not closing on the waypoint.
+  to reach it at your average speed over the last few minutes. A faded
+  italic time with a `~` is provisional: the average is still building up
+  (the first three minutes under way, or after a GPS dropout) or still
+  settling after a speed change (the time then follows the last 30
+  seconds). `--` means there is no average yet (the first 30 seconds) or
+  you are not closing on the waypoint.
 - **Dest** — distance to the route's last waypoint and, after the `/`, the
   clock time you'll arrive there at the same average speed. If you are not
   closing on the next waypoint but are on the one after (say, swinging wide

@@ -20,6 +20,9 @@ The format follows [Keep a Changelog](https://keepachangelog.com/).
 ### Changed
 - The Sun panel shows its time zone beside the position.
 - An empty Waypoints panel explains how to add a waypoint.
+- Times to the next waypoint and arrival times are shown faded and in
+  italics (with `~`) until the average speed behind them covers a few
+  minutes: when you set off, and after a GPS dropout.
 
 ## [1.2.0] - 2026-11-05
 

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   closingSpeedKn,
   createSpeedAverager,
+  FULL_SPAN_MS,
   LONG_WINDOW_MS,
   MAX_GAP_MS,
   MIN_SPAN_MS,
@@ -31,6 +32,26 @@ describe("createSpeedAverager", () => {
     avg.addSample(6, 90, MIN_SPAN_MS);
     expect(avg.get()?.speedKn).toBeCloseTo(6, 6);
     expect(avg.get()?.settling).toBe(false);
+  });
+
+  it("stays provisional until the long window fills, and again after a gap", () => {
+    const avg = createSpeedAverager();
+    feed(avg, 0, FULL_SPAN_MS - 1000, 6);
+    expect(avg.get()?.provisional).toBe(true);
+    avg.addSample(6, 90, FULL_SPAN_MS);
+    expect(avg.get()?.provisional).toBe(false);
+    // GPS lost for a minute: the average restarts and is provisional anew.
+    const back = FULL_SPAN_MS + 60_000;
+    feed(avg, back, back + MIN_SPAN_MS, 6);
+    expect(avg.get()?.provisional).toBe(true);
+  });
+
+  it("counts a window of sparse fixes as full", () => {
+    const avg = createSpeedAverager();
+    // One fix every 25 s never spans all of LONG_WINDOW_MS once trimmed.
+    feed(avg, 0, 10 * LONG_WINDOW_MS, 6, 90, 25_000);
+    expect(avg.get()?.spanMs).toBeLessThan(LONG_WINDOW_MS);
+    expect(avg.get()?.provisional).toBe(false);
   });
 
   it("weights samples by time, not by count", () => {
@@ -72,11 +93,13 @@ describe("createSpeedAverager", () => {
     feed(avg, t0, t0 + SHORT_WINDOW_MS, 7);
     const during = avg.get() as SpeedAverage;
     expect(during.settling).toBe(true);
+    expect(during.provisional).toBe(true);
     expect(during.speedKn).toBeCloseTo(7, 6);
     // Once the long window holds only the new speed it settles again.
     feed(avg, t0 + SHORT_WINDOW_MS + 1000, t0 + LONG_WINDOW_MS + 1000, 7);
     const after = avg.get() as SpeedAverage;
     expect(after.settling).toBe(false);
+    expect(after.provisional).toBe(false);
     expect(after.speedKn).toBeCloseTo(7, 6);
   });
 
@@ -99,6 +122,13 @@ describe("createSpeedAverager", () => {
     expect(avg.get()).toBeNull();
     feed(avg, resume + 1000, resume + MIN_SPAN_MS, 3);
     expect(avg.get()?.speedKn).toBeCloseTo(3, 6);
+  });
+
+  it("drops the old average when the first fix after a gap has no speed", () => {
+    const avg = createSpeedAverager();
+    feed(avg, 0, LONG_WINDOW_MS, 6);
+    avg.addSample(null, null, LONG_WINDOW_MS + MAX_GAP_MS + 1000);
+    expect(avg.get()).toBeNull();
   });
 
   it("keeps only the long window", () => {

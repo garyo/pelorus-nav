@@ -768,14 +768,15 @@ describe("time to go", () => {
   } as unknown as Route;
   const HOUR = 3_600_000;
 
-  /** A settled 6 kn average on the given course. */
-  function avgOn(cogDeg: number, settling = false): SpeedAverage {
+  /** A 6 kn average on the given course, firm unless `provisional`. */
+  function avgOn(cogDeg: number, provisional = false): SpeedAverage {
     const r = (cogDeg * Math.PI) / 180;
     return {
       speedKn: 6,
       velocity: { east: 6 * Math.sin(r), north: 6 * Math.cos(r) },
       sdKn: 0.2,
-      settling,
+      settling: false,
+      provisional,
       spanMs: 180_000,
     };
   }
@@ -802,7 +803,7 @@ describe("time to go", () => {
     if (!info || info.destDistanceNM == null) throw new Error("no info");
     expect(info.ttgWaypointMs).toBeCloseTo((info.distanceNM / 6) * HOUR, -3);
     expect(info.ttgDestMs).toBeCloseTo((info.destDistanceNM / 6) * HOUR, -3);
-    expect(info.speedSettling).toBe(false);
+    expect(info.timesProvisional).toBe(false);
   });
 
   it("uses only the closing component when steering off the bearing", () => {
@@ -861,13 +862,13 @@ describe("time to go", () => {
     );
   });
 
-  it("times a goto's destination as its target and passes settling through", () => {
+  it("times a goto's destination as its target, provisional with the average", () => {
     const nav = makeNav(avgOn(0, true));
     nav.startGoto({ id: "w9", name: "WP", lat: 42.1, lon: -71.0 });
     const info = nav.getInfo();
     if (!info || info.ttgWaypointMs == null) throw new Error("no info");
     expect(info.ttgWaypointMs).toBeGreaterThan(0);
     expect(info.ttgDestMs).toBeCloseTo(info.ttgWaypointMs, -3);
-    expect(info.speedSettling).toBe(true);
+    expect(info.timesProvisional).toBe(true);
   });
 });

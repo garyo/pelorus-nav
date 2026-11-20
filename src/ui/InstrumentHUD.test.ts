@@ -122,7 +122,7 @@ describe("nav caption strip", () => {
       destDistanceNM: 12.42,
       ttgWaypointMs: 25 * 60_000,
       ttgDestMs: 152 * 60_000,
-      speedSettling: false,
+      timesProvisional: false,
     };
     const activeNav = {
       subscribe: () => {},
@@ -141,11 +141,20 @@ describe("nav caption strip", () => {
     const eta = dest?.querySelector(".instrument-next-wp-eta");
     expect(dest?.firstChild?.textContent).toBe("Dest: 12.4 NM");
     expect(eta?.textContent).toBe("4:32 PM");
+    expect(ttg.classList.contains("instrument-time--provisional")).toBe(false);
 
-    // While the average speed settles after a change, both are provisional.
-    info.speedSettling = true;
+    // While the average speed is provisional, so are both times.
+    info.timesProvisional = true;
     fakeNav.pushFix();
     expect(ttg.textContent).toBe("~25m");
     expect(eta?.textContent).toBe("~4:32 PM");
+    expect(ttg.classList.contains("instrument-time--provisional")).toBe(true);
+    expect(eta?.classList.contains("instrument-time--provisional")).toBe(true);
+
+    // ...and firm again once it fills.
+    info.timesProvisional = false;
+    fakeNav.pushFix();
+    expect(ttg.textContent).toBe("25m");
+    expect(eta?.classList.contains("instrument-time--provisional")).toBe(false);
   });
 });

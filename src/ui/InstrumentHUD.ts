@@ -266,12 +266,10 @@ export function createInstrumentHUD(
       const dest = data ? (info?.destDistanceNM ?? null) : null;
       nextWpNameEl.textContent = name ? `Next: ${name}` : "";
       const ttg = data && info ? waypointTtg(info) : null;
-      nextWpTtgEl.textContent = ttg ?? "";
-      nextWpTtgEl.hidden = ttg === null;
+      showTime(nextWpTtgEl, ttg);
       nextWpDestText.data =
         dest != null ? `Dest: ${formatDistanceShort(dest, s.speedUnit)}` : "";
-      nextWpEtaEl.textContent = dest != null ? destEta(info) : "";
-      nextWpEtaEl.hidden = dest == null;
+      showTime(nextWpEtaEl, dest != null ? destEta(info) : null);
       nextWpEl.style.display =
         name || ttg !== null || dest != null ? "" : "none";
     }
@@ -387,23 +385,43 @@ function buildCell(
   return { cell, valuEl, unitEl };
 }
 
+/** A time for the HUD; `provisional` while its average speed is (see
+ *  ActiveNavigationInfo.timesProvisional). */
+interface TimeText {
+  text: string;
+  provisional: boolean;
+}
+
+/** Show a time, or hide its element when null. A provisional time gets a
+ *  "~" and a muted style, so a time from a few seconds of speed isn't read
+ *  as firm. */
+function showTime(el: HTMLElement, time: TimeText | null): void {
+  el.hidden = time === null;
+  el.textContent = time ? `${time.provisional ? "~" : ""}${time.text}` : "";
+  el.classList.toggle("instrument-time--provisional", !!time?.provisional);
+}
+
 /**
- * "25m": time to the active waypoint at the passage-average closing speed;
- * "~" while that average is still settling after a speed change, "--"
- * before it exists or while not closing on the waypoint.
+ * "25m": time to the active waypoint at the passage-average closing speed,
+ * or "--" before that average exists or while not closing on the waypoint.
  */
-function waypointTtg(info: ActiveNavigationInfo): string {
-  if (info.ttgWaypointMs == null) return "--";
-  return `${info.speedSettling ? "~" : ""}${formatDurationShort(info.ttgWaypointMs)}`;
+function waypointTtg(info: ActiveNavigationInfo): TimeText {
+  if (info.ttgWaypointMs == null) return { text: "--", provisional: false };
+  return {
+    text: formatDurationShort(info.ttgWaypointMs),
+    provisional: info.timesProvisional,
+  };
 }
 
 /**
  * "2:32 PM": arrival at the route's destination at the passage-average
- * speed; "~" while that average is still settling, "--" before it exists.
+ * speed, or "--" before that average exists.
  */
-function destEta(info: ActiveNavigationInfo | null): string {
-  if (info?.ttgDestMs == null) return "--";
+function destEta(info: ActiveNavigationInfo | null): TimeText {
+  if (info?.ttgDestMs == null) return { text: "--", provisional: false };
   const now = new Date();
-  const eta = formatEventTime(new Date(now.getTime() + info.ttgDestMs), now);
-  return `${info.speedSettling ? "~" : ""}${eta}`;
+  return {
+    text: formatEventTime(new Date(now.getTime() + info.ttgDestMs), now),
+    provisional: info.timesProvisional,
+  };
 }

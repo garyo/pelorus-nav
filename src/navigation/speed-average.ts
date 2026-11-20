@@ -11,7 +11,9 @@
  * two disagree by more than a couple of standard deviations (engine started,
  * sails trimmed, a tack), the boat's speed has genuinely changed and the
  * long average is stale, so the reading switches to the short window until
- * the long one catches up. Callers show such readings as provisional.
+ * the long one catches up. Readings are provisional then, and also until
+ * the long window has filled, after a start or after a gap restarts it:
+ * a few dozen seconds of fixes are no passage average yet.
  *
  * All timing uses fix timestamps, never the wall clock, so replay and
  * throttled broadcast cadences (250 ms to 15 s) average correctly.
@@ -25,6 +27,10 @@ export const SHORT_WINDOW_MS = 30_000;
 export const MIN_SPAN_MS = SHORT_WINDOW_MS;
 /** A gap between fixes longer than this restarts the average. */
 export const MAX_GAP_MS = 30_000;
+/** Data span at which the long window counts as full. Fixes can be up to
+ *  MAX_GAP_MS apart, so a full window's span can fall that far short of
+ *  LONG_WINDOW_MS. */
+export const FULL_SPAN_MS = LONG_WINDOW_MS - MAX_GAP_MS;
 /** Short/long disagreement, in long-window standard deviations, that counts
  *  as a speed change... */
 const SETTLING_SIGMA = 2;
@@ -41,6 +47,9 @@ export interface SpeedAverage {
   /** True while the speed has recently changed and the average comes from
    *  the short window; the long window has not caught up yet. */
   settling: boolean;
+  /** True while the average is not yet trustworthy: settling, or the long
+   *  window not yet full (spanMs < FULL_SPAN_MS). */
+  provisional: boolean;
   /** Time span of the data behind the average, ms. */
   spanMs: number;
 }
@@ -117,12 +126,14 @@ export function createSpeedAverager(): SpeedAverager {
 
   return {
     addSample(sogKn, cogDeg, timestampMs): void {
-      if (sogKn === null || !Number.isFinite(sogKn)) return;
       const last = samples[samples.length - 1];
       if (last !== undefined) {
         if (timestampMs <= last.t) return;
+        // Checked before a speedless fix is skipped, so the first fix after
+        // a dropout ends the old average even when it has no speed yet.
         if (timestampMs - last.t > MAX_GAP_MS) samples = [];
       }
+      if (sogKn === null || !Number.isFinite(sogKn)) return;
       const rad = cogDeg === null ? null : (cogDeg * Math.PI) / 180;
       samples.push({
         t: timestampMs,
@@ -154,6 +165,7 @@ export function createSpeedAverager(): SpeedAverager {
         velocity: { east: chosen.east, north: chosen.north },
         sdKn: long.sdKn,
         settling,
+        provisional: settling || spanMs < FULL_SPAN_MS,
         spanMs,
       };
     },
