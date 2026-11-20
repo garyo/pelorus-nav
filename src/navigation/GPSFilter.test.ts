@@ -365,6 +365,74 @@ describe("GPSFilter", () => {
     expect(out.cog).toBeLessThan(135);
   });
 
+  describe("after a gap with no speed from the source", () => {
+    const KN_TO_DEG_LAT_S = 1852 / 3600 / 111_111;
+
+    /** Fixes heading north at `kn` with no SOG/COG, at the given seconds. */
+    function northAt(filter: GPSFilter, kn: number, seconds: number[]) {
+      return seconds.map((t) =>
+        filter.filter(
+          makeFix({
+            latitude: 42.35 + kn * KN_TO_DEG_LAT_S * t,
+            sog: null,
+            cog: null,
+            timestamp: t * 1000,
+          }),
+        ),
+      );
+    }
+
+    it("resumes at the speed and course made good across it", () => {
+      const filter = new GPSFilter();
+      northAt(filter, 70, [0, 1, 2, 3, 4, 5]);
+      // A minute's dropout at 70 kn: the restart's velocity comes from the
+      // 2 km covered, not from zero.
+      const [, next] = northAt(filter, 70, [65, 66]);
+      expect(next.sog).toBeGreaterThan(63);
+      expect(next.sog).toBeLessThan(77);
+      const cog = next.cog ?? 180;
+      expect(Math.min(cog, 360 - cog)).toBeLessThan(5); // within 5° of north
+    });
+
+    it("gives a vessel at rest no phantom speed", () => {
+      const filter = new GPSFilter();
+      northAt(filter, 0, [0, 1, 2, 3]);
+      // A minute's dropout, then a fix 30 m off: position noise, not motion.
+      const resumed = filter.filter(
+        makeFix({
+          latitude: 42.35 + 30 / 111_111,
+          sog: null,
+          cog: null,
+          timestamp: 63_000,
+        }),
+      );
+      expect(resumed.latitude).toBeCloseTo(42.35 + 30 / 111_111, 9);
+      const [next] = northAt(filter, 0, [64]).map((d) => d.sog ?? 0);
+      expect(next).toBeLessThan(1);
+    });
+
+    it("doesn't take a sudden position glitch for speed", () => {
+      const filter = new GPSFilter();
+      northAt(filter, 0, [0, 1, 2, 3]);
+      // 1 km off in one second: a glitch, so the restart keeps zero velocity.
+      const glitch = 42.35 + 1000 / 111_111;
+      for (const t of [4, 5]) {
+        filter.filter(
+          makeFix({
+            latitude: glitch,
+            sog: null,
+            cog: null,
+            timestamp: t * 1000,
+          }),
+        );
+      }
+      const after = filter.filter(
+        makeFix({ latitude: glitch, sog: null, cog: null, timestamp: 6000 }),
+      );
+      expect(after.sog ?? 0).toBeLessThan(5);
+    });
+  });
+
   it("outputs the chip's Doppler SOG/COG even when position barely moves", () => {
     const filter = new GPSFilter();
     // Walking pace: the ~1.4 m/s displacement is buried under ~5 m position

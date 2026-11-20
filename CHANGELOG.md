@@ -24,6 +24,11 @@ The format follows [Keep a Changelog](https://keepachangelog.com/).
   italics (with `~`) until the average speed behind them covers a few
   minutes: when you set off, and after a GPS dropout.
 
+### Fixed
+- After a GPS dropout while moving fast, speed and arrival times could start
+  far too low and take a minute or more to recover, when the GPS gave no
+  speed of its own at first.
+
 ## [1.2.0] - 2026-11-05
 
 ### Added

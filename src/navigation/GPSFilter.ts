@@ -8,7 +8,8 @@
  * Automatically detects weak/flaky GPS hardware (common on e-ink devices)
  * by monitoring fix intervals, and adapts: extends the stale gap threshold
  * so the velocity model bridges dropouts, and seeds velocity from hardware
- * speed/course after gaps.
+ * speed/course after gaps, or failing that from the distance covered across
+ * the gap.
  *
  * All matrix math is inlined (4x4 state, 2x2 innovation) — no library needed.
  */
@@ -46,6 +47,23 @@ const MAX_SPEED_RATIO = 4;
  * is treated as a glitch and we fall back to the position-derived velocity.
  */
 const MAX_DOPPLER_SOG_KN = 200;
+
+/**
+ * A restart after a gap of GAP_SEED_MIN_S..GAP_SEED_MAX_S with no usable
+ * hardware speed seeds velocity from the displacement across the gap, so a
+ * fast vessel's speed doesn't climb from zero over a dozen fixes. Shorter
+ * gaps are a position glitch rather than a dropout; over longer ones the
+ * average velocity says little about the present one. The displacement must
+ * clear GAP_SEED_MIN_DISTANCE_M, well beyond position noise, so a vessel at
+ * rest isn't given a phantom speed.
+ */
+const GAP_SEED_MIN_S = 5;
+const GAP_SEED_MAX_S = 120;
+const GAP_SEED_MIN_DISTANCE_M = 100;
+/** Uncertainty of a gap seed: the path across the gap may have curved or
+ *  changed speed, so it is a fraction of the speed, with a floor. */
+const GAP_SEED_SD_FRACTION = 0.3;
+const GAP_SEED_SD_MIN_KN = 2;
 
 /** Number of recent fix intervals to track for GPS quality detection. */
 const QUALITY_WINDOW = 20;
@@ -349,9 +367,10 @@ export class GPSFilter {
     // Seed velocity from hardware speed/course if available and plausible.
     // Some GPS chips report wildly wrong speeds after gaps; validate against
     // position-derived speed when we have a prior state to compare against.
-    // On cold start (no prior state), don't seed — let the Kalman filter
-    // derive velocity from subsequent position measurements instead of
-    // trusting a potentially garbage first speed report.
+    // Without one, seed from the displacement across a gap (see
+    // GAP_SEED_MIN_S). On cold start (no prior state), don't seed — let the
+    // Kalman filter derive velocity from subsequent position measurements
+    // instead of trusting a potentially garbage first speed report.
     let vLat = 0;
     let vLon = 0;
     const hasPriorState = this.state !== null;
@@ -378,6 +397,24 @@ export class GPSFilter {
       // Tighter velocity uncertainty when seeded from hardware
       P[10] = (1 / KN_PER_DEG_S) ** 2; // ~1 kn uncertainty
       P[15] = (1 / KN_PER_DEG_S) ** 2;
+    } else if (this.state !== null && posSpeed !== null) {
+      const gapM = (posSpeed * dt) / 1.94384;
+      if (
+        dt >= GAP_SEED_MIN_S &&
+        dt <= GAP_SEED_MAX_S &&
+        gapM >= GAP_SEED_MIN_DISTANCE_M &&
+        posSpeed <= MAX_DOPPLER_SOG_KN
+      ) {
+        // Degrees per second, straight from the displacement.
+        vLat = (fix.latitude - this.state.x[0]) / dt;
+        vLon = (fix.longitude - this.state.x[1]) / dt;
+        const sdKn = Math.max(
+          GAP_SEED_SD_MIN_KN,
+          GAP_SEED_SD_FRACTION * posSpeed,
+        );
+        P[10] = (sdKn / KN_PER_DEG_S) ** 2;
+        P[15] = P[10];
+      }
     }
 
     this.state = {
