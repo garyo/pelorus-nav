@@ -41,7 +41,8 @@ env:
 
 jobs:
   testflight:
-    runs-on: macos-26 # Xcode 26 — Apple requires the iOS 26 SDK for uploads
+    # Apple requires the iOS 27 SDK (Xcode 27) for uploads from April 2027.
+    runs-on: xcode-27
     environment: release
     steps:
       - uses: actions/checkout@v6.0.2
@@ -50,7 +51,8 @@ jobs:
 
       - name: Select latest Xcode
         run: |
-          LATEST="$(ls -d /Applications/Xcode_*.app 2>/dev/null | sort -V | tail -1)"
+          # Release versions only: the App Store refuses beta-built apps.
+          LATEST="$(ls -d /Applications/Xcode_*.app | grep -E '/Xcode_[0-9.]+\.app$' | sort -V | tail -1)"
           echo "Using $LATEST"
           sudo xcode-select -s "$LATEST"
           xcodebuild -version
