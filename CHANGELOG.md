@@ -7,6 +7,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [1.3.0] - 2026-11-25
+
 ### Added
 - Navigating to a single waypoint shows its distance and your arrival time
   (Dest), as navigating a route does.
