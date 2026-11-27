@@ -7,6 +7,7 @@
 
 import { CHART_REGIONS, type ChartRegion } from "./chart-catalog";
 import { chartAssetBase } from "./remote-url";
+import { getAuxFile } from "./tile-store";
 
 /**
  * The US state, Canadian province, or other country or territory a feature
@@ -77,9 +78,43 @@ function parseRawEntry(raw: RawEntry, places: Place[]): SearchEntry {
   };
 }
 
+/** Parse an index file's text, or null if it's missing or not a valid index. */
+function parseIndex(text: string | null): SearchEntry[] | null {
+  if (text === null) return null;
+  try {
+    const data: RawIndex = JSON.parse(text);
+    if (data.version !== 1 || !Array.isArray(data.features)) return null;
+    const places = (data.places ?? []).map(parsePlace);
+    return data.features.map((raw) => parseRawEntry(raw, places));
+  } catch {
+    return null;
+  }
+}
+
+/** The copy saved with a downloaded region's charts, or null. */
+async function readStoredIndex(filename: string): Promise<string | null> {
+  try {
+    const file = await getAuxFile(filename);
+    return file ? await file.text() : null;
+  } catch {
+    return null;
+  }
+}
+
+async function fetchRemoteIndex(filename: string): Promise<string | null> {
+  try {
+    const resp = await fetch(`${chartAssetBase()}/${filename}`);
+    return resp.ok ? await resp.text() : null;
+  } catch {
+    return null;
+  }
+}
+
 /**
- * Load the search index for a single region.
- * Returns cached results on subsequent calls.
+ * Load the search index for a single region: for a downloaded region, the
+ * copy saved with its charts (so search works offline and matches the charts
+ * on the device), otherwise the server's. Returns cached results on
+ * subsequent calls.
  */
 export async function loadSearchIndex(
   regionId: string,
@@ -91,21 +126,14 @@ export async function loadSearchIndex(
   if (!region) return [];
 
   const filename = searchIndexFilename(region);
-  const url = `${chartAssetBase()}/${filename}`;
-
-  try {
-    const resp = await fetch(url);
-    if (!resp.ok) return [];
-    const data: RawIndex = await resp.json();
-    if (data.version !== 1 || !Array.isArray(data.features)) return [];
-    const places = (data.places ?? []).map(parsePlace);
-    const entries = data.features.map((raw) => parseRawEntry(raw, places));
-    cache.set(regionId, entries);
-    return entries;
-  } catch {
-    // Index file may not exist yet for this region
-    return [];
-  }
+  const entries =
+    parseIndex(await readStoredIndex(filename)) ??
+    parseIndex(await fetchRemoteIndex(filename));
+  // An index missing everywhere (not built yet, or offline) isn't cached, so
+  // a later call tries again.
+  if (!entries) return [];
+  cache.set(regionId, entries);
+  return entries;
 }
 
 /**

@@ -471,20 +471,18 @@ export async function downloadAuxFile(
   await opfsFetchWrite(url, filename, undefined, signal);
 }
 
+/** Get a stored auxiliary file (coverage, search index), or null if not stored. */
+export function getAuxFile(filename: string): Promise<File | null> {
+  return getChartFile(filename);
+}
+
 /**
  * Get a stored auxiliary file as a blob URL, or null if not stored.
  * Caller is responsible for revoking the URL when done.
  */
 export async function getAuxFileURL(filename: string): Promise<string | null> {
-  const root = await getRoot();
-  if (!root) return null;
-  try {
-    const handle = await root.getFileHandle(filename);
-    const file = await handle.getFile();
-    return URL.createObjectURL(file);
-  } catch {
-    return null;
-  }
+  const file = await getAuxFile(filename);
+  return file ? URL.createObjectURL(file) : null;
 }
 
 /**

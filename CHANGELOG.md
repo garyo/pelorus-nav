@@ -7,6 +7,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Fixed
+- Place search works offline in downloaded chart regions, using the search
+  index saved with their charts; before, it needed an internet connection.
+
 ## [1.3.0] - 2026-11-25
 
 ### Added
