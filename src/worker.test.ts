@@ -131,3 +131,46 @@ describe("tile Range requests", () => {
     ).rejects.toBe(outage);
   });
 });
+
+describe("CSP reports", () => {
+  const report = JSON.stringify({
+    "csp-report": {
+      "effective-directive": "script-src-elem",
+      "blocked-uri": "inline",
+      "document-uri": "https://pelorus-nav.com/app",
+    },
+  });
+
+  async function postReport(putError?: Error): Promise<Response> {
+    const bucket = {
+      async put() {
+        if (putError) throw putError;
+        return null;
+      },
+    } as unknown as R2Bucket;
+    const request = new Request("https://pelorus-nav.com/api/csp-report", {
+      method: "POST",
+      headers: { "content-type": "application/csp-report" },
+      body: report,
+    });
+    const env = { TILES: bucket } as unknown as WorkerEnv;
+    return worker.fetch(request, env, {} as ExecutionContext);
+  }
+
+  it("stores a report", async () => {
+    expect((await postReport()).status).toBe(204);
+  });
+
+  it("accepts a report that lost a race to write the same record", async () => {
+    const race = new Error(
+      "put: Reduce your concurrent request rate for the same object. (10058)",
+    );
+    expect((await postReport(race)).status).toBe(204);
+  });
+
+  it("fails on other storage errors", async () => {
+    await expect(
+      postReport(new Error("put: internal (10001)")),
+    ).rejects.toThrow("10001");
+  });
+});

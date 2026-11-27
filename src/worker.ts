@@ -493,6 +493,8 @@ const CSP_REPORT_MAX_BYTES = 16_384;
 const CSP_REPORT_PREFIX = "csp-reports/";
 /** Longest value kept for any single field of a stored CSP report. */
 const CSP_FIELD_MAX_CHARS = 500;
+/** R2's error code for concurrent writes to the same object. */
+const R2_CONCURRENT_WRITE_ERROR = "(10058)";
 
 async function sha256Hex(input: string): Promise<string> {
   const digest = await crypto.subtle.digest(
@@ -569,11 +571,18 @@ async function handleCspReport(request: Request, env: Env): Promise<Response> {
   };
   const day = record.receivedAt.slice(0, 10);
   const hash = (await sha256Hex(`${directive}\n${blockedUri}`)).slice(0, 16);
-  await env.TILES.put(
-    `${CSP_REPORT_PREFIX}${day}/${hash}.json`,
-    JSON.stringify(record),
-    { httpMetadata: { contentType: "application/json" } },
-  );
+  try {
+    await env.TILES.put(
+      `${CSP_REPORT_PREFIX}${day}/${hash}.json`,
+      JSON.stringify(record),
+      { httpMetadata: { contentType: "application/json" } },
+    );
+  } catch (err) {
+    // A page load often sends several identical reports at once, and R2
+    // refuses concurrent writes to one object; the write that won stores
+    // the same record.
+    if (!String(err).includes(R2_CONCURRENT_WRITE_ERROR)) throw err;
+  }
   return new Response(null, { status: 204 });
 }
 
