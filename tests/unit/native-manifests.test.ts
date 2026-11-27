@@ -1,8 +1,9 @@
 /**
- * The .gpx file association lives entirely in the native manifests, so nothing
- * in the app fails if it goes missing — "Open with" just silently stops
- * offering Pelorus. These assertions make an accidental drop (a `cap sync`, an
- * Xcode edit, a merge) fail the build instead.
+ * Some behavior lives entirely in the native manifests, so nothing in the app
+ * fails if it goes missing: the .gpx file association ("Open with" silently
+ * stops offering Pelorus) and Android's network-state permission (the app
+ * silently believes it's always online). These assertions make an accidental
+ * drop (a `cap sync`, an Xcode edit, a merge) fail the build instead.
  */
 
 import { readFileSync } from "node:fs";
@@ -52,5 +53,11 @@ describe("AndroidManifest.xml", () => {
 
   it("matches .gpx by path for legacy file:// senders", () => {
     expect(manifest).toContain('android:pathPattern=".*\\\\.gpx"');
+  });
+
+  it("lets the WebView see connectivity changes", () => {
+    // Without it navigator.onLine stays true offline, so offline messages
+    // read as network errors and online-only checks run anyway.
+    expect(manifest).toContain("android.permission.ACCESS_NETWORK_STATE");
   });
 });

@@ -10,6 +10,9 @@ The format follows [Keep a Changelog](https://keepachangelog.com/).
 ### Fixed
 - Place search works offline in downloaded chart regions, using the search
   index saved with their charts; before, it needed an internet connection.
+- On Android, the app now notices when the device goes offline: missing
+  charts are reported as "no internet connection" rather than a network
+  problem, and update checks are skipped while offline.
 
 ## [1.3.0] - 2026-11-25
 

@@ -46,6 +46,10 @@
     <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
 
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- The WebView follows connectivity changes (navigator.onLine and the
+         online/offline events) only when the app holds this; without it the
+         app always believes it's online. Granted at install, no prompt. -->
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
 
     <!-- Auto Backup stays ON (routes/settings live in WebView storage) but
          backup_rules.xml / data_extraction_rules.xml exclude the service-
